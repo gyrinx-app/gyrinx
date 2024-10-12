@@ -1,0 +1,43 @@
+gang:
+    - name: Other
+      uuid: 6311ae17-c1ee-52b3-6e68-aaf4ad066387
+    - name: Venators
+      uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+    - name: Van Saar (HoA)
+      uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+    - name: Van Saar (GotU)
+      uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+    - name: Squat Prospectors
+      uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+    - name: Slave Ogryn
+      uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+    - name: Orlock (HoI)
+      uuid: b0d59605-130f-4844-be62-9a06dafff43d
+    - name: Orlock (GotU)
+      uuid: 9c21309c-00b6-af42-a9a1-06bda41d041c
+    - name: Goliath (HoC)
+      uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+    - name: Goliath (GotU)
+      uuid: 805587a1-c858-168c-da20-0099d043e5d5
+    - name: Genestealer Cult
+      uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+    - name: Escher (HoB)
+      uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+    - name: Escher (GotU)
+      uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+    - name: Enforcers
+      uuid: fa591b09-1011-adae-2b31-15e8ffe8bcd6
+    - name: Delaque (HoS)
+      uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+    - name: Delaque (GotU)
+      uuid: 4ece1dc3-a3d4-e032-a4cd-46968060b5ca
+    - name: Corpse Grinder Cult
+      uuid: d5bbe71e-7232-f576-b3b1-dba093655350
+    - name: Chaos Cult
+      uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+    - name: Cawdor (HoF)
+      uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+    - name: Cawdor (GotU)
+      uuid: 2a1d1911-5897-dcf1-2490-478fedcdb195
+    - name: Ash Waste Nomads
+      uuid: 783c6f5d-4862-e126-58ff-058839d7693b

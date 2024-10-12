@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "gyrinx-app.content.necromunda-2018.gang",
+    "title": "Gang",
+    "description": "A basic Gang archetype in Necromunda. These are the gangs that players can choose to play as.",
+    "type": "object",
+    "properties": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "name": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "required": ["uuid", "name"]
+}
