@@ -1,9 +1,17 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "content"
+dynamic = ["version"]
+requires-python = ">=3.12"
+dependencies = [
+    "Click",
+]
+
+[project.scripts]
+schema = "src.schema:check"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -14,3 +22,9 @@ addopts = [
 addopts = [
     "-p no:warnings"
 ]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages]
+find = {}
