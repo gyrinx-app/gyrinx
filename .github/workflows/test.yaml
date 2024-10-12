@@ -1,0 +1,47 @@
+name: Run all tests
+
+on:
+    pull_request:
+        branches: ["**"]
+    push:
+        branches:
+            - main
+
+permissions:
+    id-token: write
+    contents: read
+    pull-requests: write
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - uses: actions/cache@v2
+              id: cache-venv
+              with:
+                  path: ./.venv/
+                  key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements*.txt') }}
+                  restore-keys: |
+                      ${{ runner.os }}-venv-
+            - run: python -m venv ./.venv && . ./.venv/bin/activate &&
+                  pip install -r requirements.txt
+              if: steps.cache-venv.outputs.cache-hit != 'true'
+
+            - name: Run tests
+              run: . ./.venv/bin/activate && python -m pytest
+
+            - name: Comment on PR
+              if: ${{ github.event_name == 'pull_request' }}
+              uses: thollander/actions-comment-pull-request@v3
+              with:
+                  message: |
+                      Tests finished running.
+                      - **Status**: ${{ job.status }}
+                      - **Branch**: ${{ github.head_ref }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
