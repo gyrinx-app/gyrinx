@@ -1,0 +1,7 @@
+__pycache__/
+staticfiles/
+.env
+venv/
+.venv/
+.mypy_cache/
+.ruff_cache/
