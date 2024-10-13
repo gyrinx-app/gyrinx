@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.schema import DataSource, Schema, validate_sources
+from scripts.schema import DataSource, Schema, validate_sources
 
 
 def mk_schema(name: str, schema: dict) -> Schema:

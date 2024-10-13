@@ -16,7 +16,8 @@
                 "GitHub.copilot",
                 "sleistner.vscode-fileutils",
                 "ms-toolsai.jupyter",
-                "esbenp.prettier-vscode"
+                "esbenp.prettier-vscode",
+                "tamasfe.even-better-toml"
             ]
         }
     },

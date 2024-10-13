@@ -8,20 +8,13 @@ dynamic = ["version", "dependencies"]
 requires-python = ">=3.12"
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = { file = ["requirements.txt"] }
 
 [project.scripts]
-schema = "src.schema:check"
+schema = "scripts.schema:check"
 
 [tool.pytest.ini_options]
-addopts = [
-    "--import-mode=importlib",
-]
-
-[pytest]
-addopts = [
-    "-p no:warnings"
-]
+addopts = "--import-mode=importlib -p no:warnings"
 
 [tool.setuptools.packages]
 find = {}
