@@ -4,8 +4,7 @@ on:
     pull_request:
         branches: ["**"]
     push:
-        branches:
-            - main
+        branches: ["**"]
 
 permissions:
     id-token: write
@@ -29,7 +28,8 @@ jobs:
                   key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements*.txt') }}
                   restore-keys: |
                       ${{ runner.os }}-venv-
-            - run: python -m venv ./.venv && . ./.venv/bin/activate &&
+            - run: |
+                  python -m venv ./.venv && . ./.venv/bin/activate && \
                   pip install -r requirements.txt
               if: steps.cache-venv.outputs.cache-hit != 'true'
 
@@ -37,7 +37,9 @@ jobs:
               run: . ./.venv/bin/activate && python -m pytest
 
             - name: Run schema & data validation
-              run: . ./.venv/bin/activate && pip install --editable . && schema
+              run: |
+                  . ./.venv/bin/activate && pip install --editable . && \
+                  schema | tee schema.log
 
             - name: Comment on PR
               if: ${{ github.event_name == 'pull_request' }}
