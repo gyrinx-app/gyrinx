@@ -9,6 +9,12 @@ repos:
             language: script
             pass_filenames: false
             always_run: true
+          - id: schema
+            name: schema
+            entry: .venv/bin/schema
+            language: script
+            pass_filenames: false
+            always_run: true
 
     - repo: https://github.com/kynan/nbstripout
       rev: 0.7.1
