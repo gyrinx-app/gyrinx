@@ -4,7 +4,10 @@
         "cpus": 4
     },
     "waitFor": "onCreateCommand",
-    "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable .",
+    "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
+    "postAttachCommand": {
+        "server": ". .venv/bin/activate && manage runserver"
+    },
     "customizations": {
         "codespaces": {
             "openFiles": []
@@ -21,6 +24,11 @@
             ]
         }
     },
-    "portsAttributes": {},
-    "forwardPorts": []
+    "portsAttributes": {
+        "8000": {
+            "label": "Application",
+            "onAutoForward": "openBrowser"
+        }
+    },
+    "forwardPorts": [8000]
 }

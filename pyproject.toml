@@ -12,6 +12,7 @@ dependencies = { file = ["requirements.txt"] }
 
 [project.scripts]
 schema = "scripts.schema:check"
+manage = "scripts.manage:main"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib -p no:warnings"
