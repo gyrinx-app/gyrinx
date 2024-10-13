@@ -35,6 +35,16 @@ The `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so 
 manage shell
 ```
 
+## Getting content into gyrinx
+
+_Note: this is TODO!_
+
+The content library has a non-technical-user-friendly-ish (room for improvement here) static data structure that will be infrequently updated by contributors. Gyrinx is a live application with a running database. How do we connect these two?
+
+-   The Django `manage gyriximport` command ingests the content library, transforms it, and writes it to the (production, staging...) database
+-   It uses the current git sha, branch and tags to annotate the data with a version
+-   The app can then be updated to enable the new content version
+
 # Development
 
 ## Setup
