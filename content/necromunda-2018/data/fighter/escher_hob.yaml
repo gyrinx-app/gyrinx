@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 115
       equipment: []
       skills: []
@@ -23,10 +20,7 @@ archetype:
       type: Deathmaiden
       uuid: ff9a49cf-60c1-a10d-3a45-3cf541426043
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 20
       equipment: []
       skills: []
@@ -46,10 +40,7 @@ archetype:
       type: Little Sister
       uuid: 9ee40c29-e115-bed0-d140-bf3be9f30212
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 100
       equipment: []
       skills: []
@@ -69,10 +60,7 @@ archetype:
       type: Matriarch
       uuid: c5e2a8b5-af36-524e-9444-95a19a5f0a13
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 125
       equipment: []
       skills: []
@@ -92,10 +80,7 @@ archetype:
       type: Queen
       uuid: 2c2d2c02-9116-3b07-7a37-2c2a9c5a6eda
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 50
       equipment: []
       skills: []
@@ -115,10 +100,7 @@ archetype:
       type: Sister
       uuid: 19cda373-69e2-d201-5e66-b9d478ffbe15
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 50
       equipment: []
       skills: []
@@ -138,10 +120,7 @@ archetype:
       type: Sister (Specialist)
       uuid: 10f93efd-4619-95f8-ca40-8d9eeb53f5d3
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+          name: None
       cost: 45
       equipment: []
       skills: []

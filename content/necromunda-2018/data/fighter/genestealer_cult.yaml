@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 95
       equipment: []
       skills:
@@ -24,10 +21,7 @@ archetype:
       type: Aberrant
       uuid: cd0ccfe5-109e-4275-ee25-edaa0e0a4a7f
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 95
       equipment: []
       skills:
@@ -48,10 +42,7 @@ archetype:
       type: Aberrant Specialist
       uuid: 90122127-92ea-57c2-7490-98cef8ef0143
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 120
       equipment: []
       skills: []
@@ -71,10 +62,7 @@ archetype:
       type: Cult Adept
       uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 120
       equipment: []
       skills: []
@@ -94,10 +82,7 @@ archetype:
       type: Cult Adept
       uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 145
       equipment:
           - qty: 1
@@ -123,10 +108,7 @@ archetype:
       type: Cult Alpha
       uuid: 40e5127b-2fb6-f2e5-e343-eee5155a93e4
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 85
       equipment:
           - qty: 1
@@ -149,10 +131,7 @@ archetype:
       type: Hybrid Acolyte
       uuid: 59305523-0e68-ca70-d603-556beafff91e
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 130
       equipment:
           - qty: 1
@@ -178,10 +157,7 @@ archetype:
       type: Hybrid Acolyte Early Gen
       uuid: f1046650-a0ce-1b9a-e8e9-4d468556e70c
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 90
       equipment:
           - qty: 1
@@ -207,10 +183,7 @@ archetype:
       type: Neophyte Early Gen
       uuid: 72e819dd-a0b5-9c43-bcf1-0b003a14db62
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 45
       equipment:
           - qty: 1
@@ -233,10 +206,7 @@ archetype:
       type: Neophyte Hybrid
       uuid: fc6a882e-ff69-36a3-662a-880dea2043c6
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+          name: None
       cost: 45
       equipment:
           - qty: 1

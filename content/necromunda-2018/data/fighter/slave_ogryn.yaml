@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+          name: None
       cost: 70
       equipment: []
       skills: []
@@ -23,10 +20,7 @@ archetype:
       type: Lobo-Slave
       uuid: 2f71273c-93bd-f48d-fec9-e5d132d3fc2d
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+          name: None
       cost: 90
       equipment: []
       skills: []
@@ -46,10 +40,7 @@ archetype:
       type: Ogryn
       uuid: 9924f775-d71f-726f-06b3-2973438cacb5
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+          name: None
       cost: 145
       equipment: []
       skills: []
@@ -69,10 +60,7 @@ archetype:
       type: Overboss
       uuid: aef521b4-8b51-dc7e-f301-d3a1e1ba8ed6
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+          name: None
       cost: 110
       equipment: []
       skills: []

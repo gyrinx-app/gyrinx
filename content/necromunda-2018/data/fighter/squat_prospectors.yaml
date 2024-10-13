@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 115
       equipment: []
       skills: []
@@ -23,10 +20,7 @@ archetype:
       type: Charter Master
       uuid: 849594af-159f-fbc1-0678-d04993bd3bd4
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 85
       equipment: []
       skills: []
@@ -46,10 +40,7 @@ archetype:
       type: Drill Master
       uuid: 6ae8bf6d-2c17-2820-2466-3290c56ac228
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 50
       equipment: []
       skills: []
@@ -69,10 +60,7 @@ archetype:
       type: Drill-kyn
       uuid: 86feb15e-07d1-4e41-d4e9-5c5ab3680750
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 50
       equipment: []
       skills: []
@@ -92,10 +80,7 @@ archetype:
       type: Drill-kyn Specialist
       uuid: 77f5cd1f-5d55-7354-67ef-b295a8607803
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 40
       equipment: []
       skills: []
@@ -115,10 +100,7 @@ archetype:
       type: Gearhead
       uuid: 12cadfd8-a7c4-e9e0-6069-c6e47a6d2693
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+          name: None
       cost: 35
       equipment: []
       skills: []

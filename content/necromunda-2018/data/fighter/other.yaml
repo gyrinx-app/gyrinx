@@ -1,6 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 30
       equipment:
           - qty: 1
@@ -24,7 +24,7 @@ archetype:
       type: "'Narker"
       uuid: a7f7667c-782a-a577-da14-e2aa2535ac20
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 215
       equipment:
           - qty: 1
@@ -50,7 +50,7 @@ archetype:
       type: Ambot
       uuid: 872942a9-8bab-2d1f-41c8-368c25b9a9f5
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -74,7 +74,7 @@ archetype:
       type: Ammo-Jack
       uuid: 4125bc62-1af2-ff56-bf32-adb54badd561
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 210
       equipment:
           - qty: 1
@@ -101,7 +101,7 @@ archetype:
       type: Arthromite Duneskuttler
       uuid: 0395d85a-f83b-b713-48c6-a15f28c00ddf
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 40
       equipment:
           - qty: 1
@@ -215,7 +215,7 @@ archetype:
       type: Bounty Hunter M5
       uuid: 30b7a4ba-6e6a-1cc6-13c7-434369b81351
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 55
       equipment:
           - qty: 1
@@ -239,7 +239,7 @@ archetype:
       type: Brute Handler
       uuid: aacca734-6989-7f0c-0884-4a67c0b90a20
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 75
       equipment: []
       skills:
@@ -260,7 +260,7 @@ archetype:
       type: Bullet Merchant
       uuid: 090fa70c-143c-3995-57aa-450e02485022
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 20
       equipment:
           - qty: 1
@@ -284,7 +284,7 @@ archetype:
       type: Cadaver Merchant
       uuid: 550d0f0b-c0dd-8605-fc57-ace7a46f563f
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -304,7 +304,7 @@ archetype:
       type: Caryatid
       uuid: e33acba4-44de-55d8-2b4b-b72d9c126943
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 240
       equipment:
           - qty: 1
@@ -330,7 +330,7 @@ archetype:
       type: Cawdor Stig-Shambler
       uuid: b7cef4d7-89f6-3a56-7f28-610017d4f081
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -353,7 +353,7 @@ archetype:
       type: Cephalopod Spekter
       uuid: 951e78f5-fb8d-45d0-1359-0124e3260135
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -373,7 +373,7 @@ archetype:
       type: Chaos Familiar
       uuid: 87f599b6-71a1-748a-a219-e221a4a6a458
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -397,7 +397,7 @@ archetype:
       type: Chem Dealer
       uuid: 6c90d220-ab45-e0da-3faf-d03aefce6dfc
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -417,7 +417,7 @@ archetype:
       type: Cherub Servitor
       uuid: 15209edd-4906-1c76-9e1d-11d458fb76d5
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -440,7 +440,7 @@ archetype:
       type: Cyber-mastiff
       uuid: 860ff071-e6f1-dcaf-1186-24531664f9dd
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -466,7 +466,7 @@ archetype:
       type: Cyberachnid
       uuid: 676a6cb9-e8e3-75ad-7cbc-0e7735ef48b3
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 20
       equipment: []
       skills:
@@ -487,7 +487,7 @@ archetype:
       type: Data-scrivener
       uuid: 3d25e0b6-43dd-2175-a000-cd9c7e849a42
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 20
       equipment: []
       skills:
@@ -508,7 +508,7 @@ archetype:
       type: Dome Runner
       uuid: 6428eff1-421b-3697-42ab-c8d11f75d4e7
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 220
       equipment:
           - qty: 1
@@ -535,7 +535,7 @@ archetype:
       type: Escher Khimerix
       uuid: fbef9152-9d26-d086-ae39-76fcaa458638
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -562,7 +562,7 @@ archetype:
       type: Fixer
       uuid: 3b67ef21-031f-b06e-d986-fbe9d44afb83
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 20
       equipment: []
       skills:
@@ -583,7 +583,7 @@ archetype:
       type: Gang Lookout
       uuid: 0507e843-f76d-059e-6ff1-960d21480f6d
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -603,7 +603,7 @@ archetype:
       type: Giant Rat
       uuid: 7a6f909d-2fff-b81d-1a17-e4f989715aac
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 210
       equipment:
           - qty: 1
@@ -627,7 +627,7 @@ archetype:
       type: Goliath 'Zerker
       uuid: a7b8a7f6-83a1-ed5e-bfb6-c41d97bd81a2
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -670,7 +670,7 @@ archetype:
       type: Guild of Coin Haulier
       uuid: befb6cee-bc54-5a7b-4563-216a7d5e8659
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -693,7 +693,7 @@ archetype:
       type: Gyrinx Cat
       uuid: 8358b295-761f-acaf-6079-81504d7918f6
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -716,7 +716,7 @@ archetype:
       type: Hacked Cyber-Mastiff
       uuid: b61ddaac-b1e3-b2dd-b101-76fd3b6ef815
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -740,7 +740,7 @@ archetype:
       type: Hardcase Cyber-Mastiff
       uuid: 396b4468-403a-ef05-c783-702347d24c2c
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 40
       equipment:
           - qty: 1
@@ -790,7 +790,7 @@ archetype:
       type: Hive Scum
       uuid: 43741430-e674-e993-64e1-451a27fe293a
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 0
       equipment: []
       skills: []
@@ -810,7 +810,7 @@ archetype:
       type: House Agent 1
       uuid: b16097e8-7f5c-7858-3b6a-7d68b5de495a
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 0
       equipment: []
       skills: []
@@ -830,7 +830,7 @@ archetype:
       type: House Agent 2
       uuid: 03e75340-3a7a-6978-6b4c-97c8d7d96883
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 0
       equipment: []
       skills: []
@@ -850,7 +850,7 @@ archetype:
       type: House Agent 3
       uuid: ea707cdf-fd6a-397e-26d2-94371f5fbb9d
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -876,7 +876,7 @@ archetype:
       type: Iron Automata
       uuid: bef35d2f-0719-9a7c-be05-40c35f1d41b7
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 210
       equipment:
           - qty: 1
@@ -899,7 +899,7 @@ archetype:
       type: Mutated Ogryn
       uuid: 073a9323-394c-27e4-1efa-8e204f5e218d
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 230
       equipment:
           - qty: 1
@@ -928,7 +928,7 @@ archetype:
       type: Orlock Cargo Servitor
       uuid: c8e4ca04-875d-7b5e-3563-03f8a85257d2
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -948,7 +948,7 @@ archetype:
       type: Phelynx
       uuid: 4cbe6a4a-205d-e143-5d71-9c101657e5a8
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -971,7 +971,7 @@ archetype:
       type: Phyrr Cat
       uuid: 1c2f8ca5-cc9b-6719-13a2-51d76d35eee8
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 30
       equipment:
           - qty: 1
@@ -998,7 +998,7 @@ archetype:
       type: Propagandist
       uuid: 0b533d41-f8da-b66f-562a-a44201dad638
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 25
       equipment:
           - qty: 1
@@ -1025,7 +1025,7 @@ archetype:
       type: Proxy
       uuid: f56ec2ab-97d6-0483-2d90-f6394e3f341f
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment: []
       skills: []
@@ -1045,7 +1045,7 @@ archetype:
       type: Psychic Familiar
       uuid: d28835e6-e7b4-35c5-d49c-f1f7aaeb002c
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -1068,7 +1068,7 @@ archetype:
       type: Psychoteric Wyrm
       uuid: 7080c3cf-f037-abdc-40c7-0dcf312f325b
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -1092,7 +1092,7 @@ archetype:
       type: Rogue Doc
       uuid: 275a0d17-66f2-e5e1-2975-fc0d88819165
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 40
       equipment:
           - qty: 1
@@ -1116,7 +1116,7 @@ archetype:
       type: Scabber
       uuid: e01d8b0a-5683-1ca7-44ba-f648ed9c32bf
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 220
       equipment:
           - qty: 1
@@ -1162,7 +1162,7 @@ archetype:
       type: Scum Racer
       uuid: 5eeec632-b526-0850-f33c-5ffe50f5d266
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 210
       equipment:
           - qty: 1
@@ -1186,7 +1186,7 @@ archetype:
       type: Servitor Ogryn
       uuid: ff699df5-4223-b1a2-4301-8f30e00f02b4
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -1209,7 +1209,7 @@ archetype:
       type: Sheen Bird
       uuid: c9a33166-e7d2-e672-295c-24fc7f3724ca
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 20
       equipment: []
       skills: []
@@ -1229,7 +1229,7 @@ archetype:
       type: Slopper
       uuid: f90eb829-d790-8cc1-acf0-7989225746dc
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 190
       equipment: []
       skills: []
@@ -1249,7 +1249,7 @@ archetype:
       type: Spyker Brute
       uuid: b5822ae9-4e22-8dd5-7df0-4307881efeb7
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 200
       equipment:
           - qty: 1
@@ -1272,7 +1272,7 @@ archetype:
       type: Sump Beast M3
       uuid: 89192b02-2eae-dc50-fe77-308d08135b2f
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 200
       equipment:
           - qty: 1
@@ -1295,7 +1295,7 @@ archetype:
       type: Sump Beast M4
       uuid: eac84353-855c-5348-ed69-a23ebd04da52
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 200
       equipment:
           - qty: 1
@@ -1318,7 +1318,7 @@ archetype:
       type: Sump Beast M5
       uuid: 27207f6a-e678-6899-e3dd-10b3b9828011
     - category:
-          name: Exotic Pets
+          name: Exotic Beast
       cost: 0
       equipment:
           - qty: 1
@@ -1341,7 +1341,7 @@ archetype:
       type: Sumpkroc
       uuid: ede760b0-86a4-e99d-7286-cd72758b9420
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 80
       equipment: []
       skills:
@@ -1362,7 +1362,7 @@ archetype:
       type: Tech-merchant
       uuid: bf794892-532b-081e-639a-dc5b4a419633
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -1386,7 +1386,7 @@ archetype:
       type: Trader - Beastwrangler
       uuid: 477da035-bdc7-6c40-aa4b-faa79fc534fd
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -1410,7 +1410,7 @@ archetype:
       type: Trader - Connected
       uuid: 7120b0e1-a6bb-5cf0-7ab5-bc5dd86ee10d
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -1440,7 +1440,7 @@ archetype:
       type: Trader - Gun-smyth
       uuid: 566a78cd-1984-a7b3-5922-d698610306cf
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 50
       equipment:
           - qty: 1
@@ -1464,7 +1464,7 @@ archetype:
       type: Trader - Relicmonger
       uuid: bebd0a1b-4f65-0da2-3274-25065479a7a1
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 240
       equipment:
           - qty: 1
@@ -1493,7 +1493,7 @@ archetype:
       type: Van Saar Arachni-Rig Servo-Suit
       uuid: c8c149ce-b71c-6eb4-725f-fabcb305d1fd
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 250
       equipment: []
       skills:
@@ -1514,7 +1514,7 @@ archetype:
       type: Vartijan Exo-Driller
       uuid: 3bb17fff-cbe2-329c-eb41-202f407d0d65
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 210
       equipment:
           - qty: 1
@@ -1538,7 +1538,7 @@ archetype:
       type: Warp Horror
       uuid: 2fe22466-7720-7453-a8e9-e6bd0b3a22f5
     - category:
-          name: Hanger On
+          name: Hanger-on
       cost: 60
       equipment:
           - qty: 1

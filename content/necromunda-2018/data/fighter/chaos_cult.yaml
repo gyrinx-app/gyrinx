@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 130
       equipment: []
       skills: []
@@ -23,10 +20,7 @@ archetype:
       type: Chaos Spawn
       uuid: 69b103dc-3237-6ebe-35ad-224b77dd489e
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 100
       equipment: []
       skills: []
@@ -46,10 +40,7 @@ archetype:
       type: Demagogue
       uuid: eb94c3ea-501b-f2ed-fecf-34a33b241bb6
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 60
       equipment: []
       skills: []
@@ -69,10 +60,7 @@ archetype:
       type: Disciple
       uuid: 63c69219-1aa0-84ce-3b9a-5b29ce2e12a1
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 35
       equipment: []
       skills: []
@@ -92,10 +80,7 @@ archetype:
       type: Helot Cultist
       uuid: e209711b-d528-da48-b721-16e5008ffa17
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 35
       equipment: []
       skills: []
@@ -115,10 +100,7 @@ archetype:
       type: Helot Cultist Specialist
       uuid: 440a9c36-fcbe-71f1-920c-2d70f2e861f0
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 712637fc-126e-de3f-9af7-57bec7e24e62
+          name: None
       cost: 70
       equipment: []
       skills: []

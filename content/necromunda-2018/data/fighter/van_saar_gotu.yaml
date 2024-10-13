@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+          name: None
       cost: 110
       equipment:
           - qty: 1
@@ -26,10 +23,7 @@ archetype:
       type: Champion
       uuid: 3c189716-05b1-367c-3d2e-d6fda74be164
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+          name: None
       cost: 65
       equipment:
           - qty: 1
@@ -52,10 +46,7 @@ archetype:
       type: Ganger
       uuid: 5e211ac8-45e2-bb9d-4f72-6311589e1596
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+          name: None
       cost: 35
       equipment:
           - qty: 1
@@ -78,10 +69,7 @@ archetype:
       type: Juve
       uuid: 3010b208-4222-1a07-f147-c57d148eb47d
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+          name: None
       cost: 130
       equipment:
           - qty: 1
@@ -104,10 +92,7 @@ archetype:
       type: Leader
       uuid: 5158a250-e30f-1fb4-415d-86ded2c8e0c5
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: f379eb36-120f-28ee-4307-73b878a5b04a
+          name: None
       cost: 65
       equipment:
           - qty: 1

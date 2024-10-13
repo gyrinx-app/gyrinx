@@ -1,9 +1,6 @@
-archetype:
+fighter:
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 120
       equipment:
           - qty: 1
@@ -29,10 +26,7 @@ archetype:
       type: Kha'tragi Chieftain
       uuid: 0a21a2ba-ae5c-595a-7a63-524bad3f768a
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 100
       equipment:
           - qty: 1
@@ -58,10 +52,7 @@ archetype:
       type: Naku'taari Watcher
       uuid: 2c345163-630f-91e1-1433-f59f725bd677
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 35
       equipment:
           - qty: 1
@@ -87,10 +78,7 @@ archetype:
       type: Run'Taani Dust Runner
       uuid: f347315d-03b2-2eaf-4191-b1dda22d3c40
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 80
       equipment:
           - qty: 1
@@ -116,10 +104,7 @@ archetype:
       type: Tarh'noki Dust Rider
       uuid: e974fc79-8f22-4188-383b-f2fd822b0f00
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 60
       equipment:
           - qty: 1
@@ -145,10 +130,7 @@ archetype:
       type: Tarn'Runi Warrior
       uuid: 60a40e9b-67b2-c53d-2d33-45858dbd5d93
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 60
       equipment:
           - qty: 1
@@ -174,10 +156,7 @@ archetype:
       type: Tarn'Runi Warrior Specialist
       uuid: 584c7128-135b-1383-8875-03a1381512bc
     - category:
-          name: Gang
-          relation:
-              schema: gang
-              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+          name: None
       cost: 120
       equipment:
           - qty: 1

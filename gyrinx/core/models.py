@@ -19,7 +19,6 @@ class Content(Base):
         abstract = True
 
 
-# TODO: Rename the underlying data here to house
 class House(Content):
     class HouseNameChoices(models.TextChoices):
         VENATORS = "VENATORS", "Venators"
@@ -76,7 +75,6 @@ class Category(Content):
         return self.name
 
 
-# TODO: Rename the underlying data here to Fighter
 class Fighter(Content):
     type = models.CharField(max_length=255)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)

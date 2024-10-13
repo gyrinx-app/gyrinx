@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.archetype",
-    "title": "Archetype",
+    "$id": "urn:gyrinx.schema.necromunda-2018.fighter",
+    "title": "Fighter",
     "description": "Fighter archetypes that make up gang membership in Necromunda.",
     "type": "object",
     "properties": {
@@ -13,28 +13,10 @@
             "type": "string"
         },
         "category": {
-            "oneOf": [
-                {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "const": "Gang"
-                        },
-                        "relation": {
-                            "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
-                        }
-                    },
-                    "required": ["name", "relation"]
-                },
-                {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "enum": ["Hanger On", "Exotic Pets", "Hired Gun"]
-                        }
-                    }
-                }
-            ]
+            "$ref": "urn:gyrinx.schema.necromunda-2018.category"
+        },
+        "house": {
+            "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
         },
         "cost": {
             "type": "integer"
@@ -123,20 +105,5 @@
         "equipment",
         "skills",
         "stats"
-    ],
-    "$defs": {
-        "relation": {
-            "type": "object",
-            "properties": {
-                "schema": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            },
-            "required": ["uuid"]
-        }
-    }
+    ]
 }
