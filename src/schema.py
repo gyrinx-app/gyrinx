@@ -109,6 +109,9 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
         for src in data:
             try:
                 jsonschema.validate(src.data, list_of(schema.schema))
+                # TODO: detect duplicate uuids across sources
+                # TODO: check the shema ID is correct
+                # TODO: check the schema title and description
                 valid.append(src)
             except jsonschema.exceptions.ValidationError as e:
                 invalid.append(src)
