@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "gyrinx-app.content.necromunda-2018.injury",
+    "$id": "urn:gyrinx.schema.necromunda-2018.injury",
     "title": "Injury",
     "description": "Injuries that can be acquired by fighters in Necromunda.",
     "type": "object",

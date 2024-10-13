@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "gyrinx-app.content.necromunda-2018.equipment",
+    "$id": "urn:gyrinx.schema.necromunda-2018.equipment",
     "title": "Equipment",
     "description": "The equipment that can be used by fighters in Necromunda.",
     "type": "object",

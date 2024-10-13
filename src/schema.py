@@ -7,6 +7,7 @@ import click
 import jsonschema
 import jsonschema.protocols
 import yaml
+from referencing import Registry, Resource
 
 
 @dataclass
@@ -101,6 +102,9 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
                     f"Missing schema for data source: {src.name} (from {src.path})"
                 )
 
+    contents = [Resource.from_contents(schema.schema) for schema in schemas.values()]
+    registry = Registry().with_resources([(c.id(), c) for c in contents]).crawl()
+
     for schema in schemas.values():
         click.echo(f"Validating {schema.name} schema (from {schema.path})...")
 
@@ -108,9 +112,9 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
 
         for src in data:
             try:
-                jsonschema.validate(src.data, list_of(schema.schema))
+                jsonschema.validate(src.data, list_of(schema.schema), registry=registry)
                 # TODO: detect duplicate uuids across sources
-                # TODO: check the shema ID is correct
+                # TODO: check the schema ID is correct
                 # TODO: check the schema title and description
                 valid.append(src)
             except jsonschema.exceptions.ValidationError as e:

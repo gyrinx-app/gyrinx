@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "gyrinx-app.content.necromunda-2018.archetype",
+    "$id": "urn:gyrinx.schema.necromunda-2018.archetype",
     "title": "Archetype",
     "description": "Fighter archetypes that make up gang membership in Necromunda.",
     "type": "object",
@@ -21,7 +21,7 @@
                             "const": "Gang"
                         },
                         "relation": {
-                            "$ref": "#/$defs/relation"
+                            "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
                         }
                     },
                     "required": ["name", "relation"]
@@ -45,7 +45,7 @@
                 "type": "object",
                 "properties": {
                     "relation": {
-                        "$ref": "#/$defs/relation"
+                        "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
                     },
                     "qty": {
                         "type": "integer"
@@ -57,7 +57,7 @@
         "skills": {
             "type": "array",
             "items": {
-                "$ref": "#/$defs/relation"
+                "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
             }
         },
         "stats": {
