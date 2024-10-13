@@ -1,0 +1,128 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+      cost: 95
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 7
+          i: 2
+          int: 6
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Champion
+      uuid: 3c189716-05b1-367c-3d2e-d6fda74be164
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 3
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Ganger
+      uuid: 5e211ac8-45e2-bb9d-4f72-6311589e1596
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+      cost: 20
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 9
+          i: 2
+          int: 8
+          ld: 8
+          m: 6
+          s: 2
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Juve
+      uuid: 3010b208-4222-1a07-f147-c57d148eb47d
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+      cost: 120
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
+      skills: []
+      stats:
+          a: 3
+          bs: 3
+          cl: 6
+          i: 2
+          int: 7
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Leader
+      uuid: 5158a250-e30f-1fb4-415d-86ded2c8e0c5
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 2e5fd874-733f-3689-6240-e59e715d215c
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 3
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Specialist
+      uuid: d7afcfbf-45aa-ca71-c6e4-b52eb7245b68

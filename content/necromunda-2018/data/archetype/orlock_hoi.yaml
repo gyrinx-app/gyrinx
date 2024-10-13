@@ -1,0 +1,188 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 95
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Arms Master
+      uuid: 2aa3b14e-1c94-e5ff-e942-f763bd05a2fb
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 3
+          int: 8
+          ld: 7
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Greenhorn
+      uuid: 10db3c8d-5f48-d25e-0769-372cb464a14d
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 45
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Gunner
+      uuid: 67bd5670-04d4-378e-2a04-e52dae547490
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 45
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Gunner Specialist
+      uuid: aa6ae3a7-8afd-8f7b-258f-5f1a82b248d5
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 0
+          bs: 4
+          cl: 6
+          i: 0
+          int: 7
+          ld: 6
+          m: 0
+          s: 0
+          t: 0
+          w: 0
+          wil: 7
+          ws: 0
+      type: Iron Rider
+      uuid: 68ba5011-4c75-cbbb-91ee-4aab24706b0d
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 105
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 5
+          i: 4
+          int: 5
+          ld: 4
+          m: 5
+          s: 3
+          t: 3
+          w: 3
+          wil: 5
+          ws: 3
+      type: Road Captain
+      uuid: b06c7478-dafb-e062-b2d4-e082ef855fdc
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 80
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 4
+      type: Road Sergeant
+      uuid: 1b034041-7a93-c8bc-d490-3b3f6ee8b435
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: b0d59605-130f-4844-be62-9a06dafff43d
+      cost: 55
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 87938645-d69a-4431-9f71-355feef4a907
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 3
+          int: 8
+          ld: 9
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Wrecker
+      uuid: 9893575b-b986-14a3-7b42-404ecdc61884

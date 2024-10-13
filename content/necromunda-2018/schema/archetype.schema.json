@@ -1,0 +1,142 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "gyrinx-app.content.necromunda-2018.archetype",
+    "title": "Archetype",
+    "description": "Fighter archetypes that make up gang membership in Necromunda.",
+    "type": "object",
+    "properties": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "type": {
+            "type": "string"
+        },
+        "category": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "const": "Gang"
+                        },
+                        "relation": {
+                            "$ref": "#/$defs/relation"
+                        }
+                    },
+                    "required": ["name", "relation"]
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "enum": ["Hanger On", "Exotic Pets", "Hired Gun"]
+                        }
+                    }
+                }
+            ]
+        },
+        "cost": {
+            "type": "integer"
+        },
+        "equipment": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "relation": {
+                        "$ref": "#/$defs/relation"
+                    },
+                    "qty": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["relation", "qty"]
+            }
+        },
+        "skills": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/relation"
+            }
+        },
+        "stats": {
+            "type": "object",
+            "properties": {
+                "a": {
+                    "type": "integer",
+                    "description": "Attacks stat."
+                },
+                "bs": {
+                    "type": "integer",
+                    "description": "Ballistic Skill stat."
+                },
+                "cl": {
+                    "type": "integer",
+                    "description": "Cool stat."
+                },
+                "i": {
+                    "type": "integer",
+                    "description": "Initiative stat."
+                },
+                "int": {
+                    "type": "integer",
+                    "description": "Intelligence stat."
+                },
+                "ld": {
+                    "type": "integer",
+                    "description": "Leadership stat."
+                },
+                "m": {
+                    "type": "integer",
+                    "description": "Movement stat."
+                },
+                "s": {
+                    "type": "integer",
+                    "description": "Strength stat."
+                },
+                "t": {
+                    "type": "integer",
+                    "description": "Toughness stat."
+                },
+                "w": {
+                    "type": "integer",
+                    "description": "Wounds stat."
+                },
+                "wil": {
+                    "type": "integer",
+                    "description": "Willpower stat."
+                },
+                "ws": {
+                    "type": "integer",
+                    "description": "Weapon Skill stat."
+                }
+            }
+        }
+    },
+    "additionalProperties": false,
+    "required": [
+        "uuid",
+        "type",
+        "category",
+        "cost",
+        "equipment",
+        "skills",
+        "stats"
+    ],
+    "$defs": {
+        "relation": {
+            "type": "object",
+            "properties": {
+                "schema": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            },
+            "required": ["uuid"]
+        }
+    }
+}

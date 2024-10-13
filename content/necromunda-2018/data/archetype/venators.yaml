@@ -1,0 +1,369 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 7
+          ws: 4
+      type: Hunt Champion 1
+      uuid: 11b25af9-e26e-eae7-6d06-2e32fa3a3fc3
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 5
+          int: 5
+          ld: 6
+          m: 3
+          s: 3
+          t: 4
+          w: 2
+          wil: 6
+          ws: 4
+      type: Hunt Champion 2
+      uuid: f8860d56-5a21-94c7-d168-95226cd7db46
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 5
+          i: 5
+          int: 8
+          ld: 7
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 8
+          ws: 3
+      type: Hunt Champion 3
+      uuid: 9b3686f8-ac73-6cee-368d-16c014e80358
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 2
+          cl: 6
+          i: 4
+          int: 6
+          ld: 6
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 5
+      type: Hunt Champion 4
+      uuid: a88e2cfd-42e8-aff4-fb47-eaf2d381274e
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 3
+          int: 6
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Hunt Leader 1
+      uuid: e0ad2cd9-3ff6-2544-434c-2e3746a1527a
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 5
+          int: 5
+          ld: 6
+          m: 3
+          s: 3
+          t: 4
+          w: 2
+          wil: 5
+          ws: 3
+      type: Hunt Leader 2
+      uuid: 885277d4-d77c-ac48-f37f-f33aa306ff33
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 5
+          i: 4
+          int: 9
+          ld: 7
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 8
+          ws: 3
+      type: Hunt Leader 3
+      uuid: 23b7f946-63d5-1220-cbed-8d7c1f4e73b3
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 2
+          cl: 5
+          i: 3
+          int: 5
+          ld: 5
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 4
+      type: Hunt Leader 4
+      uuid: f56da1a0-36fe-16eb-1c3d-af76a6a6b40b
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Hunter 1
+      uuid: 4628fda6-2ce4-c786-5fa5-c5904e3dd017
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Hunter 1 Specialist
+      uuid: eb8a0660-782d-1b3c-9678-2ccb0c461a91
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 6
+          ld: 6
+          m: 3
+          s: 3
+          t: 4
+          w: 1
+          wil: 7
+          ws: 4
+      type: Hunter 2
+      uuid: bf3727e0-7c93-bc8d-5874-5e277c93b792
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 6
+          ld: 6
+          m: 3
+          s: 3
+          t: 4
+          w: 1
+          wil: 7
+          ws: 4
+      type: Hunter 2 Specialist
+      uuid: 62f67887-a6b3-b2bb-7c61-5adef991a435
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 9
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 8
+          ws: 3
+      type: Hunter 3
+      uuid: 9d2e4ec9-1186-8175-cbf7-63763e7e5820
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 9
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 8
+          ws: 3
+      type: Hunter 3 Specialist
+      uuid: e5cbcdaa-9e77-1ca3-de98-0d2c0e5014b3
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 6
+          i: 4
+          int: 7
+          ld: 6
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 5
+      type: Hunter 4
+      uuid: 8fb27cc6-ef6c-9382-9d32-bc86378d3ab3
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 670a675c-5a1f-baa2-4986-bd658fb480c8
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 6
+          i: 4
+          int: 7
+          ld: 6
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 5
+      type: Hunter 4 Specialist
+      uuid: 2f9f67c6-af7b-1296-420f-32b7aa76a697

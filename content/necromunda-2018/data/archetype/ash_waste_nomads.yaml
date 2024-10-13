@@ -1,0 +1,204 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 120
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 3
+          int: 6
+          ld: 5
+          m: 6
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Kha'tragi Chieftain
+      uuid: 0a21a2ba-ae5c-595a-7a63-524bad3f768a
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 100
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 3
+          int: 7
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 7
+          ws: 4
+      type: Naku'taari Watcher
+      uuid: 2c345163-630f-91e1-1433-f59f725bd677
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 35
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 3
+          int: 9
+          ld: 9
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Run'Taani Dust Runner
+      uuid: f347315d-03b2-2eaf-4191-b1dda22d3c40
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 80
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: 434a9cf4-4dd7-e614-28e1-8f1810bcd580
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 7
+          i: 3
+          int: 9
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Tarh'noki Dust Rider
+      uuid: e974fc79-8f22-4188-383b-f2fd822b0f00
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 60
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 3
+          int: 8
+          ld: 7
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Tarn'Runi Warrior
+      uuid: 60a40e9b-67b2-c53d-2d33-45858dbd5d93
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 60
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 3
+          int: 8
+          ld: 7
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Tarn'Runi Warrior Specialist
+      uuid: 584c7128-135b-1383-8875-03a1381512bc
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 783c6f5d-4862-e126-58ff-058839d7693b
+      cost: 120
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: 434a9cf4-4dd7-e614-28e1-8f1810bcd580
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 3
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Wy'tari Stormcaller
+      uuid: 6ca132e5-c509-c8ad-cfd4-52b3ab14a94a

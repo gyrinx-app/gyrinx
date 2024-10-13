@@ -1,0 +1,183 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 125
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 2
+          bs: 2
+          cl: 6
+          i: 5
+          int: 5
+          ld: 4
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 4
+      type: Archeotek
+      uuid: c32e4956-3c8f-1d1b-21d1-e26474163faa
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 110
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 1
+          bs: 2
+          cl: 6
+          i: 4
+          int: 5
+          ld: 5
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 4
+      type: Augmek
+      uuid: 8e82eb43-7831-9cdb-5522-aa6b7ea1ed79
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 70
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 4
+          int: 7
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 9
+          ws: 5
+      type: Neotek
+      uuid: 07ffa8f1-070d-9036-b9f7-d6db61d1a106
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 130
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 2
+          bs: 2
+          cl: 5
+          i: 5
+          int: 4
+          ld: 4
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 4
+      type: Prime
+      uuid: be7938e9-a876-18a9-8a7b-6b47e12aa44b
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 35
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 4
+          int: 7
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 9
+          ws: 5
+      type: Subtek
+      uuid: d4cfbf63-a316-35c9-ecf1-cacf6dfe94cd
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 65
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 7
+          i: 5
+          int: 6
+          ld: 6
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Tek
+      uuid: 9b0dff89-c1b4-2d3f-bfb7-dce80c859f70
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 7661a27d-4abf-ee61-c29e-7e6d9724581e
+      cost: 65
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 7
+          i: 5
+          int: 6
+          ld: 6
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Tek Specialist
+      uuid: 2bf75b7b-38bf-8043-8bf3-16bb5a093990

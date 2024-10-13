@@ -1,0 +1,162 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 115
+      equipment: []
+      skills: []
+      stats:
+          a: 3
+          bs: 3
+          cl: 4
+          i: 2
+          int: 7
+          ld: 8
+          m: 6
+          s: 3
+          t: 4
+          w: 2
+          wil: 7
+          ws: 2
+      type: Deathmaiden
+      uuid: ff9a49cf-60c1-a10d-3a45-3cf541426043
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 20
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 3
+          int: 8
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Little Sister
+      uuid: 9ee40c29-e115-bed0-d140-bf3be9f30212
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 100
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 2
+          int: 6
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Matriarch
+      uuid: c5e2a8b5-af36-524e-9444-95a19a5f0a13
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 125
+      equipment: []
+      skills: []
+      stats:
+          a: 3
+          bs: 3
+          cl: 5
+          i: 2
+          int: 7
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Queen
+      uuid: 2c2d2c02-9116-3b07-7a37-2c2a9c5a6eda
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 3
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Sister
+      uuid: 19cda373-69e2-d201-5e66-b9d478ffbe15
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 3
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Sister (Specialist)
+      uuid: 10f93efd-4619-95f8-ca40-8d9eeb53f5d3
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: fd10b8a9-ae20-a002-6ee9-fba16446f52a
+      cost: 45
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 3
+          int: 9
+          ld: 9
+          m: 6
+          s: 2
+          t: 3
+          w: 1
+          wil: 9
+          ws: 4
+      type: Wyld Runner
+      uuid: 9c896721-2067-7b38-c9a8-ec9520204873

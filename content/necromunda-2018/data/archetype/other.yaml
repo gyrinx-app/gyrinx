@@ -1,0 +1,1563 @@
+archetype:
+    - category:
+          name: Hanger On
+      cost: 30
+      equipment:
+          - qty: 1
+            relation:
+                uuid: fe81f0a8-c09a-d1af-9527-c3c351418d69
+      skills:
+          - uuid: 52b4b856-88a5-8f23-ef0c-7d05d3176ae9
+      stats:
+          a: 1
+          bs: 5
+          cl: 6
+          i: 4
+          int: 9
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 9
+          ws: 4
+      type: "'Narker"
+      uuid: a7f7667c-782a-a577-da14-e2aa2535ac20
+    - category:
+          name: Hanger On
+      cost: 215
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 1b85ddf0-0928-0922-0ab9-7ec216ab2a70
+          - qty: 1
+            relation:
+                uuid: 6ff48f2c-df38-4324-0d69-110a0c66c3fe
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 6
+          i: 5
+          int: 9
+          ld: 8
+          m: 4
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 3
+      type: Ambot
+      uuid: 872942a9-8bab-2d1f-41c8-368c25b9a9f5
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: ad5c9a9f-4119-6334-0f98-ac3f6e3eb97d
+      skills:
+          - uuid: de68338e-2abc-bff5-3b92-4b3e5232f217
+      stats:
+          a: 1
+          bs: 3
+          cl: 7
+          i: 5
+          int: 7
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Ammo-Jack
+      uuid: 4125bc62-1af2-ff56-bf32-adb54badd561
+    - category:
+          name: Hanger On
+      cost: 210
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 21e8b211-889d-092c-241b-ad2063137cad
+          - qty: 1
+            relation:
+                uuid: 04809217-17db-9d98-cb06-4b13cc43bcee
+      skills:
+          - uuid: 208f3b12-901f-e4c3-ba82-a15ccff9ee28
+      stats:
+          a: 4
+          bs: 5
+          cl: 8
+          i: 3
+          int: 8
+          ld: 7
+          m: 6
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 3
+      type: Arthromite Duneskuttler
+      uuid: 0395d85a-f83b-b713-48c6-a15f28c00ddf
+    - category:
+          name: Hanger On
+      cost: 40
+      equipment:
+          - qty: 1
+            relation:
+                uuid: ad5c9a9f-4119-6334-0f98-ac3f6e3eb97d
+          - qty: 1
+            relation:
+                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
+          - qty: 1
+            relation:
+                uuid: 048fbf3c-1c99-3faa-6b28-f2d9f82a3a68
+      skills:
+          - uuid: b35ebe21-09f8-38e1-fa71-f4a6fa5bf1c7
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 3
+      type: Arthromite Herder
+      uuid: a5bc2b6e-7edf-4913-d35d-403249b1a9c0
+    - category:
+          name: Hired Gun
+      cost: 220
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d80f1ed6-f48e-1de5-b6b4-6294ff0c60ba
+      skills:
+          - uuid: 995aa2ab-fb48-87e8-2c1b-38467d756cba
+      stats:
+          a: 2
+          bs: 5
+          cl: 6
+          i: 4
+          int: 9
+          ld: 7
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 4
+      type: Awakened Ogryn
+      uuid: a767af77-3e20-e64b-30dd-566805858045
+    - category:
+          name: Hired Gun
+      cost: 80
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 5
+          int: 5
+          ld: 5
+          m: 3
+          s: 3
+          t: 4
+          w: 2
+          wil: 5
+          ws: 3
+      type: Bounty Hunter M3
+      uuid: 57840930-8a18-70d6-66a9-b4e8ae8a0a94
+    - category:
+          name: Hired Gun
+      cost: 80
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 4
+          int: 8
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 7
+          ws: 3
+      type: Bounty Hunter M4
+      uuid: 36d9687a-46e8-355f-b8ad-a3c2cdc95b8f
+    - category:
+          name: Hired Gun
+      cost: 80
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 5
+          i: 3
+          int: 6
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Bounty Hunter M5
+      uuid: 30b7a4ba-6e6a-1cc6-13c7-434369b81351
+    - category:
+          name: Hanger On
+      cost: 55
+      equipment:
+          - qty: 1
+            relation:
+                uuid: e82fa785-d3fc-b14f-1b1e-0a78796f0a5e
+      skills:
+          - uuid: aa2e8564-efa1-74c4-4835-22145e03e36f
+      stats:
+          a: 1
+          bs: 5
+          cl: 6
+          i: 4
+          int: 8
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 8
+          ws: 4
+      type: Brute Handler
+      uuid: aacca734-6989-7f0c-0884-4a67c0b90a20
+    - category:
+          name: Hanger On
+      cost: 75
+      equipment: []
+      skills:
+          - uuid: 6843249c-67bd-7a19-91af-6a4d3094baf9
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 4
+          int: 6
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Bullet Merchant
+      uuid: 090fa70c-143c-3995-57aa-450e02485022
+    - category:
+          name: Hanger On
+      cost: 20
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 82148fba-e134-faed-6fcf-b798a9701f7f
+      skills:
+          - uuid: 208f3b12-901f-e4c3-ba82-a15ccff9ee28
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 8
+          ld: 8
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Cadaver Merchant
+      uuid: 550d0f0b-c0dd-8605-fc57-ace7a46f563f
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 7
+          i: 2
+          int: 8
+          ld: 7
+          m: 6
+          s: 2
+          t: 2
+          w: 1
+          wil: 8
+          ws: 5
+      type: Caryatid
+      uuid: e33acba4-44de-55d8-2b4b-b72d9c126943
+    - category:
+          name: Hanger On
+      cost: 240
+      equipment:
+          - qty: 1
+            relation:
+                uuid: e2b1d080-276e-8a58-c40c-4513523b98cb
+          - qty: 1
+            relation:
+                uuid: 3a7a4a18-2676-650c-b9ae-9b32cfcab0ab
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 8
+          i: 4
+          int: 8
+          ld: 9
+          m: 4
+          s: 5
+          t: 4
+          w: 4
+          wil: 9
+          ws: 4
+      type: Cawdor Stig-Shambler
+      uuid: b7cef4d7-89f6-3a56-7f28-610017d4f081
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 7aed7777-9c5d-a853-880e-4963aeb81b00
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 5
+          i: 3
+          int: 4
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Cephalopod Spekter
+      uuid: 951e78f5-fb8d-45d0-1359-0124e3260135
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 7
+          i: 2
+          int: 7
+          ld: 7
+          m: 5
+          s: 2
+          t: 2
+          w: 1
+          wil: 6
+          ws: 4
+      type: Chaos Familiar
+      uuid: 87f599b6-71a1-748a-a219-e221a4a6a458
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
+      skills:
+          - uuid: 3b67ef21-031f-b06e-d986-fbe9d44afb83
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Chem Dealer
+      uuid: 6c90d220-ab45-e0da-3faf-d03aefce6dfc
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 6
+          cl: 5
+          i: 3
+          int: 9
+          ld: 7
+          m: 5
+          s: 2
+          t: 2
+          w: 1
+          wil: 5
+          ws: 5
+      type: Cherub Servitor
+      uuid: 15209edd-4906-1c76-9e1d-11d458fb76d5
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 8c851039-5b0a-c6fa-68af-3ce67b115190
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 6
+          i: 4
+          int: 8
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 3
+      type: Cyber-mastiff
+      uuid: 860ff071-e6f1-dcaf-1186-24531664f9dd
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 08776440-1dc0-7c67-7c11-d1e7fb524e46
+          - qty: 1
+            relation:
+                uuid: 94a24c6d-eb6e-4291-6ce1-e9dd944340d6
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 2
+          int: 8
+          ld: 7
+          m: 6
+          s: 2
+          t: 2
+          w: 1
+          wil: 8
+          ws: 4
+      type: Cyberachnid
+      uuid: 676a6cb9-e8e3-75ad-7cbc-0e7735ef48b3
+    - category:
+          name: Hanger On
+      cost: 20
+      equipment: []
+      skills:
+          - uuid: e68e0d74-19dd-5cbb-a114-d95140518aca
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 4
+          int: 5
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 5
+      type: Data-scrivener
+      uuid: 3d25e0b6-43dd-2175-a000-cd9c7e849a42
+    - category:
+          name: Hanger On
+      cost: 20
+      equipment: []
+      skills:
+          - uuid: 52b4b856-88a5-8f23-ef0c-7d05d3176ae9
+      stats:
+          a: 1
+          bs: 5
+          cl: 9
+          i: 3
+          int: 8
+          ld: 10
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 5
+      type: Dome Runner
+      uuid: 6428eff1-421b-3697-42ab-c8d11f75d4e7
+    - category:
+          name: Hanger On
+      cost: 220
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 763b6022-c262-55d4-8ea0-e262daa70a27
+          - qty: 1
+            relation:
+                uuid: b6c7cc55-c99a-8c3b-a70a-b58f47df5c93
+      skills:
+          - uuid: 4cabcf7f-8da4-99fc-aa20-20d238362a22
+      stats:
+          a: 3
+          bs: 4
+          cl: 7
+          i: 3
+          int: 8
+          ld: 8
+          m: 6
+          s: 4
+          t: 5
+          w: 3
+          wil: 7
+          ws: 4
+      type: Escher Khimerix
+      uuid: fbef9152-9d26-d086-ae39-76fcaa458638
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 6e6addad-c160-69a6-95d1-893cb6494eda
+          - qty: 1
+            relation:
+                uuid: ad5c9a9f-4119-6334-0f98-ac3f6e3eb97d
+      skills:
+          - uuid: 3b67ef21-031f-b06e-d986-fbe9d44afb83
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Fixer
+      uuid: 3b67ef21-031f-b06e-d986-fbe9d44afb83
+    - category:
+          name: Hanger On
+      cost: 20
+      equipment: []
+      skills:
+          - uuid: fcebb8be-c493-a667-8a27-58580bee43f9
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 3
+          int: 7
+          ld: 9
+          m: 5
+          s: 2
+          t: 3
+          w: 1
+          wil: 5
+          ws: 5
+      type: Gang Lookout
+      uuid: 0507e843-f76d-059e-6ff1-960d21480f6d
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 8
+          i: 3
+          int: 9
+          ld: 10
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 10
+          ws: 4
+      type: Giant Rat
+      uuid: 7a6f909d-2fff-b81d-1a17-e4f989715aac
+    - category:
+          name: Hanger On
+      cost: 210
+      equipment:
+          - qty: 1
+            relation:
+                uuid: a6146cb4-40bc-dbb7-3646-374364b4944e
+      skills:
+          - uuid: b7bcfd41-ef32-80bf-26b1-02558775b1bf
+      stats:
+          a: 3
+          bs: 6
+          cl: 5
+          i: 5
+          int: 10
+          ld: 7
+          m: 4
+          s: 6
+          t: 5
+          w: 3
+          wil: 8
+          ws: 3
+      type: Goliath 'Zerker
+      uuid: a7b8a7f6-83a1-ed5e-bfb6-c41d97bd81a2
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 763b6022-c262-55d4-8ea0-e262daa70a27
+      skills: []
+      stats:
+          a: 2
+          bs: 0
+          cl: 7
+          i: 3
+          int: 9
+          ld: 9
+          m: 8
+          s: 2
+          t: 3
+          w: 1
+          wil: 9
+          ws: 4
+      type: Grapplehawk
+      uuid: 2439acb1-055e-96a3-e86a-a44a9446349a
+    - category:
+          name: Hired Gun
+      cost: 40
+      equipment: []
+      skills: []
+      stats:
+          a: 0
+          bs: 4
+          cl: 6
+          i: 0
+          int: 7
+          ld: 7
+          m: 0
+          s: 0
+          t: 0
+          w: 0
+          wil: 6
+          ws: 0
+      type: Guild of Coin Haulier
+      uuid: befb6cee-bc54-5a7b-4563-216a7d5e8659
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 1de085de-1da2-f0c5-f6c0-5de8a3d2b2d1
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 2
+          int: 7
+          ld: 9
+          m: 7
+          s: 2
+          t: 2
+          w: 1
+          wil: 6
+          ws: 4
+      type: Gyrinx Cat
+      uuid: 8358b295-761f-acaf-6079-81504d7918f6
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 298beaa1-297a-3d70-14ef-9bc329bc3c20
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 6
+          i: 4
+          int: 8
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 3
+      type: Hacked Cyber-Mastiff
+      uuid: b61ddaac-b1e3-b2dd-b101-76fd3b6ef815
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 0292f02d-5469-180a-00f1-2aa2118ff91e
+      skills:
+          - uuid: 2c51f35b-23ff-d0c1-c883-51b4493ac1a9
+      stats:
+          a: 2
+          bs: 0
+          cl: 6
+          i: 4
+          int: 8
+          ld: 8
+          m: 5
+          s: 3
+          t: 4
+          w: 1
+          wil: 7
+          ws: 3
+      type: Hardcase Cyber-Mastiff
+      uuid: 396b4468-403a-ef05-c783-702347d24c2c
+    - category:
+          name: Hanger On
+      cost: 40
+      equipment:
+          - qty: 1
+            relation:
+                uuid: ed0cd3b8-e2c3-5244-d299-4415cfe442fe
+          - qty: 1
+            relation:
+                uuid: ad5c9a9f-4119-6334-0f98-ac3f6e3eb97d
+          - qty: 1
+            relation:
+                uuid: 965e6b18-820e-a912-e3d9-e6989fe5f328
+      skills:
+          - uuid: de68338e-2abc-bff5-3b92-4b3e5232f217
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 5
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 5
+      type: Heretek
+      uuid: 86967686-1662-a894-ded3-39e2a85a0d27
+    - category:
+          name: Hired Gun
+      cost: 30
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 4
+          int: 8
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Hive Scum
+      uuid: 43741430-e674-e993-64e1-451a27fe293a
+    - category:
+          name: Hanger On
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 9
+          ld: 7
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 9
+          ws: 3
+      type: House Agent 1
+      uuid: b16097e8-7f5c-7858-3b6a-7d68b5de495a
+    - category:
+          name: Hanger On
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 5
+          i: 4
+          int: 9
+          ld: 7
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 9
+          ws: 2
+      type: House Agent 2
+      uuid: 03e75340-3a7a-6978-6b4c-97c8d7d96883
+    - category:
+          name: Hanger On
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 2
+          cl: 5
+          i: 4
+          int: 9
+          ld: 7
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 9
+          ws: 5
+      type: House Agent 3
+      uuid: ea707cdf-fd6a-397e-26d2-94371f5fbb9d
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 242d2aeb-0169-21c8-0740-5f915f9407ff
+          - qty: 1
+            relation:
+                uuid: 89a633a2-7196-3842-6ec7-1fd631856dea
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 4
+          i: 5
+          int: 8
+          ld: 8
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 4
+      type: Iron Automata
+      uuid: bef35d2f-0719-9a7c-be05-40c35f1d41b7
+    - category:
+          name: Hanger On
+      cost: 210
+      equipment:
+          - qty: 1
+            relation:
+                uuid: ef21be03-d6dd-aca5-3ed7-99eef7c47396
+      skills: []
+      stats:
+          a: 3
+          bs: 5
+          cl: 6
+          i: 4
+          int: 9
+          ld: 7
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 3
+      type: Mutated Ogryn
+      uuid: 073a9323-394c-27e4-1efa-8e204f5e218d
+    - category:
+          name: Hanger On
+      cost: 230
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 16f0509f-b599-23ac-5e88-14ec061de9c1
+          - qty: 1
+            relation:
+                uuid: 1b85ddf0-0928-0922-0ab9-7ec216ab2a70
+          - qty: 1
+            relation:
+                uuid: 962f7aca-a8bb-5510-a0ec-d9620f577664
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 5
+          int: 8
+          ld: 7
+          m: 4
+          s: 5
+          t: 5
+          w: 3
+          wil: 9
+          ws: 5
+      type: Orlock Cargo Servitor
+      uuid: c8e4ca04-875d-7b5e-3563-03f8a85257d2
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 0
+          cl: 7
+          i: 3
+          int: 11
+          ld: 10
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 9
+          ws: 4
+      type: Phelynx
+      uuid: 4cbe6a4a-205d-e143-5d71-9c101657e5a8
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 763b6022-c262-55d4-8ea0-e262daa70a27
+      skills: []
+      stats:
+          a: 2
+          bs: 0
+          cl: 7
+          i: 5
+          int: 7
+          ld: 7
+          m: 7
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 3
+      type: Phyrr Cat
+      uuid: 1c2f8ca5-cc9b-6719-13a2-51d76d35eee8
+    - category:
+          name: Hanger On
+      cost: 30
+      equipment:
+          - qty: 1
+            relation:
+                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
+          - qty: 1
+            relation:
+                uuid: 3d576135-fba9-5021-b79b-0b9e49d11dde
+      skills:
+          - uuid: 6302100e-dfe9-ae38-6651-ea59cc437d25
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 8
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Propagandist
+      uuid: 0b533d41-f8da-b66f-562a-a44201dad638
+    - category:
+          name: Hanger On
+      cost: 25
+      equipment:
+          - qty: 1
+            relation:
+                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
+          - qty: 1
+            relation:
+                uuid: 3d576135-fba9-5021-b79b-0b9e49d11dde
+      skills:
+          - uuid: fcebb8be-c493-a667-8a27-58580bee43f9
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 4
+          int: 6
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 5
+      type: Proxy
+      uuid: f56ec2ab-97d6-0483-2d90-f6394e3f341f
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 0
+          cl: 7
+          i: 2
+          int: 7
+          ld: 7
+          m: 5
+          s: 2
+          t: 2
+          w: 1
+          wil: 6
+          ws: 4
+      type: Psychic Familiar
+      uuid: d28835e6-e7b4-35c5-d49c-f1f7aaeb002c
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 20e9da67-293a-9492-82b5-8671bc53e14d
+      skills: []
+      stats:
+          a: 1
+          bs: 6
+          cl: 5
+          i: 4
+          int: 8
+          ld: 8
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Psychoteric Wyrm
+      uuid: 7080c3cf-f037-abdc-40c7-0dcf312f325b
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: c096466c-89a0-34d5-ade6-ec9cd3d45586
+      skills:
+          - uuid: 958e6a2e-344f-95b5-cca2-badeecac5488
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 4
+          int: 5
+          ld: 9
+          m: 5
+          s: 2
+          t: 3
+          w: 1
+          wil: 7
+          ws: 5
+      type: Rogue Doc
+      uuid: 275a0d17-66f2-e5e1-2975-fc0d88819165
+    - category:
+          name: Hanger On
+      cost: 40
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 73230947-6d5b-fd09-d8d3-83230769ee37
+      skills:
+          - uuid: 0e41882b-691a-69b7-bc5c-3545779e3b7f
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 5
+          int: 6
+          ld: 7
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Scabber
+      uuid: e01d8b0a-5683-1ca7-44ba-f648ed9c32bf
+    - category:
+          name: Hanger On
+      cost: 220
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 1b85ddf0-0928-0922-0ab9-7ec216ab2a70
+          - qty: 1
+            relation:
+                uuid: 6ff48f2c-df38-4324-0d69-110a0c66c3fe
+      skills: []
+      stats:
+          a: 3
+          bs: 5
+          cl: 6
+          i: 5
+          int: 10
+          ld: 8
+          m: 4
+          s: 5
+          t: 5
+          w: 3
+          wil: 9
+          ws: 3
+      type: Scrapcode-corrupted Ambot
+      uuid: 81ede179-f024-57b6-8a90-cc185a517781
+    - category:
+          name: Hired Gun
+      cost: 20
+      equipment: []
+      skills: []
+      stats:
+          a: 0
+          bs: 4
+          cl: 8
+          i: 0
+          int: 8
+          ld: 8
+          m: 0
+          s: 0
+          t: 0
+          w: 0
+          wil: 8
+          ws: 0
+      type: Scum Racer
+      uuid: 5eeec632-b526-0850-f33c-5ffe50f5d266
+    - category:
+          name: Hanger On
+      cost: 210
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d80f1ed6-f48e-1de5-b6b4-6294ff0c60ba
+      skills:
+          - uuid: 995aa2ab-fb48-87e8-2c1b-38467d756cba
+      stats:
+          a: 2
+          bs: 5
+          cl: 6
+          i: 4
+          int: 9
+          ld: 7
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 8
+          ws: 4
+      type: Servitor Ogryn
+      uuid: ff699df5-4223-b1a2-4301-8f30e00f02b4
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 89e239b7-2e37-91cc-7ce8-aba785673bc9
+      skills: []
+      stats:
+          a: 2
+          bs: 6
+          cl: 7
+          i: 3
+          int: 9
+          ld: 8
+          m: 6
+          s: 3
+          t: 2
+          w: 1
+          wil: 8
+          ws: 4
+      type: Sheen Bird
+      uuid: c9a33166-e7d2-e672-295c-24fc7f3724ca
+    - category:
+          name: Hanger On
+      cost: 20
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 9
+          i: 3
+          int: 7
+          ld: 9
+          m: 4
+          s: 2
+          t: 3
+          w: 1
+          wil: 5
+          ws: 4
+      type: Slopper
+      uuid: f90eb829-d790-8cc1-acf0-7989225746dc
+    - category:
+          name: Hanger On
+      cost: 190
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 6
+          cl: 5
+          i: 3
+          int: 6
+          ld: 5
+          m: 6
+          s: 3
+          t: 4
+          w: 4
+          wil: 4
+          ws: 6
+      type: Spyker Brute
+      uuid: b5822ae9-4e22-8dd5-7df0-4307881efeb7
+    - category:
+          name: Hanger On
+      cost: 200
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 20e9da67-293a-9492-82b5-8671bc53e14d
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 4
+          i: 5
+          int: 9
+          ld: 9
+          m: 3
+          s: 5
+          t: 6
+          w: 4
+          wil: 5
+          ws: 4
+      type: Sump Beast M3
+      uuid: 89192b02-2eae-dc50-fe77-308d08135b2f
+    - category:
+          name: Hanger On
+      cost: 200
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 20e9da67-293a-9492-82b5-8671bc53e14d
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 4
+          i: 4
+          int: 9
+          ld: 9
+          m: 4
+          s: 5
+          t: 4
+          w: 4
+          wil: 5
+          ws: 3
+      type: Sump Beast M4
+      uuid: eac84353-855c-5348-ed69-a23ebd04da52
+    - category:
+          name: Hanger On
+      cost: 200
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 20e9da67-293a-9492-82b5-8671bc53e14d
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 5
+          i: 4
+          int: 10
+          ld: 8
+          m: 5
+          s: 4
+          t: 5
+          w: 4
+          wil: 6
+          ws: 4
+      type: Sump Beast M5
+      uuid: 27207f6a-e678-6899-e3dd-10b3b9828011
+    - category:
+          name: Exotic Pets
+      cost: 0
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 20e9da67-293a-9492-82b5-8671bc53e14d
+      skills: []
+      stats:
+          a: 2
+          bs: 0
+          cl: 6
+          i: 6
+          int: 11
+          ld: 8
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 7
+          ws: 3
+      type: Sumpkroc
+      uuid: ede760b0-86a4-e99d-7286-cd72758b9420
+    - category:
+          name: Hanger On
+      cost: 80
+      equipment: []
+      skills:
+          - uuid: de68338e-2abc-bff5-3b92-4b3e5232f217
+      stats:
+          a: 1
+          bs: 4
+          cl: 8
+          i: 4
+          int: 6
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Tech-merchant
+      uuid: bf794892-532b-081e-639a-dc5b4a419633
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 3d576135-fba9-5021-b79b-0b9e49d11dde
+      skills:
+          - uuid: 222dc130-f5b5-d9d8-8b75-f579c277a557
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Trader - Beastwrangler
+      uuid: 477da035-bdc7-6c40-aa4b-faa79fc534fd
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d8f076d8-a671-bd63-1a1b-b0703c81d1c7
+      skills:
+          - uuid: 0e41882b-691a-69b7-bc5c-3545779e3b7f
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Trader - Connected
+      uuid: 7120b0e1-a6bb-5cf0-7ab5-bc5dd86ee10d
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
+          - qty: 1
+            relation:
+                uuid: 6e6addad-c160-69a6-95d1-893cb6494eda
+          - qty: 1
+            relation:
+                uuid: 73230947-6d5b-fd09-d8d3-83230769ee37
+      skills:
+          - uuid: 64f11d52-551b-e1c9-cb27-d573c767a4d6
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Trader - Gun-smyth
+      uuid: 566a78cd-1984-a7b3-5922-d698610306cf
+    - category:
+          name: Hanger On
+      cost: 50
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 397adb82-583f-c410-13f9-3348d0737461
+      skills:
+          - uuid: 208f3b12-901f-e4c3-ba82-a15ccff9ee28
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Trader - Relicmonger
+      uuid: bebd0a1b-4f65-0da2-3274-25065479a7a1
+    - category:
+          name: Hanger On
+      cost: 240
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 1b85ddf0-0928-0922-0ab9-7ec216ab2a70
+          - qty: 1
+            relation:
+                uuid: 4f7e1ed4-3c60-a16c-3818-93af2e6f0b8b
+          - qty: 1
+            relation:
+                uuid: ad68b1cd-73c5-11ef-5f93-499c48a1f72a
+      skills: []
+      stats:
+          a: 4
+          bs: 4
+          cl: 5
+          i: 4
+          int: 6
+          ld: 5
+          m: 5
+          s: 5
+          t: 4
+          w: 3
+          wil: 8
+          ws: 4
+      type: Van Saar Arachni-Rig Servo-Suit
+      uuid: c8c149ce-b71c-6eb4-725f-fabcb305d1fd
+    - category:
+          name: Hanger On
+      cost: 250
+      equipment: []
+      skills:
+          - uuid: 08b39d3a-d06d-c816-d4cd-cc2feb564477
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 5
+          int: 7
+          ld: 7
+          m: 4
+          s: 4
+          t: 5
+          w: 3
+          wil: 6
+          ws: 4
+      type: Vartijan Exo-Driller
+      uuid: 3bb17fff-cbe2-329c-eb41-202f407d0d65
+    - category:
+          name: Hanger On
+      cost: 210
+      equipment:
+          - qty: 1
+            relation:
+                uuid: 87fe2dfb-c26c-3e2a-e0fe-b9039f4c251d
+      skills:
+          - uuid: 8e1ce7d7-58e6-f7d9-78ad-ac4fc40dd169
+      stats:
+          a: 3
+          bs: 6
+          cl: 6
+          i: 4
+          int: 9
+          ld: 9
+          m: 6
+          s: 6
+          t: 4
+          w: 3
+          wil: 7
+          ws: 3
+      type: Warp Horror
+      uuid: 2fe22466-7720-7453-a8e9-e6bd0b3a22f5
+    - category:
+          name: Hanger On
+      cost: 60
+      equipment:
+          - qty: 1
+            relation:
+                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
+      skills:
+          - uuid: 52b4b856-88a5-8f23-ef0c-7d05d3176ae9
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 3
+          int: 5
+          ld: 9
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Whisper Merchant
+      uuid: 2d4e0f75-a61c-8b0f-2ff2-5635b5482bad

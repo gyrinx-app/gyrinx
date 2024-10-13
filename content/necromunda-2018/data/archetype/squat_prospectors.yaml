@@ -1,0 +1,139 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 115
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 5
+          i: 5
+          int: 6
+          ld: 5
+          m: 4
+          s: 3
+          t: 4
+          w: 3
+          wil: 5
+          ws: 3
+      type: Charter Master
+      uuid: 849594af-159f-fbc1-0678-d04993bd3bd4
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 5
+          int: 7
+          ld: 6
+          m: 4
+          s: 3
+          t: 4
+          w: 2
+          wil: 6
+          ws: 4
+      type: Drill Master
+      uuid: 6ae8bf6d-2c17-2820-2466-3290c56ac228
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 7
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 6
+          ws: 4
+      type: Drill-kyn
+      uuid: 86feb15e-07d1-4e41-d4e9-5c5ab3680750
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 5
+          int: 7
+          ld: 7
+          m: 4
+          s: 3
+          t: 4
+          w: 1
+          wil: 6
+          ws: 4
+      type: Drill-kyn Specialist
+      uuid: 77f5cd1f-5d55-7354-67ef-b295a8607803
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 40
+      equipment: []
+      skills: []
+      stats:
+          a: 0
+          bs: 4
+          cl: 6
+          i: 0
+          int: 7
+          ld: 7
+          m: 0
+          s: 0
+          t: 0
+          w: 0
+          wil: 6
+          ws: 0
+      type: Gearhead
+      uuid: 12cadfd8-a7c4-e9e0-6069-c6e47a6d2693
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6201c9ca-cca5-1b38-41ef-c68fee2901aa
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 4
+          int: 7
+          ld: 8
+          m: 5
+          s: 3
+          t: 4
+          w: 1
+          wil: 6
+          ws: 5
+      type: Prospector Digger
+      uuid: 43243457-3dda-eb8d-1f6b-6fae87d2a510

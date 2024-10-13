@@ -1,0 +1,118 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: d5bbe71e-7232-f576-b3b1-dba093655350
+      cost: 130
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cc4f7eee-908f-ad09-8f56-27303b57752b
+          - qty: 1
+            relation:
+                uuid: 15557788-8331-875e-8f84-683330d1147e
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 4
+          int: 7
+          ld: 5
+          m: 5
+          s: 4
+          t: 4
+          w: 2
+          wil: 5
+          ws: 2
+      type: Butcher
+      uuid: 83882de8-1950-799b-b1e0-33c7feffe2a5
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: d5bbe71e-7232-f576-b3b1-dba093655350
+      cost: 90
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cc4f7eee-908f-ad09-8f56-27303b57752b
+          - qty: 1
+            relation:
+                uuid: 2246eb57-074f-a831-b528-140edb90b3f9
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 6
+          i: 4
+          int: 8
+          ld: 6
+          m: 5
+          s: 4
+          t: 3
+          w: 2
+          wil: 7
+          ws: 3
+      type: Cutter
+      uuid: 3f73fce6-e4eb-ceb1-b331-00f6961459db
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: d5bbe71e-7232-f576-b3b1-dba093655350
+      cost: 25
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
+          - qty: 1
+            relation:
+                uuid: e173d954-50dc-49db-2238-7a69b57792a3
+      skills:
+          - uuid: b69a1e53-e8b8-a1f2-8ebf-9a4a2d567db3
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 9
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 9
+          ws: 4
+      type: Initiate
+      uuid: 88167bfb-4539-11e2-256a-a20e7b231d69
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: d5bbe71e-7232-f576-b3b1-dba093655350
+      cost: 40
+      equipment:
+          - qty: 1
+            relation:
+                uuid: cc4f7eee-908f-ad09-8f56-27303b57752b
+          - qty: 1
+            relation:
+                uuid: 0633c12a-47c9-60e2-fd78-302f9729c4c3
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 4
+          int: 9
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 3
+      type: Skinner
+      uuid: 26b0ed10-0725-ab41-6a86-aae310085905

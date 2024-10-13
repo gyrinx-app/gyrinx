@@ -1,0 +1,260 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 95
+      equipment: []
+      skills:
+          - uuid: f2b19162-474f-58ec-1f3e-2f24d2482f67
+      stats:
+          a: 2
+          bs: 6
+          cl: 4
+          i: 5
+          int: 10
+          ld: 9
+          m: 5
+          s: 5
+          t: 4
+          w: 2
+          wil: 6
+          ws: 3
+      type: Aberrant
+      uuid: cd0ccfe5-109e-4275-ee25-edaa0e0a4a7f
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 95
+      equipment: []
+      skills:
+          - uuid: f2b19162-474f-58ec-1f3e-2f24d2482f67
+      stats:
+          a: 2
+          bs: 6
+          cl: 4
+          i: 5
+          int: 10
+          ld: 9
+          m: 5
+          s: 5
+          t: 4
+          w: 2
+          wil: 6
+          ws: 3
+      type: Aberrant Specialist
+      uuid: 90122127-92ea-57c2-7490-98cef8ef0143
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 120
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 3
+          int: 4
+          ld: 3
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 4
+      type: Cult Adept
+      uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 120
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 3
+          int: 4
+          ld: 3
+          m: 4
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 4
+      type: Cult Adept
+      uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 145
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+          - qty: 1
+            relation:
+                uuid: 88098db0-9955-2320-f69a-e3d356f53582
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 5
+          i: 3
+          int: 4
+          ld: 3
+          m: 5
+          s: 4
+          t: 3
+          w: 2
+          wil: 5
+          ws: 3
+      type: Cult Alpha
+      uuid: 40e5127b-2fb6-f2e5-e343-eee5155a93e4
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 85
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+      skills: []
+      stats:
+          a: 1
+          bs: 3
+          cl: 5
+          i: 3
+          int: 6
+          ld: 4
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 3
+      type: Hybrid Acolyte
+      uuid: 59305523-0e68-ca70-d603-556beafff91e
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 130
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+          - qty: 1
+            relation:
+                uuid: 88098db0-9955-2320-f69a-e3d356f53582
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 5
+          i: 3
+          int: 6
+          ld: 4
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 3
+      type: Hybrid Acolyte Early Gen
+      uuid: f1046650-a0ce-1b9a-e8e9-4d468556e70c
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 90
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+          - qty: 1
+            relation:
+                uuid: 88098db0-9955-2320-f69a-e3d356f53582
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 7
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Neophyte Early Gen
+      uuid: 72e819dd-a0b5-9c43-bcf1-0b003a14db62
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 45
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 7
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Neophyte Hybrid
+      uuid: fc6a882e-ff69-36a3-662a-880dea2043c6
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 31d1b33e-e69b-bd95-9eb4-55b811eb87c4
+      cost: 45
+      equipment:
+          - qty: 1
+            relation:
+                uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 7
+          m: 4
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Neophyte Hybrid Specialist
+      uuid: 46d324db-3bc7-ebf3-69f8-b8f84da5988f

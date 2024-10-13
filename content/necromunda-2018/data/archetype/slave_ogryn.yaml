@@ -1,0 +1,93 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+      cost: 70
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 6
+          cl: 5
+          i: 5
+          int: 10
+          ld: 5
+          m: 4
+          s: 5
+          t: 5
+          w: 2
+          wil: 10
+          ws: 4
+      type: Lobo-Slave
+      uuid: 2f71273c-93bd-f48d-fec9-e5d132d3fc2d
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+      cost: 90
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 7
+          i: 4
+          int: 9
+          ld: 8
+          m: 5
+          s: 5
+          t: 5
+          w: 2
+          wil: 9
+          ws: 4
+      type: Ogryn
+      uuid: 9924f775-d71f-726f-06b3-2973438cacb5
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+      cost: 145
+      equipment: []
+      skills: []
+      stats:
+          a: 3
+          bs: 5
+          cl: 5
+          i: 3
+          int: 8
+          ld: 8
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 9
+          ws: 3
+      type: Overboss
+      uuid: aef521b4-8b51-dc7e-f301-d3a1e1ba8ed6
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 6c5e118d-7f1f-a7ef-1cbb-8ac87cdb9254
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 5
+          cl: 7
+          i: 4
+          int: 9
+          ld: 8
+          m: 5
+          s: 5
+          t: 5
+          w: 3
+          wil: 9
+          ws: 3
+      type: Underboss
+      uuid: 0cce2389-306f-fff8-70ab-ef0e24533ce0

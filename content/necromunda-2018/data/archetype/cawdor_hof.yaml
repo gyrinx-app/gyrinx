@@ -1,0 +1,277 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 20
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 8
+          i: 3
+          int: 9
+          ld: 8
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Bonepicker
+      uuid: f491f580-4a38-e51c-960b-0ea65ef41f0e
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 45
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Brethren
+      uuid: 6e66e991-fc1b-310e-9b60-6e774e2f4186
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 45
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 7
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Brethren Specialist
+      uuid: d346f5b6-3731-c9ae-286d-60ceb44dbd49
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 90
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 7
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 4
+      type: Deacon
+      uuid: cdbbd65b-eb51-208d-834f-250c928e6804
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 90
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 7
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 4
+      type: Deacon
+      uuid: cdbbd65b-eb51-208d-834f-250c928e6804
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 90
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 7
+          ws: 4
+      type: Firebrand
+      uuid: 8ac24fcd-f8ad-e438-1a8f-5d2532eb29a7
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 90
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 7
+          ws: 4
+      type: Firebrand
+      uuid: 8ac24fcd-f8ad-e438-1a8f-5d2532eb29a7
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 100
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 5
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 4
+          ws: 3
+      type: Priest
+      uuid: e5ea56a6-4ded-f72d-7bff-fbd4251d52bc
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 9
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Redemptionist Brethren
+      uuid: cea86915-9575-c6a4-1205-15363414a2dc
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 50
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 9
+          ld: 8
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 6
+          ws: 4
+      type: Redemptionist Brethren Specialist
+      uuid: 85b842e1-eaca-7f00-9ac7-05052dcaf801
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 100
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 6
+          i: 4
+          int: 6
+          ld: 4
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 3
+      type: Word-Keeper
+      uuid: 2becfa2d-43d1-75c2-f485-36d3bfb20a0a
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 65a8a392-657a-ee0f-e20c-cc80183e2b67
+      cost: 40
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 3
+          int: 9
+          ld: 8
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Zealot
+      uuid: e2cf4536-7c12-ad31-b98c-25f16009a1a8

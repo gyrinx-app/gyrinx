@@ -1,0 +1,254 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 40
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Ghost
+      uuid: 401357e5-7c76-5967-393b-a391a338e89b
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 40
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 6
+          i: 4
+          int: 7
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 1
+          wil: 7
+          ws: 4
+      type: Ghost Specialist
+      uuid: 9f7e7fe7-c72b-de8c-5498-c0304d3fe582
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 100
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 3
+          int: 6
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 3
+      type: Master of Shadow
+      uuid: 2244761b-c36d-828d-c1d5-a6453d496ce8
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 130
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 3
+          int: 6
+          ld: 6
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 5
+          ws: 3
+      type: Master of Shadow Psyker
+      uuid: 5a4f01ac-ce17-7861-d00a-f70bbe3709a8
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 110
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 2
+          int: 7
+          ld: 7
+          m: 6
+          s: 4
+          t: 3
+          w: 2
+          wil: 6
+          ws: 2
+      type: Nacht-Ghul
+      uuid: 5fe6de3e-8eaf-71b6-f02d-f36a888ad133
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 140
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 2
+          int: 7
+          ld: 7
+          m: 6
+          s: 4
+          t: 3
+          w: 2
+          wil: 6
+          ws: 2
+      type: Nacht-Ghul Psyker
+      uuid: d47d892e-42f7-8a57-df14-a2c6bd521999
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 85
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Phantom
+      uuid: f0a43d6e-5eea-19af-337a-176e9836acdd
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 115
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 3
+          cl: 6
+          i: 4
+          int: 6
+          ld: 7
+          m: 5
+          s: 3
+          t: 3
+          w: 2
+          wil: 6
+          ws: 3
+      type: Phantom Psyker
+      uuid: d0247a4f-a586-56eb-0deb-39fd3e76c827
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 60
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 3
+          int: 8
+          ld: 9
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 4
+      type: Psy-Gheist
+      uuid: d58ea62b-0440-eea8-a1c3-eaf50edd43a9
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 25
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 3
+          int: 8
+          ld: 9
+          m: 6
+          s: 3
+          t: 3
+          w: 1
+          wil: 8
+          ws: 5
+      type: Shadow
+      uuid: 3f39588b-b19e-2805-1d9a-edfbb170025c
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 502c11af-bcb9-77d7-9ce6-e365963f0bad
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 0
+          bs: 4
+          cl: 6
+          i: 0
+          int: 7
+          ld: 7
+          m: 0
+          s: 0
+          t: 0
+          w: 0
+          wil: 7
+          ws: 0
+      type: Wraith
+      uuid: db6e29b7-02f4-106c-8403-8b6c7de54a67

@@ -1,0 +1,162 @@
+archetype:
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 55
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 8
+          m: 4
+          s: 4
+          t: 4
+          w: 1
+          wil: 9
+          ws: 4
+      type: Bruiser
+      uuid: 8be80102-e06b-9047-44ba-56c822c70a4b
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 55
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 8
+          m: 4
+          s: 4
+          t: 4
+          w: 1
+          wil: 9
+          ws: 4
+      type: Bruiser (Specialist)
+      uuid: f432ce34-a9b1-e96d-dfeb-ce717ee23cad
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 4
+          int: 9
+          ld: 9
+          m: 4
+          s: 4
+          t: 4
+          w: 1
+          wil: 9
+          ws: 4
+      type: Bully
+      uuid: 275370ef-329a-53d7-8342-d8b3d2992e3e
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 100
+      equipment: []
+      skills: []
+      stats:
+          a: 2
+          bs: 4
+          cl: 5
+          i: 4
+          int: 8
+          ld: 6
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 8
+          ws: 3
+      type: Forge Boss
+      uuid: af6cf490-9f65-3130-55c8-b7bc7132247b
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 135
+      equipment: []
+      skills: []
+      stats:
+          a: 3
+          bs: 3
+          cl: 4
+          i: 3
+          int: 7
+          ld: 5
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 8
+          ws: 3
+      type: Forge Tyrant
+      uuid: 5f18cea6-28f7-b3a9-b2ba-a46c09a1993a
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 35
+      equipment: []
+      skills: []
+      stats:
+          a: 1
+          bs: 5
+          cl: 7
+          i: 4
+          int: 9
+          ld: 9
+          m: 5
+          s: 3
+          t: 4
+          w: 1
+          wil: 9
+          ws: 4
+      type: Forge-Born
+      uuid: ed8d7006-8238-37f9-abbf-0c02221ea753
+    - category:
+          name: Gang
+          relation:
+              schema: gang
+              uuid: 5611f08a-5719-7da4-40f1-f6cb08179e82
+      cost: 125
+      equipment: []
+      skills: []
+      stats:
+          a: 3
+          bs: 4
+          cl: 4
+          i: 3
+          int: 8
+          ld: 8
+          m: 4
+          s: 4
+          t: 4
+          w: 2
+          wil: 7
+          ws: 2
+      type: Stimmer
+      uuid: c3be99c6-c5be-b247-7720-ef6f2b4ae0e9
