@@ -90,6 +90,17 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
     invalid = []
     errors = []
 
+    schemas_to_check = set(schema.name for schema in schemas.values())
+    data_to_check = set(src.name for src in data_sources)
+    missing_schema = data_to_check - schemas_to_check
+    if missing_schema:
+        for src in data_sources:
+            if src.name in missing_schema:
+                invalid.append(src)
+                errors.append(
+                    f"Missing schema for data source: {src.name} (from {src.path})"
+                )
+
     for schema in schemas.values():
         click.echo(f"Validating {schema.name} schema (from {schema.path})...")
 
@@ -106,7 +117,7 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
                 )
 
     return ValidationResult(
-        success=len(invalid) == 0, valid=valid, invalid=invalid, errors=errors
+        success=len(errors) == 0, valid=valid, invalid=invalid, errors=errors
     )
 
 
@@ -136,7 +147,7 @@ def check():
         else:
             click.echo(f"{directory}: Some data sources are invalid:", err=True)
             for error in result.errors:
-                click.echo(f"{error}", err=True)
+                click.echo(f" - {error}", err=True)
             click.echo()
 
         results.append(result)
