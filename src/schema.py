@@ -25,7 +25,7 @@ class DataSource:
 
 def gather_schemas(directory: Path) -> dict[str, Schema]:
     schema_dir = directory / "schema"
-    click.echo(f"Gathering data from {schema_dir}...")
+    click.echo(f"Gathering schema files from {schema_dir}...")
     if not schema_dir.exists():
         click.echo(f"Error: No schema folder in {directory}", err=True)
         return {}
@@ -33,7 +33,7 @@ def gather_schemas(directory: Path) -> dict[str, Schema]:
     index = {}
 
     for file in schema_dir.rglob("*.schema.json"):
-        click.echo(file)
+        click.echo(f" - {file}")
         try:
             with open(file, "r") as f:
                 schema = json.load(f)
@@ -50,7 +50,7 @@ def gather_schemas(directory: Path) -> dict[str, Schema]:
 
 def gather_data(directory: Path) -> list[DataSource]:
     data_dir = directory / "data"
-    click.echo(f"Gathering data from {data_dir}...")
+    click.echo(f"Gathering data files from {data_dir}...")
     if not data_dir.exists():
         click.echo(f"Error: No data folder in {directory}", err=True)
         return {}
@@ -58,7 +58,7 @@ def gather_data(directory: Path) -> list[DataSource]:
     data_sources = []
 
     for file in data_dir.rglob("*.yaml"):
-        click.echo(file)
+        click.echo(f" - {file}")
         try:
             with open(file, "r") as f:
                 loaded = yaml.load(f, Loader=yaml.SafeLoader)
@@ -116,21 +116,28 @@ def check():
     content_dir = Path("content")
     directories = [d for d in content_dir.iterdir() if d.is_dir()]
 
+    click.echo("Found these ruleset directories:")
+    for directory in directories:
+        click.echo(f" - {directory}")
+
     results = []
     for directory in directories:
-        click.echo(directory)
+        click.echo(f"\nChecking {directory}...")
+
         schemas = gather_schemas(directory)
-        click.echo(f"Found schemas: {", ".join(schemas.keys())}")
-
         data_sources = gather_data(directory)
-
+        click.echo(
+            f"Found {len(schemas)} schemas and {len(data_sources)} data sources ({directory})"
+        )
         result = validate_sources(schemas, data_sources)
+
         if result.success:
-            click.echo(f"{directory}: All data sources are valid")
+            click.echo(f"{directory}: All data sources are valid\n")
         else:
             click.echo(f"{directory}: Some data sources are invalid:", err=True)
             for error in result.errors:
                 click.echo(f"{error}", err=True)
+            click.echo()
 
         results.append(result)
 

@@ -44,16 +44,29 @@ To set up the development environment, follow these steps:
     python -m venv .venv && . .venv/bin/activate
     ```
 
-3. Install the required dependencies:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4. Install the project in editable mode so you can use the `schema` command:
+3. Install the project in editable mode so you can use the `schema` command:
 
     ```bash
     pip install --editable .
+    ```
+
+    `setuptools` will handle installing dependencies.
+
+4. To check it has worked, run the `schema` command:
+
+    ```bash
+    schema
+    ```
+
+    You should see the schema being checked...
+
+    ```
+    Checking schema...
+    Found these ruleset directories:
+    - content/necromunda-2018
+
+    Checking content/necromunda-2018...
+    Gathering schema files from content/necromunda-2018/schema...
     ```
 
 ## Running Tests

@@ -4,11 +4,7 @@
         "cpus": 4
     },
     "waitFor": "onCreateCommand",
-    "updateContentCommand": "pip install -r requirements.txt && pip install --editable .",
-    "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && pip install --editable .",
-    "postAttachCommand": {
-        "terminal": ". .venv/bin/activate"
-    },
+    "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable .",
     "customizations": {
         "codespaces": {
             "openFiles": []
@@ -21,23 +17,7 @@
                 "sleistner.vscode-fileutils",
                 "ms-toolsai.jupyter",
                 "esbenp.prettier-vscode"
-            ],
-            "settings": {
-                "python.defaultInterpreterPath": ".venv/bin/python",
-                "editor.formatOnSave": true,
-                "notebook.formatOnSave.enabled": true,
-                "notebook.codeActionsOnSave": {
-                    "notebook.source.fixAll": "explicit",
-                    "notebook.source.organizeImports": "explicit"
-                },
-                "[python]": {
-                    "editor.codeActionsOnSave": {
-                        "source.fixAll": "explicit",
-                        "source.organizeImports": "explicit"
-                    },
-                    "editor.defaultFormatter": "charliermarsh.ruff"
-                }
-            }
+            ]
         }
     },
     "portsAttributes": {},

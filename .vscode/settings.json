@@ -1,0 +1,22 @@
+{
+    "python.defaultInterpreterPath": ".venv/bin/python",
+    "editor.formatOnSave": true,
+    "notebook.formatOnSave.enabled": true,
+    "notebook.codeActionsOnSave": {
+        "notebook.source.fixAll": "explicit",
+        "notebook.source.organizeImports": "explicit"
+    },
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
+}

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "content"
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 requires-python = ">=3.12"
-dependencies = [
-    "Click",
-]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
 schema = "src.schema:check"
@@ -22,9 +22,6 @@ addopts = [
 addopts = [
     "-p no:warnings"
 ]
-
-[tool.setuptools]
-include-package-data = true
 
 [tool.setuptools.packages]
 find = {}
