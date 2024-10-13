@@ -6,7 +6,7 @@
     "waitFor": "onCreateCommand",
     "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
     "postAttachCommand": {
-        "server": ". .venv/bin/activate && manage runserver"
+        "server": ". .venv/bin/activate && manage migrate && manage runserver"
     },
     "customizations": {
         "codespaces": {
