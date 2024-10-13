@@ -1,0 +1,21 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "gyrinx-app.content.necromunda-2018.skill",
+    "title": "Skill",
+    "description": "Skills that can be acquired by fighters in Necromunda.",
+    "type": "object",
+    "properties": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "name": {
+            "type": "string"
+        },
+        "category": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "required": ["uuid", "name", "category"]
+}
