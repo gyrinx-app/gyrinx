@@ -25,6 +25,16 @@ content/
             [type].schema.json
 ```
 
+# Application
+
+This repository also contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
+
+The `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so you can just use `manage` from anywhere:
+
+```bash
+manage shell
+```
+
 # Development
 
 ## Setup
@@ -69,12 +79,20 @@ To set up the development environment, follow these steps:
     Gathering schema files from content/necromunda-2018/schema...
     ```
 
+## Running the Django application
+
+Make sure your virtual environment is active and you've run `pip install --editable .`.
+
+```
+manage runserver
+```
+
 ## Running Tests
 
 To run the test suite:
 
 ```bash
-python -m pytest
+pytest
 ```
 
 ## Checking data against schema
