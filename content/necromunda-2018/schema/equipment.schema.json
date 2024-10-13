@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "gyrinx-app.content.necromunda-2018.equipment",
+    "title": "Equipment",
+    "description": "The equipment that can be used by fighters in Necromunda.",
+    "type": "object",
+    "properties": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "name": {
+            "type": "string"
+        },
+        "category": {
+            "type": "string"
+        },
+        "trading_post_cost": {
+            "type": "integer"
+        }
+    },
+    "additionalProperties": false,
+    "required": ["uuid", "name", "category", "trading_post_cost"]
+}
