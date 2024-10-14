@@ -1,0 +1,20 @@
+equipment_category:
+    - name: None
+    - name: Ammo
+    - name: Armor
+    - name: Basic Weapons
+    - name: Bionics
+    - name: Body Upgrades
+    - name: Chems
+    - name: Close Combat
+    - name: Drive Upgrades
+    - name: Engine Upgrades
+    - name: Equipment
+    - name: Grenades
+    - name: Hardpoint Upgrades
+    - name: Heavy Weapons
+    - name: Mounts
+    - name: Pistols
+    - name: Special Weapons
+    - name: Status Items
+    - name: Vehicle Equipment
