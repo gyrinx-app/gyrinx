@@ -1,6 +1,6 @@
-# content
+# gyrinx
 
-Core content library for Gyrinx
+Core content library & application for Gyrinx
 
 ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
 
