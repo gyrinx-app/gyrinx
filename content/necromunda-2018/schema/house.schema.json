@@ -3,14 +3,10 @@
     "$id": "urn:gyrinx.schema.necromunda-2018.house",
     "type": "object",
     "properties": {
-        "uuid": {
-            "type": "string",
-            "format": "uuid"
-        },
         "name": {
             "type": "string"
         }
     },
     "additionalProperties": false,
-    "required": ["uuid", "name"]
+    "required": ["name"]
 }

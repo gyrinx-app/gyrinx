@@ -18,6 +18,8 @@ fighter:
           wil: 5
           ws: 3
       type: Charter Master
+      house:
+          name: Squat Prospectors
       uuid: 849594af-159f-fbc1-0678-d04993bd3bd4
     - category:
           name: None
@@ -38,6 +40,8 @@ fighter:
           wil: 6
           ws: 4
       type: Drill Master
+      house:
+          name: Squat Prospectors
       uuid: 6ae8bf6d-2c17-2820-2466-3290c56ac228
     - category:
           name: None
@@ -58,6 +62,8 @@ fighter:
           wil: 6
           ws: 4
       type: Drill-kyn
+      house:
+          name: Squat Prospectors
       uuid: 86feb15e-07d1-4e41-d4e9-5c5ab3680750
     - category:
           name: None
@@ -78,6 +84,8 @@ fighter:
           wil: 6
           ws: 4
       type: Drill-kyn Specialist
+      house:
+          name: Squat Prospectors
       uuid: 77f5cd1f-5d55-7354-67ef-b295a8607803
     - category:
           name: None
@@ -98,6 +106,8 @@ fighter:
           wil: 6
           ws: 0
       type: Gearhead
+      house:
+          name: Squat Prospectors
       uuid: 12cadfd8-a7c4-e9e0-6069-c6e47a6d2693
     - category:
           name: None
@@ -118,4 +128,6 @@ fighter:
           wil: 6
           ws: 5
       type: Prospector Digger
+      house:
+          name: Squat Prospectors
       uuid: 43243457-3dda-eb8d-1f6b-6fae87d2a510

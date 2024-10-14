@@ -21,6 +21,8 @@ fighter:
           wil: 6
           ws: 4
       type: Archeotek
+      house:
+          name: Van Saar (HoA)
       uuid: c32e4956-3c8f-1d1b-21d1-e26474163faa
     - category:
           name: None
@@ -44,6 +46,8 @@ fighter:
           wil: 6
           ws: 4
       type: Augmek
+      house:
+          name: Van Saar (HoA)
       uuid: 8e82eb43-7831-9cdb-5522-aa6b7ea1ed79
     - category:
           name: None
@@ -67,6 +71,8 @@ fighter:
           wil: 9
           ws: 5
       type: Neotek
+      house:
+          name: Van Saar (HoA)
       uuid: 07ffa8f1-070d-9036-b9f7-d6db61d1a106
     - category:
           name: None
@@ -90,6 +96,8 @@ fighter:
           wil: 5
           ws: 4
       type: Prime
+      house:
+          name: Van Saar (HoA)
       uuid: be7938e9-a876-18a9-8a7b-6b47e12aa44b
     - category:
           name: None
@@ -113,6 +121,8 @@ fighter:
           wil: 9
           ws: 5
       type: Subtek
+      house:
+          name: Van Saar (HoA)
       uuid: d4cfbf63-a316-35c9-ecf1-cacf6dfe94cd
     - category:
           name: None
@@ -136,6 +146,8 @@ fighter:
           wil: 7
           ws: 4
       type: Tek
+      house:
+          name: Van Saar (HoA)
       uuid: 9b0dff89-c1b4-2d3f-bfb7-dce80c859f70
     - category:
           name: None
@@ -159,4 +171,6 @@ fighter:
           wil: 7
           ws: 4
       type: Tek Specialist
+      house:
+          name: Van Saar (HoA)
       uuid: 2bf75b7b-38bf-8043-8bf3-16bb5a093990

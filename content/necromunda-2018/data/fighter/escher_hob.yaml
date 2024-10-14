@@ -18,6 +18,8 @@ fighter:
           wil: 7
           ws: 2
       type: Deathmaiden
+      house:
+          name: Escher (HoB)
       uuid: ff9a49cf-60c1-a10d-3a45-3cf541426043
     - category:
           name: None
@@ -38,6 +40,8 @@ fighter:
           wil: 8
           ws: 4
       type: Little Sister
+      house:
+          name: Escher (HoB)
       uuid: 9ee40c29-e115-bed0-d140-bf3be9f30212
     - category:
           name: None
@@ -58,6 +62,8 @@ fighter:
           wil: 6
           ws: 3
       type: Matriarch
+      house:
+          name: Escher (HoB)
       uuid: c5e2a8b5-af36-524e-9444-95a19a5f0a13
     - category:
           name: None
@@ -78,6 +84,8 @@ fighter:
           wil: 6
           ws: 3
       type: Queen
+      house:
+          name: Escher (HoB)
       uuid: 2c2d2c02-9116-3b07-7a37-2c2a9c5a6eda
     - category:
           name: None
@@ -98,6 +106,8 @@ fighter:
           wil: 7
           ws: 4
       type: Sister
+      house:
+          name: Escher (HoB)
       uuid: 19cda373-69e2-d201-5e66-b9d478ffbe15
     - category:
           name: None
@@ -118,6 +128,8 @@ fighter:
           wil: 7
           ws: 4
       type: Sister (Specialist)
+      house:
+          name: Escher (HoB)
       uuid: 10f93efd-4619-95f8-ca40-8d9eeb53f5d3
     - category:
           name: None
@@ -138,4 +150,6 @@ fighter:
           wil: 9
           ws: 4
       type: Wyld Runner
+      house:
+          name: Escher (HoB)
       uuid: 9c896721-2067-7b38-c9a8-ec9520204873

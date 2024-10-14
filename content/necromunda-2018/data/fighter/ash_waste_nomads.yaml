@@ -24,6 +24,8 @@ fighter:
           wil: 6
           ws: 3
       type: Kha'tragi Chieftain
+      house:
+          name: Ash Waste Nomads
       uuid: 0a21a2ba-ae5c-595a-7a63-524bad3f768a
     - category:
           name: None
@@ -50,6 +52,8 @@ fighter:
           wil: 7
           ws: 4
       type: Naku'taari Watcher
+      house:
+          name: Ash Waste Nomads
       uuid: 2c345163-630f-91e1-1433-f59f725bd677
     - category:
           name: None
@@ -76,6 +80,8 @@ fighter:
           wil: 8
           ws: 5
       type: Run'Taani Dust Runner
+      house:
+          name: Ash Waste Nomads
       uuid: f347315d-03b2-2eaf-4191-b1dda22d3c40
     - category:
           name: None
@@ -102,6 +108,8 @@ fighter:
           wil: 8
           ws: 4
       type: Tarh'noki Dust Rider
+      house:
+          name: Ash Waste Nomads
       uuid: e974fc79-8f22-4188-383b-f2fd822b0f00
     - category:
           name: None
@@ -128,6 +136,8 @@ fighter:
           wil: 7
           ws: 4
       type: Tarn'Runi Warrior
+      house:
+          name: Ash Waste Nomads
       uuid: 60a40e9b-67b2-c53d-2d33-45858dbd5d93
     - category:
           name: None
@@ -154,6 +164,8 @@ fighter:
           wil: 7
           ws: 4
       type: Tarn'Runi Warrior Specialist
+      house:
+          name: Ash Waste Nomads
       uuid: 584c7128-135b-1383-8875-03a1381512bc
     - category:
           name: None
@@ -180,4 +192,6 @@ fighter:
           wil: 6
           ws: 3
       type: Wy'tari Stormcaller
+      house:
+          name: Ash Waste Nomads
       uuid: 6ca132e5-c509-c8ad-cfd4-52b3ab14a94a

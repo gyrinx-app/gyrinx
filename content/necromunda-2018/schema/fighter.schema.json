@@ -16,7 +16,7 @@
             "$ref": "urn:gyrinx.schema.necromunda-2018.category"
         },
         "house": {
-            "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
+            "$ref": "urn:gyrinx.schema.necromunda-2018.house"
         },
         "cost": {
             "type": "integer"
