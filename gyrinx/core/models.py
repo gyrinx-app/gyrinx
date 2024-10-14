@@ -1,16 +1,20 @@
-import uuid
-
 from django.db import models
 
 
 class Base(models.Model):
-    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.AutoField(primary_key=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
 
 
 class Content(Base):
+    # The uuid and version must be supplied when creating a new instance
+    uuid = models.UUIDField(editable=False, db_index=True)
+    version = models.CharField(max_length=255, db_index=True)
+
     # TODO: In future?
     # ruleset = models.CharField(max_length=255, default="necromunda-2018")
     # filepath = models.CharField(max_length=255)
@@ -70,6 +74,53 @@ class Category(Content):
         choices=CategoryNameChoices,
         default=CategoryNameChoices.NONE,
     )
+
+    def __str__(self):
+        return self.name
+
+
+class Skill(Content):
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.name
+
+
+class EquipmentCategory(Content):
+    class EquipmentCategoryNameChoices(models.TextChoices):
+        NONE = "NONE", "None"
+        AMMO = "AMMO", "Ammo"
+        ARMOR = "ARMOR", "Armor"
+        BASIC_WEAPONS = "BASIC_WEAPONS", "Basic Weapons"
+        BIONICS = "BIONICS", "Bionics"
+        BODY_UPGRADES = "BODY_UPGRADES", "Body Upgrades"
+        CHEMS = "CHEMS", "Chems"
+        CLOSE_COMBAT = "CLOSE_COMBAT", "Close Combat"
+        DRIVE_UPGRADES = "DRIVE_UPGRADES", "Drive Upgrades"
+        ENGINE_UPGRADES = "ENGINE_UPGRADES", "Engine Upgrades"
+        EQUIPMENT = "EQUIPMENT", "Equipment"
+        GRENADES = "GRENADES", "Grenades"
+        HARDPOINT_UPGRADES = "HARDPOINT_UPGRADES", "Hardpoint Upgrades"
+        HEAVY_WEAPONS = "HEAVY_WEAPONS", "Heavy Weapons"
+        MOUNTS = "MOUNTS", "Mounts"
+        PISTOLS = "PISTOLS", "Pistols"
+        SPECIAL_WEAPONS = "SPECIAL_WEAPONS", "Special Weapons"
+        STATUS_ITEMS = "STATUS_ITEMS", "Status Items"
+        VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
+
+    name = models.CharField(
+        max_length=255,
+        choices=EquipmentCategoryNameChoices,
+        default=EquipmentCategoryNameChoices.NONE,
+    )
+
+    def __str__(self):
+        return self.name
+
+
+class Equipment(Content):
+    name = models.CharField(max_length=255)
+    category = models.ForeignKey(EquipmentCategory, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.name
