@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 40
       equipment: []
       skills: []
@@ -18,11 +17,9 @@ fighter:
           wil: 7
           ws: 4
       type: Ghost
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 401357e5-7c76-5967-393b-a391a338e89b
-    - category:
-          name: None
+    - category: None
       cost: 40
       equipment: []
       skills: []
@@ -40,11 +37,9 @@ fighter:
           wil: 7
           ws: 4
       type: Ghost Specialist
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 9f7e7fe7-c72b-de8c-5498-c0304d3fe582
-    - category:
-          name: None
+    - category: None
       cost: 100
       equipment: []
       skills: []
@@ -62,11 +57,9 @@ fighter:
           wil: 5
           ws: 3
       type: Master of Shadow
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 2244761b-c36d-828d-c1d5-a6453d496ce8
-    - category:
-          name: None
+    - category: None
       cost: 130
       equipment: []
       skills: []
@@ -84,11 +77,9 @@ fighter:
           wil: 5
           ws: 3
       type: Master of Shadow Psyker
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 5a4f01ac-ce17-7861-d00a-f70bbe3709a8
-    - category:
-          name: None
+    - category: None
       cost: 110
       equipment: []
       skills: []
@@ -106,11 +97,9 @@ fighter:
           wil: 6
           ws: 2
       type: Nacht-Ghul
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 5fe6de3e-8eaf-71b6-f02d-f36a888ad133
-    - category:
-          name: None
+    - category: None
       cost: 140
       equipment: []
       skills: []
@@ -128,11 +117,9 @@ fighter:
           wil: 6
           ws: 2
       type: Nacht-Ghul Psyker
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: d47d892e-42f7-8a57-df14-a2c6bd521999
-    - category:
-          name: None
+    - category: None
       cost: 85
       equipment: []
       skills: []
@@ -150,11 +137,9 @@ fighter:
           wil: 6
           ws: 3
       type: Phantom
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: f0a43d6e-5eea-19af-337a-176e9836acdd
-    - category:
-          name: None
+    - category: None
       cost: 115
       equipment: []
       skills: []
@@ -172,11 +157,9 @@ fighter:
           wil: 6
           ws: 3
       type: Phantom Psyker
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: d0247a4f-a586-56eb-0deb-39fd3e76c827
-    - category:
-          name: None
+    - category: None
       cost: 60
       equipment: []
       skills: []
@@ -194,11 +177,9 @@ fighter:
           wil: 8
           ws: 4
       type: Psy-Gheist
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: d58ea62b-0440-eea8-a1c3-eaf50edd43a9
-    - category:
-          name: None
+    - category: None
       cost: 25
       equipment: []
       skills: []
@@ -216,11 +197,9 @@ fighter:
           wil: 8
           ws: 5
       type: Shadow
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: 3f39588b-b19e-2805-1d9a-edfbb170025c
-    - category:
-          name: None
+    - category: None
       cost: 35
       equipment: []
       skills: []
@@ -238,6 +217,5 @@ fighter:
           wil: 7
           ws: 0
       type: Wraith
-      house:
-          name: Delaque (HoS)
+      house: Delaque (HoS)
       uuid: db6e29b7-02f4-106c-8403-8b6c7de54a67

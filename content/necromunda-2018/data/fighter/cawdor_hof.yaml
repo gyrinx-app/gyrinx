@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 20
       equipment: []
       skills: []
@@ -18,11 +17,9 @@ fighter:
           wil: 8
           ws: 5
       type: Bonepicker
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: f491f580-4a38-e51c-960b-0ea65ef41f0e
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment: []
       skills: []
@@ -40,11 +37,9 @@ fighter:
           wil: 7
           ws: 4
       type: Brethren
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: 6e66e991-fc1b-310e-9b60-6e774e2f4186
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment: []
       skills: []
@@ -62,11 +57,9 @@ fighter:
           wil: 7
           ws: 4
       type: Brethren Specialist
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: d346f5b6-3731-c9ae-286d-60ceb44dbd49
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment: []
       skills: []
@@ -84,11 +77,9 @@ fighter:
           wil: 5
           ws: 4
       type: Deacon
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: cdbbd65b-eb51-208d-834f-250c928e6804
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment: []
       skills: []
@@ -106,11 +97,9 @@ fighter:
           wil: 5
           ws: 4
       type: Deacon
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: cdbbd65b-eb51-208d-834f-250c928e6804
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment: []
       skills: []
@@ -128,11 +117,9 @@ fighter:
           wil: 7
           ws: 4
       type: Firebrand
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: 8ac24fcd-f8ad-e438-1a8f-5d2532eb29a7
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment: []
       skills: []
@@ -150,11 +137,9 @@ fighter:
           wil: 7
           ws: 4
       type: Firebrand
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: 8ac24fcd-f8ad-e438-1a8f-5d2532eb29a7
-    - category:
-          name: None
+    - category: None
       cost: 100
       equipment: []
       skills: []
@@ -172,11 +157,9 @@ fighter:
           wil: 4
           ws: 3
       type: Priest
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: e5ea56a6-4ded-f72d-7bff-fbd4251d52bc
-    - category:
-          name: None
+    - category: None
       cost: 50
       equipment: []
       skills: []
@@ -194,11 +177,9 @@ fighter:
           wil: 6
           ws: 4
       type: Redemptionist Brethren
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: cea86915-9575-c6a4-1205-15363414a2dc
-    - category:
-          name: None
+    - category: None
       cost: 50
       equipment: []
       skills: []
@@ -216,11 +197,9 @@ fighter:
           wil: 6
           ws: 4
       type: Redemptionist Brethren Specialist
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: 85b842e1-eaca-7f00-9ac7-05052dcaf801
-    - category:
-          name: None
+    - category: None
       cost: 100
       equipment: []
       skills: []
@@ -238,11 +217,9 @@ fighter:
           wil: 5
           ws: 3
       type: Word-Keeper
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: 2becfa2d-43d1-75c2-f485-36d3bfb20a0a
-    - category:
-          name: None
+    - category: None
       cost: 40
       equipment: []
       skills: []
@@ -260,6 +237,5 @@ fighter:
           wil: 8
           ws: 4
       type: Zealot
-      house:
-          name: Cawdor (HoF)
+      house: Cawdor (HoF)
       uuid: e2cf4536-7c12-ad31-b98c-25f16009a1a8

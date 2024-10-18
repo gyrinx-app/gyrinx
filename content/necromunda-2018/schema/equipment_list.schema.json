@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:gyrinx.schema.necromunda-2018.equipment-list",
+    "title": "Equipment List",
+    "description": "The equipment list for a particular Fighter.",
+    "type": "object",
+    "properties": {
+        "fighter_type": {
+            "type": "string"
+        },
+        "equipment": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "cost": {
+                        "type": "integer",
+                        "description": "The cost of the equipment for this fighter. If none is provided, the Trading Post cost will be used."
+                    }
+                },
+                "additionalProperties": false,
+                "required": ["name"]
+            }
+        }
+    },
+    "additionalProperties": false,
+    "required": ["fighter_type", "equipment"]
+}

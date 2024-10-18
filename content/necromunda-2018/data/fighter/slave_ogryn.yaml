@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 70
       equipment: []
       skills: []
@@ -18,11 +17,9 @@ fighter:
           wil: 10
           ws: 4
       type: Lobo-Slave
-      house:
-          name: Slave Ogryn
+      house: Slave Ogryn
       uuid: 2f71273c-93bd-f48d-fec9-e5d132d3fc2d
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment: []
       skills: []
@@ -40,11 +37,9 @@ fighter:
           wil: 9
           ws: 4
       type: Ogryn
-      house:
-          name: Slave Ogryn
+      house: Slave Ogryn
       uuid: 9924f775-d71f-726f-06b3-2973438cacb5
-    - category:
-          name: None
+    - category: None
       cost: 145
       equipment: []
       skills: []
@@ -62,11 +57,9 @@ fighter:
           wil: 9
           ws: 3
       type: Overboss
-      house:
-          name: Slave Ogryn
+      house: Slave Ogryn
       uuid: aef521b4-8b51-dc7e-f301-d3a1e1ba8ed6
-    - category:
-          name: None
+    - category: None
       cost: 110
       equipment: []
       skills: []
@@ -84,6 +77,5 @@ fighter:
           wil: 9
           ws: 3
       type: Underboss
-      house:
-          name: Slave Ogryn
+      house: Slave Ogryn
       uuid: 0cce2389-306f-fff8-70ab-ef0e24533ce0

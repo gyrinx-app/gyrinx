@@ -110,6 +110,12 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
 
         data = [src for src in data_sources if src.name == schema.name]
 
+        if not data:
+            click.echo(
+                f"Warning: No data sources found for schema {schema.name} (from {schema.path})",
+                err=True,
+            )
+
         for src in data:
             try:
                 jsonschema.validate(src.data, list_of(schema.schema), registry=registry)

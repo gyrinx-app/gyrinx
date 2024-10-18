@@ -2,1592 +2,1194 @@ equipment:
     - category: Ammo
       name: Anti-plant-Grenade Launcher
       trading_post_cost: 40
-      uuid: 33df9707-901a-a557-7a23-5f5ec169937a
     - category: Ammo
       name: Chem Darts-Needle Pistol
       trading_post_cost: 10
-      uuid: 02392559-3c8b-78b3-8691-94cfcdb0639f
     - category: Ammo
       name: Chem Darts-Needle Rifle
       trading_post_cost: 10
-      uuid: cd207db4-c028-232b-1dff-e9cd02e62d6e
     - category: Ammo
       name: Combat Shotgun-Firestorm Ammo
       trading_post_cost: 30
-      uuid: 57b16066-6084-8c50-8be0-5316cf571ef6
     - category: Ammo
       name: Dum-Dum Ammo
       trading_post_cost: 5
-      uuid: 074cc7c8-0838-95b6-e750-c95b64ab75ee
     - category: Ammo
       name: Flares-Grenade Launcher
       trading_post_cost: 30
-      uuid: 21bca1a6-4c82-7947-048e-2030c8021653
     - category: Ammo
       name: Focusing Crystal-Las Carbine
       trading_post_cost: 30
-      uuid: a9686bbb-b9b1-2367-1914-4b1b44d61b4a
     - category: Ammo
       name: Focusing Crystal-Las Pistol
       trading_post_cost: 30
-      uuid: 196636b7-1d36-88e6-b7f9-e8039ded9498
     - category: Ammo
       name: Focusing Crystal-Las Sub-carbine
       trading_post_cost: 30
-      uuid: c3fd2a15-ad1d-c001-a8c3-775da96c27d2
     - category: Ammo
       name: Focusing Crystal-Lasgun
       trading_post_cost: 30
-      uuid: 67f40c1b-bd0f-7847-0edb-0771f3f40fe4
     - category: Ammo
       name: Focusing Crystal-Long Las
       trading_post_cost: 30
-      uuid: 99a179a7-6c5e-c689-6615-a68983c3ed92
     - category: Ammo
       name: Focusing Crystal-Suppression Laser
       trading_post_cost: 30
-      uuid: 08ce577e-e6ad-0313-100c-c3b235d1c737
     - category: Ammo
       name: Fragmentation Rounds
       trading_post_cost: 10
-      uuid: 1ba8a9eb-2c13-1dfc-0571-17cb4a01f107
     - category: Ammo
       name: Gas Shell-Bolt Pistol
       trading_post_cost: 25
-      uuid: 74a9e5a2-ec18-1b8e-4ed6-88b58b5205e1
     - category: Ammo
       name: Gas Shell-Boltgun
       trading_post_cost: 25
-      uuid: b14defa8-c229-0a3e-2942-ad49d464cd31
     - category: Ammo
       name: Gas Shell-Combat Shotgun
       trading_post_cost: 25
-      uuid: 3abf6a7b-df5e-79dd-cff7-eff0861a0a50
     - category: Ammo
       name: Gas Shell-Sawn-off Shotgun
       trading_post_cost: 25
-      uuid: df1edcb6-6589-7223-382b-d9f1df743c58
     - category: Ammo
       name: Gas Shell-Shotgun
       trading_post_cost: 25
-      uuid: 6b9a616f-1dbb-a87e-5f6b-1b2b72a277bd
     - category: Ammo
       name: Grenade Launcher-Choke Ammo
       trading_post_cost: 35
-      uuid: f9eda3cf-63ab-58cf-b5a7-265bc1351162
     - category: Ammo
       name: Grenade Launcher-Photon Ammo
       trading_post_cost: 15
-      uuid: 073d3bae-60fe-6049-ad2d-3f2afbdff21f
     - category: Ammo
       name: Grenade Launcher-Scare Ammo
       trading_post_cost: 45
-      uuid: 5741f1be-22cc-5c56-6ad9-eaeabcfcf990
     - category: Ammo
       name: Grenade Launcher-Smoke Ammo
       trading_post_cost: 15
-      uuid: 53a235b4-0621-edd2-1866-dc559aa0e82e
     - category: Ammo
       name: Gunk Bolts - Boltgun
       trading_post_cost: 15
-      uuid: 0acae3f7-75ce-073c-7530-8c797ea1e3f7
     - category: Ammo
       name: Gunk Bolts-Bolt Pistol
       trading_post_cost: 15
-      uuid: dcd6a92c-97e1-b9a7-25e8-7edab648ae6e
     - category: Ammo
       name: Gunk Bolts-Combi
       trading_post_cost: 15
-      uuid: f74e8b80-27a2-f359-9566-93bf77effc3a
     - category: Ammo
       name: Gunk Bolts-Heavy Bolter
       trading_post_cost: 15
-      uuid: ab3f548f-5df8-d4dc-c099-665eb9640841
     - category: Ammo
       name: Ironhead Pistol Dumdum
       trading_post_cost: 5
-      uuid: 8420c4db-db8c-34d7-e2a0-e11ac52bf601
     - category: Ammo
       name: Manstopper Rounds
       trading_post_cost: 10
-      uuid: fcf1bcc8-4055-fa6b-481b-9f720e333432
     - category: Ammo
       name: Phosphor-Autogun
       trading_post_cost: 10
-      uuid: 745584e2-f162-60fc-83d6-0154f4bb96a0
     - category: Ammo
       name: Phosphor-Autopistol
       trading_post_cost: 10
-      uuid: dde7941d-63a9-cf6c-8a07-75e1e38cfc0f
     - category: Ammo
       name: Phosphor-Combat Shotgun
       trading_post_cost: 10
-      uuid: 9b6e07f0-5fd5-d308-e8b7-eb5175894a6a
     - category: Ammo
       name: Phosphor-Combi Autogun
       trading_post_cost: 10
-      uuid: 9ebd693f-87e7-0229-d7d2-2510006f50aa
     - category: Ammo
       name: Phosphor-Heavy Stubber
       trading_post_cost: 10
-      uuid: 6354a535-8643-33c1-e5bc-a3d6151e5fee
     - category: Ammo
       name: Phosphor-Reclaimed Autogun
       trading_post_cost: 10
-      uuid: fdec7fc6-6f4c-7bf5-d5d0-b15220adce8d
     - category: Ammo
       name: Phosphor-Reclaimed Autopistol
       trading_post_cost: 10
-      uuid: 353cfc2c-8670-87f7-00f4-cad5d2f77e90
     - category: Ammo
       name: Phosphor-Sawn-off Shotgun
       trading_post_cost: 10
-      uuid: 1b903692-b7bc-8ba3-f28e-0ba09260dc13
     - category: Ammo
       name: Phosphor-Shotgun
       trading_post_cost: 10
-      uuid: ad7ec342-649d-1543-7bc2-932ef396757c
     - category: Ammo
       name: Plantbuster-Autogun
       trading_post_cost: 15
-      uuid: 3c52420b-8b1a-39cd-e1e9-3966bf2b95fe
     - category: Ammo
       name: Plantbuster-Autopistol
       trading_post_cost: 15
-      uuid: fc6cc556-be4b-6394-d8cf-d1192267db87
     - category: Ammo
       name: Plantbuster-Combat Shotgun
       trading_post_cost: 15
-      uuid: 703e05f5-945b-5bba-1607-bcee2807f043
     - category: Ammo
       name: Plantbuster-Combi Autogun
       trading_post_cost: 15
-      uuid: 4a743a1f-0548-6269-c19d-f985d326726a
     - category: Ammo
       name: Plantbuster-Heavy Stubber
       trading_post_cost: 15
-      uuid: 8ffe8960-392f-e120-f4c5-0373ef742d22
     - category: Ammo
       name: Plantbuster-Reclaimed Autogun
       trading_post_cost: 15
-      uuid: 0b9ec7e5-281d-310b-0b89-49654f6b5a00
     - category: Ammo
       name: Plantbuster-Reclaimed Autopistol
       trading_post_cost: 15
-      uuid: cad1a8ce-63a1-ab84-dd3c-9590bde60a40
     - category: Ammo
       name: Plantbuster-Sawn-off Shotgun
       trading_post_cost: 15
-      uuid: 33bda772-a06c-f496-b1cb-dcbdcb691408
     - category: Ammo
       name: Plantbuster-Shotgun
       trading_post_cost: 15
-      uuid: 2184a24f-300b-691b-5b3c-1c199a2aa43d
     - category: Ammo
       name: Plasma-Grenade Launcher
       trading_post_cost: 100
-      uuid: b1773ca4-1a88-163b-24fc-565f9e2ca6e0
     - category: Ammo
       name: Rad-Autogun
       trading_post_cost: 20
-      uuid: 3b1bdea4-031f-9639-39b7-a001df731431
     - category: Ammo
       name: Rad-Autopistol
       trading_post_cost: 20
-      uuid: ae35dd75-4a6b-f92e-3719-0c882e141ac8
     - category: Ammo
       name: Rad-Combat Shotgun
       trading_post_cost: 25
-      uuid: 312e2440-ba07-ee9c-1702-89d60309644f
     - category: Ammo
       name: Rad-Combi Autogun
       trading_post_cost: 20
-      uuid: 0095dc1d-2145-3fd0-533a-242a6ae01fcc
     - category: Ammo
       name: Rad-Heavy Stubber
       trading_post_cost: 20
-      uuid: 486c7f7d-a842-fb7d-1c9d-cb6c882970a2
     - category: Ammo
       name: Rad-Reclaimed Autogun
       trading_post_cost: 20
-      uuid: 58641238-b175-b799-2ede-e98041015b5a
     - category: Ammo
       name: Rad-Reclaimed Autopistol
       trading_post_cost: 20
-      uuid: 52b32bb1-7b15-120f-3d6d-d9feedf6df1c
     - category: Ammo
       name: Rad-Sawn-off Shotgun
       trading_post_cost: 25
-      uuid: 9d4acb78-c980-59ea-bc25-2749bfaaa2d5
     - category: Ammo
       name: Rad-Shotgun
       trading_post_cost: 25
-      uuid: 39d45381-3881-581d-9b90-8efef1ae9608
     - category: Ammo
       name: Sawn-Off Shotgun-Solid Shot
       trading_post_cost: 10
-      uuid: 818b19ed-3ebe-778d-1dcc-f62119fcdfde
     - category: Ammo
       name: Shatter Shell-Bolt Pistol
       trading_post_cost: 15
-      uuid: af43566c-5fe2-30d7-0322-8b17c7f7a8d1
     - category: Ammo
       name: Shatter Shell-Boltgun
       trading_post_cost: 15
-      uuid: ded94d41-8c90-01e9-23e6-051f10d6166f
     - category: Ammo
       name: Shatter Shell-Combat Shotgun
       trading_post_cost: 15
-      uuid: 3b89bcd8-db98-1dc1-85cc-5ea2f43e4fac
     - category: Ammo
       name: Shatter Shell-Shawn-off Shotgun
       trading_post_cost: 15
-      uuid: ea1a7ef4-386b-9e1d-4e9d-753d52b94fe2
     - category: Ammo
       name: Shatter Shell-Shotgun
       trading_post_cost: 15
-      uuid: 2b48fcb2-c8a1-4aac-575c-5ff485b0b332
     - category: Ammo
       name: Shotgun - Executioner
       trading_post_cost: 20
-      uuid: 94b0eb56-d51b-86c1-b550-bc2d3ec24522
     - category: Ammo
       name: Shotgun - Inferno
       trading_post_cost: 15
-      uuid: 9825327d-432d-2f89-66e6-40f54f4c0fc6
     - category: Ammo
       name: Static Rounds-Autogun
       trading_post_cost: 10
-      uuid: adac7fd4-9786-f27c-d59a-27e22def24bc
     - category: Ammo
       name: Static Rounds-Autopistol
       trading_post_cost: 10
-      uuid: 31970fc8-fbc1-dd88-db78-0c565cd4b2e8
     - category: Ammo
       name: Static Rounds-Heavy Stubber
       trading_post_cost: 15
-      uuid: d3339db9-39fe-700c-94b0-8e07ad014746
     - category: Ammo
       name: Static Rounds-Long Rifle
       trading_post_cost: 15
-      uuid: 13b2342f-cd16-0fe8-f8a1-89ccdb3b407d
     - category: Ammo
       name: Static Rounds-Stub Cannon
       trading_post_cost: 10
-      uuid: a7c981c7-4e77-d664-0a5c-978b2d3ce0b2
     - category: Ammo
       name: Static Rounds-Stub Gun
       trading_post_cost: 10
-      uuid: 94e6a9eb-cace-6db6-9ad7-126da358f647
     - category: Ammo
       name: Warp Rounds-Autogun
       trading_post_cost: 15
-      uuid: e9874580-7878-fe5e-1ede-000d45987f8e
     - category: Ammo
       name: Warp Rounds-Autopistol
       trading_post_cost: 15
-      uuid: 58579aa1-f57e-af37-9b57-9bc2a55f545e
     - category: Ammo
       name: Warp Rounds-Heavy Stubber
       trading_post_cost: 20
-      uuid: be553cf5-3bec-e8f9-2f50-e519b5344978
     - category: Ammo
       name: Warp Rounds-Long Rifle
       trading_post_cost: 20
-      uuid: 0afb1270-6881-47c0-98ef-74c7b5c14137
     - category: Ammo
       name: Warp Rounds-Stub Cannon
       trading_post_cost: 15
-      uuid: 2d72e6c3-917b-d7cc-3dbd-3575a113fe99
     - category: Ammo
       name: Warp Rounds-Stub Gun
       trading_post_cost: 15
-      uuid: e8baf0e4-1223-3bc9-1f43-f4ac121b52dd
     - category: Armor
       name: Ablative Overlay
       trading_post_cost: 20
-      uuid: 550844e0-7de6-6982-7424-cff2e95e3298
     - category: Armor
       name: Archaeo-carapace
       trading_post_cost: 120
-      uuid: 6e83493e-2593-e7be-f1e3-73b9d9fbd5d7
     - category: Armor
       name: Armourweave
       trading_post_cost: 20
-      uuid: 81129fcb-753d-df4b-aabc-02a4bb396320
     - category: Armor
       name: Carapace Armor - Heavy
       trading_post_cost: 100
-      uuid: 21e8b211-889d-092c-241b-ad2063137cad
     - category: Armor
       name: Carapace Armor - Light
       trading_post_cost: 80
-      uuid: 1b85ddf0-0928-0922-0ab9-7ec216ab2a70
     - category: Armor
       name: Ceramite Shield
       trading_post_cost: 40
-      uuid: 8754db1f-a392-a17b-207f-196a727a817b
     - category: Armor
       name: Conversion Field
       trading_post_cost: 60
-      uuid: 5fe0a5f8-77ac-996b-1774-71bd3ec17df6
     - category: Armor
       name: Displacer Field
       trading_post_cost: 70
-      uuid: ac9165fa-bb9f-9046-03eb-e9059d1bf8d7
     - category: Armor
       name: Flak Armor
       trading_post_cost: 10
-      uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
     - category: Armor
       name: Gutterforged Cloak
       trading_post_cost: 15
-      uuid: f9393b0b-0a2d-c1f2-d769-793f3f9c4f61
     - category: Armor
       name: Hardened Flak Armor
       trading_post_cost: 20
-      uuid: 2c57b8f3-1fb6-00f6-3d00-1c55f17630f8
     - category: Armor
       name: Hardened Layered Flak
       trading_post_cost: 35
-      uuid: af9b53da-c418-9215-b852-e225943522bd
     - category: Armor
       name: Hazard Suit
       trading_post_cost: 10
-      uuid: d0cb44b1-9067-0bbe-ce64-65ad7605d9b1
     - category: Armor
       name: Layered Flak Armor
       trading_post_cost: 20
-      uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
     - category: Armor
       name: Mantle Malifica
       trading_post_cost: 75
-      uuid: dc681e16-ff3c-e890-148f-8f7c47f11a3a
     - category: Armor
       name: Mesh Armor
       trading_post_cost: 15
-      uuid: ad5c9a9f-4119-6334-0f98-ac3f6e3eb97d
     - category: Armor
       name: Reflec Shroud
       trading_post_cost: 30
-      uuid: c67c6d2f-8b52-d97a-a277-51139cea8fe0
     - category: Armor
       name: Refractor Field
       trading_post_cost: 50
-      uuid: d0e99c5e-fce6-bfb5-e75d-0134b53beafc
     - category: Armor
       name: Scrap Shield
       trading_post_cost: 15
-      uuid: 1b213f24-bc30-ab30-bbf3-9daf8305f437
     - category: Basic Weapons
       name: Arc Rifle
       trading_post_cost: 100
-      uuid: da5822be-ae49-2bf4-b91c-ac8479a7a286
     - category: Basic Weapons
       name: Autogun
       trading_post_cost: 15
-      uuid: 4b3d9cab-07f1-d100-52d6-06c9f80f0eb6
     - category: Basic Weapons
       name: Boltgun
       trading_post_cost: 55
-      uuid: 15d24265-4668-be5d-408c-bae59e92f874
     - category: Basic Weapons
       name: Combat Shotgun-w/Salvo+Shredder
       trading_post_cost: 70
-      uuid: 5a12c05d-553d-54c1-a7f2-5753fdc82308
     - category: Basic Weapons
       name: Ironhead Autogun
       trading_post_cost: 25
-      uuid: a6a35eb8-f53a-708a-cb6d-27547586ac70
     - category: Basic Weapons
       name: Ironhead Boltgun
       trading_post_cost: 95
-      uuid: 903c0862-2584-a03e-f3e3-61dd5c589114
     - category: Basic Weapons
       name: Kroot Long Rifle
       trading_post_cost: 30
-      uuid: 4ebca0fc-ec6d-6ce6-123e-b512cdb33f2b
     - category: Basic Weapons
       name: Lasgun
       trading_post_cost: 15
-      uuid: d8f076d8-a671-bd63-1a1b-b0703c81d1c7
     - category: Basic Weapons
       name: Rak'Gol Razor Gun
       trading_post_cost: 60
-      uuid: ec1c6238-37c0-94b5-7d30-1013f5be45a3
     - category: Basic Weapons
       name: Reclaimed Autogun
       trading_post_cost: 10
-      uuid: bc246bfb-1420-2f89-ea5d-2d26b31d081b
     - category: Basic Weapons
       name: Sawn-Off Shotgun
       trading_post_cost: 15
-      uuid: a55a14b1-ff43-f7c7-d606-709e3d747a5c
     - category: Basic Weapons
       name: Shotgun - Solid/Scatter
       trading_post_cost: 30
-      uuid: 73230947-6d5b-fd09-d8d3-83230769ee37
     - category: Basic Weapons
       name: Sling Gun
       trading_post_cost: 55
-      uuid: cdf159c6-c52c-ee48-9941-033c0b89613d
     - category: Basic Weapons
       name: Stake-crossbow
       trading_post_cost: 60
-      uuid: 848800be-4c54-ab76-7484-077a1e5f43d8
     - category: Basic Weapons
       name: Throwing Knives
       trading_post_cost: 10
-      uuid: 1a5a1d2c-d61e-8b8e-982c-1972ad95266c
     - category: Basic Weapons
       name: Warpstorm Bolter
       trading_post_cost: 60
-      uuid: 2c1a00c3-add1-0f79-1f9f-c954367f51fa
     - category: Bionics
       name: Aortic Supercharger (Mundane)
       trading_post_cost: 65
-      uuid: 6559939f-6683-c548-e9c7-04762c704ef3
     - category: Bionics
       name: Bionic Arm (Mundane)
       trading_post_cost: 45
-      uuid: 6671805a-4f1b-b8e7-7e43-c54e4210b502
     - category: Bionics
       name: Bionic Eye (Mundane)
       trading_post_cost: 45
-      uuid: 59d0a8ff-ecc0-b04c-1aa6-1f8346b9350d
     - category: Bionics
       name: Bionic Leg (Mundane)
       trading_post_cost: 25
-      uuid: eb751c1c-9ed4-1481-7bf1-03c8f47da480
     - category: Bionics
       name: Cortex-Cogitator (Improved)
       trading_post_cost: 30
-      uuid: 2b145c20-2970-727d-f5c4-dbcd19f51ab6
     - category: Bionics
       name: Cortex-Cogitator (Mundane Int)
       trading_post_cost: 15
-      uuid: acfd74b0-9ae8-6065-4a0b-65594a6af9f2
     - category: Bionics
       name: Cortex-Cogitator (Mundane Will)
       trading_post_cost: 15
-      uuid: 7784c0d0-7554-9866-17cd-bc01f8576e7a
     - category: Bionics
       name: Lobo Chip (Improved)
       trading_post_cost: 45
-      uuid: 3861450c-86f3-0cd4-9848-b4977a971796
     - category: Bionics
       name: Lobo Chip (Mundane Cl)
       trading_post_cost: 20
-      uuid: e4307504-bf1b-8032-7f8e-15833853ecc7
     - category: Bionics
       name: Lobo Chip (Mundane Ld)
       trading_post_cost: 20
-      uuid: 344246d4-d2d9-7d15-052b-c003bdd65590
     - category: Bionics
       name: Skeletal Enhancers (Mundane)
       trading_post_cost: 70
-      uuid: bec56f7a-12bc-3ec7-242e-fd904b63da9a
     - category: Body Upgrades
       name: Ablative Armor
       trading_post_cost: 15
-      uuid: f90a4db1-2ed4-5e99-5887-260e4bbdcdb5
     - category: Body Upgrades
       name: Crash Cage
       trading_post_cost: 15
-      uuid: 813d6803-f770-8e41-b00d-b02ddf18af01
     - category: Body Upgrades
       name: Escape hatches
       trading_post_cost: 10
-      uuid: ab10dfcd-16b7-72b5-7311-523003224b57
     - category: Body Upgrades
       name: Explosive ram
       trading_post_cost: 25
-      uuid: 064f9509-289d-be34-1c2e-f2055c065e74
     - category: Body Upgrades
       name: Extra armor
       trading_post_cost: 25
-      uuid: 583c3608-66e0-2d2f-349f-6639e717fb95
     - category: Body Upgrades
       name: Ram
       trading_post_cost: 15
-      uuid: e5d284b6-0150-67ea-a11e-06b809fe6f13
     - category: Body Upgrades
       name: Reinforced armor
       trading_post_cost: 20
-      uuid: d542711d-66fb-11ae-3284-2c4dbe7e877d
     - category: Body Upgrades
       name: Rockgrinder ram
       trading_post_cost: 40
-      uuid: 75212484-0954-2d0e-e7bc-5b43a59dbbbb
     - category: Body Upgrades
       name: Speed fins
       trading_post_cost: 10
-      uuid: 5d4c0621-8918-b13f-5c76-2b9480786c26
     - category: Body Upgrades
       name: Transport bed
       trading_post_cost: 15
-      uuid: 85bc0dc3-617d-0fa2-4d8a-0eaff7dc2571
     - category: Body Upgrades
       name: Transport cage large
       trading_post_cost: 50
-      uuid: 32604c91-51d9-5bf9-12e4-b0bc937fa1f3
     - category: Body Upgrades
       name: Transport cage small
       trading_post_cost: 20
-      uuid: 93db7f46-69c7-6c8b-f862-7382b013d08c
     - category: Body Upgrades
       name: Turtle back
       trading_post_cost: 10
-      uuid: 64a48706-0f12-0902-174d-2ffd553ad563
     - category: Body Upgrades
       name: Weapons stash
       trading_post_cost: 20
-      uuid: 12b7f5f5-c61a-e0a6-a1bc-63eded5f5d9a
     - category: Chems
       name: Frenzon
       trading_post_cost: 20
-      uuid: 8a59ce89-ecc3-7bc7-d14f-267c5d5ebc75
     - category: Chems
       name: Ghast
       trading_post_cost: 30
-      uuid: e866d250-0f39-b89b-9aa2-3a4dd349516e
     - category: Chems
       name: Icrotic Slime
       trading_post_cost: 35
-      uuid: f418d89a-3a0c-b329-5e63-1ce6df33b2a5
     - category: Chems
       name: Kalma
       trading_post_cost: 15
-      uuid: 2109c5ee-5a9d-686c-8f8a-04f0d309513f
     - category: Chems
       name: Slaught
       trading_post_cost: 30
-      uuid: 867a06e0-bab7-d4a8-c7c4-dfa90d6de9f1
     - category: Chems
       name: Spur
       trading_post_cost: 35
-      uuid: f3ad2124-c7f5-01ea-ebb2-75674d80c1f7
     - category: Chems
       name: Stinger Mould
       trading_post_cost: 75
-      uuid: cd868d6a-9c69-d89d-85ff-6092972df8d5
     - category: Close Combat
       name: Axe
       trading_post_cost: 10
-      uuid: ed4dd6cc-118a-b250-0715-cbd23b054573
     - category: Close Combat
       name: Boning Sword
       trading_post_cost: 20
-      uuid: 6600133b-0174-e4e2-7bd1-212301139c75
     - category: Close Combat
       name: Butcher's Chain Cleaver
       trading_post_cost: 45
-      uuid: 261591e0-2ef0-6fb8-ad24-f0d43aa744d7
     - category: Close Combat
       name: Butcher's Cleaver
       trading_post_cost: 25
-      uuid: f03ddfb7-19b1-f2e8-b674-d39a8a6199f7
     - category: Close Combat
       name: Chain Glaive*
       trading_post_cost: 60
-      uuid: 2d727b57-d80d-68ca-723e-3c1ab5b82ddf
     - category: Close Combat
       name: Chainaxe
       trading_post_cost: 30
-      uuid: 82148fba-e134-faed-6fcf-b798a9701f7f
     - category: Close Combat
       name: Chainsword
       trading_post_cost: 25
-      uuid: e79bd77c-0ec2-3967-6c8f-1acccb74894d
     - category: Close Combat
       name: Circular Stone Saw
       trading_post_cost: 25
-      uuid: 677b8454-39f5-4b12-8f71-994d11ec1feb
     - category: Close Combat
       name: Club
       trading_post_cost: 10
-      uuid: aeef646f-76c5-7ed9-084e-dddbb6365b9c
     - category: Close Combat
       name: Desire's Needle
       trading_post_cost: 50
-      uuid: 3b3f4e25-62d5-4563-2d8d-e691b2e6ef04
     - category: Close Combat
       name: Digi Laser
       trading_post_cost: 25
-      uuid: 48b3a769-8cba-0e59-ae55-abf70079841b
     - category: Close Combat
       name: Fighting Knife
       trading_post_cost: 15
-      uuid: fe81f0a8-c09a-d1af-9527-c3c351418d69
     - category: Close Combat
       name: Flail
       trading_post_cost: 20
-      uuid: ac0cdeba-cfe7-5aff-fcfe-2794b7144fb0
     - category: Close Combat
       name: Flensing Knife
       trading_post_cost: 15
-      uuid: 9c5da031-607a-8ed9-86e4-e975cd62de03
     - category: Close Combat
       name: Gem Extractor
       trading_post_cost: 50
-      uuid: 58f49f29-412a-27ed-1a2f-a5610008e69f
     - category: Close Combat
       name: Goredrinker Axe
       trading_post_cost: 40
-      uuid: d83f8d88-33e8-336c-255c-261a5471444f
     - category: Close Combat
       name: Heavy Chain Cleaver
       trading_post_cost: 80
-      uuid: 8f417ab2-62b6-d156-11ed-7d7437064da6
     - category: Close Combat
       name: Heavy Rock Cutter*
       trading_post_cost: 135
-      uuid: cd4042f4-d438-4c99-b401-d2f3bfc3c4ce
     - category: Close Combat
       name: Heavy Rock Drill*
       trading_post_cost: 90
-      uuid: 9e3e7581-94ce-4a40-0302-bca22a95de00
     - category: Close Combat
       name: Heavy Rock Saw*
       trading_post_cost: 120
-      uuid: 7866d0a0-7eb0-bd3a-664d-16941fc3d7db
     - category: Close Combat
       name: Hex'iron Blade
       trading_post_cost: 25
-      uuid: 51dfc1e1-3c09-80ad-8a9f-e0d471b58768
     - category: Close Combat
       name: Ironhead Arc Welder
       trading_post_cost: 100
-      uuid: 044a835b-8b69-a81d-4105-328e84095343
     - category: Close Combat
       name: Ironhead Power Fist
       trading_post_cost: 60
-      uuid: c5361f77-1bfa-9f10-cd9b-7550a54af893
     - category: Close Combat
       name: Las Cutter
       trading_post_cost: 85
-      uuid: 3d2ba205-570e-3d40-49f4-5aad482482a7
     - category: Close Combat
       name: Lightning Claw
       trading_post_cost: 70
-      uuid: 53a4db6f-aee3-41c9-2f73-47a783cadeea
     - category: Close Combat
       name: Maul
       trading_post_cost: 10
-      uuid: 397adb82-583f-c410-13f9-3348d0737461
     - category: Close Combat
       name: Power Axe
       trading_post_cost: 35
-      uuid: 8b56c019-36d1-847e-ace2-267693fef3cd
     - category: Close Combat
       name: Power Fist
       trading_post_cost: 100
-      uuid: 95101c0c-0364-3313-9a91-fd6ccfbf1b04
     - category: Close Combat
       name: Power Hammer
       trading_post_cost: 45
-      uuid: 1a8356a9-b172-5f72-7f83-9e86aca60b04
     - category: Close Combat
       name: Power Knife
       trading_post_cost: 25
-      uuid: 955f1401-fbb3-aa99-7226-bad0b013979a
     - category: Close Combat
       name: Power Maul
       trading_post_cost: 30
-      uuid: c8c9ebdd-3b2c-73a1-3d7c-ec18bb1607b2
     - category: Close Combat
       name: Power Pick
       trading_post_cost: 40
-      uuid: f0549ab7-0dd0-666a-19af-b4c0d48c51ea
     - category: Close Combat
       name: Power Sword
       trading_post_cost: 50
-      uuid: 8d65aa8a-229b-0ec5-d596-e074bc7c50bb
     - category: Close Combat
       name: Rotary Flensing Saw*
       trading_post_cost: 55
-      uuid: 33eae1e3-b18f-8c10-9d0d-3443405827bf
     - category: Close Combat
       name: Servo-Claw
       trading_post_cost: 35
-      uuid: 90f8853e-a3bb-f22e-bd01-b9b1be704ddc
     - category: Close Combat
       name: Shock Baton
       trading_post_cost: 30
-      uuid: c0c6cb00-dc04-d795-03d2-f9ca46af8819
     - category: Close Combat
       name: Shock Stave
       trading_post_cost: 25
-      uuid: db4c68a9-89fa-e10b-79c6-8c7a5039936f
     - category: Close Combat
       name: Stiletto Knife
       trading_post_cost: 20
-      uuid: 9c7f67ea-676f-d1c0-557f-3d57b7dda8ea
     - category: Close Combat
       name: Stiletto Sword
       trading_post_cost: 35
-      uuid: de9a61b7-be97-442f-24e7-37ebcf871cb7
     - category: Close Combat
       name: Sword
       trading_post_cost: 20
-      uuid: 6c198603-789a-4928-477e-ccd5d550b6b2
     - category: Close Combat
       name: Tenebrous Scourge
       trading_post_cost: 60
-      uuid: 45c5307e-630c-1273-f828-be8f12489d09
     - category: Close Combat
       name: Thunder Hammer
       trading_post_cost: 70
-      uuid: cdf62c3d-3a8a-535f-305a-a26f5832c7e3
     - category: Close Combat
       name: Two-Handed Axe*
       trading_post_cost: 25
-      uuid: 8a79c6e2-1c56-c628-0a42-de5a92e2c269
     - category: Close Combat
       name: Two-Handed Hammer*
       trading_post_cost: 35
-      uuid: 52de2742-8d5b-674a-b624-2c8f1ae48ba0
     - category: Close Combat
       name: Two-Handed Weapon
       trading_post_cost: 20
-      uuid: a97112cd-e049-dbb4-d899-33950f7d3347
     - category: Close Combat
       name: Whisperbane Knife
       trading_post_cost: 30
-      uuid: c5337b05-39c2-3739-e912-14b643dec9ce
     - category: Close Combat
       name: Xenarch Death-arc
       trading_post_cost: 75
-      uuid: 58c5fc0a-41c9-adc2-4934-2f28b137203f
     - category: Drive Upgrades
       name: All-wheel steering
       trading_post_cost: 10
-      uuid: dae1c255-1943-0df4-3c6e-526674a96f3c
     - category: Drive Upgrades
       name: Antigrav generators
       trading_post_cost: 50
-      uuid: 376bd86d-9d38-d7f9-e1f3-f21f3374f0e0
     - category: Drive Upgrades
       name: Emergency brake
       trading_post_cost: 10
-      uuid: 141c8c6b-284f-1614-2e11-097bf18b8213
     - category: Drive Upgrades
       name: Pneumatic radials
       trading_post_cost: 30
-      uuid: 115c9160-10b9-f865-2e1a-65986ae1daa3
     - category: Drive Upgrades
       name: Powered steering
       trading_post_cost: 30
-      uuid: 46d2d295-ced0-5bb5-d4fa-74a1f66bc850
     - category: Drive Upgrades
       name: Redundant drive system
       trading_post_cost: 15
-      uuid: 2b359424-52a6-2469-f490-ca9a765832ff
     - category: Drive Upgrades
       name: Tyre claws
       trading_post_cost: 10
-      uuid: 22fcf572-10d1-70de-1c3d-887801a9f959
     - category: Engine Upgrades
       name: Archaotech automantic reactor
       trading_post_cost: 40
-      uuid: d2523b84-2c20-bd62-d205-9cbee20c8db4
     - category: Engine Upgrades
       name: Easy turnover
       trading_post_cost: 5
-      uuid: d2fc6ba6-0671-6fa8-0df8-1d26ea708320
     - category: Engine Upgrades
       name: Engine shell
       trading_post_cost: 15
-      uuid: 889c467c-bc40-f540-2086-e8974eb93e80
     - category: Engine Upgrades
       name: Gas promethium engine
       trading_post_cost: 25
-      uuid: 1379f00f-d134-d218-d6d0-e7242a45485e
     - category: Engine Upgrades
       name: Glys injector
       trading_post_cost: 20
-      uuid: 5ce0f6e9-df15-70e9-da90-80f536b86115
     - category: Engine Upgrades
       name: Nitro burner
       trading_post_cost: 15
-      uuid: 9a236215-6809-53fe-0a17-11e6e5783b52
     - category: Engine Upgrades
       name: Plasma coil engine
       trading_post_cost: 25
-      uuid: 3911b3da-b113-dfae-fa91-6aada2cdf538
     - category: Engine Upgrades
       name: Smoke vents
       trading_post_cost: 25
-      uuid: 0b249972-72c6-96a0-8ead-7a8cf198292e
     - category: Equipment
       name: Ammo cache
       trading_post_cost: 60
-      uuid: 8029c211-554d-8e5d-59b2-92bc38b00e7e
     - category: Equipment
       name: Archaeotech Device
       trading_post_cost: 120
-      uuid: 53ee696f-ab74-9598-4878-98785118eb42
     - category: Equipment
       name: Armored undersuit
       trading_post_cost: 25
-      uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
     - category: Equipment
       name: Bio-booster
       trading_post_cost: 35
-      uuid: 70a1e03e-3ca6-1fe0-efff-c3e17390bc1f
     - category: Equipment
       name: Bio-scanner
       trading_post_cost: 30
-      uuid: a7498e66-f05c-8aa3-4811-0bacdb49af35
     - category: Equipment
       name: Blind Snake Pouch
       trading_post_cost: 60
-      uuid: db43c311-265f-3bea-f0a9-33acb99464ba
     - category: Equipment
       name: Booby Trap - Frag
       trading_post_cost: 20
-      uuid: c3eeb94d-d9e5-98c8-8943-37a9900c0f23
     - category: Equipment
       name: Booby Trap - Gas
       trading_post_cost: 40
-      uuid: b29e9e3a-c91c-672f-a8e8-4d39ca0217a1
     - category: Equipment
       name: Booby Trap - Melta
       trading_post_cost: 50
-      uuid: 5468ddca-c286-607e-6275-86d3a147b6bc
     - category: Equipment
       name: Cameleoline Cloak
       trading_post_cost: 35
-      uuid: 68342519-fa29-c5f0-9e92-0be72e0cc534
     - category: Equipment
       name: Chem-synth
       trading_post_cost: 15
-      uuid: 9bc915b1-234f-e15a-3003-ea16e69b1c0f
     - category: Equipment
       name: Chrono Crystal
       trading_post_cost: 500
-      uuid: 8651c2a6-4954-d938-e926-3e8b225a5c55
     - category: Equipment
       name: Cred Sniffer
       trading_post_cost: 35
-      uuid: 31a74c16-d14c-c3a1-9ed5-db1c7c796f9d
     - category: Equipment
       name: Data-thief
       trading_post_cost: 35
-      uuid: 07f921aa-ae44-8cf5-5d9c-1a4daf724d88
     - category: Equipment
       name: Drop rig
       trading_post_cost: 10
-      uuid: b2c0eadd-42cd-6f51-e3ee-388a29e64e0f
     - category: Equipment
       name: Falsehood
       trading_post_cost: 40
-      uuid: 69cfcda8-9ac8-e6cb-1659-f42da398b1a6
     - category: Equipment
       name: Filter plugs
       trading_post_cost: 10
-      uuid: 8e0df554-5dc9-c322-9502-0fca6507f3b4
     - category: Equipment
       name: Forged Guilder Seal
       trading_post_cost: 55
-      uuid: abdbb481-2657-b6f1-d676-0c5d228e11ed
     - category: Equipment
       name: Frenzon Collar
       trading_post_cost: 30
-      uuid: d2111aa3-c59c-0247-e2a0-9d62b4fffbdd
     - category: Equipment
       name: Grapnel launcher
       trading_post_cost: 25
-      uuid: 096e4089-0abb-1cb0-0752-b909d6d3b88b
     - category: Equipment
       name: Grapplehawk
       trading_post_cost: 90
-      uuid: 2439acb1-055e-96a3-e86a-a44a9446349a
     - category: Equipment
       name: Grav-chute
       trading_post_cost: 50
-      uuid: 637fba79-684e-9547-29f5-a75d6fa42e91
     - category: Equipment
       name: Guilder Cartograph
       trading_post_cost: 70
-      uuid: 511fd33e-b015-ee24-c130-3894853907c8
     - category: Equipment
       name: Gunshroud
       trading_post_cost: 20
-      uuid: 14563ab8-5183-4e61-0d6d-c8f6e1fbe674
     - category: Equipment
       name: Gyrinx Cat
       trading_post_cost: 120
-      uuid: 8358b295-761f-acaf-6079-81504d7918f6
     - category: Equipment
       name: Hacked Cyber-mastiff
       trading_post_cost: 100
-      uuid: ab00932a-7835-5be6-9292-be9453e4b629
     - category: Equipment
       name: Halo Device
       trading_post_cost: 250
-      uuid: 9edba27a-ae41-99d2-ced5-4526787a23ce
     - category: Equipment
       name: Harrier-skulls
       trading_post_cost: 40
-      uuid: 9ea396f4-4092-fb7a-286f-079346a12e7a
     - category: Equipment
       name: Hexagrammic Fetish
       trading_post_cost: 35
-      uuid: 351ad5db-5a21-cde1-c36f-8e07d7518c84
     - category: Equipment
       name: Holochromatic Field
       trading_post_cost: 100
-      uuid: 4f965efe-f135-2915-0a61-ed37b002507f
     - category: Equipment
       name: Hotshot Lasgun Pack
       trading_post_cost: 20
-      uuid: b7061a03-5edf-99bd-a26c-fe9de574f4fe
     - category: Equipment
       name: Hotshot Laspistol Pack
       trading_post_cost: 20
-      uuid: b715c493-5253-2fd1-e19f-22f6ef11810f
     - category: Equipment
       name: Industrial Respirator
       trading_post_cost: 30
-      uuid: 711a5dcc-1ac5-e4ad-d069-249f0144395b
     - category: Equipment
       name: Infra-sight
       trading_post_cost: 40
-      uuid: f96255b0-1b68-c1d0-d70e-da5f2ad94047
     - category: Equipment
       name: Iron Automata
       trading_post_cost: 220
-      uuid: bef35d2f-0719-9a7c-be05-40c35f1d41b7
     - category: Equipment
       name: Isotropic Fuel Rod
       trading_post_cost: 60
-      uuid: af0d88a8-879b-7d1b-26ed-68386e1d48ea
     - category: Equipment
       name: Las-projector
       trading_post_cost: 35
-      uuid: e7543834-adcc-7d29-9389-384b7f55eda8
     - category: Equipment
       name: Lho Sticks
       trading_post_cost: 5
-      uuid: 878eb4ff-c32e-92b1-451c-66e34b312508
     - category: Equipment
       name: Lock-punch
       trading_post_cost: 10
-      uuid: 58f41c36-b3d6-b080-fd45-4d27e80d98df
     - category: Equipment
       name: Magnacles
       trading_post_cost: 20
-      uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
     - category: Equipment
       name: Malefic Artefact
       trading_post_cost: 90
-      uuid: 72d5981e-2e25-6b98-f1e7-7d29f894c354
     - category: Equipment
       name: Medicae Kit
       trading_post_cost: 30
-      uuid: c096466c-89a0-34d5-ade6-ec9cd3d45586
     - category: Equipment
       name: Mnemonic Inload Spike
       trading_post_cost: 100
-      uuid: 2f5ef7ef-459c-2cec-ca33-f299c1b20e9e
     - category: Equipment
       name: Mono-sight
       trading_post_cost: 35
-      uuid: 9a8ef4f3-166e-db0c-005b-0008f33f5c08
     - category: Equipment
       name: Mung Vase
       trading_post_cost: 0
-      uuid: 9f5043e0-6f64-a25d-9441-6dce34f62c59
     - category: Equipment
       name: Necromunda Giant Rat
       trading_post_cost: 50
-      uuid: 77a6e55a-c213-3983-65a3-510e8295b531
     - category: Equipment
       name: Obscura
       trading_post_cost: 30
-      uuid: 114345f6-812e-1a82-e9f9-66448dde4d7a
     - category: Equipment
       name: Photo-goggles
       trading_post_cost: 35
-      uuid: 2c4d33f6-e170-f459-29ee-ce97305f394e
     - category: Equipment
       name: Photo-lumens
       trading_post_cost: 15
-      uuid: d880a04b-f995-146c-a0ae-6d260bebd50f
     - category: Equipment
       name: Psi-grub
       trading_post_cost: 50
-      uuid: 0988d0b4-1c73-6fa4-e6db-198d0ad3b708
     - category: Equipment
       name: Radcounter
       trading_post_cost: 50
-      uuid: 2b78a833-882b-4c9a-6b96-f380150289a2
     - category: Equipment
       name: Ratskin Map
       trading_post_cost: 100
-      uuid: 104e3c22-4760-73ad-d33d-3e0e2f8b4176
     - category: Equipment
       name: Respirator
       trading_post_cost: 15
-      uuid: 77e8c867-2f66-c45b-9bbd-bb7d2bdfb6ad
     - category: Equipment
       name: Sanctioning Writ
       trading_post_cost: 25
-      uuid: e399be17-5464-af6e-c431-bcdc2354bb98
     - category: Equipment
       name: Second Best
       trading_post_cost: 15
-      uuid: 4cad609e-aa81-7dd8-8c52-26637a07187b
     - category: Equipment
       name: Servo harness - Full
       trading_post_cost: 160
-      uuid: 546a5d01-f800-dd76-558f-11539a3f5cce
     - category: Equipment
       name: Servo harness - Partial
       trading_post_cost: 130
-      uuid: 01cd89c8-a67f-9652-4486-450f4e24f474
     - category: Equipment
       name: Skinblade
       trading_post_cost: 10
-      uuid: 7e8e1beb-a018-7091-4388-704da7ea47af
     - category: Equipment
       name: Stimm-slug stash
       trading_post_cost: 30
-      uuid: d28b1743-3da4-310f-cab7-8d81833f91a4
     - category: Equipment
       name: Strip Kit
       trading_post_cost: 15
-      uuid: 2ceaf60c-9d9b-c74a-2669-859726305fd2
     - category: Equipment
       name: Suspensor
       trading_post_cost: 60
-      uuid: f7a96b02-de55-4e4b-8cb3-b66b2e0d1722
     - category: Equipment
       name: Suspensor Harness
       trading_post_cost: 40
-      uuid: 71da925c-e896-13e6-d457-663f46b7e1e6
     - category: Equipment
       name: Telescopic sight
       trading_post_cost: 25
-      uuid: 29818b00-e277-725e-9650-24d425331990
     - category: Equipment
       name: Threadneedle Worms
       trading_post_cost: 45
-      uuid: e886de47-eb4a-bcb0-18a9-30bfcc3a1b62
     - category: Equipment
       name: Web Solvent
       trading_post_cost: 25
-      uuid: e71359cb-00a8-4f91-9e48-c12062323eae
     - category: Equipment
       name: Wild Snake
       trading_post_cost: 30
-      uuid: c5ad35ae-c2ca-1bae-cf02-e2d0b789fb2d
     - category: Equipment
       name: Xenoculum
       trading_post_cost: 80
-      uuid: 153249e3-a4f2-573e-bd13-1933c144b573
     - category: Grenades
       name: Anti-plant Grenades
       trading_post_cost: 30
-      uuid: 4811c102-5e60-82db-dcf4-a91a2ade7e38
     - category: Grenades
       name: Blasting Charges
       trading_post_cost: 35
-      uuid: 43170e22-ac88-1d7b-7e85-7a074bf68900
     - category: Grenades
       name: Choke Grenade
       trading_post_cost: 50
-      uuid: 59134679-a9d0-f6f0-6e96-592f12c75e9e
     - category: Grenades
       name: Demolition Charge
       trading_post_cost: 50
-      uuid: 22342a14-a65e-27f7-a54e-2ba1ea0f3bbd
     - category: Grenades
       name: Flares
       trading_post_cost: 20
-      uuid: 33d65213-5080-5708-6995-3c8d41a2c823
     - category: Grenades
       name: Frag Grenade
       trading_post_cost: 30
-      uuid: b09e1ad1-1c6b-3377-ab7a-99d4201245f5
     - category: Grenades
       name: Gunk Bombs
       trading_post_cost: 40
-      uuid: ebf17f4f-4dc5-2180-4106-d4a1ddde2f32
     - category: Grenades
       name: Incendiary Charge
       trading_post_cost: 40
-      uuid: 63efd402-7d25-f2b9-38cf-aeba75736e62
     - category: Grenades
       name: Krak Grenade
       trading_post_cost: 45
-      uuid: 7ecb9d49-a805-42ca-d6a5-2c8e043e28ba
     - category: Grenades
       name: Meltabomb
       trading_post_cost: 60
-      uuid: 0b2c487e-b13f-5748-68e5-ec83dab2e921
     - category: Grenades
       name: Mindflect Shard
       trading_post_cost: 50
-      uuid: 31bbd5ed-bf01-ed65-b474-9816baf28501
     - category: Grenades
       name: Phosphor Canister
       trading_post_cost: 40
-      uuid: a28d9aad-c73c-473a-dbef-7e98116f1c99
     - category: Grenades
       name: Photon Flash Grenade
       trading_post_cost: 15
-      uuid: 6cf474b6-974a-1e08-16e8-854585e2e696
     - category: Grenades
       name: Plasma Grenades
       trading_post_cost: 90
-      uuid: 9b21d159-039e-8660-e7dd-d54753f7e29d
     - category: Grenades
       name: Scare Gas Grenade
       trading_post_cost: 45
-      uuid: 734ba9c4-298f-3003-8694-0eb170a5af03
     - category: Grenades
       name: Shard Grenades
       trading_post_cost: 30
-      uuid: 61db0bb6-64c8-1483-767f-57771d133e12
     - category: Grenades
       name: Smoke Grenade
       trading_post_cost: 15
-      uuid: d5646083-d6a9-7303-c2ff-5b46280efda6
     - category: Grenades
       name: Stun Grenades
       trading_post_cost: 15
-      uuid: 30eede93-b4b5-dfa1-a211-ef282d9e0a6f
     - category: Hardpoint Upgrades
       name: Crew Front
       trading_post_cost: 40
-      uuid: 1e7326c6-5b3e-51ce-d9f7-d5e52d813056
     - category: Hardpoint Upgrades
       name: Crew Front/Left/Rear
       trading_post_cost: 70
-      uuid: cb3b514b-ad01-d6d7-1f22-08a2d37b2279
     - category: Hardpoint Upgrades
       name: Crew Front/Right/Rear
       trading_post_cost: 70
-      uuid: 383b5d95-942d-4a60-9430-1a575e97c5f5
     - category: Hardpoint Upgrades
       name: Crew Left
       trading_post_cost: 40
-      uuid: 0e2a1743-26a3-3f3a-ac71-3e878fa72d72
     - category: Hardpoint Upgrades
       name: Crew Left/Front/Right
       trading_post_cost: 70
-      uuid: 524946de-1a76-17b0-ace1-06b38159c7a1
     - category: Hardpoint Upgrades
       name: Crew Left/Rear/Right
       trading_post_cost: 70
-      uuid: 3a2c2dc0-b1eb-c4fa-9f89-5dcb371bafc6
     - category: Hardpoint Upgrades
       name: Crew Rear
       trading_post_cost: 40
-      uuid: 01d2fefe-ef67-7908-bc8b-885fe6ca0632
     - category: Hardpoint Upgrades
       name: Crew Right
       trading_post_cost: 40
-      uuid: 5701c846-4591-47fa-1a35-46a866982afc
     - category: Hardpoint Upgrades
       name: Passenger Front
       trading_post_cost: 40
-      uuid: 25d085a7-31af-c31f-a91b-8baec01310b1
     - category: Hardpoint Upgrades
       name: Passenger Front/Left/Rear
       trading_post_cost: 70
-      uuid: 8028c3dc-1f88-c43a-baf6-8cb1c0da11f2
     - category: Hardpoint Upgrades
       name: Passenger Front/Right/Rear
       trading_post_cost: 70
-      uuid: 59639aea-59ed-f0ff-4ce0-340be6fdbc96
     - category: Hardpoint Upgrades
       name: Passenger Left
       trading_post_cost: 40
-      uuid: 5d024d6c-52f9-3333-fab0-11aaf2da770f
     - category: Hardpoint Upgrades
       name: Passenger Left/Front/Right
       trading_post_cost: 70
-      uuid: 746268f4-b534-e446-1f97-320687ec6b27
     - category: Hardpoint Upgrades
       name: Passenger Left/Rear/Right
       trading_post_cost: 70
-      uuid: 89ee38cd-0bd5-0081-7ea8-b2072bddafc1
     - category: Hardpoint Upgrades
       name: Passenger Rear
       trading_post_cost: 40
-      uuid: 697cd2e5-5763-47f4-54b8-e48646ce8a46
     - category: Hardpoint Upgrades
       name: Passenger Right
       trading_post_cost: 40
-      uuid: d446b307-423f-cf6c-4dc8-cd3ce90791c0
     - category: Heavy Weapons
       name: Autocannon
       trading_post_cost: 160
-      uuid: 4c5b7cbf-a5b1-7da9-16bd-e8acb52d60c1
     - category: Heavy Weapons
       name: Demiurg Energy Drill
       trading_post_cost: 100
-      uuid: 987903f9-4a86-a4e1-9a9e-a9aa7ba99ae8
     - category: Heavy Weapons
       name: Grav Cannon
       trading_post_cost: 140
-      uuid: bf7edf17-ecc4-c9c2-6c13-cdd315132e75
     - category: Heavy Weapons
       name: Harpoon Launcher*
       trading_post_cost: 110
-      uuid: 16f0509f-b599-23ac-5e88-14ec061de9c1
     - category: Heavy Weapons
       name: Heavy Bolter*
       trading_post_cost: 160
-      uuid: a0a1a1e1-a781-ba63-1cb7-9c3f4cb19469
     - category: Heavy Weapons
       name: Heavy Flamer*
       trading_post_cost: 195
-      uuid: d44023f4-8217-1756-2a62-c38f4dbd7c7a
     - category: Heavy Weapons
       name: Heavy Stubber*
       trading_post_cost: 130
-      uuid: e2b1d080-276e-8a58-c40c-4513523b98cb
     - category: Heavy Weapons
       name: Ironhead Heavy Flamer*
       trading_post_cost: 210
-      uuid: 4d77e447-daa0-d49e-8fd9-a0792446016f
     - category: Heavy Weapons
       name: Ironhead Heavy Stubber*
       trading_post_cost: 140
-      uuid: a1888f1d-5c41-fb8c-3343-4933fef0c0c5
     - category: Heavy Weapons
       name: Lascannon*
       trading_post_cost: 155
-      uuid: 34c823f9-4c8c-0683-e318-e6394f48b390
     - category: Heavy Weapons
       name: Mining Laser*
       trading_post_cost: 125
-      uuid: 71910f81-93b2-56d4-34cf-f80a8b5f62f1
     - category: Heavy Weapons
       name: Missile Launcher (Frag/Krak)*
       trading_post_cost: 165
-      uuid: 015e22c4-bddc-3494-866f-93c939a79134
     - category: Heavy Weapons
       name: Mole Launcher
       trading_post_cost: 100
-      uuid: 9fdbaf16-3d4f-8289-865c-6020b74f01fb
     - category: Heavy Weapons
       name: Mortar
       trading_post_cost: 115
-      uuid: 90232e67-1a34-37d2-78a8-25bfe0c7d7e0
     - category: Heavy Weapons
       name: Multi-Melta*
       trading_post_cost: 180
-      uuid: ccd7ab8d-4421-609f-ec47-7df54f584c74
     - category: Heavy Weapons
       name: Plasma Cannon*
       trading_post_cost: 130
-      uuid: 72726679-ce3d-6a4f-ec47-b40fc1b30111
     - category: Heavy Weapons
       name: Seismic Cannon*
       trading_post_cost: 140
-      uuid: 5c0f8473-e103-f8c9-d910-19b1cd80d2f0
     - category: Heavy Weapons
       name: Twin-linked Autocannon
       trading_post_cost: 185
-      uuid: 938f3779-694b-51b2-4299-57a8b1c703bf
     - category: Heavy Weapons
       name: Twin-linked Heavy Stubber
       trading_post_cost: 145
-      uuid: ef182587-4f2e-85e7-b54f-582ba89654b2
     - category: Mounts
       name: Waster's Dirtbike
       trading_post_cost: 50
-      uuid: 1acdd71e-d114-e1e2-7edc-8393678fcee0
     - category: Pistols
       name: Autopistol
       trading_post_cost: 10
-      uuid: 9fc52572-29c2-1d40-6f44-f76098e77827
     - category: Pistols
       name: Bolt Pistol
       trading_post_cost: 45
-      uuid: 6e6addad-c160-69a6-95d1-893cb6494eda
     - category: Pistols
       name: Combi-Pistol (Autopistol/Hand flamer)
       trading_post_cost: 65
-      uuid: d65be574-2b34-53af-6848-029b3be9a656
     - category: Pistols
       name: Combi-Pistol (Autopistol/Plasma pistol)
       trading_post_cost: 50
-      uuid: bf3961ab-05cf-9b69-cbcc-7997fe4fc4f9
     - category: Pistols
       name: Combi-Pistol (Bolt Pistol/Hand flamer)
       trading_post_cost: 110
-      uuid: 9d56b0ee-5b51-7d24-32ed-7d07d60118d0
     - category: Pistols
       name: Combi-Pistol (Bolt Pistol/Plasma Pistol)
       trading_post_cost: 80
-      uuid: 8ba392d9-b0d7-51d6-c249-80a34fbc6f67
     - category: Pistols
       name: Combi-Pistol (Stub/Plasma)
       trading_post_cost: 40
-      uuid: 7b8a64f0-795f-e20f-3fec-83411f9ba278
     - category: Pistols
       name: Hand Flamer
       trading_post_cost: 75
-      uuid: 866412b6-8f82-309a-2378-1f0037050935
     - category: Pistols
       name: Inferno Pistol
       trading_post_cost: 145
-      uuid: e65d3a6a-be6c-417c-8c94-e556ff486403
     - category: Pistols
       name: Ironhead Autopistol
       trading_post_cost: 20
-      uuid: f099af65-acbe-bc6a-3f13-b266e6a58293
     - category: Pistols
       name: Ironhead Bolt Pistol
       trading_post_cost: 45
-      uuid: d3137666-fe73-6437-d6ac-401f3c343bde
     - category: Pistols
       name: Ironhead Hand Flamer
       trading_post_cost: 85
-      uuid: a31c7384-4f70-2f62-fbf8-9184864e8079
     - category: Pistols
       name: Ironhead Stub Gun
       trading_post_cost: 10
-      uuid: 76333a40-6642-e59c-e847-b3c8aab5b994
     - category: Pistols
       name: Laspistol
       trading_post_cost: 10
-      uuid: 3d576135-fba9-5021-b79b-0b9e49d11dde
     - category: Pistols
       name: Needle Pistol
       trading_post_cost: 30
-      uuid: 1377563b-9020-a88b-1be4-f76e030b8dda
     - category: Pistols
       name: Plasma Pistol
       trading_post_cost: 50
-      uuid: 9a674dae-0a62-1886-890e-df9cbe9930b1
     - category: Pistols
       name: Reclaimed Autopistol
       trading_post_cost: 5
-      uuid: 6a1fe697-df20-80f8-08d6-0f044d7d6594
     - category: Pistols
       name: Stone Burner
       trading_post_cost: 70
-      uuid: 7f98ab2f-961f-e94c-d3c1-31086f385cd1
     - category: Pistols
       name: Stub Gun
       trading_post_cost: 5
-      uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
     - category: Pistols
       name: Web Pistol
       trading_post_cost: 90
-      uuid: 1fea7629-67f1-224e-54c8-1d3b48e509aa
     - category: Pistols
       name: Withertouch Pistol
       trading_post_cost: 55
-      uuid: 94b35a5d-069d-380d-388e-cc3b85928d0a
     - category: Special Weapons
       name: Balefire Thrower
       trading_post_cost: 120
-      uuid: dc4b1081-c350-ee20-9f7b-188b11bc1fcc
     - category: Special Weapons
       name: Combi-Weapon (Autogun/Flamer)
       trading_post_cost: 110
-      uuid: 443ea552-7c39-2ea1-0aa1-949e3b29cabf
     - category: Special Weapons
       name: Combi-Weapon (Autogun/Grenade Launcher)
       trading_post_cost: 30
-      uuid: 6ef59cfb-1eac-eedb-621a-456a7a5896de
     - category: Special Weapons
       name: Combi-Weapon (Bolter/Flamer)
       trading_post_cost: 180
-      uuid: 20f66cb0-27de-641a-1925-a4a1e2583b9e
     - category: Special Weapons
       name: Combi-Weapon (Bolter/Melta)
       trading_post_cost: 170
-      uuid: 923775b1-acd5-e7da-12c6-174ccb665fa5
     - category: Special Weapons
       name: Combi-Weapon (Bolter/Needler)
       trading_post_cost: 90
-      uuid: 75a965bb-0eee-902c-acfb-48d0e94726cf
     - category: Special Weapons
       name: Combi-Weapon (Bolter/Plasma)
       trading_post_cost: 115
-      uuid: 14fecb4e-17b0-460e-c600-e833d7b773ad
     - category: Special Weapons
       name: Flamer
       trading_post_cost: 140
-      uuid: 0fcaa97e-5408-efca-a78f-5517e34cb026
     - category: Special Weapons
       name: Grav-Gun
       trading_post_cost: 120
-      uuid: 965e6b18-820e-a912-e3d9-e6989fe5f328
     - category: Special Weapons
       name: Grenade Launcher w/Frag+Krak
       trading_post_cost: 65
-      uuid: 7c1047f3-4d17-bf7b-5ab8-889aa0a4a291
     - category: Special Weapons
       name: Hrud Fusil
       trading_post_cost: 120
-      uuid: 3274e2b0-bd43-a07c-b7d2-b50744500d6d
     - category: Special Weapons
       name: Ironhead Flamer
       trading_post_cost: 150
-      uuid: 725d9467-26d9-62ad-aa45-b2a46e440181
     - category: Special Weapons
       name: Ironhead Meltagun
       trading_post_cost: 155
-      uuid: 86511e7e-e1a5-b48a-7df4-7044b1681b6f
     - category: Special Weapons
       name: Kai Hellspear
       trading_post_cost: 90
-      uuid: 6192a109-5c2a-945c-3802-6e282d2efd99
     - category: Special Weapons
       name: Long Las
       trading_post_cost: 20
-      uuid: 0ffb5eda-ba01-e342-cc33-f3942622f530
     - category: Special Weapons
       name: Long Rifle
       trading_post_cost: 30
-      uuid: 31404948-aea5-4d09-748b-59b8d592e068
     - category: Special Weapons
       name: Meltagun
       trading_post_cost: 135
-      uuid: ba901604-98ae-e70e-1e55-fcac74ee0926
     - category: Special Weapons
       name: Necrotic Beamer
       trading_post_cost: 110
-      uuid: da9a2543-8079-0b5a-b9e6-f58259b15b53
     - category: Special Weapons
       name: Needle Rifle
       trading_post_cost: 40
-      uuid: a0053c12-9c33-790f-9c56-5d29a638465a
     - category: Special Weapons
       name: Neural Flayer
       trading_post_cost: 90
-      uuid: 6c5d76fd-4b98-4f43-afd3-8daeea8b0564
     - category: Special Weapons
       name: Plasma Gun
       trading_post_cost: 100
-      uuid: ed0cd3b8-e2c3-5244-d299-4415cfe442fe
     - category: Special Weapons
       name: Storm Bolter
       trading_post_cost: 95
-      uuid: c75b06d1-4796-5e7d-7cae-128afb4574f0
     - category: Special Weapons
       name: Web Gun
       trading_post_cost: 125
-      uuid: 9adebc57-546b-3800-c98c-f77acfdcd19e
     - category: Special Weapons
       name: Yu'vath Puzzle Box
       trading_post_cost: 150
-      uuid: abecf075-8739-2dce-c6d3-e7314bcbe0fb
     - category: Status Items
       name: Caryatid
       trading_post_cost: 0
-      uuid: e33acba4-44de-55d8-2b4b-b72d9c126943
     - category: Status Items
       name: Exotic Furs
       trading_post_cost: 50
-      uuid: 58e5ef66-08e1-f8c2-de61-04747f79034e
     - category: Status Items
       name: Giant Rat
       trading_post_cost: 50
-      uuid: 7a6f909d-2fff-b81d-1a17-e4f989715aac
     - category: Status Items
       name: Gold-plated Gun
       trading_post_cost: 40
-      uuid: 411001c6-7dea-74eb-7945-f25fa7c78d9c
     - category: Status Items
       name: Grapplehawk
       trading_post_cost: 90
-      uuid: 2439acb1-055e-96a3-e86a-a44a9446349a
     - category: Status Items
       name: Gun Skull
       trading_post_cost: 65
-      uuid: 52a21e57-2f07-78ef-5894-ca43868a19a9
     - category: Status Items
       name: Gyrinx Cat
       trading_post_cost: 120
-      uuid: 8358b295-761f-acaf-6079-81504d7918f6
     - category: Status Items
       name: Hacked Cyber-Mastiff
       trading_post_cost: 100
-      uuid: b61ddaac-b1e3-b2dd-b101-76fd3b6ef815
     - category: Status Items
       name: Iron Automata
       trading_post_cost: 220
-      uuid: bef35d2f-0719-9a7c-be05-40c35f1d41b7
     - category: Status Items
       name: Medi Skull
       trading_post_cost: 80
-      uuid: 3739508c-3621-d457-ba91-7fa008735fed
     - category: Status Items
       name: Opulent Jewellery
       trading_post_cost: 80
-      uuid: 400d375f-7b65-8063-a8ed-fb5b2a5b9372
     - category: Status Items
       name: Sensor Skull
       trading_post_cost: 60
-      uuid: 598a8672-2131-100a-3c3e-6ee7758de489
     - category: Status Items
       name: Uphive Raiments
       trading_post_cost: 50
-      uuid: e2967fcb-7cce-e141-0ab4-711026fcc037
     - category: Vehicle Equipment
       name: Boarding Ramp
       trading_post_cost: 15
-      uuid: f4cdb915-5685-f6c0-d32a-3af3e702ce10
     - category: Vehicle Equipment
       name: Body Spikes
       trading_post_cost: 10
-      uuid: ccc83746-9c87-9e57-e0a2-6e58fe0794ca
     - category: Vehicle Equipment
       name: Booby-trapped Fuel Tanks
       trading_post_cost: 10
-      uuid: 442e9295-a432-69e5-de32-a590dbb19538
     - category: Vehicle Equipment
       name: Caltrop Launcher
       trading_post_cost: 20
-      uuid: 05b0c8c5-9cd5-7576-f3cb-ea9e5f90d2d4
     - category: Vehicle Equipment
       name: Cargo - Armored Container
       trading_post_cost: 50
-      uuid: aaaa0d3d-b85d-7d3c-65b4-ebb784789e04
     - category: Vehicle Equipment
       name: Cargo - Promethium Tank
       trading_post_cost: 30
-      uuid: 990fae1f-4067-c4c5-130e-ee8214a67e85
     - category: Vehicle Equipment
       name: Flare Launchers
       trading_post_cost: 10
-      uuid: c0bc300c-fb25-bcf8-6ffd-a8877d1c6dcf
     - category: Vehicle Equipment
       name: Headlights
       trading_post_cost: 15
-      uuid: fe9b8a3e-6b10-01df-d8f2-af82ea476750
     - category: Vehicle Equipment
       name: Kill Switch
       trading_post_cost: 15
-      uuid: 7bfba163-c5eb-f105-e45b-99966d5f732c
     - category: Vehicle Equipment
       name: Minelayer
       trading_post_cost: 35
-      uuid: e6436272-6e2a-c546-4fdc-63cf5f3933a1
     - category: Vehicle Equipment
       name: Minelayer Mine
       trading_post_cost: 20
-      uuid: 7deeba26-3514-af18-a524-3c5f8d8bc8a6
     - category: Vehicle Equipment
       name: Ridgehauler Trailer
       trading_post_cost: 130
-      uuid: 346297f5-4cb9-64b5-9ff7-75ca906f395d
     - category: Vehicle Equipment
       name: Smoke Launchers
       trading_post_cost: 20
-      uuid: 147ac681-7cfc-7bf2-c73f-6b0fa71762cc
     - category: Vehicle Equipment
       name: Wheel Scythes
       trading_post_cost: 20
-      uuid: c95d8b97-2905-8d10-77f3-271f364884f8

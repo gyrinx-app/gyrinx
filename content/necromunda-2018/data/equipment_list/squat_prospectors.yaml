@@ -1,0 +1,11 @@
+equipment_list:
+    - fighter_type: Charter Master
+      equipment:
+          - name: Ironhead Autogun
+          - name: Ironhead Boltgun
+          - name: Ironhead Autopistol
+          - name: Ironhead Bolt Pistol
+          - name: Ironhead Hand Flamer
+          # TODO: Dumdum rounds?
+          - name: Ironhead Stub Gun
+          # - name: Ironhead Stone Burner

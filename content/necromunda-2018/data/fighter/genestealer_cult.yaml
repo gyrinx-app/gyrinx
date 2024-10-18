@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 95
       equipment: []
       skills:
@@ -19,11 +18,9 @@ fighter:
           wil: 6
           ws: 3
       type: Aberrant
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: cd0ccfe5-109e-4275-ee25-edaa0e0a4a7f
-    - category:
-          name: None
+    - category: None
       cost: 95
       equipment: []
       skills:
@@ -42,11 +39,9 @@ fighter:
           wil: 6
           ws: 3
       type: Aberrant Specialist
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 90122127-92ea-57c2-7490-98cef8ef0143
-    - category:
-          name: None
+    - category: None
       cost: 120
       equipment: []
       skills: []
@@ -64,11 +59,9 @@ fighter:
           wil: 5
           ws: 4
       type: Cult Adept
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
-    - category:
-          name: None
+    - category: None
       cost: 120
       equipment: []
       skills: []
@@ -86,11 +79,9 @@ fighter:
           wil: 5
           ws: 4
       type: Cult Adept
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 6613e0c0-e62d-0f6e-b6b9-2f5e58af5387
-    - category:
-          name: None
+    - category: None
       cost: 145
       equipment:
           - qty: 1
@@ -114,11 +105,9 @@ fighter:
           wil: 5
           ws: 3
       type: Cult Alpha
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 40e5127b-2fb6-f2e5-e343-eee5155a93e4
-    - category:
-          name: None
+    - category: None
       cost: 85
       equipment:
           - qty: 1
@@ -139,11 +128,9 @@ fighter:
           wil: 7
           ws: 3
       type: Hybrid Acolyte
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 59305523-0e68-ca70-d603-556beafff91e
-    - category:
-          name: None
+    - category: None
       cost: 130
       equipment:
           - qty: 1
@@ -167,11 +154,9 @@ fighter:
           wil: 7
           ws: 3
       type: Hybrid Acolyte Early Gen
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: f1046650-a0ce-1b9a-e8e9-4d468556e70c
-    - category:
-          name: None
+    - category: None
       cost: 90
       equipment:
           - qty: 1
@@ -195,11 +180,9 @@ fighter:
           wil: 6
           ws: 4
       type: Neophyte Early Gen
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 72e819dd-a0b5-9c43-bcf1-0b003a14db62
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment:
           - qty: 1
@@ -220,11 +203,9 @@ fighter:
           wil: 6
           ws: 4
       type: Neophyte Hybrid
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: fc6a882e-ff69-36a3-662a-880dea2043c6
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment:
           - qty: 1
@@ -245,6 +226,5 @@ fighter:
           wil: 6
           ws: 4
       type: Neophyte Hybrid Specialist
-      house:
-          name: Genestealer Cult
+      house: Genestealer Cult
       uuid: 46d324db-3bc7-ebf3-69f8-b8f84da5988f

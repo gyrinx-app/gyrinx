@@ -13,10 +13,10 @@
             "type": "string"
         },
         "category": {
-            "$ref": "urn:gyrinx.schema.necromunda-2018.category"
+            "type": "string"
         },
         "house": {
-            "$ref": "urn:gyrinx.schema.necromunda-2018.house"
+            "type": "string"
         },
         "cost": {
             "type": "integer"

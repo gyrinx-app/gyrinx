@@ -11,6 +11,7 @@ from gyrinx.core.models import (
     Equipment,
     EquipmentCategory,
     Fighter,
+    FighterEquipment,
     House,
     Skill,
 )
@@ -83,6 +84,7 @@ class Command(BaseCommand):
         # - Weapon Stats [not implemented]
         # - Equipment
         # - Fighter
+        # - Fighter Equipment
 
         data_sources = gather_data(ruleset_dir)
         click.echo(f"Found {len(data_sources)} data sources in {data_dir}")
@@ -153,7 +155,7 @@ class Command(BaseCommand):
                 category=index["equipment_category"][stable_uuid(e["category"])],
             )
             index["equipment"][item.uuid] = item
-            click.echo(f" - {item.name} ({item.category}, {item.uuid}, {item.version})")
+            click.echo(f" - {item.category}: {item.name} ({item.uuid}, {item.version})")
             if not dry_run:
                 item.save()
 
@@ -164,14 +166,35 @@ class Command(BaseCommand):
                 version=content_version,
                 uuid=stable_uuid(f["type"]),
                 type=f["type"],
-                category=index["category"][stable_uuid(f["category"]["name"])],
-                house=index["house"].get(stable_uuid(f["house"]["name"]))
+                category=index["category"][stable_uuid(f["category"])],
+                house=index["house"].get(stable_uuid(f["house"]))
                 if f.get("house", None)
                 else None,
             )
             index["fighter"][fighter.uuid] = fighter
             click.echo(
-                f" - {fighter.type} ({fighter.category}, {fighter.house}, {fighter.uuid}, {fighter.version})"
+                f" - {fighter.house or "N/A"}: {fighter.type} ({fighter.category.name}) ({fighter.uuid}, {fighter.version})"
             )
             if not dry_run:
                 fighter.save()
+
+        equipment_list = data_for_type("equipment_list", data_sources)
+        click.echo(f"Found {len(equipment_list)} equipment lists: ")
+        for el in equipment_list:
+            fighter = index["fighter"][stable_uuid(el["fighter_type"])]
+            equipment = [
+                index["equipment"][stable_uuid(item["name"])]
+                for item in el["equipment"]
+            ]
+            for item in equipment:
+                fighter_equip = FighterEquipment(
+                    version=content_version,
+                    uuid=stable_uuid(f"{fighter.uuid}:{item.uuid}"),
+                    fighter=fighter,
+                    equipment=item,
+                )
+                click.echo(
+                    f" - {fighter_equip.fighter.type}: {fighter_equip.equipment.name} ({fighter_equip.uuid}, {fighter_equip.version})"
+                )
+                if not dry_run:
+                    fighter_equip.save()

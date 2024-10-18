@@ -128,7 +128,7 @@ class Fighter(Content):
 class FighterEquipment(Content):
     fighter = models.ForeignKey(Fighter, on_delete=models.CASCADE)
     equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE)
-    # TODO: Add cost field
+    cost = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.fighter} Equipment List"

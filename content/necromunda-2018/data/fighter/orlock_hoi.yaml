@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 95
       equipment: []
       skills: []
@@ -18,11 +17,9 @@ fighter:
           wil: 6
           ws: 3
       type: Arms Master
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 2aa3b14e-1c94-e5ff-e942-f763bd05a2fb
-    - category:
-          name: None
+    - category: None
       cost: 35
       equipment: []
       skills: []
@@ -40,11 +37,9 @@ fighter:
           wil: 8
           ws: 5
       type: Greenhorn
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 10db3c8d-5f48-d25e-0769-372cb464a14d
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment: []
       skills: []
@@ -62,11 +57,9 @@ fighter:
           wil: 7
           ws: 4
       type: Gunner
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 67bd5670-04d4-378e-2a04-e52dae547490
-    - category:
-          name: None
+    - category: None
       cost: 45
       equipment: []
       skills: []
@@ -84,11 +77,9 @@ fighter:
           wil: 7
           ws: 4
       type: Gunner Specialist
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: aa6ae3a7-8afd-8f7b-258f-5f1a82b248d5
-    - category:
-          name: None
+    - category: None
       cost: 35
       equipment: []
       skills: []
@@ -106,11 +97,9 @@ fighter:
           wil: 7
           ws: 0
       type: Iron Rider
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 68ba5011-4c75-cbbb-91ee-4aab24706b0d
-    - category:
-          name: None
+    - category: None
       cost: 105
       equipment: []
       skills: []
@@ -128,11 +117,9 @@ fighter:
           wil: 5
           ws: 3
       type: Road Captain
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: b06c7478-dafb-e062-b2d4-e082ef855fdc
-    - category:
-          name: None
+    - category: None
       cost: 80
       equipment: []
       skills: []
@@ -150,11 +137,9 @@ fighter:
           wil: 6
           ws: 4
       type: Road Sergeant
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 1b034041-7a93-c8bc-d490-3b3f6ee8b435
-    - category:
-          name: None
+    - category: None
       cost: 55
       equipment:
           - qty: 1
@@ -175,6 +160,5 @@ fighter:
           wil: 8
           ws: 5
       type: Wrecker
-      house:
-          name: Orlock (HoI)
+      house: Orlock (HoI)
       uuid: 9893575b-b986-14a3-7b42-404ecdc61884

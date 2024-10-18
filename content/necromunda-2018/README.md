@@ -56,19 +56,15 @@ equipment:
     - category: Ammo
       name: Anti-plant-Grenade Launcher
       trading_post_cost: 40
-      uuid: 33df9707-901a-a557-7a23-5f5ec169937a
     - category: Ammo
       name: Chem Darts-Needle Pistol
       trading_post_cost: 10
-      uuid: 02392559-3c8b-78b3-8691-94cfcdb0639f
     - category: Ammo
       name: Chem Darts-Needle Rifle
       trading_post_cost: 10
-      uuid: cd207db4-c028-232b-1dff-e9cd02e62d6e
     - category: Ammo
       name: Combat Shotgun-Firestorm Ammo
       trading_post_cost: 30
-      uuid: 57b16066-6084-8c50-8be0-5316cf571ef6
     - ...
 ```
 
@@ -80,7 +76,6 @@ equipment:
     - category: Ammo
       name: Anti-plant-Grenade Launcher
       trading_post_cost: 40
-      uuid: 33df9707-901a-a557-7a23-5f5ec169937a
     - ...
 ```
 
@@ -90,6 +85,5 @@ equipment:
     - category: Basic Weapons
       name: Arc Rifle
       trading_post_cost: 100
-      uuid: da5822be-ae49-2bf4-b91c-ac8479a7a286
     - ...
 ```

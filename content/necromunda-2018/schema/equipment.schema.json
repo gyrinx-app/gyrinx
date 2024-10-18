@@ -5,10 +5,6 @@
     "description": "The equipment that can be used by fighters in Necromunda.",
     "type": "object",
     "properties": {
-        "uuid": {
-            "type": "string",
-            "format": "uuid"
-        },
         "name": {
             "type": "string"
         },
@@ -20,5 +16,5 @@
         }
     },
     "additionalProperties": false,
-    "required": ["uuid", "name", "category", "trading_post_cost"]
+    "required": ["name", "category", "trading_post_cost"]
 }

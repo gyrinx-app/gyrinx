@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 140
       equipment:
           - qty: 1
@@ -30,11 +29,9 @@ fighter:
           wil: 5
           ws: 3
       type: Palanite Captain
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: 1caeff40-23b8-8a4a-0162-df0459b1e2e4
-    - category:
-          name: None
+    - category: None
       cost: 70
       equipment:
           - qty: 1
@@ -64,11 +61,9 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: d575dc9b-b317-8e75-1e32-f8c52b901ca3
-    - category:
-          name: None
+    - category: None
       cost: 70
       equipment:
           - qty: 1
@@ -98,11 +93,9 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman Specialist
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: ddf3e4f5-be24-706c-56be-4398ca2600be
-    - category:
-          name: None
+    - category: None
       cost: 0
       equipment:
           - qty: 1
@@ -132,11 +125,9 @@ fighter:
           wil: 8
           ws: 5
       type: Palanite Rookie
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: e62259dd-9b5c-18e5-6b6c-03dc1405168e
-    - category:
-          name: None
+    - category: None
       cost: 100
       equipment:
           - qty: 1
@@ -166,11 +157,9 @@ fighter:
           wil: 6
           ws: 4
       type: Palanite Sergeant
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: 9916d3a1-a26f-cd2c-e3ca-19869a7911dd
-    - category:
-          name: None
+    - category: None
       cost: 150
       equipment:
           - qty: 1
@@ -200,11 +189,9 @@ fighter:
           wil: 5
           ws: 3
       type: Subjugator Captain
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: c8628960-aabf-9c06-385e-0ffb4ce0df0b
-    - category:
-          name: None
+    - category: None
       cost: 80
       equipment:
           - qty: 1
@@ -234,11 +221,9 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: bf2951ce-1133-a7a7-98e6-edf8f1271d73
-    - category:
-          name: None
+    - category: None
       cost: 80
       equipment:
           - qty: 1
@@ -268,11 +253,9 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: 6bf25c5b-303f-d17a-9daa-a987d038b8cb
-    - category:
-          name: None
+    - category: None
       cost: 80
       equipment:
           - qty: 1
@@ -302,11 +285,9 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: 6bf25c5b-303f-d17a-9daa-a987d038b8cb
-    - category:
-          name: None
+    - category: None
       cost: 110
       equipment:
           - qty: 1
@@ -336,6 +317,5 @@ fighter:
           wil: 6
           ws: 4
       type: Subjugator Sergeant
-      house:
-          name: Enforcers
+      house: Enforcers
       uuid: 1281d98a-97ba-08b8-b46d-494bcfa31169

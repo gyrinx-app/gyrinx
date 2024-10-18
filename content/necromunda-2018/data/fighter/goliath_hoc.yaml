@@ -1,6 +1,5 @@
 fighter:
-    - category:
-          name: None
+    - category: None
       cost: 55
       equipment: []
       skills: []
@@ -18,11 +17,9 @@ fighter:
           wil: 9
           ws: 4
       type: Bruiser
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: 8be80102-e06b-9047-44ba-56c822c70a4b
-    - category:
-          name: None
+    - category: None
       cost: 55
       equipment: []
       skills: []
@@ -40,11 +37,9 @@ fighter:
           wil: 9
           ws: 4
       type: Bruiser (Specialist)
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: f432ce34-a9b1-e96d-dfeb-ce717ee23cad
-    - category:
-          name: None
+    - category: None
       cost: 35
       equipment: []
       skills: []
@@ -62,11 +57,9 @@ fighter:
           wil: 9
           ws: 4
       type: Bully
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: 275370ef-329a-53d7-8342-d8b3d2992e3e
-    - category:
-          name: None
+    - category: None
       cost: 100
       equipment: []
       skills: []
@@ -84,11 +77,9 @@ fighter:
           wil: 8
           ws: 3
       type: Forge Boss
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: af6cf490-9f65-3130-55c8-b7bc7132247b
-    - category:
-          name: None
+    - category: None
       cost: 135
       equipment: []
       skills: []
@@ -106,11 +97,9 @@ fighter:
           wil: 8
           ws: 3
       type: Forge Tyrant
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: 5f18cea6-28f7-b3a9-b2ba-a46c09a1993a
-    - category:
-          name: None
+    - category: None
       cost: 35
       equipment: []
       skills: []
@@ -128,11 +117,9 @@ fighter:
           wil: 9
           ws: 4
       type: Forge-Born
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: ed8d7006-8238-37f9-abbf-0c02221ea753
-    - category:
-          name: None
+    - category: None
       cost: 125
       equipment: []
       skills: []
@@ -150,6 +137,5 @@ fighter:
           wil: 7
           ws: 2
       type: Stimmer
-      house:
-          name: Goliath (HoC)
+      house: Goliath (HoC)
       uuid: c3be99c6-c5be-b247-7720-ef6f2b4ae0e9
