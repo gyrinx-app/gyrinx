@@ -54,7 +54,6 @@ class House(Content):
 
 class Category(Content):
     class CategoryNameChoices(models.TextChoices):
-        NONE = "NONE", "None"
         LEADER = "LEADER", "Leader"
         CHAMPION = "CHAMPION", "Champion"
         GANGER = "GANGER", "Ganger"
@@ -69,11 +68,7 @@ class Category(Content):
         HIVE_SCUM = "HIVE_SCUM", "Hive Scum"
         DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
 
-    name = models.CharField(
-        max_length=255,
-        choices=CategoryNameChoices,
-        default=CategoryNameChoices.NONE,
-    )
+    name = models.CharField(max_length=255, choices=CategoryNameChoices)
 
     def __str__(self):
         return self.name
@@ -88,7 +83,6 @@ class Skill(Content):
 
 class EquipmentCategory(Content):
     class EquipmentCategoryNameChoices(models.TextChoices):
-        NONE = "NONE", "None"
         AMMO = "AMMO", "Ammo"
         ARMOR = "ARMOR", "Armor"
         BASIC_WEAPONS = "BASIC_WEAPONS", "Basic Weapons"
@@ -108,11 +102,7 @@ class EquipmentCategory(Content):
         STATUS_ITEMS = "STATUS_ITEMS", "Status Items"
         VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
 
-    name = models.CharField(
-        max_length=255,
-        choices=EquipmentCategoryNameChoices,
-        default=EquipmentCategoryNameChoices.NONE,
-    )
+    name = models.CharField(max_length=255, choices=EquipmentCategoryNameChoices)
 
     def __str__(self):
         return self.name
@@ -133,3 +123,12 @@ class Fighter(Content):
 
     def __str__(self):
         return self.type
+
+
+class FighterEquipment(Content):
+    fighter = models.ForeignKey(Fighter, on_delete=models.CASCADE)
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE)
+    # TODO: Add cost field
+
+    def __str__(self):
+        return f"{self.fighter} Equipment List"
