@@ -30,6 +30,13 @@ def stable_uuid(v):
     return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])
 
 
+def lookup(index, type, id):
+    try:
+        return index[type][stable_uuid(id)]
+    except KeyError:
+        return None
+
+
 class Command(BaseCommand):
     help = "Import Gyrinx content library"
 
@@ -148,11 +155,15 @@ class Command(BaseCommand):
         equipment = data_for_type("equipment", data_sources)
         click.echo(f"Found {len(equipment)} equipment: ")
         for e in equipment:
+            category = lookup(index, "equipment_category", e["category"])
+            if not category:
+                click.echo(f"Error: Could not find category matching {e['category']}")
+                continue
             item = Equipment(
                 version=content_version,
                 uuid=stable_uuid(e["name"]),
                 name=e["name"],
-                category=index["equipment_category"][stable_uuid(e["category"])],
+                category=category,
             )
             index["equipment"][item.uuid] = item
             click.echo(f" - {item.category}: {item.name} ({item.uuid}, {item.version})")
@@ -162,14 +173,20 @@ class Command(BaseCommand):
         fighters = data_for_type("fighter", data_sources)
         click.echo(f"Found {len(fighters)} fighters: ")
         for f in fighters:
+            category = lookup(index, "category", f["category"])
+            house = lookup(index, "house", f["house"]) if f.get("house", None) else None
+            if not category:
+                click.echo(f"Error: Could not find category matching {f['category']}")
+                continue
+            if f.get("house") and not house:
+                click.echo(f"Error: Could not find house matching {f['house']}")
+                continue
             fighter = Fighter(
                 version=content_version,
                 uuid=stable_uuid(f["type"]),
                 type=f["type"],
-                category=index["category"][stable_uuid(f["category"])],
-                house=index["house"].get(stable_uuid(f["house"]))
-                if f.get("house", None)
-                else None,
+                category=category,
+                house=house,
             )
             index["fighter"][fighter.uuid] = fighter
             click.echo(
@@ -181,12 +198,26 @@ class Command(BaseCommand):
         equipment_list = data_for_type("equipment_list", data_sources)
         click.echo(f"Found {len(equipment_list)} equipment lists: ")
         for el in equipment_list:
-            fighter = index["fighter"][stable_uuid(el["fighter_type"])]
+            fighter = lookup(index, "fighter", el["fighter_type"])
+            if not fighter:
+                click.echo(
+                    f"Error: Could not find fighter matching {el['fighter_type']}",
+                    err=True,
+                )
+                continue
+
             equipment = [
-                index["equipment"][stable_uuid(item["name"])]
+                (item["name"], lookup(index, "equipment", item["name"]))
                 for item in el["equipment"]
             ]
-            for item in equipment:
+            for entry in equipment:
+                name, item = entry
+                if not item:
+                    click.echo(
+                        f"Error: Could not find equipment matching {name}", err=True
+                    )
+                    continue
+
                 fighter_equip = FighterEquipment(
                     version=content_version,
                     uuid=stable_uuid(f"{fighter.uuid}:{item.uuid}"),
