@@ -11,6 +11,9 @@
         "category": {
             "type": "string"
         },
+        "slots": {
+            "type": "integer"
+        },
         "trading_post_cost": {
             "type": "integer"
         }

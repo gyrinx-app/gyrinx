@@ -441,7 +441,8 @@ equipment:
       name: Butcher's Cleaver
       trading_post_cost: 25
     - category: Close Combat
-      name: Chain Glaive*
+      name: Chain Glaive
+      slots: 2
       trading_post_cost: 60
     - category: Close Combat
       name: Chainaxe
@@ -480,13 +481,16 @@ equipment:
       name: Heavy Chain Cleaver
       trading_post_cost: 80
     - category: Close Combat
-      name: Heavy Rock Cutter*
+      name: Heavy Rock Cutter
+      slots: 2
       trading_post_cost: 135
     - category: Close Combat
-      name: Heavy Rock Drill*
+      name: Heavy Rock Drill
+      slots: 2
       trading_post_cost: 90
     - category: Close Combat
-      name: Heavy Rock Saw*
+      name: Heavy Rock Saw
+      slots: 2
       trading_post_cost: 120
     - category: Close Combat
       name: Hex'iron Blade
@@ -528,7 +532,8 @@ equipment:
       name: Power Sword
       trading_post_cost: 50
     - category: Close Combat
-      name: Rotary Flensing Saw*
+      name: Rotary Flensing Saw
+      slots: 2
       trading_post_cost: 55
     - category: Close Combat
       name: Servo-Claw
@@ -555,10 +560,12 @@ equipment:
       name: Thunder Hammer
       trading_post_cost: 70
     - category: Close Combat
-      name: Two-Handed Axe*
+      name: Two-Handed Axe
+      slots: 2
       trading_post_cost: 25
     - category: Close Combat
-      name: Two-Handed Hammer*
+      name: Two-Handed Hammer
+      slots: 2
       trading_post_cost: 35
     - category: Close Combat
       name: Two-Handed Weapon
@@ -927,31 +934,40 @@ equipment:
       name: Grav Cannon
       trading_post_cost: 140
     - category: Heavy Weapons
-      name: Harpoon Launcher*
+      name: Harpoon Launcher
+      slots: 2
       trading_post_cost: 110
     - category: Heavy Weapons
-      name: Heavy Bolter*
+      name: Heavy Bolter
+      slots: 2
       trading_post_cost: 160
     - category: Heavy Weapons
-      name: Heavy Flamer*
+      name: Heavy Flamer
+      slots: 2
       trading_post_cost: 195
     - category: Heavy Weapons
-      name: Heavy Stubber*
+      name: Heavy Stubber
+      slots: 2
       trading_post_cost: 130
     - category: Heavy Weapons
-      name: Ironhead Heavy Flamer*
+      name: Ironhead Heavy Flamer
+      slots: 2
       trading_post_cost: 210
     - category: Heavy Weapons
-      name: Ironhead Heavy Stubber*
+      name: Ironhead Heavy Stubber
+      slots: 2
       trading_post_cost: 140
     - category: Heavy Weapons
-      name: Lascannon*
+      name: Lascannon
+      slots: 2
       trading_post_cost: 155
     - category: Heavy Weapons
-      name: Mining Laser*
+      name: Mining Laser
+      slots: 2
       trading_post_cost: 125
     - category: Heavy Weapons
-      name: Missile Launcher (Frag/Krak)*
+      name: Missile Launcher (Frag/Krak)
+      slots: 2
       trading_post_cost: 165
     - category: Heavy Weapons
       name: Mole Launcher
@@ -960,13 +976,16 @@ equipment:
       name: Mortar
       trading_post_cost: 115
     - category: Heavy Weapons
-      name: Multi-Melta*
+      name: Multi-Melta
+      slots: 2
       trading_post_cost: 180
     - category: Heavy Weapons
-      name: Plasma Cannon*
+      name: Plasma Cannon
+      slots: 2
       trading_post_cost: 130
     - category: Heavy Weapons
-      name: Seismic Cannon*
+      name: Seismic Cannon
+      slots: 2
       trading_post_cost: 140
     - category: Heavy Weapons
       name: Twin-linked Autocannon
