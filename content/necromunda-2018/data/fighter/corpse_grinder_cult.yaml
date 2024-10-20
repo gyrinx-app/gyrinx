@@ -23,7 +23,7 @@ fighter:
           wil: 5
           ws: 2
       type: Butcher
-      house: Corpose Grinder Cult
+      house: Corpse Grinder Cult
       uuid: 83882de8-1950-799b-b1e0-33c7feffe2a5
     - category: None
       cost: 90
@@ -49,7 +49,7 @@ fighter:
           wil: 7
           ws: 3
       type: Cutter
-      house: Corpose Grinder Cult
+      house: Corpse Grinder Cult
       uuid: 3f73fce6-e4eb-ceb1-b331-00f6961459db
     - category: None
       cost: 25
@@ -76,7 +76,7 @@ fighter:
           wil: 9
           ws: 4
       type: Initiate
-      house: Corpose Grinder Cult
+      house: Corpse Grinder Cult
       uuid: 88167bfb-4539-11e2-256a-a20e7b231d69
     - category: None
       cost: 40
@@ -102,5 +102,5 @@ fighter:
           wil: 8
           ws: 3
       type: Skinner
-      house: Corpose Grinder Cult
+      house: Corpse Grinder Cult
       uuid: 26b0ed10-0725-ab41-6a86-aae310085905

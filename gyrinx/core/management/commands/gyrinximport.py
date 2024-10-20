@@ -14,6 +14,7 @@ from gyrinx.core.models import (
     Fighter,
     FighterEquipment,
     House,
+    ImportVersion,
     Policy,
     Skill,
 )
@@ -102,6 +103,18 @@ class Command(BaseCommand):
 
         index = defaultdict(dict)
 
+        import_version = ImportVersion(
+            version=content_version,
+            uuid=stable_uuid(f"{ruleset_dir.name}:{content_version}"),
+            ruleset=ruleset_dir.name,
+            directory=options["directory"],
+        )
+        click.echo(
+            f"ImportingVersion: {import_version.directory}, {import_version.ruleset} ({import_version.uuid}, {import_version.version})"
+        )
+        if not dry_run:
+            import_version.save()
+
         houses = data_for_type("house", data_sources)
         click.echo(f"Found {len(houses)} houses: ")
         for house in houses:
@@ -160,7 +173,9 @@ class Command(BaseCommand):
             category = lookup(index, "equipment_category", e["category"])
             if not category:
                 click.echo(f"Error: Could not find category matching {e['category']}")
-                continue
+                raise ValueError(
+                    f"Error: Could not find category matching {e['category']}"
+                )
             item = Equipment(
                 version=content_version,
                 uuid=stable_uuid(e["name"]),
@@ -179,10 +194,14 @@ class Command(BaseCommand):
             house = lookup(index, "house", f["house"]) if f.get("house", None) else None
             if not category:
                 click.echo(f"Error: Could not find category matching {f['category']}")
-                continue
+                raise ValueError(
+                    f"Error: Could not find category matching {e['category']}"
+                )
             if f.get("house") and not house:
                 click.echo(f"Error: Could not find house matching {f['house']}")
-                continue
+                raise ValueError(
+                    f"Error: Could not find category matching {e['category']}"
+                )
             fighter = Fighter(
                 version=content_version,
                 uuid=stable_uuid(f["type"]),

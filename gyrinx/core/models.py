@@ -15,12 +15,13 @@ class Content(Base):
     uuid = models.UUIDField(editable=False, db_index=True)
     version = models.CharField(max_length=255, db_index=True)
 
-    # TODO: In future?
-    # ruleset = models.CharField(max_length=255, default="necromunda-2018")
-    # filepath = models.CharField(max_length=255)
-
     class Meta:
         abstract = True
+
+
+class ImportVersion(Content):
+    ruleset = models.CharField(max_length=255, default="necromunda-2018")
+    directory = models.CharField(max_length=255)
 
 
 class House(Content):
