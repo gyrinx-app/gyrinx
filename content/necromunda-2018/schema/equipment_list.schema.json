@@ -24,6 +24,14 @@
                 "additionalProperties": false,
                 "required": ["name"]
             }
+        },
+        "trading_post": {
+            "type": "object",
+            "properties": {
+                "policy": {
+                    "$ref": "urn:gyrinx.schema.necromunda-2018.policy"
+                }
+            }
         }
     },
     "additionalProperties": false,

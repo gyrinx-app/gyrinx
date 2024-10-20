@@ -112,7 +112,7 @@ def validate_sources(schemas, data_sources) -> ValidationResult:
 
         if not data:
             click.echo(
-                f"Warning: No data sources found for schema {schema.name} (from {schema.path})",
+                f"Warning: No top-level data sources found for schema {schema.name} (from {schema.path})",
                 err=True,
             )
 

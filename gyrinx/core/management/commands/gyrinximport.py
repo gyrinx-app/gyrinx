@@ -1,4 +1,5 @@
 import hashlib
+import json
 import uuid
 from collections import defaultdict
 from pathlib import Path
@@ -13,6 +14,7 @@ from gyrinx.core.models import (
     Fighter,
     FighterEquipment,
     House,
+    Policy,
     Skill,
 )
 from scripts.schema import gather_data
@@ -224,8 +226,29 @@ class Command(BaseCommand):
                     fighter=fighter,
                     equipment=item,
                 )
+                index["fighter_equipment"][fighter_equip.uuid] = fighter_equip
                 click.echo(
                     f" - {fighter_equip.fighter.type}: {fighter_equip.equipment.name} ({fighter_equip.uuid}, {fighter_equip.version})"
                 )
                 if not dry_run:
                     fighter_equip.save()
+
+            tp_policy = el.get("trading_post", {}).get("policy", None)
+            if tp_policy:
+                click.echo(f"Found Trading Post policy for {el['fighter_type']}")
+                assigned_name = tp_policy.get("name", "Anonymous")
+                name = f"Trading Post Policy ({el['fighter_type']}, {assigned_name})"
+                rules = tp_policy.get("rules", [])
+                policy = Policy(
+                    version=content_version,
+                    uuid=stable_uuid(name),
+                    fighter=fighter,
+                    name=name,
+                    rules=json.dumps(rules),
+                )
+                index["policy"][fighter_equip.uuid] = fighter_equip
+                click.echo(
+                    f" - {policy.fighter.type}: {policy.name} {len(rules)} rules ({policy.uuid}, {policy.version})"
+                )
+                if not dry_run:
+                    policy.save()

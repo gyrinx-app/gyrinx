@@ -9,3 +9,20 @@ equipment_list:
           # TODO: Dumdum rounds?
           - name: Ironhead Stub Gun
           # - name: Ironhead Stone Burner
+    - fighter_type: Drill-kyn
+      equipment:
+          - name: Ironhead Autogun
+          - name: Ironhead Boltgun
+          - name: Ironhead Autopistol
+          - name: Ironhead Bolt Pistol
+          - name: Ironhead Hand Flamer
+          # ... and so on
+          # TODO: These are going to get duplicative
+      trading_post:
+          policy:
+              rules:
+                  - deny: all
+                  - allow:
+                        - category: Basic Weapons
+                        - category: Pistols
+                        - category: Close Combat

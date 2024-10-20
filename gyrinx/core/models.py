@@ -132,3 +132,9 @@ class FighterEquipment(Content):
 
     def __str__(self):
         return f"{self.fighter} Equipment List"
+
+
+class Policy(Content):
+    fighter = models.ForeignKey(Fighter, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    rules = models.JSONField()
