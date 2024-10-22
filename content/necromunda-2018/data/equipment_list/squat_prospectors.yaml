@@ -3,12 +3,13 @@ equipment_list:
       equipment:
           - name: Ironhead Autogun
           - name: Ironhead Boltgun
+            cost: 95
           - name: Ironhead Autopistol
           - name: Ironhead Bolt Pistol
           - name: Ironhead Hand Flamer
           # TODO: Dumdum rounds?
           - name: Ironhead Stub Gun
-          # - name: Ironhead Stone Burner
+          - name: Stone Burner
     - fighter_type: Drill-kyn
       equipment:
           - name: Ironhead Autogun

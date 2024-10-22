@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Leader
       cost: 120
       equipment:
           - qty: 1
@@ -25,7 +25,7 @@ fighter:
       type: Kha'tragi Chieftain
       house: Ash Waste Nomads
       uuid: 0a21a2ba-ae5c-595a-7a63-524bad3f768a
-    - category: None
+    - category: Champion
       cost: 100
       equipment:
           - qty: 1
@@ -51,7 +51,7 @@ fighter:
       type: Naku'taari Watcher
       house: Ash Waste Nomads
       uuid: 2c345163-630f-91e1-1433-f59f725bd677
-    - category: None
+    - category: Juve
       cost: 35
       equipment:
           - qty: 1
@@ -77,7 +77,7 @@ fighter:
       type: Run'Taani Dust Runner
       house: Ash Waste Nomads
       uuid: f347315d-03b2-2eaf-4191-b1dda22d3c40
-    - category: None
+    - category: Prospect
       cost: 80
       equipment:
           - qty: 1
@@ -103,7 +103,7 @@ fighter:
       type: Tarh'noki Dust Rider
       house: Ash Waste Nomads
       uuid: e974fc79-8f22-4188-383b-f2fd822b0f00
-    - category: None
+    - category: Ganger
       cost: 60
       equipment:
           - qty: 1
@@ -129,7 +129,7 @@ fighter:
       type: Tarn'Runi Warrior
       house: Ash Waste Nomads
       uuid: 60a40e9b-67b2-c53d-2d33-45858dbd5d93
-    - category: None
+    - category: Ganger
       cost: 60
       equipment:
           - qty: 1
@@ -155,7 +155,7 @@ fighter:
       type: Tarn'Runi Warrior Specialist
       house: Ash Waste Nomads
       uuid: 584c7128-135b-1383-8875-03a1381512bc
-    - category: None
+    - category: Champion
       cost: 120
       equipment:
           - qty: 1
