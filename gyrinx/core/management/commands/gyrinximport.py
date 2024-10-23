@@ -8,14 +8,14 @@ import click
 from django.core.management.base import BaseCommand
 
 from gyrinx.core.models import (
-    Category,
-    Equipment,
-    EquipmentCategory,
-    Fighter,
-    FighterEquipment,
-    House,
-    ImportVersion,
-    Policy,
+    ContentCategory,
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentFighter,
+    ContentFighterEquipment,
+    ContentHouse,
+    ContentImportVersion,
+    ContentPolicy,
     Skill,
 )
 from scripts.schema import gather_data
@@ -103,7 +103,7 @@ class Command(BaseCommand):
 
         index = defaultdict(dict)
 
-        import_version = ImportVersion(
+        import_version = ContentImportVersion(
             version=content_version,
             uuid=stable_uuid(f"{ruleset_dir.name}:{content_version}"),
             ruleset=ruleset_dir.name,
@@ -118,7 +118,7 @@ class Command(BaseCommand):
         houses = data_for_type("house", data_sources)
         click.echo(f"Found {len(houses)} houses: ")
         for house in houses:
-            house = House(
+            house = ContentHouse(
                 version=content_version,
                 uuid=stable_uuid(house["name"]),
                 name=house["name"],
@@ -131,7 +131,7 @@ class Command(BaseCommand):
         categories = data_for_type("category", data_sources)
         click.echo(f"Found {len(categories)} categories: ")
         for category in categories:
-            cat = Category(
+            cat = ContentCategory(
                 version=content_version,
                 uuid=stable_uuid(category["name"]),
                 name=category["name"],
@@ -157,7 +157,7 @@ class Command(BaseCommand):
         eq_cats = data_for_type("equipment_category", data_sources)
         click.echo(f"Found {len(eq_cats)} equipment categories: ")
         for eq_cat in eq_cats:
-            eq_cat = EquipmentCategory(
+            eq_cat = ContentEquipmentCategory(
                 version=content_version,
                 uuid=stable_uuid(eq_cat["name"]),
                 name=eq_cat["name"],
@@ -176,7 +176,7 @@ class Command(BaseCommand):
                 raise ValueError(
                     f"Error: Could not find category matching {e['category']}"
                 )
-            item = Equipment(
+            item = ContentEquipment(
                 version=content_version,
                 uuid=stable_uuid(e["name"]),
                 name=e["name"],
@@ -202,7 +202,7 @@ class Command(BaseCommand):
                 raise ValueError(
                     f"Error: Could not find category matching {e['category']}"
                 )
-            fighter = Fighter(
+            fighter = ContentFighter(
                 version=content_version,
                 uuid=stable_uuid(f["type"]),
                 type=f["type"],
@@ -239,7 +239,7 @@ class Command(BaseCommand):
                     )
                     continue
 
-                fighter_equip = FighterEquipment(
+                fighter_equip = ContentFighterEquipment(
                     version=content_version,
                     uuid=stable_uuid(f"{fighter.uuid}:{item.uuid}"),
                     fighter=fighter,
@@ -258,7 +258,7 @@ class Command(BaseCommand):
                 assigned_name = tp_policy.get("name", "Anonymous")
                 name = f"Trading Post Policy ({el['fighter_type']}, {assigned_name})"
                 rules = tp_policy.get("rules", [])
-                policy = Policy(
+                policy = ContentPolicy(
                     version=content_version,
                     uuid=stable_uuid(name),
                     fighter=fighter,

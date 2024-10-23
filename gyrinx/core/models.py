@@ -19,13 +19,13 @@ class Content(Base):
         abstract = True
 
 
-class ImportVersion(Content):
+class ContentImportVersion(Content):
     ruleset = models.CharField(max_length=255, default="necromunda-2018")
     directory = models.CharField(max_length=255)
 
 
-class House(Content):
-    class HouseNameChoices(models.TextChoices):
+class ContentHouse(Content):
+    class Choices(models.TextChoices):
         VENATORS = "VENATORS", "Venators"
         VAN_SAAR_HOA = "VAN_SAAR_HOA", "Van Saar (HoA)"
         VAN_SAAR_GOTU = "VAN_SAAR_GOTU", "Van Saar (GotU)"
@@ -47,14 +47,14 @@ class House(Content):
         CAWDOR_GOTU = "CAWDOR_GOTU", "Cawdor (GotU)"
         ASH_WASTE_NOMADS = "ASH_WASTE_NOMADS", "Ash Waste Nomads"
 
-    name = models.CharField(max_length=255, choices=HouseNameChoices)
+    name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
         return self.name
 
 
-class Category(Content):
-    class CategoryNameChoices(models.TextChoices):
+class ContentCategory(Content):
+    class Choices(models.TextChoices):
         LEADER = "LEADER", "Leader"
         CHAMPION = "CHAMPION", "Champion"
         GANGER = "GANGER", "Ganger"
@@ -69,7 +69,7 @@ class Category(Content):
         HIVE_SCUM = "HIVE_SCUM", "Hive Scum"
         DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
 
-    name = models.CharField(max_length=255, choices=CategoryNameChoices)
+    name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
         return self.name
@@ -82,8 +82,8 @@ class Skill(Content):
         return self.name
 
 
-class EquipmentCategory(Content):
-    class EquipmentCategoryNameChoices(models.TextChoices):
+class ContentEquipmentCategory(Content):
+    class Choices(models.TextChoices):
         AMMO = "AMMO", "Ammo"
         ARMOR = "ARMOR", "Armor"
         BASIC_WEAPONS = "BASIC_WEAPONS", "Basic Weapons"
@@ -103,39 +103,41 @@ class EquipmentCategory(Content):
         STATUS_ITEMS = "STATUS_ITEMS", "Status Items"
         VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
 
-    name = models.CharField(max_length=255, choices=EquipmentCategoryNameChoices)
+    name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
         return self.name
 
 
-class Equipment(Content):
+class ContentEquipment(Content):
     name = models.CharField(max_length=255)
-    category = models.ForeignKey(EquipmentCategory, on_delete=models.CASCADE)
+    category = models.ForeignKey(ContentEquipmentCategory, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.name
 
 
-class Fighter(Content):
+class ContentFighter(Content):
     type = models.CharField(max_length=255)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    house = models.ForeignKey(House, on_delete=models.CASCADE, null=True, blank=True)
+    category = models.ForeignKey(ContentCategory, on_delete=models.CASCADE)
+    house = models.ForeignKey(
+        ContentHouse, on_delete=models.CASCADE, null=True, blank=True
+    )
 
     def __str__(self):
         return self.type
 
 
-class FighterEquipment(Content):
-    fighter = models.ForeignKey(Fighter, on_delete=models.CASCADE)
-    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE)
+class ContentFighterEquipment(Content):
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
+    equipment = models.ForeignKey(ContentEquipment, on_delete=models.CASCADE)
     cost = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.fighter} Equipment List"
 
 
-class Policy(Content):
-    fighter = models.ForeignKey(Fighter, on_delete=models.CASCADE)
+class ContentPolicy(Content):
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     rules = models.JSONField()
