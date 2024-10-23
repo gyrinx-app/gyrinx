@@ -1,0 +1,13 @@
+{
+    "extends": ["stylelint-config-twbs-bootstrap"],
+    "reportInvalidScopeDisables": true,
+    "reportNeedlessDisables": true,
+    "overrides": [
+        {
+            "files": "**/*.scss",
+            "rules": {
+                "scss/selector-no-union-class-name": true
+            }
+        }
+    ]
+}

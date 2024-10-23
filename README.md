@@ -101,6 +101,27 @@ To set up the development environment, follow these steps:
     manage gyrinximport content --dry-run
     ```
 
+7. Set up the frontend toolchain:
+
+    Get `nodeenv` (installed by pip) to install node and npm in the virtual env.
+
+    ```bash
+    nodeenv -p
+    ```
+
+    Check it has worked (you might need to `deactivate` then `. .venv/bin/activate`):
+
+    ```bash
+    which node # should be /path/to/repo/.venv/bin/node
+    which npm # should be /path/to/repo/.venv/bin/npm
+    ```
+
+8. Build the frontend
+
+    ```
+    npm run build
+    ```
+
 ## Running the Django application
 
 Make sure your virtual environment is active and you've run `pip install --editable .`.
@@ -108,6 +129,10 @@ Make sure your virtual environment is active and you've run `pip install --edita
 ```
 manage runserver
 ```
+
+## Building the UI
+
+The Python toolchain installs `nodeenv` which is then used to install `node` and `npm` so we have a frontend toolchain.
 
 ## Running Tests
 
