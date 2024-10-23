@@ -122,6 +122,16 @@ To set up the development environment, follow these steps:
     npm run build
     ```
 
+9. Install the pre-commit hooks
+
+    Before making any changes, make sure you've got pre-commit hooks installed.
+
+    `pre-commit` is installed by pip.
+
+    ```bash
+    pre-commit install
+    ```
+
 ## Running the Django application
 
 Make sure your virtual environment is active and you've run `pip install --editable .`.

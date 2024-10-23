@@ -9,12 +9,12 @@ from gyrinx.core.models import ContentCategory, ContentFighter, ContentHouse
 def test_basic_fighter():
     version = uuid.uuid4()
     category = ContentCategory.objects.create(
-        name=ContentCategory.ContentCategoryNameChoices.JUVE,
+        name=ContentCategory.Choices.JUVE,
         uuid=uuid.uuid4(),
         version=version,
     )
     house = ContentHouse.objects.create(
-        name=ContentHouse.ContentHouseNameChoices.SQUAT_PROSPECTORS,
+        name=ContentHouse.Choices.SQUAT_PROSPECTORS,
         uuid=uuid.uuid4(),
         version=version,
     )
@@ -24,4 +24,4 @@ def test_basic_fighter():
 
     fighter.save()
     assert fighter.type == "Prospector Digger"
-    assert fighter.category.name == ContentCategory.ContentCategoryNameChoices.JUVE
+    assert fighter.category.name == ContentCategory.Choices.JUVE

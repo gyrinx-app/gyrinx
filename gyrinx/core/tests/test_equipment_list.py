@@ -19,7 +19,7 @@ def test_equipment():
     # Create some equipment
     category = ContentEquipmentCategory.objects.create(
         uuid=uuid.uuid4(),
-        name=ContentEquipmentCategory.ContentEquipmentCategoryNameChoices.BASIC_WEAPONS,
+        name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
     )
     equipment = ContentEquipment.objects.create(
         uuid=uuid.uuid4(), name="Wooden Spoon", category=category
@@ -32,7 +32,7 @@ def test_equipment():
         uuid=uuid.uuid4(),
         type="Charter Master",
         category=ContentCategory.objects.create(
-            uuid=uuid.uuid4(), name=ContentCategory.ContentCategoryNameChoices.LEADER
+            uuid=uuid.uuid4(), name=ContentCategory.Choices.LEADER
         ),
     )
     fighter.save()
