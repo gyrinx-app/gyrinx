@@ -58,13 +58,19 @@ To set up the development environment, follow these steps:
     cd content
     ```
 
-2. Create and activate a virtual environment:
+2. Make sure you're using the right python version:
+
+    ```bash
+    python --version # should be >= 3.12
+    ```
+
+3. Create and activate a virtual environment:
 
     ```bash
     python -m venv .venv && . .venv/bin/activate
     ```
 
-3. Install the project in editable mode so you can use the `schema` command:
+4. Install the project in editable mode so you can use the `schema` command:
 
     ```bash
     pip install --editable .
@@ -72,7 +78,7 @@ To set up the development environment, follow these steps:
 
     `setuptools` will handle installing dependencies.
 
-4. To check it has worked, run the `schema` command:
+5. To check it has worked, run the `schema` command:
 
     ```bash
     schema
@@ -87,6 +93,12 @@ To set up the development environment, follow these steps:
 
     Checking content/necromunda-2018...
     Gathering schema files from content/necromunda-2018/schema...
+    ```
+
+6. To further check it worked, do a `--dry-run` import:
+
+    ```bash
+    manage gyrinximport content --dry-run
     ```
 
 ## Running the Django application
