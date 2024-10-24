@@ -137,7 +137,43 @@ class ContentFighterEquipment(Content):
         return f"{self.fighter} Equipment List"
 
 
+def check(rule, category, name):
+    """Check if the rule applies to the category and name."""
+    dc = rule.get("category") in [None, category]
+    dn = rule.get("name") in [None, name]
+    return dc and dn
+
+
 class ContentPolicy(Content):
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     rules = models.JSONField()
+
+    def allows(self, equipment: ContentEquipment) -> bool:
+        """Check if the policy allows the equipment."""
+        name = equipment.name
+        category = equipment.category.name.label
+        # Work through the rules in reverse order. If any of them
+        # allow, then the equipment is allowed.
+        # If we get to an explicit deny, then the equipment is denied.
+        # If we get to the end, then the equipment is allowed.
+        for rule in reversed(self.rules):
+            deny = rule.get("deny", [])
+            if deny == "all":
+                return False
+            # The deny rule is an AND rule. The category and name must
+            # both match, or be missing, for the rule to apply.
+            deny_fail = any([check(d, category, name) for d in deny])
+            if deny_fail:
+                return False
+
+            allow = rule.get("allow", [])
+            if allow == "all":
+                return True
+            # The allow rule is an AND rule. The category and name must
+            # both match, or be missing, for the allow to apply.
+            allow_pass = any([check(a, category, name) for a in allow])
+            if allow_pass:
+                return True
+
+        return True
