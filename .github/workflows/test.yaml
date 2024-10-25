@@ -34,6 +34,8 @@ jobs:
               if: steps.cache-venv.outputs.cache-hit != 'true'
 
             - name: Run tests
+              env:
+                  SECRET_KEY: test-secret
               run: . ./.venv/bin/activate && python -m pytest
 
             - name: Run schema & data validation
