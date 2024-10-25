@@ -132,6 +132,14 @@ To set up the development environment, follow these steps:
     pre-commit install
     ```
 
+10. Set up your environment
+
+    Before making any changes, set up your local `.env` file.
+
+    ```bash
+    mange setupenv
+    ```
+
 ## Running the Django application
 
 Make sure your virtual environment is active and you've run `pip install --editable .`.
