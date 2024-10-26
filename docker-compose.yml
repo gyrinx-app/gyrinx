@@ -1,0 +1,9 @@
+name: gyrinx
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: docker-compose-test-secret
