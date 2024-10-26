@@ -6,6 +6,7 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 COPY . /app
 RUN pip install --no-cache-dir --editable .
+RUN manage collectstatic --noinput
 
 EXPOSE 8000
 

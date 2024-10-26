@@ -13,3 +13,4 @@ referencing==0.35.1
 ruff==0.6.9
 setuptools==75.1.0
 sqlparse==0.5.1
+whitenoise==6.7.0
