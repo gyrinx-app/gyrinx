@@ -29,6 +29,8 @@ content/
 
 This repository also contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
 
+See the [design](./design/) directory for technical discussions.
+
 The `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so you can just use `manage` from anywhere:
 
 ```bash
