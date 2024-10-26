@@ -75,7 +75,7 @@ class ContentCategory(Content):
         return self.name
 
 
-class Skill(Content):
+class ContentSkill(Content):
     name = models.CharField(max_length=255)
 
     def __str__(self):
