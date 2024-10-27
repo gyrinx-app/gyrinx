@@ -1,17 +1,7 @@
 import click
 from django.core.management.base import BaseCommand
 
-from gyrinx.core.models import (
-    ContentCategory,
-    ContentEquipment,
-    ContentEquipmentCategory,
-    ContentFighter,
-    ContentFighterEquipment,
-    ContentHouse,
-    ContentImportVersion,
-    ContentPolicy,
-    ContentSkill,
-)
+from gyrinx.core.models import ContentImportVersion
 
 
 class Command(BaseCommand):
@@ -27,14 +17,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         models = [
-            (ContentPolicy, "ContentPolicy"),
-            (ContentFighterEquipment, "ContentFighterEquipment"),
-            (ContentFighter, "ContentFighter"),
-            (ContentCategory, "ContentCategory"),
-            (ContentSkill, "ContentSkill"),
-            (ContentEquipment, "ContentEquipment"),
-            (ContentEquipmentCategory, "ContentEquipmentCategory"),
-            (ContentHouse, "ContentHouse"),
+            # We only need to delete the ContentImportVersion records
+            # because the other records are deleted automatically by
+            # the ContentImportVersion delete cascade.
             (ContentImportVersion, "ContentImportVersion"),
         ]
 

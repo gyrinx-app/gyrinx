@@ -10,25 +10,30 @@ class Base(models.Model):
         abstract = True
 
 
-class Content(Base):
-    # The uuid and version must be supplied when creating a new instance
+class ContentImportVersion(Base):
+    """Represents a version of the content import."""
+
     uuid = models.UUIDField(editable=False, db_index=True)
-    version = models.CharField(max_length=255, db_index=True)
-
-    class Meta:
-        abstract = True
-
-
-class ContentImportVersion(Content):
     ruleset = models.CharField(max_length=255, default="necromunda-2018")
     directory = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"{self.ruleset} {self.version}"
+        return f"{self.ruleset} {self.uuid}"
 
     class Meta:
         verbose_name = "Content Import Version"
         verbose_name_plural = "Content Import Versions"
+
+
+class Content(Base):
+    # The uuid and version must be supplied when creating a new instance
+    uuid = models.UUIDField(editable=False, db_index=True)
+    version = models.ForeignKey(
+        ContentImportVersion, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+    class Meta:
+        abstract = True
 
 
 class ContentHouse(Content):

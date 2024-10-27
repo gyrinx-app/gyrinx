@@ -113,13 +113,12 @@ class Command(BaseCommand):
         index = defaultdict(dict)
 
         import_version = ContentImportVersion(
-            version=content_version,
             uuid=stable_uuid(f"{ruleset_dir.name}:{content_version}"),
             ruleset=ruleset_dir.name,
             directory=options["directory"],
         )
         click.echo(
-            f"ImportingVersion: {import_version.directory}, {import_version.ruleset} ({import_version.uuid}, {import_version.version})"
+            f"ImportingVersion: {import_version.directory}, {import_version.ruleset} ({import_version.uuid})"
         )
         if not dry_run:
             import_version.save()
@@ -128,7 +127,7 @@ class Command(BaseCommand):
         click.echo(f"Found {len(houses)} houses: ")
         for h in houses:
             house = ContentHouse(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(h["name"]),
                 name=by_label(ContentHouse.Choices, h["name"]),
             )
@@ -141,7 +140,7 @@ class Command(BaseCommand):
         click.echo(f"Found {len(categories)} categories: ")
         for category in categories:
             cat = ContentCategory(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(category["name"]),
                 name=by_label(ContentCategory.Choices, category["name"]),
             )
@@ -154,7 +153,7 @@ class Command(BaseCommand):
         click.echo(f"Found {len(skills)} skills: ")
         for skill in skills:
             sk = ContentSkill(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(skill["name"]),
                 name=skill["name"],
             )
@@ -167,7 +166,7 @@ class Command(BaseCommand):
         click.echo(f"Found {len(eq_cats)} equipment categories: ")
         for eq_cat in eq_cats:
             eq_cat = ContentEquipmentCategory(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(eq_cat["name"]),
                 name=by_label(ContentEquipmentCategory.Choices, eq_cat["name"]),
             )
@@ -186,7 +185,7 @@ class Command(BaseCommand):
                     f"Error: Could not find category matching {e['category']}"
                 )
             item = ContentEquipment(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(e["name"]),
                 name=e["name"],
                 category=category,
@@ -212,7 +211,7 @@ class Command(BaseCommand):
                     f"Error: Could not find category matching {e['category']}"
                 )
             fighter = ContentFighter(
-                version=content_version,
+                version=import_version,
                 uuid=stable_uuid(f["type"]),
                 type=f["type"],
                 category=category,
@@ -249,7 +248,7 @@ class Command(BaseCommand):
                     continue
 
                 fighter_equip = ContentFighterEquipment(
-                    version=content_version,
+                    version=import_version,
                     uuid=stable_uuid(f"{fighter.uuid}:{item.uuid}"),
                     fighter=fighter,
                     equipment=item,
@@ -268,7 +267,7 @@ class Command(BaseCommand):
                 name = f"Trading Post Policy ({el['fighter_type']}, {assigned_name})"
                 rules = tp_policy.get("rules", [])
                 policy = ContentPolicy(
-                    version=content_version,
+                    version=import_version,
                     uuid=stable_uuid(name),
                     fighter=fighter,
                     name=name,

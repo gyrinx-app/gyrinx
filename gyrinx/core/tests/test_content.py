@@ -13,13 +13,16 @@ from gyrinx.core.models import (
     ContentEquipmentCategory,
     ContentFighter,
     ContentHouse,
+    ContentImportVersion,
     ContentPolicy,
 )
 
 
 @pytest.mark.django_db
 def test_basic_fighter():
-    version = uuid.uuid4()
+    version = ContentImportVersion.objects.create(
+        uuid=uuid.uuid4(), ruleset="necromunda-2018", directory="content"
+    )
     category = ContentCategory.objects.create(
         name=ContentCategory.Choices.JUVE,
         uuid=uuid.uuid4(),
