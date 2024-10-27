@@ -160,8 +160,10 @@ class ContentFighter(Content):
 
 
 class ContentFighterEquipment(Content):
-    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
-    equipment = models.ForeignKey(ContentEquipment, on_delete=models.CASCADE)
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
+    equipment = models.ForeignKey(
+        ContentEquipment, on_delete=models.CASCADE, db_index=True
+    )
     cost = models.IntegerField(default=0)
 
     def __str__(self):
@@ -170,6 +172,7 @@ class ContentFighterEquipment(Content):
     class Meta:
         verbose_name = "Content Fighter Equipment Join"
         verbose_name_plural = "Content Fighter Equipment Joins"
+        unique_together = ["fighter", "equipment"]
 
 
 def check(rule, category, name):
@@ -180,7 +183,7 @@ def check(rule, category, name):
 
 
 class ContentPolicy(Content):
-    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     name = models.CharField(max_length=255)
     rules = models.JSONField()
 

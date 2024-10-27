@@ -16,7 +16,7 @@ from gyrinx.core.models import (
     ContentHouse,
     ContentImportVersion,
     ContentPolicy,
-    Skill,
+    ContentSkill,
 )
 from scripts.schema import gather_data
 
@@ -144,7 +144,7 @@ class Command(BaseCommand):
         skills = data_for_type("skill", data_sources)
         click.echo(f"Found {len(skills)} skills: ")
         for skill in skills:
-            sk = Skill(
+            sk = ContentSkill(
                 version=content_version,
                 uuid=stable_uuid(skill["name"]),
                 name=skill["name"],
