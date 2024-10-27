@@ -14,6 +14,10 @@ from .models import (
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
+    def __init__(self, model, admin_site):
+        self.list_display = [f.name for f in model._meta.fields]
+        super().__init__(model, admin_site)
+
     def has_add_permission(self, request):
         return False
 

@@ -66,6 +66,8 @@ class ContentHouse(Content):
 
 class ContentCategory(Content):
     class Choices(models.TextChoices):
+        # TODO: The None value is a placeholder for now. It should be removed
+        NONE = "NONE", "None"
         LEADER = "LEADER", "Leader"
         CHAMPION = "CHAMPION", "Champion"
         GANGER = "GANGER", "Ganger"
@@ -103,6 +105,8 @@ class ContentSkill(Content):
 
 class ContentEquipmentCategory(Content):
     class Choices(models.TextChoices):
+        # TODO: The None value is a placeholder for now. It should be removed
+        NONE = "NONE", "None"
         AMMO = "AMMO", "Ammo"
         ARMOR = "ARMOR", "Armor"
         BASIC_WEAPONS = "BASIC_WEAPONS", "Basic Weapons"

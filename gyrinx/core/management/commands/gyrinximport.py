@@ -40,6 +40,15 @@ def lookup(index, type, id):
         return None
 
 
+def by_label(enum, label):
+    try:
+        return next(
+            name for name, choice_label in enum.choices if choice_label == label
+        )
+    except StopIteration:
+        raise ValueError(f"Label '{label}' not found in choices: {enum.choices}")
+
+
 class Command(BaseCommand):
     help = "Import Gyrinx content library"
 
@@ -48,7 +57,7 @@ class Command(BaseCommand):
         parser.add_argument("--content-version", type=str, required=False)
         parser.add_argument("--dry-run", action="store_true")
         # TODO: In future...
-        # --tag --dry-run
+        # --tag
 
     def handle(self, *args, **options):
         # TODO: Reuse the schema.py functions to validate the schema?
@@ -117,11 +126,11 @@ class Command(BaseCommand):
 
         houses = data_for_type("house", data_sources)
         click.echo(f"Found {len(houses)} houses: ")
-        for house in houses:
+        for h in houses:
             house = ContentHouse(
                 version=content_version,
-                uuid=stable_uuid(house["name"]),
-                name=house["name"],
+                uuid=stable_uuid(h["name"]),
+                name=by_label(ContentHouse.Choices, h["name"]),
             )
             index["house"][house.uuid] = house
             click.echo(f" - {house.name} ({house.uuid}, {house.version})")
@@ -134,7 +143,7 @@ class Command(BaseCommand):
             cat = ContentCategory(
                 version=content_version,
                 uuid=stable_uuid(category["name"]),
-                name=category["name"],
+                name=by_label(ContentCategory.Choices, category["name"]),
             )
             index["category"][cat.uuid] = cat
             click.echo(f" - {cat.name} ({cat.uuid}, {cat.version})")
@@ -160,7 +169,7 @@ class Command(BaseCommand):
             eq_cat = ContentEquipmentCategory(
                 version=content_version,
                 uuid=stable_uuid(eq_cat["name"]),
-                name=eq_cat["name"],
+                name=by_label(ContentEquipmentCategory.Choices, eq_cat["name"]),
             )
             index["equipment_category"][eq_cat.uuid] = eq_cat
             click.echo(f" - {eq_cat.name} ({eq_cat.uuid}, {eq_cat.version})")
