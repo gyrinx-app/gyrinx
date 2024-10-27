@@ -3,22 +3,139 @@ equipment_list:
       equipment:
           - name: Ironhead Autogun
           - name: Ironhead Boltgun
-            cost: 95
           - name: Ironhead Autopistol
           - name: Ironhead Bolt Pistol
           - name: Ironhead Hand Flamer
-          # TODO: Dumdum rounds?
           - name: Ironhead Stub Gun
+          # TODO Squat dumdums
           - name: Stone Burner
-    - fighter_type: Drill-kyn
+          - name: Ironhead Flamer
+          - name: Ironhead Meltagun
+          - name: Ironhead Heavy Flamer
+          - name: Ironhead Heavy Stubber
+          - name: Mining Laser
+          - name: Circular Stone Saw
+          - name: Fighting Knife
+          - name: Gem Extractor
+          - name: Ironhead Arc Welder
+          - name: Power Axe
+          # TODO Squat power fist? Do we style is Ironhead Power Fist
+          - name: Power Hammer
+          - name: Power Pick
+          - name: Blasting Charges
+          - name: Frag Grenades
+          - name: Krak Grenades
+          - name: Smoke Grenades
+          - name: Light Carapace Armour
+          - name: Heavy Carapace Armour
+          - name: Flak Armour
+          - name: Mesh Armour
+          - name: Conversion Field
+          - name: Displacer Field
+          - name: Refractor Field
+          - name: Bio-booster
+          - name: Drop Rig
+          - name: Filter Plugs
+          - name: Grav Chute
+          - name: Medicae Kit
+          - name: Photo-Goggles
+          - name: Photo Lumens
+          - name: Respirator
+          - name: Infra-sight
+          - name: Mono-sight
+          - name: Suspensor
+          - name: Telescopic Sight
+      trading_post:
+          policy:
+              rules:
+                  - allow: all
+    - fighter_type: Drill Master
       equipment:
           - name: Ironhead Autogun
           - name: Ironhead Boltgun
           - name: Ironhead Autopistol
           - name: Ironhead Bolt Pistol
           - name: Ironhead Hand Flamer
-          # ... and so on
-          # TODO: These are going to get duplicative
+          - name: Ironhead Stub Gun
+          # TODO Squat dumdums
+          - name: Stone Burner
+          - name: Ironhead Flamer
+          - name: Ironhead Meltagun
+          - name: Ironhead Heavy Flamer
+          - name: Ironhead Heavy Stubber
+          - name: Mining Laser
+          - name: Circular Stone Saw
+          - name: Fighting Knife
+          - name: Gem Extractor
+          - name: Ironhead Arc Welder
+          - name: Power Axe
+          # TODO Squat power fist? Do we style is Ironhead Power Fist
+          - name: Power Hammer
+          - name: Power Pick
+          - name: Blasting Charges
+          - name: Frag Grenades
+          - name: Krak Grenades
+          - name: Smoke Grenades
+          - name: Light Carapace Armour
+          - name: Heavy Carapace Armour
+          - name: Flak Armour
+          - name: Mesh Armour
+          - name: Conversion Field
+          - name: Displacer Field
+          - name: Refractor Field
+          - name: Bio-booster
+          - name: Drop Rig
+          - name: Filter Plugs
+          - name: Grav Chute
+          - name: Medicae Kit
+          - name: Photo-Goggles
+          - name: Photo Lumens
+          - name: Respirator
+          - name: Infra-sight
+          - name: Mono-sight
+          - name: Suspensor
+          - name: Telescopic Sight
+      trading_post:
+          policy:
+              rules:
+                  - allow: all
+    - fighter_type: Drill-kyn
+      equipment:
+          - name: Ironhead Autogun
+          - name: Ironhead Boltgun
+          - name: Ironhead Autopistol
+          - name: Ironhead Bolt Pistol
+          - name: Ironhead Stub Gun
+          # TODO squat stub gun
+          - name: Ironhead Flamer
+          - name: Ironhead Meltagun
+          - name: Circular Stone Saw
+          - name: Fighting Knife
+          - name: Power Pick
+          - name: Power Hammer
+          - name: Power Axe
+          - name: Blasting Charges
+          - name: Frag Grenades
+          - name: Krak Grenades
+          - name: Smoke Grenades
+          - name: Light Carapace Armour
+          - name: Heavy Carapace Armour
+          - name: Flak Armour
+          - name: Mesh Armour
+          - name: Conversion Field
+          - name: Displacer Field
+          - name: Refractor Field
+          - name: Bio-booster
+          - name: Drop Rig
+          - name: Filter Plugs
+          - name: Grav Chute
+          - name: Medicae Kit
+          - name: Photo-Goggles
+          - name: Photo Lumens
+          - name: Respirator
+          - name: Infra-sight
+          - name: Mono-sight
+          - name: Telescopic Sight
       trading_post:
           policy:
               rules:
@@ -27,3 +144,50 @@ equipment_list:
                         - category: Basic Weapons
                         - category: Pistols
                         - category: Close Combat
+                        - category: Wargear
+    - fighter_type: Digger
+      equipment:
+          - name: Ironhead Autogun
+          - name: Ironhead Boltgun
+          - name: Ironhead Autopistol
+          - name: Ironhead Bolt Pistol
+          - name: Ironhead Stub Gun
+          # TODO squat stub gun
+          - name: Ironhead Flamer
+          - name: Ironhead Meltagun
+          - name: Circular Stone Saw
+          - name: Fighting Knife
+          - name: Power Pick
+          - name: Power Hammer
+          - name: Power Axe
+          - name: Blasting Charges
+          - name: Frag Grenades
+          - name: Krak Grenades
+          - name: Smoke Grenades
+          - name: Light Carapace Armour
+          - name: Heavy Carapace Armour
+          - name: Flak Armour
+          - name: Mesh Armour
+          - name: Conversion Field
+          - name: Displacer Field
+          - name: Refractor Field
+          - name: Bio-booster
+          - name: Drop Rig
+          - name: Filter Plugs
+          - name: Grav Chute
+          - name: Medicae Kit
+          - name: Photo-Goggles
+          - name: Photo Lumens
+          - name: Respirator
+          - name: Infra-sight
+          - name: Mono-sight
+          - name: Telescopic Sight
+      trading_post:
+          policy:
+              rules:
+                  - deny: all
+                  - allow:
+                        - category: Basic Weapons
+                        - category: Pistols
+                        - category: Close Combat
+                        - category: Wargear
