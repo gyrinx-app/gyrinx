@@ -279,3 +279,5 @@ class Command(BaseCommand):
                 )
                 if not dry_run:
                     policy.save()
+                if not dry_run:
+                    policy.save()

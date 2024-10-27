@@ -10,6 +10,11 @@ class Base(models.Model):
         abstract = True
 
 
+##
+## Content Models
+##
+
+
 class ContentImportVersion(Base):
     """Represents a version of the content import."""
 
@@ -228,3 +233,36 @@ class ContentPolicy(Content):
     class Meta:
         verbose_name = "Content Policy"
         verbose_name_plural = "Content Policies"
+        verbose_name_plural = "Content Policies"
+
+
+##
+## Application Models
+##
+
+
+class Build(Base):
+    """A Build is a reusable collection of fighters."""
+
+    name = models.CharField(max_length=255)
+    house_uuid = models.UUIDField(null=False, blank=False)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        pass
+
+
+class BuildFighter(Base):
+    """A Fighter is a member of a build."""
+
+    name = models.CharField(max_length=255)
+    fighter_uuid = models.UUIDField(null=False, blank=False)
+    build = models.ForeignKey(Build, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.fighter.type
+
+    class Meta:
+        pass
