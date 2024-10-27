@@ -23,6 +23,13 @@ class ContentImportVersion(Content):
     ruleset = models.CharField(max_length=255, default="necromunda-2018")
     directory = models.CharField(max_length=255)
 
+    def __str__(self):
+        return f"{self.ruleset} {self.version}"
+
+    class Meta:
+        verbose_name = "Content Import Version"
+        verbose_name_plural = "Content Import Versions"
+
 
 class ContentHouse(Content):
     class Choices(models.TextChoices):
@@ -52,6 +59,10 @@ class ContentHouse(Content):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name = "Content House"
+        verbose_name_plural = "Content Houses"
+
 
 class ContentCategory(Content):
     class Choices(models.TextChoices):
@@ -74,12 +85,20 @@ class ContentCategory(Content):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name = "Content Category"
+        verbose_name_plural = "Content Categories"
+
 
 class ContentSkill(Content):
     name = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        verbose_name = "Content Skill"
+        verbose_name_plural = "Content Skills"
 
 
 class ContentEquipmentCategory(Content):
@@ -108,6 +127,10 @@ class ContentEquipmentCategory(Content):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name = "Content Equipment Category"
+        verbose_name_plural = "Content Equipment Categories"
+
 
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
@@ -115,6 +138,10 @@ class ContentEquipment(Content):
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        verbose_name = "Content Equipment"
+        verbose_name_plural = "Content Equipment"
 
 
 class ContentFighter(Content):
@@ -127,6 +154,10 @@ class ContentFighter(Content):
     def __str__(self):
         return self.type
 
+    class Meta:
+        verbose_name = "Content Fighter"
+        verbose_name_plural = "Content Fighters"
+
 
 class ContentFighterEquipment(Content):
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE)
@@ -134,7 +165,11 @@ class ContentFighterEquipment(Content):
     cost = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"{self.fighter} Equipment List"
+        return f"{self.fighter} Equipment"
+
+    class Meta:
+        verbose_name = "Content Fighter Equipment Join"
+        verbose_name_plural = "Content Fighter Equipment Joins"
 
 
 def check(rule, category, name):
@@ -177,3 +212,7 @@ class ContentPolicy(Content):
                 return True
 
         return True
+
+    class Meta:
+        verbose_name = "Content Policy"
+        verbose_name_plural = "Content Policies"
