@@ -1,6 +1,8 @@
 from django.contrib import admin
 
 from .models import (
+    Build,
+    BuildFighter,
     ContentCategory,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -28,48 +30,56 @@ class ReadOnlyAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(ContentCategory)
 class ContentCategoryAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentEquipmentCategory)
 class ContentEquipmentCategoryAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentFighter)
 class ContentFighterAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentFighterEquipment)
 class ContentFighterEquipmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentHouse)
 class ContentHouseAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentImportVersion)
 class ContentImportVersionAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentPolicy)
 class ContentPolicyAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
+@admin.register(ContentSkill)
 class ContentSkillAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 
-admin.site.register(ContentCategory, ContentCategoryAdmin)
-admin.site.register(ContentEquipment, ContentEquipmentAdmin)
-admin.site.register(ContentEquipmentCategory, ContentEquipmentCategoryAdmin)
-admin.site.register(ContentFighter, ContentFighterAdmin)
-admin.site.register(ContentFighterEquipment, ContentFighterEquipmentAdmin)
-admin.site.register(ContentHouse, ContentHouseAdmin)
-admin.site.register(ContentImportVersion, ContentImportVersionAdmin)
-admin.site.register(ContentPolicy, ContentPolicyAdmin)
-admin.site.register(ContentSkill, ContentSkillAdmin)
+@admin.register(Build)
+class BuildAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(BuildFighter)
+class BuildFighterAdmin(admin.ModelAdmin):
+    pass

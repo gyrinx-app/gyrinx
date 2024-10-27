@@ -93,4 +93,4 @@ def test_build_fighter_house_matches_build():
     ):
         BuildFighter.objects.create(
             name="Test Fighter", build=build, content_fighter_uuid=content_fighter.uuid
-        )
+        ).full_clean()
