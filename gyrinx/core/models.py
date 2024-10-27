@@ -67,7 +67,7 @@ class ContentHouse(Content):
     name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
-        return self.name
+        return ContentHouse.Choices(self.name).label
 
     class Meta:
         verbose_name = "Content House"
@@ -95,7 +95,7 @@ class ContentCategory(Content):
     name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
-        return self.name
+        return ContentCategory.Choices(self.name).label
 
     class Meta:
         verbose_name = "Content Category"
@@ -139,7 +139,7 @@ class ContentEquipmentCategory(Content):
     name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
-        return self.name
+        return ContentEquipmentCategory.Choices(self.name).label
 
     class Meta:
         verbose_name = "Content Equipment Category"
@@ -245,7 +245,7 @@ class Build(Base):
     """A Build is a reusable collection of fighters."""
 
     name = models.CharField(max_length=255)
-    house_uuid = models.UUIDField(null=False, blank=False)
+    content_house_uuid = models.UUIDField(null=False, blank=False)
 
     def __str__(self):
         return self.name
@@ -253,16 +253,30 @@ class Build(Base):
     class Meta:
         pass
 
+    def get_content_house(self):
+        return ContentHouse.objects.get(uuid=self.content_house_uuid)
+
 
 class BuildFighter(Base):
     """A Fighter is a member of a build."""
 
     name = models.CharField(max_length=255)
-    fighter_uuid = models.UUIDField(null=False, blank=False)
-    build = models.ForeignKey(Build, on_delete=models.CASCADE)
+    content_fighter_uuid = models.UUIDField(null=False, blank=False)
+    build = models.ForeignKey(Build, on_delete=models.CASCADE, null=False, blank=False)
 
     def __str__(self):
-        return self.fighter.type
+        return self.get_content_fighter().type
 
     class Meta:
         pass
+
+    def get_content_fighter(self):
+        return ContentFighter.objects.get(uuid=self.content_fighter_uuid)
+
+    def save(self, *args, **kwargs):
+        cf = self.get_content_fighter()
+        cf_house = cf.house
+        build_house = self.build.get_content_house()
+        if cf_house != build_house:
+            raise Exception(f"{cf.type} cannot be a member of {build_house} build")
+        super().save(*args, **kwargs)
