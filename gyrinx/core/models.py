@@ -167,7 +167,8 @@ class ContentFighter(Content):
     )
 
     def __str__(self):
-        return self.type
+        house = f"{self.house}" if self.house else ""
+        return f"{house} {self.type} ({self.category})".strip()
 
     class Meta:
         verbose_name = "Content Fighter"
