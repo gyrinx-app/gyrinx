@@ -7,3 +7,5 @@ services:
       - "8000:8000"
     environment:
       SECRET_KEY: docker-compose-test-secret
+    volumes:
+      - .:/app
