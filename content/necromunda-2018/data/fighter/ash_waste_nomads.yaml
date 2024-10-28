@@ -1,13 +1,8 @@
 fighter:
     - category: None
       cost: 120
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 2
@@ -23,17 +18,10 @@ fighter:
           wil: 6
           ws: 3
       type: Kha'tragi Chieftain
-      house: Ash Waste Nomads
-      uuid: 0a21a2ba-ae5c-595a-7a63-524bad3f768a
     - category: None
       cost: 100
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 2
@@ -49,17 +37,10 @@ fighter:
           wil: 7
           ws: 4
       type: Naku'taari Watcher
-      house: Ash Waste Nomads
-      uuid: 2c345163-630f-91e1-1433-f59f725bd677
     - category: None
       cost: 35
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 1
@@ -75,17 +56,10 @@ fighter:
           wil: 8
           ws: 5
       type: Run'Taani Dust Runner
-      house: Ash Waste Nomads
-      uuid: f347315d-03b2-2eaf-4191-b1dda22d3c40
     - category: None
       cost: 80
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: 434a9cf4-4dd7-e614-28e1-8f1810bcd580
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 2
@@ -101,17 +75,10 @@ fighter:
           wil: 8
           ws: 4
       type: Tarh'noki Dust Rider
-      house: Ash Waste Nomads
-      uuid: e974fc79-8f22-4188-383b-f2fd822b0f00
     - category: None
       cost: 60
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 1
@@ -127,17 +94,10 @@ fighter:
           wil: 7
           ws: 4
       type: Tarn'Runi Warrior
-      house: Ash Waste Nomads
-      uuid: 60a40e9b-67b2-c53d-2d33-45858dbd5d93
     - category: None
       cost: 60
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: f4042c27-bbb7-15ef-0dbc-9a78a35fd730
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 1
@@ -153,17 +113,10 @@ fighter:
           wil: 7
           ws: 4
       type: Tarn'Runi Warrior Specialist
-      house: Ash Waste Nomads
-      uuid: 584c7128-135b-1383-8875-03a1381512bc
     - category: None
       cost: 120
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 5c4a93ce-4073-9ad3-1c6c-fce72fe0a63d
-          - qty: 1
-            relation:
-                uuid: 434a9cf4-4dd7-e614-28e1-8f1810bcd580
+      equipment: []
+      house: Ash Waste Nomads
       skills: []
       stats:
           a: 2
@@ -179,5 +132,3 @@ fighter:
           wil: 6
           ws: 3
       type: Wy'tari Stormcaller
-      house: Ash Waste Nomads
-      uuid: 6ca132e5-c509-c8ad-cfd4-52b3ab14a94a

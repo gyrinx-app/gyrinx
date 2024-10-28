@@ -5,10 +5,6 @@
     "description": "Fighter archetypes that make up gang membership in Necromunda.",
     "type": "object",
     "properties": {
-        "uuid": {
-            "type": "string",
-            "format": "uuid"
-        },
         "type": {
             "type": "string"
         },
@@ -26,20 +22,32 @@
             "items": {
                 "type": "object",
                 "properties": {
-                    "relation": {
-                        "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
+                    "name": {
+                        "type": "string"
+                    },
+                    "category": {
+                        "type": "string"
                     },
                     "qty": {
                         "type": "integer"
                     }
                 },
-                "required": ["relation", "qty"]
+                "required": ["name", "category", "qty"]
             }
         },
         "skills": {
             "type": "array",
             "items": {
-                "$ref": "urn:gyrinx.schema.necromunda-2018.relation"
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "category": {
+                        "type": "string"
+                    }
+                },
+                "required": ["name", "category"]
             }
         },
         "stats": {
@@ -105,13 +113,5 @@
         }
     },
     "additionalProperties": false,
-    "required": [
-        "uuid",
-        "type",
-        "category",
-        "cost",
-        "equipment",
-        "skills",
-        "stats"
-    ]
+    "required": ["type", "category", "cost", "equipment", "skills", "stats"]
 }

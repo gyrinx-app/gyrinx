@@ -1,10 +1,8 @@
 fighter:
     - category: None
       cost: 110
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      equipment: []
+      house: Van Saar (GotU)
       skills: []
       stats:
           a: 1
@@ -20,14 +18,10 @@ fighter:
           wil: 6
           ws: 4
       type: Champion
-      house: Van Saar (GotU)
-      uuid: 3c189716-05b1-367c-3d2e-d6fda74be164
     - category: None
       cost: 65
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      equipment: []
+      house: Van Saar (GotU)
       skills: []
       stats:
           a: 1
@@ -43,14 +37,10 @@ fighter:
           wil: 7
           ws: 4
       type: Ganger
-      house: Van Saar (GotU)
-      uuid: 5e211ac8-45e2-bb9d-4f72-6311589e1596
     - category: None
       cost: 35
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      equipment: []
+      house: Van Saar (GotU)
       skills: []
       stats:
           a: 1
@@ -66,14 +56,10 @@ fighter:
           wil: 9
           ws: 5
       type: Juve
-      house: Van Saar (GotU)
-      uuid: 3010b208-4222-1a07-f147-c57d148eb47d
     - category: None
       cost: 130
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      equipment: []
+      house: Van Saar (GotU)
       skills: []
       stats:
           a: 2
@@ -89,14 +75,10 @@ fighter:
           wil: 5
           ws: 4
       type: Leader
-      house: Van Saar (GotU)
-      uuid: 5158a250-e30f-1fb4-415d-86ded2c8e0c5
     - category: None
       cost: 65
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 3335e7e8-6c0a-c3f0-05e1-25aa09a6f824
+      equipment: []
+      house: Van Saar (GotU)
       skills: []
       stats:
           a: 1
@@ -112,5 +94,3 @@ fighter:
           wil: 7
           ws: 4
       type: Specialist
-      house: Van Saar (GotU)
-      uuid: d7afcfbf-45aa-ca71-c6e4-b52eb7245b68

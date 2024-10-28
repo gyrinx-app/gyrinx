@@ -2,6 +2,7 @@ fighter:
     - category: None
       cost: 130
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 0
@@ -17,11 +18,10 @@ fighter:
           wil: 0
           ws: 0
       type: Chaos Spawn
-      house: Chaos Cult
-      uuid: 69b103dc-3237-6ebe-35ad-224b77dd489e
     - category: None
       cost: 100
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 2
@@ -37,11 +37,10 @@ fighter:
           wil: 6
           ws: 3
       type: Demagogue
-      house: Chaos Cult
-      uuid: eb94c3ea-501b-f2ed-fecf-34a33b241bb6
     - category: None
       cost: 60
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 1
@@ -57,11 +56,10 @@ fighter:
           wil: 8
           ws: 4
       type: Disciple
-      house: Chaos Cult
-      uuid: 63c69219-1aa0-84ce-3b9a-5b29ce2e12a1
     - category: None
       cost: 35
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 1
@@ -77,11 +75,10 @@ fighter:
           wil: 7
           ws: 4
       type: Helot Cultist
-      house: Chaos Cult
-      uuid: e209711b-d528-da48-b721-16e5008ffa17
     - category: None
       cost: 35
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 1
@@ -97,11 +94,10 @@ fighter:
           wil: 7
           ws: 4
       type: Helot Cultist Specialist
-      house: Chaos Cult
-      uuid: 440a9c36-fcbe-71f1-920c-2d70f2e861f0
     - category: None
       cost: 70
       equipment: []
+      house: Chaos Cult
       skills: []
       stats:
           a: 1
@@ -117,5 +113,3 @@ fighter:
           wil: 6
           ws: 5
       type: Witch
-      house: Chaos Cult
-      uuid: 1e5801f6-c2ee-2ba3-6fb7-c41edab701e3

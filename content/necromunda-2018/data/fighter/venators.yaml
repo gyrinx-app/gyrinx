@@ -2,6 +2,7 @@ fighter:
     - category: None
       cost: 85
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -17,11 +18,10 @@ fighter:
           wil: 7
           ws: 4
       type: Hunt Champion 1
-      house: Venators
-      uuid: 11b25af9-e26e-eae7-6d06-2e32fa3a3fc3
     - category: None
       cost: 85
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -37,11 +37,10 @@ fighter:
           wil: 6
           ws: 4
       type: Hunt Champion 2
-      house: Venators
-      uuid: f8860d56-5a21-94c7-d168-95226cd7db46
     - category: None
       cost: 85
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -57,11 +56,10 @@ fighter:
           wil: 8
           ws: 3
       type: Hunt Champion 3
-      house: Venators
-      uuid: 9b3686f8-ac73-6cee-368d-16c014e80358
     - category: None
       cost: 85
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -77,11 +75,10 @@ fighter:
           wil: 6
           ws: 5
       type: Hunt Champion 4
-      house: Venators
-      uuid: a88e2cfd-42e8-aff4-fb47-eaf2d381274e
     - category: None
       cost: 110
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -97,11 +94,10 @@ fighter:
           wil: 6
           ws: 3
       type: Hunt Leader 1
-      house: Venators
-      uuid: e0ad2cd9-3ff6-2544-434c-2e3746a1527a
     - category: None
       cost: 110
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -117,11 +113,10 @@ fighter:
           wil: 5
           ws: 3
       type: Hunt Leader 2
-      house: Venators
-      uuid: 885277d4-d77c-ac48-f37f-f33aa306ff33
     - category: None
       cost: 110
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 2
@@ -137,11 +132,10 @@ fighter:
           wil: 8
           ws: 3
       type: Hunt Leader 3
-      house: Venators
-      uuid: 23b7f946-63d5-1220-cbed-8d7c1f4e73b3
     - category: None
       cost: 110
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -157,11 +151,10 @@ fighter:
           wil: 6
           ws: 4
       type: Hunt Leader 4
-      house: Venators
-      uuid: f56da1a0-36fe-16eb-1c3d-af76a6a6b40b
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -177,11 +170,10 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 1
-      house: Venators
-      uuid: 4628fda6-2ce4-c786-5fa5-c5904e3dd017
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -197,11 +189,10 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 1 Specialist
-      house: Venators
-      uuid: eb8a0660-782d-1b3c-9678-2ccb0c461a91
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -217,11 +208,10 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 2
-      house: Venators
-      uuid: bf3727e0-7c93-bc8d-5874-5e277c93b792
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -237,11 +227,10 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 2 Specialist
-      house: Venators
-      uuid: 62f67887-a6b3-b2bb-7c61-5adef991a435
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -257,11 +246,10 @@ fighter:
           wil: 8
           ws: 3
       type: Hunter 3
-      house: Venators
-      uuid: 9d2e4ec9-1186-8175-cbf7-63763e7e5820
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -277,11 +265,10 @@ fighter:
           wil: 8
           ws: 3
       type: Hunter 3 Specialist
-      house: Venators
-      uuid: e5cbcdaa-9e77-1ca3-de98-0d2c0e5014b3
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -297,11 +284,10 @@ fighter:
           wil: 6
           ws: 5
       type: Hunter 4
-      house: Venators
-      uuid: 8fb27cc6-ef6c-9382-9d32-bc86378d3ab3
     - category: None
       cost: 50
       equipment: []
+      house: Venators
       skills: []
       stats:
           a: 1
@@ -317,5 +303,3 @@ fighter:
           wil: 6
           ws: 5
       type: Hunter 4 Specialist
-      house: Venators
-      uuid: 2f9f67c6-af7b-1296-420f-32b7aa76a697

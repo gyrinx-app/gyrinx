@@ -2,18 +2,19 @@ fighter:
     - category: None
       cost: 140
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Armor
+            name: Flak Armor
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 2
@@ -29,23 +30,22 @@ fighter:
           wil: 5
           ws: 3
       type: Palanite Captain
-      house: Enforcers
-      uuid: 1caeff40-23b8-8a4a-0162-df0459b1e2e4
     - category: None
       cost: 70
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Armor
+            name: Flak Armor
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -61,23 +61,22 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman
-      house: Enforcers
-      uuid: d575dc9b-b317-8e75-1e32-f8c52b901ca3
     - category: None
       cost: 70
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Armor
+            name: Flak Armor
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -93,23 +92,22 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman Specialist
-      house: Enforcers
-      uuid: ddf3e4f5-be24-706c-56be-4398ca2600be
     - category: None
       cost: 0
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Armor
+            name: Flak Armor
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -125,23 +123,22 @@ fighter:
           wil: 8
           ws: 5
       type: Palanite Rookie
-      house: Enforcers
-      uuid: e62259dd-9b5c-18e5-6b6c-03dc1405168e
     - category: None
       cost: 100
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: cad1d9f8-7ac0-ff78-ed9c-c3d6198c4c84
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Armor
+            name: Flak Armor
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -157,23 +154,22 @@ fighter:
           wil: 6
           ws: 4
       type: Palanite Sergeant
-      house: Enforcers
-      uuid: 9916d3a1-a26f-cd2c-e3ca-19869a7911dd
     - category: None
       cost: 150
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
-          - qty: 1
-            relation:
-                uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+          - category: Armor
+            name: Layered Flak Armor
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 2
@@ -189,23 +185,22 @@ fighter:
           wil: 5
           ws: 3
       type: Subjugator Captain
-      house: Enforcers
-      uuid: c8628960-aabf-9c06-385e-0ffb4ce0df0b
     - category: None
       cost: 80
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
-          - qty: 1
-            relation:
-                uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+          - category: Armor
+            name: Layered Flak Armor
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -221,23 +216,22 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman
-      house: Enforcers
-      uuid: bf2951ce-1133-a7a7-98e6-edf8f1271d73
     - category: None
       cost: 80
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
-          - qty: 1
-            relation:
-                uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+          - category: Armor
+            name: Layered Flak Armor
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -253,23 +247,22 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-      house: Enforcers
-      uuid: 6bf25c5b-303f-d17a-9daa-a987d038b8cb
     - category: None
       cost: 80
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
-          - qty: 1
-            relation:
-                uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+          - category: Armor
+            name: Layered Flak Armor
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -285,23 +278,22 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-      house: Enforcers
-      uuid: 6bf25c5b-303f-d17a-9daa-a987d038b8cb
     - category: None
       cost: 110
       equipment:
-          - qty: 1
-            relation:
-                uuid: eb418a3f-a05d-0236-98e7-f0eacb899c4a
-          - qty: 1
-            relation:
-                uuid: 0adbe458-6782-0422-f73f-e3769ee6f4e9
-          - qty: 1
-            relation:
-                uuid: 685031a6-78e5-e3d5-c507-58ab72e6a9c4
-          - qty: 1
-            relation:
-                uuid: 0b7d636f-f508-1a74-7fa0-64e7758e092a
+          - category: Pistols
+            name: Stub Gun
+            qty: 1
+          - category: Equipment
+            name: Armored undersuit
+            qty: 1
+          - category: Equipment
+            name: Magnacles
+            qty: 1
+          - category: Armor
+            name: Layered Flak Armor
+            qty: 1
+      house: Enforcers
       skills: []
       stats:
           a: 1
@@ -317,5 +309,3 @@ fighter:
           wil: 6
           ws: 4
       type: Subjugator Sergeant
-      house: Enforcers
-      uuid: 1281d98a-97ba-08b8-b46d-494bcfa31169

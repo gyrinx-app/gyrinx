@@ -2,6 +2,7 @@ fighter:
     - category: Leader
       cost: 115
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 2
@@ -17,11 +18,10 @@ fighter:
           wil: 5
           ws: 3
       type: Charter Master
-      house: Squat Prospectors
-      uuid: 849594af-159f-fbc1-0678-d04993bd3bd4
     - category: Champion
       cost: 85
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 2
@@ -37,11 +37,10 @@ fighter:
           wil: 6
           ws: 4
       type: Drill Master
-      house: Squat Prospectors
-      uuid: 6ae8bf6d-2c17-2820-2466-3290c56ac228
     - category: Ganger
       cost: 50
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 1
@@ -57,8 +56,6 @@ fighter:
           wil: 6
           ws: 4
       type: Drill-kyn
-      house: Squat Prospectors
-      uuid: 86feb15e-07d1-4e41-d4e9-5c5ab3680750
       weapons:
           policy:
               rules:
@@ -70,6 +67,7 @@ fighter:
     - category: Ganger
       cost: 50
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 1
@@ -84,13 +82,11 @@ fighter:
           w: 1
           wil: 6
           ws: 4
-      # TODO: We should drop the "Specialist" and use a rule instead
       type: Drill-kyn Specialist
-      house: Squat Prospectors
-      uuid: 77f5cd1f-5d55-7354-67ef-b295a8607803
     - category: Crew
       cost: 40
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 0
@@ -106,11 +102,10 @@ fighter:
           wil: 6
           ws: 0
       type: Gearhead
-      house: Squat Prospectors
-      uuid: 12cadfd8-a7c4-e9e0-6069-c6e47a6d2693
     - category: Juve
       cost: 35
       equipment: []
+      house: Squat Prospectors
       skills: []
       stats:
           a: 1
@@ -126,5 +121,3 @@ fighter:
           wil: 6
           ws: 5
       type: Prospector Digger
-      house: Squat Prospectors
-      uuid: 43243457-3dda-eb8d-1f6b-6fae87d2a510

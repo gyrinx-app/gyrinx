@@ -1,10 +1,8 @@
 fighter:
     - category: None
       cost: 110
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 18054bee-a235-9ebf-d1cb-0e70bca7e8b5
+      equipment: []
+      house: Goliath (GotU)
       skills: []
       stats:
           a: 2
@@ -20,14 +18,10 @@ fighter:
           wil: 8
           ws: 3
       type: Champion
-      house: Goliath (GotU)
-      uuid: 3c189716-05b1-367c-3d2e-d6fda74be164
     - category: None
       cost: 60
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 18054bee-a235-9ebf-d1cb-0e70bca7e8b5
+      equipment: []
+      house: Goliath (GotU)
       skills: []
       stats:
           a: 1
@@ -43,11 +37,10 @@ fighter:
           wil: 9
           ws: 4
       type: Ganger
-      house: Goliath (GotU)
-      uuid: 5e211ac8-45e2-bb9d-4f72-6311589e1596
     - category: None
       cost: 25
       equipment: []
+      house: Goliath (GotU)
       skills: []
       stats:
           a: 1
@@ -63,14 +56,10 @@ fighter:
           wil: 10
           ws: 4
       type: Juve
-      house: Goliath (GotU)
-      uuid: 3010b208-4222-1a07-f147-c57d148eb47d
     - category: None
       cost: 145
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 18054bee-a235-9ebf-d1cb-0e70bca7e8b5
+      equipment: []
+      house: Goliath (GotU)
       skills: []
       stats:
           a: 3
@@ -86,14 +75,10 @@ fighter:
           wil: 8
           ws: 3
       type: Leader
-      house: Goliath (GotU)
-      uuid: 5158a250-e30f-1fb4-415d-86ded2c8e0c5
     - category: None
       cost: 60
-      equipment:
-          - qty: 1
-            relation:
-                uuid: 18054bee-a235-9ebf-d1cb-0e70bca7e8b5
+      equipment: []
+      house: Goliath (GotU)
       skills: []
       stats:
           a: 1
@@ -109,5 +94,3 @@ fighter:
           wil: 9
           ws: 4
       type: Specialist
-      house: Goliath (GotU)
-      uuid: d7afcfbf-45aa-ca71-c6e4-b52eb7245b68
