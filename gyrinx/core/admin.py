@@ -9,6 +9,7 @@ from .models import (
     ContentEquipmentCategory,
     ContentFighter,
     ContentFighterEquipment,
+    ContentFighterEquipmentAssignment,
     ContentHouse,
     ContentImportVersion,
     ContentPolicy,
@@ -53,6 +54,11 @@ class ContentFighterAdmin(ReadOnlyAdmin, admin.ModelAdmin):
 
 @admin.register(ContentFighterEquipment)
 class ContentFighterEquipmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
+    pass
+
+
+@admin.register(ContentFighterEquipmentAssignment)
+class ContentFighterEquipmentAssignmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     pass
 
 

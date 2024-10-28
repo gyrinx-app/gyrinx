@@ -105,6 +105,7 @@ class ContentCategory(Content):
 
 class ContentSkill(Content):
     name = models.CharField(max_length=255)
+    category = models.CharField(max_length=255, default="None")
 
     def __str__(self):
         return self.name
@@ -165,6 +166,10 @@ class ContentFighter(Content):
     house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=True, blank=True
     )
+    equipment = models.ManyToManyField(
+        ContentEquipment, through="ContentFighterEquipmentAssignment"
+    )
+    skills = models.ManyToManyField(ContentSkill)
 
     def __str__(self):
         house = f"{self.house}" if self.house else ""
@@ -173,6 +178,22 @@ class ContentFighter(Content):
     class Meta:
         verbose_name = "Content Fighter"
         verbose_name_plural = "Content Fighters"
+
+
+class ContentFighterEquipmentAssignment(Content):
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
+    equipment = models.ForeignKey(
+        ContentEquipment, on_delete=models.CASCADE, db_index=True
+    )
+    qty = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.fighter} {self.equipment} Equipment Assignment ({self.qty})"
+
+    class Meta:
+        verbose_name = "Content Fighter Equipment Assignment"
+        verbose_name_plural = "Content Fighter Equipment Assignments"
+        unique_together = ["fighter", "equipment"]
 
 
 class ContentFighterEquipment(Content):

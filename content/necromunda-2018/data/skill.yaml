@@ -1,535 +1,357 @@
 skill:
     - category: Adept Abilities - Non-Fighter
       name: Familiar
-      uuid: 8f4b4260-d58f-ff16-bf2d-ed332b93873d
     - category: Adept Abilities - Non-Fighter
       name: Hypnosis
-      uuid: aec55ec6-2c9c-5688-9e4b-d859d8801d63
     - category: Adept Abilities - Non-Fighter
       name: Unbreakable Will
-      uuid: d12cbffd-38f5-d5cb-e0d5-b2103baecc7a
     - category: Adept Abilities - Non-Fighter
       name: Zealot
-      uuid: e2cf4536-7c12-ad31-b98c-25f16009a1a8
     - category: Agility - Non-Fighter
       name: Catfall
-      uuid: c548bb62-5581-d260-2f98-a1a77eb7ed6e
     - category: Agility - Non-Fighter
       name: Clamber
-      uuid: 9ce5e569-9dad-a537-eeb5-978c2de441bb
     - category: Agility - Non-Fighter
       name: Dodge
-      uuid: b01b8304-8682-460e-96eb-4bd2482b8c32
     - category: Agility - Non-Fighter
       name: Mighty Leap
-      uuid: 7f02ef2b-02cb-13cd-c945-be20bf92a4be
     - category: Agility - Non-Fighter
       name: Spring up
-      uuid: a4134645-dfb9-fe7a-0f7e-0662c00f31a4
     - category: Agility - Non-Fighter
       name: Sprint
-      uuid: ffc3dc09-6e35-78a9-474b-7976953f0ef9
     - category: Bravado - Non-Fighter
       name: Big Brother
-      uuid: 96930e02-6f0c-fe6d-0e5e-200697060ef5
     - category: Bravado - Non-Fighter
       name: Bring it On!
-      uuid: 12888c35-cf66-2343-cf21-e8dc7c8c1968
     - category: Bravado - Non-Fighter
       name: Guilder Contacts
-      uuid: e4af5c01-0e80-4719-2d93-8174a13f00d1
     - category: Bravado - Non-Fighter
       name: King Hit
-      uuid: f5a7cdea-8aec-0a35-4f04-f767bf5127c6
     - category: Bravado - Non-Fighter
       name: Shotgun Savant
-      uuid: 4e121a09-935a-421e-4c80-98237a99513a
     - category: Bravado - Non-Fighter
       name: Steady Hands
-      uuid: f51138a8-2ebb-6a38-3a16-4c7d09e1a887
     - category: Brawn - Non-Fighter
       name: Bulging Biceps
-      uuid: 7a940cc7-8816-6f8f-7e43-ed06c2cce74b
     - category: Brawn - Non-Fighter
       name: Bull Charge
-      uuid: e4bcafd7-0190-6b43-800a-24a71f1caa9d
     - category: Brawn - Non-Fighter
       name: Crushing Blow
-      uuid: 4cabcf7f-8da4-99fc-aa20-20d238362a22
     - category: Brawn - Non-Fighter
       name: Headbutt
-      uuid: 995aa2ab-fb48-87e8-2c1b-38467d756cba
     - category: Brawn - Non-Fighter
       name: Hurl
-      uuid: 342bc337-628b-f254-8541-765f0fbce4b9
     - category: Brawn - Non-Fighter
       name: Iron Jaw
-      uuid: aa2e8564-efa1-74c4-4835-22145e03e36f
     - category: Chaos Cultist - Non-Fighter
       name: Assail
-      uuid: 6cd4da92-5a9f-e5e0-9e29-50f195d2bd49
     - category: Chaos Cultist - Non-Fighter
       name: Dark Shield
-      uuid: 34aaa50e-557d-5d16-0df5-f6aa0ee83405
     - category: Chaos Cultist - Non-Fighter
       name: Levitation
-      uuid: 5b865fd9-10be-cc7b-6499-92a5552bef18
     - category: Chaos Cultist - Non-Fighter
       name: Maddening Visions
-      uuid: 7d60b0c5-478c-a33c-1836-528f798f25b7
     - category: Chaos Cultist - Non-Fighter
       name: Non-sanctioned Psyker
-      uuid: 3f5a5f6d-03d1-2e13-3ee5-08f41d997c23
     - category: Chaos Cultist - Non-Fighter
       name: Scouring
-      uuid: ce646086-e1ad-6e97-bfc2-1709a30b5a93
     - category: Chaos Cultist - Non-Fighter
       name: Warp Strength
-      uuid: 0f2e3fa0-119e-ac82-2c46-c0fea7f1f838
     - category: Combat - Non-Fighter
       name: Combat Master
-      uuid: d8153085-f1b8-1cd0-db26-dd8d37735e30
     - category: Combat - Non-Fighter
       name: Counter-attack
-      uuid: dff01ab7-2ffe-857a-b757-589b348b1bef
     - category: Combat - Non-Fighter
       name: Disarm
-      uuid: 606b5a2b-54b5-29d4-5d88-d4775905dfcd
     - category: Combat - Non-Fighter
       name: Parry
-      uuid: ae6aad00-b2c6-8dbc-984f-be8411d4caba
     - category: Combat - Non-Fighter
       name: Rain of Blows
-      uuid: df3f247c-041c-1c17-ab1b-400faa81bb53
     - category: Combat - Non-Fighter
       name: Step Aside
-      uuid: f9f2ce0a-8588-49e8-576c-b17b2df71794
     - category: Cult Wyrd Powers - Non-Fighter
       name: Assail
-      uuid: 6cd4da92-5a9f-e5e0-9e29-50f195d2bd49
     - category: Cult Wyrd Powers - Non-Fighter
       name: Force Blast
-      uuid: 528a7ab7-9227-f96c-063f-b592830d0236
     - category: Cult Wyrd Powers - Non-Fighter
       name: Hypnosis
-      uuid: aec55ec6-2c9c-5688-9e4b-d859d8801d63
     - category: Cult Wyrd Powers - Non-Fighter
       name: Mind Control
-      uuid: d6455e35-c9c7-f8cc-0c84-1e7948b22921
     - category: Cult Wyrd Powers - Non-Fighter
       name: Unbreakable Will
-      uuid: d12cbffd-38f5-d5cb-e0d5-b2103baecc7a
     - category: Cult Wyrd Powers - Non-Fighter
       name: Zealot
-      uuid: e2cf4536-7c12-ad31-b98c-25f16009a1a8
     - category: Cunning - Non-Fighter
       name: Backstab
-      uuid: ac1fa7a1-0745-7449-2ebd-fb0a3e5bfde4
     - category: Cunning - Non-Fighter
       name: Escape Artist
-      uuid: 97ec3eca-807c-3f77-2433-6986b95b4c2c
     - category: Cunning - Non-Fighter
       name: Evade
-      uuid: fcebb8be-c493-a667-8a27-58580bee43f9
     - category: Cunning - Non-Fighter
       name: Infiltrate
-      uuid: b69a1e53-e8b8-a1f2-8ebf-9a4a2d567db3
     - category: Cunning - Non-Fighter
       name: Lie Low
-      uuid: 52b4b856-88a5-8f23-ef0c-7d05d3176ae9
     - category: Cunning - Non-Fighter
       name: Overwatch
-      uuid: fcaeeb6e-34b4-303e-99b9-1206bd325f2b
     - category: Darkness - Non-Fighter
       name: A Perfect Void
-      uuid: 7c57cf73-3e84-6290-f482-dd552758a332
     - category: Darkness - Non-Fighter
       name: Cacophony of Silence
-      uuid: cca59736-b1ff-8e3d-d918-699a51a672a9
     - category: Darkness - Non-Fighter
       name: Cloak of Whispers
-      uuid: 3d6e8807-d8f0-6eff-4ca1-ece2fd850b28
     - category: Darkness - Non-Fighter
       name: Eternal Slumber
-      uuid: 1759736a-bd0d-40ce-dfa5-653c2e979e87
     - category: Darkness - Non-Fighter
       name: Penumbral Mirror
-      uuid: 2fad1497-33d8-7f86-057e-66fb44cac363
     - category: Darkness - Non-Fighter
       name: Sight Blight
-      uuid: b85fba9f-e6f4-2427-76a8-5e7c6b5dbab2
     - category: Delusion - Non-Fighter
       name: Deceitful Thoughts
-      uuid: 7a7cb719-9b06-ab15-b48e-55c5b45c1eff
     - category: Delusion - Non-Fighter
       name: Ghost and Shadow
-      uuid: ad70b7e2-580b-89e9-9db5-8935ded21acc
     - category: Delusion - Non-Fighter
       name: Opprobrious
-      uuid: fbe51b2a-20c8-5293-1c60-1a98a8c4c8cb
     - category: Delusion - Non-Fighter
       name: Seen Unseen
-      uuid: 026ae2bf-421a-ba59-e7f9-39459adeb1a3
     - category: Delusion - Non-Fighter
       name: Spatial Psychosis
-      uuid: e9cae30b-c0b3-8d2a-2f33-b9e429346c3f
     - category: Delusion - Non-Fighter
       name: Suicidal Embrace
-      uuid: f57010bc-2cb1-7879-c697-e83b4aa7fcf5
     - category: Driving - Non-Fighter
       name: Expert Driver
-      uuid: bd53b92b-1c4f-0d8a-d6ec-d03155233aa0
     - category: Driving - Non-Fighter
       name: Heavy Foot
-      uuid: cbc0f34d-1e8a-32c0-bf1c-3d4c5f4f8f5f
     - category: Driving - Non-Fighter
       name: Jink
-      uuid: 4064d7fa-2af7-3575-d7c1-20009c6f1fa1
     - category: Driving - Non-Fighter
       name: Running Repairs
-      uuid: f9be2f9e-abdf-c72a-cccf-25a5026fdd25
     - category: Driving - Non-Fighter
       name: Slalom
-      uuid: 73fc86da-6e1e-addf-1a4c-19f5a8f71760
     - category: Driving - Non-Fighter
       name: T-bone
-      uuid: 4d8bbe47-f154-a05b-215c-6968e0d06d2b
     - category: Ferocity - Non-Fighter
       name: Berserker
-      uuid: 5ee5ec9d-8e6b-1819-60c2-be1df5f1ad81
     - category: Ferocity - Non-Fighter
       name: Fearsome
-      uuid: 208f3b12-901f-e4c3-ba82-a15ccff9ee28
     - category: Ferocity - Non-Fighter
       name: Impetuous
-      uuid: b7bcfd41-ef32-80bf-26b1-02558775b1bf
     - category: Ferocity - Non-Fighter
       name: Nerves of Steel
-      uuid: 8e1ce7d7-58e6-f7d9-78ad-ac4fc40dd169
     - category: Ferocity - Non-Fighter
       name: True Grit
-      uuid: 278688cd-5ba0-d55b-c8b5-b1b931db9f95
     - category: Ferocity - Non-Fighter
       name: Unstoppable
-      uuid: f2b19162-474f-58ec-1f3e-2f24d2482f67
     - category: Finesse - Non-Fighter
       name: Acrobatic
-      uuid: b53969e9-6921-3226-4148-0c5d4ff90029
     - category: Finesse - Non-Fighter
       name: Combat Focus
-      uuid: 1ed6ea9a-7434-9b04-aaa9-2a7ca4eec367
     - category: Finesse - Non-Fighter
       name: Combat Virtuoso
-      uuid: 2d8168f0-c2f7-45ff-88ff-9aae0fc14329
     - category: Finesse - Non-Fighter
       name: Hit and Run
-      uuid: 07889138-a328-d760-08bb-6d1169edbe62
     - category: Finesse - Non-Fighter
       name: Lightning Reflexes
-      uuid: 2a2df16f-36c2-3dcc-8ab2-e88ad6dc9998
     - category: Finesse - Non-Fighter
       name: Somersault
-      uuid: bb1e62a7-3eec-90ed-f2f8-d3fb52025463
     - category: Impressive Leadership - Non-Fighter
       name: Bigman
-      uuid: 475d7246-1d20-84d6-f4ed-5089091baf67
     - category: Impressive Leadership - Non-Fighter
       name: Impressive Scars
-      uuid: e6764bcd-862f-ffa3-8bc2-0d6b282099ea
     - category: Impressive Leadership - Non-Fighter
       name: Iron Stare
-      uuid: 4817e351-a734-b0ff-e349-bddf5f85661a
     - category: Impressive Leadership - Non-Fighter
       name: Lucky
-      uuid: 7398d4c6-06ff-87e5-349e-0a72326c1a15
     - category: Impressive Leadership - Non-Fighter
       name: Rock Steady
-      uuid: 7e8e39f7-b2b5-7cc4-0ba4-2bb303912a8e
     - category: Impressive Leadership - Non-Fighter
       name: Too Pretty for Primus
-      uuid: 84a55313-4a6e-589f-ec1d-02624d337a99
     - category: Improbable Beatdowns - Non-Fighter
       name: Bullet Lord
-      uuid: d7f338c4-d664-6bce-ae70-6eb805ed139b
     - category: Improbable Beatdowns - Non-Fighter
       name: Chancer
-      uuid: 81d38464-f6e5-8fe6-09a2-2e591f0e65e7
     - category: Improbable Beatdowns - Non-Fighter
       name: Headshot
-      uuid: 06fb12dd-13dd-d25b-7495-490bb6409f5e
     - category: Improbable Beatdowns - Non-Fighter
       name: One Punch
-      uuid: c88e9dc7-bece-ad28-e137-c820100fcf8d
     - category: Improbable Beatdowns - Non-Fighter
       name: One Shot
-      uuid: ba70d8eb-76df-2f81-17d7-469ca4404803
     - category: Improbable Beatdowns - Non-Fighter
       name: Two-guns
-      uuid: 4208f7bb-478c-d91b-e2c8-006aaa226aec
     - category: Leadership - Non-Fighter
       name: Commanding Presence
-      uuid: 22060f51-05a1-73c2-559b-51865017073d
     - category: Leadership - Non-Fighter
       name: Inspirational
-      uuid: 6302100e-dfe9-ae38-6651-ea59cc437d25
     - category: Leadership - Non-Fighter
       name: Iron Will
-      uuid: fcb33c81-96a6-f48c-0c67-ec29b5524abd
     - category: Leadership - Non-Fighter
       name: Mentor
-      uuid: b3a6fbc5-1013-28b9-6727-bb29c956aa90
     - category: Leadership - Non-Fighter
       name: Overseer
-      uuid: 222dc130-f5b5-d9d8-8b75-f579c277a557
     - category: Leadership - Non-Fighter
       name: Regroup
-      uuid: f639a909-4c26-88fd-d2b1-4610fd955cea
     - category: Madness - Non-Fighter
       name: Craven Howl
-      uuid: bb8baf1b-e013-acc2-faa0-ab6b73fb3f4f
     - category: Madness - Non-Fighter
       name: Cyclopean Gaze
-      uuid: a7a1115d-3a21-8783-6aca-2dcfb8d963a2
     - category: Madness - Non-Fighter
       name: Existential Barrage
-      uuid: 09747685-3c83-cfe7-1bfb-ebf1eae20965
     - category: Madness - Non-Fighter
       name: Psychotic Lure
-      uuid: f0d6d5a9-b7db-fea9-a367-01012362a97a
     - category: Madness - Non-Fighter
       name: Terrible Truths
-      uuid: 0800ed88-a523-3a4c-500a-9608c1488c20
     - category: Madness - Non-Fighter
       name: Unrememberable Utterance
-      uuid: cdb77aa3-2eea-528e-4341-ecb1e2e1e94b
     - category: Muscle - Non-Fighter
       name: Fists of Steel
-      uuid: 2eda3edf-c843-dca2-847c-16f11662882f
     - category: Muscle - Non-Fighter
       name: Immovable Stance
-      uuid: 78938fb7-7073-5a6a-f357-67208c9b3185
     - category: Muscle - Non-Fighter
       name: Iron Man
-      uuid: 6fed1645-bebb-f49f-1567-1903a8a2e6da
     - category: Muscle - Non-Fighter
       name: Naaargah!
-      uuid: 6430b19a-4711-e2ff-d10a-afa2ee4ae1b8
     - category: Muscle - Non-Fighter
       name: Unleash the Beast
-      uuid: 4c181aa7-6e94-c966-57de-5304f3802498
     - category: Muscle - Non-Fighter
       name: Walk it Off
-      uuid: cb4fd451-ad62-cd62-6441-49c027ab608a
     - category: Obfuscation - Non-Fighter
       name: Doppelganger
-      uuid: a18d840e-84ab-dd55-93a5-8126d4ae6c2f
     - category: Obfuscation - Non-Fighter
       name: Faceless
-      uuid: c0f0951b-2eec-10ad-c031-c08444fe35d2
     - category: Obfuscation - Non-Fighter
       name: Fake Out
-      uuid: a840f705-660b-d0f3-da85-62a1c7ca8cb5
     - category: Obfuscation - Non-Fighter
       name: Psi-touched
-      uuid: 05f41289-4e19-c5d9-7f47-b27a035261e4
     - category: Obfuscation - Non-Fighter
       name: Rumour-monger
-      uuid: f6e30053-907d-2512-e4b0-131d45b70018
     - category: Obfuscation - Non-Fighter
       name: Take Down
-      uuid: 9c4bfb9f-0717-e9ca-a310-13c5ffacb2ff
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Body of Flame
-      uuid: 19d33a23-684e-f9d0-8b36-47393750a1d8
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Crush
-      uuid: acc9e045-e4b8-f517-2d0a-c72a8ef49476
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Iron Arm
-      uuid: 5b4d00ae-2749-684f-8000-f081cc9439db
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Overcharge
-      uuid: d966685c-5481-c44f-85ac-2dda6b6dd896
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Terrify
-      uuid: 53d5ea08-eacb-87d7-9522-f776c00bc817
     - category: Ogryn Wyrd Powers - Non-Fighter
       name: Weapon Jinx
-      uuid: 3c6ef453-79db-2c2e-9ec5-3997c01cf2dd
     - category: Palanite Drill - Non-Fighter
       name: Got Your Six
-      uuid: 54dacb82-296f-641b-6780-4fabe3755731
     - category: Palanite Drill - Non-Fighter
       name: Helmawr's Justice
-      uuid: 3e23d706-d1b2-a6d5-22d4-1a429a26f5e8
     - category: Palanite Drill - Non-Fighter
       name: Non-verbal Communication
-      uuid: 36df70cd-c89c-5f07-cf06-af36838b1efe
     - category: Palanite Drill - Non-Fighter
       name: Restraint Protocols
-      uuid: cc69b56b-51ea-2f62-6d14-c74a96e73361
     - category: Palanite Drill - Non-Fighter
       name: Team Work
-      uuid: e40d1210-d4bc-1ec3-3845-372c06d29971
     - category: Palanite Drill - Non-Fighter
       name: Threat Response
-      uuid: 2c51f35b-23ff-d0c1-c883-51b4493ac1a9
     - category: Piety - Non-Fighter
       name: Blazing Faith
-      uuid: 1440f804-81cb-feb2-b7ef-e6b73bce41f5
     - category: Piety - Non-Fighter
       name: Devotional Frenzy
-      uuid: c00f050a-6573-ce4f-f5c4-f5ea0713ea2a
     - category: Piety - Non-Fighter
       name: Lord of Rats
-      uuid: d3093a04-11de-3bda-1abb-2945fb39d2b2
     - category: Piety - Non-Fighter
       name: Restless Faith
-      uuid: c737b71f-c0a8-efdc-80e5-802a5538dfc2
     - category: Piety - Non-Fighter
       name: Scavenger's Eye
-      uuid: 981a1db7-2257-5ffa-37c9-99c8f0e35a01
     - category: Piety - Non-Fighter
       name: Unshakable Conviction
-      uuid: 2ae0532f-683f-8c3b-6b6b-3a8ec1af4d5b
     - category: Savagery - Non-Fighter
       name: Avatar of Blood
-      uuid: be785d92-071c-0aed-4430-179c7af5bf4d
     - category: Savagery - Non-Fighter
       name: Bloodlust
-      uuid: 073ec6ce-cd74-ebf3-324a-8c234b71856d
     - category: Savagery - Non-Fighter
       name: Crimson Haze
-      uuid: 799d4db3-1723-7f05-70c8-246eafc5cbf1
     - category: Savagery - Non-Fighter
       name: Frenzy
-      uuid: 011b6e14-743b-342a-0f04-a708de1dce7b
     - category: Savagery - Non-Fighter
       name: Killing Blow
-      uuid: 401c3a88-0945-52d8-76d1-6794ad4c3c0a
     - category: Savagery - Non-Fighter
       name: Slaughterborn
-      uuid: e6ac745f-a384-990f-bc0e-608a4ecc8f35
     - category: Savant - Non-Fighter
       name: Ballistics Expert
-      uuid: 236fe617-a299-e1ba-f52e-bd039cee4963
     - category: Savant - Non-Fighter
       name: Connected
-      uuid: 2ec0d16e-4ca1-69ba-edb9-b2d50ec5c6d7
     - category: Savant - Non-Fighter
       name: Fixer
-      uuid: 3b67ef21-031f-b06e-d986-fbe9d44afb83
     - category: Savant - Non-Fighter
       name: Medicae
-      uuid: 958e6a2e-344f-95b5-cca2-badeecac5488
     - category: Savant - Non-Fighter
       name: Munitioneer
-      uuid: de68338e-2abc-bff5-3b92-4b3e5232f217
     - category: Savant - Non-Fighter
       name: Savvy Trader
-      uuid: 0e41882b-691a-69b7-bc5c-3545779e3b7f
     - category: Shooting - Non-Fighter
       name: Fast Shot
-      uuid: 6843249c-67bd-7a19-91af-6a4d3094baf9
     - category: Shooting - Non-Fighter
       name: Gunfighter
-      uuid: 1cf3c73e-58be-49b2-68de-6036faf5678d
     - category: Shooting - Non-Fighter
       name: Hip Shooting
-      uuid: 063ecdf8-a1e2-9d39-929c-450fe169be87
     - category: Shooting - Non-Fighter
       name: Marksman
-      uuid: 64f11d52-551b-e1c9-cb27-d573c767a4d6
     - category: Shooting - Non-Fighter
       name: Precision Shot
-      uuid: 1158d679-3096-d0ad-145f-d09f3543373d
     - category: Shooting - Non-Fighter
       name: Trick Shot
-      uuid: 95687303-4b98-9419-c96d-eff2f6129911
     - category: Tech - Non-Fighter
       name: Cold and Calculating
-      uuid: e6ea84de-c24b-d6ad-a9cb-da72b788ce72
     - category: Tech - Non-Fighter
       name: Gadgeteer
-      uuid: e68e0d74-19dd-5cbb-a114-d95140518aca
     - category: Tech - Non-Fighter
       name: Mental Mastery
-      uuid: b099797c-298b-f7da-fa97-1593909aacf5
     - category: Tech - Non-Fighter
       name: Photonic Engineer
-      uuid: 243e7442-37a9-8739-67a7-4d7cfd477330
     - category: Tech - Non-Fighter
       name: Rad-phaged
-      uuid: 12a06cb0-7d7b-a2b0-dc91-9fe6eccb6694
     - category: Tech - Non-Fighter
       name: Weaponsmith
-      uuid: 8c6d4cf6-9a0e-36df-e634-902e2671ef81
     - category: Unbelievable Escapes - Non-Fighter
       name: Badzone Legend
-      uuid: 73392dcb-6e1a-f1ae-a468-f92d9c726f9d
     - category: Unbelievable Escapes - Non-Fighter
       name: Blade Breaker
-      uuid: 56679d2a-226c-0edb-04e3-0a89c4a0a786
     - category: Unbelievable Escapes - Non-Fighter
       name: Bullet Dodger
-      uuid: 87875780-d6cf-880e-d45c-825e1003a65c
     - category: Unbelievable Escapes - Non-Fighter
       name: Iron Hard
-      uuid: 1f850a24-6ef4-cad2-49c8-5235cda02b92
     - category: Unbelievable Escapes - Non-Fighter
       name: Promethium-proof Killer
-      uuid: 2728ab17-986d-185c-4fd3-ad6670da8253
     - category: Unbelievable Escapes - Non-Fighter
       name: Slippery Scummer
-      uuid: 26e3e513-c38e-8b71-31b1-caf0d3c7f066
     - category: Wastelands - Non-Fighter
       name: Beast Handler
-      uuid: e553b314-5254-b696-d9b8-a454e3bf49be
     - category: Wastelands - Non-Fighter
       name: Born to the Wastes
-      uuid: b35ebe21-09f8-38e1-fa71-f4a6fa5bf1c7
     - category: Wastelands - Non-Fighter
       name: Bring It Down
-      uuid: 956355b5-09ac-997d-849e-75c29ec04b7a
     - category: Wastelands - Non-Fighter
       name: Ever Vigilant
-      uuid: 1d7c1330-8ad5-0763-4d6c-b8b835105fc6
     - category: Wastelands - Non-Fighter
       name: Eyes of the Wasteland
-      uuid: 09ac0e04-d57c-f07b-19ae-56ba3f1a9756
     - category: Wastelands - Non-Fighter
       name: Stormwalker
-      uuid: 4ba8fea9-967a-5fac-5119-68821eebd132
     - category: Wisdom of the Ancients - Non-Fighter
       name: Chemical Bonds Never Break
-      uuid: 9d245a27-d25f-28c0-22fe-52f38d1bf047
     - category: Wisdom of the Ancients - Non-Fighter
       name: Dependable Like Kin
-      uuid: 25bee63f-965f-4875-b398-d71bb0b87c02
     - category: Wisdom of the Ancients - Non-Fighter
       name: Nobody Pushes Kin Around
-      uuid: 08b39d3a-d06d-c816-d4cd-cc2feb564477
     - category: Wisdom of the Ancients - Non-Fighter
       name: Stubborn to the Last
-      uuid: 9b10a080-269d-3674-92af-325160aff851
     - category: Wisdom of the Ancients - Non-Fighter
       name: There's Always Another Secret
-      uuid: b8f3c410-e99a-adad-fb06-43c0c980f555
     - category: Wisdom of the Ancients - Non-Fighter
       name: Where There's Scrap, There's Creds!
-      uuid: 6beff669-99cf-ca67-ce34-92df106b175e
     - category: Witch Powers - Non-Fighter
       name: Dark Shield
-      uuid: 34aaa50e-557d-5d16-0df5-f6aa0ee83405
     - category: Witch Powers - Non-Fighter
       name: Levitation
-      uuid: 5b865fd9-10be-cc7b-6499-92a5552bef18
     - category: Witch Powers - Non-Fighter
       name: Maddening Visions
-      uuid: 7d60b0c5-478c-a33c-1836-528f798f25b7
     - category: Witch Powers - Non-Fighter
       name: Scouring
-      uuid: ce646086-e1ad-6e97-bfc2-1709a30b5a93
     - category: Witch Powers - Non-Fighter
       name: Warp Strength
-      uuid: 0f2e3fa0-119e-ac82-2c46-c0fea7f1f838
