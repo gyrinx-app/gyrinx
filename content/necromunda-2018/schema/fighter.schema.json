@@ -94,6 +94,14 @@
                     "description": "Weapon Skill stat."
                 }
             }
+        },
+        "weapons": {
+            "type": "object",
+            "properties": {
+                "policy": {
+                    "$ref": "urn:gyrinx.schema.necromunda-2018.policy"
+                }
+            }
         }
     },
     "additionalProperties": false,

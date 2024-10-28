@@ -33,6 +33,14 @@ def stable_uuid(v):
     return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])
 
 
+def id_for_fighter(fi):
+    return f"{fi.get('house', 'N/A')}:{fi['type']}"
+
+
+def id_for_equipment(e):
+    return f"{e['category']}:{e['name']}"
+
+
 def lookup(index, type, id):
     try:
         return index[type][stable_uuid(id)]
@@ -54,21 +62,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("directory", type=Path)
-        parser.add_argument("--content-version", type=str, required=False)
         parser.add_argument("--dry-run", action="store_true")
-        # TODO: In future...
-        # --tag
 
     def handle(self, *args, **options):
-        # TODO: Reuse the schema.py functions to validate the schema?
-        content_version = (
-            uuid.UUID(options["content_version"])
-            if options["content_version"]
-            else uuid.uuid4()
-        )
         dry_run = bool(options["dry_run"])
 
-        click.echo("Importing content with version {content_version}")
         if dry_run:
             click.echo(f"Dry run: {dry_run}")
 
@@ -113,7 +111,7 @@ class Command(BaseCommand):
         index = defaultdict(dict)
 
         import_version = ContentImportVersion(
-            uuid=stable_uuid(f"{ruleset_dir.name}:{content_version}"),
+            uuid=stable_uuid(f"{ruleset_dir.name}:{uuid.uuid4()}"),
             ruleset=ruleset_dir.name,
             directory=options["directory"],
         )
@@ -123,12 +121,24 @@ class Command(BaseCommand):
         if not dry_run:
             import_version.save()
 
+        #
+        # House
+        #
+
         houses = data_for_type("house", data_sources)
         click.echo(f"Found {len(houses)} houses: ")
         for h in houses:
+            id = stable_uuid(h["name"])
+            existing = ContentHouse.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
+                )
+                index["house"][existing.uuid] = existing
+                continue
             house = ContentHouse(
                 version=import_version,
-                uuid=stable_uuid(h["name"]),
+                uuid=id,
                 name=by_label(ContentHouse.Choices, h["name"]),
             )
             index["house"][house.uuid] = house
@@ -136,12 +146,25 @@ class Command(BaseCommand):
             if not dry_run:
                 house.save()
 
+        #
+        # Category (of Fighter)
+        #
+
         categories = data_for_type("category", data_sources)
         click.echo(f"Found {len(categories)} categories: ")
         for category in categories:
+            id = stable_uuid(category["name"])
+            existing = ContentCategory.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
+                )
+                index["category"][existing.uuid] = existing
+                continue
+
             cat = ContentCategory(
                 version=import_version,
-                uuid=stable_uuid(category["name"]),
+                uuid=id,
                 name=by_label(ContentCategory.Choices, category["name"]),
             )
             index["category"][cat.uuid] = cat
@@ -149,12 +172,25 @@ class Command(BaseCommand):
             if not dry_run:
                 cat.save()
 
+        #
+        # Skills
+        #
+
         skills = data_for_type("skill", data_sources)
         click.echo(f"Found {len(skills)} skills: ")
         for skill in skills:
+            id = stable_uuid(skill["name"])
+            existing = ContentSkill.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
+                )
+                index["skill"][existing.uuid] = existing
+                continue
+
             sk = ContentSkill(
                 version=import_version,
-                uuid=stable_uuid(skill["name"]),
+                uuid=id,
                 name=skill["name"],
             )
             index["skill"][sk.uuid] = sk
@@ -162,18 +198,35 @@ class Command(BaseCommand):
             if not dry_run:
                 sk.save()
 
+        #
+        # Equipment Categories
+        #
+
         eq_cats = data_for_type("equipment_category", data_sources)
         click.echo(f"Found {len(eq_cats)} equipment categories: ")
         for eq_cat in eq_cats:
+            id = stable_uuid(eq_cat["name"])
+            existing = ContentEquipmentCategory.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
+                )
+                index["equipment_category"][existing.uuid] = existing
+                continue
+
             eq_cat = ContentEquipmentCategory(
                 version=import_version,
-                uuid=stable_uuid(eq_cat["name"]),
+                uuid=id,
                 name=by_label(ContentEquipmentCategory.Choices, eq_cat["name"]),
             )
             index["equipment_category"][eq_cat.uuid] = eq_cat
             click.echo(f" - {eq_cat.name} ({eq_cat.uuid}, {eq_cat.version})")
             if not dry_run:
                 eq_cat.save()
+
+        #
+        # Equipment
+        #
 
         equipment = data_for_type("equipment", data_sources)
         click.echo(f"Found {len(equipment)} equipment: ")
@@ -184,9 +237,19 @@ class Command(BaseCommand):
                 raise ValueError(
                     f"Error: Could not find category matching {e['category']}"
                 )
+
+            id = stable_uuid(id_for_equipment(e))
+            existing = ContentEquipment.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
+                )
+                index["equipment"][existing.uuid] = existing
+                continue
+
             item = ContentEquipment(
                 version=import_version,
-                uuid=stable_uuid(e["name"]),
+                uuid=id,
                 name=e["name"],
                 category=category,
             )
@@ -195,25 +258,41 @@ class Command(BaseCommand):
             if not dry_run:
                 item.save()
 
+        #
+        # Fighters
+        #
+
         fighters = data_for_type("fighter", data_sources)
         click.echo(f"Found {len(fighters)} fighters: ")
-        for f in fighters:
-            category = lookup(index, "category", f["category"])
-            house = lookup(index, "house", f["house"]) if f.get("house", None) else None
+        for fi in fighters:
+            category = lookup(index, "category", fi["category"])
+            house = (
+                lookup(index, "house", fi["house"]) if fi.get("house", None) else None
+            )
             if not category:
-                click.echo(f"Error: Could not find category matching {f['category']}")
+                click.echo(f"Error: Could not find category matching {fi['category']}")
                 raise ValueError(
                     f"Error: Could not find category matching {e['category']}"
                 )
-            if f.get("house") and not house:
-                click.echo(f"Error: Could not find house matching {f['house']}")
+            if fi.get("house") and not house:
+                click.echo(f"Error: Could not find house matching {fi['house']}")
                 raise ValueError(
                     f"Error: Could not find category matching {e['category']}"
                 )
+
+            id = stable_uuid(id_for_fighter(fi))
+            existing = ContentFighter.objects.filter(uuid=id).first()
+            if existing:
+                click.echo(
+                    f" - Existing: {existing.type} ({existing.uuid}, {existing.version})"
+                )
+                index["fighter"][existing.uuid] = existing
+                continue
+
             fighter = ContentFighter(
                 version=import_version,
-                uuid=stable_uuid(f["type"]),
-                type=f["type"],
+                uuid=id,
+                type=fi["type"],
                 category=category,
                 house=house,
             )
@@ -224,32 +303,87 @@ class Command(BaseCommand):
             if not dry_run:
                 fighter.save()
 
+            #
+            # Policy
+            #
+
+            fi_policy = fi.get("weapons", {}).get("policy", None)
+            if fi_policy:
+                click.echo(f"    Found policy for {fighter}")
+                rules = fi_policy.get("rules", [])
+
+                id = stable_uuid(f"{fighter.uuid}:tpp")
+                existing = ContentPolicy.objects.filter(uuid=id).first()
+                if existing:
+                    click.echo(
+                        f"     - Existing: {existing.fighter}: {len(existing.rules)} rules ({existing.uuid}, {existing.version})"
+                    )
+
+                    index["fighter_weapons_policy"][existing.uuid] = existing
+                    continue
+
+                policy = ContentPolicy(
+                    version=import_version,
+                    uuid=id,
+                    fighter=fighter,
+                    rules=json.dumps(rules),
+                )
+                index["fighter_weapons_policy"][policy.uuid] = policy
+                click.echo(
+                    f"     - {policy.fighter}: {len(rules)} rules ({policy.uuid}, {policy.version})"
+                )
+                if not dry_run:
+                    policy.save()
+
+        #
+        # Fighter Equipment
+        #
+
         equipment_list = data_for_type("equipment_list", data_sources)
         click.echo(f"Found {len(equipment_list)} equipment lists: ")
         for el in equipment_list:
-            fighter = lookup(index, "fighter", el["fighter_type"])
+            fighter = lookup(index, "fighter", id_for_fighter(el["fighter"]))
             if not fighter:
                 click.echo(
-                    f"Error: Could not find fighter matching {el['fighter_type']}",
+                    f"Error: Could not find fighter matching {id_for_fighter(el['fighter'])}",
                     err=True,
                 )
-                continue
+                raise ValueError(
+                    f"Error: Could not find fighter matching {id_for_fighter(el['fighter'])}"
+                )
 
+            #
+            # Fighter Equipment List
+            #
+
+            # TODO: What if equipment is removed?
             equipment = [
-                (item["name"], lookup(index, "equipment", item["name"]))
+                (item["name"], lookup(index, "equipment", id_for_equipment(item)))
                 for item in el["equipment"]
             ]
             for entry in equipment:
                 name, item = entry
                 if not item:
                     click.echo(
-                        f"Error: Could not find equipment matching {name}", err=True
+                        f"Error: Could not find equipment matching {name} for {fighter}",
+                        err=True,
                     )
+                    raise ValueError(
+                        f"Error: Could not find equipment matching {name} for {fighter}"
+                    )
+
+                id = stable_uuid(f"{fighter.uuid}:{item.uuid}")
+                existing = ContentFighterEquipment.objects.filter(uuid=id).first()
+                if existing:
+                    click.echo(
+                        f" - Existing: {existing.fighter.type}: {existing.equipment.name} ({existing.uuid}, {existing.version})"
+                    )
+                    index["fighter_equipment"][existing.uuid] = existing
                     continue
 
                 fighter_equip = ContentFighterEquipment(
                     version=import_version,
-                    uuid=stable_uuid(f"{fighter.uuid}:{item.uuid}"),
+                    uuid=id,
                     fighter=fighter,
                     equipment=item,
                 )
@@ -259,25 +393,3 @@ class Command(BaseCommand):
                 )
                 if not dry_run:
                     fighter_equip.save()
-
-            tp_policy = el.get("trading_post", {}).get("policy", None)
-            if tp_policy:
-                click.echo(f"Found Trading Post policy for {el['fighter_type']}")
-                assigned_name = tp_policy.get("name", "Anonymous")
-                name = f"Trading Post Policy ({el['fighter_type']}, {assigned_name})"
-                rules = tp_policy.get("rules", [])
-                policy = ContentPolicy(
-                    version=import_version,
-                    uuid=stable_uuid(name),
-                    fighter=fighter,
-                    name=name,
-                    rules=json.dumps(rules),
-                )
-                index["policy"][fighter_equip.uuid] = fighter_equip
-                click.echo(
-                    f" - {policy.fighter.type}: {policy.name} {len(rules)} rules ({policy.uuid}, {policy.version})"
-                )
-                if not dry_run:
-                    policy.save()
-                if not dry_run:
-                    policy.save()

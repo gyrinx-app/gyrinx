@@ -5,8 +5,18 @@
     "description": "The equipment list for a particular Fighter.",
     "type": "object",
     "properties": {
-        "fighter_type": {
-            "type": "string"
+        "fighter": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "house": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "required": ["type"]
         },
         "equipment": {
             "type": "array",
@@ -16,24 +26,19 @@
                     "name": {
                         "type": "string"
                     },
+                    "category": {
+                        "type": "string"
+                    },
                     "cost": {
                         "type": "integer",
                         "description": "The cost of the equipment for this fighter. If none is provided, the Trading Post cost will be used."
                     }
                 },
                 "additionalProperties": false,
-                "required": ["name"]
-            }
-        },
-        "trading_post": {
-            "type": "object",
-            "properties": {
-                "policy": {
-                    "$ref": "urn:gyrinx.schema.necromunda-2018.policy"
-                }
+                "required": ["category", "name"]
             }
         }
     },
     "additionalProperties": false,
-    "required": ["fighter_type", "equipment"]
+    "required": ["fighter", "equipment"]
 }

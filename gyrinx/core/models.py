@@ -200,7 +200,6 @@ def check(rule, category, name):
 
 class ContentPolicy(Content):
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
-    name = models.CharField(max_length=255)
     rules = models.JSONField()
 
     def allows(self, equipment: ContentEquipment) -> bool:

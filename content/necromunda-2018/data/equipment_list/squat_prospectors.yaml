@@ -1,28 +1,35 @@
 equipment_list:
-    - fighter_type: Charter Master
+    - fighter:
+          type: Charter Master
+          house: Squat Prospectors
       equipment:
           - name: Ironhead Autogun
+            category: Basic Weapons
           - name: Ironhead Boltgun
+            category: Basic Weapons
           - name: Ironhead Autopistol
+            category: Pistols
           - name: Ironhead Bolt Pistol
+            category: Pistols
           - name: Ironhead Hand Flamer
+            category: Pistols
           # TODO: Dumdum rounds?
           - name: Ironhead Stub Gun
+            category: Pistols
           # - name: Ironhead Stone Burner
-    - fighter_type: Drill-kyn
+    - fighter:
+          type: Drill-kyn
+          house: Squat Prospectors
       equipment:
           - name: Ironhead Autogun
+            category: Basic Weapons
           - name: Ironhead Boltgun
+            category: Basic Weapons
           - name: Ironhead Autopistol
+            category: Pistols
           - name: Ironhead Bolt Pistol
+            category: Pistols
           - name: Ironhead Hand Flamer
+            category: Pistols
           # ... and so on
           # TODO: These are going to get duplicative
-      trading_post:
-          policy:
-              rules:
-                  - deny: all
-                  - allow:
-                        - category: Basic Weapons
-                        - category: Pistols
-                        - category: Close Combat

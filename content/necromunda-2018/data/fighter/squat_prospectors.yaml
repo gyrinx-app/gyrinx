@@ -59,6 +59,14 @@ fighter:
       type: Drill-kyn
       house: Squat Prospectors
       uuid: 86feb15e-07d1-4e41-d4e9-5c5ab3680750
+      weapons:
+          policy:
+              rules:
+                  - deny: all
+                  - allow:
+                        - category: Basic Weapons
+                        - category: Pistols
+                        - category: Close Combat
     - category: Ganger
       cost: 50
       equipment: []

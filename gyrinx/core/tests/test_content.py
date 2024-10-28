@@ -322,7 +322,6 @@ def test_equipment_policy():
         policy = ContentPolicy.objects.create(
             uuid=uuid.uuid4(),
             fighter=fighter,
-            name=case.policy["name"],
             rules=case.policy["rules"],
         )
 
