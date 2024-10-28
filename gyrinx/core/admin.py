@@ -77,29 +77,7 @@ class ContentSkillAdmin(ReadOnlyAdmin, admin.ModelAdmin):
 
 
 class BuildForm(forms.ModelForm):
-    class Meta:
-        model = Build
-        fields = "__all__"
-        exclude = ["content_house_uuid"]
-
-    content_house = forms.ModelChoiceField(
-        queryset=ContentHouse.objects.all().order_by("name"),
-        widget=forms.Select,
-        required=True,
-        label="House",
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        try:
-            if self.instance:
-                self.initial["content_house"] = self.instance.get_content_house().pk
-        except ContentHouse.DoesNotExist:
-            pass
-
-    def save(self, commit=True):
-        self.instance.content_house_uuid = self.cleaned_data["content_house"].uuid
-        return super().save(commit)
+    pass
 
 
 @admin.register(Build)
@@ -108,38 +86,7 @@ class BuildAdmin(admin.ModelAdmin):
 
 
 class BuildFighterForm(forms.ModelForm):
-    class Meta:
-        model = BuildFighter
-        fields = "__all__"
-        exclude = ["content_fighter_uuid"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if self.instance and hasattr(self.instance, "build") and self.instance.build:
-            house = self.instance.build.get_content_house()
-            self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house=house
-            )
-        else:
-            self.fields["content_fighter"].queryset = ContentFighter.objects.all()
-
-        try:
-            if self.instance:
-                self.initial["content_fighter"] = self.instance.get_content_fighter().pk
-        except ContentFighter.DoesNotExist:
-            pass
-
-    content_fighter = forms.ModelChoiceField(
-        queryset=ContentFighter.objects.all(),
-        widget=forms.Select,
-        required=True,
-        label="Fighter",
-    )
-
-    def save(self, commit=True):
-        self.instance.content_fighter_uuid = self.cleaned_data["content_fighter"].uuid
-        return super().save(commit)
+    pass
 
 
 @admin.register(BuildFighter)
