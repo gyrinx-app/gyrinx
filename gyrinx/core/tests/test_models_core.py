@@ -92,3 +92,35 @@ def test_build_fighter_house_matches_build():
         BuildFighter.objects.create(
             name="Test Fighter", build=build, content_fighter=content_fighter
         ).full_clean()
+
+
+@pytest.mark.django_db
+def test_archive_build():
+    version, category, house, content_fighter = make_content()
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+
+    build.archive()
+
+    assert build.archived
+    assert build.archived_at is not None
+
+
+@pytest.mark.django_db
+def test_history():
+    version, category, house, content_fighter = make_content()
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+
+    assert build.history.all().count() == 1
+
+    build.name = "Test Build 2"
+    build.save()
+
+    assert build.history.all().count() == 2
+    assert build.history.first().name == "Test Build 2"
+
+    build.archive()
+
+    assert build.history.first().archived
+    assert not build.history.first().prev_record.archived

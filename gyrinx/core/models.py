@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import Base, ContentFighter, ContentHouse
@@ -9,6 +10,13 @@ class Archived(models.Model):
     """An Archived object is no longer in use."""
 
     archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=False)
+
+    def archive(self):
+        self.archived = True
+        self.archived_at = timezone.now()
+        # TODO: Iterate through specific, related objects and archive them
+        self.save()
 
     class Meta:
         abstract = True
