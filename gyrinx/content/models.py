@@ -18,6 +18,7 @@ class Base(models.Model):
 class ContentImportVersion(Base):
     """Represents a version of the content import."""
 
+    help_text = "The Content Import Version identifies the time and source of imported data from the content library."
     uuid = models.UUIDField(editable=False, db_index=True)
     ruleset = models.CharField(max_length=255, default="necromunda-2018")
     directory = models.CharField(max_length=255)
@@ -64,6 +65,7 @@ class ContentHouse(Content):
         CAWDOR_GOTU = "CAWDOR_GOTU", "Cawdor (GotU)"
         ASH_WASTE_NOMADS = "ASH_WASTE_NOMADS", "Ash Waste Nomads"
 
+    help_text = "The Content House identifies the house or faction of a fighter."
     name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
@@ -77,6 +79,7 @@ class ContentHouse(Content):
 class ContentCategory(Content):
     class Choices(models.TextChoices):
         # TODO: The None value is a placeholder for now. It should be removed
+        # TODO: Whither the Specialist?
         NONE = "NONE", "None"
         LEADER = "LEADER", "Leader"
         CHAMPION = "CHAMPION", "Champion"
@@ -92,6 +95,7 @@ class ContentCategory(Content):
         HIVE_SCUM = "HIVE_SCUM", "Hive Scum"
         DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
 
+    help_text = "The Content Category identifies the type of fighter."
     name = models.CharField(max_length=255, choices=Choices)
 
     def __str__(self):
@@ -160,6 +164,7 @@ class ContentEquipment(Content):
 
 
 class ContentFighter(Content):
+    help_text = "The Content Fighter captures the archetypal information about a fighter from the rulebooks."
     type = models.CharField(max_length=255)
     category = models.ForeignKey(ContentCategory, on_delete=models.CASCADE)
     house = models.ForeignKey(
@@ -180,6 +185,7 @@ class ContentFighter(Content):
 
 
 class ContentFighterEquipmentAssignment(Content):
+    help_text = "The Content Fighter Equipment Assignment captures the default equipment assigned to a fighter in the rulebook."
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
@@ -196,6 +202,7 @@ class ContentFighterEquipmentAssignment(Content):
 
 
 class ContentFighterEquipment(Content):
+    help_text = "The Content Fighter Equipment captures the equipment list available to a fighter in the rulebook."
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
@@ -219,6 +226,9 @@ def check(rule, category, name):
 
 
 class ContentPolicy(Content):
+    help_text = (
+        "The Content Policy captures the rules for equipment availability to fighters."
+    )
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     rules = models.JSONField()
 

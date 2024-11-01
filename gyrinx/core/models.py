@@ -11,6 +11,9 @@ from gyrinx.content.models import Base, ContentFighter, ContentHouse
 class Build(Base):
     """A Build is a reusable collection of fighters."""
 
+    help_text = (
+        "A Build is a reusable collection of fighters, linked to a Content House."
+    )
     name = models.CharField(max_length=255)
     content_house_uuid = models.UUIDField(null=False, blank=False)
 
@@ -28,6 +31,7 @@ class Build(Base):
 class BuildFighter(Base):
     """A Fighter is a member of a build."""
 
+    help_text = "A Build Fighter is a member of a Build, linked to a Content Fighter archetype to give base stats and equipment."
     name = models.CharField(max_length=255)
     content_fighter_uuid = models.UUIDField(null=False, blank=False)
     build = models.ForeignKey(Build, on_delete=models.CASCADE, null=False, blank=False)
