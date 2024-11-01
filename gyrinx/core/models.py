@@ -207,8 +207,8 @@ class ContentFighterEquipment(Content):
         return f"{self.fighter} Equipment"
 
     class Meta:
-        verbose_name = "Content Fighter Equipment Join"
-        verbose_name_plural = "Content Fighter Equipment Joins"
+        verbose_name = "Content Fighter Equipment List"
+        verbose_name_plural = "Content Fighter Equipment Lists"
         unique_together = ["fighter", "equipment"]
 
 
