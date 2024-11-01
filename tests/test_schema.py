@@ -28,7 +28,7 @@ def test_basic():
         },
         data_sources=[DataSource("test", Path("data/test.yaml"), [{"name": "test"}])],
     )
-    print(result)
+
     assert result.success
 
 

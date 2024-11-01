@@ -201,8 +201,6 @@ def test_build_fighter_with_spoon():
         qty=1,
     ).save()
 
-    print([e.cost() for e in content_fighter.equipment.through.objects.all()])
-
     build = Build.objects.create(name="Test Build", content_house=house)
     fighter = BuildFighter.objects.create(
         name="Test Fighter", build=build, content_fighter=content_fighter
