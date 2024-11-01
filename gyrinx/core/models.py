@@ -58,6 +58,9 @@ class Build(AppBase):
 
     history = HistoricalRecords()
 
+    def cost(self):
+        return sum([f.cost() for f in self.buildfighter_set.all()])
+
     class Meta:
         verbose_name = "Build"
         verbose_name_plural = "Builds"
@@ -94,3 +97,6 @@ class BuildFighter(AppBase):
             raise ValidationError(
                 f"{cf.type} cannot be a member of {build_house} build"
             )
+
+    def cost(self):
+        return self.content_fighter.cost()

@@ -124,3 +124,23 @@ def test_history():
 
     assert build.history.first().archived
     assert not build.history.first().prev_record.archived
+
+
+@pytest.mark.django_db
+def test_build_cost():
+    version, category, house, content_fighter = make_content()
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+    fighter = BuildFighter.objects.create(
+        name="Test Fighter", build=build, content_fighter=content_fighter
+    )
+
+    assert fighter.cost() == content_fighter.cost()
+    assert build.cost() == content_fighter.cost()
+
+    fighter2 = BuildFighter.objects.create(
+        name="Test Fighter 2", build=build, content_fighter=content_fighter
+    )
+
+    assert fighter2.cost() == content_fighter.cost()
+    assert build.cost() == content_fighter.cost() * 2

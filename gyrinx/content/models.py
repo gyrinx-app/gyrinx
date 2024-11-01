@@ -160,6 +160,10 @@ class ContentEquipment(Content):
     def __str__(self):
         return self.name
 
+    def cost(self):
+        # TODO: Implement the cost calculation
+        return 0
+
     class Meta:
         verbose_name = "Content Equipment"
         verbose_name_plural = "Content Equipment"
@@ -180,6 +184,10 @@ class ContentFighter(Content):
     def __str__(self):
         house = f"{self.house}" if self.house else ""
         return f"{house} {self.type} ({self.category})".strip()
+
+    def cost(self):
+        # TODO: Implement the cost calculation
+        return 100 + sum([e.cost() for e in self.equipment.all()])
 
     class Meta:
         verbose_name = "Content Fighter"
