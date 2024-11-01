@@ -151,8 +151,10 @@ To set up the development environment, follow these steps:
 Make sure your virtual environment is active and you've run `pip install --editable .`.
 
 ```
-manage runserver
+`DJANGO_SETTINGS_MODULE`=gyrinx.settings_dev manage runserver
 ```
+
+We use `DJANGO_SETTINGS_MODULE=gyrinx.settings_dev` to select a Django settings file that is suitable for development.
 
 ## Building the UI
 

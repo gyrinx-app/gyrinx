@@ -16,7 +16,7 @@ manage = "scripts.manage:main"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib -p no:warnings"
-DJANGO_SETTINGS_MODULE = "gyrinx.settings"
+DJANGO_SETTINGS_MODULE = "gyrinx.settings_dev"
 python_files = "tests.py test_*.py *_tests.py"
 
 [tool.setuptools.packages]

@@ -6,7 +6,7 @@
     "waitFor": "onCreateCommand",
     "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
     "postAttachCommand": {
-        "server": ". .venv/bin/activate && manage migrate && manage runserver"
+        "server": ". .venv/bin/activate && manage migrate && DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver"
     },
     "customizations": {
         "codespaces": {
