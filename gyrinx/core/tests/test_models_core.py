@@ -35,7 +35,7 @@ def make_content():
 def test_basic_build():
     version, category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house_uuid=house.uuid)
+    build = Build.objects.create(name="Test Build", content_house=house)
 
     assert build.name == "Test Build"
 
@@ -44,9 +44,9 @@ def test_basic_build():
 def test_basic_build_fighter():
     version, category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house_uuid=house.uuid)
+    build = Build.objects.create(name="Test Build", content_house=house)
     fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter_uuid=content_fighter.uuid
+        name="Test Fighter", build=build, content_fighter=content_fighter
     )
 
     assert build.name == "Test Build"
@@ -55,21 +55,22 @@ def test_basic_build_fighter():
 
 @pytest.mark.django_db
 def test_build_fighter_requires_content_fighter():
-    build = Build.objects.create(name="Test Build", content_house_uuid=uuid.uuid4())
+    version, category, house, content_fighter = make_content()
+    build = Build.objects.create(name="Test Build", content_house=house)
     with pytest.raises(Exception):
         BuildFighter.objects.create(name="Test Fighter", build=build)
 
 
 @pytest.mark.django_db
-def test_build_fighter_get_content_fighter():
+def test_build_fighter_content_fighter():
     version, category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house_uuid=house.uuid)
+    build = Build.objects.create(name="Test Build", content_house=house)
     fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter_uuid=content_fighter.uuid
+        name="Test Fighter", build=build, content_fighter=content_fighter
     )
 
-    assert fighter.get_content_fighter().type == "Prospector Digger"
+    assert fighter.content_fighter.type == "Prospector Digger"
 
 
 @pytest.mark.django_db
@@ -82,14 +83,12 @@ def test_build_fighter_house_matches_build():
         version=version,
     )
 
-    build = Build.objects.create(
-        name="Test Build AWN", content_house_uuid=build_house.uuid
-    )
+    build = Build.objects.create(name="Test Build AWN", content_house=build_house)
 
     with pytest.raises(
         Exception,
         match="Prospector Digger cannot be a member of Ash Waste Nomads build",
     ):
         BuildFighter.objects.create(
-            name="Test Fighter", build=build, content_fighter_uuid=content_fighter.uuid
+            name="Test Fighter", build=build, content_fighter=content_fighter
         ).full_clean()
