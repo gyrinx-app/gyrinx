@@ -3,12 +3,40 @@ from django.db import models
 
 from gyrinx.content.models import Base, ContentFighter, ContentHouse
 
+
+class Archived(models.Model):
+    """An Archived object is no longer in use."""
+
+    archived = models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+
+
+class Owned(models.Model):
+    """An Owned object is owned by a User."""
+
+    owner = models.ForeignKey(
+        "auth.User", on_delete=models.CASCADE, null=True, blank=False
+    )
+
+    class Meta:
+        abstract = True
+
+
+class AppBase(Base, Owned, Archived):
+    """An AppBase object is a base class for all application models."""
+
+    class Meta:
+        abstract = True
+
+
 ##
 ## Application Models
 ##
 
 
-class Build(Base):
+class Build(AppBase):
     """A Build is a reusable collection of fighters."""
 
     help_text = (
@@ -27,7 +55,7 @@ class Build(Base):
         return self.name
 
 
-class BuildFighter(Base):
+class BuildFighter(AppBase):
     """A Fighter is a member of a build."""
 
     help_text = "A Build Fighter is a member of a Build, linked to a Content Fighter archetype to give base stats and equipment."
