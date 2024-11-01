@@ -2,6 +2,7 @@ asgiref==3.8.1
 click==8.1.7
 daphne==4.1.2
 Django==5.1.2
+django-allauth==65.1.0
 jsonschema==4.23.0
 nbstripout==0.7.1
 nodeenv==1.9.1

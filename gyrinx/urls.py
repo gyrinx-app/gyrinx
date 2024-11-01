@@ -21,5 +21,6 @@ from django.urls import include, path
 urlpatterns = [
     path("", include("gyrinx.core.urls")),
     path("", include("gyrinx.content.urls")),
+    path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
 ]
