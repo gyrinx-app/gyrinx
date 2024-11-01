@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from simple_history.admin import SimpleHistoryAdmin
 
 from .models import Build, BuildFighter
 
@@ -9,7 +10,7 @@ class BuildForm(forms.ModelForm):
 
 
 @admin.register(Build)
-class BuildAdmin(admin.ModelAdmin):
+class BuildAdmin(SimpleHistoryAdmin):
     form = BuildForm
 
 
@@ -18,5 +19,5 @@ class BuildFighterForm(forms.ModelForm):
 
 
 @admin.register(BuildFighter)
-class BuildFighterAdmin(admin.ModelAdmin):
+class BuildFighterAdmin(SimpleHistoryAdmin):
     form = BuildFighterForm

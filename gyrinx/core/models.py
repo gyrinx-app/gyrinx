@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import Base, ContentFighter, ContentHouse
 
@@ -47,6 +48,8 @@ class Build(AppBase):
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
     )
 
+    history = HistoricalRecords()
+
     class Meta:
         verbose_name = "Build"
         verbose_name_plural = "Builds"
@@ -64,6 +67,8 @@ class BuildFighter(AppBase):
         ContentFighter, on_delete=models.CASCADE, null=False, blank=False
     )
     build = models.ForeignKey(Build, on_delete=models.CASCADE, null=False, blank=False)
+
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Build Fighter"

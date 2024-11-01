@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     # Django allauth
     "allauth",
     "allauth.account",
+    # simplehistory
+    "simple_history",
     # Disable Django's static file handling in favour of WhiteNoise in dev
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
@@ -63,6 +65,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
+    # simplehistory
+    "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
 ROOT_URLCONF = "gyrinx.urls"
@@ -112,6 +116,8 @@ LOGIN_REDIRECT_URL = "/"
 # Allauth settings
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
 
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Gyrinx] "
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
