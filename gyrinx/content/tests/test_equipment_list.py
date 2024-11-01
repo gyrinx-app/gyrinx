@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from gyrinx.core.models import (
+from ..models import (
     ContentCategory,
     ContentEquipment,
     ContentEquipmentCategory,

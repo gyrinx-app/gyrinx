@@ -1,7 +1,7 @@
 import click
 from django.core.management.base import BaseCommand
 
-from gyrinx.core.models import ContentImportVersion
+from ...models import ContentImportVersion
 
 
 class Command(BaseCommand):

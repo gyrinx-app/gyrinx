@@ -7,7 +7,7 @@ import jsonschema
 import pytest
 from referencing import Registry, Resource
 
-from gyrinx.core.models import (
+from ..models import (
     ContentCategory,
     ContentEquipment,
     ContentEquipmentCategory,

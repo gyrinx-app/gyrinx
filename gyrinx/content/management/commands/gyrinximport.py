@@ -7,7 +7,9 @@ from pathlib import Path
 import click
 from django.core.management.base import BaseCommand
 
-from gyrinx.core.models import (
+from scripts.schema import gather_data
+
+from ...models import (
     ContentCategory,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -19,7 +21,6 @@ from gyrinx.core.models import (
     ContentPolicy,
     ContentSkill,
 )
-from scripts.schema import gather_data
 
 
 def flatten(xss):

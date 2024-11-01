@@ -2,14 +2,13 @@ import uuid
 
 import pytest
 
-from gyrinx.core.models import (
-    Build,
-    BuildFighter,
+from gyrinx.content.models import (
     ContentCategory,
     ContentFighter,
     ContentHouse,
     ContentImportVersion,
 )
+from gyrinx.core.models import Build, BuildFighter
 
 
 def make_content():
