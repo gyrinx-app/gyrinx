@@ -156,13 +156,13 @@ class ContentEquipmentCategory(Content):
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(ContentEquipmentCategory, on_delete=models.CASCADE)
+    trading_post_cost = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name
 
     def cost(self):
-        # TODO: Implement the cost calculation
-        return 0
+        return self.trading_post_cost
 
     class Meta:
         verbose_name = "Content Equipment"
@@ -180,14 +180,19 @@ class ContentFighter(Content):
         ContentEquipment, through="ContentFighterEquipmentAssignment"
     )
     skills = models.ManyToManyField(ContentSkill)
+    base_cost = models.IntegerField(default=0)
 
     def __str__(self):
         house = f"{self.house}" if self.house else ""
         return f"{house} {self.type} ({self.category})".strip()
 
     def cost(self):
-        # TODO: Implement the cost calculation
-        return 100 + sum([e.cost() for e in self.equipment.all()])
+        # The equipment is a many-to-many field, and the through model contains
+        # the quantity of each piece of equipment. We need to sum the cost of
+        # each piece of equipment and the quantity.
+        return self.base_cost + sum(
+            [e.cost() for e in self.equipment.through.objects.all()]
+        )
 
     class Meta:
         verbose_name = "Content Fighter"
@@ -201,6 +206,9 @@ class ContentFighterEquipmentAssignment(Content):
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
     qty = models.IntegerField(default=0)
+
+    def cost(self):
+        return self.qty * self.equipment.cost()
 
     def __str__(self):
         return f"{self.fighter} {self.equipment} Equipment Assignment ({self.qty})"

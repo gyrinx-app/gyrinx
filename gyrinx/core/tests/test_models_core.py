@@ -4,7 +4,10 @@ import pytest
 
 from gyrinx.content.models import (
     ContentCategory,
+    ContentEquipment,
+    ContentEquipmentCategory,
     ContentFighter,
+    ContentFighterEquipmentAssignment,
     ContentHouse,
     ContentImportVersion,
 )
@@ -26,7 +29,11 @@ def make_content():
         version=version,
     )
     fighter = ContentFighter.objects.create(
-        uuid=uuid.uuid4(), type="Prospector Digger", category=category, house=house
+        uuid=uuid.uuid4(),
+        type="Prospector Digger",
+        category=category,
+        house=house,
+        base_cost=100,
     )
     return version, category, house, fighter
 
@@ -144,3 +151,62 @@ def test_build_cost():
 
     assert fighter2.cost() == content_fighter.cost()
     assert build.cost() == content_fighter.cost() * 2
+
+
+@pytest.mark.django_db
+def test_build_cost_variable():
+    version, category, house, content_fighter = make_content()
+    content_fighter2 = ContentFighter.objects.create(
+        uuid=uuid.uuid4(),
+        type="Expensive Guy",
+        category=category,
+        house=house,
+        base_cost=150,
+    )
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+    fighter = BuildFighter.objects.create(
+        name="Test Fighter", build=build, content_fighter=content_fighter
+    )
+    fighter2 = BuildFighter.objects.create(
+        name="Test Fighter 2", build=build, content_fighter=content_fighter2
+    )
+
+    assert fighter.cost() == content_fighter.cost()
+    assert fighter2.cost() == content_fighter2.cost()
+    assert build.cost() == content_fighter.cost() + content_fighter2.cost()
+
+
+@pytest.mark.django_db
+def test_build_fighter_with_spoon():
+    version, category, house, content_fighter = make_content()
+    spoon = ContentEquipment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        name="Wooden Spoon",
+        category=ContentEquipmentCategory.objects.create(
+            uuid=uuid.uuid4(),
+            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
+            version=version,
+        ),
+        trading_post_cost=10,
+    )
+    spoon.save()
+
+    ContentFighterEquipmentAssignment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        equipment=spoon,
+        fighter=content_fighter,
+        qty=1,
+    ).save()
+
+    print([e.cost() for e in content_fighter.equipment.through.objects.all()])
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+    fighter = BuildFighter.objects.create(
+        name="Test Fighter", build=build, content_fighter=content_fighter
+    )
+
+    assert fighter.cost() == content_fighter.base_cost + spoon.cost()
+    assert build.cost() == fighter.cost()

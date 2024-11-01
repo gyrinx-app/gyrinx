@@ -251,17 +251,29 @@ class Command(BaseCommand):
                 click.echo(
                     f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
                 )
-                index["equipment"][existing.uuid] = existing
-                continue
+                item = existing
 
-            item = ContentEquipment(
-                version=import_version,
-                uuid=id,
-                name=e["name"],
-                category=category,
-            )
-            index["equipment"][item.uuid] = item
-            click.echo(f" - {item.category}: {item.name} ({item.uuid}, {item.version})")
+                # Migrate: trading_post_cost
+                if item.trading_post_cost != e.get("trading_post_cost", 0):
+                    click.echo(
+                        f"   Adding: trading_post_cost {e.get('trading_post_cost', 0)} to {item}"
+                    )
+                    item.trading_post_cost = e.get("trading_post_cost", 0)
+
+                index["equipment"][existing.uuid] = existing
+            else:
+                item = ContentEquipment(
+                    version=import_version,
+                    uuid=id,
+                    name=e["name"],
+                    category=category,
+                    trading_post_cost=e.get("trading_post_cost", 0),
+                )
+                click.echo(
+                    f" - {item.category}: {item.name} ({item.uuid}, {item.version})"
+                )
+                index["equipment"][item.uuid] = item
+
             if not dry_run:
                 item.save()
 
@@ -297,6 +309,12 @@ class Command(BaseCommand):
                     f" - Existing: {existing.type} ({existing.uuid}, {existing.version})"
                 )
                 fighter = existing
+
+                # Migrate: cost
+                if fighter.base_cost != fi.get("cost", 0):
+                    click.echo(f"   Adding: cost {fi.get('cost', 0)} to {fighter}")
+                    fighter.base_cost = fi.get("cost", 0)
+
                 index["fighter"][existing.uuid] = existing
             else:
                 fighter = ContentFighter(
@@ -305,6 +323,7 @@ class Command(BaseCommand):
                     type=fi["type"],
                     category=category,
                     house=house,
+                    base_cost=fi.get("cost", 0),
                 )
                 index["fighter"][fighter.uuid] = fighter
                 click.echo(
