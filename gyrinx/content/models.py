@@ -191,7 +191,7 @@ class ContentFighter(Content):
         # the quantity of each piece of equipment. We need to sum the cost of
         # each piece of equipment and the quantity.
         return self.base_cost + sum(
-            [e.cost() for e in self.equipment.through.objects.all()]
+            [e.cost() for e in self.equipment.through.objects.filter(fighter=self)]
         )
 
     class Meta:

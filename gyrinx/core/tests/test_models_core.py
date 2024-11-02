@@ -208,3 +208,70 @@ def test_build_fighter_with_spoon():
 
     assert fighter.cost() == content_fighter.base_cost + spoon.cost()
     assert build.cost() == fighter.cost()
+    assert build.cost() == 110
+
+
+@pytest.mark.django_db
+def test_build_fighter_with_spoon_and_not_other_assignments():
+    # This test was introduced to fix a bug where the cost of a fighter was
+    # including all equipment assignments, not just the ones for that fighter.
+
+    version, category, house, content_fighter = make_content()
+    spoon = ContentEquipment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        name="Wooden Spoon",
+        category=ContentEquipmentCategory.objects.create(
+            uuid=uuid.uuid4(),
+            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
+            version=version,
+        ),
+        trading_post_cost=10,
+    )
+    spoon.save()
+
+    ContentFighterEquipmentAssignment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        equipment=spoon,
+        fighter=content_fighter,
+        qty=1,
+    ).save()
+
+    content_fighter2 = ContentFighter.objects.create(
+        uuid=uuid.uuid4(),
+        type="Expensive Guy",
+        category=category,
+        house=house,
+        base_cost=150,
+    )
+
+    spork = ContentEquipment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        name="Metal Spork",
+        category=ContentEquipmentCategory.objects.create(
+            uuid=uuid.uuid4(),
+            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
+            version=version,
+        ),
+        trading_post_cost=15,
+    )
+    spork.save()
+
+    ContentFighterEquipmentAssignment.objects.create(
+        version=version,
+        uuid=uuid.uuid4(),
+        equipment=spork,
+        fighter=content_fighter2,
+        qty=1,
+    ).save()
+
+    build = Build.objects.create(name="Test Build", content_house=house)
+    fighter = BuildFighter.objects.create(
+        name="Test Fighter", build=build, content_fighter=content_fighter
+    )
+
+    assert fighter.cost() == content_fighter.base_cost + spoon.cost()
+    assert build.cost() == fighter.cost()
+    assert build.cost() == 110

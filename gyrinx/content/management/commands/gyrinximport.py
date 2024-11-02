@@ -334,10 +334,10 @@ class Command(BaseCommand):
                     for skill in skills:
                         click.echo(f"    - {skill.category}: {skill.name}")
 
-                if not dry_run:
-                    fighter.save()
-                    for skill in skills:
-                        fighter.skills.add(skill)
+            if not dry_run:
+                fighter.save()
+                for skill in skills:
+                    fighter.skills.add(skill)
 
             #
             # Fighter Equipment Assignment
