@@ -21,7 +21,7 @@ fighter:
           wil: 6
           ws: 4
       type: Champion
-    - category: ganger
+    - category: Ganger
       cost: 55
       equipment:
           - category: Armor

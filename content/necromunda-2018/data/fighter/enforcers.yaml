@@ -61,7 +61,7 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman
-    - category: ganger
+    - category: Ganger
       cost: 70
       equipment:
           - category: Pistols
