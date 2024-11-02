@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Ganger
       cost: 70
       equipment: []
       house: Slave Ogryn
@@ -18,7 +18,7 @@ fighter:
           wil: 10
           ws: 4
       type: Lobo-Slave
-    - category: None
+    - category: Ganger
       cost: 90
       equipment: []
       house: Slave Ogryn
@@ -37,7 +37,7 @@ fighter:
           wil: 9
           ws: 4
       type: Ogryn
-    - category: None
+    - category: Leader
       cost: 145
       equipment: []
       house: Slave Ogryn
@@ -56,7 +56,7 @@ fighter:
           wil: 9
           ws: 3
       type: Overboss
-    - category: None
+    - category: Champion
       cost: 110
       equipment: []
       house: Slave Ogryn

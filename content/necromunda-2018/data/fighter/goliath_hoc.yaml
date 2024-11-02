@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Ganger
       cost: 55
       equipment: []
       house: Goliath (HoC)
@@ -18,7 +18,7 @@ fighter:
           wil: 9
           ws: 4
       type: Bruiser
-    - category: None
+    - category: Ganger
       cost: 55
       equipment: []
       house: Goliath (HoC)
@@ -37,7 +37,7 @@ fighter:
           wil: 9
           ws: 4
       type: Bruiser (Specialist)
-    - category: None
+    - category: Juve
       cost: 35
       equipment: []
       house: Goliath (HoC)
@@ -56,7 +56,7 @@ fighter:
           wil: 9
           ws: 4
       type: Bully
-    - category: None
+    - category: Champion
       cost: 100
       equipment: []
       house: Goliath (HoC)
@@ -75,7 +75,7 @@ fighter:
           wil: 8
           ws: 3
       type: Forge Boss
-    - category: None
+    - category: Leader
       cost: 135
       equipment: []
       house: Goliath (HoC)
@@ -94,7 +94,7 @@ fighter:
           wil: 8
           ws: 3
       type: Forge Tyrant
-    - category: None
+    - category: Prospect
       cost: 35
       equipment: []
       house: Goliath (HoC)
@@ -113,7 +113,7 @@ fighter:
           wil: 9
           ws: 4
       type: Forge-Born
-    - category: None
+    - category: Champion
       cost: 125
       equipment: []
       house: Goliath (HoC)

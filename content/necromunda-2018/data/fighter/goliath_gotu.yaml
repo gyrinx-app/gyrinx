@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 110
       equipment: []
       house: Goliath (GotU)
@@ -18,7 +18,7 @@ fighter:
           wil: 8
           ws: 3
       type: Champion
-    - category: None
+    - category: Ganger
       cost: 60
       equipment: []
       house: Goliath (GotU)
@@ -37,7 +37,7 @@ fighter:
           wil: 9
           ws: 4
       type: Ganger
-    - category: None
+    - category: Juve
       cost: 25
       equipment: []
       house: Goliath (GotU)
@@ -56,7 +56,7 @@ fighter:
           wil: 10
           ws: 4
       type: Juve
-    - category: None
+    - category: Leader
       cost: 145
       equipment: []
       house: Goliath (GotU)
@@ -75,7 +75,7 @@ fighter:
           wil: 8
           ws: 3
       type: Leader
-    - category: None
+    - category: Ganger
       cost: 60
       equipment: []
       house: Goliath (GotU)

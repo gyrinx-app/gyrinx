@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 95
       equipment: []
       house: Orlock (HoI)
@@ -18,7 +18,7 @@ fighter:
           wil: 6
           ws: 3
       type: Arms Master
-    - category: None
+    - category: Juve
       cost: 35
       equipment: []
       house: Orlock (HoI)
@@ -37,7 +37,7 @@ fighter:
           wil: 8
           ws: 5
       type: Greenhorn
-    - category: None
+    - category: Ganger
       cost: 45
       equipment: []
       house: Orlock (HoI)
@@ -56,7 +56,7 @@ fighter:
           wil: 7
           ws: 4
       type: Gunner
-    - category: None
+    - category: Ganger
       cost: 45
       equipment: []
       house: Orlock (HoI)
@@ -75,7 +75,7 @@ fighter:
           wil: 7
           ws: 4
       type: Gunner Specialist
-    - category: None
+    - category: Crew
       cost: 35
       equipment: []
       house: Orlock (HoI)
@@ -94,7 +94,7 @@ fighter:
           wil: 7
           ws: 0
       type: Iron Rider
-    - category: None
+    - category: Leader
       cost: 105
       equipment: []
       house: Orlock (HoI)
@@ -113,7 +113,7 @@ fighter:
           wil: 5
           ws: 3
       type: Road Captain
-    - category: None
+    - category: Champion
       cost: 80
       equipment: []
       house: Orlock (HoI)
@@ -132,7 +132,7 @@ fighter:
           wil: 6
           ws: 4
       type: Road Sergeant
-    - category: None
+    - category: Prospect
       cost: 55
       equipment: []
       house: Orlock (HoI)

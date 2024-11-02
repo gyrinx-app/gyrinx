@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Ganger
       cost: 130
       equipment: []
       house: Chaos Cult
@@ -18,7 +18,7 @@ fighter:
           wil: 0
           ws: 0
       type: Chaos Spawn
-    - category: None
+    - category: Leader
       cost: 100
       equipment: []
       house: Chaos Cult
@@ -37,7 +37,7 @@ fighter:
           wil: 6
           ws: 3
       type: Demagogue
-    - category: None
+    - category: Champion
       cost: 60
       equipment: []
       house: Chaos Cult
@@ -56,7 +56,7 @@ fighter:
           wil: 8
           ws: 4
       type: Disciple
-    - category: None
+    - category: Ganger
       cost: 35
       equipment: []
       house: Chaos Cult
@@ -75,7 +75,7 @@ fighter:
           wil: 7
           ws: 4
       type: Helot Cultist
-    - category: None
+    - category: Ganger
       cost: 35
       equipment: []
       house: Chaos Cult
@@ -94,7 +94,7 @@ fighter:
           wil: 7
           ws: 4
       type: Helot Cultist Specialist
-    - category: None
+    - category: Champion
       cost: 70
       equipment: []
       house: Chaos Cult

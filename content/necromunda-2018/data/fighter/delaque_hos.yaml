@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Ganger
       cost: 40
       equipment: []
       house: Delaque (HoS)
@@ -18,7 +18,7 @@ fighter:
           wil: 7
           ws: 4
       type: Ghost
-    - category: None
+    - category: Ganger
       cost: 40
       equipment: []
       house: Delaque (HoS)
@@ -37,7 +37,7 @@ fighter:
           wil: 7
           ws: 4
       type: Ghost Specialist
-    - category: None
+    - category: Leader
       cost: 100
       equipment: []
       house: Delaque (HoS)
@@ -56,7 +56,7 @@ fighter:
           wil: 5
           ws: 3
       type: Master of Shadow
-    - category: None
+    - category: Leader
       cost: 130
       equipment: []
       house: Delaque (HoS)
@@ -75,7 +75,7 @@ fighter:
           wil: 5
           ws: 3
       type: Master of Shadow Psyker
-    - category: None
+    - category: Champion
       cost: 110
       equipment: []
       house: Delaque (HoS)
@@ -94,7 +94,7 @@ fighter:
           wil: 6
           ws: 2
       type: Nacht-Ghul
-    - category: None
+    - category: Champion
       cost: 140
       equipment: []
       house: Delaque (HoS)
@@ -113,7 +113,7 @@ fighter:
           wil: 6
           ws: 2
       type: Nacht-Ghul Psyker
-    - category: None
+    - category: Champion
       cost: 85
       equipment: []
       house: Delaque (HoS)
@@ -132,7 +132,7 @@ fighter:
           wil: 6
           ws: 3
       type: Phantom
-    - category: None
+    - category: Champion
       cost: 115
       equipment: []
       house: Delaque (HoS)
@@ -151,7 +151,7 @@ fighter:
           wil: 6
           ws: 3
       type: Phantom Psyker
-    - category: None
+    - category: Prospect
       cost: 60
       equipment: []
       house: Delaque (HoS)
@@ -170,7 +170,7 @@ fighter:
           wil: 8
           ws: 4
       type: Psy-Gheist
-    - category: None
+    - category: Juve
       cost: 25
       equipment: []
       house: Delaque (HoS)
@@ -189,7 +189,7 @@ fighter:
           wil: 8
           ws: 5
       type: Shadow
-    - category: None
+    - category: Crew
       cost: 35
       equipment: []
       house: Delaque (HoS)

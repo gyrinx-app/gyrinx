@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 95
       equipment:
           - category: Armor
@@ -21,7 +21,7 @@ fighter:
           wil: 6
           ws: 3
       type: Champion
-    - category: None
+    - category: Ganger
       cost: 50
       equipment:
           - category: Armor
@@ -43,7 +43,7 @@ fighter:
           wil: 7
           ws: 4
       type: Ganger
-    - category: None
+    - category: Juve
       cost: 25
       equipment: []
       house: Delaque (GotU)
@@ -62,7 +62,7 @@ fighter:
           wil: 8
           ws: 5
       type: Juve
-    - category: None
+    - category: Leader
       cost: 110
       equipment:
           - category: Armor
@@ -84,7 +84,7 @@ fighter:
           wil: 5
           ws: 3
       type: Leader
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Delaque (GotU)
