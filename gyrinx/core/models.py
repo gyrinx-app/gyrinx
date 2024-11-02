@@ -1,3 +1,4 @@
+from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -58,6 +59,7 @@ class Build(AppBase):
 
     history = HistoricalRecords()
 
+    @admin.display(description="Cost")
     def cost(self):
         return sum([f.cost() for f in self.buildfighter_set.all()])
 
@@ -81,6 +83,10 @@ class BuildFighter(AppBase):
 
     history = HistoricalRecords()
 
+    @admin.display(description="Cost")
+    def cost(self):
+        return self.content_fighter.cost()
+
     class Meta:
         verbose_name = "Build Fighter"
         verbose_name_plural = "Build Fighters"
@@ -97,6 +103,3 @@ class BuildFighter(AppBase):
             raise ValidationError(
                 f"{cf.type} cannot be a member of {build_house} build"
             )
-
-    def cost(self):
-        return self.content_fighter.cost()

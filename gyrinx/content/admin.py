@@ -31,49 +31,49 @@ class ReadOnlyAdmin(admin.ModelAdmin):
 
 @admin.register(ContentCategory)
 class ContentCategoryAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name"]
 
 
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name", "category__name"]
 
 
 @admin.register(ContentEquipmentCategory)
 class ContentEquipmentCategoryAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name"]
 
 
 @admin.register(ContentFighter)
 class ContentFighterAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["type", "category__name", "house__name"]
 
 
 @admin.register(ContentFighterEquipment)
 class ContentFighterEquipmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["fighter__type", "equipment__name"]
 
 
 @admin.register(ContentFighterEquipmentAssignment)
 class ContentFighterEquipmentAssignmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["fighter__type", "equipment__name"]
 
 
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name"]
 
 
 @admin.register(ContentImportVersion)
 class ContentImportVersionAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["ruleset", "directory"]
 
 
 @admin.register(ContentPolicy)
 class ContentPolicyAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name"]
 
 
 @admin.register(ContentSkill)
 class ContentSkillAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    pass
+    search_fields = ["name"]
