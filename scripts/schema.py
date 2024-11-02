@@ -1,4 +1,3 @@
-import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,69 +5,9 @@ from pathlib import Path
 import click
 import jsonschema
 import jsonschema.protocols
-import yaml
 from referencing import Registry, Resource
 
-
-@dataclass
-class Schema:
-    name: str
-    path: Path
-    schema: dict
-
-
-@dataclass
-class DataSource:
-    name: str
-    path: Path
-    data: dict
-
-
-def gather_schemas(directory: Path) -> dict[str, Schema]:
-    schema_dir = directory / "schema"
-    click.echo(f"Gathering schema files from {schema_dir}...")
-    if not schema_dir.exists():
-        click.echo(f"Error: No schema folder in {directory}", err=True)
-        return {}
-
-    index = {}
-
-    for file in schema_dir.rglob("*.schema.json"):
-        click.echo(f" - {file}")
-        try:
-            with open(file, "r") as f:
-                schema = json.load(f)
-                # TODO: Validate schema itself
-                name = file.name.replace(".schema.json", "")
-                index[name] = Schema(name, file, schema)
-        except json.JSONDecodeError as e:
-            click.echo(f"Error decoding JSON in {file}: {e}", err=True)
-        except jsonschema.exceptions.SchemaError as e:
-            click.echo(f"Invalid JSON schema in {file}: {e}", err=True)
-
-    return index
-
-
-def gather_data(directory: Path) -> list[DataSource]:
-    data_dir = directory / "data"
-    click.echo(f"Gathering data files from {data_dir}...")
-    if not data_dir.exists():
-        click.echo(f"Error: No data folder in {directory}", err=True)
-        return {}
-
-    data_sources = []
-
-    for file in data_dir.rglob("*.yaml"):
-        click.echo(f" - {file}")
-        try:
-            with open(file, "r") as f:
-                loaded = yaml.load(f, Loader=yaml.SafeLoader)
-                for key in loaded:
-                    data_sources.append(DataSource(key, file, loaded[key]))
-        except json.JSONDecodeError as e:
-            click.echo(f"Error decoding JSON in {file}: {e}", err=True)
-
-    return data_sources
+from gyrinx.content.management.utils import DataSource, gather_data, gather_schemas
 
 
 def list_of(schema):

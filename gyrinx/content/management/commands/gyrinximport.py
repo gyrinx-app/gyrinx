@@ -1,15 +1,17 @@
-import hashlib
 import json
-import uuid
-from collections import defaultdict
 from pathlib import Path
 
 import click
 from django.core.management.base import BaseCommand
 
-from scripts.schema import gather_data
-
-from ...models import (
+from gyrinx.content.management.imports import Importer
+from gyrinx.content.management.utils import (
+    by_label,
+    data_for_type,
+    gather_data,
+    stable_uuid,
+)
+from gyrinx.content.models import (
     ContentCategory,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -17,22 +19,9 @@ from ...models import (
     ContentFighterEquipment,
     ContentFighterEquipmentAssignment,
     ContentHouse,
-    ContentImportVersion,
     ContentPolicy,
     ContentSkill,
 )
-
-
-def flatten(xss):
-    return [x for xs in xss for x in xs]
-
-
-def data_for_type(name, data_sources):
-    return flatten([src.data for src in data_sources if src.name == name])
-
-
-def stable_uuid(v):
-    return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])
 
 
 def id_for_fighter(fi):
@@ -52,15 +41,6 @@ def lookup(index, type, id):
         return index[type][stable_uuid(id)]
     except KeyError:
         return None
-
-
-def by_label(enum, label):
-    try:
-        return next(
-            name for name, choice_label in enum.choices if choice_label == label
-        )
-    except StopIteration:
-        raise ValueError(f"Label '{label}' not found in choices: {enum.choices}")
 
 
 class Command(BaseCommand):
@@ -114,18 +94,11 @@ class Command(BaseCommand):
         for src in data_sources:
             click.echo(f" - {src.name} from {src.path}")
 
-        index = defaultdict(dict)
+        imp = Importer(ruleset_dir, options["directory"], dry_run)
 
-        import_version = ContentImportVersion(
-            uuid=stable_uuid(f"{ruleset_dir.name}:{uuid.uuid4()}"),
-            ruleset=ruleset_dir.name,
-            directory=options["directory"],
-        )
-        click.echo(
-            f"ImportingVersion: {import_version.directory}, {import_version.ruleset} ({import_version.uuid})"
-        )
-        if not dry_run:
-            import_version.save()
+        # TODO: Clear this up when all the imports have been converted to use the Importer
+        index = imp.index
+        import_version = imp.iv
 
         #
         # House
