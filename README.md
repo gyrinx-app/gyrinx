@@ -4,32 +4,9 @@ Core content library & application for Gyrinx
 
 ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
 
----
+This repository contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
 
-# Content
-
-The content library is kept in the [`content`](./content/) directory.
-
-It contains [`yaml`](https://en.m.wikipedia.org/wiki/YAML) "data" files that contain the core content relevant to the game, and [JSON schema files](https://json-schema.org/) that specifiy the valid shapes of the data files.
-
-## Structure
-
-The directory structure is:
-
-```
-content/
-    [ruleset]/
-        data/
-            [anything].yaml
-        schema/
-            [type].schema.json
-```
-
-# Application
-
-This repository also contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
-
-See the [design](./design/) directory for technical discussions.
+See the [design](./design/) directory or the [Notion](https://www.notion.so/Technical-Design-13315de8366180c19a45f5201460b804) for technical discussions.
 
 The `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so you can just use `manage` from anywhere:
 
