@@ -69,7 +69,7 @@ class Importer:
             # TODO: Check for duplicate UUIDs
             obj = config.model.objects.filter(uuid=suuid).first()
             if obj:
-                click.echo(f" - Existing: {config.id(d)} ({obj.uuid}, {obj.version})")
+                click.echo(f" - Existing: {obj} ({obj.uuid}, {obj.version})")
 
                 obj.version = self.iv
                 for k, v in config.fields(d).items():
@@ -81,7 +81,10 @@ class Importer:
                     **config.fields(d),
                 )
 
-            click.echo(f" - {obj} ({obj.uuid}, {obj.version})")
+                click.echo(f" - New: {obj} ({obj.uuid}, {obj.version})")
+
+            self.index[config.source][obj.uuid] = obj
+
             if not self.dry_run:
                 obj.save()
 
