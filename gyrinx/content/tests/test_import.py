@@ -15,8 +15,8 @@ from gyrinx.content.models import ContentCategory, ContentHouse
 
 
 # Let's make some mock data to test with.
-def make_data_sources():
-    return gather_data(Path(__file__).parent / "fixtures/content")
+def make_data_sources(dir="content"):
+    return gather_data(Path(__file__).parent / "fixtures" / dir)
 
 
 def test_basic():
@@ -85,3 +85,92 @@ def test_import_simple_multiple():
         name=ContentCategory.Choices.CHAMPION
     ).exists()
     assert ContentCategory.objects.filter(name=ContentCategory.Choices.GANGER).exists()
+
+
+@pytest.mark.django_db
+def test_import_removal():
+    ic_category = ImportConfig(
+        source="category",
+        id=lambda x: x["name"],
+        model=ContentCategory,
+        fields=lambda x: {
+            "name": by_label(ContentCategory.Choices, x["name"]),
+        },
+    )
+
+    imp = Importer(
+        ruleset_dir=Path(__file__).parent / "fixtures/content",
+        directory="fixtures/content",
+        dry_run=False,
+    )
+
+    dss = make_data_sources()
+    dss_removal = make_data_sources("content_with_removals")
+    imp.do(ic_category, dss)
+    with pytest.raises(
+        ValueError,
+        match="Data sources do not match existing objects: something was removed and allow_removal is False.",
+    ):
+        imp.do(ic_category, dss_removal)
+
+
+@pytest.mark.django_db
+def test_import_removal_allowed():
+    ic_category = ImportConfig(
+        source="category",
+        id=lambda x: x["name"],
+        model=ContentCategory,
+        fields=lambda x: {
+            "name": by_label(ContentCategory.Choices, x["name"]),
+        },
+        allow_removal=True,
+    )
+
+    imp = Importer(
+        ruleset_dir=Path(__file__).parent / "fixtures/content",
+        directory="fixtures/content",
+        dry_run=False,
+    )
+
+    dss = make_data_sources()
+    dss_removal = make_data_sources("content_with_removals")
+    imp.do(ic_category, dss)
+    imp.do(ic_category, dss_removal)
+
+    assert ContentCategory.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_import_changed_name():
+    ic_category = ImportConfig(
+        source="category",
+        id=lambda x: x["name"],
+        model=ContentCategory,
+        fields=lambda x: {
+            "name": by_label(ContentCategory.Choices, x["name"]),
+        },
+    )
+
+    imp = Importer(
+        ruleset_dir=Path(__file__).parent / "fixtures/content",
+        directory="fixtures/content",
+        dry_run=False,
+    )
+
+    dss = make_data_sources()
+    dss_changes = make_data_sources("content_with_changes")
+    imp.do(ic_category, dss)
+    with pytest.raises(
+        ValueError,
+        match="Data sources do not match existing objects: an ID field has changed.",
+    ):
+        imp.do(ic_category, dss_changes)
+
+    assert ContentCategory.objects.count() == 3
+
+
+# TODO: Test for adding fields to an object that already exists. This will only work
+#       on fighters. There could also be a flag to allow this or not.
+
+# TODO: Think about error handling, and make sure errors are properly handled. Partial imports
+#       should not be allowed.
