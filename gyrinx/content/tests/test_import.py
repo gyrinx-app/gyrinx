@@ -10,8 +10,13 @@ from pathlib import Path
 import pytest
 
 from gyrinx.content.management.imports import ImportConfig, Importer
-from gyrinx.content.management.utils import by_label, data_for_type, gather_data
-from gyrinx.content.models import ContentCategory, ContentHouse
+from gyrinx.content.management.utils import (
+    by_label,
+    data_for_type,
+    gather_data,
+    id_for_skill,
+)
+from gyrinx.content.models import ContentCategory, ContentHouse, ContentSkill
 
 
 # Let's make some mock data to test with.
@@ -190,6 +195,34 @@ def test_imports_add_to_index():
 
     assert imp.index["house"]
     assert len(imp.index["house"].items()) == 1
+
+
+@pytest.mark.django_db
+def test_import_skills():
+    ic = ImportConfig(
+        source="skill",
+        id=id_for_skill,
+        model=ContentSkill,
+        fields=lambda x: {
+            "name": x["name"],
+            "category": x["category"],
+        },
+    )
+
+    imp = Importer(
+        ruleset_dir=Path(__file__).parent / "fixtures/content",
+        directory="fixtures/content",
+        dry_run=False,
+    )
+
+    imp.do(ic, make_data_sources())
+
+    assert ContentSkill.objects.count() == 4
+    assert ContentSkill.objects.filter(name="Catfall").exists()
+    assert (
+        ContentSkill.objects.filter(name="Catfall").get().category
+        == "Agility - Non-Fighter"
+    )
 
 
 # TODO: Test for adding fields to an object that already exists. This will only work

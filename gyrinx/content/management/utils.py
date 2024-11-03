@@ -123,3 +123,7 @@ def by_label(enum: type[models.Choices], label: str) -> str:
 
 def stable_uuid(v):
     return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])
+
+
+def id_for_skill(e):
+    return f"{e['category']}:{e['name']}"

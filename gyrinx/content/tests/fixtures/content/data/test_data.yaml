@@ -8,6 +8,15 @@ equipment_category:
     - name: Basic Weapons
     - name: Pistols
     - name: Close Combat
+skill:
+    - category: Adept Abilities - Non-Fighter
+      name: Zealot
+    - category: Agility - Non-Fighter
+      name: Catfall
+    - category: Wisdom of the Ancients - Non-Fighter
+      name: Where There's Scrap, There's Creds!
+    - category: Witch Powers - Non-Fighter
+      name: Dark Shield
 fighter:
     - category: Leader
       cost: 115
