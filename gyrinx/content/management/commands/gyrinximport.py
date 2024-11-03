@@ -9,6 +9,7 @@ from gyrinx.content.management.utils import (
     by_label,
     data_for_type,
     gather_data,
+    id_for_skill,
     stable_uuid,
 )
 from gyrinx.content.models import (
@@ -29,10 +30,6 @@ def id_for_fighter(fi):
 
 
 def id_for_equipment(e):
-    return f"{e['category']}:{e['name']}"
-
-
-def id_for_skill(e):
     return f"{e['category']}:{e['name']}"
 
 
@@ -132,28 +129,16 @@ class Command(BaseCommand):
         # Skills
         #
 
-        skills = data_for_type("skill", data_sources)
-        click.echo(f"Found {len(skills)} skills: ")
-        for skill in skills:
-            id = stable_uuid(id_for_skill(skill))
-            existing = ContentSkill.objects.filter(uuid=id).first()
-            if existing:
-                click.echo(
-                    f" - Existing: {existing.category} {existing.name} ({existing.uuid}, {existing.version})"
-                )
-                index["skill"][existing.uuid] = existing
-                continue
-
-            sk = ContentSkill(
-                version=import_version,
-                uuid=id,
-                name=skill["name"],
-                category=skill["category"],
-            )
-            index["skill"][sk.uuid] = sk
-            click.echo(f" - {sk.category}: {sk.name} ({sk.uuid}, {sk.version})")
-            if not dry_run:
-                sk.save()
+        ic = ImportConfig(
+            source="skill",
+            id=id_for_skill,
+            model=ContentSkill,
+            fields=lambda x: {
+                "name": x["name"],
+                "category": x["category"],
+            },
+        )
+        imp.do(ic, data_sources)
 
         #
         # Equipment Categories
