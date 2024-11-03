@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Ganger
       cost: 95
       equipment: []
       house: Genestealer Cult
@@ -20,7 +20,7 @@ fighter:
           wil: 6
           ws: 3
       type: Aberrant
-    - category: None
+    - category: Ganger
       cost: 95
       equipment: []
       house: Genestealer Cult
@@ -41,7 +41,7 @@ fighter:
           wil: 6
           ws: 3
       type: Aberrant Specialist
-    - category: None
+    - category: Leader
       cost: 120
       equipment: []
       house: Genestealer Cult
@@ -60,7 +60,7 @@ fighter:
           wil: 5
           ws: 4
       type: Cult Adept
-    - category: None
+    - category: Leader
       cost: 120
       equipment: []
       house: Genestealer Cult
@@ -79,7 +79,7 @@ fighter:
           wil: 5
           ws: 4
       type: Cult Adept
-    - category: None
+    - category: Leader
       cost: 145
       equipment:
           - category: Armor
@@ -101,7 +101,7 @@ fighter:
           wil: 5
           ws: 3
       type: Cult Alpha
-    - category: None
+    - category: Champion
       cost: 85
       equipment:
           - category: Armor
@@ -123,7 +123,7 @@ fighter:
           wil: 7
           ws: 3
       type: Hybrid Acolyte
-    - category: None
+    - category: Champion
       cost: 130
       equipment:
           - category: Armor
@@ -145,7 +145,7 @@ fighter:
           wil: 7
           ws: 3
       type: Hybrid Acolyte Early Gen
-    - category: None
+    - category: Ganger
       cost: 90
       equipment:
           - category: Armor
@@ -167,7 +167,7 @@ fighter:
           wil: 6
           ws: 4
       type: Neophyte Early Gen
-    - category: None
+    - category: Ganger
       cost: 45
       equipment:
           - category: Armor
@@ -189,7 +189,7 @@ fighter:
           wil: 6
           ws: 4
       type: Neophyte Hybrid
-    - category: None
+    - category: Ganger
       cost: 45
       equipment:
           - category: Armor

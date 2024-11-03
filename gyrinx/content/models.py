@@ -96,6 +96,7 @@ class ContentCategory(Content):
         HOUSE_AGENT = "HOUSE_AGENT", "House Agent"
         HIVE_SCUM = "HIVE_SCUM", "Hive Scum"
         DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
+        PROSPECT = "PROSPECT", "Prospect"
 
     help_text = "The Content Category identifies the type of fighter."
     name = models.CharField(max_length=255, choices=Choices)
@@ -281,5 +282,4 @@ class ContentPolicy(Content):
 
     class Meta:
         verbose_name = "Content Policy"
-        verbose_name_plural = "Content Policies"
         verbose_name_plural = "Content Policies"

@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 85
       equipment: []
       house: Venators
@@ -18,7 +18,7 @@ fighter:
           wil: 7
           ws: 4
       type: Hunt Champion 1
-    - category: None
+    - category: Champion
       cost: 85
       equipment: []
       house: Venators
@@ -37,7 +37,7 @@ fighter:
           wil: 6
           ws: 4
       type: Hunt Champion 2
-    - category: None
+    - category: Champion
       cost: 85
       equipment: []
       house: Venators
@@ -56,7 +56,7 @@ fighter:
           wil: 8
           ws: 3
       type: Hunt Champion 3
-    - category: None
+    - category: Champion
       cost: 85
       equipment: []
       house: Venators
@@ -75,7 +75,7 @@ fighter:
           wil: 6
           ws: 5
       type: Hunt Champion 4
-    - category: None
+    - category: Leader
       cost: 110
       equipment: []
       house: Venators
@@ -94,7 +94,7 @@ fighter:
           wil: 6
           ws: 3
       type: Hunt Leader 1
-    - category: None
+    - category: Leader
       cost: 110
       equipment: []
       house: Venators
@@ -113,7 +113,7 @@ fighter:
           wil: 5
           ws: 3
       type: Hunt Leader 2
-    - category: None
+    - category: Leader
       cost: 110
       equipment: []
       house: Venators
@@ -132,7 +132,7 @@ fighter:
           wil: 8
           ws: 3
       type: Hunt Leader 3
-    - category: None
+    - category: Leader
       cost: 110
       equipment: []
       house: Venators
@@ -151,7 +151,7 @@ fighter:
           wil: 6
           ws: 4
       type: Hunt Leader 4
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -170,7 +170,7 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 1
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -189,7 +189,7 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 1 Specialist
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -208,7 +208,7 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 2
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -227,7 +227,7 @@ fighter:
           wil: 7
           ws: 4
       type: Hunter 2 Specialist
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -246,7 +246,7 @@ fighter:
           wil: 8
           ws: 3
       type: Hunter 3
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -265,7 +265,7 @@ fighter:
           wil: 8
           ws: 3
       type: Hunter 3 Specialist
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators
@@ -284,7 +284,7 @@ fighter:
           wil: 6
           ws: 5
       type: Hunter 4
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Venators

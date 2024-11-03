@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 115
       equipment: []
       house: Escher (HoB)
@@ -18,7 +18,7 @@ fighter:
           wil: 7
           ws: 2
       type: Deathmaiden
-    - category: None
+    - category: Juve
       cost: 20
       equipment: []
       house: Escher (HoB)
@@ -37,7 +37,7 @@ fighter:
           wil: 8
           ws: 4
       type: Little Sister
-    - category: None
+    - category: Champion
       cost: 100
       equipment: []
       house: Escher (HoB)
@@ -56,7 +56,7 @@ fighter:
           wil: 6
           ws: 3
       type: Matriarch
-    - category: None
+    - category: Champion
       cost: 125
       equipment: []
       house: Escher (HoB)
@@ -75,7 +75,7 @@ fighter:
           wil: 6
           ws: 3
       type: Queen
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Escher (HoB)
@@ -94,7 +94,7 @@ fighter:
           wil: 7
           ws: 4
       type: Sister
-    - category: None
+    - category: Ganger
       cost: 50
       equipment: []
       house: Escher (HoB)
@@ -113,7 +113,7 @@ fighter:
           wil: 7
           ws: 4
       type: Sister (Specialist)
-    - category: None
+    - category: Prospect
       cost: 45
       equipment: []
       house: Escher (HoB)

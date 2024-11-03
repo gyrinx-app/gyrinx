@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Leader
       cost: 130
       equipment: []
       house: Corpse Grinder Cult
@@ -18,7 +18,7 @@ fighter:
           wil: 5
           ws: 2
       type: Butcher
-    - category: None
+    - category: Champion
       cost: 90
       equipment: []
       house: Corpse Grinder Cult
@@ -37,7 +37,7 @@ fighter:
           wil: 7
           ws: 3
       type: Cutter
-    - category: None
+    - category: Juve
       cost: 25
       equipment:
           - category: Armor
@@ -61,7 +61,7 @@ fighter:
           wil: 9
           ws: 4
       type: Initiate
-    - category: None
+    - category: Ganger
       cost: 40
       equipment: []
       house: Corpse Grinder Cult

@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Leader
       cost: 140
       equipment:
           - category: Pistols
@@ -30,7 +30,7 @@ fighter:
           wil: 5
           ws: 3
       type: Palanite Captain
-    - category: None
+    - category: Ganger
       cost: 70
       equipment:
           - category: Pistols
@@ -61,7 +61,7 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman
-    - category: None
+    - category: Ganger
       cost: 70
       equipment:
           - category: Pistols
@@ -92,7 +92,7 @@ fighter:
           wil: 7
           ws: 4
       type: Palanite Patrolman Specialist
-    - category: None
+    - category: Juve
       cost: 0
       equipment:
           - category: Pistols
@@ -123,7 +123,7 @@ fighter:
           wil: 8
           ws: 5
       type: Palanite Rookie
-    - category: None
+    - category: Champion
       cost: 100
       equipment:
           - category: Pistols
@@ -154,7 +154,7 @@ fighter:
           wil: 6
           ws: 4
       type: Palanite Sergeant
-    - category: None
+    - category: Leader
       cost: 150
       equipment:
           - category: Pistols
@@ -185,7 +185,7 @@ fighter:
           wil: 5
           ws: 3
       type: Subjugator Captain
-    - category: None
+    - category: Ganger
       cost: 80
       equipment:
           - category: Pistols
@@ -216,7 +216,7 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman
-    - category: None
+    - category: Ganger
       cost: 80
       equipment:
           - category: Pistols
@@ -247,7 +247,7 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-    - category: None
+    - category: Ganger
       cost: 80
       equipment:
           - category: Pistols
@@ -278,7 +278,7 @@ fighter:
           wil: 7
           ws: 4
       type: Subjugator Patrolman Specialist
-    - category: None
+    - category: Champion
       cost: 110
       equipment:
           - category: Pistols

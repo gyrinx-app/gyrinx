@@ -240,9 +240,9 @@ class Command(BaseCommand):
         for e in equipment:
             category = lookup(index, "equipment_category", e["category"])
             if not category:
-                click.echo(f"Error: Could not find category matching {e['category']}")
+                click.echo(f"Error: Could not find category {e['category']} for {e}")
                 raise ValueError(
-                    f"Error: Could not find category matching {e['category']}"
+                    f"Error: Could not find category {e['category']} for {e}"
                 )
 
             id = stable_uuid(id_for_equipment(e))
@@ -293,11 +293,11 @@ class Command(BaseCommand):
             ]
             if not category:
                 raise ValueError(
-                    f"Error: Could not find category matching {e['category']}"
+                    f"Error: Could not find category {fi['category']} for {fi}"
                 )
             if fi.get("house") and not house:
                 raise ValueError(
-                    f"Error: Could not find category matching {e['category']}"
+                    f"Error: Could not find category {fi['category']} for {fi}"
                 )
             if any(not skill for skill in skills):
                 raise ValueError(f"Error: Could not find all skills for {fi}")

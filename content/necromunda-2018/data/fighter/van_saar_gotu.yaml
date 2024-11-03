@@ -1,5 +1,5 @@
 fighter:
-    - category: None
+    - category: Champion
       cost: 110
       equipment: []
       house: Van Saar (GotU)
@@ -18,7 +18,7 @@ fighter:
           wil: 6
           ws: 4
       type: Champion
-    - category: None
+    - category: Ganger
       cost: 65
       equipment: []
       house: Van Saar (GotU)
@@ -37,7 +37,7 @@ fighter:
           wil: 7
           ws: 4
       type: Ganger
-    - category: None
+    - category: Juve
       cost: 35
       equipment: []
       house: Van Saar (GotU)
@@ -56,7 +56,7 @@ fighter:
           wil: 9
           ws: 5
       type: Juve
-    - category: None
+    - category: Leader
       cost: 130
       equipment: []
       house: Van Saar (GotU)
@@ -75,7 +75,7 @@ fighter:
           wil: 5
           ws: 4
       type: Leader
-    - category: None
+    - category: Ganger
       cost: 65
       equipment: []
       house: Van Saar (GotU)
