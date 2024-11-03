@@ -1,5 +1,4 @@
 import json
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,28 +12,20 @@ from ..models import (
     ContentEquipmentCategory,
     ContentFighter,
     ContentHouse,
-    ContentImportVersion,
     ContentPolicy,
 )
 
 
 @pytest.mark.django_db
 def test_basic_fighter():
-    version = ContentImportVersion.objects.create(
-        uuid=uuid.uuid4(), ruleset="necromunda-2018", directory="content"
-    )
     category = ContentCategory.objects.create(
         name=ContentCategory.Choices.JUVE,
-        uuid=uuid.uuid4(),
-        version=version,
     )
     house = ContentHouse.objects.create(
         name=ContentHouse.Choices.SQUAT_PROSPECTORS,
-        uuid=uuid.uuid4(),
-        version=version,
     )
     fighter = ContentFighter.objects.create(
-        uuid=uuid.uuid4(), type="Prospector Digger", category=category, house=house
+        type="Prospector Digger", category=category, house=house
     )
 
     fighter.save()
@@ -67,20 +58,15 @@ def test_equipment_policy():
     registry = Resource.from_contents(policy_schema) @ Registry()
 
     big_gun = ContentEquipment.objects.create(
-        uuid=uuid.uuid4(),
         name="Big Gun",
         category=ContentEquipmentCategory.objects.create(
-            uuid=uuid.uuid4(),
             name=ContentEquipmentCategory.Choices.HEAVY_WEAPONS,
         ),
     )
 
     fighter = ContentFighter.objects.create(
-        uuid=uuid.uuid4(),
         type="Ganger",
-        category=ContentCategory.objects.create(
-            uuid=uuid.uuid4(), name=ContentCategory.Choices.GANGER
-        ),
+        category=ContentCategory.objects.create(name=ContentCategory.Choices.GANGER),
     )
 
     # Create some
@@ -320,7 +306,6 @@ def test_equipment_policy():
         jsonschema.validate(case.policy, policy_schema, registry=registry)
 
         policy = ContentPolicy.objects.create(
-            uuid=uuid.uuid4(),
             fighter=fighter,
             rules=case.policy["rules"],
         )

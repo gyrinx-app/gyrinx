@@ -1,45 +1,14 @@
-import uuid
-
 from django.db import models
+from simple_history.models import HistoricalRecords
 
-
-class Base(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
+from gyrinx.models import Base
 
 ##
 ## Content Models
 ##
 
 
-class ContentImportVersion(Base):
-    """Represents a version of the content import."""
-
-    help_text = "The Content Import Version identifies the time and source of imported data from the content library."
-    uuid = models.UUIDField(editable=False, db_index=True)
-    ruleset = models.CharField(max_length=255, default="necromunda-2018")
-    directory = models.CharField(max_length=255)
-
-    def __str__(self):
-        return f"{self.ruleset} {self.uuid}"
-
-    class Meta:
-        verbose_name = "Content Import Version"
-        verbose_name_plural = "Content Import Versions"
-
-
 class Content(Base):
-    # The uuid and version must be supplied when creating a new instance
-    uuid = models.UUIDField(editable=False, db_index=True)
-    version = models.ForeignKey(
-        ContentImportVersion, on_delete=models.CASCADE, null=True, blank=True
-    )
-
     class Meta:
         abstract = True
 
@@ -69,6 +38,7 @@ class ContentHouse(Content):
 
     help_text = "The Content House identifies the house or faction of a fighter."
     name = models.CharField(max_length=255, choices=Choices)
+    history = HistoricalRecords()
 
     def __str__(self):
         return ContentHouse.Choices(self.name).label
@@ -100,6 +70,7 @@ class ContentCategory(Content):
 
     help_text = "The Content Category identifies the type of fighter."
     name = models.CharField(max_length=255, choices=Choices)
+    history = HistoricalRecords()
 
     def __str__(self):
         return ContentCategory.Choices(self.name).label
@@ -112,6 +83,7 @@ class ContentCategory(Content):
 class ContentSkill(Content):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, default="None")
+    history = HistoricalRecords()
 
     def __str__(self):
         return self.name
@@ -145,6 +117,7 @@ class ContentEquipmentCategory(Content):
         VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
 
     name = models.CharField(max_length=255, choices=Choices)
+    history = HistoricalRecords()
 
     def __str__(self):
         return ContentEquipmentCategory.Choices(self.name).label
@@ -158,6 +131,7 @@ class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(ContentEquipmentCategory, on_delete=models.CASCADE)
     trading_post_cost = models.IntegerField(default=0)
+    history = HistoricalRecords()
 
     def __str__(self):
         return self.name
@@ -182,6 +156,7 @@ class ContentFighter(Content):
     )
     skills = models.ManyToManyField(ContentSkill)
     base_cost = models.IntegerField(default=0)
+    history = HistoricalRecords()
 
     def __str__(self):
         house = f"{self.house}" if self.house else ""
@@ -207,6 +182,7 @@ class ContentFighterEquipmentAssignment(Content):
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
     qty = models.IntegerField(default=0)
+    history = HistoricalRecords()
 
     def cost(self):
         return self.qty * self.equipment.cost()
@@ -227,6 +203,7 @@ class ContentFighterEquipment(Content):
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
     cost = models.IntegerField(default=0)
+    history = HistoricalRecords()
 
     def __str__(self):
         return f"{self.fighter} Equipment"
@@ -250,6 +227,7 @@ class ContentPolicy(Content):
     )
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     rules = models.JSONField()
+    history = HistoricalRecords()
 
     def allows(self, equipment: ContentEquipment) -> bool:
         """Check if the policy allows the equipment."""

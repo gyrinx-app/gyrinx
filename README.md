@@ -39,17 +39,9 @@ manage shell
 
 ## Getting content into gyrinx
 
-The content library has a non-technical-user-friendly-ish (room for improvement here) static data structure that will be infrequently updated by contributors. Gyrinx is a live application with a running database. How do we connect these two?
+> Work in progress!
 
--   The Django `manage gyriximport` command ingests the content library, transforms it, and writes it to the (production, staging...) database
--   It uses annotate the data with a version
--   The app can then be updated to enable the new content version
-
-For local development, you can reset the content library with `gyrinximportreset` manage command:
-
-```bash
-manage gyrinximportreset [--dry-run]
-```
+The content library was static data, but we've switched to using the database directly. More documentaiton soon.
 
 # Development
 
@@ -101,13 +93,7 @@ To set up the development environment, follow these steps:
     Gathering schema files from content/necromunda-2018/schema...
     ```
 
-6. To further check it worked, do a `--dry-run` import:
-
-    ```bash
-    manage gyrinximport content --dry-run
-    ```
-
-7. Set up the frontend toolchain:
+6. Set up the frontend toolchain:
 
     Get `nodeenv` (installed by pip) to install node and npm in the virtual env.
 
@@ -122,13 +108,13 @@ To set up the development environment, follow these steps:
     which npm # should be /path/to/repo/.venv/bin/npm
     ```
 
-8. Build the frontend
+7. Build the frontend
 
     ```
     npm run build
     ```
 
-9. Install the pre-commit hooks
+8. Install the pre-commit hooks
 
     Before making any changes, make sure you've got pre-commit hooks installed.
 
@@ -138,7 +124,7 @@ To set up the development environment, follow these steps:
     pre-commit install
     ```
 
-10. Set up your environment
+9. Set up your environment
 
     Before making any changes, set up your local `.env` file.
 

@@ -1,5 +1,3 @@
-import uuid
-
 import pytest
 
 from ..models import (
@@ -18,29 +16,21 @@ def test_equipment():
 
     # Create some equipment
     category = ContentEquipmentCategory.objects.create(
-        uuid=uuid.uuid4(),
         name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
     )
-    equipment = ContentEquipment.objects.create(
-        uuid=uuid.uuid4(), name="Wooden Spoon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Wooden Spoon", category=category)
     category.save()
     equipment.save()
 
     # Create a fighter
     fighter = ContentFighter.objects.create(
-        uuid=uuid.uuid4(),
         type="Charter Master",
-        category=ContentCategory.objects.create(
-            uuid=uuid.uuid4(), name=ContentCategory.Choices.LEADER
-        ),
+        category=ContentCategory.objects.create(name=ContentCategory.Choices.LEADER),
     )
     fighter.save()
 
     # Create a equipment list
-    fighter_equip = ContentFighterEquipment(
-        uuid=uuid.uuid4(), fighter=fighter, equipment=equipment
-    )
+    fighter_equip = ContentFighterEquipment(fighter=fighter, equipment=equipment)
     fighter_equip.save()
 
     # Query to get the equipment list for the fighter

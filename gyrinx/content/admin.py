@@ -8,7 +8,6 @@ from .models import (
     ContentFighterEquipment,
     ContentFighterEquipmentAssignment,
     ContentHouse,
-    ContentImportVersion,
     ContentPolicy,
     ContentSkill,
 )
@@ -62,11 +61,6 @@ class ContentFighterEquipmentAssignmentAdmin(ReadOnlyAdmin, admin.ModelAdmin):
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ReadOnlyAdmin, admin.ModelAdmin):
     search_fields = ["name"]
-
-
-@admin.register(ContentImportVersion)
-class ContentImportVersionAdmin(ReadOnlyAdmin, admin.ModelAdmin):
-    search_fields = ["ruleset", "directory"]
 
 
 @admin.register(ContentPolicy)

@@ -15,12 +15,6 @@ repos:
             language: script
             pass_filenames: false
             always_run: true
-          - id: import-dry-run
-            name: import-dry-run
-            entry: .venv/bin/manage gyrinximport --dry-run content
-            language: script
-            pass_filenames: false
-            always_run: true
 
     - repo: https://github.com/kynan/nbstripout
       rev: 0.7.1
