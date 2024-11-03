@@ -118,27 +118,15 @@ class Command(BaseCommand):
         # Category (of Fighter)
         #
 
-        categories = data_for_type("category", data_sources)
-        click.echo(f"Found {len(categories)} categories: ")
-        for category in categories:
-            id = stable_uuid(category["name"])
-            existing = ContentCategory.objects.filter(uuid=id).first()
-            if existing:
-                click.echo(
-                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
-                )
-                index["category"][existing.uuid] = existing
-                continue
-
-            cat = ContentCategory(
-                version=import_version,
-                uuid=id,
-                name=by_label(ContentCategory.Choices, category["name"]),
-            )
-            index["category"][cat.uuid] = cat
-            click.echo(f" - {cat.name} ({cat.uuid}, {cat.version})")
-            if not dry_run:
-                cat.save()
+        ic = ImportConfig(
+            source="category",
+            id=lambda x: x["name"],
+            model=ContentCategory,
+            fields=lambda x: {
+                "name": by_label(ContentCategory.Choices, x["name"]),
+            },
+        )
+        imp.do(ic, data_sources)
 
         #
         # Skills
