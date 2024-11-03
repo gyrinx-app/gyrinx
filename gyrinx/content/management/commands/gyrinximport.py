@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 from django.core.management.base import BaseCommand
 
-from gyrinx.content.management.imports import Importer
+from gyrinx.content.management.imports import ImportConfig, Importer
 from gyrinx.content.management.utils import (
     by_label,
     data_for_type,
@@ -104,26 +104,15 @@ class Command(BaseCommand):
         # House
         #
 
-        houses = data_for_type("house", data_sources)
-        click.echo(f"Found {len(houses)} houses: ")
-        for h in houses:
-            id = stable_uuid(h["name"])
-            existing = ContentHouse.objects.filter(uuid=id).first()
-            if existing:
-                click.echo(
-                    f" - Existing: {existing.name} ({existing.uuid}, {existing.version})"
-                )
-                index["house"][existing.uuid] = existing
-                continue
-            house = ContentHouse(
-                version=import_version,
-                uuid=id,
-                name=by_label(ContentHouse.Choices, h["name"]),
-            )
-            index["house"][house.uuid] = house
-            click.echo(f" - {house.name} ({house.uuid}, {house.version})")
-            if not dry_run:
-                house.save()
+        ic_house = ImportConfig(
+            source="house",
+            id=lambda x: x["name"],
+            model=ContentHouse,
+            fields=lambda x: {
+                "name": by_label(ContentHouse.Choices, x["name"]),
+            },
+        )
+        imp.do(ic_house, data_sources)
 
         #
         # Category (of Fighter)
@@ -269,9 +258,7 @@ class Command(BaseCommand):
                     f"Error: Could not find category {fi['category']} for {fi}"
                 )
             if fi.get("house") and not house:
-                raise ValueError(
-                    f"Error: Could not find category {fi['category']} for {fi}"
-                )
+                raise ValueError(f"Error: Could not find house {fi['house']} for {fi}")
             if any(not skill for skill in skills):
                 raise ValueError(f"Error: Could not find all skills for {fi}")
 

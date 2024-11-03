@@ -169,6 +169,29 @@ def test_import_changed_name():
     assert ContentCategory.objects.count() == 3
 
 
+@pytest.mark.django_db
+def test_imports_add_to_index():
+    ic = ImportConfig(
+        source="house",
+        id=lambda x: x["name"],
+        model=ContentHouse,
+        fields=lambda x: {
+            "name": by_label(ContentHouse.Choices, x["name"]),
+        },
+    )
+
+    imp = Importer(
+        ruleset_dir=Path(__file__).parent / "fixtures/content",
+        directory="fixtures/content",
+        dry_run=False,
+    )
+
+    imp.do(ic, make_data_sources())
+
+    assert imp.index["house"]
+    assert len(imp.index["house"].items()) == 1
+
+
 # TODO: Test for adding fields to an object that already exists. This will only work
 #       on fighters. There could also be a flag to allow this or not.
 
