@@ -71,9 +71,10 @@ class Importer:
             if obj:
                 click.echo(f" - Existing: {obj} ({obj.uuid}, {obj.version})")
 
-                obj.version = self.iv
-                for k, v in config.fields(d).items():
-                    setattr(obj, k, v)
+                # TODO: Edits — need to keep the old version. Maybe simplehistory is the answer.
+                # obj.version = self.iv
+                # for k, v in config.fields(d).items():
+                #     setattr(obj, k, v)
             else:
                 obj = config.model(
                     version=self.iv,
