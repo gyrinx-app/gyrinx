@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 
 from .settings import *  # noqa: F403
 
@@ -12,12 +13,14 @@ try:
     DB_CONFIG = json.loads(os.getenv("DB_CONFIG", "{}"))
 except json.JSONDecodeError as e:
     logger.error(f"Error parsing DB_CONFIG: {e}")
-    DB_CONFIG = {}
+    sys.exit(1)
 
 if not DB_CONFIG.get("user"):
     logger.error("DB_CONFIG is missing 'user' key")
+    sys.exit(1)
 if not DB_CONFIG.get("password"):
     logger.error("DB_CONFIG is missing 'password' key")
+    sys.exit(1)
 
 
 DATABASES = {

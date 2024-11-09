@@ -37,4 +37,4 @@ RUN manage collectstatic --noinput
 
 EXPOSE $PORT
 
-CMD daphne -b 0.0.0.0 -p $PORT "gyrinx.asgi:application"
+CMD ./scripts/entrypoint.sh
