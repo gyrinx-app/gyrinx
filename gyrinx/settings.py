@@ -13,6 +13,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -28,9 +29,13 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 CSRF_COOKIE_SECURE = True
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+try:
+    ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS", "[]"))
+except Exception as e:
+    print(f"Error parsing ALLOWED_HOSTS: {e}")
+    ALLOWED_HOSTS = []
 
 # Email
 # Use SMTP

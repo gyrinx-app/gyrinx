@@ -85,13 +85,19 @@ To set up the development environment, follow these steps:
     which npm # should be /path/to/repo/.venv/bin/npm
     ```
 
-7. Build the frontend
+7. Install the frontend dependencies
+
+    ```
+    npm install
+    ```
+
+8. Build the frontend
 
     ```
     npm run build
     ```
 
-8. Install the pre-commit hooks
+9. Install the pre-commit hooks
 
     Before making any changes, make sure you've got pre-commit hooks installed.
 
@@ -101,7 +107,7 @@ To set up the development environment, follow these steps:
     pre-commit install
     ```
 
-9. Set up your environment
+10. Set up your environment
 
     Before making any changes, set up your local `.env` file.
 
@@ -114,7 +120,7 @@ To set up the development environment, follow these steps:
 Make sure your virtual environment is active and you've run `pip install --editable .`.
 
 ```
-`DJANGO_SETTINGS_MODULE`=gyrinx.settings_dev manage runserver
+DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver
 ```
 
 We use `DJANGO_SETTINGS_MODULE=gyrinx.settings_dev` to select a Django settings file that is suitable for development.
