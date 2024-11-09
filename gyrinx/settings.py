@@ -37,6 +37,8 @@ except Exception as e:
     print(f"Error parsing ALLOWED_HOSTS: {e}")
     ALLOWED_HOSTS = []
 
+print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+
 # Email
 # Use SMTP
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
