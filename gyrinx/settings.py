@@ -14,12 +14,15 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -34,10 +37,10 @@ DEBUG = False
 try:
     ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS", "[]"))
 except Exception as e:
-    print(f"Error parsing ALLOWED_HOSTS: {e}")
+    logger.error(f"Error parsing ALLOWED_HOSTS: {e}")
     ALLOWED_HOSTS = []
 
-print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+logger.info(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Email
 # Use SMTP
