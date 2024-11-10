@@ -31,10 +31,8 @@ RUN npm install
 # Build frontend
 RUN npm run build
 
-
-# Collect static files for serving
-RUN manage collectstatic --noinput
+COPY docker/ /app/docker/
 
 EXPOSE $PORT
 
-CMD ./scripts/entrypoint.sh
+CMD ./docker/entrypoint.sh

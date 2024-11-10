@@ -1,14 +1,77 @@
 name: gyrinx
 
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      DJANGO_SETTINGS_MODULE: gyrinx.settings_dev
-      PORT: 8000
-      SECRET_KEY: docker-compose-test-secret
-    volumes:
-      - ./gyrinx:/app/gyrinx
-      - ./data:/app/data
+    postgres:
+        image: postgres:16.4
+        container_name: postgres
+        restart: always
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_DB: postgres
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+
+    pgadmin:
+        image: dpage/pgadmin4
+        container_name: pgadmin
+        ports:
+            - "8001:80"
+            - "42069:42069"
+        environment:
+            PGADMIN_DEFAULT_EMAIL: foo@bar.com
+            PGADMIN_DEFAULT_PASSWORD: pass
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    app:
+        build: .
+        ports:
+            - "8000:8000"
+        environment:
+            DJANGO_SETTINGS_MODULE: gyrinx.settings_dev
+            PORT: 8000
+            SECRET_KEY: docker-compose-test-secret
+            DB_NAME: postgres
+            DB_CONFIG: '{"user": "postgres", "password":"postgres"}'
+            DB_HOST: postgres
+            DB_PORT: 5432
+        depends_on:
+            postgres:
+                condition: service_healthy
+        volumes:
+            - ./gyrinx:/app/gyrinx
+            - ./data:/app/data
+
+    make-migrations:
+        build: .
+        command: manage makemigrations core content
+        environment:
+            DJANGO_SETTINGS_MODULE: gyrinx.settings_dev
+            SECRET_KEY: docker-compose-test-secret
+            DB_NAME: postgres
+            DB_CONFIG: '{"user": "postgres", "password":"postgres"}'
+            DB_HOST: postgres
+            DB_PORT: 5432
+        volumes:
+            - ./gyrinx:/app/gyrinx
+            - ./data:/app/data
+        depends_on:
+            postgres:
+                condition: service_healthy
+        profiles:
+            - setup
+
+volumes:
+    pgadmin-data: # To persist postgres connection details
+    postgres_data:

@@ -16,6 +16,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -107,8 +108,29 @@ ASGI_APPLICATION = "gyrinx.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+try:
+    DB_CONFIG = json.loads(os.getenv("DB_CONFIG", "{}"))
+except json.JSONDecodeError as e:
+    logger.error(f"Error parsing DB_CONFIG: {e}")
+    sys.exit(1)
+
+if not DB_CONFIG.get("user"):
+    logger.error("DB_CONFIG is missing 'user' key")
+    sys.exit(1)
+if not DB_CONFIG.get("password"):
+    logger.error("DB_CONFIG is missing 'password' key")
+    sys.exit(1)
+
+
 DATABASES = {
-    # Deliberately left empty
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", "gyrinx"),
+        "USER": DB_CONFIG.get("user", ""),
+        "PASSWORD": DB_CONFIG.get("password", ""),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", "5432"),
+    }
 }
 
 
