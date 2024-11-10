@@ -21,6 +21,7 @@ ENV DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-gyrinx.settings}
 COPY pyproject.toml requirements.txt /app/
 COPY scripts/ /app/scripts/
 COPY gyrinx/ /app/gyrinx/
+COPY content/ /app/content/
 RUN pip install --editable .
 
 # Install node dependencies

@@ -41,7 +41,17 @@ except Exception as e:
     logger.error(f"Error parsing ALLOWED_HOSTS: {e}")
     ALLOWED_HOSTS = []
 
+try:
+    CSRF_TRUSTED_ORIGINS = json.loads(os.getenv("CSRF_TRUSTED_ORIGINS", "[]"))
+except Exception as e:
+    logger.error(f"Error parsing CSRF_TRUSTED_ORIGINS: {e}")
+    CSRF_TRUSTED_ORIGINS = []
+
+CSRF_COOKIE_DOMAIN = os.environ.get("CSRF_COOKIE_DOMAIN", None)
+
 logger.info(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+logger.info(f"CSRF_TRUSTED_ORIGINS: {CSRF_TRUSTED_ORIGINS}")
+logger.info(f"CSRF_COOKIE_DOMAIN: {CSRF_COOKIE_DOMAIN}")
 
 # Email
 # Use SMTP

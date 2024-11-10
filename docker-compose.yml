@@ -38,17 +38,10 @@ services:
         build: .
         ports:
             - "8000:8000"
+        env_file:
+            - .env
         environment:
-            DJANGO_SETTINGS_MODULE: gyrinx.settings_dev
             PORT: 8000
-            SECRET_KEY: docker-compose-test-secret
-            DB_NAME: postgres
-            DB_CONFIG: '{"user": "postgres", "password":"postgres"}'
-            DB_HOST: postgres
-            DB_PORT: 5432
-            DJANGO_SUPERUSER_USERNAME: tom
-            DJANGO_SUPERUSER_EMAIL:
-            DJANGO_SUPERUSER_PASSWORD: 123456
         depends_on:
             postgres:
                 condition: service_healthy
@@ -56,26 +49,7 @@ services:
             - ./gyrinx:/app/gyrinx
             - ./data:/app/data
             - ./docker:/app/docker
-
-    make-migrations:
-        build: .
-        command: manage makemigrations core content
-        environment:
-            DJANGO_SETTINGS_MODULE: gyrinx.settings_dev
-            SECRET_KEY: docker-compose-test-secret
-            DB_NAME: postgres
-            DB_CONFIG: '{"user": "postgres", "password":"postgres"}'
-            DB_HOST: postgres
-            DB_PORT: 5432
-        volumes:
-            - ./gyrinx:/app/gyrinx
-            - ./data:/app/data
-        depends_on:
-            postgres:
-                condition: service_healthy
-        profiles:
-            - setup
-
+            - ./content:/app/content
 volumes:
     pgadmin-data: # To persist postgres connection details
     postgres_data:
