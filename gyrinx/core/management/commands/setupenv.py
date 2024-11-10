@@ -37,3 +37,17 @@ class Command(BaseCommand):
                     "SECRET_KEY",
                     get_random_secret_key(),
                 )
+
+        # Create a super user password
+        if get_key(env_file, "DJANGO_SUPERUSER_PASSWORD"):
+            click.echo("DJANGO_SUPERUSER_PASSWORD already set")
+        else:
+            if options["dry_run"]:
+                click.echo("Would set DJANGO_SUPERUSER_PASSWORD")
+            else:
+                click.echo("Setting DJANGO_SUPERUSER_PASSWORD")
+                set_key(
+                    str(env_file),
+                    "DJANGO_SUPERUSER_PASSWORD",
+                    get_random_secret_key(),
+                )

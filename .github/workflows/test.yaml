@@ -33,10 +33,13 @@ jobs:
                   pip install -r requirements.txt
               if: steps.cache-venv.outputs.cache-hit != 'true'
 
+            - name: Write to .env file
+              run: |
+                  echo "SECRET_KEY=test-secret" >> .env
+                  echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+
             - name: Run tests
-              env:
-                  SECRET_KEY: test-secret
-              run: . ./.venv/bin/activate && python -m pytest
+              run: ./scripts/test.sh
 
             - name: Run schema & data validation
               run: |
@@ -48,7 +51,7 @@ jobs:
               uses: thollander/actions-comment-pull-request@v3
               with:
                   message: |
-                      Tests finished running.
+                      [Tests](${{ github.run_url }}) finished running:
                       - **Status**: ${{ job.status }}
                       - **Branch**: ${{ github.head_ref }}
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

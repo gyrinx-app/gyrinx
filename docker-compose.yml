@@ -39,6 +39,7 @@ services:
         ports:
             - "8000:8000"
         env_file:
+            - base.env
             - .env
         environment:
             PORT: 8000
