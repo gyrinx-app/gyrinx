@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{% load static %}
+{% load static custom_tags %}
 <html lang="en" data-bs-theme="auto">
     <head>
         <meta charset="utf-8">
@@ -36,7 +36,7 @@
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link active"
+                            <a class="nav-link {% active_view 'index' %}"
                                aria-current="page"
                                href="{% url 'core:index' %}">Home</a>
                         </li>
