@@ -16,7 +16,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -122,22 +121,19 @@ try:
     DB_CONFIG = json.loads(os.getenv("DB_CONFIG", "{}"))
 except json.JSONDecodeError as e:
     logger.error(f"Error parsing DB_CONFIG: {e}")
-    sys.exit(1)
 
 if not DB_CONFIG.get("user"):
     logger.error("DB_CONFIG is missing 'user' key")
-    sys.exit(1)
 if not DB_CONFIG.get("password"):
     logger.error("DB_CONFIG is missing 'password' key")
-    sys.exit(1)
 
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("DB_NAME", "gyrinx"),
-        "USER": DB_CONFIG.get("user", ""),
-        "PASSWORD": DB_CONFIG.get("password", ""),
+        "USER": DB_CONFIG.get("user", "postgres"),
+        "PASSWORD": DB_CONFIG.get("password", "postgres"),
         "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT", "5432"),
     }

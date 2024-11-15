@@ -22,6 +22,10 @@ The content library was static data, but we've switched to using the database di
 
 # Development
 
+To run Gyrinx, you will need [Docker](https://docs.docker.com/get-started/get-docker/) with [Compose](https://docs.docker.com/compose/gettingstarted/). You'll also need a recent Python version: [pyenv](https://github.com/pyenv/pyenv) is a good way to manage installed Python versions.
+
+There's a [devcontainer](https://code.visualstudio.com/docs/devcontainers/containers) configured in this repo which should get you up and running too, perhaps via a [Codespace](https://github.com/features/codespaces).
+
 ## Setup
 
 To set up the development environment, follow these steps:
@@ -53,7 +57,19 @@ To set up the development environment, follow these steps:
 
     `setuptools` will handle installing dependencies.
 
-5. To check it has worked, run the `schema` command:
+5. You should then be able to run Django `manage` commands. This one will set up your `.env` file:
+
+    ```bash
+    manage setupenv
+    ```
+
+    WIth that run, you'll have a `.env` file with a random and unique `SECRET_KEY` and `DJANGO_SUPERUSER_PASSWORD`:
+
+    ```bash
+    cat .env
+    ```
+
+6. To check other things are worked, run the `schema` command:
 
     ```bash
     schema
@@ -70,9 +86,9 @@ To set up the development environment, follow these steps:
     Gathering schema files from content/necromunda-2018/schema...
     ```
 
-6. Set up the frontend toolchain:
+7. Next, set up the frontend toolchain:
 
-    Get `nodeenv` (installed by pip) to install node and npm in the virtual env.
+    Get `nodeenv` (installed by `pip` earlier) to install [node](https://nodejs.org/en) and [npm](https://www.npmjs.com/) in the virtual env.
 
     ```bash
     nodeenv -p
@@ -85,19 +101,19 @@ To set up the development environment, follow these steps:
     which npm # should be /path/to/repo/.venv/bin/npm
     ```
 
-7. Install the frontend dependencies
+8. Install the frontend dependencies
 
     ```
     npm install
     ```
 
-8. Build the frontend
+9. Build the frontend
 
     ```
     npm run build
     ```
 
-9. Install the pre-commit hooks
+10. Install the pre-commit hooks
 
     Before making any changes, make sure you've got pre-commit hooks installed.
 
@@ -107,34 +123,46 @@ To set up the development environment, follow these steps:
     pre-commit install
     ```
 
-10. Set up your environment
-
-    Before making any changes, set up your local `.env` file.
-
-    ```bash
-    mange setupenv
-    ```
-
 ## Running the Django application
 
 Make sure your virtual environment is active and you've run `pip install --editable .`.
 
-```
-DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver
-```
+1. Start the database ([Postgres](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/#Using-Docker-Compose)) and [pgadmin](https://www.pgadmin.org/):
 
-We use `DJANGO_SETTINGS_MODULE=gyrinx.settings_dev` to select a Django settings file that is suitable for development.
+    ```bash
+    docker compose up -d
+    ```
+
+2. Run the migrations:
+
+    ```bash
+    manage migrate
+    ```
+
+3. Run the application:
+
+    ```bash
+    manage runserver
+    ```
+
+You can also run the application itself within Docker Compose by passing `--profile app`, but this will not auto-reload the static files.
 
 ## Building the UI
 
 The Python toolchain installs `nodeenv` which is then used to install `node` and `npm` so we have a frontend toolchain.
 
-## Running Tests
-
-To run the test suite:
+To continuously rebuild the frontend (necessary for CSS updates from SASS):
 
 ```bash
-pytest
+npm run watch
+```
+
+## Running Tests
+
+To run the test suite, we also use Docker (so there is a database to talk to):
+
+```bash
+./scripts/test.sh
 ```
 
 ## Checking data against schema

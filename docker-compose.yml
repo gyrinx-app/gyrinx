@@ -39,8 +39,8 @@ services:
         ports:
             - "8000:8000"
         env_file:
-            - base.env
             - .env
+            - .env.compose
         environment:
             PORT: 8000
         depends_on:
@@ -51,6 +51,9 @@ services:
             - ./data:/app/data
             - ./docker:/app/docker
             - ./content:/app/content
+        profiles:
+            - app
+
 volumes:
     pgadmin-data: # To persist postgres connection details
     postgres_data:

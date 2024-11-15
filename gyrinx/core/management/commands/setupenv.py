@@ -4,6 +4,7 @@ from pathlib import Path
 import click
 from django.core.management.base import BaseCommand
 from django.core.management.utils import get_random_secret_key
+from django.utils.crypto import get_random_string
 from dotenv import get_key, set_key
 
 
@@ -16,13 +17,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # Create the .env file if it doesn't exist
         env_file = Path(os.getcwd()).resolve() / ".env"
+        example_env_file = Path(os.getcwd()).resolve() / ".env.example"
         click.echo(f".env: {env_file}")
         if not env_file.exists():
             if options["dry_run"]:
                 click.echo("Would create .env file")
             else:
                 click.echo("Creating .env file")
-                env_file.touch()
+                env_file.write_text(example_env_file.read_text())
 
         # Create a secret key
         if get_key(env_file, "SECRET_KEY"):
@@ -49,5 +51,5 @@ class Command(BaseCommand):
                 set_key(
                     str(env_file),
                     "DJANGO_SUPERUSER_PASSWORD",
-                    get_random_secret_key(),
+                    get_random_string(8),
                 )
