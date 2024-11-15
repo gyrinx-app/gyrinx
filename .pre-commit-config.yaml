@@ -16,6 +16,12 @@ repos:
             pass_filenames: false
             always_run: true
 
+    - repo: https://github.com/djlint/djLint
+      rev: v1.36.1
+      hooks:
+          - id: djlint-reformat-django
+          - id: djlint-django
+
     - repo: https://github.com/kynan/nbstripout
       rev: 0.7.1
       hooks:

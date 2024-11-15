@@ -20,7 +20,8 @@
                 "sleistner.vscode-fileutils",
                 "ms-toolsai.jupyter",
                 "esbenp.prettier-vscode",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                "batisteo.vscode-django"
             ]
         }
     },

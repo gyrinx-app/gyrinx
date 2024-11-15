@@ -97,7 +97,9 @@ ROOT_URLCONF = "gyrinx.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            BASE_DIR / "gyrinx/core/templates",
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

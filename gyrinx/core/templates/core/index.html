@@ -1,21 +1,20 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
 {% block head_title %}
-Gyrinx
-{% endblock %}
+    Gyrinx
+{% endblock head_title %}
 {% block content %}
-<div id="content" class="container my-5">
-    <div class="col-lg-8 px-0">
-        <p class="fs-5">
-            <a href="{% url 'account_login' %}">Sign in</a> or
-            <a href="{% url 'account_signup' %}">sign up</a>.
-        </p>
-        <p>
-            Gyrinx is a new set of tools for the Necromunda community.
-            <a href="#">Find out more.</a>
-        </p>
-
-        <hr class="col-1 my-4" />
+    <div id="content" class="container my-5">
+        <div class="col-lg-8 px-0">
+            <p class="fs-5">
+                <a href="{% url 'account_login' %}">Sign in</a> or
+                <a href="{% url 'account_signup' %}">sign up</a>.
+            </p>
+            <p>
+                Gyrinx is a new set of tools for the Necromunda community.
+                <a href="#">Find out more.</a>
+            </p>
+            <hr class="col-1 my-4" />
+        </div>
     </div>
-</div>
 {% endblock content %}
