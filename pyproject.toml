@@ -21,3 +21,8 @@ python_files = "tests.py test_*.py *_tests.py"
 
 [tool.setuptools.packages]
 find = {}
+
+[tool.djlint]
+profile = "django"
+custom_blocks = "element,slot,setvar"
+ignore = "H006"

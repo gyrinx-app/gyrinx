@@ -17,7 +17,7 @@
         <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
-                <a class="navbar-brand" href="#">
+                <a class="navbar-brand" href="{% url 'core:index' %}">
                     <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
                          alt="Logo"
                          width="24"
@@ -36,7 +36,9 @@
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href="#">Home</a>
+                            <a class="nav-link active"
+                               aria-current="page"
+                               href="{% url 'core:index' %}">Home</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#">Roll</a>
