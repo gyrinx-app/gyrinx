@@ -6,10 +6,14 @@
 {% block content %}
     <div id="content" class="container my-5">
         <div class="col-lg-8 px-0">
-            <p class="fs-5">
-                <a href="{% url 'account_login' %}">Sign in</a> or
-                <a href="{% url 'account_signup' %}">sign up</a>.
-            </p>
+            {% if user.is_authenticated %}
+                <p class="fs-5">Welcome back, {{ user.username }}.</p>
+            {% else %}
+                <p class="fs-5">
+                    <a href="{% url 'account_login' %}">Sign in</a> or
+                    <a href="{% url 'account_signup' %}">sign up</a>.
+                </p>
+            {% endif %}
             <p>
                 Gyrinx is a new set of tools for the Necromunda community.
                 <a href="#">Find out more.</a>

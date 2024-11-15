@@ -46,7 +46,7 @@
                     </ul>
                     <div class="d-flex flex-column flex-sm-row gap-2">
                         {% if user.is_authenticated %}
-                            {% url 'account_email' as email_url_ %}
+                            <a href="{% url 'account_email' %}" class="btn btn-outline-light">{{ user.email }}</a>
                             <a href="{% url 'account_logout' %}" class="btn btn-danger">Sign Out</a>
                         {% else %}
                             <a href="{% url 'account_login' %}" class="btn btn-outline-light">Sign In</a>

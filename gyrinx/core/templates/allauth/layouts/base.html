@@ -1,13 +1,18 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth i18n %}
 {% block body %}
-    <div class="container">
+    <div class="container my-3">
         {% if messages %}
             <div>
-                <strong>{% trans "Messages:" %}</strong>
-                <ul>
-                    {% for message in messages %}<li>{{ message }}</li>{% endfor %}
-                </ul>
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="alert"
+                                aria-label="Close"></button>
+                    </div>
+                {% endfor %}
             </div>
         {% endif %}
         <div>
@@ -23,12 +28,6 @@
                     {% if change_password_url_ %}
                         <li>
                             <a href="{{ change_password_url_ }}">{% trans "Change Password" %}</a>
-                        </li>
-                    {% endif %}
-                    {% url 'socialaccount_connections' as connections_url_ %}
-                    {% if connections_url_ %}
-                        <li>
-                            <a href="{{ connections_url_ }}">{% trans "Account Connections" %}</a>
                         </li>
                     {% endif %}
                     {% url 'mfa_index' as mfa_url_ %}
