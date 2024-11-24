@@ -6,23 +6,20 @@ import jsonschema
 import pytest
 from referencing import Registry, Resource
 
-from ..models import (
-    ContentCategory,
+from gyrinx.content.models import (
     ContentEquipment,
-    ContentEquipmentCategory,
     ContentFighter,
     ContentHouse,
     ContentPolicy,
 )
+from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
 @pytest.mark.django_db
 def test_basic_fighter():
-    category = ContentCategory.objects.create(
-        name=ContentCategory.Choices.JUVE,
-    )
+    category = FighterCategoryChoices.JUVE
     house = ContentHouse.objects.create(
-        name=ContentHouse.Choices.SQUAT_PROSPECTORS,
+        name="Squat Prospectors",
     )
     fighter = ContentFighter.objects.create(
         type="Prospector Digger", category=category, house=house
@@ -30,7 +27,7 @@ def test_basic_fighter():
 
     fighter.save()
     assert fighter.type == "Prospector Digger"
-    assert fighter.category.name == ContentCategory.Choices.JUVE
+    assert fighter.category.name == FighterCategoryChoices.JUVE
 
 
 @dataclass
@@ -59,14 +56,12 @@ def test_equipment_policy():
 
     big_gun = ContentEquipment.objects.create(
         name="Big Gun",
-        category=ContentEquipmentCategory.objects.create(
-            name=ContentEquipmentCategory.Choices.HEAVY_WEAPONS,
-        ),
+        category=EquipmentCategoryChoices.HEAVY_WEAPONS,
     )
 
     fighter = ContentFighter.objects.create(
         type="Ganger",
-        category=ContentCategory.objects.create(name=ContentCategory.Choices.GANGER),
+        category=FighterCategoryChoices.GANGER,
     )
 
     # Create some

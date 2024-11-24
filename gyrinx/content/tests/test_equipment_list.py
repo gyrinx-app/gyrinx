@@ -1,12 +1,11 @@
 import pytest
 
-from ..models import (
-    ContentCategory,
+from gyrinx.content.models import (
     ContentEquipment,
-    ContentEquipmentCategory,
     ContentFighter,
     ContentFighterEquipment,
 )
+from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
 @pytest.mark.django_db
@@ -15,17 +14,15 @@ def test_equipment():
     # write a query to get the equipment list for the fighter
 
     # Create some equipment
-    category = ContentEquipmentCategory.objects.create(
-        name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
+    equipment = ContentEquipment.objects.create(
+        name="Wooden Spoon", category=EquipmentCategoryChoices.BASIC_WEAPONS
     )
-    equipment = ContentEquipment.objects.create(name="Wooden Spoon", category=category)
-    category.save()
     equipment.save()
 
     # Create a fighter
     fighter = ContentFighter.objects.create(
         type="Charter Master",
-        category=ContentCategory.objects.create(name=ContentCategory.Choices.LEADER),
+        category=FighterCategoryChoices.LEADER,
     )
     fighter.save()
 

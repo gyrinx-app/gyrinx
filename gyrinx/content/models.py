@@ -1,7 +1,7 @@
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import Base
+from gyrinx.models import Base, EquipmentCategoryChoices, FighterCategoryChoices
 
 ##
 ## Content Models
@@ -14,70 +14,16 @@ class Content(Base):
 
 
 class ContentHouse(Content):
-    class Choices(models.TextChoices):
-        VENATORS = "VENATORS", "Venators"
-        VAN_SAAR_HOA = "VAN_SAAR_HOA", "Van Saar (HoA)"
-        VAN_SAAR_GOTU = "VAN_SAAR_GOTU", "Van Saar (GotU)"
-        SQUAT_PROSPECTORS = "SQUAT_PROSPECTORS", "Squat Prospectors"
-        SLAVE_OGRYN = "SLAVE_OGRYN", "Slave Ogryn"
-        ORLOCK_HOI = "ORLOCK_HOI", "Orlock (HoI)"
-        ORLOCK_GOTU = "ORLOCK_GOTU", "Orlock (GotU)"
-        GOLIATH_HOC = "GOLIATH_HOC", "Goliath (HoC)"
-        GOLIATH_GOTU = "GOLIATH_GOTU", "Goliath (GotU)"
-        GENESTEALER_CULT = "GENESTEALER_CULT", "Genestealer Cult"
-        ESCHER_HOB = "ESCHER_HOB", "Escher (HoB)"
-        ESCHER_GOTU = "ESCHER_GOTU", "Escher (GotU)"
-        ENFORCERS = "ENFORCERS", "Enforcers"
-        DELAQUE_HOS = "DELAQUE_HOS", "Delaque (HoS)"
-        DELAQUE_GOTU = "DELAQUE_GOTU", "Delaque (GotU)"
-        CORPSE_GRINDER_CULT = "CORPSE_GRINDER_CULT", "Corpse Grinder Cult"
-        CHAOS_CULT = "CHAOS_CULT", "Chaos Cult"
-        CAWDOR_HOF = "CAWDOR_HOF", "Cawdor (HoF)"
-        CAWDOR_GOTU = "CAWDOR_GOTU", "Cawdor (GotU)"
-        ASH_WASTE_NOMADS = "ASH_WASTE_NOMADS", "Ash Waste Nomads"
-
     help_text = "The Content House identifies the house or faction of a fighter."
-    name = models.CharField(max_length=255, choices=Choices)
+    name = models.CharField(max_length=255)
     history = HistoricalRecords()
 
     def __str__(self):
-        return ContentHouse.Choices(self.name).label
+        return self.name
 
     class Meta:
         verbose_name = "Content House"
         verbose_name_plural = "Content Houses"
-
-
-class ContentCategory(Content):
-    class Choices(models.TextChoices):
-        # TODO: The None value is a placeholder for now. It should be removed
-        # TODO: Whither the Specialist?
-        NONE = "NONE", "None"
-        LEADER = "LEADER", "Leader"
-        CHAMPION = "CHAMPION", "Champion"
-        GANGER = "GANGER", "Ganger"
-        JUVE = "JUVE", "Juve"
-        CREW = "CREW", "Crew"
-        EXOTIC_BEAST = "EXOTIC_BEAST", "Exotic Beast"
-        HANGER_ON = "HANGER_ON", "Hanger-on"
-        BRUTE = "BRUTE", "Brute"
-        HIRED_GUN = "HIRED_GUN", "Hired Gun"
-        BOUNTY_HUNTER = "BOUNTY_HUNTER", "Bounty Hunter"
-        HOUSE_AGENT = "HOUSE_AGENT", "House Agent"
-        HIVE_SCUM = "HIVE_SCUM", "Hive Scum"
-        DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
-        PROSPECT = "PROSPECT", "Prospect"
-
-    help_text = "The Content Category identifies the type of fighter."
-    name = models.CharField(max_length=255, choices=Choices)
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return ContentCategory.Choices(self.name).label
-
-    class Meta:
-        verbose_name = "Content Category"
-        verbose_name_plural = "Content Categories"
 
 
 class ContentSkill(Content):
@@ -93,44 +39,17 @@ class ContentSkill(Content):
         verbose_name_plural = "Content Skills"
 
 
-class ContentEquipmentCategory(Content):
-    class Choices(models.TextChoices):
-        # TODO: The None value is a placeholder for now. It should be removed
-        NONE = "NONE", "None"
-        AMMO = "AMMO", "Ammo"
-        ARMOR = "ARMOR", "Armor"
-        BASIC_WEAPONS = "BASIC_WEAPONS", "Basic Weapons"
-        BIONICS = "BIONICS", "Bionics"
-        BODY_UPGRADES = "BODY_UPGRADES", "Body Upgrades"
-        CHEMS = "CHEMS", "Chems"
-        CLOSE_COMBAT = "CLOSE_COMBAT", "Close Combat"
-        DRIVE_UPGRADES = "DRIVE_UPGRADES", "Drive Upgrades"
-        ENGINE_UPGRADES = "ENGINE_UPGRADES", "Engine Upgrades"
-        EQUIPMENT = "EQUIPMENT", "Equipment"
-        GRENADES = "GRENADES", "Grenades"
-        HARDPOINT_UPGRADES = "HARDPOINT_UPGRADES", "Hardpoint Upgrades"
-        HEAVY_WEAPONS = "HEAVY_WEAPONS", "Heavy Weapons"
-        MOUNTS = "MOUNTS", "Mounts"
-        PISTOLS = "PISTOLS", "Pistols"
-        SPECIAL_WEAPONS = "SPECIAL_WEAPONS", "Special Weapons"
-        STATUS_ITEMS = "STATUS_ITEMS", "Status Items"
-        VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
-
-    name = models.CharField(max_length=255, choices=Choices)
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return ContentEquipmentCategory.Choices(self.name).label
-
-    class Meta:
-        verbose_name = "Content Equipment Category"
-        verbose_name_plural = "Content Equipment Categories"
-
-
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
-    category = models.ForeignKey(ContentEquipmentCategory, on_delete=models.CASCADE)
-    trading_post_cost = models.IntegerField(default=0)
+    category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
+    trading_post_available = models.BooleanField(
+        default=False, help_text="Is the equipment available at the Trading Post?"
+    )
+    trading_post_cost = models.IntegerField(
+        help_text="The cost of the equipment at the Trading Post.",
+        blank=True,
+        null=True,
+    )
     history = HistoricalRecords()
 
     def __str__(self):
@@ -147,14 +66,14 @@ class ContentEquipment(Content):
 class ContentFighter(Content):
     help_text = "The Content Fighter captures the archetypal information about a fighter from the rulebooks."
     type = models.CharField(max_length=255)
-    category = models.ForeignKey(ContentCategory, on_delete=models.CASCADE)
+    category = models.CharField(max_length=255, choices=FighterCategoryChoices)
     house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=True, blank=True
     )
     equipment = models.ManyToManyField(
         ContentEquipment, through="ContentFighterEquipmentAssignment"
     )
-    skills = models.ManyToManyField(ContentSkill)
+    skills = models.ManyToManyField(ContentSkill, blank=True)
     base_cost = models.IntegerField(default=0)
     history = HistoricalRecords()
 
@@ -232,7 +151,7 @@ class ContentPolicy(Content):
     def allows(self, equipment: ContentEquipment) -> bool:
         """Check if the policy allows the equipment."""
         name = equipment.name
-        category = equipment.category.name.label
+        category = equipment.category.label
         # Work through the rules in reverse order. If any of them
         # allow, then the equipment is allowed.
         # If we get to an explicit deny, then the equipment is denied.

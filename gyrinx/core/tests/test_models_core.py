@@ -1,22 +1,19 @@
 import pytest
 
 from gyrinx.content.models import (
-    ContentCategory,
     ContentEquipment,
-    ContentEquipmentCategory,
     ContentFighter,
     ContentFighterEquipmentAssignment,
     ContentHouse,
 )
 from gyrinx.core.models import Build, BuildFighter
+from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
 def make_content():
-    category = ContentCategory.objects.create(
-        name=ContentCategory.Choices.JUVE,
-    )
+    category = FighterCategoryChoices.JUVE
     house = ContentHouse.objects.create(
-        name=ContentHouse.Choices.SQUAT_PROSPECTORS,
+        name="Squat Prospectors",
     )
     fighter = ContentFighter.objects.create(
         type="Prospector Digger",
@@ -74,7 +71,7 @@ def test_build_fighter_house_matches_build():
     category, house, content_fighter = make_content()
 
     build_house = ContentHouse.objects.create(
-        name=ContentHouse.Choices.ASH_WASTE_NOMADS,
+        name="Ash Waste Nomads",
     )
 
     build = Build.objects.create(name="Test Build AWN", content_house=build_house)
@@ -168,9 +165,8 @@ def test_build_fighter_with_spoon():
     category, house, content_fighter = make_content()
     spoon = ContentEquipment.objects.create(
         name="Wooden Spoon",
-        category=ContentEquipmentCategory.objects.create(
-            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
-        ),
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        trading_post_available=True,
         trading_post_cost=10,
     )
     spoon.save()
@@ -199,9 +195,8 @@ def test_build_fighter_with_spoon_and_not_other_assignments():
     category, house, content_fighter = make_content()
     spoon = ContentEquipment.objects.create(
         name="Wooden Spoon",
-        category=ContentEquipmentCategory.objects.create(
-            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
-        ),
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        trading_post_available=True,
         trading_post_cost=10,
     )
     spoon.save()
@@ -221,9 +216,8 @@ def test_build_fighter_with_spoon_and_not_other_assignments():
 
     spork = ContentEquipment.objects.create(
         name="Metal Spork",
-        category=ContentEquipmentCategory.objects.create(
-            name=ContentEquipmentCategory.Choices.BASIC_WEAPONS,
-        ),
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        trading_post_available=True,
         trading_post_cost=15,
     )
     spork.save()
