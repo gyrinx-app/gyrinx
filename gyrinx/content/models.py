@@ -43,11 +43,6 @@ class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
 
-    # Todo: Replace this with Rarity
-    # trading_post_available = models.BooleanField(
-    #     default=False, help_text="Is the equipment available at the Trading Post?"
-    # )
-
     cost = models.CharField(
         help_text="The credit cost of the equipment at the Trading Post. Note that, in weapons, this is overridden by the 'Standard' weapon profile cost.",
         blank=True,
@@ -78,6 +73,7 @@ class ContentEquipment(Content):
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
+        unique_together = ["name", "category"]
 
 
 class ContentFighter(Content):
@@ -140,7 +136,7 @@ class ContentFighterEquipmentListItem(Content):
 
 
 class ContentWeaponTrait(Content):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     history = HistoricalRecords()
 
     def __str__(self):
@@ -170,6 +166,13 @@ class ContentWeaponProfile(Content):
         default=0,
         help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, then the profile is free to use and standard. Note that this can be overridden in a fighter's equipment list.",
     )
+    cost_sign = models.CharField(
+        max_length=1,
+        choices=[("+", "+"), ("-", "-")],
+        blank=True,
+        null=False,
+        default="",
+    )
 
     rarity = models.CharField(
         max_length=1,
@@ -188,16 +191,30 @@ class ContentWeaponProfile(Content):
     )
 
     # Stat line
-    range_short = models.CharField(max_length=12, blank=True, null=True, name="Rng S")
-    range_long = models.CharField(max_length=12, blank=True, null=True, name="Rng L")
-    accuracy_short = models.CharField(
-        max_length=12, blank=True, null=True, name="Acc S"
+    range_short = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Rng S"
     )
-    accuracy_long = models.CharField(max_length=12, blank=True, null=True, name="Acc L")
-    strength = models.CharField(max_length=12, blank=True, null=True, name="Str")
-    armour_piercing = models.CharField(max_length=12, blank=True, null=True, name="Ap")
-    damage = models.CharField(max_length=12, blank=True, null=True, name="D")
-    ammo = models.CharField(max_length=12, blank=True, null=True, name="Am")
+    range_long = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Rng L"
+    )
+    accuracy_short = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Acc S"
+    )
+    accuracy_long = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Acc L"
+    )
+    strength = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Str"
+    )
+    armour_piercing = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Ap"
+    )
+    damage = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="D"
+    )
+    ammo = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Am"
+    )
     traits = models.ManyToManyField(ContentWeaponTrait, blank=True)
 
     history = HistoricalRecords()
@@ -208,6 +225,7 @@ class ContentWeaponProfile(Content):
     class Meta:
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
+        unique_together = ["equipment", "name"]
 
 
 def check(rule, category, name):
