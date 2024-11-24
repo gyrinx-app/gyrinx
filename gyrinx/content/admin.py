@@ -3,11 +3,12 @@ from django.contrib import admin
 from .models import (
     ContentEquipment,
     ContentFighter,
-    ContentFighterEquipment,
-    ContentFighterEquipmentAssignment,
+    ContentFighterEquipmentListItem,
     ContentHouse,
     ContentPolicy,
     ContentSkill,
+    ContentWeaponProfile,
+    ContentWeaponTrait,
 )
 
 
@@ -33,33 +34,30 @@ class ContentStackedInline(admin.StackedInline):
         super().__init__(parent_model, admin_site)
 
 
+class ContentWeaponProfileInline(ContentTabularInline):
+    model = ContentWeaponProfile
+
+
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "category__name"]
 
+    inlines = [ContentWeaponProfileInline]
 
-@admin.register(ContentFighterEquipment)
+
+@admin.register(ContentFighterEquipmentListItem)
 class ContentFighterEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name"]
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):
-    model = ContentFighterEquipment
-
-
-@admin.register(ContentFighterEquipmentAssignment)
-class ContentFighterEquipmentAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["fighter__type", "equipment__name"]
-
-
-class ContentFighterEquipmentAssignmentInline(ContentTabularInline):
-    model = ContentFighterEquipmentAssignment
+    model = ContentFighterEquipmentListItem
 
 
 @admin.register(ContentFighter)
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["type", "category__name", "house__name"]
-    inlines = [ContentFighterEquipmentInline, ContentFighterEquipmentAssignmentInline]
+    inlines = [ContentFighterEquipmentInline]
 
 
 class ContentFighterInline(ContentTabularInline):
@@ -81,3 +79,14 @@ class ContentPolicyAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentSkill)
 class ContentSkillAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+
+
+@admin.register(ContentWeaponTrait)
+class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
+
+
+@admin.register(ContentWeaponProfile)
+class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
+    list_display_links = ["equipment", "name"]

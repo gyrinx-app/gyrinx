@@ -22,8 +22,8 @@ class ContentHouse(Content):
         return self.name
 
     class Meta:
-        verbose_name = "Content House"
-        verbose_name_plural = "Content Houses"
+        verbose_name = "House"
+        verbose_name_plural = "Houses"
 
 
 class ContentSkill(Content):
@@ -35,32 +35,49 @@ class ContentSkill(Content):
         return self.name
 
     class Meta:
-        verbose_name = "Content Skill"
-        verbose_name_plural = "Content Skills"
+        verbose_name = "Skill"
+        verbose_name_plural = "Skills"
 
 
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
-    trading_post_available = models.BooleanField(
-        default=False, help_text="Is the equipment available at the Trading Post?"
+
+    # Todo: Replace this with Rarity
+    # trading_post_available = models.BooleanField(
+    #     default=False, help_text="Is the equipment available at the Trading Post?"
+    # )
+
+    cost = models.CharField(
+        help_text="The credit cost of the equipment at the Trading Post. Note that, in weapons, this is overridden by the 'Standard' weapon profile cost.",
+        blank=True,
+        null=False,
     )
-    trading_post_cost = models.IntegerField(
-        help_text="The cost of the equipment at the Trading Post.",
+
+    rarity = models.CharField(
+        max_length=1,
+        choices=[
+            ("R", "Rare (R)"),
+            ("I", "Illegal (I)"),
+            ("E", "Exclusive (E)"),
+            ("C", "Common (C)"),
+        ],
+        blank=True,
+        default="C",
+    )
+    rarity_roll = models.IntegerField(
         blank=True,
         null=True,
     )
+
     history = HistoricalRecords()
 
     def __str__(self):
         return self.name
 
-    def cost(self):
-        return self.trading_post_cost
-
     class Meta:
-        verbose_name = "Content Equipment"
-        verbose_name_plural = "Content Equipment"
+        verbose_name = "Equipment"
+        verbose_name_plural = "Equipment"
 
 
 class ContentFighter(Content):
@@ -70,67 +87,127 @@ class ContentFighter(Content):
     house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=True, blank=True
     )
-    equipment = models.ManyToManyField(
-        ContentEquipment, through="ContentFighterEquipmentAssignment"
-    )
     skills = models.ManyToManyField(ContentSkill, blank=True)
     base_cost = models.IntegerField(default=0)
     history = HistoricalRecords()
 
     def __str__(self):
         house = f"{self.house}" if self.house else ""
-        return f"{house} {self.type} ({self.category})".strip()
+        return f"{house} {self.type} ({FighterCategoryChoices[self.category].label})".strip()
 
     def cost(self):
+        # TODO: This might be completely wrong — do we actually want to copy over the item to the fighter at purchase time?
         # The equipment is a many-to-many field, and the through model contains
         # the quantity of each piece of equipment. We need to sum the cost of
         # each piece of equipment and the quantity.
-        return self.base_cost + sum(
-            [e.cost() for e in self.equipment.through.objects.filter(fighter=self)]
-        )
+        # return self.base_cost + sum(
+        #     [e.cost() for e in self.equipment.through.objects.filter(fighter=self)]
+        # )
+        return self.base_cost
 
     class Meta:
-        verbose_name = "Content Fighter"
-        verbose_name_plural = "Content Fighters"
+        verbose_name = "Fighter"
+        verbose_name_plural = "Fighters"
 
 
-class ContentFighterEquipmentAssignment(Content):
-    help_text = "The Content Fighter Equipment Assignment captures the default equipment assigned to a fighter in the rulebook."
-    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
-    equipment = models.ForeignKey(
-        ContentEquipment, on_delete=models.CASCADE, db_index=True
-    )
-    qty = models.IntegerField(default=0)
-    history = HistoricalRecords()
-
-    def cost(self):
-        return self.qty * self.equipment.cost()
-
-    def __str__(self):
-        return f"{self.fighter} {self.equipment} Equipment Assignment ({self.qty})"
-
-    class Meta:
-        verbose_name = "Content Fighter Equipment Assignment"
-        verbose_name_plural = "Content Fighter Equipment Assignments"
-        unique_together = ["fighter", "equipment"]
-
-
-class ContentFighterEquipment(Content):
+class ContentFighterEquipmentListItem(Content):
     help_text = "The Content Fighter Equipment captures the equipment list available to a fighter in the rulebook."
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
+
+    weapon_profile = models.ForeignKey(
+        "ContentWeaponProfile",
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="The weapon profile to use for this equipment list item.",
+    )
+
     cost = models.IntegerField(default=0)
+
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.fighter} Equipment"
+        return f"{self.fighter} {self.weapon_profile if self.weapon_profile else ''} ({self.cost})"
 
     class Meta:
-        verbose_name = "Content Fighter Equipment List"
-        verbose_name_plural = "Content Fighter Equipment Lists"
-        unique_together = ["fighter", "equipment"]
+        verbose_name = "Equipment List Item"
+        verbose_name_plural = "Equipment List Items"
+        unique_together = ["fighter", "equipment", "weapon_profile"]
+
+
+class ContentWeaponTrait(Content):
+    name = models.CharField(max_length=255)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Weapon Trait"
+        verbose_name_plural = "Weapon Traits"
+
+
+class ContentWeaponProfile(Content):
+    equipment = models.ForeignKey(
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        blank=False,
+    )
+
+    name = models.CharField(max_length=255, blank=True)
+    help_text = (
+        "The Content Weapon Profile captures the profile information for a weapon."
+    )
+
+    # If the cost is zero, then the profile is free to use and "standard".
+    cost = models.IntegerField(
+        default=0,
+        help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, then the profile is free to use and standard. Note that this can be overridden in a fighter's equipment list.",
+    )
+
+    rarity = models.CharField(
+        max_length=1,
+        choices=[
+            ("R", "Rare (R)"),
+            ("I", "Illegal (I)"),
+            ("E", "Exclusive (E)"),
+            ("C", "Common (C)"),
+        ],
+        blank=True,
+        default="C",
+    )
+    rarity_roll = models.IntegerField(
+        blank=True,
+        null=True,
+    )
+
+    # Stat line
+    range_short = models.CharField(max_length=12, blank=True, null=True, name="Rng S")
+    range_long = models.CharField(max_length=12, blank=True, null=True, name="Rng L")
+    accuracy_short = models.CharField(
+        max_length=12, blank=True, null=True, name="Acc S"
+    )
+    accuracy_long = models.CharField(max_length=12, blank=True, null=True, name="Acc L")
+    strength = models.CharField(max_length=12, blank=True, null=True, name="Str")
+    armour_piercing = models.CharField(max_length=12, blank=True, null=True, name="Ap")
+    damage = models.CharField(max_length=12, blank=True, null=True, name="D")
+    ammo = models.CharField(max_length=12, blank=True, null=True, name="Am")
+    traits = models.ManyToManyField(ContentWeaponTrait, blank=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.equipment} {self.name if self.name else '(Standard)'}"
+
+    class Meta:
+        verbose_name = "Weapon Profile"
+        verbose_name_plural = "Weapon Profiles"
 
 
 def check(rule, category, name):
@@ -178,5 +255,5 @@ class ContentPolicy(Content):
         return True
 
     class Meta:
-        verbose_name = "Content Policy"
-        verbose_name_plural = "Content Policies"
+        verbose_name = "Policy"
+        verbose_name_plural = "Policies"

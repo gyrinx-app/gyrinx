@@ -3,7 +3,7 @@ import pytest
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
-    ContentFighterEquipment,
+    ContentFighterEquipmentListItem,
 )
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
@@ -27,10 +27,12 @@ def test_equipment():
     fighter.save()
 
     # Create a equipment list
-    fighter_equip = ContentFighterEquipment(fighter=fighter, equipment=equipment)
+    fighter_equip = ContentFighterEquipmentListItem(
+        fighter=fighter, equipment=equipment
+    )
     fighter_equip.save()
 
     # Query to get the equipment list for the fighter
-    fe = ContentFighterEquipment.objects.get(fighter=fighter)
+    fe = ContentFighterEquipmentListItem.objects.get(fighter=fighter)
     assert fe.equipment.name == "Wooden Spoon"
     assert fe.fighter.type == "Charter Master"
