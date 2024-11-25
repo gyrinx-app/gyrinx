@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 from .models import (
@@ -45,9 +46,21 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     inlines = [ContentWeaponProfileInline]
 
 
+class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.equipment_id:
+            self.fields[
+                "weapon_profile"
+            ].queryset = ContentWeaponProfile.objects.filter(
+                equipment=self.instance.equipment
+            )
+
+
 @admin.register(ContentFighterEquipmentListItem)
-class ContentFighterEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["fighter__type", "equipment__name"]
+class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
+    form = ContentFighterEquipmentListItemAdminForm
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):
