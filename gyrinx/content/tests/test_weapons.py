@@ -57,14 +57,14 @@ def test_special_ammo_weapon():
     t_s_s, _ = ContentWeaponTrait.objects.get_or_create(name="Single Shot")
 
     autogun = ContentEquipment.objects.create(
-        name="Autogun", category=EquipmentCategoryChoices.BASIC_WEAPONS, cost=15
+        name="Autogun",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=15,
+        rarity="C",
     )
     autogun_profile = ContentWeaponProfile.objects.create(
         equipment=autogun,
         name="",
-        cost=0,
-        rarity="C",
-        rarity_roll=0,
         range_short='8"',
         range_long='24"',
         accuracy_short="+1",
@@ -180,9 +180,10 @@ def test_two_standard_stats():
     combat_shotgun_firestorm_profile = ContentWeaponProfile.objects.create(
         equipment=combat_shotgun,
         name="firestorm ammo",
-        cost=0,
+        cost=30,
         cost_sign="+",
-        rarity="",
+        rarity="R",
+        rarity_roll=8,
         range_short='4"',
         range_long='12"',
         accuracy_short="+2",
@@ -197,9 +198,10 @@ def test_two_standard_stats():
     combat_shotgun_gas_shells_profile = ContentWeaponProfile.objects.create(
         equipment=combat_shotgun,
         name="gas shells",
-        cost=0,
+        cost=25,
         cost_sign="+",
-        rarity="",
+        rarity="R",
+        rarity_roll=11,
         range_short='4"',
         range_long='12"',
         accuracy_short="+1",
@@ -217,9 +219,10 @@ def test_two_standard_stats():
     combat_shotgun_shatter_shells_profile = ContentWeaponProfile.objects.create(
         equipment=combat_shotgun,
         name="shatter shells",
-        cost=0,
+        cost=15,
         cost_sign="+",
-        rarity="",
+        rarity="R",
+        rarity_roll=9,
         range_short='4"',
         range_long='12"',
         accuracy_short="+1",

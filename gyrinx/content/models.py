@@ -70,6 +70,11 @@ class ContentEquipment(Content):
     def __str__(self):
         return self.name
 
+    def cost_int(self):
+        if not self.cost:
+            return 0
+        return int(self.cost)
+
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
@@ -166,9 +171,10 @@ class ContentWeaponProfile(Content):
         default=0,
         help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, then the profile is free to use and standard. Note that this can be overridden in a fighter's equipment list.",
     )
+
     cost_sign = models.CharField(
         max_length=1,
-        choices=[("+", "+"), ("-", "-")],
+        choices=[("+", "+")],
         blank=True,
         null=False,
         default="",
@@ -221,6 +227,9 @@ class ContentWeaponProfile(Content):
 
     def __str__(self):
         return f"{self.equipment} {self.name if self.name else '(Standard)'}"
+
+    def cost_int(self):
+        return self.cost
 
     class Meta:
         verbose_name = "Weapon Profile"
