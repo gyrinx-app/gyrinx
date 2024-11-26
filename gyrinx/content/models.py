@@ -75,6 +75,9 @@ class ContentEquipment(Content):
             return 0
         return int(self.cost)
 
+    def cat(self):
+        return EquipmentCategoryChoices[self.category].label
+
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
@@ -95,6 +98,12 @@ class ContentFighter(Content):
     def __str__(self):
         house = f"{self.house}" if self.house else ""
         return f"{house} {self.type} ({FighterCategoryChoices[self.category].label})".strip()
+
+    def cat(self):
+        return FighterCategoryChoices[self.category].label
+
+    def name(self):
+        return f"{self.type} ({self.cat()})"
 
     def cost(self):
         # TODO: This might be completely wrong — do we actually want to copy over the item to the fighter at purchase time?
@@ -230,6 +239,25 @@ class ContentWeaponProfile(Content):
 
     def cost_int(self):
         return self.cost
+
+    def statline(self):
+        stats = [
+            self._meta.get_field(field)
+            for field in [
+                "range_short",
+                "range_long",
+                "accuracy_short",
+                "accuracy_long",
+                "strength",
+                "armour_piercing",
+                "damage",
+                "ammo",
+            ]
+        ]
+        return [
+            {"name": field.verbose_name, "value": getattr(self, field.name) or "-"}
+            for field in stats
+        ]
 
     class Meta:
         verbose_name = "Weapon Profile"

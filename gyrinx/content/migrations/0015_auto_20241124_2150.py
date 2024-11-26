@@ -24,7 +24,7 @@ def create_example_weapons_profiles(apps, schema_editor):
         equipment=arc_rifle,
         name="",
         cost=100,
-        cost_sign="+",
+        cost_sign="",
         rarity="R",
         rarity_roll=13,
         range_short='9"',

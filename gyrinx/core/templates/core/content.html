@@ -1,0 +1,78 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Content
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        <div class="col-lg-8 px-0 vstack gap-5">
+            <div>
+                <h1 class="h3">Gangs</h1>
+                <div class="vstack gap-4">
+                    {% for house in houses %}
+                        <div>
+                            <h2 class="py-2 h5">{{ house.name }}</h2>
+                            <div class="vstack gap-3">
+                                {% for fighter in house.fighters %}
+                                    <div class="hstack gap-2">
+                                        <div class="py-2">{{ fighter.name }}</div>
+                                        <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <h1 class="h3">Equipment</h1>
+                <div class="vstack gap-4">
+                    {% for category, items in categories.items %}
+                        <div>
+                            <h2 class="py-2 h4">{{ category }}</h2>
+                            <div class="vstack gap-3">
+                                {% for item in items %}
+                                    <div>
+                                        <h3 class="h5 mb-0">{{ item.name }}</h3>
+                                        <div class="vstack gap-1">
+                                            {% for profile in item.profiles %}
+                                                <div class="hstack gap-2">
+                                                    {% if profile.name %}<div class="py-2">- {{ profile.name }}</div>{% endif %}
+                                                    {% if profile.cost_int > 0 %}<div class="py-2 ms-auto">{{ profile.cost_sign }}{{ profile.cost_int }}¢</div>{% endif %}
+                                                </div>
+                                                <table class="table table-sm table-borderless">
+                                                    <thead>
+                                                        <tr>
+                                                            <th class="text-center" scope="col" colspan="2">Rng</th>
+                                                            <th class="text-center" scope="col" colspan="2">Acc</th>
+                                                            <th class="text-center" scope="col" colspan="4"></th>
+                                                        </tr>
+                                                        <tr>
+                                                            <th class="text-center" scope="col">S</th>
+                                                            <th class="text-center" scope="col">L</th>
+                                                            <th class="text-center" scope="col">S</th>
+                                                            <th class="text-center" scope="col">L</th>
+                                                            <th class="text-center" scope="col">Str</th>
+                                                            <th class="text-center" scope="col">Ap</th>
+                                                            <th class="text-center" scope="col">D</th>
+                                                            <th class="text-center" scope="col">Am</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
