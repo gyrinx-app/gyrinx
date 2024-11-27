@@ -7,16 +7,16 @@
     <div id="content" class="container my-5">
         <div class="col-lg-8 px-0 vstack gap-5">
             <div>
-                <h1 class="h3">Gangs</h1>
+                <h1>Gangs</h1>
                 <div class="vstack gap-4">
                     {% for house in houses %}
                         <div>
-                            <h2 class="py-2 h5">{{ house.name }}</h2>
+                            <h2 class="py-2">{{ house.name }}</h2>
                             <div class="vstack gap-3">
                                 {% for fighter in house.fighters %}
                                     <div>
                                         <div class="hstack gap-2">
-                                            <div class="py-2">{{ fighter.name }}</div>
+                                            <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
                                             <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
                                         </div>
                                         <table class="table table-sm table-borderless">
