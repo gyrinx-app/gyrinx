@@ -13,12 +13,16 @@
                         <div>
                             <h2 class="py-2 h5">{{ house.name }}</h2>
                             <div class="vstack gap-3">
-                                {% for fighter in house.fighters %}
-                                    <div class="hstack gap-2">
-                                        <div class="py-2">{{ fighter.name }}</div>
-                                        <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
-                                    </div>
-                                {% endfor %}
+                                {% if house.fighters %}
+                                    {% for fighter in house.fighters %}
+                                        <div class="hstack gap-2">
+                                            <div class="py-2">{{ fighter.name }}</div>
+                                            <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="py-2">No fighters available.</div>
+                                {% endif %}
                             </div>
                         </div>
                     {% endfor %}
