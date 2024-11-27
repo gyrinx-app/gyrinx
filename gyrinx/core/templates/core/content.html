@@ -13,16 +13,45 @@
                         <div>
                             <h2 class="py-2 h5">{{ house.name }}</h2>
                             <div class="vstack gap-3">
-                                {% if house.fighters %}
-                                    {% for fighter in house.fighters %}
+                                {% for fighter in house.fighters %}
+                                    <div>
                                         <div class="hstack gap-2">
                                             <div class="py-2">{{ fighter.name }}</div>
                                             <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
                                         </div>
-                                    {% endfor %}
-                                {% else %}
+                                        <table class="table table-sm table-borderless">
+                                            <thead>
+                                                <tr>
+                                                    <th class="text-center" scope="col">M</th>
+                                                    <th class="text-center" scope="col">WS</th>
+                                                    <th class="text-center" scope="col">BS</th>
+                                                    <th class="text-center" scope="col">S</th>
+                                                    <th class="text-center" scope="col">T</th>
+                                                    <th class="text-center" scope="col">W</th>
+                                                    <th class="text-center" scope="col">I</th>
+                                                    <th class="text-center" scope="col">A</th>
+                                                    <th class="text-center table-warning" scope="col">Ld</th>
+                                                    <th class="text-center table-warning" scope="col">Cl</th>
+                                                    <th class="text-center table-warning" scope="col">Wil</th>
+                                                    <th class="text-center table-warning" scope="col">Int</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    {% for stat in fighter.statline %}
+                                                        {% if stat.highlight %}
+                                                            <td class="text-center table-warning">{{ stat.value }}</td>
+                                                        {% else %}
+                                                            <td class="text-center">{{ stat.value }}</td>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% empty %}
                                     <div class="py-2">No fighters available.</div>
-                                {% endif %}
+                                {% endfor %}
                             </div>
                         </div>
                     {% endfor %}

@@ -30,6 +30,47 @@ def test_basic_fighter():
     assert fighter.category.name == FighterCategoryChoices.JUVE
 
 
+@pytest.mark.django_db
+def test_fighter_stats():
+    category = FighterCategoryChoices.JUVE
+    house = ContentHouse.objects.create(
+        name="Squat Prospectors",
+    )
+    fighter = ContentFighter.objects.create(
+        type="Prospector Digger",
+        category=category,
+        house=house,
+        movement='5"',
+        weapon_skill="5+",
+        ballistic_skill="5+",
+        strength="4",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="8+",
+        cool="7+",
+        willpower="6+",
+        intelligence="7+",
+    )
+    fighter.save()
+
+    assert fighter.statline() == [
+        {"name": "M", "value": '5"', "highlight": False},
+        {"name": "WS", "value": "5+", "highlight": False},
+        {"name": "BS", "value": "5+", "highlight": False},
+        {"name": "S", "value": "4", "highlight": False},
+        {"name": "T", "value": "3", "highlight": False},
+        {"name": "W", "value": "1", "highlight": False},
+        {"name": "I", "value": "4+", "highlight": False},
+        {"name": "A", "value": "1", "highlight": False},
+        {"name": "Ld", "value": "8+", "highlight": True},
+        {"name": "Cl", "value": "7+", "highlight": True},
+        {"name": "Wil", "value": "6+", "highlight": True},
+        {"name": "Int", "value": "7+", "highlight": True},
+    ]
+
+
 @dataclass
 class PolicyCase:
     name: str

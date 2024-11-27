@@ -93,6 +93,44 @@ class ContentFighter(Content):
     )
     skills = models.ManyToManyField(ContentSkill, blank=True)
     base_cost = models.IntegerField(default=0)
+
+    movement = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="M"
+    )
+    weapon_skill = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="WS"
+    )
+    ballistic_skill = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="BS"
+    )
+    strength = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="S"
+    )
+    toughness = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="T"
+    )
+    wounds = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="W"
+    )
+    initiative = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="I"
+    )
+    attacks = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="A"
+    )
+    leadership = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Ld"
+    )
+    cool = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Cl"
+    )
+    willpower = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Wil"
+    )
+    intelligence = models.CharField(
+        max_length=12, blank=True, null=False, default="", verbose_name="Int"
+    )
+
     history = HistoricalRecords()
 
     def __str__(self):
@@ -114,6 +152,35 @@ class ContentFighter(Content):
         #     [e.cost() for e in self.equipment.through.objects.filter(fighter=self)]
         # )
         return self.base_cost
+
+    def statline(self):
+        stats = [
+            self._meta.get_field(field)
+            for field in [
+                "movement",
+                "weapon_skill",
+                "ballistic_skill",
+                "strength",
+                "toughness",
+                "wounds",
+                "initiative",
+                "attacks",
+                "leadership",
+                "cool",
+                "willpower",
+                "intelligence",
+            ]
+        ]
+        return [
+            {
+                "name": field.verbose_name,
+                "value": getattr(self, field.name) or "-",
+                "highlight": bool(
+                    field.name in ["leadership", "cool", "willpower", "intelligence"]
+                ),
+            }
+            for field in stats
+        ]
 
     class Meta:
         verbose_name = "Fighter"
