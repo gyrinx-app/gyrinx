@@ -39,6 +39,20 @@ class ContentSkill(Content):
         verbose_name_plural = "Skills"
 
 
+class ContentRule(Content):
+    name = models.CharField(max_length=255)
+    # TODO: Page refs
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Rule"
+        verbose_name_plural = "Rules"
+
+
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
@@ -92,6 +106,7 @@ class ContentFighter(Content):
         ContentHouse, on_delete=models.CASCADE, null=True, blank=True
     )
     skills = models.ManyToManyField(ContentSkill, blank=True)
+    rules = models.ManyToManyField(ContentRule, blank=True)
     base_cost = models.IntegerField(default=0)
 
     movement = models.CharField(
@@ -181,6 +196,9 @@ class ContentFighter(Content):
             }
             for field in stats
         ]
+
+    def ruleline(self):
+        return [rule.name for rule in self.rules.all()]
 
     class Meta:
         verbose_name = "Fighter"

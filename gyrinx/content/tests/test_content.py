@@ -11,6 +11,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentPolicy,
+    ContentRule,
 )
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
@@ -68,6 +69,36 @@ def test_fighter_stats():
         {"name": "Cl", "value": "7+", "highlight": True},
         {"name": "Wil", "value": "6+", "highlight": True},
         {"name": "Int", "value": "7+", "highlight": True},
+    ]
+
+
+@pytest.mark.django_db
+def test_fighter_rules():
+    r_gang_fighter, _ = ContentRule.objects.get_or_create(name="Gang Fighter (Juve)")
+    r_promotion, _ = ContentRule.objects.get_or_create(name="Promotion (Specialist)")
+    r_fast_learner, _ = ContentRule.objects.get_or_create(name="Fast Learner")
+
+    category = FighterCategoryChoices.JUVE
+    house = ContentHouse.objects.create(
+        name="Squat Prospectors",
+    )
+    fighter = ContentFighter.objects.create(
+        type="Prospector Digger",
+        category=category,
+        house=house,
+    )
+    fighter.rules.set([r_gang_fighter, r_promotion, r_fast_learner])
+    fighter.save()
+
+    assert [rule.name for rule in fighter.rules.all()] == [
+        "Gang Fighter (Juve)",
+        "Promotion (Specialist)",
+        "Fast Learner",
+    ]
+    assert fighter.ruleline() == [
+        "Gang Fighter (Juve)",
+        "Promotion (Specialist)",
+        "Fast Learner",
     ]
 
 
