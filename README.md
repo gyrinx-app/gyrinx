@@ -179,3 +179,35 @@ To check the data files against their schema, simply run:
 ```bash
 schema
 ```
+
+# Django Admin
+
+## New data migration
+
+To create a new empty migration file for doing data migration:
+
+```bash
+manage makemigrations --empty content
+```
+
+This template might be useful for importing stuff from content:
+
+```python
+from django.db import migrations
+
+from gyrinx.models import *
+
+
+def do_migration(apps, schema_editor):
+    ContentEquipment = apps.get_model("content", "ContentEquipment")
+
+    ...
+
+
+class Migration(migrations.Migration):
+    dependencies = [
+        ("content", "0014_contentweaponprofile_cost_sign_and_more"),
+    ]
+
+    operations = [migrations.RunPython(do_migration)]
+```
