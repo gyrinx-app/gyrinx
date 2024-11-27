@@ -125,21 +125,26 @@ To set up the development environment, follow these steps:
 
 ## Running the Django application
 
-Make sure your virtual environment is active and you've run `pip install --editable .`.
+1. Make sure your virtual environment is active & `pip` has up-to-date dependencies:
 
-1. Start the database ([Postgres](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/#Using-Docker-Compose)) and [pgadmin](https://www.pgadmin.org/):
+    ```bash
+    . .venv/bin/activate
+    pip install --editable .
+    ```
+
+2. Start the database ([Postgres](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/#Using-Docker-Compose)) and [pgadmin](https://www.pgadmin.org/):
 
     ```bash
     docker compose up -d
     ```
 
-2. Run the migrations:
+3. Run the migrations:
 
     ```bash
     manage migrate
     ```
 
-3. Run the application:
+4. Run the application:
 
     ```bash
     manage runserver

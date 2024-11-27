@@ -13,24 +13,26 @@ def test_basic_weapon():
     t_blaze, _ = ContentWeaponTrait.objects.get_or_create(name="Blaze")
     t_rapid_fire_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
     t_shock, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
-    arc_rifle = ContentEquipment.objects.create(
+    arc_rifle, _ = ContentEquipment.objects.get_or_create(
         name="Arc rifle", category=EquipmentCategoryChoices.BASIC_WEAPONS
     )
-    arc_rifle_profile = ContentWeaponProfile.objects.create(
+    arc_rifle_profile, _ = ContentWeaponProfile.objects.get_or_create(
         equipment=arc_rifle,
         name="",
-        cost=100,
-        cost_sign="+",
-        rarity="R",
-        rarity_roll=13,
-        range_short='9"',
-        range_long='24"',
-        accuracy_short="+2",
-        accuracy_long="-1",
-        strength="5",
-        armour_piercing="",
-        damage="1",
-        ammo="6+",
+        defaults=dict(
+            cost=100,
+            cost_sign="+",
+            rarity="R",
+            rarity_roll=13,
+            range_short='9"',
+            range_long='24"',
+            accuracy_short="+2",
+            accuracy_long="-1",
+            strength="5",
+            armour_piercing="",
+            damage="1",
+            ammo="6+",
+        ),
     )
     arc_rifle_profile.traits.set(
         [
