@@ -47,6 +47,7 @@ def test_basic_weapon():
 
     assert arc_rifle.name == "Arc rifle"
     assert arc_rifle_profile.equipment == arc_rifle
+    assert arc_rifle_profile.cost_tp() == 100
 
 
 @pytest.mark.django_db
@@ -123,6 +124,9 @@ def test_special_ammo_weapon():
     assert autogun_profile.equipment == autogun
     assert autogun_static_rounds_profile.equipment == autogun
     assert autogun_warp_rounds_profile.equipment == autogun
+    assert autogun_profile.cost_tp() == 15
+    assert autogun_static_rounds_profile.cost_tp() == 25
+    assert autogun_warp_rounds_profile.cost_tp() == 30
 
 
 @pytest.mark.django_db
@@ -249,6 +253,11 @@ def test_two_standard_stats():
     assert combat_shotgun_firestorm_profile.equipment == combat_shotgun
     assert combat_shotgun_gas_shells_profile.equipment == combat_shotgun
     assert combat_shotgun_shatter_shells_profile.equipment == combat_shotgun
+    assert combat_shotgun_salvo_profile.cost_tp() == 70
+    assert combat_shotgun_shredder_profile.cost_tp() == 70
+    assert combat_shotgun_firestorm_profile.cost_tp() == 100
+    assert combat_shotgun_gas_shells_profile.cost_tp() == 95
+    assert combat_shotgun_shatter_shells_profile.cost_tp() == 85
 
 
 @pytest.mark.django_db
@@ -361,19 +370,24 @@ def test_combi_weapon():
         == autopistol_combi_pistol_plasma_pistol
     )
 
+    assert autopistol_combi_pistol_hand_flamer_autopistol.cost_tp() == 65
+    assert autopistol_combi_pistol_plasma_pistol_autopistol.cost_tp() == 50
+    assert autopistol_combi_pistol_hand_flamer_profile.cost_tp() == 65
+    assert autopistol_combi_pistol_plasma_pistol_profile.cost_tp() == 50
+
 
 @pytest.mark.django_db
 def test_autogun_combi_weapon():
     autogun_combi_flamer = ContentEquipment.objects.create(
         name="Autogun Combi-Flamer",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category=EquipmentCategoryChoices.SPECIAL_WEAPONS,
         cost=110,
         rarity="R",
         rarity_roll=10,
     )
     autogun_combi_grenade_launcher = ContentEquipment.objects.create(
         name="Autogun Combi-Grenade Launcher",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category=EquipmentCategoryChoices.SPECIAL_WEAPONS,
         cost=30,
         rarity="R",
         rarity_roll=7,
@@ -392,7 +406,7 @@ def test_autogun_combi_weapon():
         ammo="4+",
     )
 
-    autogun_combi_grenadae_launcher_autogun = ContentWeaponProfile.objects.create(
+    autogun_combi_grenade_launcher_autogun = ContentWeaponProfile.objects.create(
         equipment=autogun_combi_grenade_launcher,
         name="Autogun",
         range_short='8"',
@@ -468,7 +482,7 @@ def test_autogun_combi_weapon():
     autogun_combi_flamer.save()
     autogun_combi_grenade_launcher.save()
     autogun_combi_flamer_autogun.save()
-    autogun_combi_grenadae_launcher_autogun.save()
+    autogun_combi_grenade_launcher_autogun.save()
     autogun_combi_flamer_flamer.save()
     autogun_combi_grenade_launcher_frag.save()
     autogun_combi_grenade_launcher_krak.save()
@@ -478,7 +492,7 @@ def test_autogun_combi_weapon():
     assert autogun_combi_grenade_launcher.name == "Autogun Combi-Grenade Launcher"
     assert autogun_combi_flamer_autogun.equipment == autogun_combi_flamer
     assert (
-        autogun_combi_grenadae_launcher_autogun.equipment
+        autogun_combi_grenade_launcher_autogun.equipment
         == autogun_combi_grenade_launcher
     )
     assert autogun_combi_flamer_flamer.equipment == autogun_combi_flamer
@@ -491,6 +505,13 @@ def test_autogun_combi_weapon():
     assert (
         autogun_combi_grenade_launcher_stun.equipment == autogun_combi_grenade_launcher
     )
+
+    assert autogun_combi_flamer_autogun.cost_tp() == 110
+    assert autogun_combi_grenade_launcher_autogun.cost_tp() == 30
+    assert autogun_combi_flamer_flamer.cost_tp() == 110
+    assert autogun_combi_grenade_launcher_frag.cost_tp() == 30
+    assert autogun_combi_grenade_launcher_krak.cost_tp() == 55
+    assert autogun_combi_grenade_launcher_stun.cost_tp() == 50
 
 
 @pytest.mark.django_db
@@ -548,6 +569,9 @@ def test_two_modes():
     assert kroot_long_rifle_ranged_profile.equipment == kroot_long_rifle
     assert kroot_long_rifle_melee_profile.equipment == kroot_long_rifle
 
+    assert kroot_long_rifle_ranged_profile.cost_tp() == 30
+    assert kroot_long_rifle_melee_profile.cost_tp() == 30
+
 
 @pytest.mark.django_db
 def test_grenades():
@@ -583,3 +607,5 @@ def test_grenades():
 
     assert blasting_charge.name == "Blasting charge"
     assert blasting_charge_profile.equipment == blasting_charge
+
+    assert blasting_charge_profile.cost_tp() == 35

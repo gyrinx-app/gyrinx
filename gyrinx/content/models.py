@@ -325,6 +325,18 @@ class ContentWeaponProfile(Content):
     def cost_int(self):
         return self.cost
 
+    def cost_tp(self):
+        # If the cost is zero, then the profile is free to use and "standard".
+        if self.cost_int() == 0:
+            return self.equipment.cost_int()
+
+        # If the cost is positive, then the profile is an upgrade to the equipment.
+        if self.cost_sign == "+":
+            return self.equipment.cost_int() + self.cost_int()
+
+        # Otherwise, the cost is the profile cost.
+        return self.cost_int()
+
     def statline(self):
         stats = [
             self._meta.get_field(field)
