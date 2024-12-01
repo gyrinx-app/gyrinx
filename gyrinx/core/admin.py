@@ -14,6 +14,12 @@ def cost(obj):
     return f"{obj.cost()}¢"
 
 
+class ListFighterInline(admin.TabularInline):
+    model = ListFighter
+    extra = 1
+    fields = ["name", "content_fighter"]
+
+
 @admin.register(List)
 class ListAdmin(SimpleHistoryAdmin):
     form = ListForm
@@ -21,6 +27,8 @@ class ListAdmin(SimpleHistoryAdmin):
     readonly_fields = [cost]
     list_display = ["name", "content_house"]
     search_fields = ["name", "content_house__name"]
+
+    inlines = [ListFighterInline]
 
 
 class ListFighterForm(forms.ModelForm):
@@ -34,6 +42,13 @@ class ListFighterAdmin(SimpleHistoryAdmin):
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]
+
+    class ListFighterEquipmentAssignmentInline(admin.TabularInline):
+        model = ListFighterEquipmentAssignment
+        extra = 1
+        fields = ["content_equipment", "weapon_profile"]
+
+    inlines = [ListFighterEquipmentAssignmentInline]
 
 
 @admin.register(ListFighterEquipmentAssignment)

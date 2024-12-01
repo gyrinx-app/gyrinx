@@ -3,7 +3,12 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponProfile,
+)
 from gyrinx.models import Archived, Base, Owned
 
 
@@ -65,6 +70,15 @@ class ListFighter(AppBase):
             [e.cost_int() for e in self.equipment.all()]
         )
 
+    def assign(self, equipment, weapon_profile=None):
+        """Assign an equipment to this fighter."""
+        if weapon_profile:
+            self.equipment.add(
+                equipment, through_defaults=dict(weapon_profile=weapon_profile)
+            )
+        else:
+            self.equipment.add(equipment)
+
     class Meta:
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
@@ -90,6 +104,10 @@ class ListFighterEquipmentAssignment(AppBase):
     )
     content_equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, null=False, blank=False
+    )
+
+    weapon_profile = models.ForeignKey(
+        ContentWeaponProfile, on_delete=models.CASCADE, null=True, blank=True
     )
 
     history = HistoricalRecords()

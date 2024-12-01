@@ -1,6 +1,12 @@
 import pytest
 
-from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponProfile,
+    ContentWeaponTrait,
+)
 from gyrinx.core.models import List, ListFighter
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
@@ -180,6 +186,56 @@ def test_list_fighter_with_spoon():
     assert lst.cost_int() == 110
 
 
+@pytest.mark.django_db
+def test_list_fighter_with_spoon_weapon():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    t_melee, _ = ContentWeaponTrait.objects.get_or_create(
+        name="Melee",
+    )
+    spoon_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+    spoon_profile.traits.add(t_melee)
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    fighter.assign(spoon, weapon_profile=spoon_profile)
+
+    assert fighter.cost_int() == 110
+    assert (
+        fighter.equipment.through.objects.get(
+            list_fighter=fighter, content_equipment=spoon
+        ).weapon_profile
+        == spoon_profile
+    )
+
+    assert fighter.cost_int() == content_fighter.cost_int() + spoon.cost_int()
+    assert lst.cost_int() == fighter.cost_int()
+    assert lst.cost_int() == 110
+
+
 # @pytest.mark.django_db
 # def test_list_fighter_with_spoon_and_not_other_assignments():
 #     # This test was introduced to fix a bug where the cost of a fighter was
@@ -220,6 +276,11 @@ def test_list_fighter_with_spoon():
 #     lst = Build.objects.create(name="Test List", content_house=house)
 #     fighter = BuildFighter.objects.create(
 #         name="Test Fighter", list=lst, content_fighter=content_fighter
+#     )
+
+#     assert fighter.cost_int() == content_fighter.base_cost + spoon.cost_int()
+#     assert lst.cost_int() == fighter.cost_int()
+#     assert lst.cost_int() == 110
 #     )
 
 #     assert fighter.cost_int() == content_fighter.base_cost + spoon.cost_int()
