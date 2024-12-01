@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
 from gyrinx.models import Archived, Base, Owned
 
 
@@ -31,8 +31,8 @@ class List(AppBase):
     history = HistoricalRecords()
 
     @admin.display(description="Cost")
-    def cost(self):
-        return sum([f.cost() for f in self.listfighter_set.all()])
+    def cost_int(self):
+        return sum([f.cost_int() for f in self.listfighter_set.all()])
 
     class Meta:
         verbose_name = "List"
@@ -52,11 +52,18 @@ class ListFighter(AppBase):
     )
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
+    equipment = models.ManyToManyField(
+        ContentEquipment, through="ListFighterEquipmentAssignment", blank=True
+    )
+
     history = HistoricalRecords()
 
     @admin.display(description="Cost")
-    def cost(self):
-        return self.content_fighter.cost()
+    def cost_int(self):
+        # TODO: Take into account equipment list cost
+        return self.content_fighter.cost_int() + sum(
+            [e.cost_int() for e in self.equipment.all()]
+        )
 
     class Meta:
         verbose_name = "List Fighter"
@@ -72,3 +79,24 @@ class ListFighter(AppBase):
         list_house = self.list.content_house
         if cf_house != list_house:
             raise ValidationError(f"{cf.type} cannot be a member of {list_house} list")
+
+
+class ListFighterEquipmentAssignment(AppBase):
+    """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
+
+    help_text = "A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."
+    list_fighter = models.ForeignKey(
+        ListFighter, on_delete=models.CASCADE, null=False, blank=False
+    )
+    content_equipment = models.ForeignKey(
+        ContentEquipment, on_delete=models.CASCADE, null=False, blank=False
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Fighter Equipment Assignment"
+        verbose_name_plural = "Fighter Equipment Assignments"
+
+    def __str__(self):
+        return f"{self.list_fighter} – {self.content_equipment}"

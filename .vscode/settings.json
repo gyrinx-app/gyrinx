@@ -22,5 +22,9 @@
     "[html][django-html]": {
         "editor.defaultFormatter": "monosans.djlint"
     },
-    "html.format.enable": true
+    "html.format.enable": true,
+    "[markdown]": {
+        "editor.wordWrap": "bounded",
+        "editor.wordWrapColumn": 110
+    }
 }

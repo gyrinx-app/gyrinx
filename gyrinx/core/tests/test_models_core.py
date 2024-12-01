@@ -1,8 +1,8 @@
 import pytest
 
-from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
 from gyrinx.core.models import List, ListFighter
-from gyrinx.models import FighterCategoryChoices
+from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
 def make_content():
@@ -121,15 +121,15 @@ def test_list_cost():
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
 
-    assert fighter.cost() == content_fighter.cost()
-    assert lst.cost() == content_fighter.cost()
+    assert fighter.cost_int() == content_fighter.cost_int()
+    assert lst.cost_int() == content_fighter.cost_int()
 
     fighter2 = ListFighter.objects.create(
         name="Test Fighter 2", list=lst, content_fighter=content_fighter
     )
 
-    assert fighter2.cost() == content_fighter.cost()
-    assert lst.cost() == content_fighter.cost() * 2
+    assert fighter2.cost_int() == content_fighter.cost_int()
+    assert lst.cost_int() == content_fighter.cost_int() * 2
 
 
 @pytest.mark.django_db
@@ -150,29 +150,34 @@ def test_list_cost_variable():
         name="Test Fighter 2", list=lst, content_fighter=content_fighter2
     )
 
-    assert fighter.cost() == content_fighter.cost()
-    assert fighter2.cost() == content_fighter2.cost()
-    assert lst.cost() == content_fighter.cost() + content_fighter2.cost()
+    assert fighter.cost_int() == content_fighter.cost_int()
+    assert fighter2.cost_int() == content_fighter2.cost_int()
+    assert lst.cost_int() == content_fighter.cost_int() + content_fighter2.cost_int()
 
 
-# @pytest.mark.django_db
-# def test_list_fighter_with_spoon():
-#     category, house, content_fighter = make_content()
-#     spoon, _ = ContentEquipment.objects.get_or_create(
-#         name="Wooden Spoon",
-#         category=EquipmentCategoryChoices.BASIC_WEAPONS,
-#         cost=10,
-#     )
-#     spoon.save()
+@pytest.mark.django_db
+def test_list_fighter_with_spoon():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
 
-#     lst = List.objects.create(name="Test List", content_house=house)
-#     fighter = List.objects.create(
-#         name="Test Fighter", list=lst, content_fighter=content_fighter
-#     )
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
 
-#     assert fighter.cost() == content_fighter.base_cost + spoon.cost()
-#     assert lst.cost() == fighter.cost()
-#     assert lst.cost() == 110
+    assert fighter.cost_int() == 100
+
+    fighter.equipment.add(spoon)
+
+    assert fighter.cost_int() == 110
+
+    assert fighter.cost_int() == content_fighter.cost_int() + spoon.cost_int()
+    assert lst.cost_int() == fighter.cost_int()
+    assert lst.cost_int() == 110
 
 
 # @pytest.mark.django_db
@@ -217,6 +222,6 @@ def test_list_cost_variable():
 #         name="Test Fighter", list=lst, content_fighter=content_fighter
 #     )
 
-#     assert fighter.cost() == content_fighter.base_cost + spoon.cost()
-#     assert lst.cost() == fighter.cost()
-#     assert lst.cost() == 110
+#     assert fighter.cost_int() == content_fighter.base_cost + spoon.cost_int()
+#     assert lst.cost_int() == fighter.cost_int()
+#     assert lst.cost_int() == 110

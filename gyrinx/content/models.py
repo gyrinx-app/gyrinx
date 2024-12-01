@@ -173,6 +173,9 @@ class ContentFighter(Content):
         # )
         return self.base_cost
 
+    def cost_int(self):
+        return int(self.cost())
+
     def statline(self):
         stats = [
             self._meta.get_field(field)

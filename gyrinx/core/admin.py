@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from .models import List, ListFighter
+from .models import List, ListFighter, ListFighterEquipmentAssignment
 
 
 class ListForm(forms.ModelForm):
@@ -34,3 +34,10 @@ class ListFighterAdmin(SimpleHistoryAdmin):
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]
+
+
+@admin.register(ListFighterEquipmentAssignment)
+class ListFighterEquipmentAssignmentAdmin(SimpleHistoryAdmin):
+    fields = ["list_fighter", "content_equipment"]
+    list_display = ["list_fighter", "content_equipment"]
+    search_fields = ["list_fighter__name", "content_equipment__name"]
