@@ -97,6 +97,9 @@ class ContentEquipment(Content):
     def cat(self):
         return EquipmentCategoryChoices[self.category].label
 
+    def is_weapon(self):
+        return ContentWeaponProfile.objects.filter(equipment=self).exists()
+
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"

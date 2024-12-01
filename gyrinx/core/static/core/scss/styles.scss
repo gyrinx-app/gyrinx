@@ -7,6 +7,12 @@ $font-size-base: 0.875rem;
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
 
+$custom-font-sizes: (
+    7: $font-size-base * 0.9,
+);
+
+$font-sizes: map-merge($font-sizes, $custom-font-sizes);
+
 @import "bootstrap/scss/maps";
 @import "bootstrap/scss/mixins";
 @import "bootstrap/scss/utilities";

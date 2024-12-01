@@ -64,13 +64,13 @@
             </div>
             <div>
                 <h1 class="h3">Equipment</h1>
-                <div class="vstack gap-4">
+                <div class="table-responsive-sm">
                     <table class="table table-sm table-borderless table-hover fs-7">
                         {% for category, items in categories.items %}
                             <thead>
                                 <tr class="align-bottom">
                                     <th colspan="11" class="pt-4">
-                                        <h2 class="h4 mb-0">{{ category }}</h2>
+                                        <h2 class="h5 mb-0">{{ category }}</h2>
                                     </th>
                                 </tr>
                                 <tr>
@@ -85,21 +85,20 @@
                                     </th>
                                     <th class="text-center" scope="col">S</th>
                                     <th class="text-center" scope="col">L</th>
-                                    <th class="text-center" scope="col">S</th>
+                                    <th class="text-center border-start" scope="col">S</th>
                                     <th class="text-center" scope="col">L</th>
-                                    <th class="text-center" scope="col">Str</th>
+                                    <th class="text-center border-start" scope="col">Str</th>
                                     <th class="text-center" scope="col">Ap</th>
                                     <th class="text-center" scope="col">D</th>
                                     <th class="text-center" scope="col">Am</th>
-                                    <th scope="col">Traits</th>
                                     <th scope="col" class="text-end">Cost</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in items %}
                                     <tr class="align-bottom">
-                                        <td colspan="10" class="pt-3">
-                                            <h3 class="h5 mb-0">{{ item.name }}</h3>
+                                        <td colspan="9" class="pt-3">
+                                            <h3 class="h6 mb-0">{{ item.name }}</h3>
                                         </td>
                                         <td class="text-end">
                                             <strong>{{ item.cost_display }}</strong>
@@ -107,12 +106,14 @@
                                     </tr>
                                     {% for profile in item.profiles %}
                                         <tr class="align-top">
-                                            <td>
+                                            <td rowspan="2">
                                                 {% if profile.name %}{{ profile.name }}{% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
-                                            <td>{{ profile.traitline|join:", " }}</td>
                                             <td class="text-end">{{ profile.cost_display }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="9">{{ profile.traitline|join:", " }}</td>
                                         </tr>
                                     {% endfor %}
                                 {% endfor %}

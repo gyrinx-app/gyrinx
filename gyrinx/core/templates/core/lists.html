@@ -54,15 +54,15 @@
                                                             {% endif %}
                                                         {% endfor %}
                                                     </tr>
-                                                    <tr>
+                                                    <tr class="fs-7">
                                                         <th scope="row" colspan="3">Rules</th>
                                                         <td colspan="12">{{ fighter.content_fighter.ruleline|join:", " }}</td>
                                                     </tr>
-                                                    <tr>
-                                                        <th scope="row" colspan="3">Skils</th>
+                                                    <tr class="fs-7">
+                                                        <th scope="row" colspan="3">Skills</th>
                                                         <td colspan="12">{{ fighter.skilline|join:", " }}</td>
                                                     </tr>
-                                                    <tr>
+                                                    <tr class="fs-7">
                                                         <th scope="row" colspan="3">Gear</th>
                                                         <td colspan="12">{{ fighter.wargearline|join:", " }}</td>
                                                     </tr>
@@ -83,25 +83,44 @@
                                                         <th class="text-center" scope="col">Ap</th>
                                                         <th class="text-center" scope="col">D</th>
                                                         <th class="text-center" scope="col">Am</th>
-                                                        <th class="border-start" scope="col">Traits</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {% for weapon in fighter.weapons %}
-                                                        <tr class="align-bottom">
-                                                            <td colspan="11">
-                                                                <strong>{{ weapon.content_equipment.name }}</strong>
-                                                            </td>
-                                                        </tr>
-                                                        {% for profile in weapon.all_profiles %}
+                                                        {% if weapon.all_profiles|length == 1 %}
                                                             <tr class="align-top">
-                                                                <td>
-                                                                    {% if profile.name %}{{ profile.name }}{% endif %}
+                                                                <td rowspan="2">
+                                                                    <strong>{{ weapon.content_equipment.name }}</strong>
                                                                 </td>
-                                                                {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
-                                                                <td>{{ profile.traitline|join:", " }}</td>
+                                                                {% for stat in weapon.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
                                                             </tr>
-                                                        {% endfor %}
+                                                            <tr>
+                                                                <td colspan="9">{{ weapon.all_profiles.0.traitline|join:", " }}</td>
+                                                            </tr>
+                                                        {% else %}
+                                                            {% if weapon.all_profiles.0.name != "" %}
+                                                                <tr class="align-bottom">
+                                                                    <td colspan="9">
+                                                                        <strong>{{ weapon.content_equipment.name }}</strong>
+                                                                    </td>
+                                                                </tr>
+                                                            {% endif %}
+                                                            {% for profile in weapon.all_profiles %}
+                                                                <tr class="align-top">
+                                                                    <td rowspan="2">
+                                                                        {% if profile.name %}
+                                                                            {{ profile.name }}
+                                                                        {% elif profile.id == weapon.all_profiles.0.id %}
+                                                                            <strong>{{ weapon.content_equipment.name }}</strong>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                                                </tr>
+                                                                <tr>
+                                                                    <td colspan="9">{{ profile.traitline|join:", " }}</td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        {% endif %}
                                                     {% endfor %}
                                                 </tbody>
                                             </table>

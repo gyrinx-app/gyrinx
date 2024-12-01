@@ -90,10 +90,10 @@ class ListFighter(AppBase):
         return [s.name for s in self.skills.all()]
 
     def weapons(self):
-        return self.assignments().filter(weapon_profile__isnull=False)
+        return [e for e in self.assignments() if e.is_weapon()]
 
     def wargear(self):
-        return self.assignments().filter(weapon_profile__isnull=True)
+        return [e for e in self.assignments() if not e.is_weapon()]
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
@@ -130,11 +130,11 @@ class ListFighterEquipmentAssignment(AppBase):
     )
 
     def all_profiles(self):
+        query = Q(equipment=self.content_equipment, cost=0)
+        if self.weapon_profile:
+            query = query | Q(id=self.weapon_profile.id)
         profiles = list(
-            ContentWeaponProfile.objects.filter(
-                Q(equipment=self.content_equipment, cost=0)
-                | Q(id=self.weapon_profile.id)
-            ).order_by(
+            ContentWeaponProfile.objects.filter(query).order_by(
                 Case(
                     When(name="", then=0),
                     default=1,
@@ -143,6 +143,12 @@ class ListFighterEquipmentAssignment(AppBase):
         )
 
         return profiles
+
+    def is_weapon(self):
+        print(
+            f"Checking if {self.content_equipment} is a weapon: {self.content_equipment.is_weapon()}"
+        )
+        return self.content_equipment.is_weapon()
 
     history = HistoricalRecords()
 
