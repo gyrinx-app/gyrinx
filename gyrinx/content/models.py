@@ -356,6 +356,9 @@ class ContentWeaponProfile(Content):
             for field in stats
         ]
 
+    def traitline(self):
+        return [trait.name for trait in self.traits.all()]
+
     class Meta:
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
