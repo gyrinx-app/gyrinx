@@ -47,6 +47,11 @@
                                {% active_aria 'core:content' %}
                                href="{% url 'core:content' %}">Content</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% active_view 'core:lists' %}"
+                               {% active_aria 'core:lists' %}
+                               href="{% url 'core:lists' %}">Lists</a>
+                        </li>
                     </ul>
                     <div class="d-flex flex-column flex-sm-row gap-2">
                         {% if user.is_authenticated %}

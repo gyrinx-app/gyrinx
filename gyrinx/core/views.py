@@ -2,6 +2,7 @@ from django.db.models import Case, When
 from django.shortcuts import get_list_or_404, render
 
 from gyrinx.content.models import ContentEquipment, ContentHouse
+from gyrinx.core.models import List
 
 
 def index(request):
@@ -9,6 +10,7 @@ def index(request):
 
 
 def content(request):
+    # TODO: Turn some amount of this into reusable stuff (e.g. "hydrate" calls)
     houses = get_list_or_404(ContentHouse)
     for house in houses:
         house.fighters = list(
@@ -47,5 +49,28 @@ def content(request):
         {
             "houses": houses,
             "categories": categories,
+        },
+    )
+
+
+def lists(request):
+    # TODO: Turn some amount of this into reusable stuff (e.g. "hydrate" calls)
+
+    lists = get_list_or_404(List)
+    for lst in lists:
+        lst.fighters = list(lst.listfighter_set.all().order_by("name"))
+
+        for fighter in lst.fighters:
+            fighter.assigned_equipment = list(
+                fighter.equipment.through.objects.filter(list_fighter=fighter).order_by(
+                    "list_fighter__name"
+                )
+            )
+
+    return render(
+        request,
+        "core/lists.html",
+        {
+            "lists": lists,
         },
     )

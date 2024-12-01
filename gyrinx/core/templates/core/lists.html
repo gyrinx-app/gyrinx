@@ -1,0 +1,78 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Lists
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        <div class="col-lg-12 px-0 vstack gap-5">
+            <div>
+                <h1>Lists</h1>
+                <div class="vstack gap-4">
+                    {% for list in lists %}
+                        <div>
+                            <h2 class="py-2">{{ list.name }}</h2>
+                            <div class="hstack gap-2">
+                                <div class="h4">{{ list.content_house.name }}</div>
+                                <div class="ms-auto">{{ list.cost_int }}¢</div>
+                            </div>
+                            <div class="vstack gap-3">
+                                {% for fighter in list.fighters %}
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="hstack gap-2 align-items-baseline">
+                                                <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
+                                                <div class="py-2">{{ fighter.content_fighter.type }} ({{ fighter.content_fighter.cat }})</div>
+                                                <!-- TODO: Make this cost_display -->
+                                                <div class="py-2 ms-auto">{{ fighter.cost_int }}¢</div>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-sm table-borderless">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="text-center" scope="col">M</th>
+                                                        <th class="text-center" scope="col">WS</th>
+                                                        <th class="text-center" scope="col">BS</th>
+                                                        <th class="text-center" scope="col">S</th>
+                                                        <th class="text-center" scope="col">T</th>
+                                                        <th class="text-center" scope="col">W</th>
+                                                        <th class="text-center" scope="col">I</th>
+                                                        <th class="text-center" scope="col">A</th>
+                                                        <th class="text-center table-warning" scope="col">Ld</th>
+                                                        <th class="text-center table-warning" scope="col">Cl</th>
+                                                        <th class="text-center table-warning" scope="col">Wil</th>
+                                                        <th class="text-center table-warning" scope="col">Int</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        {% for stat in fighter.content_fighter.statline %}
+                                                            {% if stat.highlight %}
+                                                                <td class="text-center table-warning">{{ stat.value }}</td>
+                                                            {% else %}
+                                                                <td class="text-center">{{ stat.value }}</td>
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </tr>
+                                                    <tr>
+                                                        <th scope="row" colspan="3">Rules</th>
+                                                        <td colspan="12">{{ fighter.content_fighter.ruleline|join:", " }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                {% empty %}
+                                    <div class="py-2">No fighters available.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="py-2">No lists available.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
