@@ -348,7 +348,7 @@ class ContentWeaponProfile(Content):
     def cost_display(self) -> str:
         if self.name == "" or self.cost_int() == 0:
             return ""
-        return f"{self.cost_int()}¢"
+        return f"{self.cost_sign}{self.cost_int()}¢"
 
     def statline(self):
         stats = [

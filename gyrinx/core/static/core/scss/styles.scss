@@ -1,12 +1,12 @@
 // Include functions first
 @import "bootstrap/scss/functions";
 
-// Customize some defaults
-// TODO: Add customizations here
+$font-size-base: 0.875rem;
 
 // Required
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
+
 @import "bootstrap/scss/maps";
 @import "bootstrap/scss/mixins";
 @import "bootstrap/scss/utilities";
