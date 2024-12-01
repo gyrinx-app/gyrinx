@@ -493,4 +493,3 @@ class Migration(migrations.Migration):
     ]
 
     operations = [migrations.RunPython(do_migration)]
-    operations = [migrations.RunPython(do_migration)]

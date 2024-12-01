@@ -89,6 +89,11 @@ class ContentEquipment(Content):
             return 0
         return int(self.cost)
 
+    def cost_display(self):
+        if not self.cost:
+            return ""
+        return f"{self.cost}¢"
+
     def cat(self):
         return EquipmentCategoryChoices[self.category].label
 
@@ -325,17 +330,25 @@ class ContentWeaponProfile(Content):
     def cost_int(self):
         return self.cost
 
-    def cost_tp(self):
+    def cost_tp(self) -> int | None:
         # If the cost is zero, then the profile is free to use and "standard".
+        # Note: this will not be shown in the Trading Post, because it's free. Only the base
+        # equipment will be shown.
         if self.cost_int() == 0:
-            return self.equipment.cost_int()
+            return None
 
         # If the cost is positive, then the profile is an upgrade to the equipment.
         if self.cost_sign == "+":
             return self.equipment.cost_int() + self.cost_int()
 
         # Otherwise, the cost is the profile cost.
+        # TODO: When is this a thing?
         return self.cost_int()
+
+    def cost_display(self) -> str:
+        if self.name == "" or self.cost_int() == 0:
+            return ""
+        return f"{self.cost_int()}¢"
 
     def statline(self):
         stats = [
