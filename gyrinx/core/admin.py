@@ -11,7 +11,7 @@ class ListForm(forms.ModelForm):
 
 @admin.display(description="Cost")
 def cost(obj):
-    return f"{obj.cost()}¢"
+    return f"{obj.cost_int()}¢"
 
 
 class ListFighterInline(admin.TabularInline):
@@ -38,7 +38,7 @@ class ListFighterForm(forms.ModelForm):
 @admin.register(ListFighter)
 class ListFighterAdmin(SimpleHistoryAdmin):
     form = ListFighterForm
-    fields = ["name", "content_fighter", "list", cost]
+    fields = ["name", "content_fighter", "list", "skills", cost]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]

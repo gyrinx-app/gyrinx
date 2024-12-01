@@ -1,12 +1,14 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Case, Q, When
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
     ContentHouse,
+    ContentSkill,
     ContentWeaponProfile,
 )
 from gyrinx.models import Archived, Base, Owned
@@ -61,6 +63,8 @@ class ListFighter(AppBase):
         ContentEquipment, through="ListFighterEquipmentAssignment", blank=True
     )
 
+    skills = models.ManyToManyField(ContentSkill, blank=True)
+
     history = HistoricalRecords()
 
     @admin.display(description="Cost")
@@ -78,6 +82,21 @@ class ListFighter(AppBase):
             )
         else:
             self.equipment.add(equipment)
+
+    def assignments(self):
+        return self.equipment.through.objects.filter(list_fighter=self)
+
+    def skilline(self):
+        return [s.name for s in self.skills.all()]
+
+    def weapons(self):
+        return self.assignments().filter(weapon_profile__isnull=False)
+
+    def wargear(self):
+        return self.assignments().filter(weapon_profile__isnull=True)
+
+    def wargearline(self):
+        return [e.content_equipment.name for e in self.wargear()]
 
     class Meta:
         verbose_name = "List Fighter"
@@ -109,6 +128,21 @@ class ListFighterEquipmentAssignment(AppBase):
     weapon_profile = models.ForeignKey(
         ContentWeaponProfile, on_delete=models.CASCADE, null=True, blank=True
     )
+
+    def all_profiles(self):
+        profiles = list(
+            ContentWeaponProfile.objects.filter(
+                Q(equipment=self.content_equipment, cost=0)
+                | Q(id=self.weapon_profile.id)
+            ).order_by(
+                Case(
+                    When(name="", then=0),
+                    default=1,
+                )
+            )
+        )
+
+        return profiles
 
     history = HistoricalRecords()
 

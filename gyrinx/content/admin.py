@@ -69,7 +69,7 @@ class ContentFighterEquipmentInline(ContentTabularInline):
 
 @admin.register(ContentFighter)
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["type", "category__name", "house__name"]
+    search_fields = ["type", "category", "house__name"]
     inlines = [ContentFighterEquipmentInline]
 
 
