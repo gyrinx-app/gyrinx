@@ -19,12 +19,10 @@ class AppBase(Base, Owned, Archived):
 ##
 
 
-class Build(AppBase):
-    """A Build is a reusable collection of fighters."""
+class List(AppBase):
+    """A List is a reusable collection of fighters."""
 
-    help_text = (
-        "A Build is a reusable collection of fighters, linked to a Content House."
-    )
+    help_text = "A List is a reusable collection of fighters."
     name = models.CharField(max_length=255)
     content_house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
@@ -34,25 +32,25 @@ class Build(AppBase):
 
     @admin.display(description="Cost")
     def cost(self):
-        return sum([f.cost() for f in self.buildfighter_set.all()])
+        return sum([f.cost() for f in self.listfighter_set.all()])
 
     class Meta:
-        verbose_name = "Build"
-        verbose_name_plural = "Builds"
+        verbose_name = "List"
+        verbose_name_plural = "Lists"
 
     def __str__(self):
         return self.name
 
 
-class BuildFighter(AppBase):
-    """A Fighter is a member of a build."""
+class ListFighter(AppBase):
+    """A Fighter is a member of a List."""
 
-    help_text = "A Build Fighter is a member of a Build, linked to a Content Fighter archetype to give base stats and equipment."
+    help_text = "A ListFighter is a member of a List, linked to a Content Fighter archetype to give base stats and equipment."
     name = models.CharField(max_length=255)
     content_fighter = models.ForeignKey(
         ContentFighter, on_delete=models.CASCADE, null=False, blank=False
     )
-    build = models.ForeignKey(Build, on_delete=models.CASCADE, null=False, blank=False)
+    list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
     history = HistoricalRecords()
 
@@ -61,8 +59,8 @@ class BuildFighter(AppBase):
         return self.content_fighter.cost()
 
     class Meta:
-        verbose_name = "Build Fighter"
-        verbose_name_plural = "Build Fighters"
+        verbose_name = "List Fighter"
+        verbose_name_plural = "List Fighters"
 
     def __str__(self):
         cf = self.content_fighter
@@ -71,8 +69,6 @@ class BuildFighter(AppBase):
     def clean(self):
         cf = self.content_fighter
         cf_house = cf.house
-        build_house = self.build.content_house
-        if cf_house != build_house:
-            raise ValidationError(
-                f"{cf.type} cannot be a member of {build_house} build"
-            )
+        list_house = self.list.content_house
+        if cf_house != list_house:
+            raise ValidationError(f"{cf.type} cannot be a member of {list_house} list")

@@ -2,10 +2,10 @@ from django import forms
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from .models import Build, BuildFighter
+from .models import List, ListFighter
 
 
-class BuildForm(forms.ModelForm):
+class ListForm(forms.ModelForm):
     pass
 
 
@@ -14,23 +14,23 @@ def cost(obj):
     return f"{obj.cost()}¢"
 
 
-@admin.register(Build)
-class BuildAdmin(SimpleHistoryAdmin):
-    form = BuildForm
+@admin.register(List)
+class ListAdmin(SimpleHistoryAdmin):
+    form = ListForm
     fields = ["name", "content_house", cost]
     readonly_fields = [cost]
     list_display = ["name", "content_house"]
     search_fields = ["name", "content_house__name"]
 
 
-class BuildFighterForm(forms.ModelForm):
+class ListFighterForm(forms.ModelForm):
     pass
 
 
-@admin.register(BuildFighter)
-class BuildFighterAdmin(SimpleHistoryAdmin):
-    form = BuildFighterForm
-    fields = ["name", "content_fighter", "build", cost]
+@admin.register(ListFighter)
+class ListFighterAdmin(SimpleHistoryAdmin):
+    form = ListFighterForm
+    fields = ["name", "content_fighter", "list", cost]
     readonly_fields = [cost]
-    list_display = ["name", "content_fighter", "build"]
-    search_fields = ["name", "content_fighter__type", "build__name"]
+    list_display = ["name", "content_fighter", "list"]
+    search_fields = ["name", "content_fighter__type", "list__name"]

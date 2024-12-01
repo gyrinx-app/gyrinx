@@ -1,7 +1,7 @@
 import pytest
 
 from gyrinx.content.models import ContentFighter, ContentHouse
-from gyrinx.core.models import Build, BuildFighter
+from gyrinx.core.models import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -20,120 +20,120 @@ def make_content():
 
 
 @pytest.mark.django_db
-def test_basic_build():
+def test_basic_list():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=house)
 
-    assert build.name == "Test Build"
+    assert lst.name == "Test List"
 
 
 @pytest.mark.django_db
-def test_basic_build_fighter():
+def test_basic_list_fighter():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
-    fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter=content_fighter
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
     )
 
-    assert build.name == "Test Build"
+    assert lst.name == "Test List"
     assert fighter.name == "Test Fighter"
 
 
 @pytest.mark.django_db
-def test_build_fighter_requires_content_fighter():
+def test_list_fighter_requires_content_fighter():
     category, house, content_fighter = make_content()
-    build = Build.objects.create(name="Test Build", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=house)
     with pytest.raises(Exception):
-        BuildFighter.objects.create(name="Test Fighter", build=build)
+        ListFighter.objects.create(name="Test Fighter", list=lst)
 
 
 @pytest.mark.django_db
-def test_build_fighter_content_fighter():
+def test_list_fighter_content_fighter():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
-    fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter=content_fighter
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
     )
 
     assert fighter.content_fighter.type == "Prospector Digger"
 
 
 @pytest.mark.django_db
-def test_build_fighter_house_matches_build():
+def test_list_fighter_house_matches_list():
     category, house, content_fighter = make_content()
 
-    build_house = ContentHouse.objects.create(
+    house = ContentHouse.objects.create(
         name="Ash Waste Nomads",
     )
 
-    build = Build.objects.create(name="Test Build AWN", content_house=build_house)
+    lst = List.objects.create(name="Test List AWN", content_house=house)
 
     with pytest.raises(
         Exception,
-        match="Prospector Digger cannot be a member of Ash Waste Nomads build",
+        match="Prospector Digger cannot be a member of Ash Waste Nomads list",
     ):
-        BuildFighter.objects.create(
-            name="Test Fighter", build=build, content_fighter=content_fighter
+        ListFighter.objects.create(
+            name="Test Fighter", list=lst, content_fighter=content_fighter
         ).full_clean()
 
 
 @pytest.mark.django_db
-def test_archive_build():
+def test_archive_list():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=house)
 
-    build.archive()
+    lst.archive()
 
-    assert build.archived
-    assert build.archived_at is not None
+    assert lst.archived
+    assert lst.archived_at is not None
 
 
 @pytest.mark.django_db
 def test_history():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=house)
 
-    assert build.history.all().count() == 1
+    assert lst.history.all().count() == 1
 
-    build.name = "Test Build 2"
-    build.save()
+    lst.name = "Test List 2"
+    lst.save()
 
-    assert build.history.all().count() == 2
-    assert build.history.first().name == "Test Build 2"
+    assert lst.history.all().count() == 2
+    assert lst.history.first().name == "Test List 2"
 
-    build.archive()
+    lst.archive()
 
-    assert build.history.first().archived
-    assert not build.history.first().prev_record.archived
+    assert lst.history.first().archived
+    assert not lst.history.first().prev_record.archived
 
 
 @pytest.mark.django_db
-def test_build_cost():
+def test_list_cost():
     category, house, content_fighter = make_content()
 
-    build = Build.objects.create(name="Test Build", content_house=house)
-    fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter=content_fighter
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
     )
 
     assert fighter.cost() == content_fighter.cost()
-    assert build.cost() == content_fighter.cost()
+    assert lst.cost() == content_fighter.cost()
 
-    fighter2 = BuildFighter.objects.create(
-        name="Test Fighter 2", build=build, content_fighter=content_fighter
+    fighter2 = ListFighter.objects.create(
+        name="Test Fighter 2", list=lst, content_fighter=content_fighter
     )
 
     assert fighter2.cost() == content_fighter.cost()
-    assert build.cost() == content_fighter.cost() * 2
+    assert lst.cost() == content_fighter.cost() * 2
 
 
 @pytest.mark.django_db
-def test_build_cost_variable():
+def test_list_cost_variable():
     category, house, content_fighter = make_content()
     content_fighter2 = ContentFighter.objects.create(
         type="Expensive Guy",
@@ -142,46 +142,41 @@ def test_build_cost_variable():
         base_cost=150,
     )
 
-    build = Build.objects.create(name="Test Build", content_house=house)
-    fighter = BuildFighter.objects.create(
-        name="Test Fighter", build=build, content_fighter=content_fighter
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
     )
-    fighter2 = BuildFighter.objects.create(
-        name="Test Fighter 2", build=build, content_fighter=content_fighter2
+    fighter2 = ListFighter.objects.create(
+        name="Test Fighter 2", list=lst, content_fighter=content_fighter2
     )
 
     assert fighter.cost() == content_fighter.cost()
     assert fighter2.cost() == content_fighter2.cost()
-    assert build.cost() == content_fighter.cost() + content_fighter2.cost()
+    assert lst.cost() == content_fighter.cost() + content_fighter2.cost()
 
 
 # @pytest.mark.django_db
-# def test_build_fighter_with_spoon():
+# def test_list_fighter_with_spoon():
 #     category, house, content_fighter = make_content()
-#     spoon = ContentEquipment.objects.create(
+#     spoon, _ = ContentEquipment.objects.get_or_create(
 #         name="Wooden Spoon",
 #         category=EquipmentCategoryChoices.BASIC_WEAPONS,
+#         cost=10,
 #     )
 #     spoon.save()
 
-#     ContentFighterEquipmentAssignment.objects.create(
-#         equipment=spoon,
-#         fighter=content_fighter,
-#         qty=1,
-#     ).save()
-
-#     build = Build.objects.create(name="Test Build", content_house=house)
-#     fighter = BuildFighter.objects.create(
-#         name="Test Fighter", build=build, content_fighter=content_fighter
+#     lst = List.objects.create(name="Test List", content_house=house)
+#     fighter = List.objects.create(
+#         name="Test Fighter", list=lst, content_fighter=content_fighter
 #     )
 
 #     assert fighter.cost() == content_fighter.base_cost + spoon.cost()
-#     assert build.cost() == fighter.cost()
-#     assert build.cost() == 110
+#     assert lst.cost() == fighter.cost()
+#     assert lst.cost() == 110
 
 
 # @pytest.mark.django_db
-# def test_build_fighter_with_spoon_and_not_other_assignments():
+# def test_list_fighter_with_spoon_and_not_other_assignments():
 #     # This test was introduced to fix a bug where the cost of a fighter was
 #     # including all equipment assignments, not just the ones for that fighter.
 
@@ -217,11 +212,11 @@ def test_build_cost_variable():
 #         qty=1,
 #     ).save()
 
-#     build = Build.objects.create(name="Test Build", content_house=house)
+#     lst = Build.objects.create(name="Test List", content_house=house)
 #     fighter = BuildFighter.objects.create(
-#         name="Test Fighter", build=build, content_fighter=content_fighter
+#         name="Test Fighter", list=lst, content_fighter=content_fighter
 #     )
 
 #     assert fighter.cost() == content_fighter.base_cost + spoon.cost()
-#     assert build.cost() == fighter.cost()
-#     assert build.cost() == 110
+#     assert lst.cost() == fighter.cost()
+#     assert lst.cost() == 110
