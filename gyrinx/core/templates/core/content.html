@@ -70,7 +70,10 @@
                             <div class="vstack gap-3">
                                 {% for item in items %}
                                     <div>
-                                        <h3 class="h5 mb-0">{{ item.name }}</h3>
+                                        <div class="hstack gap-2">
+                                            <h3 class="h5 mb-0">{{ item.name }}</h3>
+                                            <div class="ms-auto">{{ item.cost }}¢</div>
+                                        </div>
                                         <div class="vstack gap-1">
                                             {% for profile in item.profiles %}
                                                 <div class="hstack gap-2">

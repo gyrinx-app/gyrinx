@@ -34,7 +34,7 @@ def content(request):
                     When(name="", then=0),
                     default=1,
                 ),
-                "name",
+                "cost",
             )
         )
         if category not in categories:
