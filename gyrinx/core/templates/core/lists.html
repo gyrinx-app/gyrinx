@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
 {% block head_title %}
-    Lists
+    Lists | Gyrinx
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="container my-5">
@@ -31,9 +31,9 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="vstack gap-3">
+                            <div class="grid">
                                 {% for fighter in list.fighters %}
-                                    <div class="card">
+                                    <div class="card g-col-12 g-col-lg-6">
                                         <div class="card-header">
                                             <div class="hstack gap-2 align-items-baseline">
                                                 <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
@@ -69,18 +69,24 @@
                                                             {% endif %}
                                                         {% endfor %}
                                                     </tr>
-                                                    <tr class="fs-7">
-                                                        <th scope="row" colspan="3">Rules</th>
-                                                        <td colspan="12">{{ fighter.content_fighter.ruleline|join:", " }}</td>
-                                                    </tr>
-                                                    <tr class="fs-7">
-                                                        <th scope="row" colspan="3">Skills</th>
-                                                        <td colspan="12">{{ fighter.skilline|join:", " }}</td>
-                                                    </tr>
-                                                    <tr class="fs-7">
-                                                        <th scope="row" colspan="3">Gear</th>
-                                                        <td colspan="12">{{ fighter.wargearline|join:", " }}</td>
-                                                    </tr>
+                                                    {% if fighter.content_fighter.ruleline|length > 0 %}
+                                                        <tr class="fs-7">
+                                                            <th scope="row" colspan="3">Rules</th>
+                                                            <td colspan="12">{{ fighter.content_fighter.ruleline|join:", " }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                    {% if fighter.skilline|length > 0 %}
+                                                        <tr class="fs-7">
+                                                            <th scope="row" colspan="3">Skills</th>
+                                                            <td colspan="12">{{ fighter.skilline|join:", " }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                    {% if fighter.wargearline|length > 0 %}
+                                                        <tr class="fs-7">
+                                                            <th scope="row" colspan="3">Gear</th>
+                                                            <td colspan="12">{{ fighter.wargearline|join:", " }}</td>
+                                                        </tr>
+                                                    {% endif %}
                                                 </tbody>
                                             </table>
                                             {% comment %} Wargear {% endcomment %}

@@ -58,7 +58,18 @@ def lists(request):
 
     lists = get_list_or_404(List)
     for lst in lists:
-        lst.fighters = list(lst.listfighter_set.all().order_by("name"))
+        lst.fighters = list(
+            lst.listfighter_set.all().order_by(
+                Case(
+                    When(content_fighter__category="LEADER", then=0),
+                    When(content_fighter__category="CHAMPION", then=1),
+                    When(content_fighter__category="PROSPECT", then=2),
+                    When(content_fighter__category="JUVE", then=3),
+                    default=99,
+                ),
+                "name",
+            )
+        )
 
         for fighter in lst.fighters:
             fighter.assigned_equipment = list(
@@ -78,7 +89,18 @@ def lists(request):
 
 def list_print(request, id):
     lst = get_object_or_404(List, id=id)
-    lst.fighters = list(lst.listfighter_set.all().order_by("name"))
+    lst.fighters = list(
+        lst.listfighter_set.all().order_by(
+            Case(
+                When(content_fighter__category="LEADER", then=0),
+                When(content_fighter__category="CHAMPION", then=1),
+                When(content_fighter__category="PROSPECT", then=2),
+                When(content_fighter__category="JUVE", then=3),
+                default=99,
+            ),
+            "name",
+        )
+    )
 
     for fighter in lst.fighters:
         fighter.assigned_equipment = list(
