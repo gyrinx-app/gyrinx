@@ -1,0 +1,136 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Lists
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        <div class="col px-0 vstack gap-5">
+            <div>
+                <div class="vstack gap-0 mb-2">
+                    <div class="d-flex flex-column flex-sm-row gap-2 h5">
+                        <h2 class="mb-0">{{ list.name }}</h2>
+                        <div class="ms-sm-auto">{{ list.content_house.name }}</div>
+                        <div>
+                            <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid">
+                    {% for fighter in list.fighters %}
+                        <div class="card g-col-12 g-col-md-6">
+                            <div class="card-header">
+                                <div class="hstack gap-2 align-items-baseline">
+                                    <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
+                                    <div class="ms-auto py-2">{{ fighter.content_fighter.type }} ({{ fighter.content_fighter.cat }})</div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% comment %} Stats {% endcomment %}
+                                <table class="table table-sm table-borderless">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" scope="col">M</th>
+                                            <th class="text-center" scope="col">WS</th>
+                                            <th class="text-center" scope="col">BS</th>
+                                            <th class="text-center" scope="col">S</th>
+                                            <th class="text-center" scope="col">T</th>
+                                            <th class="text-center" scope="col">W</th>
+                                            <th class="text-center" scope="col">I</th>
+                                            <th class="text-center" scope="col">A</th>
+                                            <th class="text-center table-warning" scope="col">Ld</th>
+                                            <th class="text-center table-warning" scope="col">Cl</th>
+                                            <th class="text-center table-warning" scope="col">Wil</th>
+                                            <th class="text-center table-warning" scope="col">Int</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            {% for stat in fighter.content_fighter.statline %}
+                                                {% if stat.highlight %}
+                                                    <td class="text-center table-warning">{{ stat.value }}</td>
+                                                {% else %}
+                                                    <td class="text-center">{{ stat.value }}</td>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tr>
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Rules</th>
+                                            <td colspan="12">{{ fighter.content_fighter.ruleline|join:", " }}</td>
+                                        </tr>
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Skills</th>
+                                            <td colspan="12">{{ fighter.skilline|join:", " }}</td>
+                                        </tr>
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Gear</th>
+                                            <td colspan="12">{{ fighter.wargearline|join:", " }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                {% comment %} Wargear {% endcomment %}
+                                <table class="table table-sm table-borderless table-hover fs-7">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">
+                                                <span class="invisible">Weapon</span>
+                                            </th>
+                                            <th class="text-center" scope="col">S</th>
+                                            <th class="text-center" scope="col">L</th>
+                                            <th class="text-center border-start" scope="col">S</th>
+                                            <th class="text-center" scope="col">L</th>
+                                            <th class="text-center border-start" scope="col">Str</th>
+                                            <th class="text-center" scope="col">Ap</th>
+                                            <th class="text-center" scope="col">D</th>
+                                            <th class="text-center" scope="col">Am</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for weapon in fighter.weapons %}
+                                            {% if weapon.all_profiles|length == 1 %}
+                                                <tr class="align-top">
+                                                    <td rowspan="2">
+                                                        <strong>{{ weapon.content_equipment.name }}</strong>
+                                                    </td>
+                                                    {% for stat in weapon.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                                </tr>
+                                                <tr>
+                                                    <td colspan="9">{{ weapon.all_profiles.0.traitline|join:", " }}</td>
+                                                </tr>
+                                            {% else %}
+                                                {% if weapon.all_profiles.0.name != "" %}
+                                                    <tr class="align-bottom">
+                                                        <td colspan="9">
+                                                            <strong>{{ weapon.content_equipment.name }}</strong>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                                {% for profile in weapon.all_profiles %}
+                                                    <tr class="align-top">
+                                                        <td rowspan="2">
+                                                            {% if profile.name %}
+                                                                {{ profile.name }}
+                                                            {% elif profile.id == weapon.all_profiles.0.id %}
+                                                                <strong>{{ weapon.content_equipment.name }}</strong>
+                                                            {% endif %}
+                                                        </td>
+                                                        {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                                    </tr>
+                                                    <tr>
+                                                        <td colspan="9">{{ profile.traitline|join:", " }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="py-2">No fighters available.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

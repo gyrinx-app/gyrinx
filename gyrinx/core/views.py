@@ -1,5 +1,5 @@
 from django.db.models import Case, When
-from django.shortcuts import get_list_or_404, render
+from django.shortcuts import get_list_or_404, get_object_or_404, render
 
 from gyrinx.content.models import ContentEquipment, ContentHouse
 from gyrinx.core.models import List
@@ -72,5 +72,25 @@ def lists(request):
         "core/lists.html",
         {
             "lists": lists,
+        },
+    )
+
+
+def list_print(request, id):
+    lst = get_object_or_404(List, id=id)
+    lst.fighters = list(lst.listfighter_set.all().order_by("name"))
+
+    for fighter in lst.fighters:
+        fighter.assigned_equipment = list(
+            fighter.equipment.through.objects.filter(list_fighter=fighter).order_by(
+                "list_fighter__name"
+            )
+        )
+
+    return render(
+        request,
+        "core/list_print.html",
+        {
+            "list": lst,
         },
     )

@@ -11,10 +11,25 @@
                 <div class="vstack gap-4">
                     {% for list in lists %}
                         <div>
-                            <h2 class="py-2">{{ list.name }}</h2>
-                            <div class="hstack gap-2">
-                                <div class="h4">{{ list.content_house.name }}</div>
-                                <div class="ms-auto">{{ list.cost_int }}¢</div>
+                            <div class="vstack gap-0 mb-2">
+                                <div class="d-flex flex-column flex-sm-row gap-2 h5">
+                                    <h2 class="mb-0">{{ list.name }}</h2>
+                                    <div class="ms-sm-auto">{{ list.content_house.name }}</div>
+                                    <div>
+                                        <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                                    </div>
+                                </div>
+                                <div class="hstack gap-2">
+                                    <div>
+                                        <i class="bi bi-person"></i> {{ list.owner }}
+                                    </div>
+                                    <div class="ms-auto">
+                                        <a href="{% url 'core:list-print' list.id %}"
+                                           class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-printer"></i> Print fighter cards
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                             <div class="vstack gap-3">
                                 {% for fighter in list.fighters %}
