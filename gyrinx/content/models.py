@@ -24,6 +24,7 @@ class ContentHouse(Content):
     class Meta:
         verbose_name = "House"
         verbose_name_plural = "Houses"
+        ordering = ["name"]
 
 
 class ContentSkill(Content):
@@ -37,6 +38,7 @@ class ContentSkill(Content):
     class Meta:
         verbose_name = "Skill"
         verbose_name_plural = "Skills"
+        ordering = ["name"]
 
 
 class ContentRule(Content):
@@ -51,6 +53,7 @@ class ContentRule(Content):
     class Meta:
         verbose_name = "Rule"
         verbose_name_plural = "Rules"
+        ordering = ["name"]
 
 
 class ContentEquipment(Content):
@@ -104,6 +107,7 @@ class ContentEquipment(Content):
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
         unique_together = ["name", "category"]
+        ordering = ["name"]
 
 
 class ContentFighter(Content):
@@ -214,6 +218,7 @@ class ContentFighter(Content):
     class Meta:
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"
+        ordering = ["house__name", "type"]
 
 
 class ContentFighterEquipmentListItem(Content):
@@ -243,6 +248,7 @@ class ContentFighterEquipmentListItem(Content):
         verbose_name = "Equipment List Item"
         verbose_name_plural = "Equipment List Items"
         unique_together = ["fighter", "equipment", "weapon_profile"]
+        ordering = ["fighter__type", "equipment__name"]
 
 
 class ContentWeaponTrait(Content):
@@ -255,6 +261,7 @@ class ContentWeaponTrait(Content):
     class Meta:
         verbose_name = "Weapon Trait"
         verbose_name_plural = "Weapon Traits"
+        ordering = ["name"]
 
 
 class ContentWeaponProfile(Content):
@@ -382,6 +389,7 @@ class ContentWeaponProfile(Content):
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
         unique_together = ["equipment", "name"]
+        ordering = ["equipment__name", "name"]
 
 
 def check(rule, category, name):

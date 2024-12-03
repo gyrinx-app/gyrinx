@@ -1,0 +1,642 @@
+[
+  {
+    "skill": "Nerves of Steel",
+    "skill_count": "67118"
+  },
+  {
+    "skill": "Infiltrate",
+    "skill_count": "60314"
+  },
+  {
+    "skill": "Spring up",
+    "skill_count": "38189"
+  },
+  {
+    "skill": "Fast Shot",
+    "skill_count": "37860"
+  },
+  {
+    "skill": "Overwatch",
+    "skill_count": "27215"
+  },
+  {
+    "skill": "Overseer",
+    "skill_count": "25511"
+  },
+  {
+    "skill": "Munitioneer",
+    "skill_count": "20724"
+  },
+  {
+    "skill": "Unstoppable",
+    "skill_count": "20707"
+  },
+  {
+    "skill": "Hip Shooting",
+    "skill_count": "19152"
+  },
+  {
+    "skill": "True Grit",
+    "skill_count": "18963"
+  },
+  {
+    "skill": "Dodge",
+    "skill_count": "16059"
+  },
+  {
+    "skill": "Trick Shot",
+    "skill_count": "15180"
+  },
+  {
+    "skill": "Fearsome",
+    "skill_count": "15002"
+  },
+  {
+    "skill": "Fixer",
+    "skill_count": "13882"
+  },
+  {
+    "skill": "Gunfighter",
+    "skill_count": "13531"
+  },
+  {
+    "skill": "Medicae",
+    "skill_count": "13466"
+  },
+  {
+    "skill": "Step Aside",
+    "skill_count": "13395"
+  },
+  {
+    "skill": "Commanding Presence",
+    "skill_count": "12321"
+  },
+  {
+    "skill": "Rain of Blows",
+    "skill_count": "11101"
+  },
+  {
+    "skill": "Iron Will",
+    "skill_count": "10887"
+  },
+  {
+    "skill": "Marksman",
+    "skill_count": "10684"
+  },
+  {
+    "skill": "Berserker",
+    "skill_count": "10459"
+  },
+  {
+    "skill": "Evade",
+    "skill_count": "9918"
+  },
+  {
+    "skill": "Bull Charge",
+    "skill_count": "9696"
+  },
+  {
+    "skill": "Threat Response",
+    "skill_count": "8344"
+  },
+  {
+    "skill": "Got Your Six",
+    "skill_count": "8327"
+  },
+  {
+    "skill": "Sprint",
+    "skill_count": "8192"
+  },
+  {
+    "skill": "Slaughterborn",
+    "skill_count": "7243"
+  },
+  {
+    "skill": "Shotgun Savant",
+    "skill_count": "6872"
+  },
+  {
+    "skill": "Parry",
+    "skill_count": "6554"
+  },
+  {
+    "skill": "Mentor",
+    "skill_count": "6246"
+  },
+  {
+    "skill": "Bulging Biceps",
+    "skill_count": "6218"
+  },
+  {
+    "skill": "Crushing Blow",
+    "skill_count": "6069"
+  },
+  {
+    "skill": "Inspirational",
+    "skill_count": "5841"
+  },
+  {
+    "skill": "Precision Shot",
+    "skill_count": "5655"
+  },
+  {
+    "skill": "Iron Stare",
+    "skill_count": "5587"
+  },
+  {
+    "skill": "Headbutt",
+    "skill_count": "4942"
+  },
+  {
+    "skill": "Combat Master",
+    "skill_count": "4774"
+  },
+  {
+    "skill": "Unshakable Conviction",
+    "skill_count": "4450"
+  },
+  {
+    "skill": "Counter-attack",
+    "skill_count": "4339"
+  },
+  {
+    "skill": "Dependable Like Kin",
+    "skill_count": "4228"
+  },
+  {
+    "skill": "Lie Low",
+    "skill_count": "4158"
+  },
+  {
+    "skill": "Ballistics Expert",
+    "skill_count": "4095"
+  },
+  {
+    "skill": "Savvy Trader",
+    "skill_count": "3980"
+  },
+  {
+    "skill": "Naaargah!",
+    "skill_count": "3601"
+  },
+  {
+    "skill": "Too Pretty for Primus",
+    "skill_count": "3545"
+  },
+  {
+    "skill": "Iron Jaw",
+    "skill_count": "3495"
+  },
+  {
+    "skill": "Lucky",
+    "skill_count": "3379"
+  },
+  {
+    "skill": "Bullet Lord",
+    "skill_count": "3296"
+  },
+  {
+    "skill": "Blade Breaker",
+    "skill_count": "3292"
+  },
+  {
+    "skill": "Combat Virtuoso",
+    "skill_count": "3121"
+  },
+  {
+    "skill": "Spatial Psychosis",
+    "skill_count": "3078"
+  },
+  {
+    "skill": "Mind Control",
+    "skill_count": "2914"
+  },
+  {
+    "skill": "Clamber",
+    "skill_count": "2860"
+  },
+  {
+    "skill": "Team Work",
+    "skill_count": "2732"
+  },
+  {
+    "skill": "Weaponsmith",
+    "skill_count": "2540"
+  },
+  {
+    "skill": "Hurl",
+    "skill_count": "2484"
+  },
+  {
+    "skill": "Faceless",
+    "skill_count": "2394"
+  },
+  {
+    "skill": "Dark Shield",
+    "skill_count": "2377"
+  },
+  {
+    "skill": "Impetuous",
+    "skill_count": "2250"
+  },
+  {
+    "skill": "Nobody Pushes Kin Around",
+    "skill_count": "2168"
+  },
+  {
+    "skill": "Iron Man",
+    "skill_count": "2147"
+  },
+  {
+    "skill": "Scavenger's Eye",
+    "skill_count": "2028"
+  },
+  {
+    "skill": "Devotional Frenzy",
+    "skill_count": "2009"
+  },
+  {
+    "skill": "Backstab",
+    "skill_count": "1973"
+  },
+  {
+    "skill": "Bring It Down",
+    "skill_count": "1953"
+  },
+  {
+    "skill": "Disarm",
+    "skill_count": "1941"
+  },
+  {
+    "skill": "Hit and Run",
+    "skill_count": "1882"
+  },
+  {
+    "skill": "Bullet Dodger",
+    "skill_count": "1854"
+  },
+  {
+    "skill": "Steady Hands",
+    "skill_count": "1740"
+  },
+  {
+    "skill": "Scouring",
+    "skill_count": "1620"
+  },
+  {
+    "skill": "One Punch",
+    "skill_count": "1561"
+  },
+  {
+    "skill": "Catfall",
+    "skill_count": "1538"
+  },
+  {
+    "skill": "Stubborn to the Last",
+    "skill_count": "1523"
+  },
+  {
+    "skill": "Walk it Off",
+    "skill_count": "1499"
+  },
+  {
+    "skill": "Iron Hard",
+    "skill_count": "1442"
+  },
+  {
+    "skill": "Avatar of Blood",
+    "skill_count": "1354"
+  },
+  {
+    "skill": "Suicidal Embrace",
+    "skill_count": "1249"
+  },
+  {
+    "skill": "Escape Artist",
+    "skill_count": "1240"
+  },
+  {
+    "skill": "Regroup",
+    "skill_count": "1217"
+  },
+  {
+    "skill": "Assail",
+    "skill_count": "1203"
+  },
+  {
+    "skill": "Mighty Leap",
+    "skill_count": "1176"
+  },
+  {
+    "skill": "Connected",
+    "skill_count": "1154"
+  },
+  {
+    "skill": "Gadgeteer",
+    "skill_count": "1133"
+  },
+  {
+    "skill": "Frenzy",
+    "skill_count": "1132"
+  },
+  {
+    "skill": "Killing Blow",
+    "skill_count": "1121"
+  },
+  {
+    "skill": "Lightning Reflexes",
+    "skill_count": "1069"
+  },
+  {
+    "skill": "Restraint Protocols",
+    "skill_count": "1067"
+  },
+  {
+    "skill": "Fists of Steel",
+    "skill_count": "1033"
+  },
+  {
+    "skill": "Maddening Visions",
+    "skill_count": "953"
+  },
+  {
+    "skill": "Penumbral Mirror",
+    "skill_count": "948"
+  },
+  {
+    "skill": "One Shot",
+    "skill_count": "821"
+  },
+  {
+    "skill": "Blazing Faith",
+    "skill_count": "777"
+  },
+  {
+    "skill": "Hypnosis",
+    "skill_count": "755"
+  },
+  {
+    "skill": "Acrobatic",
+    "skill_count": "713"
+  },
+  {
+    "skill": "Terrible Truths",
+    "skill_count": "711"
+  },
+  {
+    "skill": "Born to the Wastes",
+    "skill_count": "690"
+  },
+  {
+    "skill": "A Perfect Void",
+    "skill_count": "685"
+  },
+  {
+    "skill": "Helmawr's Justice",
+    "skill_count": "679"
+  },
+  {
+    "skill": "There's Always Another Secret",
+    "skill_count": "673"
+  },
+  {
+    "skill": "Unrememberable Utterance",
+    "skill_count": "633"
+  },
+  {
+    "skill": "Non-sanctioned Psyker",
+    "skill_count": "626"
+  },
+  {
+    "skill": "Promethium-proof Killer",
+    "skill_count": "587"
+  },
+  {
+    "skill": "Warp Strength",
+    "skill_count": "587"
+  },
+  {
+    "skill": "Psi-touched",
+    "skill_count": "573"
+  },
+  {
+    "skill": "Lord of Rats",
+    "skill_count": "560"
+  },
+  {
+    "skill": "Rock Steady",
+    "skill_count": "541"
+  },
+  {
+    "skill": "Headshot",
+    "skill_count": "535"
+  },
+  {
+    "skill": "Levitation",
+    "skill_count": "523"
+  },
+  {
+    "skill": "Existential Barrage",
+    "skill_count": "495"
+  },
+  {
+    "skill": "Restless Faith",
+    "skill_count": "469"
+  },
+  {
+    "skill": "Somersault",
+    "skill_count": "465"
+  },
+  {
+    "skill": "Rumour-monger",
+    "skill_count": "438"
+  },
+  {
+    "skill": "Zealot",
+    "skill_count": "437"
+  },
+  {
+    "skill": "Non-verbal Communication",
+    "skill_count": "415"
+  },
+  {
+    "skill": "Stormwalker",
+    "skill_count": "409"
+  },
+  {
+    "skill": "Big Brother",
+    "skill_count": "363"
+  },
+  {
+    "skill": "Bloodlust",
+    "skill_count": "355"
+  },
+  {
+    "skill": "Two-guns",
+    "skill_count": "350"
+  },
+  {
+    "skill": "Sight Blight",
+    "skill_count": "343"
+  },
+  {
+    "skill": "Eyes of the Wasteland",
+    "skill_count": "342"
+  },
+  {
+    "skill": "King Hit",
+    "skill_count": "336"
+  },
+  {
+    "skill": "Bigman",
+    "skill_count": "335"
+  },
+  {
+    "skill": "Force Blast",
+    "skill_count": "324"
+  },
+  {
+    "skill": "Eternal Slumber",
+    "skill_count": "321"
+  },
+  {
+    "skill": "Impressive Scars",
+    "skill_count": "307"
+  },
+  {
+    "skill": "Opprobrious",
+    "skill_count": "307"
+  },
+  {
+    "skill": "Take Down",
+    "skill_count": "297"
+  },
+  {
+    "skill": "Bring it On!",
+    "skill_count": "281"
+  },
+  {
+    "skill": "Where There's Scrap, There's Creds!",
+    "skill_count": "278"
+  },
+  {
+    "skill": "Rad-phaged",
+    "skill_count": "256"
+  },
+  {
+    "skill": "Doppelganger",
+    "skill_count": "245"
+  },
+  {
+    "skill": "Outlaw",
+    "skill_count": "225"
+  },
+  {
+    "skill": "Immovable Stance",
+    "skill_count": "220"
+  },
+  {
+    "skill": "Guilder Contacts",
+    "skill_count": "218"
+  },
+  {
+    "skill": "Crimson Haze",
+    "skill_count": "210"
+  },
+  {
+    "skill": "Cold and Calculating",
+    "skill_count": "205"
+  },
+  {
+    "skill": "Ghost and Shadow",
+    "skill_count": "201"
+  },
+  {
+    "skill": "Unbreakable Will",
+    "skill_count": "194"
+  },
+  {
+    "skill": "Unleash the Beast",
+    "skill_count": "191"
+  },
+  {
+    "skill": "Badzone Legend",
+    "skill_count": "190"
+  },
+  {
+    "skill": "Weapon Jinx",
+    "skill_count": "186"
+  },
+  {
+    "skill": "Deceitful Thoughts",
+    "skill_count": "185"
+  },
+  {
+    "skill": "Photonic Engineer",
+    "skill_count": "179"
+  },
+  {
+    "skill": "Familiar",
+    "skill_count": "171"
+  },
+  {
+    "skill": "Beast Handler",
+    "skill_count": "162"
+  },
+  {
+    "skill": "Cloak of Whispers",
+    "skill_count": "160"
+  },
+  {
+    "skill": "Expert Driver",
+    "skill_count": "158"
+  },
+  {
+    "skill": "Combat Focus",
+    "skill_count": "152"
+  },
+  {
+    "skill": "Cacophony of Silence",
+    "skill_count": "150"
+  },
+  {
+    "skill": "Mental Mastery",
+    "skill_count": "144"
+  },
+  {
+    "skill": "Hallucinations",
+    "skill_count": "139"
+  },
+  {
+    "skill": "Slippery Scummer",
+    "skill_count": "132"
+  },
+  {
+    "skill": "Sanctioned Psyker",
+    "skill_count": "111"
+  },
+  {
+    "skill": "Spyre Hunter",
+    "skill_count": "111"
+  },
+  {
+    "skill": "Vast Bulk",
+    "skill_count": "109"
+  },
+  {
+    "skill": "Group Activation (1)",
+    "skill_count": "105"
+  },
+  {
+    "skill": "Ever Vigilant",
+    "skill_count": "104"
+  },
+  {
+    "skill": "Cyclopean Gaze",
+    "skill_count": "103"
+  },
+  {
+    "skill": "Tools of the Trade",
+    "skill_count": "100"
+  }
+]

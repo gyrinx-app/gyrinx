@@ -91,14 +91,14 @@ def test_fighter_rules():
     fighter.save()
 
     assert [rule.name for rule in fighter.rules.all()] == [
+        "Fast Learner",
         "Gang Fighter (Juve)",
         "Promotion (Specialist)",
-        "Fast Learner",
     ]
     assert fighter.ruleline() == [
+        "Fast Learner",
         "Gang Fighter (Juve)",
         "Promotion (Specialist)",
-        "Fast Learner",
     ]
 
 

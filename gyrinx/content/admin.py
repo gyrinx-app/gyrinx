@@ -67,8 +67,13 @@ class ContentFighterEquipmentInline(ContentTabularInline):
     model = ContentFighterEquipmentListItem
 
 
+class ContentFighterForm(forms.ModelForm):
+    pass
+
+
 @admin.register(ContentFighter)
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
     inlines = [ContentFighterEquipmentInline]
 
