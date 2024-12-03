@@ -4,7 +4,7 @@
     {{ list.name }} | {{ list.content_house.name }} | Gyrinx
 {% endblock head_title %}
 {% block content %}
-    <div id="content" class="p-3">
+    <div id="content" class="p-2">
         <div class="col px-0 vstack gap-5">
             <div>
                 <div class="vstack gap-0 mb-2">
@@ -16,18 +16,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="grid">
+                <div class="grid gap-2">
                     {% for fighter in list.fighters %}
                         <div class="card g-col-12 g-col-md-6 g-col-lg-4">
-                            <div class="card-header">
+                            <div class="card-header py-0 px-2">
                                 <div class="hstack gap-2 align-items-baseline">
                                     <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
                                     <div class="ms-auto py-2">{{ fighter.content_fighter.type }} ({{ fighter.content_fighter.cat }})</div>
                                 </div>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body py-1 px-2">
                                 {% comment %} Stats {% endcomment %}
-                                <table class="table table-sm table-borderless">
+                                <table class="table table-sm table-borderless mb-0">
                                     <thead>
                                         <tr>
                                             <th class="text-center" scope="col">M</th>
@@ -74,8 +74,9 @@
                                         {% endif %}
                                     </tbody>
                                 </table>
+                                <hr class="my-1">
                                 {% comment %} Wargear {% endcomment %}
-                                <table class="table table-sm table-borderless table-hover fs-7">
+                                <table class="table table-sm table-borderless table-hover mb-0 fs-7">
                                     <thead>
                                         <tr>
                                             <th scope="col">
