@@ -145,9 +145,6 @@ class ListFighterEquipmentAssignment(AppBase):
         return profiles
 
     def is_weapon(self):
-        print(
-            f"Checking if {self.content_equipment} is a weapon: {self.content_equipment.is_weapon()}"
-        )
         return self.content_equipment.is_weapon()
 
     history = HistoricalRecords()
