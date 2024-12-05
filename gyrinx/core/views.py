@@ -1,7 +1,7 @@
 from django.db.models import Case, When
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 
-from gyrinx.content.models import ContentEquipment, ContentHouse
+from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.models import List
 
 
@@ -10,7 +10,14 @@ def index(request):
 
 
 def content(request):
-    # TODO: Turn some amount of this into reusable stuff (e.g. "hydrate" calls)
+    # Unused view
+    return render(
+        request,
+        "core/content.html",
+    )
+
+
+def content_gangs(request):
     houses = get_list_or_404(ContentHouse)
     for house in houses:
         house.fighters = list(
@@ -25,7 +32,10 @@ def content(request):
                 "type",
             )
         )
+    return render(request, "core/content_gangs.html", {"houses": houses})
 
+
+def content_equipment(request):
     equipment = get_list_or_404(ContentEquipment)
     categories = {}
     for item in equipment:
@@ -42,13 +52,39 @@ def content(request):
         if category not in categories:
             categories[category] = []
         categories[category].append(item)
+    return render(request, "core/content_equipment.html", {"categories": categories})
+
+
+def content_index(request):
+    page_refs = get_list_or_404(ContentPageRef.all_ordered())
+    categories = {}
+    for page_ref in page_refs:
+        category = page_ref.category
+        if category not in categories:
+            categories[category] = []
+        categories[category].append(page_ref)
 
     return render(
         request,
-        "core/content.html",
+        "core/content_index.html",
         {
-            "houses": houses,
+            "page_refs": page_refs,
             "categories": categories,
+            "category_order": [
+                "Rules",
+                "Background",
+                "Gangs",
+                "Dramatis Personae",
+                "Hangers-On",
+                "Brutes",
+                "Exotic Beasts",
+                "Trading Post",
+                "Vehicles",
+                "Skills",
+                "Gang Tactics",
+                "Campaigns",
+                "Scenarios",
+            ],
         },
     )
 

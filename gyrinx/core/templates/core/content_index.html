@@ -1,0 +1,68 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Index - Content
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        <div class="col-lg-12 px-0 vstack gap-5">
+            <div>
+                <h1>Index</h1>
+                <div class="vstack gap-4">
+                    {% for category in category_order %}
+                        <div>
+                            <h2 class="py-2">{{ category }}</h2>
+                            <div class="vstack gap-3">
+                                {% for ref in categories|lookup:category %}
+                                    <div>
+                                        <div class="hstack gap-2">
+                                            <h3 class="py-2 h5 mb-0">{{ ref.title }}</h3>
+                                            <div class="py-2 ms-auto">{{ ref.book.shortname }}</div>
+                                            <div class="py-2">p{{ ref.page }}</div>
+                                        </div>
+                                        <div class="ms-3 vstack gap-2">
+                                            {% for sub_ref in ref.children_ordered %}
+                                                <div>
+                                                    <div class="hstack gap-2">
+                                                        <h4 class="py-2 h6 mb-0">{{ sub_ref.title }}</h4>
+                                                        <div class="py-2 ms-auto">{{ sub_ref.book.shortname }}</div>
+                                                        <div class="py-2">p{{ sub_ref.page }}</div>
+                                                    </div>
+                                                    <div class="ms-3 vstack gap-2">
+                                                        {% for sub2_ref in sub_ref.children_ordered %}
+                                                            <div>
+                                                                <div class="hstack gap-2">
+                                                                    <div class="py-2 mb-0">{{ sub2_ref.title }}</div>
+                                                                    <div class="py-2 ms-auto">{{ sub2_ref.book.shortname }}</div>
+                                                                    <div class="py-2">p{{ sub2_ref.page }}</div>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                        {% for sub2_ref in sub_ref.children_no_page %}
+                                                            <div>
+                                                                <div class="hstack gap-2">
+                                                                    <div class="py-2 mb-0">{{ sub2_ref.title }}</div>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                            {% for sub_ref in ref.children_no_page %}
+                                                <div>
+                                                    <div class="hstack gap-2">
+                                                        <div class="py-2 mb-0">{{ sub_ref.title }}</div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

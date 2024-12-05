@@ -2,7 +2,8 @@ from difflib import SequenceMatcher
 
 from django.core.cache import caches
 from django.db import models
-from django.db.models import Q
+from django.db.models import Case, Q, When
+from django.db.models.functions import Cast
 from simple_history.models import HistoricalRecords
 
 from gyrinx.models import Base, EquipmentCategoryChoices, FighterCategoryChoices
@@ -533,3 +534,43 @@ class ContentPageRef(Content):
         # ]
         cache.set(key, refs)
         return refs
+
+    @classmethod
+    def all_ordered(cls):
+        return (
+            ContentPageRef.objects.filter(parent__isnull=True)
+            .annotate(page_int=Cast("page", models.IntegerField()))
+            .order_by(
+                Case(
+                    When(book__shortname="Core", then=0),
+                    default=99,
+                ),
+                "book__shortname",
+                "page_int",
+            )
+        )
+
+    def children_ordered(self):
+        return (
+            self.children.exclude(page="")
+            .annotate(page_int=Cast("page", models.IntegerField(null=True, blank=True)))
+            .order_by(
+                Case(
+                    When(book__shortname="Core", then=0),
+                    default=99,
+                ),
+                "book__shortname",
+                "page_int",
+                "title",
+            )
+        )
+
+    def children_no_page(self):
+        return self.children.filter(page="").order_by(
+            Case(
+                When(book__shortname="Core", then=0),
+                default=99,
+            ),
+            "book__shortname",
+            "title",
+        )

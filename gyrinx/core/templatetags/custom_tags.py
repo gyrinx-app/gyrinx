@@ -21,6 +21,11 @@ def active_aria(context, name):
     return 'aria-current="page"' if is_active(context, name) else ""
 
 
+@register.filter
+def lookup(dictionary, key):
+    return dictionary.get(key)
+
+
 def identity(value):
     return value
 

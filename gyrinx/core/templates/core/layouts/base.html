@@ -2,7 +2,7 @@
 {% load static custom_tags %}
 {% block base %}
     <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
         <div class="container">
             <a class="navbar-brand" href="{% url 'core:index' %}">
                 <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
@@ -27,10 +27,29 @@
                            {% active_aria 'core:index' %}
                            href="{% url 'core:index' %}">Home</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% active_view 'core:content' %}"
-                           {% active_aria 'core:content' %}
-                           href="{% url 'core:content' %}">Content</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle"
+                           href="#"
+                           role="button"
+                           data-bs-toggle="dropdown"
+                           aria-expanded="false">Content</a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {% active_view 'core:content-gangs' %}"
+                                   {% active_aria 'core:content-gangs' %}
+                                   href="{% url 'core:content-gangs' %}">Gangs &amp; Fighters</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% active_view 'core:content-equipment' %}"
+                                   {% active_aria 'core:content-equipment' %}
+                                   href="{% url 'core:content-equipment' %}">Equipment</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% active_view 'core:content-index' %}"
+                                   {% active_aria 'core:content-index' %}
+                                   href="{% url 'core:content-index' %}">Index</a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% active_view 'core:lists' %}"
