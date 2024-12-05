@@ -487,7 +487,7 @@ class ContentPageRef(Content):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.title} ({self.category}, {self.book.shortname}, p{self.resolve_page()}) {self.description or ""}".strip()
+        return f"{self.book.shortname} - {self.category} - p{self.resolve_page()} - {self.title}".strip()
 
     def bookref(self):
         return f"{self.book.shortname} p{self.resolve_page()}".strip()

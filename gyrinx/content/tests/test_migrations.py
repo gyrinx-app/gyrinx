@@ -31,7 +31,7 @@ def test_pageref_refs():
     assert ContentPageRef.objects.filter(title="Agility").count() == 1
     agility = ContentPageRef.objects.get(title="Agility")
     assert agility.book.shortname == "Core"
-    assert f"{agility}" == "Agility (Skills, Core, p256)"
+    assert f"{agility}" == "Core - Skills - p256 - Agility"
 
     charter_master = ContentPageRef.find(
         title="Ironhead Squat Prospectors Charter Master"

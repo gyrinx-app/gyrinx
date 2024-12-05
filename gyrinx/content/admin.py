@@ -141,7 +141,7 @@ class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
     class ChildContentPageRefInline(ContentTabularInline):
         model = ContentPageRef
         extra = 0
-        fields = ["title", "page", "category", "description"]
+        fields = ["title", "book", "page", "category", "description"]
 
         def get_queryset(self, request):
             qs = super().get_queryset(request)
