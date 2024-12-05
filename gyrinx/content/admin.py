@@ -1,5 +1,7 @@
 from django import forms
 from django.contrib import admin
+from django.db import models
+from django.db.models.functions import Cast
 
 from .models import (
     ContentBook,
@@ -116,7 +118,35 @@ class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentBookAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["title", "shortname", "description"]
 
+    class ContentPageRefInline(ContentTabularInline):
+        model = ContentPageRef
+        extra = 0
+        fields = ["title", "page", "category", "description"]
+
+        def get_queryset(self, request):
+            qs = super().get_queryset(request)
+            return (
+                qs.annotate(page_int=Cast("page", models.IntegerField()))
+                .filter(parent__isnull=True)
+                .order_by("page_int")
+            )
+
+    inlines = [ContentPageRefInline]
+
 
 @admin.register(ContentPageRef)
 class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["title", "page", "description"]
+
+    class ChildContentPageRefInline(ContentTabularInline):
+        model = ContentPageRef
+        extra = 0
+        fields = ["title", "page", "category", "description"]
+
+        def get_queryset(self, request):
+            qs = super().get_queryset(request)
+            return qs.annotate(page_int=Cast("page", models.IntegerField())).order_by(
+                "page_int"
+            )
+
+    inlines = [ChildContentPageRefInline]

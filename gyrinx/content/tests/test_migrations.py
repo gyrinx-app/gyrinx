@@ -46,9 +46,9 @@ def test_pageref_refs():
         book__shortname="Core",
     )
 
-    assert ContentPageRef.find_similar("Agility") == [agility]
-    assert ContentPageRef.find_similar("Charter Master") == [charter_master]
-    assert ContentPageRef.find_similar("Settlement Raid") == [
+    assert list(ContentPageRef.find_similar("Agility")) == [agility]
+    assert list(ContentPageRef.find_similar("Charter Master")) == [charter_master]
+    assert list(ContentPageRef.find_similar("Settlement Raid")) == [
         settlement_raid_outcast,
         settlement_raid_core,
     ]

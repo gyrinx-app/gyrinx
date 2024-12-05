@@ -1,6 +1,8 @@
 from difflib import SequenceMatcher
 
+from django.core.cache import caches
 from django.db import models
+from django.db.models import Q
 from simple_history.models import HistoricalRecords
 
 from gyrinx.models import Base, EquipmentCategoryChoices, FighterCategoryChoices
@@ -487,6 +489,9 @@ class ContentPageRef(Content):
     def __str__(self):
         return f"{self.title} ({self.category}, {self.book.shortname}, p{self.resolve_page()}) {self.description or ""}".strip()
 
+    def bookref(self):
+        return f"{self.book.shortname} p{self.resolve_page()}".strip()
+
     def resolve_page(self):
         if self.page:
             return self.page
@@ -506,15 +511,25 @@ class ContentPageRef(Content):
         return ContentPageRef.objects.filter(*args, **kwargs).first()
 
     @classmethod
-    def find_similar(cls, title: str):
-        refs = ContentPageRef.objects.all()
+    def find_similar(cls, title: str, **kwargs):
+        cache = caches["content_page_ref_cache"]
+        key = f"content_page_ref_cache:{title}"
+        cached = cache.get(key)
+        if cached:
+            return cached
 
-        list = sorted(
-            refs,
-            key=lambda ref: similar(ref.title.lower(), title.lower()),
-            reverse=True,
+        refs = ContentPageRef.objects.filter(**kwargs).filter(
+            Q(title__icontains=title) | Q(title=title)
         )
-        top_10 = list[0:10]
-        return [
-            ref for ref in top_10 if similar(ref.title.lower(), title.lower()) > 0.8
-        ]
+
+        # list = sorted(
+        #     refs,
+        #     key=lambda ref: similar(ref.title.lower(), title.lower()),
+        #     reverse=True,
+        # )
+        # top_10 = list[0:10]
+        # result = [
+        #     ref for ref in top_10 if similar(ref.title.lower(), title.lower()) > 0.8
+        # ]
+        cache.set(key, refs)
+        return refs

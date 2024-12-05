@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
+{% load allauth custom_tags %}
 {% block head_title %}
     Content
 {% endblock head_title %}
@@ -16,7 +16,7 @@
                                 {% for fighter in house.fighters %}
                                     <div>
                                         <div class="hstack gap-2">
-                                            <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
+                                            <h3 class="py-2 h5 mb-0">{% ref house.name fighter.type value=fighter.name %}</h3>
                                             <!-- TODO: Make this cost_display -->
                                             <div class="py-2 ms-auto">{{ fighter.cost }}¢</div>
                                         </div>
@@ -49,7 +49,15 @@
                                                 </tr>
                                                 <tr>
                                                     <th scope="row" colspan="3">Rules</th>
-                                                    <td colspan="12">{{ fighter.ruleline|join:", " }}</td>
+                                                    <td colspan="12">
+                                                        {% for rule in fighter.ruleline %}
+                                                            {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                            {% spaceless %}
+                                                                <span>{% ref rule value=rule %}</span>
+                                                                {% if not forloop.last %}<span>,</span>{% endif %}
+                                                            {% endspaceless %}
+                                                        {% endfor %}
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>

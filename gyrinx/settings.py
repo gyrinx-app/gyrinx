@@ -141,6 +141,19 @@ DATABASES = {
     }
 }
 
+# Caching
+# https://docs.djangoproject.com/en/5.1/topics/cache/
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
+    },
+    "content_page_ref_cache": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "content-page-ref-cache",
+    },
+}
 
 # Authentication
 # Using django-allauth for authentication
