@@ -1,0 +1,394 @@
+{
+    "name": "Book of the Outcast",
+    "shortname": "Outcast",
+    "year": "2021",
+    "description": "Book of the Outcast (2021)",
+    "type": "Supplement",
+    "contents": {
+        "rules": [
+            {
+                "title": "Outlander Terrain",
+                "page": "48"
+            },
+            {
+                "title": "Wyrd Powers",
+                "page": "52",
+                "subsections": [
+                    {
+                        "title": "Using Wyrd Power Disciplines",
+                        "page": "52"
+                    }
+                ]
+            }
+        ],
+        "summaries": [
+            {
+                "title": "Weapon Reference Chart",
+                "page": "114"
+            }
+        ],
+        "gang tactics": [
+            {
+                "title": "Outcasts Gang Tactics",
+                "page": "104",
+                "gang": "Underhive Outcasts"
+            }
+        ],
+        "gangs": [
+            {
+                "title": "Underhive Outcasts",
+                "page": "14",
+                "gang": "Underhive Outcasts",
+                "main": "true",
+                "fighters": [
+                    {
+                        "title": "Underhive Outcasts Leader",
+                        "page": "18",
+                        "rank": "Leader",
+                        "cost": "125"
+                    },
+                    {
+                        "title": "Underhive Outcasts Champion",
+                        "page": "28",
+                        "rank": "Champion",
+                        "cost": "60"
+                    },
+                    {
+                        "title": "Underhive Outcasts Hive Scum",
+                        "page": "30",
+                        "rank": "Ganger",
+                        "cost": "30"
+                    }
+                ]
+            }
+        ],
+        "vehicles": [
+        ],
+        "vehicle crews": [
+        ],
+        "hangers-on": [
+            {
+                "title": "Underhive Traders",
+                "page": "36",
+                "cost": "50"
+            },
+            {
+                "title": "Dome Runner",
+                "page": "38",
+                "cost": "20"
+            },
+            {
+                "title": "Ammo-Jack",
+                "page": "39",
+                "cost": "50"
+            },
+            {
+                "title": "Slopper",
+                "page": "40",
+                "cost": "20"
+            },
+            {
+                "title": "Rogue Doc",
+                "page": "41",
+                "cost": "50"
+            }
+        ],
+        "brutes": [
+            {
+                "title": "Luther Pattern Excavation Automata ('Ambot')",
+                "page": "44",
+                "cost": "215"
+            },
+            {
+                "title": "'Jotunn' H-Grade Servitor Ogryn",
+                "page": "46",
+                "cost": "210"
+            }
+        ],
+        "exotic beasts": [
+        ],
+        "skills": [
+        ],
+        "wyrd powers":[
+            {
+                "title": "Wyrd Powers",
+                "page": "52",
+                "subsections": [
+                    {
+                        "title": "Biomancy",
+                        "page": "53",
+                        "special ability": "Fast Healing",
+                        "powers": [
+                            {
+                                "title": "Arachnosis (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Chameleon (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Cause Pain (Basic)"
+                            },
+                            {
+                                "title": "Stop Bleeding (Basic)"
+                            },
+                            {
+                                "title": "Quickening (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Iron Arm (Basic), Continuous Effect"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Chronomancy",
+                        "page": "54",
+                        "special ability": "Flicker",
+                        "powers": [
+                            {
+                                "title": "Freeze Time (Double)"
+                            },
+                            {
+                                "title": "Suppress Power (Basic)"
+                            },
+                            {
+                                "title": "Zen Shootist (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Walk Through Walls (Double)"
+                            },
+                            {
+                                "title": "Mirror Image (Basic)"
+                            },
+                            {
+                                "title": "Lucky Aura (Basic), Continuous Effect"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Divination",
+                        "page": "55",
+                        "special ability": "Future Sight",
+                        "powers": [
+                            {
+                                "title": "Precognition (Special)"
+                            },
+                            {
+                                "title": "Foreboding (Double), Continuous Effect"
+                            },
+                            {
+                                "title": "Misfortune (Basic)"
+                            },
+                            {
+                                "title": "Forewarning (Basic)"
+                            },
+                            {
+                                "title": "Warp Whispers (Special)"
+                            },
+                            {
+                                "title": "Visions (Double), Continuous Effect"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Pyromancy",
+                        "page": "56",
+                        "special ability": "Fire Shield",
+                        "powers": [
+                            {
+                                "title": "Body of Flame (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Stoke Flames (Basic)"
+                            },
+                            {
+                                "title": "Wall of Flame (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Flame Blast (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Molten Bolt (Basic)"
+                            },
+                            {
+                                "title": "Scouring (Basic), Continuous Effect"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Technomancy",
+                        "page": "57",
+                        "special ability": "Techno-affinity",
+                        "powers": [
+                            {
+                                "title": "Weapon Jinx (Simple)"
+                            },
+                            {
+                                "title": "Overcharge (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Hardening (Basic), Continouous Effect"
+                            },
+                            {
+                                "title": "Manipulate Door (Simple)"
+                            },
+                            {
+                                "title": "Manipulate Lumens (Double)"
+                            },
+                            {
+                                "title": "Crack Lock (Basic)"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Telekinesis",
+                        "page": "58",
+                        "special ability": "Fists of Fury",
+                        "powers": [
+                            {
+                                "title": "Assail (Basic)"
+                            },
+                            {
+                                "title": "Crush (Basic)"
+                            },
+                            {
+                                "title": "Force Field (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Hailstorm (Basic)"
+                            },
+                            {
+                                "title": "Force Blast (Basic)"
+                            },
+                            {
+                                "title": "Levitation (Basic), Continuous Effect"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Telepathy",
+                        "page": "59",
+                        "special ability": "Fearful Aura",
+                        "powers": [
+                            {
+                                "title": "Mind Control (Basic), Continuous Effect"
+                            },
+                            {
+                                "title": "Terrify (Double)"
+                            },
+                            {
+                                "title": "Invisibility (Double), Continuous Effect"
+                            },
+                            {
+                                "title": "Mental Assault (Basic)"
+                            },
+                            {
+                                "title": "Hallucinations (Basic)"
+                            },
+                            {
+                                "title": "Unbreakable Will (Basic), Continuous Effect"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "dramatis personae":[
+            {
+                "title": "Bigby Crumb",
+                "description": "Ratling Slopper",
+                "page": "32",
+                "cost": "50"
+            },
+            {
+                "title": "Doctor Arachnos",
+                "description": "Rogue Doc",
+                "page": "42",
+                "cost": "100"
+            },
+            {
+                "title": "Ragnir Gunnstein",
+                "description": "Squat Ammo-Jack",
+                "page": "60",
+                "cost": "100"
+            },
+            {
+                "title": "Hagar Freelord",
+                "description": "Master of the Mercator Umbrus",
+                "page": "87",
+                "cost": "180"
+            },
+            {
+                "title": "Lady Credo",
+                "description": "Rebel Lord",
+                "page": "107",
+                "cost": "250"
+            },
+            {
+                "title": "Ashwood Stranger",
+                "description": "Outcasts Leader",
+                "page": "130",
+                "cost": "170"
+            }
+        ],
+        "scenarios":[
+            {
+                "title": "Settlement Raid",
+                "page": "88"
+            },
+            {
+                "title": "Market Mayhem",
+                "page": "90"
+            },
+            {
+                "title": "Stealth Attack",
+                "page": "92"
+            },
+            {
+                "title": "Gunk Tank",
+                "page": "94"
+            },
+            {
+                "title": "Mining Expedition",
+                "page": "96"
+            },
+            {
+                "title": "The Big Score",
+                "page": "98"
+            }
+        ],
+        "campaigns":[
+            {
+                "title": "Necromunda: Outlander Campaign",
+                "page": "62",
+                "subsections":[
+                    {
+                        "title": "Setting up the Campaign",
+                        "page": "64"
+                    },
+                    {
+                        "title": "Starting your Settlement",
+                        "page": "67"
+                    },
+                    {
+                        "title": "Running the Campaign",
+                        "page": "69"
+                    },
+                    {
+                        "title": "Winning",
+                        "page": "82"
+                    },
+                    {
+                        "title": "Settlements and Structures",
+                        "page": "83"
+                    }
+                ]
+            }
+        ],
+        "background": [
+            {
+                "title": "Outcasts of Necromunda",
+                "page": "4"
+            }
+        ]
+    }
+}

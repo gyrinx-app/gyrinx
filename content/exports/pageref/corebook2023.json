@@ -1,0 +1,560 @@
+{
+    "name": "Necromunda Core Rulebook",
+    "shortname": "Core",
+    "year": "2023",
+    "description": "Necromunda Core Rulebook (2023)",
+    "type": "Rulebook",
+    "contents": {
+        "rules": [
+            {
+                "title": "Weapons of (Gang) War",
+                "page": "54",
+                "description": "Items players will need in order to play"
+            },
+            {
+                "title": "General Principles",
+                "page": "56",
+                "subsections": [
+                    {
+                        "title": "Conditions",
+                        "page": "66"
+                    }
+                ]
+            },
+            {
+                "title": "Gang Fighters & Their Weaponry",
+                "page": "72",
+                "subsections": [
+                    {
+                        "title": "Fighter Characteristics Profiles",
+                        "page": "73"
+                    },
+                    {
+                        "title": "Fighter Characteristics & Characteristic Tests",
+                        "page": "74"
+                    },
+                    {
+                        "title": "Weapon Profiles",
+                        "page": "75"
+                    },
+                    {
+                        "title": "Vehicle Characteristic Profiles",
+                        "page": "74"
+                    },
+                    {
+                        "title": "Vehicle Characteristics & Characteristic Tests",
+                        "page": "77"
+                    },
+                    {
+                        "title": "Fighter Cards",
+                        "page": "78"
+                    },
+                    {
+                        "title": "Vehicle Cards",
+                        "page": "79"
+                    }
+                ]
+            },
+            {
+                "title": "Founding a Gang",
+                "page": "80",
+                "subsections": [
+                    {
+                        "title": "Gang Creation",
+                        "page": "81"
+                    },
+                    {
+                        "title": "The Gang Roster",
+                        "page": "92"
+                    }
+                ]
+            },
+            {
+                "title": "The Rules",
+                "page": "96",
+                "subsections": [
+                    {
+                        "title": "The Pre-Battle Sequence",
+                        "page": "97"
+                    },
+                    {
+                        "title": "The Priority Phase",
+                        "page": "100"
+                    },
+                    {
+                        "title": "The Action Phase",
+                        "page": "101"
+                    },
+                    {
+                        "title": "Movement",
+                        "page": "108"
+                    },
+                    {
+                        "title": "Terrain",
+                        "page": "111"
+                    },
+                    {
+                        "title": "Shooting",
+                        "page": "116"
+                    },
+                    {
+                        "title": "Close Cover",
+                        "page": "120"
+                    },
+                    {
+                        "title": "Resolve Hits",
+                        "page": "124"
+                    },
+                    {
+                        "title": "The End Phase",
+                        "page": "139"
+                    },
+                    {
+                        "title": "The Post-battle Sequence",
+                        "page": "142"
+                    },
+                    {
+                        "title": "Gaining Experience",
+                        "page": "148"
+                    }
+                ]
+            },
+            {
+                "title": "Psykers in Necromunda",
+                "page": "152"
+            },
+            {
+                "title": "Battlefield Set-up & Scenarios",
+                "page": "184"
+            },
+            {
+                "title": "Arbitrator Tools",
+                "page": "224",
+                "subsections": [
+                    {
+                        "title": "Campaign Variants",
+                        "page": "226"
+                    },
+                    {
+                        "title": "Optional Special Rules",
+                        "page": "236",
+                        "subsections": [
+                            {
+                                "title": "Exploding Weapons",
+                                "page": "236"
+                            },
+                            {
+                                "title": "Unreliable Weapons",
+                                "page": "236"
+                            },
+                            {
+                                "title": "Wild Grenades and Shells",
+                                "page": 237
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Underdogs - House Patronage",
+                        "page": "238"
+                    }
+                ]
+            },
+            {
+                "title": "Trading Post",
+                "page": "262"
+            },
+            {
+                "title": "Weapon Traits",
+                "page": "310"
+            }
+        ],
+        "summaries": [
+            {
+                "title": "Round Summary",
+                "page": "328"
+            }
+        ],
+        "gang tactics": [
+            {
+                "title": "Core Gang Tactics",
+                "page": "254",
+                "tactics": [
+                    {
+                        "title":"...Click"
+                    },
+                    {
+                        "title":"Lucky Find"
+                    },
+                    {
+                        "title":"Suppressing Fire"
+                    },
+                    {
+                        "title":"Beast Lure"
+                    },
+                    {
+                        "title":"Burst of Courage"
+                    },
+                    {
+                        "title":"Deadlock"
+                    },
+                    {
+                        "title":"Adrenaline Surge"
+                    },
+                    {
+                        "title":"Desperate Effort"
+                    },
+                    {
+                        "title":"Combat Drugs"
+                    },
+                    {
+                        "title":"You!"
+                    },
+                    {
+                        "title":"Opening Volley"
+                    },
+                    {
+                        "title":"Forward Planning"
+                    },
+                    {
+                        "title":"Grenade Bouquet"
+                    },
+                    {
+                        "title":"Beast Repellant"
+                    },
+                    {
+                        "title":"Reload!"
+                    },
+                    {
+                        "title":"Group Tactics"
+                    },
+                    {
+                        "title":"Chain Attack"
+                    },
+                    {
+                        "title":"Thundering Charge"
+                    },
+                    {
+                        "title":"Blood Debt"
+                    },
+                    {
+                        "title":"Last Gasp"
+                    },
+                    {
+                        "title":"Reaction Fire"
+                    },
+                    {
+                        "title":"Lucky Lho-stick Case"
+                    },
+                    {
+                        "title":"Proper Preparation"
+                    },
+                    {
+                        "title":"Trusty Backup"
+                    },
+                    {
+                        "title":"Having a Bad Day"
+                    },
+                    {
+                        "title":"Battle Madness"
+                    }
+                ]
+            }
+        ],
+        "skills": [
+            {
+                "title": "Agility",
+                "page": "256",
+                "skills": [
+                    {
+                        "title": "Catfall"
+                    },
+                    {
+                        "title": "Clamber"
+                    },
+                    {
+                        "title": "Dodge"
+                    },
+                    {
+                        "title": "Mighty Leap"
+                    },
+                    {
+                        "title": "Spring Up"
+                    },
+                    {
+                        "title": "Sprint"
+                    }
+                ]
+            },
+            {
+                "title": "Brawn",
+                "page": "257",
+                "skills": [
+                    {
+                        "title": "Bull Charge"
+                    },
+                    {
+                        "title": "Bulging Biceps"
+                    },
+                    {
+                        "title": "Crushing Blow"
+                    },
+                    {
+                        "title": "Headbutt"
+                    },
+                    {
+                        "title": "Hurl"
+                    },
+                    {
+                        "title": "Iron Jaw"
+                    }
+                ]
+            },
+            {
+                "title": "Combat",
+                "page": "258",
+                "skills": [
+                    {
+                        "title": "Combat Master"
+                    },
+                    {
+                        "title": "Counter-Attack"
+                    },
+                    {
+                        "title": "Disarm"
+                    },
+                    {
+                        "title": "Parry"
+                    },
+                    {
+                        "title": "Rain of Blows"
+                    },
+                    {
+                        "title": "Step Aside"
+                    }
+                ]
+            },
+            {
+                "title": "Cunning",
+                "page": "258",
+                "skills": [
+                    {
+                        "title": "Backstab"
+                    },
+                    {
+                        "title": "Escape Artist"
+                    },
+                    {
+                        "title": "Evade"
+                    },
+                    {
+                        "title": "Infiltrate"
+                    },
+                    {
+                        "title": "Lie Low"
+                    },
+                    {
+                        "title": "Overwatch"
+                    }
+                ]
+            },
+            {
+                "title": "Driving",
+                "page": "259",
+                "skills": [
+                    {
+                        "title": "Jink"
+                    },
+                    {
+                        "title": "Expert Driver"
+                    },
+                    {
+                        "title": "Heavy Foot"
+                    },
+                    {
+                        "title": "Slalom"
+                    },
+                    {
+                        "title": "T-Bone"
+                    },
+                    {
+                        "title": "Running Repairs"
+                    }
+                ]
+            },
+            {
+                "title": "Ferocity",
+                "page": "259",
+                "skills": [
+                    {
+                        "title": "Berserker"
+                    },
+                    {
+                        "title": "Fearsome"
+                    },
+                    {
+                        "title": "Impetuous"
+                    },
+                    {
+                        "title": "Nerves of Steel"
+                    },
+                    {
+                        "title": "True Grit"
+                    },
+                    {
+                        "title": "Unstoppable"
+                    }
+                ]
+            },
+            {
+                "title": "Leadership",
+                "page": "260",
+                "skills": [
+                    {
+                        "title": "Commanding Presence"
+                    },
+                    {
+                        "title": "Inspirational"
+                    },
+                    {
+                        "title": "Iron Will"
+                    },
+                    {
+                        "title": "Mentor"
+                    },
+                    {
+                        "title": "Overseer"
+                    },
+                    {
+                        "title": "Regroup"
+                    }
+                ]
+            },
+            {
+                "title": "Savant",
+                "page": "260",
+                "skills": [
+                    {
+                        "title": "Ballistics Expert"
+                    },
+                    {
+                        "title": "Connected"
+                    },
+                    {
+                        "title": "Fixer"
+                    },
+                    {
+                        "title": "Medicae"
+                    },
+                    {
+                        "title": "Mutineer"
+                    },
+                    {
+                        "title": "Savvy Trader"
+                    }
+                ]
+            },
+            {
+                "title": "Shooting",
+                "page": "261",
+                "skills": [
+                    {
+                        "title": "Fast Shot"
+                    },
+                    {
+                        "title": "Gunfighter"
+                    },
+                    {
+                        "title": "Hip Shooting"
+                    },
+                    {
+                        "title": "Marksman"
+                    },
+                    {
+                        "title": "Precision Shot"
+                    },
+                    {
+                        "title": "Trick Shot"
+                    }
+                ]
+            }
+        ],
+        "gangs": [],
+        "dramatis personae": [],
+        "scenarios": [
+            {
+                "title": "Border Dispute",
+                "page": "204"
+            },
+            {
+                "title": "Smash & Grab",
+                "page": "206"
+            },
+            {
+                "title": "The Trap",
+                "page": "208"
+            },
+            {
+                "title": "Fuel Hunt",
+                "page": "210"
+            },
+            {
+                "title": "Settlement Raid",
+                "page": "212"
+            },
+            {
+                "title": "Cargo Run",
+                "page": "214"
+            },
+            {
+                "title": "Rescue Mission",
+                "page": "216"
+            },
+            {
+                "title": "Ghast Harvest",
+                "page": "244",
+                "arbitrator": "yes"
+            },
+            {
+                "title": "Shootout",
+                "page": "246",
+                "arbitrator": "yes"
+            },
+            {
+                "title": "Murder Cyborg",
+                "page": "248",
+                "arbitrator": "yes"
+            },
+            {
+                "title": "Pit Fight",
+                "page": "250",
+                "arbitrator": "yes",
+                "multiplayer": "yes"
+            }
+        ],
+        "campaigns": [
+            {
+                "title": "The Dominion Campaign",
+                "page": "164",
+                "subsections": [
+                    {
+                        "title": "Dominion Campaign Territories",
+                        "page": "173"
+                    }
+                ]
+            }
+        ],
+        "background": [
+            {
+                "title": "Necromunda History and Background",
+                "page": "5"
+            }
+        ],
+        "showcases": [
+            {
+                "title": "Battlefield Showcases",
+                "page": "218"
+            }
+        ],
+        "trading post": []
+    }
+}

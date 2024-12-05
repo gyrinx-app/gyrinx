@@ -1,0 +1,375 @@
+{
+    "name": "House of Chains",
+    "shortname": "Chains",
+    "year": "2020",
+    "description": "House of Chains (2020)",
+    "type": "Gangbook",
+    "contents": {
+        "background": [
+            {
+                "title": "House Goliath History & Background",
+                "page": "5",
+                "subsections": [
+                    {
+                        "title": "House Goliath Timeline",
+                        "page": "13"
+                    },
+                    {
+                        "title": "House Structure",
+                        "page": "19"
+                    },
+                    {
+                        "title": "House Industries",
+                        "page": "25"
+                    },
+                    {
+                        "title": "House Territories",
+                        "page": "30"
+                    },
+                    {
+                        "title": "House Enclaves",
+                        "page": "34"
+                    },
+                    {
+                        "title": "Gangs of Legend",
+                        "page": "38"
+                    }
+                ]
+            }
+        ],
+        "rules": [
+            {
+                "title": "Strong Alliances",
+                "page": "86",
+                "subsections": [
+                    {
+                        "title": "Making an Alliance",
+                        "page": "87"
+                    },
+                    {
+                        "title": "Allies of House Goliath",
+                        "page": "88"
+                    },
+                    {
+                        "title": "Slave Guild",
+                        "page": "88"
+                    },
+                    {
+                        "title": "Narco Lords",
+                        "page": "90"
+                    },
+                    {
+                        "title": "House Greim",
+                        "page": "92"
+                    },
+                    {
+                        "title": "Slaver Entourage",
+                        "page": "94"
+                    },
+                    {
+                        "title": "House Greim Military Attache",
+                        "page": "96"
+                    }
+                ]
+            },
+            {
+                "title": "Additional Rules",
+                "page": "98",
+                "gang": "Goliath",
+                "subsections": [
+                    {
+                        "title": "Goliath Sub-Plots",
+                        "page": "99"
+                    },
+                    {
+                        "title": "Goliath House Favours",
+                        "page": "101"
+                    },
+                    {
+                        "title": "Muscle Skills",
+                        "page": "102"
+                    }
+                ]
+            },
+            {
+                "title": "Goliath Gene-Smithing",
+                "page": "103",
+                "gang": "Goliath",
+                "subsections": [
+                    {
+                        "title": "Vatborn Fighters",
+                        "page": "104"
+                    },
+                    {
+                        "title": "Natborn Fighters",
+                        "page": "106"
+                    },
+                    {
+                        "title": "Unborn Fighters",
+                        "page": "108"
+                    }
+                ]
+            },
+            {
+                "title": "Goliath Terrain",
+                "page": "110"
+            }
+        ],
+        "gangs": [
+            {
+                "title": "House Goliath",
+                "page": "42",
+                "gang": "Goliath",
+                "main": "true",
+                "fighters": [
+                    {
+                        "title": "Goliath Forge Tyrant",
+                        "page": "46",
+                        "rank": "Leader",
+                        "cost": "135"
+                    },
+                    {
+                        "title": "Goliath Forge Boss",
+                        "page": "48",
+                        "rank": "Champion",
+                        "cost": "100"
+                    },
+                    {
+                        "title": "Goliath Stimmer",
+                        "page": "50",
+                        "rank": "Champion",
+                        "cost": "125"
+                    },
+                    {
+                        "title": "Goliath Forge-Born",
+                        "page": "52",
+                        "rank": "Prospect",
+                        "cost": "35"
+                    },
+                    {
+                        "title": "Goliath Bruiser",
+                        "page": "54",
+                        "rank": "Ganger",
+                        "cost": "55"
+                    },
+                    {
+                        "title": "Goliath Bully",
+                        "page": "56",
+                        "rank": "Juve",
+                        "cost": "35"
+                    }
+                ]
+
+            }
+        ],
+        "exotic beasts": [
+            {
+                "title": "Sumpkroc",
+                "page": "130",
+                "gang": "Goliath",
+                "cost": "130"
+            }
+        ],
+        "hangers-on": [
+            {
+                "title": "Brute Handler",
+                "page": "64",
+                "gang": "Goliath",
+                "max": "1",
+                "cost": "55"
+            },
+            {
+                "title": "Chem Dealer",
+                "page": "65",
+                "gang": "Goliath",
+                "max": "1",
+                "cost": "25"
+            },
+            {
+                "title": "Chem Dealer (non Goliath)",
+                "page": "65",
+                "max": "1",
+                "cost": "100"
+            },
+            {
+                "title": "Pit Trainer",
+                "page": "66",
+                "max": "1",
+                "gang": "Goliath",
+                "cost": "75"
+            },
+            {
+                "title": "Dome Runner",
+                "page": "66",
+                "max": "1",
+                "cost": "20"
+            },
+            {
+                "title": "Rogue Doc",
+                "page": "67",
+                "max": "2",
+                "cost": "50"
+            },
+            {
+                "title": "Gang Lookout",
+                "page": "68",
+                "max": "1",
+                "cost": "20"
+            },
+            {
+                "title": "Slopper",
+                "page": "68",
+                "max": "1",
+                "cost": "20"
+            },
+            {
+                "title": "Ammo-Jack",
+                "page": "69",
+                "max": "3",
+                "cost": "50"
+            }
+        ],
+        "brutes": [
+            {
+                "title": "Goliath 'Zerker",
+                "page": "70",
+                "gang": "Goliath",
+                "max": "1",
+                "cost": "210"
+            },
+            {
+                "title": "Luther Pattern Excavation Automata ('Ambot')",
+                "page": "72",
+                "max": "2",
+                "cost": "215"
+            },
+            {
+                "title": "'Jotunn' H-Grade Servitor Ogryn",
+                "page": "74",
+                "max": "2",
+                "cost": "210"
+            }
+        ],
+        "hired guns": [
+            {
+                "title": "Hive Scum",
+                "page": "78",
+                "max": "5",
+                "cost": "30"
+            },
+            {
+                "title": "Bounty Hunter",
+                "page": "80",
+                "max": "1",
+                "cost": "80"
+            },
+            {
+                "title": "House Agents",
+                "page": "82",
+                "max": "1",
+                "cost": "varies"
+            }
+        ],
+        "scenarios": [
+            {
+                "title": "The Beatdown",
+                "page": "114",
+                "gang": "Goliath"
+            },
+            {
+                "title": "Something to Prove",
+                "page": "116",
+                "gang": "Goliath"
+            },
+            {
+                "title": "Feast of the Fallen",
+                "page": "118",
+                "gang": "Goliath"
+            }
+        ],
+        "summaries": [
+            {
+                "title": "Weapon Reference Chart",
+                "page": "147"
+            }
+        ],
+        "skills": [
+            {
+                "title": "Muscle Skills",
+                "page": "102",
+                "gang": "Goliath",
+                "skills":[
+                    {
+                        "title": "Fists of Steel"
+                    },
+                    {
+                        "title": "Iron Man"
+                    },
+                    {
+                        "title": "Immovable Stance"
+                    },
+                    {
+                        "title": "Naaargah!"
+                    },
+                    {
+                        "title": "Unleash the Beast"
+                    },
+                    {
+                        "title": "Walk It Off"
+                    }
+                ]
+            }
+        ],
+        "gang tactics": [
+            {
+                "title": "House Goliath Gang Tactics",
+                "page": "158",
+                "gang": "Goliath"
+            }
+        ],
+        "dramatis personae":[
+            {
+                "title": "Old Three-Eyes",
+                "description": "Goliath Sump Beast",
+                "page": "60",
+                "gangs": ["Goliath"],
+                "cost": "175"
+            },
+            {
+                "title": "Ajex Gorgoth",
+                "description": "Goliath Alpha House Agent",
+                "page": "84",
+                "gangs": ["Goliath"],
+                "cost": "*"
+            },
+            {
+                "title": "Attilus the Axe",
+                "description": "Pit Tyrant Bounty Hunter",
+                "page": "112",
+                "gangs": ["Goliath"],
+                "cost": "275"
+            },
+            {
+                "title": "Tess 'Arc-up'",
+                "description": "Forge-Born Hive Scum",
+                "page": "128",
+                "gangs": ["Goliath"],
+                "cost": "90"
+            },
+            {
+                "title": "Djangar 'Gunfists'",
+                "description": "Over-Tyrant Bounty Hunter",
+                "page": "129",
+                "gangs": ["Goliath"],
+                "cost": "290"
+            },
+            {
+                "title": "T.H.R.U.G. 12 'Sparky'",
+                "description": "Bounty Hunter",
+                "page": "142",
+                "gangs": ["Goliath", "Slave Ogryn"],
+                "cost": "320"
+            }
+        ]
+    }
+}
