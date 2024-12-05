@@ -2,10 +2,12 @@ from django import forms
 from django.contrib import admin
 
 from .models import (
+    ContentBook,
     ContentEquipment,
     ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
+    ContentPageRef,
     ContentPolicy,
     ContentSkill,
     ContentWeaponProfile,
@@ -20,7 +22,7 @@ class ContentAdmin(admin.ModelAdmin):
             for f in model._meta.fields
             if f.name not in ["created", "modified", "id"]
         ]
-        self.list_display += ["id", "created", "modified"]
+        self.list_display += ["id"]
         self.initial_list_display = self.list_display.copy()
         super().__init__(model, admin_site)
 
@@ -108,3 +110,13 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
+
+
+@admin.register(ContentBook)
+class ContentBookAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["title", "shortname", "description"]
+
+
+@admin.register(ContentPageRef)
+class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["title", "page", "description"]

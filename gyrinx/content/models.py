@@ -1,3 +1,5 @@
+from difflib import SequenceMatcher
+
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -439,3 +441,80 @@ class ContentPolicy(Content):
     class Meta:
         verbose_name = "Policy"
         verbose_name_plural = "Policies"
+
+
+class ContentBook(Content):
+    help_text = "The Content Book captures the rulebook information."
+    name = models.CharField(max_length=255)
+    shortname = models.CharField(max_length=50, blank=True, null=False)
+    year = models.CharField(blank=True, null=False)
+    description = models.TextField(blank=True, null=False)
+    type = models.CharField(max_length=50, blank=True, null=False)
+    obsolete = models.BooleanField(default=False)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.name} ({self.type}, {self.year})"
+
+    class Meta:
+        verbose_name = "Book"
+        verbose_name_plural = "Books"
+        ordering = ["name"]
+
+
+def similar(a, b):
+    lower_a = a.lower()
+    lower_b = b.lower()
+    if lower_a == lower_b:
+        return 1.0
+    if lower_a in lower_b or lower_b in lower_a:
+        return 0.9
+    return SequenceMatcher(None, a, b).ratio()
+
+
+class ContentPageRef(Content):
+    help_text = "The Content Page Ref captures the page references for game content."
+    book = models.ForeignKey(ContentBook, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    page = models.CharField()
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="children"
+    )
+    category = models.CharField(max_length=255, blank=True, null=False)
+    description = models.TextField(blank=True, null=False)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.title} ({self.category}, {self.book.shortname}, p{self.resolve_page()}) {self.description or ""}".strip()
+
+    def resolve_page(self):
+        if self.page:
+            return self.page
+
+        if self.parent:
+            return self.parent.resolve_page()
+
+        return None
+
+    class Meta:
+        verbose_name = "Page Reference"
+        verbose_name_plural = "Page References"
+        ordering = ["category", "book__name", "title"]
+
+    @classmethod
+    def find(cls, *args, **kwargs):
+        return ContentPageRef.objects.filter(*args, **kwargs).first()
+
+    @classmethod
+    def find_similar(cls, title: str):
+        refs = ContentPageRef.objects.all()
+
+        list = sorted(
+            refs,
+            key=lambda ref: similar(ref.title.lower(), title.lower()),
+            reverse=True,
+        )
+        top_10 = list[0:10]
+        return [
+            ref for ref in top_10 if similar(ref.title.lower(), title.lower()) > 0.8
+        ]
