@@ -1,7 +1,7 @@
 asgiref==3.8.1
 click==8.1.7
 daphne==4.1.2
-Django==5.1.2
+Django==5.1.4
 django-allauth==65.1.0
 django-simple-history==3.7.0
 djlint==1.36.1
