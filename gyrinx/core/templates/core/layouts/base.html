@@ -11,15 +11,22 @@
                      height="24"
                      class="d-inline-block align-text-top">
             </a>
-            <button class="navbar-toggler"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#navbarSupportedContent"
-                    aria-controls="navbarSupportedContent"
-                    aria-expanded="false"
-                    aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+            <div class="d-flex">
+                <a class="btn btn-dark {% active_view 'core:dice' %}"
+                   {% active_aria 'core:dice' %}
+                   href="{% url 'core:dice' %}">
+                    <i class="bi-dice-6"></i>
+                </a>
+                <button class="navbar-toggler"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#navbarSupportedContent"
+                        aria-controls="navbarSupportedContent"
+                        aria-expanded="false"
+                        aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
@@ -73,6 +80,26 @@
             </div>
         </div>
     </nav>
+    <div class="modal fade"
+         id="dice"
+         data-bs-backdrop="static"
+         tabindex="-1"
+         aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen-md-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5">
+                        <i class="dice-6"></i> Dice Roller
+                    </h1>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">...</div>
+            </div>
+        </div>
+    </div>
     {% block body %}
         {% block content %}
         {% endblock content %}

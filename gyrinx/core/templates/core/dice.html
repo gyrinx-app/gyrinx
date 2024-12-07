@@ -1,0 +1,72 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Dice
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        <div class="col-lg-12 px-0 vstack gap-3">
+            <h1>Dice</h1>
+            <div class="d-grid gap-2">
+                <a class="btn {% if mode == 'd6' %}btn-primary{% else %}btn-secondary{% endif %} "
+                   href="?{% qt request m="d6" %}">D6</a>
+                <a class="btn {% if mode == 'd3' %}btn-primary{% else %}btn-secondary{% endif %} "
+                   href="?{% qt request m="d3" %}">D3</a>
+                <a class="btn btn-outline" href="?m=d6&d=1">Reset</a>
+            </div>
+            <div class="vstack h1">
+                {% for group in groups %}
+                    <div class="vstack gap-2 py-3 border-top">
+                        {% if forloop.counter0 > 0 %}
+                            <div class="hstack justify-content-end">
+                                <a class="btn btn-outline-secondary"
+                                   href="?{% qt_rm_nth request nth=forloop.counter0 d=1 fp=1 i=1 %}">
+                                    <i class="bi-x-lg"></i>
+                                </a>
+                            </div>
+                        {% endif %}
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="hstack align-items-start gap-1">
+                                {% if group.dice_n > 1 %}
+                                    <a class="btn btn-outline-secondary"
+                                       href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"-1"|max:"1" %}">
+                                        <i class="bi-dash-lg"></i>
+                                    </a>
+                                    <a class="btn btn-outline-secondary"
+                                       href="?{% qt_nth request nth=forloop.counter0 d="1" %}">
+                                        <i class="bi-1-circle"></i>
+                                    </a>
+                                {% else %}
+                                    <a class="btn btn-outline-secondary disabled">
+                                        <i class="bi-dash-lg"></i>
+                                    </a>
+                                    <a class="btn btn-outline-secondary disabled">
+                                        <i class="bi-1-circle"></i>
+                                    </a>
+                                {% endif %}
+                                <a class="btn btn-outline-primary"
+                                   href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"1" %}">
+                                    <i class="bi-plus-lg"></i>
+                                </a>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% for i in group.dice %}<i class="bi-dice-{{ i }}"></i>{% endfor %}
+                            </div>
+                        </div>
+                        {% comment %} {% if group.firepower|length > 0 %}<div class="vr"></div>{% endif %}
+                                {% for i in group.firepower %}<i class="bi-dice-{{ i }}"></i>{% endfor %}
+                                {% if group.injury|length > 0 %}<div class="vr"></div>{% endif %}
+                        {% for i in group.injury %}<i class="bi-dice-{{ i }}"></i>{% endfor %} {% endcomment %}
+                    </div>
+                {% empty %}
+                    Nothing to see here
+                {% endfor %}
+                <div class="hstack justify-content-center mt-3">
+                    <a class="btn btn-primary" href="?{% qt_append request d=1 fp=0 i=0 %}">
+                        <i class="bi-plus-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

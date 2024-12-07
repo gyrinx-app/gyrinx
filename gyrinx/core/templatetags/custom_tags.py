@@ -26,6 +26,69 @@ def lookup(dictionary, key):
     return dictionary.get(key)
 
 
+@register.simple_tag
+def qt(request, **kwargs):
+    updated = request.GET.copy()
+    for k, v in kwargs.items():
+        if v is not None:
+            updated[k] = v
+        else:
+            updated.pop(k, 0)  # Remove or return 0 - aka, delete safely this key
+
+    return updated.urlencode()
+
+
+@register.simple_tag
+def qt_nth(request, **kwargs):
+    nth = kwargs.pop("nth")
+    updated = request.GET.copy()
+    for k, v in kwargs.items():
+        current = updated.getlist(k)
+        if nth < len(current):
+            current[nth] = v
+        else:
+            current.append(v)
+        updated.setlist(k, current)
+
+    return updated.urlencode()
+
+
+@register.simple_tag
+def qt_rm_nth(request, **kwargs):
+    nth = kwargs.pop("nth")
+    updated = request.GET.copy()
+    for k, v in kwargs.items():
+        if str(v) != "1":
+            continue
+        current = updated.getlist(k)
+        if nth < len(current):
+            current.pop(nth)
+            updated.setlist(k, current)
+
+    return updated.urlencode()
+
+
+@register.simple_tag
+def qt_append(request, **kwargs):
+    updated = request.GET.copy()
+    for k, v in kwargs.items():
+        current = updated.getlist(k)
+        current.append(v)
+        updated.setlist(k, current)
+
+    return updated.urlencode()
+
+
+@register.filter(name="min")
+def fmin(value, arg):
+    return min(int(value), int(arg))
+
+
+@register.filter(name="max")
+def fmax(value, arg):
+    return max(int(value), int(arg))
+
+
 def identity(value):
     return value
 

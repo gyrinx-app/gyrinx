@@ -1,3 +1,6 @@
+from itertools import zip_longest
+from random import randint
+
 from django.db.models import Case, When
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 
@@ -85,6 +88,37 @@ def content_index(request):
                 "Campaigns",
                 "Scenarios",
             ],
+        },
+    )
+
+
+def dice(request):
+    mode = request.GET.get("m", "d6")
+    d = [int(x) for x in request.GET.getlist("d")]
+    fp = [int(x) for x in request.GET.getlist("fp")]
+    i = [int(x) for x in request.GET.getlist("i")]
+    mod = {
+        "d3": 3,
+    }.get(mode, 6)
+    groups = [
+        dict(
+            dice=[randint(0, 5) % mod + 1 for _ in range(group[0])],
+            firepower=[randint(1, 6) for _ in range(group[1])],
+            injury=[randint(1, 6) for _ in range(group[2])],
+            dice_n=group[0],
+            firepower_n=group[1],
+            injury_n=group[2],
+        )
+        for group in zip_longest(d, fp, i, fillvalue=0)
+    ]
+    print(request.GET)
+    print(groups)
+    return render(
+        request,
+        "core/dice.html",
+        {
+            "mode": mode,
+            "groups": groups,
         },
     )
 
