@@ -17,23 +17,19 @@
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 h1">
                 {% for group in groups %}
                     <div class="col vstack gap-2 py-3">
-                        <div class="hstack gap-1">
+                        <div class="hstack gap-2">
                             {% if group.dice_n > 1 %}
                                 <a class="btn btn-outline-secondary"
                                    href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"-1"|max:"1" %}">
                                     <i class="bi-dash-lg"></i>
                                 </a>
                                 <a class="btn btn-outline-secondary"
-                                   href="?{% qt_nth request nth=forloop.counter0 d="1" %}">
-                                    <i class="bi-1-circle"></i>
-                                </a>
+                                   href="?{% qt_nth request nth=forloop.counter0 d="1" %}">1</a>
                             {% else %}
                                 <a class="btn btn-outline-secondary disabled">
                                     <i class="bi-dash-lg"></i>
                                 </a>
-                                <a class="btn btn-outline-secondary disabled">
-                                    <i class="bi-1-circle"></i>
-                                </a>
+                                <a class="btn btn-outline-secondary disabled">1</a>
                             {% endif %}
                             <a class="btn btn-outline-primary"
                                href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"1" %}">
