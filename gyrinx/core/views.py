@@ -111,8 +111,6 @@ def dice(request):
         )
         for group in zip_longest(d, fp, i, fillvalue=0)
     ]
-    print(request.GET)
-    print(groups)
     return render(
         request,
         "core/dice.html",
