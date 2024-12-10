@@ -10,7 +10,8 @@
                 <h1 class="h3">Equipment</h1>
                 <div class="table-responsive-sm">
                     <table class="table table-sm table-borderless table-hover fs-7">
-                        {% for category, items in categories.items %}
+                        {% regroup equipment by cat as categories %}
+                        {% for category, items in categories %}
                             <thead>
                                 <tr class="align-bottom">
                                     <th colspan="11" class="pt-4">

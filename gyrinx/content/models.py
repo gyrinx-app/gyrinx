@@ -108,6 +108,15 @@ class ContentEquipment(Content):
     def is_weapon(self):
         return ContentWeaponProfile.objects.filter(equipment=self).exists()
 
+    def profiles(self):
+        return self.contentweaponprofile_set.all().order_by(
+            Case(
+                When(name="", then=0),
+                default=1,
+            ),
+            "cost",
+        )
+
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"

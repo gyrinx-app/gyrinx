@@ -3,6 +3,7 @@ from random import randint
 
 from django.db.models import Case, When
 from django.shortcuts import get_list_or_404, get_object_or_404, render
+from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.models import List
@@ -38,24 +39,12 @@ def content_gangs(request):
     return render(request, "core/content_gangs.html", {"houses": houses})
 
 
-def content_equipment(request):
-    equipment = get_list_or_404(ContentEquipment)
-    categories = {}
-    for item in equipment:
-        category = item.cat()
-        item.profiles = list(
-            item.contentweaponprofile_set.all().order_by(
-                Case(
-                    When(name="", then=0),
-                    default=1,
-                ),
-                "cost",
-            )
-        )
-        if category not in categories:
-            categories[category] = []
-        categories[category].append(item)
-    return render(request, "core/content_equipment.html", {"categories": categories})
+class EquipmentIndexView(generic.ListView):
+    template_name = "core/content_equipment.html"
+    context_object_name = "equipment"
+
+    def get_queryset(self):
+        return ContentEquipment.objects.all()
 
 
 def content_index(request):
