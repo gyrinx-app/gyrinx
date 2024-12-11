@@ -21,22 +21,12 @@ def content(request):
     )
 
 
-def content_gangs(request):
-    houses = get_list_or_404(ContentHouse)
-    for house in houses:
-        house.fighters = list(
-            house.contentfighter_set.all().order_by(
-                Case(
-                    When(category="LEADER", then=0),
-                    When(category="CHAMPION", then=1),
-                    When(category="PROSPECT", then=2),
-                    When(category="JUVE", then=3),
-                    default=99,
-                ),
-                "type",
-            )
-        )
-    return render(request, "core/content_gangs.html", {"houses": houses})
+class GangIndexView(generic.ListView):
+    template_name = "core/content_gangs.html"
+    context_object_name = "houses"
+
+    def get_queryset(self):
+        return ContentHouse.objects.all()
 
 
 class EquipmentIndexView(generic.ListView):
@@ -49,19 +39,11 @@ class EquipmentIndexView(generic.ListView):
 
 def content_index(request):
     page_refs = get_list_or_404(ContentPageRef.all_ordered())
-    categories = {}
-    for page_ref in page_refs:
-        category = page_ref.category
-        if category not in categories:
-            categories[category] = []
-        categories[category].append(page_ref)
-
     return render(
         request,
         "core/content_index.html",
         {
             "page_refs": page_refs,
-            "categories": categories,
             "category_order": [
                 "Rules",
                 "Background",
@@ -79,6 +61,31 @@ def content_index(request):
             ],
         },
     )
+
+
+class ContentIndexIndexView(generic.ListView):
+    template_name = "core/content_index.html"
+    context_object_name = "page_refs"
+    extra_context = {
+        "category_order": [
+            "Rules",
+            "Background",
+            "Gangs",
+            "Dramatis Personae",
+            "Hangers-On",
+            "Brutes",
+            "Exotic Beasts",
+            "Trading Post",
+            "Vehicles",
+            "Skills",
+            "Gang Tactics",
+            "Campaigns",
+            "Scenarios",
+        ],
+    }
+
+    def get_queryset(self):
+        return ContentPageRef.all_ordered()
 
 
 def dice(request):

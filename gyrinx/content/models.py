@@ -23,6 +23,18 @@ class ContentHouse(Content):
     name = models.CharField(max_length=255)
     history = HistoricalRecords()
 
+    def fighters(self):
+        return self.contentfighter_set.all().order_by(
+            Case(
+                When(category="LEADER", then=0),
+                When(category="CHAMPION", then=1),
+                When(category="PROSPECT", then=2),
+                When(category="JUVE", then=3),
+                default=99,
+            ),
+            "type",
+        )
+
     def __str__(self):
         return self.name
 

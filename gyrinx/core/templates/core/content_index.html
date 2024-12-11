@@ -9,6 +9,7 @@
             <div>
                 <h1>Index</h1>
                 <div class="vstack gap-4">
+                    {% regroup page_refs|dictsort:"category" by category as categories %}
                     {% for category in category_order %}
                         <div>
                             <h2 class="py-2">{{ category }}</h2>
