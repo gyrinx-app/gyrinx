@@ -41,6 +41,18 @@ class List(AppBase):
     def cost_int(self):
         return sum([f.cost_int() for f in self.listfighter_set.all()])
 
+    def fighters(self):
+        return self.listfighter_set.all().order_by(
+            Case(
+                When(content_fighter__category="LEADER", then=0),
+                When(content_fighter__category="CHAMPION", then=1),
+                When(content_fighter__category="PROSPECT", then=2),
+                When(content_fighter__category="JUVE", then=3),
+                default=99,
+            ),
+            "name",
+        )
+
     class Meta:
         verbose_name = "List"
         verbose_name_plural = "Lists"
@@ -84,7 +96,9 @@ class ListFighter(AppBase):
             self.equipment.add(equipment)
 
     def assignments(self):
-        return self.equipment.through.objects.filter(list_fighter=self)
+        return self.equipment.through.objects.filter(list_fighter=self).order_by(
+            "list_fighter__name"
+        )
 
     def skilline(self):
         return [s.name for s in self.skills.all()]

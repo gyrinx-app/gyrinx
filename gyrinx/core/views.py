@@ -1,7 +1,6 @@
 from itertools import zip_longest
 from random import randint
 
-from django.db.models import Case, When
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.views import generic
 
@@ -117,66 +116,17 @@ def dice(request):
     )
 
 
-def lists(request):
-    # TODO: Turn some amount of this into reusable stuff (e.g. "hydrate" calls)
+class ListView(generic.ListView):
+    template_name = "core/lists.html"
+    context_object_name = "lists"
 
-    lists = get_list_or_404(List)
-    for lst in lists:
-        lst.fighters = list(
-            lst.listfighter_set.all().order_by(
-                Case(
-                    When(content_fighter__category="LEADER", then=0),
-                    When(content_fighter__category="CHAMPION", then=1),
-                    When(content_fighter__category="PROSPECT", then=2),
-                    When(content_fighter__category="JUVE", then=3),
-                    default=99,
-                ),
-                "name",
-            )
-        )
-
-        for fighter in lst.fighters:
-            fighter.assigned_equipment = list(
-                fighter.equipment.through.objects.filter(list_fighter=fighter).order_by(
-                    "list_fighter__name"
-                )
-            )
-
-    return render(
-        request,
-        "core/lists.html",
-        {
-            "lists": lists,
-        },
-    )
+    def get_queryset(self):
+        return List.objects.all()
 
 
-def list_print(request, id):
-    lst = get_object_or_404(List, id=id)
-    lst.fighters = list(
-        lst.listfighter_set.all().order_by(
-            Case(
-                When(content_fighter__category="LEADER", then=0),
-                When(content_fighter__category="CHAMPION", then=1),
-                When(content_fighter__category="PROSPECT", then=2),
-                When(content_fighter__category="JUVE", then=3),
-                default=99,
-            ),
-            "name",
-        )
-    )
+class ListPrintView(generic.DetailView):
+    template_name = "core/list_print.html"
+    context_object_name = "list"
 
-    for fighter in lst.fighters:
-        fighter.assigned_equipment = list(
-            fighter.equipment.through.objects.filter(list_fighter=fighter).order_by(
-                "list_fighter__name"
-            )
-        )
-
-    return render(
-        request,
-        "core/list_print.html",
-        {
-            "list": lst,
-        },
-    )
+    def get_object(self):
+        return get_object_or_404(List, id=self.kwargs["id"])
