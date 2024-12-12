@@ -210,6 +210,23 @@ STORAGES = {
     },
 }
 
+# Logging
+# https://docs.djangoproject.com/en/5.1/topics/logging/
+
+LOGGING = {
+    "version": 1,
+    "handlers": {
+        "null": {
+            "class": "logging.NullHandler",
+        },
+    },
+    "loggers": {
+        "django.security.DisallowedHost": {
+            "handlers": ["null"],
+            "propagate": False,
+        },
+    },
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
