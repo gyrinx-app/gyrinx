@@ -55,6 +55,7 @@ logger.info(f"CSRF_COOKIE_DOMAIN: {CSRF_COOKIE_DOMAIN}")
 # Email
 # Use SMTP
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "hello@gyrinx.app"
 
 # Application definition
 
@@ -177,6 +178,9 @@ ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "name"
 ACCOUNT_USERNAME_BLACKLIST = ["admin", "superuser", "staff", "user", "gyrinx"]
 ACCOUNT_CHANGE_EMAIL = True
+ACCOUNT_ADAPTER = "gyrinx.core.adapter.CustomAccountAdapter"
+# Custom setting to (dis)allow signups
+ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
 
 
 # Password validation
