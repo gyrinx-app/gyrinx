@@ -9,7 +9,18 @@ from gyrinx.core.models import List
 
 
 def index(request):
-    return render(request, "core/index.html", {})
+    # User's Lists
+    if request.user.is_anonymous:
+        lists = []
+    else:
+        lists = List.objects.filter(owner=request.user)
+    return render(
+        request,
+        "core/index.html",
+        {
+            "lists": lists,
+        },
+    )
 
 
 def content(request):
@@ -116,12 +127,20 @@ def dice(request):
     )
 
 
-class ListView(generic.ListView):
+class ListsListView(generic.ListView):
     template_name = "core/lists.html"
     context_object_name = "lists"
 
     def get_queryset(self):
         return List.objects.all()
+
+
+class ListDetailView(generic.DetailView):
+    template_name = "core/list.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        return get_object_or_404(List, id=self.kwargs["id"])
 
 
 class ListPrintView(generic.DetailView):

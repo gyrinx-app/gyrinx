@@ -14,6 +14,7 @@ urlpatterns = [
     ),
     path("content/index", views.ContentIndexIndexView.as_view(), name="content-index"),
     path("dice/", views.dice, name="dice"),
-    path("lists/", views.ListView.as_view(), name="lists"),
+    path("lists/", views.ListsListView.as_view(), name="lists"),
+    path("list/<id>", views.ListDetailView.as_view(), name="list"),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
 ]

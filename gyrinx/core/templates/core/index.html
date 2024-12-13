@@ -1,24 +1,60 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
+{% load allauth custom_tags %}
 {% block head_title %}
     Gyrinx
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="container my-5">
+        {% if messages %}
+            <div>
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="alert"
+                                aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
         <div class="col-lg-8 px-0">
+            {% if not user.is_authenticated %}
+                <p class="lead">Gyrinx is a new set of tools for the Necromunda community.</p>
+                <hr class="col-1 my-4" />
+            {% endif %}
             {% if user.is_authenticated %}
-                <p class="fs-5">Welcome back, {{ user.username }}.</p>
+                <div class="vstack gap-4">
+                    <div>
+                        <div class="hstack gap-3">
+                            <h1 class="mb-0">Lists</h1>
+                            <a href="#" class="btn btn-outline-primary disabled ms-auto">
+                                <i class="bi bi-plus-lg"></i>
+                                New List
+                            </a>
+                        </div>
+                        <p class="mb-0">Create gangs from scratch & test ideas.</p>
+                    </div>
+                    {% for list in lists %}
+                        <div class="d-flex flex-column gap-2">
+                            <h2 class="mb-0 h5">
+                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                            </h2>
+                            <div class="hstack gap-3">
+                                <div>{{ list.content_house.name }}</div>
+                                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="py-2">No lists available.</div>
+                    {% endfor %}
+                </div>
             {% else %}
-                <p class="fs-5">
-                    <a href="{% url 'account_login' %}">Sign in</a> or
+                <p>
+                    <a href="#">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
                     <a href="{% url 'account_signup' %}">sign up</a>.
                 </p>
             {% endif %}
-            <p>
-                Gyrinx is a new set of tools for the Necromunda community.
-                <a href="#">Find out more.</a>
-            </p>
-            <hr class="col-1 my-4" />
         </div>
     </div>
 {% endblock content %}
