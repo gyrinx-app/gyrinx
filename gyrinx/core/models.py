@@ -79,11 +79,11 @@ class ListFighter(AppBase):
 
     history = HistoricalRecords()
 
-    @admin.display(description="Cost")
+    @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
         # TODO: Take into account equipment list cost
         return self.content_fighter.cost_int() + sum(
-            [e.cost_int() for e in self.equipment.all()]
+            [e.total_assignment_cost() for e in self.assignments()]
         )
 
     def assign(self, equipment, weapon_profile=None):
@@ -143,6 +143,8 @@ class ListFighterEquipmentAssignment(AppBase):
         ContentWeaponProfile, on_delete=models.CASCADE, null=True, blank=True
     )
 
+    history = HistoricalRecords()
+
     def all_profiles(self):
         query = Q(equipment=self.content_equipment, cost=0)
         if self.weapon_profile:
@@ -170,7 +172,21 @@ class ListFighterEquipmentAssignment(AppBase):
     def cost_display(self):
         return self.content_equipment.cost_display()
 
-    history = HistoricalRecords()
+    # The following methods are used to calculate the ensure assignments contribution
+    # to the total cost of the ListFighter
+    # TODO: The implementation of assignments is not right: there should be support for
+    # multiple weapon profiles, with each additional profiles included in the cost, and
+    # there should be support for having the same weapon multiple times (but not other equipment).
+    # With that done, we can move away from the "cost_int" method used in the UI.
+    # Additionally, it's confusing that the equipment itself can have a cost which can also be
+    # overridden by the "default" weapon profile.
+
+    @admin.display(description="Total Cost of Assignment")
+    def total_assignment_cost(self):
+        if not self.weapon_profile:
+            return self.content_equipment.cost_int()
+
+        return self.content_equipment.cost_int() + self.weapon_profile.cost_int()
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
@@ -178,3 +194,12 @@ class ListFighterEquipmentAssignment(AppBase):
 
     def __str__(self):
         return f"{self.list_fighter} – {self.content_equipment}"
+
+    def clean(self):
+        if (
+            self.weapon_profile
+            and self.weapon_profile.equipment != self.content_equipment
+        ):
+            raise ValidationError(
+                f"{self.weapon_profile} is not a profile for {self.content_equipment}"
+            )

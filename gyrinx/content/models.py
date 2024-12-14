@@ -1,6 +1,7 @@
 from difflib import SequenceMatcher
 
 from django.core.cache import caches
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Q, When
 from django.db.models.functions import Cast
@@ -416,6 +417,27 @@ class ContentWeaponProfile(Content):
         verbose_name_plural = "Weapon Profiles"
         unique_together = ["equipment", "name"]
         ordering = ["equipment__name", "name"]
+
+    def clean(self):
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
+
+        if self.cost_int() == 0 and self.cost_sign != "":
+            raise ValidationError("Cost sign should be empty for zero cost profiles.")
+
+        if self.name == "" and self.cost_int() != 0:
+            raise ValidationError("Standard profiles should have zero cost.")
+
+        if self.cost_int() == 0 and self.cost_sign != "":
+            raise ValidationError("Standard profiles should have zero cost.")
+
+        if self.cost_int() != 0 and self.cost_sign == "":
+            raise ValidationError("Non-standard profiles should have a cost sign.")
+
+        if self.cost_int() != 0 and self.cost_sign != "+":
+            raise ValidationError(
+                "Non-standard profiles should have a positive cost sign."
+            )
 
 
 def check(rule, category, name):

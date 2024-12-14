@@ -97,7 +97,7 @@
                                         {% for item in fighter.wargear %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
-                                                <span>{{ item.name }}({{ item.cost_display }})</span>
+                                                <span>{{ item.name }} ({{ item.cost_display }})</span>
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% endfor %}

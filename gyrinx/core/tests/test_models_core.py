@@ -1,4 +1,5 @@
 import pytest
+from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -236,53 +237,272 @@ def test_list_fighter_with_spoon_weapon():
     assert lst.cost_int() == 110
 
 
-# @pytest.mark.django_db
-# def test_list_fighter_with_spoon_and_not_other_assignments():
-#     # This test was introduced to fix a bug where the cost of a fighter was
-#     # including all equipment assignments, not just the ones for that fighter.
+@pytest.mark.django_db
+def test_fighter_with_spoon_weapon_profile_with_cost():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
 
-#     category, house, content_fighter = make_content()
-#     spoon = ContentEquipment.objects.create(
-#         name="Wooden Spoon",
-#         category=EquipmentCategoryChoices.BASIC_WEAPONS,
-#     )
-#     spoon.save()
+    spoon_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
 
-#     ContentFighterEquipmentAssignment.objects.create(
-#         equipment=spoon,
-#         fighter=content_fighter,
-#         qty=1,
-#     ).save()
+    spoon_spike_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="with Spike",
+        defaults=dict(
+            cost=5,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
 
-#     content_fighter2 = ContentFighter.objects.create(
-#         type="Expensive Guy",
-#         category=category,
-#         house=house,
-#         base_cost=150,
-#     )
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
 
-#     spork = ContentEquipment.objects.create(
-#         name="Metal Spork",
-#         category=EquipmentCategoryChoices.BASIC_WEAPONS,
-#     )
-#     spork.save()
+    assert fighter.cost_int() == 100
 
-#     ContentFighterEquipmentAssignment.objects.create(
-#         equipment=spork,
-#         fighter=content_fighter2,
-#         qty=1,
-#     ).save()
+    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
 
-#     lst = Build.objects.create(name="Test List", content_house=house)
-#     fighter = BuildFighter.objects.create(
-#         name="Test Fighter", list=lst, content_fighter=content_fighter
-#     )
+    assert fighter.cost_int() == 115
 
-#     assert fighter.cost_int() == content_fighter.base_cost + spoon.cost_int()
-#     assert lst.cost_int() == fighter.cost_int()
-#     assert lst.cost_int() == 110
-#     )
+    assert lst.cost_int() == 115
 
-#     assert fighter.cost_int() == content_fighter.base_cost + spoon.cost_int()
-#     assert lst.cost_int() == fighter.cost_int()
-#     assert lst.cost_int() == 110
+
+@pytest.mark.django_db
+def test_list_fighter_with_spoon_and_not_other_assignments():
+    # This test was introduced to fix a bug where the cost of a fighter was
+    # including all equipment assignments, not just the ones for that fighter.
+
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    spoon_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    spoon_spike_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="with Spike",
+        defaults=dict(
+            cost=5,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+    fighter2, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter 2", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+    assert fighter2.cost_int() == 100
+
+    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+
+    assert fighter.cost_int() == 115
+    assert fighter2.cost_int() == 100
+
+    fighter2.assign(spoon, weapon_profile=spoon_profile)
+
+    assert fighter.cost_int() == 115
+    assert fighter2.cost_int() == 110
+
+    assert lst.cost_int() == 225
+
+
+@pytest.mark.django_db
+def test_profile_validation_negative_cost():
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    with pytest.raises(ValidationError, match="Cost cannot be negative."):
+        profile, _ = ContentWeaponProfile.objects.get_or_create(
+            equipment=spoon,
+            name="Negative Cost",
+            defaults=dict(
+                cost=-5,
+                cost_sign="",
+                range_short="",
+                range_long="E",
+                accuracy_short="",
+                accuracy_long="",
+                strength="S-1",
+                armour_piercing="+1",
+                damage="1",
+                ammo="4+",
+            ),
+        )
+        profile.clean()
+
+
+@pytest.mark.django_db
+def test_profile_validation_zero_cost_with_sign():
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    with pytest.raises(
+        ValidationError, match="Cost sign should be empty for zero cost profiles."
+    ):
+        profile, _ = ContentWeaponProfile.objects.get_or_create(
+            equipment=spoon,
+            name="Zero Cost with Sign",
+            defaults=dict(
+                cost=0,
+                cost_sign="+",
+                range_short="",
+                range_long="E",
+                accuracy_short="",
+                accuracy_long="",
+                strength="S-1",
+                armour_piercing="+1",
+                damage="1",
+                ammo="4+",
+            ),
+        )
+        profile.clean()
+
+
+@pytest.mark.django_db
+def test_profile_validation_standard_profile_non_zero_cost():
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    with pytest.raises(
+        ValidationError, match="Standard profiles should have zero cost."
+    ):
+        profile, _ = ContentWeaponProfile.objects.get_or_create(
+            equipment=spoon,
+            name="",
+            defaults=dict(
+                cost=5,
+                cost_sign="+",
+                range_short="",
+                range_long="E",
+                accuracy_short="",
+                accuracy_long="",
+                strength="S-1",
+                armour_piercing="+1",
+                damage="1",
+                ammo="4+",
+            ),
+        )
+        profile.clean()
+
+
+@pytest.mark.django_db
+def test_profile_validation_non_standard_profile_no_cost_sign():
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    with pytest.raises(
+        ValidationError, match="Non-standard profiles should have a cost sign."
+    ):
+        profile, _ = ContentWeaponProfile.objects.get_or_create(
+            equipment=spoon,
+            name="Non-standard No Cost Sign",
+            defaults=dict(
+                cost=5,
+                cost_sign="",
+                range_short="",
+                range_long="E",
+                accuracy_short="",
+                accuracy_long="",
+                strength="S-1",
+                armour_piercing="+1",
+                damage="1",
+                ammo="4+",
+            ),
+        )
+        profile.clean()
+
+
+@pytest.mark.django_db
+def test_profile_validation_non_standard_profile_negative_cost_sign():
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    with pytest.raises(
+        ValidationError, match="Non-standard profiles should have a positive cost sign."
+    ):
+        profile, _ = ContentWeaponProfile.objects.get_or_create(
+            equipment=spoon,
+            name="Non-standard Negative Cost Sign",
+            defaults=dict(
+                cost=5,
+                cost_sign="-",
+                range_short="",
+                range_long="E",
+                accuracy_short="",
+                accuracy_long="",
+                strength="S-1",
+                armour_piercing="+1",
+                damage="1",
+                ammo="4+",
+            ),
+        )
+        profile.clean()
