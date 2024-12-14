@@ -108,10 +108,9 @@
                             {% endif %}
                         </tbody>
                     </table>
-                    <hr class="my-1">
                     {% comment %} Wargear {% endcomment %}
                     <table class="table table-sm table-borderless table-hover mb-0 fs-7">
-                        <thead>
+                        <thead class="table-group-divider">
                             <tr>
                                 <th scope="col">
                                     <span class="invisible">Weapon</span>
@@ -126,8 +125,8 @@
                                 <th class="text-center" scope="col">Am</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for weapon_assign in fighter.weapons %}
+                        {% for weapon_assign in fighter.weapons %}
+                            <tbody class="table-group-divider">
                                 {% comment %} Base-case: one profile for the weapon {% endcomment %}
                                 {% if weapon_assign.all_profiles|length == 1 %}
                                     {% with weapon_assign.all_profiles.0 as profile %}
@@ -189,8 +188,8 @@
                                         {% endif %}
                                     {% endif %}
                                 {% endif %}
-                            {% endfor %}
-                        </tbody>
+                            </tbody>
+                        {% endfor %}
                     </table>
                 </div>
             </div>

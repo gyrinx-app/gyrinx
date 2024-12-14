@@ -64,3 +64,9 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 a[href="#"][data-bs-toggle="tooltip"] {
     cursor: help;
 }
+
+.table-group-divider {
+    // This is a custom class to add a border between table groups. The !important
+    // is required so that it shows up even in .table-borderless tables.
+    border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
+}
