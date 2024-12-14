@@ -235,6 +235,7 @@ class ContentFighter(Content):
                 "highlight": bool(
                     field.name in ["leadership", "cool", "willpower", "intelligence"]
                 ),
+                "classes": ("border-start" if field.name in ["leadership"] else ""),
             }
             for field in stats
         ]
@@ -415,7 +416,15 @@ class ContentWeaponProfile(Content):
             ]
         ]
         return [
-            {"name": field.verbose_name, "value": getattr(self, field.name) or "-"}
+            {
+                "name": field.verbose_name,
+                "classes": (
+                    "border-start"
+                    if field.name in ["accuracy_short", "strength"]
+                    else ""
+                ),
+                "value": getattr(self, field.name) or "-",
+            }
             for field in stats
         ]
 

@@ -57,18 +57,18 @@ def test_fighter_stats():
     fighter.save()
 
     assert fighter.statline() == [
-        {"name": "M", "value": '5"', "highlight": False},
-        {"name": "WS", "value": "5+", "highlight": False},
-        {"name": "BS", "value": "5+", "highlight": False},
-        {"name": "S", "value": "4", "highlight": False},
-        {"name": "T", "value": "3", "highlight": False},
-        {"name": "W", "value": "1", "highlight": False},
-        {"name": "I", "value": "4+", "highlight": False},
-        {"name": "A", "value": "1", "highlight": False},
-        {"name": "Ld", "value": "8+", "highlight": True},
-        {"name": "Cl", "value": "7+", "highlight": True},
-        {"name": "Wil", "value": "6+", "highlight": True},
-        {"name": "Int", "value": "7+", "highlight": True},
+        {"name": "M", "value": '5"', "highlight": False, "classes": ""},
+        {"name": "WS", "value": "5+", "highlight": False, "classes": ""},
+        {"name": "BS", "value": "5+", "highlight": False, "classes": ""},
+        {"name": "S", "value": "4", "highlight": False, "classes": ""},
+        {"name": "T", "value": "3", "highlight": False, "classes": ""},
+        {"name": "W", "value": "1", "highlight": False, "classes": ""},
+        {"name": "I", "value": "4+", "highlight": False, "classes": ""},
+        {"name": "A", "value": "1", "highlight": False, "classes": ""},
+        {"name": "Ld", "value": "8+", "highlight": True, "classes": "border-start"},
+        {"name": "Cl", "value": "7+", "highlight": True, "classes": ""},
+        {"name": "Wil", "value": "6+", "highlight": True, "classes": ""},
+        {"name": "Int", "value": "7+", "highlight": True, "classes": ""},
     ]
 
 

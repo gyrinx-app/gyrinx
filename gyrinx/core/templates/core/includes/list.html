@@ -1,7 +1,7 @@
 {% load allauth custom_tags %}
 <div>
     <div class="vstack gap-0 mb-2">
-        <div class="d-flex flex-column flex-sm-row gap-2 h5">
+        <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center gap-2 h5">
             <h2 class="mb-0">{{ list.name }}</h2>
             <div class="ms-sm-auto">{{ list.content_house.name }}</div>
             <div>
@@ -23,45 +23,53 @@
     <div class="grid">
         {% for fighter in list.fighters %}
             <div class="card g-col-12 g-col-lg-6">
-                <div class="card-header">
-                    <div class="hstack gap-2 align-items-baseline">
-                        <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
-                        <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
-                        <div class="ms-auto py-2">
-                            {% ref list.content_house.name fighter.content_fighter.type value=fighter.content_fighter.type %} ({{ fighter.content_fighter.cat }})
-                            {{ fighter.content_fighter.cost_int }}¢
+                <div class="card-header p-2">
+                    <div class="hstack">
+                        <h3 class="h5 mb-0">{{ fighter.name }}</h3>
+                        <div class="ms-auto">
+                            <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
                         </div>
                     </div>
+                    <div class="hstack gap-2">
+                        <div>
+                            {% ref list.content_house.name fighter.content_fighter.type value=fighter.content_fighter.type %}
+                            ({{ fighter.content_fighter.cat }})
+                        </div>
+                        <div class="ms-auto">{{ fighter.content_fighter.cost_int }}¢</div>
+                    </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0 p-sm-2">
                     {% comment %} Stats {% endcomment %}
                     <table class="table table-sm table-borderless mb-0">
                         <thead>
                             <tr>
-                                <th class="text-center" scope="col">M</th>
-                                <th class="text-center" scope="col">WS</th>
-                                <th class="text-center" scope="col">BS</th>
-                                <th class="text-center" scope="col">S</th>
-                                <th class="text-center" scope="col">T</th>
-                                <th class="text-center" scope="col">W</th>
-                                <th class="text-center" scope="col">I</th>
-                                <th class="text-center" scope="col">A</th>
-                                <th class="text-center table-warning" scope="col">Ld</th>
-                                <th class="text-center table-warning" scope="col">Cl</th>
-                                <th class="text-center table-warning" scope="col">Wil</th>
-                                <th class="text-center table-warning" scope="col">Int</th>
+                                <th class="text-center border-bottom" scope="col">M</th>
+                                <th class="text-center border-bottom" scope="col">WS</th>
+                                <th class="text-center border-bottom" scope="col">BS</th>
+                                <th class="text-center border-bottom" scope="col">S</th>
+                                <th class="text-center border-bottom" scope="col">T</th>
+                                <th class="text-center border-bottom" scope="col">W</th>
+                                <th class="text-center border-bottom" scope="col">I</th>
+                                <th class="text-center border-bottom" scope="col">A</th>
+                                <th class="text-center border-bottom table-warning border-start"
+                                    scope="col">Ld</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Int</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 {% for stat in fighter.content_fighter.statline %}
                                     {% if stat.highlight %}
-                                        <td class="text-center table-warning">{{ stat.value }}</td>
+                                        <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
                                     {% else %}
-                                        <td class="text-center">{{ stat.value }}</td>
+                                        <td class="text-center {{ stat.classes }}">{{ stat.value }}</td>
                                     {% endif %}
                                 {% endfor %}
                             </tr>
+                        </tbody>
+                        <tbody class="table-group-divider">
                             {% if fighter.content_fighter.ruleline|length > 0 %}
                                 <tr class="fs-7">
                                     <th scope="row" colspan="3">Rules</th>
@@ -109,7 +117,7 @@
                         </tbody>
                     </table>
                     {% comment %} Wargear {% endcomment %}
-                    <table class="table table-sm table-borderless table-hover mb-0 fs-7">
+                    <table class="table table-sm table-borderless mb-0 fs-7">
                         <thead class="table-group-divider">
                             <tr>
                                 <th scope="col">
@@ -135,7 +143,7 @@
                                                 <strong>{{ weapon_assign.base_name }}</strong>
                                                 {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                             </td>
-                                            {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                                         </tr>
                                         {% if profile.traitline|length > 0 %}
                                             <tr>
@@ -164,7 +172,7 @@
                                                     {{ profile.name }}
                                                 {% endif %}
                                             </td>
-                                            {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                                         </tr>
                                         {% if profile.traitline|length > 0 %}
                                             <tr>
@@ -179,7 +187,7 @@
                                                 {{ weapon_assign.profile_name }}
                                                 {% if weapon_assign.profile_cost_int > 0 %}({{ weapon_assign.profile_cost_display }}){% endif %}
                                             </td>
-                                            {% for stat in weapon_assign.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                            {% for stat in weapon_assign.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                                         </tr>
                                         {% if weapon_assign.traitline|length > 0 %}
                                             <tr>
