@@ -61,4 +61,6 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
-// TODO: Add custom styles here
+a[href="#"][data-bs-toggle="tooltip"] {
+    cursor: help;
+}

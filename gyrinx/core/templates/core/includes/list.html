@@ -26,8 +26,10 @@
                 <div class="card-header">
                     <div class="hstack gap-2 align-items-baseline">
                         <h3 class="py-2 h5 mb-0">{{ fighter.name }}</h3>
+                        <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
                         <div class="ms-auto py-2">
                             {% ref list.content_house.name fighter.content_fighter.type value=fighter.content_fighter.type %} ({{ fighter.content_fighter.cat }})
+                            {{ fighter.content_fighter.cost_int }}¢
                         </div>
                     </div>
                 </div>
@@ -91,7 +93,15 @@
                             {% if fighter.wargearline|length > 0 %}
                                 <tr class="fs-7">
                                     <th scope="row" colspan="3">Gear</th>
-                                    <td colspan="12">{{ fighter.wargearline|join:", " }}</td>
+                                    <td colspan="12">
+                                        {% for item in fighter.wargear %}
+                                            {% comment %} All this faff to avoid spaces {% endcomment %}
+                                            {% spaceless %}
+                                                <span>{{ item.name }}({{ item.cost_display }})</span>
+                                                {% if not forloop.last %}<span>,</span>{% endif %}
+                                            {% endspaceless %}
+                                        {% endfor %}
+                                    </td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -119,7 +129,7 @@
                                 {% if weapon.all_profiles|length == 1 %}
                                     <tr class="align-top">
                                         <td rowspan="2">
-                                            <strong>{{ weapon.content_equipment.name }}</strong>
+                                            <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
                                         </td>
                                         {% for stat in weapon.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
                                     </tr>
@@ -130,7 +140,7 @@
                                     {% if weapon.all_profiles.0.name != "" %}
                                         <tr class="align-bottom">
                                             <td colspan="9">
-                                                <strong>{{ weapon.content_equipment.name }}</strong>
+                                                <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
                                             </td>
                                         </tr>
                                     {% endif %}
@@ -138,9 +148,9 @@
                                         <tr class="align-top">
                                             <td rowspan="2">
                                                 {% if profile.name %}
-                                                    {{ profile.name }}
+                                                    {{ profile.name }} ({{ profile.cost_display }})
                                                 {% elif profile.id == weapon.all_profiles.0.id %}
-                                                    <strong>{{ weapon.content_equipment.name }}</strong>
+                                                    <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
                                                 {% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}

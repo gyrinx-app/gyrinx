@@ -161,6 +161,15 @@ class ListFighterEquipmentAssignment(AppBase):
     def is_weapon(self):
         return self.content_equipment.is_weapon()
 
+    def name(self):
+        return self.content_equipment.name
+
+    def cost_int(self):
+        return self.content_equipment.cost_int()
+
+    def cost_display(self):
+        return self.content_equipment.cost_display()
+
     history = HistoricalRecords()
 
     class Meta:
