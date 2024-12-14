@@ -606,7 +606,7 @@ def test_weapon_cost_equipment_list_override_with_profile():
     assert assignment.base_cost_int() == 10
     assert assignment.base_cost_display() == "10¢"
     assert assignment.profile_cost_int() == 0
-    assert assignment.profile_cost_display() == "0¢"
+    assert assignment.profile_cost_display() == "+0¢"
 
     spike_assignment = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
@@ -619,7 +619,7 @@ def test_weapon_cost_equipment_list_override_with_profile():
     assert spike_assignment.base_cost_int() == 10
     assert spike_assignment.base_cost_display() == "10¢"
     assert spike_assignment.profile_cost_int() == 2
-    assert spike_assignment.profile_cost_display() == "2¢"
+    assert spike_assignment.profile_cost_display() == "+2¢"
 
 
 @pytest.mark.django_db
@@ -698,3 +698,91 @@ def test_list_fighter_with_same_equipment_different_profiles():
 
     a2_profiles = assignment2.all_profiles()
     assert len(a2_profiles) == 2
+
+
+@pytest.mark.django_db
+def test_weapon_with_multiple_profiles():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    # Create multiple profiles for the same equipment
+    spoon_profile1, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile 1",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    spoon_profile2, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile 2",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    spoon_profile_costed, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile with Cost",
+        defaults=dict(
+            cost=5,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    # Assign the costed profile to the fighter
+    fighter.assign(spoon, weapon_profile=spoon_profile_costed)
+
+    assert fighter.cost_int() == 115  # 100 base + 10 spoon + 5 profile cost
+
+    assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profile=spoon_profile_costed,
+    )
+
+    assert assignment.total_assignment_cost() == 15
+    assert assignment.base_cost_int() == 10
+    assert assignment.profile_cost_int() == 5
+
+    assert lst.cost_int() == 115
+
+    weapon_assigns = fighter.weapons()
+    assert len(weapon_assigns) == 1
+
+    first_assign = weapon_assigns[0]
+    assert first_assign.total_assignment_cost() == 15

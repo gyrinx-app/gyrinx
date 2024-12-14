@@ -157,22 +157,36 @@ class ListFighterEquipmentAssignment(AppBase):
         query = Q(equipment=self.content_equipment, cost=0)
         if self.weapon_profile:
             query = query | Q(id=self.weapon_profile.id)
-        profiles = list(
-            ContentWeaponProfile.objects.filter(query).order_by(
-                Case(
-                    When(name="", then=0),
-                    default=1,
-                )
+
+        return ContentWeaponProfile.objects.filter(query).order_by(
+            Case(
+                When(name="", then=0),
+                default=1,
             )
         )
 
-        return profiles
+    def standard_profiles(self):
+        return ContentWeaponProfile.objects.filter(
+            equipment=self.content_equipment, cost=0
+        ).order_by(
+            Case(
+                When(name="", then=0),
+                default=1,
+            )
+        )
 
     def is_weapon(self):
         return self.content_equipment.is_weapon()
 
     def name(self):
-        return self.content_equipment.name
+        return (
+            f"{self.weapon_profile}"
+            if self.weapon_profile
+            else f"{self.content_equipment}"
+        )
+
+    def base_name(self):
+        return f"{self.content_equipment}"
 
     def base_cost_int(self):
         return self._equipment_cost_with_override()
@@ -180,11 +194,20 @@ class ListFighterEquipmentAssignment(AppBase):
     def base_cost_display(self):
         return f"{self.base_cost_int()}¢"
 
+    def profile_name(self):
+        return f"{self.weapon_profile.name}" if self.weapon_profile else ""
+
     def profile_cost_int(self):
         return self._profile_cost_with_override()
 
     def profile_cost_display(self):
-        return f"{self.profile_cost_int()}¢"
+        return f"+{self.profile_cost_int()}¢"
+
+    def statline(self):
+        return self.weapon_profile.statline() if self.weapon_profile else []
+
+    def traitline(self):
+        return self.weapon_profile.traitline() if self.weapon_profile else []
 
     # The following methods are used to calculate the ensure assignments contribution
     # to the total cost of the ListFighter
@@ -232,12 +255,7 @@ class ListFighterEquipmentAssignment(AppBase):
         verbose_name_plural = "Fighter Equipment Assignments"
 
     def __str__(self):
-        wp = (
-            f"{self.weapon_profile}"
-            if self.weapon_profile
-            else f"{self.content_equipment}"
-        )
-        return f"{self.list_fighter} – {wp}"
+        return f"{self.list_fighter} – {self.name()}"
 
     def clean(self):
         if (
