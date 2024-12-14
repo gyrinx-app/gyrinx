@@ -57,6 +57,10 @@ logger.info(f"CSRF_COOKIE_DOMAIN: {CSRF_COOKIE_DOMAIN}")
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "hello@gyrinx.app"
 
+# Analytics
+
+GOOGLE_ANALYTICS_ID = os.getenv("GOOGLE_ANALYTICS_ID", "")
+
 # Application definition
 
 INSTALLED_APPS = [
