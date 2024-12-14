@@ -5,13 +5,14 @@
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="container my-5">
+        {% include "core/includes/back.html" %}
         <div class="col-lg-12 px-0 vstack gap-3">
             <h1 class="visually-hidden">Roll some dice</h1>
             <div class="d-grid gap-2 d-md-block">
                 <a class="btn {% if mode == 'd6' %}btn-primary{% else %}btn-outline-secondary{% endif %} "
-                   href="?{% qt request m="d6" %}">D6</a>
+                   href="?{% qt request m="d6" %}">Roll D6</a>
                 <a class="btn {% if mode == 'd3' %}btn-primary{% else %}btn-outline-secondary{% endif %} "
-                   href="?{% qt request m="d3" %}">D3</a>
+                   href="?{% qt request m="d3" %}">Roll D3</a>
                 <a class="btn btn-outline" href="?m=d6&d=1">Reset</a>
             </div>
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 h1">

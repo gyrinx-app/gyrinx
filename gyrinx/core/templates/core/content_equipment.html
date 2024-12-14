@@ -5,9 +5,10 @@
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="container my-5">
+        {% include "core/includes/back.html" %}
         <div class="col-lg-12 px-0 vstack gap-5">
             <div>
-                <h1 class="h3">Equipment</h1>
+                <h1>Equipment</h1>
                 <div class="table-responsive-sm">
                     <table class="table table-sm table-borderless table-hover fs-7">
                         {% regroup equipment|dictsort:"category" by cat as categories %}
