@@ -125,32 +125,32 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for weapon in fighter.weapons %}
-                                {% if weapon.all_profiles|length == 1 %}
+                            {% for weapon_assign in fighter.weapons %}
+                                {% if weapon_assign.all_profiles|length == 1 %}
                                     <tr class="align-top">
                                         <td rowspan="2">
-                                            <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
+                                            <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
                                         </td>
-                                        {% for stat in weapon.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                        {% for stat in weapon_assign.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
                                     </tr>
                                     <tr>
-                                        <td colspan="9">{{ weapon.all_profiles.0.traitline|join:", " }}</td>
+                                        <td colspan="9">{{ weapon_assign.all_profiles.0.traitline|join:", " }}</td>
                                     </tr>
                                 {% else %}
-                                    {% if weapon.all_profiles.0.name != "" %}
+                                    {% if weapon_assign.all_profiles.0.name != "" %}
                                         <tr class="align-bottom">
                                             <td colspan="9">
-                                                <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
+                                                <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
                                             </td>
                                         </tr>
                                     {% endif %}
-                                    {% for profile in weapon.all_profiles %}
+                                    {% for profile in weapon_assign.all_profiles %}
                                         <tr class="align-top">
                                             <td rowspan="2">
                                                 {% if profile.name %}
                                                     {{ profile.name }} ({{ profile.cost_display }})
-                                                {% elif profile.id == weapon.all_profiles.0.id %}
-                                                    <strong>{{ weapon.name }}</strong> ({{ weapon.cost_display }})
+                                                {% elif profile.id == weapon_assign.all_profiles.0.id %}
+                                                    <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
                                                 {% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}

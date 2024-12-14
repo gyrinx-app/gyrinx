@@ -7,6 +7,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
+    ContentFighterEquipmentListItem,
     ContentHouse,
     ContentSkill,
     ContentWeaponProfile,
@@ -87,13 +88,20 @@ class ListFighter(AppBase):
         )
 
     def assign(self, equipment, weapon_profile=None):
-        """Assign an equipment to this fighter."""
+        # We create the assignment directly because Django does not use the through_defaults
+        # if you .add() equipment that is already in the list, which prevents us from
+        # assigning the same equipment multiple times, once with a weapon profile and once without.
         if weapon_profile:
-            self.equipment.add(
-                equipment, through_defaults=dict(weapon_profile=weapon_profile)
-            )
+            ListFighterEquipmentAssignment(
+                list_fighter=self,
+                content_equipment=equipment,
+                weapon_profile=weapon_profile,
+            ).save()
         else:
-            self.equipment.add(equipment)
+            ListFighterEquipmentAssignment(
+                list_fighter=self,
+                content_equipment=equipment,
+            ).save()
 
     def assignments(self):
         return self.equipment.through.objects.filter(list_fighter=self).order_by(
@@ -166,27 +174,52 @@ class ListFighterEquipmentAssignment(AppBase):
     def name(self):
         return self.content_equipment.name
 
-    def cost_int(self):
-        return self.content_equipment.cost_int()
+    def base_cost_int(self):
+        return self._equipment_cost_with_override()
 
-    def cost_display(self):
-        return self.content_equipment.cost_display()
+    def base_cost_display(self):
+        return f"{self.base_cost_int()}¢"
 
     # The following methods are used to calculate the ensure assignments contribution
     # to the total cost of the ListFighter
     # TODO: The implementation of assignments is not right: there should be support for
     # multiple weapon profiles, with each additional profiles included in the cost, and
     # there should be support for having the same weapon multiple times (but not other equipment).
-    # With that done, we can move away from the "cost_int" method used in the UI.
     # Additionally, it's confusing that the equipment itself can have a cost which can also be
     # overridden by the "default" weapon profile.
 
     @admin.display(description="Total Cost of Assignment")
     def total_assignment_cost(self):
-        if not self.weapon_profile:
+        return self._equipment_cost_with_override() + self._profile_cost_with_override()
+
+    def total_assignment_cost_display(self):
+        return f"{self.total_assignment_cost()}¢"
+
+    def _equipment_cost_with_override(self):
+        try:
+            override = ContentFighterEquipmentListItem.objects.get(
+                fighter=self.list_fighter.content_fighter,
+                equipment=self.content_equipment,
+                # None here is very important: it means we're looking for the base equipment cost.
+                weapon_profile=None,
+            )
+            return override.cost_int()
+        except ContentFighterEquipmentListItem.DoesNotExist:
             return self.content_equipment.cost_int()
 
-        return self.content_equipment.cost_int() + self.weapon_profile.cost_int()
+    def _profile_cost_with_override(self):
+        if self.weapon_profile is None:
+            return 0
+
+        try:
+            override = ContentFighterEquipmentListItem.objects.get(
+                fighter=self.list_fighter.content_fighter,
+                equipment=self.content_equipment,
+                weapon_profile=self.weapon_profile,
+            )
+            return override.cost_int()
+        except ContentFighterEquipmentListItem.DoesNotExist:
+            return self.weapon_profile.cost_int()
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"

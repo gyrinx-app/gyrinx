@@ -4,11 +4,12 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
+    ContentFighterEquipmentListItem,
     ContentHouse,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from gyrinx.core.models import List, ListFighter
+from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
@@ -506,3 +507,112 @@ def test_profile_validation_non_standard_profile_negative_cost_sign():
             ),
         )
         profile.clean()
+
+
+@pytest.mark.django_db
+def test_weapon_cost_equipment_list_override():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    # This guy gets spoons on the cheap
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=content_fighter, equipment=spoon, cost=5
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    fighter.assign(spoon)
+
+    assert fighter.cost_int() == 105
+
+    assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter, content_equipment=spoon
+    )
+
+    assert assignment.total_assignment_cost() == 5
+    assert assignment.base_cost_int() == 5
+    assert assignment.base_cost_display() == "5¢"
+
+
+@pytest.mark.django_db
+def test_weapon_cost_equipment_list_override_with_profile():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    spoon_spike_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="with Spike",
+        defaults=dict(
+            cost=5,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    # This guy gets spikes on his spoons for cheap, but spoons at full cost.
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=content_fighter,
+        equipment=spoon,
+        cost=10,
+    )
+
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=content_fighter,
+        equipment=spoon,
+        weapon_profile=spoon_spike_profile,
+        cost=2,
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    # Duel-wield spoons
+    fighter.assign(spoon)
+    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+
+    assert fighter.cost_int() == 122
+
+    assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profile=None,
+    )
+
+    assert assignment.total_assignment_cost() == 10
+    assert assignment.base_cost_int() == 10
+    assert assignment.base_cost_display() == "10¢"
+
+    spike_assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profile=spoon_spike_profile,
+    )
+
+    assert spike_assignment.total_assignment_cost() == 12
+    assert spike_assignment.total_assignment_cost_display() == "12¢"
+    assert spike_assignment.base_cost_int() == 10
+    assert spike_assignment.base_cost_display() == "10¢"

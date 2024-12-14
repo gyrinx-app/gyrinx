@@ -268,6 +268,9 @@ class ContentFighterEquipmentListItem(Content):
 
     history = HistoricalRecords()
 
+    def cost_int(self):
+        return self.cost
+
     def __str__(self):
         return f"{self.fighter} {self.weapon_profile if self.weapon_profile else ''} ({self.cost})"
 
@@ -276,6 +279,13 @@ class ContentFighterEquipmentListItem(Content):
         verbose_name_plural = "Equipment List Items"
         unique_together = ["fighter", "equipment", "weapon_profile"]
         ordering = ["fighter__type", "equipment__name"]
+
+    def clean(self):
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
+
+        if self.weapon_profile and self.weapon_profile.equipment != self.equipment:
+            raise ValidationError("Weapon profile must be for the same equipment.")
 
 
 class ContentWeaponTrait(Content):
