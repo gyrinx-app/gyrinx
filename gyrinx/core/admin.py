@@ -53,6 +53,10 @@ class ListFighterAdmin(SimpleHistoryAdmin):
 
 @admin.register(ListFighterEquipmentAssignment)
 class ListFighterEquipmentAssignmentAdmin(SimpleHistoryAdmin):
-    fields = ["list_fighter", "content_equipment"]
-    list_display = ["list_fighter", "content_equipment"]
-    search_fields = ["list_fighter__name", "content_equipment__name"]
+    fields = ["list_fighter", "content_equipment", "weapon_profile"]
+    list_display = ["list_fighter", "content_equipment", "weapon_profile"]
+    search_fields = [
+        "list_fighter__name",
+        "content_equipment__name",
+        "weapon_profile__name",
+    ]

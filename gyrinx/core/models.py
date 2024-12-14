@@ -232,7 +232,12 @@ class ListFighterEquipmentAssignment(AppBase):
         verbose_name_plural = "Fighter Equipment Assignments"
 
     def __str__(self):
-        return f"{self.list_fighter} – {self.content_equipment}"
+        wp = (
+            f"{self.weapon_profile}"
+            if self.weapon_profile
+            else f"{self.content_equipment}"
+        )
+        return f"{self.list_fighter} – {wp}"
 
     def clean(self):
         if (
