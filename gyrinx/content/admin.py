@@ -11,6 +11,7 @@ from .models import (
     ContentHouse,
     ContentPageRef,
     ContentPolicy,
+    ContentRule,
     ContentSkill,
     ContentWeaponProfile,
     ContentWeaponTrait,
@@ -150,3 +151,8 @@ class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
             )
 
     inlines = [ChildContentPageRefInline]
+
+
+@admin.register(ContentRule)
+class ContentRuleAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
