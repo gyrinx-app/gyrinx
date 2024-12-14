@@ -605,6 +605,8 @@ def test_weapon_cost_equipment_list_override_with_profile():
     assert assignment.total_assignment_cost() == 10
     assert assignment.base_cost_int() == 10
     assert assignment.base_cost_display() == "10¢"
+    assert assignment.profile_cost_int() == 0
+    assert assignment.profile_cost_display() == "0¢"
 
     spike_assignment = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
@@ -616,3 +618,5 @@ def test_weapon_cost_equipment_list_override_with_profile():
     assert spike_assignment.total_assignment_cost_display() == "12¢"
     assert spike_assignment.base_cost_int() == 10
     assert spike_assignment.base_cost_display() == "10¢"
+    assert spike_assignment.profile_cost_int() == 2
+    assert spike_assignment.profile_cost_display() == "2¢"

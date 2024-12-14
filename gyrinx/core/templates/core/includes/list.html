@@ -97,7 +97,9 @@
                                         {% for item in fighter.wargear %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
-                                                <span>{{ item.name }} ({{ item.total_assignment_cost_display }})</span>
+                                                <span>{{ item.name }}
+                                                    {% if item.total_assignment_cost > 0 %}({{ item.total_assignment_cost_display }}){% endif %}
+                                                </span>
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% endfor %}
@@ -129,7 +131,8 @@
                                 {% if weapon_assign.all_profiles|length == 1 %}
                                     <tr class="align-top">
                                         <td rowspan="2">
-                                            <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
+                                            <strong>{{ weapon_assign.name }}</strong>
+                                            {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                         </td>
                                         {% for stat in weapon_assign.all_profiles.0.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
                                     </tr>
@@ -140,7 +143,8 @@
                                     {% if weapon_assign.all_profiles.0.name != "" %}
                                         <tr class="align-bottom">
                                             <td colspan="9">
-                                                <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
+                                                <strong>{{ weapon_assign.name }}</strong>
+                                                {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                             </td>
                                         </tr>
                                     {% endif %}
@@ -148,9 +152,11 @@
                                         <tr class="align-top">
                                             <td rowspan="2">
                                                 {% if profile.name %}
-                                                    {{ profile.name }} ({{ profile.cost_display }})
+                                                    {{ profile.name }}
+                                                    {% if weapon_assign.profile_cost_int > 0 %}({{ weapon_assign.profile_cost_display }}){% endif %}
                                                 {% elif profile.id == weapon_assign.all_profiles.0.id %}
-                                                    <strong>{{ weapon_assign.name }}</strong> ({{ weapon_assign.base_cost_display }})
+                                                    <strong>{{ weapon_assign.name }}</strong>
+                                                    {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                                 {% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}

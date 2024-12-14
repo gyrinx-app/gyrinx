@@ -180,6 +180,12 @@ class ListFighterEquipmentAssignment(AppBase):
     def base_cost_display(self):
         return f"{self.base_cost_int()}¢"
 
+    def profile_cost_int(self):
+        return self._profile_cost_with_override()
+
+    def profile_cost_display(self):
+        return f"{self.profile_cost_int()}¢"
+
     # The following methods are used to calculate the ensure assignments contribution
     # to the total cost of the ListFighter
     # TODO: The implementation of assignments is not right: there should be support for
