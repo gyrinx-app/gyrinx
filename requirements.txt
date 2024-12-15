@@ -16,6 +16,6 @@ pytest-django==4.9.0
 python-dotenv==1.0.1
 referencing==0.35.1
 ruff==0.8.3
-setuptools==75.1.0
+setuptools==75.6.0
 sqlparse==0.5.1
 whitenoise==6.7.0
