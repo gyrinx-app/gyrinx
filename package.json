@@ -28,7 +28,7 @@
         "postcss": "^8.4.47",
         "postcss-cli": "^11.0.0",
         "prettier": "^3.3.3",
-        "sass": "^1.79.4",
+        "sass": "^1.83.0",
         "sirv-cli": "^2.0.2",
         "stylelint": "^16.9.0",
         "stylelint-config-twbs-bootstrap": "^15.0.0"
