@@ -7,7 +7,7 @@ django-simple-history==3.7.0
 djlint==1.36.1
 jsonschema==4.23.0
 jupyter==1.1.1
-nbstripout==0.7.1
+nbstripout==0.8.1
 nodeenv==1.9.1
 pre-commit==4.0.1
 psycopg2-binary==2.9.10
