@@ -2,12 +2,12 @@ asgiref==3.8.1
 click==8.1.7
 daphne==4.1.2
 Django==5.1.4
-django-allauth==65.1.0
+django-allauth==65.3.0
 django-simple-history==3.7.0
-djlint==1.36.1
+djlint==1.36.3
 jsonschema==4.23.0
 jupyter==1.1.1
-nbstripout==0.7.1
+nbstripout==0.8.1
 nodeenv==1.9.1
 pre-commit==4.0.1
 psycopg2-binary==2.9.10
@@ -16,6 +16,6 @@ pytest-django==4.9.0
 python-dotenv==1.0.1
 referencing==0.35.1
 ruff==0.8.3
-setuptools==75.1.0
-sqlparse==0.5.1
-whitenoise==6.7.0
+setuptools==75.6.0
+sqlparse==0.5.3
+whitenoise==6.8.2
