@@ -2,7 +2,6 @@ from django import template
 from django.conf import settings
 from django.urls import reverse
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 
 from gyrinx.content.models import ContentPageRef
 
@@ -123,22 +122,5 @@ def ref(*args, category=None, value=None):
 
 
 @register.simple_tag
-def analytics():
-    id = getattr(settings, "GOOGLE_ANALYTICS_ID", "")
-    if not id:
-        return ""
-
-    id = format_html("{}", id)
-
-    return mark_safe(f"""
-        <!-- Google tag (gtag.js) -->
-        <script async
-                src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
-        <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){{dataLayer.push(arguments);}}
-        gtag('js', new Date());
-
-        gtag('config', '{id}');
-        </script>
-    """)
+def settings_value(name):
+    return getattr(settings, name, "")

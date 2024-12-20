@@ -19,7 +19,25 @@
                 data-cbid="92d724a2-6639-4e73-81ef-6607b76df67d"
                 data-blockingmode="auto"
                 type="text/javascript"></script>
-        {% analytics %}
+        {% settings_value "GOOGLE_ANALYTICS_ID" as analytics_id %}
+        {% if analytics_id %}
+            <!-- Google tag (gtag.js) -->
+            <script async
+                    src="https://www.googletagmanager.com/gtag/js?id={{ analytics_id }}"></script>
+            <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+
+                {% if user.is_authenticated %}
+                gtag('config', '{{ analytics_id }}', {
+                    'user_id': '{{ user.uuid }}'
+                });
+                {% else %}
+                gtag('config', '{{ analytics_id }}');
+                {% endif %}
+            </script>
+        {% endif %}
     </head>
     <body>
         {% block base %}
