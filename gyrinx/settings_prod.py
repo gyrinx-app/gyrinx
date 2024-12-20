@@ -1,6 +1,11 @@
 import os
 
+import google.cloud.logging
+
 from .settings import *  # noqa: F403
+
+client = google.cloud.logging.Client()
+client.setup_logging()
 
 DEBUG = False
 CSRF_COOKIE_SECURE = True
