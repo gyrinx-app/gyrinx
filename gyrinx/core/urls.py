@@ -17,4 +17,5 @@ urlpatterns = [
     path("lists/", views.ListsListView.as_view(), name="lists"),
     path("list/<id>", views.ListDetailView.as_view(), name="list"),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
+    path("cookies", views.cookies, name="cookies"),
 ]

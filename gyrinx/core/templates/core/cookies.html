@@ -1,0 +1,29 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Cookies | Gyrinx
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        {% if messages %}
+            <div>
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="alert"
+                                aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <div class="mb-5 pb-5">
+            <h1>Cookies</h1>
+            <script id="CookieDeclaration"
+                    src="https://consent.cookiebot.com/92d724a2-6639-4e73-81ef-6607b76df67d/cd.js"
+                    type="text/javascript"
+                    async></script>
+        </div>
+    </div>
+{% endblock content %}

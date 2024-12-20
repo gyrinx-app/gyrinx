@@ -80,26 +80,6 @@
             </div>
         </div>
     </nav>
-    <div class="modal fade"
-         id="dice"
-         data-bs-backdrop="static"
-         tabindex="-1"
-         aria-hidden="true">
-        <div class="modal-dialog modal-fullscreen-md-down">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5">
-                        <i class="dice-6"></i> Dice Roller
-                    </h1>
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"
-                            aria-label="Close"></button>
-                </div>
-                <div class="modal-body">...</div>
-            </div>
-        </div>
-    </div>
     {% block body %}
         {% block content %}
         {% endblock content %}
@@ -123,8 +103,8 @@
                     <ul class="list-unstyled small">
                         <li class="mb-2">Designed and built in the UK.</li>
                         <li class="mb-2">
-                            <a href="#"
-                               class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
+                            <a href="{% url 'core:cookies' %}"
+                               class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover">Cookies</a>
                         </li>
                         <li class="mb-2">
                             <a href="#"
