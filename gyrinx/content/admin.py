@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.db import models
+from django.db.models import Case, When
 from django.db.models.functions import Cast
 
 from .models import (
@@ -31,11 +32,15 @@ class ContentAdmin(admin.ModelAdmin):
 
 
 class ContentTabularInline(admin.TabularInline):
+    show_change_link = True
+
     def __init__(self, parent_model, admin_site):
         super().__init__(parent_model, admin_site)
 
 
 class ContentStackedInline(admin.StackedInline):
+    show_change_link = True
+
     def __init__(self, parent_model, admin_site):
         super().__init__(parent_model, admin_site)
 
@@ -115,22 +120,27 @@ class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
     list_display_links = ["equipment", "name"]
 
 
+class ContentPageRefInline(ContentTabularInline):
+    model = ContentPageRef
+    extra = 0
+    fields = ["title", "book", "page", "category", "description"]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            page_int=Case(
+                When(
+                    page="",
+                    then=0,
+                ),
+                default=Cast("page", models.IntegerField()),
+            )
+        ).order_by("page_int")
+
+
 @admin.register(ContentBook)
 class ContentBookAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["title", "shortname", "description"]
-
-    class ContentPageRefInline(ContentTabularInline):
-        model = ContentPageRef
-        extra = 0
-        fields = ["title", "page", "category", "description"]
-
-        def get_queryset(self, request):
-            qs = super().get_queryset(request)
-            return (
-                qs.annotate(page_int=Cast("page", models.IntegerField()))
-                .filter(parent__isnull=True)
-                .order_by("page_int")
-            )
 
     inlines = [ContentPageRefInline]
 
@@ -139,18 +149,7 @@ class ContentBookAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["title", "page", "description"]
 
-    class ChildContentPageRefInline(ContentTabularInline):
-        model = ContentPageRef
-        extra = 0
-        fields = ["title", "book", "page", "category", "description"]
-
-        def get_queryset(self, request):
-            qs = super().get_queryset(request)
-            return qs.annotate(page_int=Cast("page", models.IntegerField())).order_by(
-                "page_int"
-            )
-
-    inlines = [ChildContentPageRefInline]
+    inlines = [ContentPageRefInline]
 
 
 @admin.register(ContentRule)

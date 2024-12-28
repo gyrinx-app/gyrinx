@@ -541,7 +541,7 @@ class ContentPageRef(Content):
     help_text = "The Content Page Ref captures the page references for game content."
     book = models.ForeignKey(ContentBook, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
-    page = models.CharField()
+    page = models.CharField(max_length=50, blank=True, null=False)
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="children"
     )
@@ -601,7 +601,8 @@ class ContentPageRef(Content):
     def all_ordered(cls):
         return (
             ContentPageRef.objects.filter(parent__isnull=True)
-            .annotate(page_int=Cast("page", models.IntegerField()))
+            .exclude(page="")
+            .annotate(page_int=Cast("page", models.IntegerField(null=True, blank=True)))
             .order_by(
                 Case(
                     When(book__shortname="Core", then=0),
