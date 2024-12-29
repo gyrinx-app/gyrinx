@@ -1,11 +1,19 @@
 {% load allauth custom_tags %}
 <div>
     <div class="vstack gap-0 mb-2">
-        <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center gap-2 h5">
-            <h2 class="mb-0">{{ list.name }}</h2>
-            <div class="ms-sm-auto">{{ list.content_house.name }}</div>
-            <div>
-                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+        <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
+            <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
+                <h2 class="mb-0">{{ list.name }}</h2>
+                <div class="ms-md-auto">{{ list.content_house.name }}</div>
+                <div class="h5 mb-0">
+                    <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                </div>
+            </div>
+            <div class="ms-auto">
+                <a href="{% url 'core:list-edit' list.id %}"
+                   class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
             </div>
         </div>
         <div class="hstack gap-2">

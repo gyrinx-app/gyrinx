@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
-from gyrinx.core.forms import NewListForm
+from gyrinx.core.forms import EditListForm, NewListForm
 from gyrinx.core.models import List
 
 
@@ -176,9 +176,29 @@ def new_list(request):
     else:
         form = NewListForm()
 
-    print(request.POST, error_message)
     return render(
         request,
         "core/list_new.html",
         {"form": form, "houses": houses, "error_message": error_message},
+    )
+
+
+def edit_list(request, id):
+    list = get_object_or_404(List, id=id)
+
+    error_message = None
+    if request.method == "POST":
+        form = EditListForm(request.POST, instance=list)
+        if form.is_valid():
+            updated_list = form.save(commit=False)
+            updated_list.save()
+            return HttpResponseRedirect(reverse("core:list", args=(list.id,)))
+
+    else:
+        form = EditListForm(instance=list)
+
+    return render(
+        request,
+        "core/list_edit.html",
+        {"form": form, "error_message": error_message},
     )

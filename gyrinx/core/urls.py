@@ -17,6 +17,7 @@ urlpatterns = [
     path("lists/", views.ListsListView.as_view(), name="lists"),
     path("lists/new", views.new_list, name="lists-new"),
     path("list/<id>", views.ListDetailView.as_view(), name="list"),
+    path("list/<id>/edit", views.edit_list, name="list-edit"),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
     path("cookies", views.cookies, name="cookies"),
 ]

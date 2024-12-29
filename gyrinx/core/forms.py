@@ -18,3 +18,18 @@ class NewListForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_house": forms.Select(attrs={"class": "form-select"}),
         }
+
+
+class EditListForm(forms.ModelForm):
+    class Meta:
+        model = List
+        fields = ["name"]
+        labels = {
+            "name": "Name",
+        }
+        help_texts = {
+            "name": "The name you use to identify this list. This may be public.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+        }
