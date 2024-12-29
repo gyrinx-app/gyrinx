@@ -133,12 +133,16 @@ class ListFighter(AppBase):
         cf = self.content_fighter
         return f"{self.name} – {cf.type} ({cf.category})"
 
-    def clean(self):
-        cf = self.content_fighter
-        cf_house = cf.house
-        list_house = self.list.content_house
-        if cf_house != list_house:
-            raise ValidationError(f"{cf.type} cannot be a member of {list_house} list")
+    def clean_fields(self, exclude=None):
+        super().clean_fields()
+        if "list" not in exclude:
+            cf = self.content_fighter
+            cf_house = cf.house
+            list_house = self.list.content_house
+            if cf_house != list_house:
+                raise ValidationError(
+                    f"{cf.type} cannot be a member of {list_house} list"
+                )
 
 
 class ListFighterEquipmentAssignment(AppBase):

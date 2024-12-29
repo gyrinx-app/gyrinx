@@ -8,7 +8,7 @@ class Archived(models.Model):
     """An Archived object is no longer in use."""
 
     archived = models.BooleanField(default=False)
-    archived_at = models.DateTimeField(null=True, blank=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
 
     def archive(self):
         self.archived = True

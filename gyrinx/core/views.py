@@ -7,8 +7,8 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
-from gyrinx.core.forms import EditListForm, NewListForm
-from gyrinx.core.models import List
+from gyrinx.core.forms import EditListForm, NewListFighterForm, NewListForm
+from gyrinx.core.models import List, ListFighter
 
 
 def index(request):
@@ -201,4 +201,34 @@ def edit_list(request, id):
         request,
         "core/list_edit.html",
         {"form": form, "error_message": error_message},
+    )
+
+
+def new_list_fighter(request, id):
+    lst = get_object_or_404(List, id=id)
+    fighter = ListFighter(list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        form = NewListFighterForm(
+            request.POST,
+            instance=fighter,
+        )
+        if form.is_valid():
+            fighter = form.save(commit=False)
+            # You would think this would be handled by the form, but it's not. So we do it here.
+            fighter.list = lst
+            fighter.owner = lst.owner
+            fighter.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    else:
+        form = NewListFighterForm(
+            instance=fighter,
+        )
+
+    return render(
+        request,
+        "core/list_fighter_new.html",
+        {"form": form, "list": lst, "error_message": error_message},
     )

@@ -108,14 +108,18 @@ def test_list_fighter_house_matches_list():
         name="Ash Waste Nomads",
     )
 
-    lst = List.objects.create(name="Test List AWN", content_house=house)
+    owner = make_user()
+    lst = List.objects.create(name="Test List AWN", content_house=house, owner=owner)
 
     with pytest.raises(
-        Exception,
+        ValidationError,
         match="Prospector Digger cannot be a member of Ash Waste Nomads list",
     ):
         ListFighter.objects.create(
-            name="Test Fighter", list=lst, content_fighter=content_fighter
+            name="Test Fighter",
+            list=lst,
+            content_fighter=content_fighter,
+            owner=lst.owner,
         ).full_clean()
 
 

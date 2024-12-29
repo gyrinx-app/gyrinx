@@ -21,10 +21,15 @@
                 <i class="bi bi-person"></i> {{ list.owner }}
             </div>
             <div class="ms-auto">
-                <a href="{% url 'core:list-print' list.id %}"
-                   class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-printer"></i> Print fighter cards
-                </a>
+                <nav class="nav h-stack gap-2">
+                    <a href="{% url 'core:list-fighter-new' list.id %}"
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-person-add"></i> Add Fighter</a>
+                    <a href="{% url 'core:list-print' list.id %}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-printer"></i> Print fighter cards
+                    </a>
+                </nav>
             </div>
         </div>
     </div>
