@@ -110,11 +110,13 @@
                             <a href="#"
                                class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover">Security</a>
                         </li>
-                        <li class="mb-2">
-                            <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover"
-                               href="{% url 'admin:index' %}"
-                               target="_new">Admin</a> <i class="bi bi-box-arrow-up-right"></i>
-                        </li>
+                        {% if user.is_staff %}
+                            <li class="mb-2">
+                                <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover"
+                                   href="{% url 'admin:index' %}"
+                                   target="_new">Admin</a> <i class="bi bi-box-arrow-up-right"></i>
+                            </li>
+                        {% endif %}
                         <li class="mb-2">
                             <a href="https://github.com/gyrinx-app"
                                target="_new"
