@@ -1,6 +1,7 @@
 from itertools import zip_longest
 from random import randint
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
@@ -161,6 +162,7 @@ class ListPrintView(generic.DetailView):
         return get_object_or_404(List, id=self.kwargs["id"])
 
 
+@login_required
 def new_list(request):
     houses = ContentHouse.objects.all()
 
@@ -183,8 +185,9 @@ def new_list(request):
     )
 
 
+@login_required
 def edit_list(request, id):
-    list = get_object_or_404(List, id=id)
+    list = get_object_or_404(List, id=id, owner=request.user)
 
     error_message = None
     if request.method == "POST":
@@ -204,8 +207,9 @@ def edit_list(request, id):
     )
 
 
+@login_required
 def new_list_fighter(request, id):
-    lst = get_object_or_404(List, id=id)
+    lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = ListFighter(list=lst, owner=lst.owner)
 
     error_message = None
