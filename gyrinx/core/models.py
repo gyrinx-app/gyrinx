@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Q, When
@@ -31,7 +32,9 @@ class List(AppBase):
     """A List is a reusable collection of fighters."""
 
     help_text = "A List is a reusable collection of fighters."
-    name = models.CharField(max_length=255)
+    name = models.CharField(
+        max_length=255, validators=[validators.MinLengthValidator(3)]
+    )
     content_house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
     )
@@ -66,7 +69,9 @@ class ListFighter(AppBase):
     """A Fighter is a member of a List."""
 
     help_text = "A ListFighter is a member of a List, linked to a Content Fighter archetype to give base stats and equipment."
-    name = models.CharField(max_length=255)
+    name = models.CharField(
+        max_length=255, validators=[validators.MinLengthValidator(3)]
+    )
     content_fighter = models.ForeignKey(
         ContentFighter, on_delete=models.CASCADE, null=False, blank=False
     )

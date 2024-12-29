@@ -1,10 +1,13 @@
 from itertools import zip_longest
 from random import randint
 
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
+from django.urls import reverse
 from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
+from gyrinx.core.forms import NewListForm
 from gyrinx.core.models import List
 
 
@@ -156,3 +159,26 @@ class ListPrintView(generic.DetailView):
 
     def get_object(self):
         return get_object_or_404(List, id=self.kwargs["id"])
+
+
+def new_list(request):
+    houses = ContentHouse.objects.all()
+
+    error_message = None
+    if request.method == "POST":
+        form = NewListForm(request.POST)
+        if form.is_valid():
+            list = form.save(commit=False)
+            list.owner = request.user
+            list.save()
+            return HttpResponseRedirect(reverse("core:list", args=(list.id,)))
+
+    else:
+        form = NewListForm()
+
+    print(request.POST, error_message)
+    return render(
+        request,
+        "core/list_new.html",
+        {"form": form, "houses": houses, "error_message": error_message},
+    )

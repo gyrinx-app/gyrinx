@@ -1,0 +1,49 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    New List
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="container my-5">
+        {% include "core/includes/back.html" %}
+        <div class="col-lg-12 px-0 vstack gap-3">
+            <h1 class="h3">Create a new List</h1>
+            <form action="{% url 'core:lists-new' %}" method="post">
+                {% csrf_token %}
+                {{ form }}
+                <div class="mt-3">
+                    <input type="submit" class="btn btn-primary" value="Create">
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}
+{% comment %} TODO: Reinstate bootstrap forms as below {% endcomment %}
+{% comment %} <fieldset class="vstack gap-3">
+    {% if error_message %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">{{ error_message }}</div>
+    {% endif %}
+    <div class="mb-3 row">
+        <label for="inputName" class="col-sm-2 col-form-label">Name</label>
+        <div class="col col-lg-5">
+            <input type="text" id="inputName" name="name" class="form-control" aria-describedby="inputNameHelpBlock">
+            <div id="inputNameHelpBlock" class="form-text">The name you use to identify this list. This may be public.</div>
+        </div>
+    </div>
+    <div class="mb-3 row">
+        <label for="inputHouse" class="col-sm-2 col-form-label">House</label>
+        <div class="col col-lg-5">
+            <select id="inputHouse" name="house" class="form-select" aria-describedby="inputHouseHelpBlock">
+                <option selected>Choose...</option>
+                {% for house in houses %}<option value="{{ house.id }}">{{ house.name }}</option>{% endfor %}
+            </select>
+            <div id="inputHouseHelpBlock" class="form-text">The house this list belongs to.</div>
+        </div>
+    </div>
+    <div class="mb-3 row">
+        <label for="inputOwner" class="col-sm-2 col-form-label">Owner</label>
+        <div class="col col-lg-5">
+            <input type="text" id="inputOwner" name="owner" class="form-control" value="{{ user.username }}" disabled>
+        </div>
+    </div>
+</fieldset> {% endcomment %}
