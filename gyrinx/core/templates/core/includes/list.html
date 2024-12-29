@@ -10,10 +10,12 @@
                 </div>
             </div>
             <div class="ms-auto">
-                <a href="{% url 'core:list-edit' list.id %}"
-                   class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-pencil"></i> Edit
-                </a>
+                {% if list.owner == user %}
+                    <a href="{% url 'core:list-edit' list.id %}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                {% endif %}
             </div>
         </div>
         <div class="hstack gap-2">
@@ -22,9 +24,11 @@
             </div>
             <div class="ms-auto">
                 <nav class="nav h-stack gap-2">
-                    <a href="{% url 'core:list-fighter-new' list.id %}"
-                       class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-person-add"></i> Add Fighter</a>
+                    {% if list.owner == user %}
+                        <a href="{% url 'core:list-fighter-new' list.id %}"
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-person-add"></i> Add fighter</a>
+                    {% endif %}
                     <a href="{% url 'core:list-print' list.id %}"
                        class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-printer"></i> Print fighter cards
