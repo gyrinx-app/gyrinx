@@ -9,7 +9,7 @@
                     <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
                 </div>
             </div>
-            <div class="ms-auto">
+            <div class="ms-auto flex-shrink-0">
                 {% if list.owner == user %}
                     <a href="{% url 'core:list-edit' list.id %}"
                        class="btn btn-outline-secondary btn-sm">
@@ -18,11 +18,11 @@
                 {% endif %}
             </div>
         </div>
-        <div class="hstack gap-2">
+        <div class="d-flex flex-column flex-sm-row gap-2">
             <div>
                 <i class="bi bi-person"></i> {{ list.owner }}
             </div>
-            <div class="ms-auto">
+            <div class="ms-sm-auto">
                 <nav class="nav h-stack gap-2">
                     {% if list.owner == user %}
                         <a href="{% url 'core:list-fighter-new' list.id %}"
