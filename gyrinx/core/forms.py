@@ -39,10 +39,10 @@ class EditListForm(forms.ModelForm):
 class NewListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        lst = kwargs.get("initial", {}).get("list")
-        if lst:
+        inst = kwargs.get("instance", {})
+        if inst:
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house=lst.content_house
+                house=inst.list.content_house
             )
 
     class Meta:
