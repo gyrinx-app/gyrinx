@@ -4,7 +4,7 @@
     Gyrinx
 {% endblock head_title %}
 {% block content %}
-    <div id="content" class="container my-5">
+    <div id="content" class="container my-3 my-md-5">
         {% if messages %}
             <div>
                 {% for message in messages %}
@@ -37,13 +37,20 @@
                         <p class="mb-0">Create gangs from scratch & test ideas.</p>
                     </div>
                     {% for list in lists %}
-                        <div class="d-flex flex-column gap-2">
-                            <h2 class="mb-0 h5">
-                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                            </h2>
-                            <div class="hstack gap-3">
-                                <div>{{ list.content_house.name }}</div>
-                                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                        <div class="hstack gap-3 position-relative">
+                            <div class="d-flex flex-column gap-1">
+                                <h2 class="mb-0 h5">
+                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                </h2>
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    <div>{{ list.content_house.name }}</div>
+                                    <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                                </div>
+                            </div>
+                            <div class="ms-auto d-md-none">
+                                <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                                    <i class="bi bi-chevron-right"></i>
+                                </a>
                             </div>
                         </div>
                     {% empty %}
