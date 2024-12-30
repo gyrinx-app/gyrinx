@@ -18,6 +18,7 @@ class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
     fields = ["name", "content_fighter"]
+    show_change_link = True
 
 
 @admin.register(List)

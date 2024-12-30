@@ -26,16 +26,21 @@
             </div>
             <div class="ms-sm-auto">
                 {% if not print %}
-                    <nav class="nav h-stack gap-2">
+                    <nav class="nav btn-group">
                         {% if list.owner == user %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
-                               class="btn btn-outline-primary btn-sm">
+                               class="btn btn-primary btn-sm">
                                 <i class="bi bi-person-add"></i> Add fighter</a>
                         {% endif %}
                         <a href="{% url 'core:list-print' list.id %}"
                            class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-printer"></i> Print fighter cards
+                            <i class="bi bi-printer"></i> Print
                         </a>
+                        {% if list.owner == user %}
+                            <a href="#" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i> Delete
+                            </a>
+                        {% endif %}
                     </nav>
                 {% endif %}
             </div>
@@ -45,25 +50,39 @@
         {% for fighter in list.fighters %}
             <div class="card g-col-12 g-col-md-6 g-col-lg-4">
                 <div class="card-header p-2">
-                    <div class="hstack">
-                        <h3 class="h5 mb-0">{{ fighter.name }}</h3>
-                        <div class="ms-auto">
-                            <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
+                    <div class="vstack gap-1">
+                        <div class="hstack">
+                            <h3 class="h5 mb-0">{{ fighter.name }}</h3>
+                            <div class="ms-auto">
+                                <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="hstack gap-2">
-                        <div>
-                            {% if not print %}
-                                {% ref list.content_house.name fighter.content_fighter.type value=fighter.content_fighter.type %}
-                                ({{ fighter.content_fighter.cat }})
-                            {% else %}
-                                {{ fighter.content_fighter.type }} ({{ fighter.content_fighter.cat }})
+                        <div class="hstack gap-2">
+                            <div>
+                                {% if not print %}
+                                    {% ref list.content_house.name fighter.content_fighter.type value=fighter.content_fighter.type %}
+                                    ({{ fighter.content_fighter.cat }})
+                                {% else %}
+                                    {{ fighter.content_fighter.type }} ({{ fighter.content_fighter.cat }})
+                                {% endif %}
+                            </div>
+                            <div class="ms-auto">{{ fighter.content_fighter.cost_int }}¢</div>
+                        </div>
+                        {% if not print %}
+                            {% if list.owner == user %}
+                                <div class="btn-group">
+                                    <a href="#" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </a>
+                                    <a href="#" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </a>
+                                </div>
                             {% endif %}
-                        </div>
-                        <div class="ms-auto">{{ fighter.content_fighter.cost_int }}¢</div>
+                        {% endif %}
                     </div>
                 </div>
-                <div class="card-body p-0 p-sm-2">
+                <div class="card-body vstack p-0 p-sm-2">
                     {% comment %} Stats {% endcomment %}
                     <table class="table table-sm table-borderless mb-0">
                         <thead>
@@ -134,6 +153,19 @@
                                                 {% endspaceless %}
                                             {% endif %}
                                         {% endfor %}
+                                        {% if not print %}
+                                            {% if list.owner == user %}<a href="#">Add skills</a>{% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr class="fs-7">
+                                    <th scope="row" colspan="3">Skills</th>
+                                    <td colspan="12">
+                                        <span class="text-secondary">This fighter has no skills.</span>
+                                        {% if not print %}
+                                            {% if list.owner == user %}<a href="#">Add skills</a>{% endif %}
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% endif %}
@@ -150,6 +182,19 @@
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% endfor %}
+                                        {% if not print %}
+                                            {% if list.owner == user %}<a href="#">Add gear</a>{% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr class="fs-7">
+                                    <th scope="row" colspan="3">Gear</th>
+                                    <td colspan="12">
+                                        <span class="text-secondary">This fighter has no gear.</span>
+                                        {% if not print %}
+                                            {% if list.owner == user %}<a href="#">Add gear</a>{% endif %}
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% endif %}
@@ -159,9 +204,7 @@
                     <table class="table table-sm table-borderless mb-0 fs-7">
                         <thead class="table-group-divider">
                             <tr>
-                                <th scope="col">
-                                    <span class="invisible">Weapon</span>
-                                </th>
+                                <th scope="col">Weapons</th>
                                 <th class="text-center" scope="col">S</th>
                                 <th class="text-center" scope="col">L</th>
                                 <th class="text-center border-start" scope="col">S</th>
@@ -179,7 +222,7 @@
                                     {% with weapon_assign.all_profiles.0 as profile %}
                                         <tr class="align-top">
                                             <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                <strong>{{ weapon_assign.base_name }}</strong>
+                                                {{ weapon_assign.base_name }}
                                                 {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -195,7 +238,7 @@
                                     {% if weapon_assign.standard_profiles.0.name != "" %}
                                         <tr class="align-bottom">
                                             <td colspan="9">
-                                                <strong>{{ weapon_assign.base_name }}</strong>
+                                                {{ weapon_assign.base_name }}
                                                 {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                             </td>
                                         </tr>
@@ -205,10 +248,10 @@
                                             <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
                                                 {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
                                                 {% if forloop.counter0 == 0 and profile.name == "" %}
-                                                    <strong>{{ weapon_assign.base_name }}</strong>
+                                                    {{ weapon_assign.base_name }}
                                                     {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
                                                 {% elif profile.name != "" %}
-                                                    {{ profile.name }}
+                                                    - {{ profile.name }}
                                                 {% endif %}
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -223,7 +266,7 @@
                                     {% if weapon_assign.weapon_profile and weapon_assign.weapon_profile.cost != 0 %}
                                         <tr class="align-top">
                                             <td rowspan="{% if weapon_assign.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                {{ weapon_assign.profile_name }}
+                                                - {{ weapon_assign.profile_name }}
                                                 {% if weapon_assign.profile_cost_int > 0 %}({{ weapon_assign.profile_cost_display }}){% endif %}
                                             </td>
                                             {% for stat in weapon_assign.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -236,8 +279,25 @@
                                     {% endif %}
                                 {% endif %}
                             </tbody>
+                        {% empty %}
+                            <tbody>
+                                <tr>
+                                    <td colspan="9">
+                                        <span class="text-secondary">This fighter has no weapons.</span>
+                                    </td>
+                                </tr>
+                            </tbody>
                         {% endfor %}
                     </table>
+                    {% if not print %}
+                        {% if list.owner == user %}
+                            <div class="btn-group p-1">
+                                <a href="#" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-plus-lg"></i> Add weapon
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </div>
         {% empty %}
