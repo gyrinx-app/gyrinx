@@ -37,7 +37,7 @@
                             <i class="bi bi-printer"></i> Print
                         </a>
                         {% if list.owner == user %}
-                            <a href="#" class="btn btn-outline-danger btn-sm">
+                            <a href="#" class="btn btn-outline-danger btn-sm disabled">
                                 <i class="bi bi-trash"></i> Delete
                             </a>
                         {% endif %}
@@ -75,7 +75,7 @@
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-pencil"></i> Edit
                                     </a>
-                                    <a href="#" class="btn btn-outline-danger btn-sm">
+                                    <a href="#" class="btn btn-outline-danger btn-sm disabled">
                                         <i class="bi bi-trash"></i> Delete
                                     </a>
                                 </div>
@@ -293,7 +293,7 @@
                     {% if not print %}
                         {% if list.owner == user %}
                             <div class="btn-group p-1">
-                                <a href="#" class="btn btn-outline-primary btn-sm">
+                                <a href="#" class="btn btn-outline-primary btn-sm disabled">
                                     <i class="bi bi-plus-lg"></i> Add weapon
                                 </a>
                             </div>
