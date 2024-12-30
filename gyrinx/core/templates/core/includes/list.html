@@ -71,7 +71,8 @@
                         {% if not print %}
                             {% if list.owner == user %}
                                 <div class="btn-group">
-                                    <a href="#" class="btn btn-outline-secondary btn-sm">
+                                    <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
+                                       class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-pencil"></i> Edit
                                     </a>
                                     <a href="#" class="btn btn-outline-danger btn-sm">

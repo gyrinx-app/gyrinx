@@ -236,3 +236,34 @@ def new_list_fighter(request, id):
         "core/list_fighter_new.html",
         {"form": form, "list": lst, "error_message": error_message},
     )
+
+
+@login_required
+def edit_list_fighter(request, id, fighter_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+
+    error_message = None
+    if request.method == "POST":
+        form = NewListFighterForm(
+            request.POST,
+            instance=fighter,
+        )
+        if form.is_valid():
+            fighter = form.save(commit=False)
+            # You would think this would be handled by the form, but it's not. So we do it here.
+            fighter.list = lst
+            fighter.owner = lst.owner
+            fighter.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    else:
+        form = NewListFighterForm(
+            instance=fighter,
+        )
+
+    return render(
+        request,
+        "core/list_fighter_edit.html",
+        {"form": form, "list": lst, "error_message": error_message},
+    )
