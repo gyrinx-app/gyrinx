@@ -175,20 +175,19 @@
                                             {% endif %}
                                         {% endfor %}
                                         {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Add skills</a>{% endif %}
+                                            {% if list.owner == user %}<a href="#">Edit skills</a>{% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
                             {% else %}
-                                <tr class="fs-7">
-                                    <th scope="row" colspan="3">Skills</th>
-                                    <td colspan="12">
-                                        <span class="text-secondary">This fighter has no skills.</span>
-                                        {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Add skills</a>{% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
+                                {% if list.owner == user and not print %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Skills</th>
+                                        <td colspan="12">
+                                            <a href="#">Add skills</a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                             {% endif %}
                             {% if fighter.wargearline|length > 0 %}
                                 <tr class="fs-7">
@@ -204,20 +203,19 @@
                                             {% endspaceless %}
                                         {% endfor %}
                                         {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Add gear</a>{% endif %}
+                                            {% if list.owner == user %}<a href="#">Edit gear</a>{% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
                             {% else %}
-                                <tr class="fs-7">
-                                    <th scope="row" colspan="3">Gear</th>
-                                    <td colspan="12">
-                                        <span class="text-secondary">This fighter has no gear.</span>
-                                        {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Add gear</a>{% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
+                                {% if list.owner == user and not print %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Gear</th>
+                                        <td colspan="12">
+                                            <a href="#">Add gear</a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                             {% endif %}
                         </tbody>
                     </table>
