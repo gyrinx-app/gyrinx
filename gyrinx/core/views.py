@@ -143,7 +143,7 @@ class ListsListView(generic.ListView):
     context_object_name = "lists"
 
     def get_queryset(self):
-        return List.objects.all()
+        return List.objects.filter(public=True)
 
 
 class ListDetailView(generic.DetailView):

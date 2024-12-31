@@ -20,11 +20,31 @@
                 {% endif %}
             </div>
         </div>
-        <div class="d-flex flex-column flex-sm-row gap-2">
-            <div>
+        <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
+            <div class="text-secondary">
                 <i class="bi bi-person"></i> {{ list.owner }}
             </div>
-            <div class="ms-sm-auto">
+            {% if not print %}
+                <div class="text-secondary">
+                    {% if list.public %}
+                        <i class="bi bi-eye"></i>
+                        <a data-bs-toggle="tooltip"
+                           data-bs-title="This list is visible to all users"
+                           href="#"
+                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</a>
+                    {% endif %}
+                    {% if list.owner == user and not list.public %}
+                        <i class="bi bi-eye-slash"></i>
+                        <a data-bs-toggle="tooltip"
+                           data-bs-title="This list is only visible to you"
+                           href="#"
+                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                            Private
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+            <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
                     <nav class="nav btn-group">
                         {% if list.owner == user %}
@@ -48,7 +68,7 @@
     </div>
     <div class="grid">
         {% for fighter in list.fighters %}
-            <div class="card g-col-12 g-col-md-6 g-col-lg-4">
+            <div class="card g-col-12 g-col-md-6 g-col-xl-4">
                 <div class="card-header p-2">
                     <div class="vstack gap-1">
                         <div class="hstack">

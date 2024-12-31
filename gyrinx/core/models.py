@@ -38,6 +38,9 @@ class List(AppBase):
     content_house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
     )
+    public = models.BooleanField(
+        default=True, help_text="Public lists are visible to all users."
+    )
 
     history = HistoricalRecords()
 

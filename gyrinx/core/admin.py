@@ -24,9 +24,9 @@ class ListFighterInline(admin.TabularInline):
 @admin.register(List)
 class ListAdmin(SimpleHistoryAdmin):
     form = ListForm
-    fields = ["name", "content_house", "owner", cost]
+    fields = ["name", "content_house", "owner", "public", cost]
     readonly_fields = [cost]
-    list_display = ["name", "content_house"]
+    list_display = ["name", "content_house", "owner", "public", cost]
     search_fields = ["name", "content_house__name"]
 
     inlines = [ListFighterInline]
