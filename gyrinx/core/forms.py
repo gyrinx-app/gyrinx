@@ -79,3 +79,18 @@ class NewListFighterForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_fighter": forms.Select(attrs={"class": "form-select"}),
         }
+
+
+class ListFighterSkillsForm(forms.ModelForm):
+    class Meta:
+        model = ListFighter
+        fields = ["skills"]
+        labels = {
+            "skills": "Skills",
+        }
+        help_texts = {
+            "skills": "Select multiple skills by holding down the Ctrl (Windows) or Command (Mac) key.",
+        }
+        widgets = {
+            "skills": forms.SelectMultiple(attrs={"class": "form-select"}),
+        }

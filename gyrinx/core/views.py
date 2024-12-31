@@ -8,7 +8,12 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
-from gyrinx.core.forms import EditListForm, NewListFighterForm, NewListForm
+from gyrinx.core.forms import (
+    EditListForm,
+    ListFighterSkillsForm,
+    NewListFighterForm,
+    NewListForm,
+)
 from gyrinx.core.models import List, ListFighter
 
 
@@ -265,5 +270,32 @@ def edit_list_fighter(request, id, fighter_id):
     return render(
         request,
         "core/list_fighter_edit.html",
+        {"form": form, "list": lst, "error_message": error_message},
+    )
+
+
+@login_required
+def edit_list_fighter_skills(request, id, fighter_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        form = ListFighterSkillsForm(
+            request.POST,
+            instance=fighter,
+        )
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    else:
+        form = ListFighterSkillsForm(
+            instance=fighter,
+        )
+
+    return render(
+        request,
+        "core/list_fighter_skills_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
     )

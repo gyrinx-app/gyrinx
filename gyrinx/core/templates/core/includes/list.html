@@ -175,7 +175,9 @@
                                             {% endif %}
                                         {% endfor %}
                                         {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Edit skills</a>{% endif %}
+                                            {% if list.owner == user %}
+                                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -184,7 +186,7 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Skills</th>
                                         <td colspan="12">
-                                            <a href="#">Add skills</a>
+                                            <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
                                         </td>
                                     </tr>
                                 {% endif %}
