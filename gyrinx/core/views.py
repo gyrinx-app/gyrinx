@@ -241,7 +241,7 @@ def new_list_fighter(request, id):
 @login_required
 def edit_list_fighter(request, id, fighter_id):
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     error_message = None
     if request.method == "POST":
