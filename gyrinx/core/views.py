@@ -229,7 +229,9 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
-            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            )
 
     else:
         form = NewListFighterForm(
@@ -260,7 +262,9 @@ def edit_list_fighter(request, id, fighter_id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
-            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            )
 
     else:
         form = NewListFighterForm(
@@ -287,7 +291,9 @@ def edit_list_fighter_skills(request, id, fighter_id):
         )
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            )
 
     else:
         form = ListFighterSkillsForm(
