@@ -42,6 +42,16 @@ class EditListForm(forms.ModelForm):
         }
 
 
+class ContentFighterChoiceField(forms.ModelChoiceField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", forms.Select(attrs={"class": "form-select"}))
+        kwargs.setdefault("label", "Fighter")
+        super().__init__(*args, **kwargs)
+
+    def label_from_instance(self, obj):
+        return f"{obj.name()}"
+
+
 class NewListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -50,6 +60,10 @@ class NewListFighterForm(forms.ModelForm):
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
                 house=inst.list.content_house
             )
+
+        self.fields["content_fighter"] = ContentFighterChoiceField(
+            queryset=self.fields["content_fighter"].queryset
+        )
 
     class Meta:
         model = ListFighter
