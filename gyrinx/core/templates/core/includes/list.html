@@ -43,6 +43,11 @@
                         </a>
                     {% endif %}
                 </div>
+                {% if list.archived_fighters|length > 0 %}
+                    <div class="text-secondary">
+                        This list has {{ list.archived_fighters|length }} archived fighter{{ list.archived_fighters|length|pluralize }}.
+                    </div>
+                {% endif %}
             {% endif %}
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
@@ -58,7 +63,7 @@
                         </a>
                         {% if list.owner == user %}
                             <a href="#" class="btn btn-outline-danger btn-sm disabled">
-                                <i class="bi bi-trash"></i> Delete
+                                <i class="bi bi-archive"></i> Archive
                             </a>
                         {% endif %}
                     </nav>
@@ -95,8 +100,9 @@
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-pencil"></i> Edit
                                     </a>
-                                    <a href="#" class="btn btn-outline-danger btn-sm disabled">
-                                        <i class="bi bi-trash"></i> Delete
+                                    <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
+                                       class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-archive"></i> Archive
                                     </a>
                                 </div>
                             {% endif %}

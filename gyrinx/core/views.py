@@ -305,3 +305,19 @@ def edit_list_fighter_skills(request, id, fighter_id):
         "core/list_fighter_skills_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
     )
+
+
+@login_required
+def archive_list_fighter(request, id, fighter_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    if request.method == "POST":
+        fighter.archive()
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_archive.html",
+        {"fighter": fighter, "list": lst},
+    )

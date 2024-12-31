@@ -49,7 +49,19 @@ class List(AppBase):
         return sum([f.cost_int() for f in self.listfighter_set.all()])
 
     def fighters(self):
-        return self.listfighter_set.all().order_by(
+        return self.listfighter_set.filter(archived=False).order_by(
+            Case(
+                When(content_fighter__category="LEADER", then=0),
+                When(content_fighter__category="CHAMPION", then=1),
+                When(content_fighter__category="PROSPECT", then=2),
+                When(content_fighter__category="JUVE", then=3),
+                default=99,
+            ),
+            "name",
+        )
+
+    def archived_fighters(self):
+        return self.listfighter_set.filter(archived=True).order_by(
             Case(
                 When(content_fighter__category="LEADER", then=0),
                 When(content_fighter__category="CHAMPION", then=1),
