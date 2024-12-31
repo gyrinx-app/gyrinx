@@ -81,8 +81,10 @@
         </div>
     </nav>
     {% block body %}
-        {% block content %}
-        {% endblock content %}
+        <div id="content" class="container my-3 my-md-5">
+            {% block content %}
+            {% endblock content %}
+        </div>
     {% endblock body %}
     {% block extra_body %}
     {% endblock extra_body %}

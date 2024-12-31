@@ -4,69 +4,67 @@
     Equipment - Content
 {% endblock head_title %}
 {% block content %}
-    <div id="content" class="container my-3 my-md-5">
-        {% include "core/includes/back.html" %}
-        <div class="col-lg-12 px-0 vstack gap-5">
-            <div>
-                <h1>Equipment</h1>
-                <div class="table-responsive-sm">
-                    <table class="table table-sm table-borderless table-hover fs-7">
-                        {% regroup equipment|dictsort:"category" by cat as categories %}
-                        {% for category, items in categories %}
-                            <thead>
+    {% include "core/includes/back.html" %}
+    <div class="col-lg-12 px-0 vstack gap-5">
+        <div>
+            <h1>Equipment</h1>
+            <div class="table-responsive-sm">
+                <table class="table table-sm table-borderless table-hover fs-7">
+                    {% regroup equipment|dictsort:"category" by cat as categories %}
+                    {% for category, items in categories %}
+                        <thead>
+                            <tr class="align-bottom">
+                                <th colspan="11" class="pt-4">
+                                    <h2 class="h5 mb-0">{{ category }}</h2>
+                                </th>
+                            </tr>
+                            <tr>
+                                <th></th>
+                                <th class="text-center" scope="col" colspan="2">Rng</th>
+                                <th class="text-center" scope="col" colspan="2">Acc</th>
+                                <th class="text-center" scope="col" colspan="5"></th>
+                            </tr>
+                            <tr>
+                                <th scope="col">
+                                    <span class="invisible">Weapon</span>
+                                </th>
+                                <th class="text-center" scope="col">S</th>
+                                <th class="text-center" scope="col">L</th>
+                                <th class="text-center border-start" scope="col">S</th>
+                                <th class="text-center" scope="col">L</th>
+                                <th class="text-center border-start" scope="col">Str</th>
+                                <th class="text-center" scope="col">Ap</th>
+                                <th class="text-center" scope="col">D</th>
+                                <th class="text-center" scope="col">Am</th>
+                                <th scope="col" class="text-end">Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
                                 <tr class="align-bottom">
-                                    <th colspan="11" class="pt-4">
-                                        <h2 class="h5 mb-0">{{ category }}</h2>
-                                    </th>
+                                    <td colspan="9" class="pt-3">
+                                        <h3 class="h6 mb-0">{{ item.name }}</h3>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>{{ item.cost_display }}</strong>
+                                    </td>
                                 </tr>
-                                <tr>
-                                    <th></th>
-                                    <th class="text-center" scope="col" colspan="2">Rng</th>
-                                    <th class="text-center" scope="col" colspan="2">Acc</th>
-                                    <th class="text-center" scope="col" colspan="5"></th>
-                                </tr>
-                                <tr>
-                                    <th scope="col">
-                                        <span class="invisible">Weapon</span>
-                                    </th>
-                                    <th class="text-center" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">Str</th>
-                                    <th class="text-center" scope="col">Ap</th>
-                                    <th class="text-center" scope="col">D</th>
-                                    <th class="text-center" scope="col">Am</th>
-                                    <th scope="col" class="text-end">Cost</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in items %}
-                                    <tr class="align-bottom">
-                                        <td colspan="9" class="pt-3">
-                                            <h3 class="h6 mb-0">{{ item.name }}</h3>
+                                {% for profile in item.profiles %}
+                                    <tr class="align-top">
+                                        <td rowspan="2">
+                                            {% if profile.name %}{{ profile.name }}{% endif %}
                                         </td>
-                                        <td class="text-end">
-                                            <strong>{{ item.cost_display }}</strong>
-                                        </td>
+                                        {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
+                                        <td class="text-end">{{ profile.cost_display }}</td>
                                     </tr>
-                                    {% for profile in item.profiles %}
-                                        <tr class="align-top">
-                                            <td rowspan="2">
-                                                {% if profile.name %}{{ profile.name }}{% endif %}
-                                            </td>
-                                            {% for stat in profile.statline %}<td class="text-center">{{ stat.value }}</td>{% endfor %}
-                                            <td class="text-end">{{ profile.cost_display }}</td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="9">{{ profile.traitline|join:", " }}</td>
-                                        </tr>
-                                    {% endfor %}
+                                    <tr>
+                                        <td colspan="9">{{ profile.traitline|join:", " }}</td>
+                                    </tr>
                                 {% endfor %}
-                            </tbody>
-                        {% endfor %}
-                    </table>
-                </div>
+                            {% endfor %}
+                        </tbody>
+                    {% endfor %}
+                </table>
             </div>
         </div>
     </div>

@@ -4,67 +4,65 @@
     Gyrinx
 {% endblock head_title %}
 {% block content %}
-    <div id="content" class="container my-3 my-md-5">
-        {% if messages %}
-            <div>
-                {% for message in messages %}
-                    <div class="alert alert-info alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="alert"
-                                aria-label="Close"></button>
+    {% if messages %}
+        <div>
+            {% for message in messages %}
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    <div class="mb-5 pb-5">
+        {% if not user.is_authenticated %}
+            <p class="lead">Gyrinx is a new set of tools for the Necromunda community.</p>
+            <hr class="col-1 my-4" />
+        {% endif %}
+        {% if user.is_authenticated %}
+            <div class="vstack gap-4">
+                <div>
+                    <div class="hstack gap-3">
+                        <h1 class="mb-0">Lists</h1>
+                        <a href="{% url "core:lists-new" %}"
+                           class="btn btn-outline-primary ms-auto">
+                            <i class="bi bi-plus-lg"></i>
+                            New List
+                        </a>
+                    </div>
+                    <p class="mb-0">Create gangs from scratch & test ideas.</p>
+                </div>
+                {% for list in lists %}
+                    <div class="hstack gap-3 position-relative">
+                        <div class="d-flex flex-column gap-1">
+                            <h2 class="mb-0 h5">
+                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                            </h2>
+                            <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                <div>{{ list.content_house.name }}</div>
+                                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                            </div>
+                        </div>
+                        <div class="ms-auto d-md-none">
+                            <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="py-2">
+                        You haven't created any lists yet. <a href="{% url "core:lists-new" %}">Create a new list</a>.
                     </div>
                 {% endfor %}
             </div>
+        {% else %}
+            <p>
+                <a href="#">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
+                <a href="{% url 'account_signup' %}">sign up</a>.
+            </p>
         {% endif %}
-        <div class="mb-5 pb-5">
-            {% if not user.is_authenticated %}
-                <p class="lead">Gyrinx is a new set of tools for the Necromunda community.</p>
-                <hr class="col-1 my-4" />
-            {% endif %}
-            {% if user.is_authenticated %}
-                <div class="vstack gap-4">
-                    <div>
-                        <div class="hstack gap-3">
-                            <h1 class="mb-0">Lists</h1>
-                            <a href="{% url "core:lists-new" %}"
-                               class="btn btn-outline-primary ms-auto">
-                                <i class="bi bi-plus-lg"></i>
-                                New List
-                            </a>
-                        </div>
-                        <p class="mb-0">Create gangs from scratch & test ideas.</p>
-                    </div>
-                    {% for list in lists %}
-                        <div class="hstack gap-3 position-relative">
-                            <div class="d-flex flex-column gap-1">
-                                <h2 class="mb-0 h5">
-                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                                </h2>
-                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                    <div>{{ list.content_house.name }}</div>
-                                    <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
-                                </div>
-                            </div>
-                            <div class="ms-auto d-md-none">
-                                <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                    <i class="bi bi-chevron-right"></i>
-                                </a>
-                            </div>
-                        </div>
-                    {% empty %}
-                        <div class="py-2">
-                            You haven't created any lists yet. <a href="{% url "core:lists-new" %}">Create a new list</a>.
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p>
-                    <a href="#">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
-                    <a href="{% url 'account_signup' %}">sign up</a>.
-                </p>
-            {% endif %}
-        </div>
     </div>
 {% endblock content %}
