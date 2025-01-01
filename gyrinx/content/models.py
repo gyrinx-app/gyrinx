@@ -272,6 +272,9 @@ class ContentFighterEquipmentListItem(Content):
     def cost_int(self):
         return self.cost
 
+    def cost_display(self):
+        return f"{self.cost}¢"
+
     def __str__(self):
         return f"{self.fighter} {self.weapon_profile if self.weapon_profile else ''} ({self.cost})"
 

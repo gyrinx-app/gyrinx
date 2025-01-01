@@ -217,7 +217,9 @@
                                             {% endspaceless %}
                                         {% endfor %}
                                         {% if not print %}
-                                            {% if list.owner == user %}<a href="#">Edit gear</a>{% endif %}
+                                            {% if list.owner == user %}
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit gear</a>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -226,7 +228,7 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Gear</th>
                                         <td colspan="12">
-                                            <a href="#">Add gear</a>
+                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
                                         </td>
                                     </tr>
                                 {% endif %}

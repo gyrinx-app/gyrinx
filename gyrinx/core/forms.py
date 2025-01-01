@@ -1,6 +1,12 @@
 from django import forms
+from django.db import models
+from django.db.models import OuterRef, Subquery
 
-from gyrinx.content.models import ContentFighter
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentFighterEquipmentListItem,
+)
 from gyrinx.core.models import List, ListFighter
 
 
@@ -94,3 +100,36 @@ class ListFighterSkillsForm(forms.ModelForm):
         widgets = {
             "skills": forms.SelectMultiple(attrs={"class": "form-select"}),
         }
+
+
+class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        cost = obj.cost_override if obj.cost_override is not None else obj.cost
+        return f"{obj.name} ({cost}¢)"
+
+
+class ListFighterGearForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=self.instance.content_fighter,
+            equipment=OuterRef("pk"),
+        )
+        self.fields["equipment"].queryset = self.fields["equipment"].queryset.annotate(
+            cost_override=Subquery(
+                equipment_list_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            )
+        )
+
+    equipment = ListFighterEquipmentField(
+        label="Gear",
+        queryset=ContentEquipment.objects.filter(contentweaponprofile__isnull=True),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
+        help_text="Costs reflect the Fighter's Equipment List.",
+        required=False,
+    )
+
+    class Meta:
+        model = ListFighter
+        fields = ["equipment"]

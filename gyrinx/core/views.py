@@ -10,6 +10,7 @@ from django.views import generic
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.forms import (
     EditListForm,
+    ListFighterGearForm,
     ListFighterSkillsForm,
     NewListFighterForm,
     NewListForm,
@@ -303,6 +304,35 @@ def edit_list_fighter_skills(request, id, fighter_id):
     return render(
         request,
         "core/list_fighter_skills_edit.html",
+        {"form": form, "list": lst, "error_message": error_message},
+    )
+
+
+@login_required
+def edit_list_fighter_gear(request, id, fighter_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        form = ListFighterGearForm(
+            request.POST,
+            instance=fighter,
+        )
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            )
+
+    else:
+        form = ListFighterGearForm(
+            instance=fighter,
+        )
+
+    return render(
+        request,
+        "core/list_fighter_gear_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
     )
 
