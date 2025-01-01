@@ -70,13 +70,12 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
         if self.instance:
             # Disable the fighter field if it's already set
             self.fields["list_fighter"].disabled = True
+            self.fields["content_equipment"].disabled = True
             # Filter available weapon profiles based on the equipment
             if self.instance.content_equipment:
-                self.fields[
+                self.fields["weapon_profiles_field"].queryset = self.fields[
                     "weapon_profiles_field"
-                ].queryset = ContentWeaponProfile.objects.filter(
-                    equipment=self.instance.content_equipment
-                )
+                ].queryset.filter(equipment=self.instance.content_equipment)
 
 
 @admin.register(ListFighterEquipmentAssignment)
@@ -92,7 +91,6 @@ class ListFighterEquipmentAssignmentAdmin(SimpleHistoryAdmin):
     fields = [
         "list_fighter",
         "content_equipment",
-        "weapon_profile",
         "weapon_profiles_field",
         cost,
     ]
@@ -100,12 +98,10 @@ class ListFighterEquipmentAssignmentAdmin(SimpleHistoryAdmin):
     list_display = [
         "list_fighter",
         "content_equipment",
-        "weapon_profile",
         weapon_profiles_list,
     ]
     search_fields = [
         "list_fighter__name",
         "content_equipment__name",
-        "weapon_profile__name",
         weapon_profiles_list,
     ]
