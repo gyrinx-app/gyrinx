@@ -25,6 +25,11 @@ urlpatterns = [
     path("list/<id>/edit", views.edit_list, name="list-edit"),
     path("list/<id>/fighters/new", views.new_list_fighter, name="list-fighter-new"),
     path(
+        "list/<id>/fighters/archived",
+        views.ListArchivedFightersView.as_view(),
+        name="list-archived-fighters",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>",
         views.edit_list_fighter,
         name="list-fighter-edit",

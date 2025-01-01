@@ -16,6 +16,11 @@ class Archived(models.Model):
         # TODO: Iterate through specific, related objects and archive them
         self.save()
 
+    def unarchive(self):
+        self.archived = False
+        self.archived_at = None
+        self.save()
+
     class Meta:
         abstract = True
 

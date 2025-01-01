@@ -1,0 +1,42 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Archived Fighters - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with text=list.name %}
+    <div class="col-lg-12 px-0 vstack gap-3">
+        <h1 class="h3 mb-0">Archived Fighters</h1>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fighter in list.archived_fighters %}
+                        <tr class="align-middle">
+                            <td>{{ fighter.name }}</td>
+                            <td>{{ fighter.content_fighter.name }}</td>
+                            <td>
+                                <form action="{% url 'core:list-fighter-archive' list.id fighter.id %}"
+                                      method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="archive" value="0">
+                                    <input type="submit" class="btn btn-link" value="Restore">
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">No archived fighters</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock content %}

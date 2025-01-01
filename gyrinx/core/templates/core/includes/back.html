@@ -2,7 +2,13 @@
     <ol class="breadcrumb">
         <li class="breadcrumb-item active" aria-current="page">
             <i class="bi bi-chevron-left"></i>
-            <a href="{{ request.META.HTTP_REFERER|escape }}">Back</a>
+            <a href="{{ request.META.HTTP_REFERER|escape }}">
+                {% if text %}
+                    {{ text }}
+                {% else %}
+                    Back
+                {% endif %}
+            </a>
         </li>
     </ol>
 </nav>

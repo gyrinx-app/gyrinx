@@ -21,34 +21,40 @@
             </div>
         </div>
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
-            <div class="text-secondary">
-                <i class="bi bi-person"></i> {{ list.owner }}
-            </div>
-            {% if not print %}
+            <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div class="text-secondary">
-                    {% if list.public %}
-                        <i class="bi bi-eye"></i>
-                        <a data-bs-toggle="tooltip"
-                           data-bs-title="This list is visible to all users"
-                           href="#"
-                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</a>
-                    {% endif %}
-                    {% if list.owner == user and not list.public %}
-                        <i class="bi bi-eye-slash"></i>
-                        <a data-bs-toggle="tooltip"
-                           data-bs-title="This list is only visible to you"
-                           href="#"
-                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                            Private
-                        </a>
-                    {% endif %}
+                    <i class="bi bi-person"></i> {{ list.owner }}
                 </div>
-                {% if list.archived_fighters|length > 0 %}
+                {% if not print %}
                     <div class="text-secondary">
-                        This list has {{ list.archived_fighters|length }} archived fighter{{ list.archived_fighters|length|pluralize }}.
+                        {% if list.public %}
+                            <i class="bi bi-eye"></i>
+                            <a data-bs-toggle="tooltip"
+                               data-bs-title="This list is visible to all users"
+                               href="#"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</a>
+                        {% endif %}
+                        {% if list.owner == user and not list.public %}
+                            <i class="bi bi-eye-slash"></i>
+                            <a data-bs-toggle="tooltip"
+                               data-bs-title="This list is only visible to you"
+                               href="#"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                Private
+                            </a>
+                        {% endif %}
                     </div>
+                    {% if list.archived_fighters|length > 0 %}
+                        <div class="text-secondary">
+                            <i class="bi bi-archive"></i>
+                            <a href="{% url 'core:list-archived-fighters' list.id %}"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                {{ list.archived_fighters|length }} archived fighter{{ list.archived_fighters|length|pluralize }}
+                            </a>
+                        </div>
+                    {% endif %}
                 {% endif %}
-            {% endif %}
+            </div>
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
                     <nav class="nav btn-group">

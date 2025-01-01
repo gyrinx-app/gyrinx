@@ -1,12 +1,12 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    {{ form.instance.name }} - {{ list.name }}
+    Edit - {{ form.instance.name }} - {{ form.instance.content_fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" %}
+    {% include "core/includes/back.html" with text=list.name %}
     <div class="col-lg-12 px-0 vstack gap-3">
-        <h1 class="h3">{{ form.instance.name }}</h1>
+        <h1 class="h3">Edit: {{ form.instance.name }} - {{ form.instance.content_fighter.name }}</h1>
         <form action="{% url 'core:list-fighter-edit' list.id form.instance.id %}"
               method="post">
             {% csrf_token %}

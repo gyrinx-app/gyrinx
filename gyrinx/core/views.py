@@ -313,11 +313,24 @@ def archive_list_fighter(request, id, fighter_id):
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     if request.method == "POST":
-        fighter.archive()
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+        if request.POST.get("archive") == "1":
+            fighter.archive()
+        elif fighter.archived:
+            fighter.unarchive()
+        return HttpResponseRedirect(
+            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+        )
 
     return render(
         request,
         "core/list_fighter_archive.html",
         {"fighter": fighter, "list": lst},
     )
+
+
+class ListArchivedFightersView(generic.ListView):
+    template_name = "core/list_archived_fighters.html"
+    context_object_name = "list"
+
+    def get_queryset(self):
+        return get_object_or_404(List, id=self.kwargs["id"], owner=self.request.user)
