@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, Q, When
+from django.db.models import Case, When
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
@@ -47,6 +47,9 @@ class List(AppBase):
     @admin.display(description="Cost")
     def cost_int(self):
         return sum([f.cost_int() for f in self.fighters()])
+
+    def cost_display(self):
+        return f"{self.cost_int()}¢"
 
     def fighters(self):
         return self.listfighter_set.filter(archived=False).order_by(
@@ -102,26 +105,31 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        # TODO: Take into account equipment list cost
         return self.content_fighter.cost_int() + sum(
-            [e.total_assignment_cost() for e in self.assignments()]
+            [e.cost_int() for e in self.assignments()]
         )
 
-    def assign(self, equipment, weapon_profile=None):
+    def cost_display(self):
+        return f"{self.cost_int()}¢"
+
+    def assign(self, equipment, weapon_profile=None, weapon_profiles=None):
+        if weapon_profiles and weapon_profile:
+            raise ValueError("Cannot specify both weapon_profile and weapon_profiles")
+
+        if weapon_profile and not weapon_profiles:
+            weapon_profiles = [weapon_profile]
+
         # We create the assignment directly because Django does not use the through_defaults
         # if you .add() equipment that is already in the list, which prevents us from
         # assigning the same equipment multiple times, once with a weapon profile and once without.
-        if weapon_profile:
-            ListFighterEquipmentAssignment(
-                list_fighter=self,
-                content_equipment=equipment,
-                weapon_profile=weapon_profile,
-            ).save()
-        else:
-            ListFighterEquipmentAssignment(
-                list_fighter=self,
-                content_equipment=equipment,
-            ).save()
+        assign = ListFighterEquipmentAssignment(
+            list_fighter=self, content_equipment=equipment
+        )
+        if weapon_profiles:
+            assign.weapon_profiles_field.set(weapon_profiles)
+
+        assign.save()
+        return assign
 
     def assignments(self):
         return self.equipment.through.objects.filter(list_fighter=self).order_by(
@@ -171,23 +179,61 @@ class ListFighterEquipmentAssignment(AppBase):
         ContentEquipment, on_delete=models.CASCADE, null=False, blank=False
     )
 
+    # TODO: Deprecate and remove this field
     weapon_profile = models.ForeignKey(
-        ContentWeaponProfile, on_delete=models.CASCADE, null=True, blank=True
+        ContentWeaponProfile,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="This field is deprecated and should not be used. Use weapon profiles instead.",
+        verbose_name="weapon profile (deprecated)",
+    )
+
+    # This is a many-to-many field because we want to be able to assign equipment
+    # with multiple weapon profiles.
+    weapon_profiles_field = models.ManyToManyField(
+        ContentWeaponProfile,
+        blank=True,
+        related_name="weapon_profiles",
+        verbose_name="weapon profiles",
+        help_text="Select the costed weapon profiles to assign to this equipment. The standard profiles are automatically included in the cost of the equipment.",
     )
 
     history = HistoricalRecords()
 
-    def all_profiles(self):
-        query = Q(equipment=self.content_equipment, cost=0)
-        if self.weapon_profile:
-            query = query | Q(id=self.weapon_profile.id)
-
-        return ContentWeaponProfile.objects.filter(query).order_by(
-            Case(
-                When(name="", then=0),
-                default=1,
-            )
+    def weapon_profiles(self):
+        profiles = self.weapon_profiles_field.all()
+        # It's possible that there is a weapon profile set, and it is also in the list of profiles.
+        # This goes away as we deprecate the weapon_profile field.
+        duplicated = self.weapon_profile in profiles
+        return list(profiles) + (
+            [self.weapon_profile] if self.weapon_profile and not duplicated else []
         )
+
+    def weapon_profiles_display(self):
+        """Return a list of dictionaries with the weapon profiles and their costs."""
+        profiles = self.weapon_profiles()
+        return [
+            dict(
+                profile=p,
+                cost_int=self.profile_cost_int(p),
+                cost_display=self.profile_cost_display(p),
+            )
+            for p in profiles
+        ]
+
+    def all_profiles(self):
+        """Return all profiles for the equipment, including the default profiles."""
+        standard_profiles = list(self.standard_profiles())
+        weapon_profiles = self.weapon_profiles()
+
+        seen = set()
+        result = []
+        for p in standard_profiles + weapon_profiles:
+            if p.id not in seen:
+                seen.add(p.id)
+                result.append(p)
+        return result
 
     def standard_profiles(self):
         return ContentWeaponProfile.objects.filter(
@@ -203,11 +249,14 @@ class ListFighterEquipmentAssignment(AppBase):
         return self.content_equipment.is_weapon()
 
     def name(self):
-        return (
-            f"{self.weapon_profile}"
-            if self.weapon_profile
-            else f"{self.content_equipment}"
+        profile_name = self.weapon_profiles_names()
+        return f"{self.content_equipment}" + (
+            f" ({profile_name})" if profile_name else ""
         )
+
+    def weapon_profiles_names(self):
+        profile_names = [p.name for p in self.weapon_profiles()]
+        return ", ".join(profile_names)
 
     def base_name(self):
         return f"{self.content_equipment}"
@@ -218,35 +267,18 @@ class ListFighterEquipmentAssignment(AppBase):
     def base_cost_display(self):
         return f"{self.base_cost_int()}¢"
 
-    def profile_name(self):
-        return f"{self.weapon_profile.name}" if self.weapon_profile else ""
-
-    def profile_cost_int(self):
+    def weapon_profiles_cost_int(self):
         return self._profile_cost_with_override()
 
-    def profile_cost_display(self):
-        return f"+{self.profile_cost_int()}¢"
-
-    def statline(self):
-        return self.weapon_profile.statline() if self.weapon_profile else []
-
-    def traitline(self):
-        return self.weapon_profile.traitline() if self.weapon_profile else []
-
-    # The following methods are used to calculate the ensure assignments contribution
-    # to the total cost of the ListFighter
-    # TODO: The implementation of assignments is not right: there should be support for
-    # multiple weapon profiles, with each additional profiles included in the cost, and
-    # there should be support for having the same weapon multiple times (but not other equipment).
-    # Additionally, it's confusing that the equipment itself can have a cost which can also be
-    # overridden by the "default" weapon profile.
+    def weapon_profiles_cost_display(self):
+        return f"+{self.weapon_profiles_cost_int()}¢"
 
     @admin.display(description="Total Cost of Assignment")
-    def total_assignment_cost(self):
-        return self._equipment_cost_with_override() + self._profile_cost_with_override()
+    def cost_int(self):
+        return self.base_cost_int() + self.weapon_profiles_cost_int()
 
-    def total_assignment_cost_display(self):
-        return f"{self.total_assignment_cost()}¢"
+    def cost_display(self):
+        return f"{self.cost_int()}¢"
 
     def _equipment_cost_with_override(self):
         try:
@@ -261,18 +293,31 @@ class ListFighterEquipmentAssignment(AppBase):
             return self.content_equipment.cost_int()
 
     def _profile_cost_with_override(self):
-        if self.weapon_profile is None:
+        profiles = self.weapon_profiles()
+        if not profiles:
             return 0
 
+        after_overrides = [
+            self._profile_cost_with_override_for_profile(p) for p in profiles
+        ]
+        return sum(after_overrides)
+
+    def _profile_cost_with_override_for_profile(self, profile):
         try:
             override = ContentFighterEquipmentListItem.objects.get(
                 fighter=self.list_fighter.content_fighter,
                 equipment=self.content_equipment,
-                weapon_profile=self.weapon_profile,
+                weapon_profile=profile,
             )
             return override.cost_int()
         except ContentFighterEquipmentListItem.DoesNotExist:
-            return self.weapon_profile.cost_int()
+            return profile.cost_int()
+
+    def profile_cost_int(self, profile):
+        return self._profile_cost_with_override_for_profile(profile)
+
+    def profile_cost_display(self, profile):
+        return f"+{self.profile_cost_int(profile)}¢"
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"

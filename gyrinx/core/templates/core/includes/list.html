@@ -207,11 +207,11 @@
                                 <tr class="fs-7">
                                     <th scope="row" colspan="3">Gear</th>
                                     <td colspan="12">
-                                        {% for item in fighter.wargear %}
+                                        {% for assign in fighter.wargear %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
-                                                <span>{{ item.name }}
-                                                    {% if item.total_assignment_cost > 0 %}({{ item.total_assignment_cost_display }}){% endif %}
+                                                <span>{{ assign.name }}
+                                                    {% if assign.cost > 0 %}({{ assign.cost_display }}){% endif %}
                                                 </span>
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
@@ -296,20 +296,23 @@
                                         {% endif %}
                                     {% endfor %}
                                     {% comment %} Non-standard profile(s) {% endcomment %}
-                                    {% if weapon_assign.weapon_profile and weapon_assign.weapon_profile.cost != 0 %}
-                                        <tr class="align-top">
-                                            <td rowspan="{% if weapon_assign.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                - {{ weapon_assign.profile_name }}
-                                                {% if weapon_assign.profile_cost_int > 0 %}({{ weapon_assign.profile_cost_display }}){% endif %}
-                                            </td>
-                                            {% for stat in weapon_assign.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                                        </tr>
-                                        {% if weapon_assign.traitline|length > 0 %}
-                                            <tr>
-                                                <td colspan="9">{{ weapon_assign.traitline|join:", " }}</td>
+                                    {% for pd in weapon_assign.weapon_profiles_display %}
+                                        {% comment %} This cost if should be unnecessary but it's good hygiene {% endcomment %}
+                                        {% if pd.cost_int > 0 %}
+                                            <tr class="align-top">
+                                                <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                                                    - {{ pd.profile.name }}
+                                                    {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                                                </td>
+                                                {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                                             </tr>
+                                            {% if pd.profile.traitline|length > 0 %}
+                                                <tr>
+                                                    <td colspan="9">{{ pd.profile.traitline|join:", " }}</td>
+                                                </tr>
+                                            {% endif %}
                                         {% endif %}
-                                    {% endif %}
+                                    {% endfor %}
                                 {% endif %}
                             </tbody>
                         {% empty %}
