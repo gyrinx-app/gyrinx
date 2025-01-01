@@ -286,12 +286,11 @@ def test_list_fighter_with_spoon_weapon():
     fighter.assign(spoon, weapon_profile=spoon_profile)
 
     assert fighter.cost_int() == 110
-    assert (
+    assert list(
         fighter.equipment.through.objects.get(
             list_fighter=fighter, content_equipment=spoon
-        ).weapon_profile
-        == spoon_profile
-    )
+        ).weapon_profiles()
+    ) == [spoon_profile]
 
     assert fighter.cost_int() == content_fighter.cost_int() + spoon.cost_int()
     assert lst.cost_int() == fighter.cost_int()
@@ -598,7 +597,7 @@ def test_weapon_cost_equipment_list_override():
         list_fighter=fighter, content_equipment=spoon
     )
 
-    assert assignment.total_assignment_cost() == 5
+    assert assignment.cost_int() == 5
     assert assignment.base_cost_int() == 5
     assert assignment.base_cost_display() == "5¢"
 
@@ -659,27 +658,27 @@ def test_weapon_cost_equipment_list_override_with_profile():
     assignment = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
         content_equipment=spoon,
-        weapon_profile=None,
+        weapon_profiles_field=None,
     )
 
-    assert assignment.total_assignment_cost() == 10
+    assert assignment.cost_int() == 10
     assert assignment.base_cost_int() == 10
     assert assignment.base_cost_display() == "10¢"
-    assert assignment.profile_cost_int() == 0
-    assert assignment.profile_cost_display() == "+0¢"
+    assert assignment.weapon_profiles_cost_int() == 0
+    assert assignment.weapon_profiles_cost_display() == "+0¢"
 
     spike_assignment = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
         content_equipment=spoon,
-        weapon_profile=spoon_spike_profile,
+        weapon_profiles_field__in=[spoon_spike_profile],
     )
 
-    assert spike_assignment.total_assignment_cost() == 12
-    assert spike_assignment.total_assignment_cost_display() == "12¢"
+    assert spike_assignment.cost_int() == 12
+    assert spike_assignment.cost_display() == "12¢"
     assert spike_assignment.base_cost_int() == 10
     assert spike_assignment.base_cost_display() == "10¢"
-    assert spike_assignment.profile_cost_int() == 2
-    assert spike_assignment.profile_cost_display() == "+2¢"
+    assert spike_assignment.weapon_profiles_cost_int() == 2
+    assert spike_assignment.weapon_profiles_cost_display() == "+2¢"
 
 
 @pytest.mark.django_db
@@ -737,16 +736,18 @@ def test_list_fighter_with_same_equipment_different_profiles():
     assert fighter.cost_int() == 125  # 100 base + 10 spoon + 15 spoon with spike
 
     assignment1 = ListFighterEquipmentAssignment.objects.get(
-        list_fighter=fighter, content_equipment=spoon, weapon_profile=spoon_profile
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profiles_field__in=[spoon_profile],
     )
     assignment2 = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
         content_equipment=spoon,
-        weapon_profile=spoon_spike_profile,
+        weapon_profiles_field__in=[spoon_spike_profile],
     )
 
-    assert assignment1.total_assignment_cost() == 10
-    assert assignment2.total_assignment_cost() == 15
+    assert assignment1.cost_int() == 10
+    assert assignment2.cost_int() == 15
 
     assert lst.cost_int() == 125
 
@@ -832,12 +833,12 @@ def test_weapon_with_multiple_profiles():
     assignment = ListFighterEquipmentAssignment.objects.get(
         list_fighter=fighter,
         content_equipment=spoon,
-        weapon_profile=spoon_profile_costed,
+        weapon_profiles_field__in=[spoon_profile_costed],
     )
 
-    assert assignment.total_assignment_cost() == 15
+    assert assignment.cost_int() == 15
     assert assignment.base_cost_int() == 10
-    assert assignment.profile_cost_int() == 5
+    assert assignment.weapon_profiles_cost_int() == 5
 
     assert lst.cost_int() == 115
 
@@ -845,4 +846,103 @@ def test_weapon_with_multiple_profiles():
     assert len(weapon_assigns) == 1
 
     first_assign = weapon_assigns[0]
-    assert first_assign.total_assignment_cost() == 15
+    assert first_assign.cost_int() == 15
+
+
+@pytest.mark.django_db
+def test_weapon_with_multiple_costed_profiles():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    # Create multiple profiles for the same equipment
+    spoon_profile1, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile 1",
+        defaults=dict(
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S-1",
+            armour_piercing="+1",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    spoon_profile_costed1, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile with Cost 1",
+        defaults=dict(
+            cost=5,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    spoon_profile_costed2, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile with Cost 2",
+        defaults=dict(
+            cost=7,
+            cost_sign="+",
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S+1",
+            armour_piercing="+3",
+            damage="2",
+            ammo="3+",
+        ),
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    # Assign the first costed profile to the fighter
+    assignment = fighter.assign(
+        spoon, weapon_profiles=[spoon_profile_costed1, spoon_profile_costed2]
+    )
+
+    assert (
+        fighter.cost_int() == 122
+    )  # 100 base + 10 spoon + 5 profile cost + 7 profile cost
+
+    assert assignment.cost_int() == 22
+
+    assert lst.cost_int() == 122
+
+    weapon_assigns = fighter.weapons()
+    assert len(weapon_assigns) == 1
+
+    first_assign = weapon_assigns[0]
+    assert first_assign.cost_int() == 22
+
+    assert assignment.weapon_profiles_display() == [
+        dict(
+            profile=spoon_profile_costed1,
+            cost_int=5,
+            cost_display="+5¢",
+        ),
+        dict(
+            profile=spoon_profile_costed2,
+            cost_int=7,
+            cost_display="+7¢",
+        ),
+    ]

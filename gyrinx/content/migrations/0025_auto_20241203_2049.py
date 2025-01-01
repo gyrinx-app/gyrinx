@@ -19,9 +19,7 @@ def do_migration(apps, schema_editor):
 
     for skill in top_skills:
         if int(skill.get("skill_count", 0)) > 500:
-            _, created = ContentSkill.objects.get_or_create(name=skill["skill"])
-            if created:
-                print(f"Created {skill['skill']}")
+            ContentSkill.objects.get_or_create(name=skill["skill"])
 
 
 class Migration(migrations.Migration):
