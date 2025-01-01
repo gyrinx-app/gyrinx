@@ -46,7 +46,7 @@ class List(AppBase):
 
     @admin.display(description="Cost")
     def cost_int(self):
-        return sum([f.cost_int() for f in self.listfighter_set.all()])
+        return sum([f.cost_int() for f in self.fighters()])
 
     def fighters(self):
         return self.listfighter_set.filter(archived=False).order_by(
