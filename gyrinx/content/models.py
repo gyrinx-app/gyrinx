@@ -3,8 +3,8 @@ from difflib import SequenceMatcher
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, Q, When
-from django.db.models.functions import Cast
+from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
+from django.db.models.functions import Cast, Coalesce
 from simple_history.models import HistoricalRecords
 
 from gyrinx.models import Base, EquipmentCategoryChoices, FighterCategoryChoices
@@ -65,6 +65,56 @@ class ContentRule(Content):
         ordering = ["name"]
 
 
+class ContentEquipmentManager(models.Manager):
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            # You might want to ask: why directly implement cost_int when you can use Cast?
+            # Answer: I didn't know about default querysets in managers when I wrote this originally.
+            .annotate(
+                cost_cast_int=Case(
+                    When(
+                        cost="",
+                        then=0,
+                    ),
+                    default=Cast("cost", models.IntegerField()),
+                ),
+                has_weapon_profiles=Exists(
+                    ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
+                ),
+            )
+        )
+
+
+class ContentEquipmentQuerySet(models.QuerySet):
+    def weapons(self) -> "ContentEquipmentQuerySet":
+        return self.exclude(has_weapon_profiles=False)
+
+    def non_weapons(self) -> "ContentEquipmentQuerySet":
+        return self.exclude(has_weapon_profiles=True)
+
+    def with_cost_for_fighter(
+        self, content_fighter: "ContentFighter"
+    ) -> "ContentEquipmentQuerySet":
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=content_fighter,
+            equipment=OuterRef("pk"),
+            # This is critical to make sure we only annotate the cost of the base equipment.
+            weapon_profile__isnull=True,
+        )
+        return self.annotate(
+            cost_override=Subquery(
+                equipment_list_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            cost_for_fighter=Coalesce(
+                "cost_override",
+                "cost_cast_int",
+            ),
+        )
+
+
 class ContentEquipment(Content):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
@@ -110,22 +160,24 @@ class ContentEquipment(Content):
         return EquipmentCategoryChoices[self.category].label
 
     def is_weapon(self):
+        # In we have the annotation, use it.
+        if hasattr(self, "has_weapon_profiles"):
+            return self.has_weapon_profiles
         return ContentWeaponProfile.objects.filter(equipment=self).exists()
 
     def profiles(self):
-        return self.contentweaponprofile_set.all().order_by(
-            Case(
-                When(name="", then=0),
-                default=1,
-            ),
-            "cost",
-        )
+        return self.contentweaponprofile_set.all()
+
+    def profiles_for_fighter(self, content_fighter):
+        return self.contentweaponprofile_set.with_cost_for_fighter(content_fighter)
 
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
         unique_together = ["name", "category"]
         ordering = ["name"]
+
+    objects = ContentEquipmentManager.from_queryset(ContentEquipmentQuerySet)()
 
 
 class ContentFighter(Content):
@@ -315,6 +367,32 @@ class ContentWeaponTrait(Content):
         ordering = ["name"]
 
 
+class ContentWeaponProfileManager(models.Manager):
+    pass
+
+
+class ContentWeaponProfileQuerySet(models.QuerySet):
+    def with_cost_for_fighter(
+        self, content_fighter: "ContentFighter"
+    ) -> "ContentEquipmentQuerySet":
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=content_fighter,
+            equipment=OuterRef("equipment"),
+            # This is critical to make sure we only annotate the cost of this profile.
+            weapon_profile=OuterRef("pk"),
+        )
+        return self.annotate(
+            cost_override=Subquery(
+                equipment_list_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            cost_for_fighter=Coalesce(
+                "cost_override",
+                "cost",
+            ),
+        )
+
+
 class ContentWeaponProfile(Content):
     equipment = models.ForeignKey(
         ContentEquipment,
@@ -454,6 +532,7 @@ class ContentWeaponProfile(Content):
                 When(name="", then=0),
                 default=99,
             ),
+            "cost",
         ]
 
     def clean(self):
@@ -476,6 +555,8 @@ class ContentWeaponProfile(Content):
             raise ValidationError(
                 "Non-standard profiles should have a positive cost sign."
             )
+
+    objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
 def check(rule, category, name):

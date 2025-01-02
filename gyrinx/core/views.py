@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 from itertools import zip_longest
 from random import randint
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
@@ -334,6 +336,57 @@ def edit_list_fighter_gear(request, id, fighter_id):
         request,
         "core/list_fighter_gear_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
+    )
+
+
+@dataclass
+class VirtualListFighterEquipmentAssignment:
+    fighter: ListFighter
+    equipment: ContentEquipment
+    profiles: QuerySet
+
+    @property
+    def category(self):
+        return self.equipment.category
+
+    def cat(self):
+        return self.equipment.cat()
+
+
+@login_required
+def edit_list_fighter_weapons(request, id, fighter_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+
+    weapons = ContentEquipment.objects.weapons().with_cost_for_fighter(
+        fighter.content_fighter
+    )
+
+    assigns = []
+    for weapon in weapons:
+        assigns.append(
+            VirtualListFighterEquipmentAssignment(
+                fighter,
+                weapon,
+                profiles=weapon.profiles_for_fighter(fighter.content_fighter).filter(
+                    cost__gt=0
+                ),
+            )
+        )
+
+    return render(
+        request,
+        "core/list_fighter_weapons_edit.html",
+        {
+            # "formset": formset,
+            "fighter": fighter,
+            "weapons": weapons,
+            "assigns": assigns,
+            "list": lst,
+            "error_message": error_message,
+        },
     )
 
 

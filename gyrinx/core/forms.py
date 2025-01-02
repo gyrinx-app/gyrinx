@@ -1,13 +1,7 @@
 from django import forms
-from django.db import models
-from django.db.models import OuterRef, Subquery
 
-from gyrinx.content.models import (
-    ContentEquipment,
-    ContentFighter,
-    ContentFighterEquipmentListItem,
-)
-from gyrinx.core.models import List, ListFighter
+from gyrinx.content.models import ContentEquipment, ContentFighter
+from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 
 
 class NewListForm(forms.ModelForm):
@@ -111,20 +105,13 @@ class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
 class ListFighterGearForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
-            fighter=self.instance.content_fighter,
-            equipment=OuterRef("pk"),
-        )
-        self.fields["equipment"].queryset = self.fields["equipment"].queryset.annotate(
-            cost_override=Subquery(
-                equipment_list_items.values("cost")[:1],
-                output_field=models.IntegerField(),
-            )
-        )
+        self.fields["equipment"].queryset = self.fields[
+            "equipment"
+        ].queryset.with_cost_for_fighter(self.instance.content_fighter)
 
     equipment = ListFighterEquipmentField(
         label="Gear",
-        queryset=ContentEquipment.objects.filter(contentweaponprofile__isnull=True),
+        queryset=ContentEquipment.objects.non_weapons(),
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
         help_text="Costs reflect the Fighter's Equipment List.",
         required=False,
@@ -133,3 +120,15 @@ class ListFighterGearForm(forms.ModelForm):
     class Meta:
         model = ListFighter
         fields = ["equipment"]
+
+
+class ListFighterEquipmentAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+ListFighterEquipmentAssignmentFormSet = forms.modelformset_factory(
+    ListFighterEquipmentAssignment,
+    form=ListFighterEquipmentAssignmentForm,
+    fields=["weapon_profiles_field"],
+)

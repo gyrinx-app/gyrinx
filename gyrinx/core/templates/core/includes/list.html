@@ -236,102 +236,13 @@
                         </tbody>
                     </table>
                     {% comment %} Wargear {% endcomment %}
-                    <table class="table table-sm table-borderless mb-0 fs-7">
-                        <thead class="table-group-divider">
-                            <tr>
-                                <th scope="col">Weapons</th>
-                                <th class="text-center" scope="col">S</th>
-                                <th class="text-center" scope="col">L</th>
-                                <th class="text-center border-start" scope="col">S</th>
-                                <th class="text-center" scope="col">L</th>
-                                <th class="text-center border-start" scope="col">Str</th>
-                                <th class="text-center" scope="col">Ap</th>
-                                <th class="text-center" scope="col">D</th>
-                                <th class="text-center" scope="col">Am</th>
-                            </tr>
-                        </thead>
-                        {% for weapon_assign in fighter.weapons %}
-                            <tbody class="table-group-divider">
-                                {% comment %} Base-case: one profile for the weapon {% endcomment %}
-                                {% if weapon_assign.all_profiles|length == 1 %}
-                                    {% with weapon_assign.all_profiles.0 as profile %}
-                                        <tr class="align-top">
-                                            <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                {{ weapon_assign.base_name }}
-                                                {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
-                                            </td>
-                                            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                                        </tr>
-                                        {% if profile.traitline|length > 0 %}
-                                            <tr>
-                                                <td colspan="9">{{ profile.traitline|join:", " }}</td>
-                                            </tr>
-                                        {% endif %}
-                                    {% endwith %}
-                                {% else %}
-                                    {% comment %} First profile is named, so we need to add a title row {% endcomment %}
-                                    {% if weapon_assign.standard_profiles.0.name != "" %}
-                                        <tr class="align-bottom">
-                                            <td colspan="9">
-                                                {{ weapon_assign.base_name }}
-                                                {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                    {% for profile in weapon_assign.standard_profiles %}
-                                        <tr class="align-top">
-                                            <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
-                                                {% if forloop.counter0 == 0 and profile.name == "" %}
-                                                    {{ weapon_assign.base_name }}
-                                                    {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
-                                                {% elif profile.name != "" %}
-                                                    - {{ profile.name }}
-                                                {% endif %}
-                                            </td>
-                                            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                                        </tr>
-                                        {% if profile.traitline|length > 0 %}
-                                            <tr>
-                                                <td colspan="9">{{ profile.traitline|join:", " }}</td>
-                                            </tr>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% comment %} Non-standard profile(s) {% endcomment %}
-                                    {% for pd in weapon_assign.weapon_profiles_display %}
-                                        {% comment %} This cost if should be unnecessary but it's good hygiene {% endcomment %}
-                                        {% if pd.cost_int > 0 %}
-                                            <tr class="align-top">
-                                                <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                                    - {{ pd.profile.name }}
-                                                    {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
-                                                </td>
-                                                {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                                            </tr>
-                                            {% if pd.profile.traitline|length > 0 %}
-                                                <tr>
-                                                    <td colspan="9">{{ pd.profile.traitline|join:", " }}</td>
-                                                </tr>
-                                            {% endif %}
-                                        {% endif %}
-                                    {% endfor %}
-                                {% endif %}
-                            </tbody>
-                        {% empty %}
-                            <tbody>
-                                <tr>
-                                    <td colspan="9">
-                                        <span class="text-secondary">This fighter has no weapons.</span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        {% endfor %}
-                    </table>
+                    {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons %}
                     {% if not print %}
                         {% if list.owner == user %}
                             <div class="btn-group p-1">
-                                <a href="#" class="btn btn-outline-primary btn-sm disabled">
-                                    <i class="bi bi-plus-lg"></i> Add weapon
+                                <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-plus-lg"></i> Add or edit weapons
                                 </a>
                             </div>
                         {% endif %}
