@@ -78,6 +78,10 @@ class ContentEquipmentManager(models.Manager):
                         cost="",
                         then=0,
                     ),
+                    When(
+                        cost="-",
+                        then=0,
+                    ),
                     default=Cast("cost", models.IntegerField()),
                 ),
                 has_weapon_profiles=Exists(
