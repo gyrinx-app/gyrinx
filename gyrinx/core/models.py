@@ -52,28 +52,10 @@ class List(AppBase):
         return f"{self.cost_int()}¢"
 
     def fighters(self):
-        return self.listfighter_set.filter(archived=False).order_by(
-            Case(
-                When(content_fighter__category="LEADER", then=0),
-                When(content_fighter__category="CHAMPION", then=1),
-                When(content_fighter__category="PROSPECT", then=2),
-                When(content_fighter__category="JUVE", then=3),
-                default=99,
-            ),
-            "name",
-        )
+        return self.listfighter_set.filter(archived=False)
 
     def archived_fighters(self):
-        return self.listfighter_set.filter(archived=True).order_by(
-            Case(
-                When(content_fighter__category="LEADER", then=0),
-                When(content_fighter__category="CHAMPION", then=1),
-                When(content_fighter__category="PROSPECT", then=2),
-                When(content_fighter__category="JUVE", then=3),
-                default=99,
-            ),
-            "name",
-        )
+        return self.listfighter_set.filter(archived=True)
 
     class Meta:
         verbose_name = "List"
@@ -151,6 +133,26 @@ class ListFighter(AppBase):
     class Meta:
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
+        ordering = [
+            Case(
+                *[
+                    When(content_fighter__category=category, then=index)
+                    for index, category in enumerate(
+                        [
+                            "LEADER",
+                            "CHAMPION",
+                            "PROSPECT",
+                            "SPECIALIST",
+                            "GANGER",
+                            "JUVE",
+                        ]
+                    )
+                ],
+                default=99,
+            ),
+            "content_fighter__category",
+            "name",
+        ]
 
     def __str__(self):
         cf = self.content_fighter
@@ -238,11 +240,6 @@ class ListFighterEquipmentAssignment(AppBase):
     def standard_profiles(self):
         return ContentWeaponProfile.objects.filter(
             equipment=self.content_equipment, cost=0
-        ).order_by(
-            Case(
-                When(name="", then=0),
-                default=1,
-            )
         )
 
     def is_weapon(self):

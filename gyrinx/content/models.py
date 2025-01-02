@@ -25,16 +25,7 @@ class ContentHouse(Content):
     history = HistoricalRecords()
 
     def fighters(self):
-        return self.contentfighter_set.all().order_by(
-            Case(
-                When(category="LEADER", then=0),
-                When(category="CHAMPION", then=1),
-                When(category="PROSPECT", then=2),
-                When(category="JUVE", then=3),
-                default=99,
-            ),
-            "type",
-        )
+        return self.contentfighter_set.all()
 
     def __str__(self):
         return self.name
@@ -246,7 +237,26 @@ class ContentFighter(Content):
     class Meta:
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"
-        ordering = ["house__name", "type"]
+        ordering = [
+            "house__name",
+            Case(
+                *[
+                    When(category=category, then=index)
+                    for index, category in enumerate(
+                        [
+                            "LEADER",
+                            "CHAMPION",
+                            "PROSPECT",
+                            "SPECIALIST",
+                            "GANGER",
+                            "JUVE",
+                        ]
+                    )
+                ],
+                default=99,
+            ),
+            "type",
+        ]
 
 
 class ContentFighterEquipmentListItem(Content):
@@ -438,7 +448,13 @@ class ContentWeaponProfile(Content):
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
         unique_together = ["equipment", "name"]
-        ordering = ["equipment__name", "name"]
+        ordering = [
+            "equipment__name",
+            Case(
+                When(name="", then=0),
+                default=99,
+            ),
+        ]
 
     def clean(self):
         if self.cost_int() < 0:
@@ -572,10 +588,12 @@ class ContentPageRef(Content):
         verbose_name_plural = "Page References"
         ordering = ["category", "book__name", "title"]
 
+    # TODO: Move this to a custom Manager
     @classmethod
     def find(cls, *args, **kwargs):
         return ContentPageRef.objects.filter(*args, **kwargs).first()
 
+    # TODO: Move this to a custom Manager
     @classmethod
     def find_similar(cls, title: str, **kwargs):
         cache = caches["content_page_ref_cache"]
@@ -600,9 +618,11 @@ class ContentPageRef(Content):
         cache.set(key, refs)
         return refs
 
+    # TODO: Move this to a custom Manager
     @classmethod
     def all_ordered(cls):
         return (
+            # TODO: Implement this as a method on the Manager/QuerySet
             ContentPageRef.objects.filter(parent__isnull=True)
             .exclude(page="")
             .annotate(page_int=Cast("page", models.IntegerField(null=True, blank=True)))
@@ -616,6 +636,7 @@ class ContentPageRef(Content):
             )
         )
 
+    # TODO: Add default ordering to the Meta class, possibly with default annotations from the Manager
     def children_ordered(self):
         return (
             self.children.exclude(page="")
