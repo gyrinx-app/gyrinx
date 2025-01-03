@@ -107,11 +107,13 @@
             {% if mode == 'add' %}
                 <tr>
                     <td colspan="9">
-                        <div class="btn-group">
-                            <input type="submit"
-                                   class="btn btn-outline-primary btn-sm"
-                                   form="weapon-{{ assign.equipment.id }}"
-                                   value="Add {{ assign.base_name }}">
+                        <div class="d-flex btn-group">
+                            <button type="submit"
+                                    class="btn btn-outline-primary btn-sm"
+                                    form="weapon-{{ assign.equipment.id }}">
+                                <i class="bi bi-plus"></i>
+                                Add {{ assign.base_name }}
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -119,11 +121,11 @@
             {% if mode == 'edit' %}
                 <tr>
                     <td colspan="9" class="text-end">
-                        <div class="btn-group">
+                        <div class="d-flex btn-group">
                             <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                                class="btn btn-outline-danger btn-sm">
                                 <i class="bi bi-trash"></i>
-                                Remove
+                                Remove {{ assign.base_name }}
                             </a>
                         </div>
                     </td>

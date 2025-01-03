@@ -428,7 +428,7 @@ def edit_list_fighter_weapons(request, id, fighter_id):
     if request.GET.get("q"):
         weapons = weapons.annotate(
             search=SearchVector("name", "category", "contentweaponprofile__name"),
-        ).filter(search=request.GET.get("q"))
+        ).filter(search__icontains=request.GET.get("q", "").lower())
 
     assigns = []
     for weapon in weapons:
