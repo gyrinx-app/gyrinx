@@ -71,7 +71,7 @@ a[href="#"][data-bs-toggle="tooltip"] {
     border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
 }
 
-@keyframes flash-yellow {
+@keyframes flash-warn {
     from {
         background-color: var(--bs-warning-bg-subtle) !important;
     }
@@ -80,6 +80,6 @@ a[href="#"][data-bs-toggle="tooltip"] {
     }
 }
 
-.flash-yellow, .flash-yellow td {
-    animation: flash-yellow 1.5s;
+.flash-warn, .flash-warn td {
+    animation: flash-warn 2s ease-in;
 }

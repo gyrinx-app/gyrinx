@@ -405,7 +405,7 @@ def edit_list_fighter_weapons(request, id, fighter_id):
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         if form.is_valid():
             form.save()
-            query_params = urlencode(dict(assign=instance.id))
+            query_params = urlencode(dict(flash=instance.id))
             return HttpResponseRedirect(
                 reverse(
                     "core:list-fighter-weapons-edit",

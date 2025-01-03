@@ -27,7 +27,7 @@
         </tr>
     </thead>
     {% for assign in weapons %}
-        <tbody class="table-group-divider {% if request.GET.assign == assign.id|stringformat:"s" %}flash-yellow{% endif %}"
+        <tbody class="table-group-divider {% flash assign.id %}"
                id="assign-{{ assign.id }}">
             {% comment %} Base-case: one profile for the weapon {% endcomment %}
             {% if assign.all_profiles|length == 1 %}

@@ -22,6 +22,12 @@ def active_aria(context, name):
     return 'aria-current="page"' if is_active(context, name) else ""
 
 
+@register.simple_tag(takes_context=True)
+def flash(context, assign_id):
+    request = context["request"]
+    return "flash-warn" if request.GET.get("flash") == str(assign_id) else ""
+
+
 @register.filter
 def lookup(dictionary, key):
     if isinstance(dictionary, list):
