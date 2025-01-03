@@ -1,4 +1,17 @@
 {% load allauth custom_tags %}
+{% if edit %}
+    {% for assign in weapons %}
+        <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+              method="post"
+              id="weapon-{{ assign.equipment.id }}"
+              class="d-none">
+            {% csrf_token %}
+            <input type="hidden"
+                   name="content_equipment"
+                   value="{{ assign.equipment.id }}">
+        </form>
+    {% endfor %}
+{% endif %}
 <table class="table table-sm table-borderless mb-0 fs-7">
     <thead class="table-group-divider">
         <tr>
@@ -13,15 +26,16 @@
             <th class="text-center" scope="col">Am</th>
         </tr>
     </thead>
-    {% for weapon_assign in weapons %}
-        <tbody class="table-group-divider">
+    {% for assign in weapons %}
+        <tbody class="table-group-divider {% if request.GET.assign == assign.id|stringformat:"s" %}flash-yellow{% endif %}"
+               id="assign-{{ assign.id }}">
             {% comment %} Base-case: one profile for the weapon {% endcomment %}
-            {% if weapon_assign.all_profiles|length == 1 %}
-                {% with weapon_assign.all_profiles.0 as profile %}
+            {% if assign.all_profiles|length == 1 %}
+                {% with assign.all_profiles.0 as profile %}
                     <tr class="align-top">
                         <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                            {{ weapon_assign.base_name }}
-                            {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
+                            {{ assign.base_name }}
+                            {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                         </td>
                         {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                     </tr>
@@ -33,21 +47,21 @@
                 {% endwith %}
             {% else %}
                 {% comment %} First profile is named, so we need to add a title row {% endcomment %}
-                {% if weapon_assign.standard_profiles.0.name != "" %}
+                {% if assign.standard_profiles.0.name != "" %}
                     <tr class="align-bottom">
                         <td colspan="9">
-                            {{ weapon_assign.base_name }}
-                            {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
+                            {{ assign.base_name }}
+                            {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                         </td>
                     </tr>
                 {% endif %}
-                {% for profile in weapon_assign.standard_profiles %}
+                {% for profile in assign.standard_profiles %}
                     <tr class="align-top">
                         <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
                             {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
                             {% if forloop.counter0 == 0 and profile.name == "" %}
-                                {{ weapon_assign.base_name }}
-                                {% if weapon_assign.base_cost_int > 0 %}({{ weapon_assign.base_cost_display }}){% endif %}
+                                {{ assign.base_name }}
+                                {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                             {% elif profile.name != "" %}
                                 - {{ profile.name }}
                             {% endif %}
@@ -61,13 +75,24 @@
                     {% endif %}
                 {% endfor %}
                 {% comment %} Non-standard profile(s) {% endcomment %}
-                {% for pd in weapon_assign.weapon_profiles_display %}
+                {% for pd in assign.weapon_profiles_display %}
                     {% comment %} This cost if should be unnecessary but it's good hygiene {% endcomment %}
                     {% if pd.cost_int > 0 %}
                         <tr class="align-top">
                             <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                - {{ pd.profile.name }}
-                                {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                                {% if edit %}
+                                    <div class="form-check">
+                                        <input type="checkbox"
+                                               name="weapon_profiles_field"
+                                               value="{{ pd.profile.id }}"
+                                               id="profile-{{ pd.profile.id }}"
+                                               form="weapon-{{ assign.equipment.id }}"
+                                               class="form-check-input">
+                                        <label class="form-check-label" for="profile-{{ pd.profile.id }}">{{ pd.profile.name }} ({{ pd.cost_display }})</label>
+                                    </div>
+                                {% else %}
+                                    - {{ pd.profile.name }} ({{ pd.cost_display }})
+                                {% endif %}
                             </td>
                             {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                         </tr>
@@ -78,6 +103,18 @@
                         {% endif %}
                     {% endif %}
                 {% endfor %}
+            {% endif %}
+            {% if edit %}
+                <tr>
+                    <td colspan="9">
+                        <div class="btn-group">
+                            <input type="submit"
+                                   class="btn btn-outline-primary btn-sm"
+                                   form="weapon-{{ assign.equipment.id }}"
+                                   value="Add {{ assign.base_name }}">
+                        </div>
+                    </td>
+                </tr>
             {% endif %}
         </tbody>
     {% empty %}

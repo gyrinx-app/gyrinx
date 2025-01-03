@@ -123,12 +123,6 @@ class ListFighterGearForm(forms.ModelForm):
 
 
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-ListFighterEquipmentAssignmentFormSet = forms.modelformset_factory(
-    ListFighterEquipmentAssignment,
-    form=ListFighterEquipmentAssignmentForm,
-    fields=["weapon_profiles_field"],
-)
+    class Meta:
+        model = ListFighterEquipmentAssignment
+        fields = ["content_equipment", "weapon_profiles_field"]

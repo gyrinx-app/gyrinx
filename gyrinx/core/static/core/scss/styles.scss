@@ -70,3 +70,16 @@ a[href="#"][data-bs-toggle="tooltip"] {
     // is required so that it shows up even in .table-borderless tables.
     border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
 }
+
+@keyframes flash-yellow {
+    from {
+        background-color: var(--bs-warning-bg-subtle) !important;
+    }
+    to {
+        background-color: inherit;
+    }
+}
+
+.flash-yellow, .flash-yellow td {
+    animation: flash-yellow 1.5s;
+}

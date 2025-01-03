@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from itertools import zip_longest
 from random import randint
+from typing import List as TList
+from typing import TypeVar, Union
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import QuerySet
@@ -9,15 +12,24 @@ from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentHouse,
+    ContentPageRef,
+    ContentWeaponProfile,
+)
 from gyrinx.core.forms import (
     EditListForm,
+    ListFighterEquipmentAssignmentForm,
     ListFighterGearForm,
     ListFighterSkillsForm,
     NewListFighterForm,
     NewListForm,
 )
-from gyrinx.core.models import List, ListFighter
+from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+
+T = TypeVar("T")
+QuerySetOf = Union[QuerySet, TList[T]]
 
 
 def index(request):
@@ -343,11 +355,40 @@ def edit_list_fighter_gear(request, id, fighter_id):
 class VirtualListFighterEquipmentAssignment:
     fighter: ListFighter
     equipment: ContentEquipment
-    profiles: QuerySet
+    profiles: QuerySetOf[ContentWeaponProfile]
 
     @property
     def category(self):
         return self.equipment.category
+
+    def base_cost_int(self):
+        return self.equipment.cost_for_fighter
+
+    def base_cost_display(self):
+        return f"{self.base_cost_int()}¢"
+
+    def base_name(self):
+        return f"{self.equipment}"
+
+    def all_profiles(self):
+        return self.profiles
+
+    def standard_profiles(self):
+        # TODO: This could very well be shifted to the database query.
+        return [profile for profile in self.profiles if profile.cost == 0]
+
+    def weapon_profiles_display(self):
+        """Return a list of dictionaries with the weapon profiles and their costs."""
+        # TODO: This could very well be shifted to the database query.
+        return [
+            {
+                "profile": profile,
+                "cost_int": profile.cost_for_fighter,
+                "cost_display": f"+{profile.cost_for_fighter}¢",
+            }
+            for profile in self.profiles
+            if profile.cost_int() > 0
+        ]
 
     def cat(self):
         return self.equipment.cat()
@@ -359,20 +400,38 @@ def edit_list_fighter_weapons(request, id, fighter_id):
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     error_message = None
+    if request.method == "POST":
+        instance = ListFighterEquipmentAssignment(list_fighter=fighter)
+        form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
+        if form.is_valid():
+            form.save()
+            query_params = urlencode(dict(assign=instance.id))
+            return HttpResponseRedirect(
+                reverse(
+                    "core:list-fighter-weapons-edit",
+                    args=(
+                        lst.id,
+                        fighter.id,
+                    ),
+                )
+                + f"?{query_params}"
+                + f"#{str(fighter.id)}"
+            )
 
-    weapons = ContentEquipment.objects.weapons().with_cost_for_fighter(
-        fighter.content_fighter
+    weapons: QuerySetOf[ContentEquipment] = (
+        ContentEquipment.objects.with_cost_for_fighter(
+            fighter.content_fighter
+        ).weapons()
     )
 
     assigns = []
     for weapon in weapons:
+        profiles = weapon.profiles_for_fighter(fighter.content_fighter)
         assigns.append(
             VirtualListFighterEquipmentAssignment(
                 fighter,
                 weapon,
-                profiles=weapon.profiles_for_fighter(fighter.content_fighter).filter(
-                    cost__gt=0
-                ),
+                profiles=profiles,
             )
         )
 

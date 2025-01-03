@@ -93,7 +93,7 @@ class ContentEquipmentManager(models.Manager):
 
 class ContentEquipmentQuerySet(models.QuerySet):
     def weapons(self) -> "ContentEquipmentQuerySet":
-        return self.exclude(has_weapon_profiles=False)
+        return self.filter(has_weapon_profiles=True)
 
     def non_weapons(self) -> "ContentEquipmentQuerySet":
         return self.exclude(has_weapon_profiles=True)
