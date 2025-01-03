@@ -60,7 +60,7 @@
                                             <span>{{ assign.equipment.cost_for_fighter }}¢</span>
                                         </div>
                                     </div>
-                                    <div class="vstack gap-2">
+                                    <div class="vstack">
                                         {% for profile in assign.profiles %}
                                             <div class="form-check">
                                                 <input type="checkbox"
@@ -68,6 +68,7 @@
                                                        value="{{ profile.id }}"
                                                        id="profile-{{ profile.id }}"
                                                        class="form-check-input"
+                                                       disabled
                                                        {% if profile.assigned %}checked{% endif %}>
                                                 <label class="form-check-label" for="profile-{{ profile.id }}">
                                                     {{ profile.name }} (<span>+{{ profile.cost_for_fighter }}¢</span>)
