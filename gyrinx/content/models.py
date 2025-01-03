@@ -88,6 +88,7 @@ class ContentEquipmentManager(models.Manager):
                     ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
                 ),
             )
+            .order_by("category", "name", "id")
         )
 
 
