@@ -6,6 +6,7 @@ from typing import TypeVar, Union
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.search import SearchVector
 from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
@@ -423,6 +424,11 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             fighter.content_fighter
         ).weapons()
     )
+
+    if request.GET.get("q"):
+        weapons = weapons.annotate(
+            search=SearchVector("name", "category", "contentweaponprofile__name"),
+        ).filter(search=request.GET.get("q"))
 
     assigns = []
     for weapon in weapons:
