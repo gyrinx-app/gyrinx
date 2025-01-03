@@ -54,6 +54,11 @@ urlpatterns = [
         views.edit_list_fighter_weapons,
         name="list-fighter-weapons-edit",
     ),
+    path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/delete",
+        views.delete_list_fighter_weapon,
+        name="list-fighter-weapon-delete",
+    ),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
     path("cookies", views.cookies, name="cookies"),
 ]

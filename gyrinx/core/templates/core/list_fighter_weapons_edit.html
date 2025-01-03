@@ -21,7 +21,7 @@
                     </div>
                 </div>
                 <div class="card-body vstack p-0 p-sm-2">
-                    {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons %}
+                    {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode="edit" %}
                 </div>
             </div>
         </div>
@@ -37,7 +37,7 @@
                         </div>
                     </div>
                     <div class="card-body vstack gap-2 p-0">
-                        {% include "core/includes/list_fighter_weapons.html" with weapons=assigns edit=True %}
+                        {% include "core/includes/list_fighter_weapons.html" with weapons=assigns mode="add" %}
                     </div>
                 </div>
             {% endfor %}

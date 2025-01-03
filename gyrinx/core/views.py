@@ -450,6 +450,30 @@ def edit_list_fighter_weapons(request, id, fighter_id):
 
 
 @login_required
+def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    if request.method == "POST":
+        assignment.delete()
+
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        )
+
+    return render(
+        request,
+        "core/list_fighter_weapons_delete.html",
+        {"list": lst, "fighter": fighter, "assign": assignment},
+    )
+
+
+@login_required
 def archive_list_fighter(request, id, fighter_id):
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)

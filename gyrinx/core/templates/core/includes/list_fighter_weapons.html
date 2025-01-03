@@ -1,5 +1,5 @@
 {% load allauth custom_tags %}
-{% if edit %}
+{% if mode == 'add' %}
     {% for assign in weapons %}
         <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
               method="post"
@@ -80,7 +80,7 @@
                     {% if pd.cost_int > 0 %}
                         <tr class="align-top">
                             <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                {% if edit %}
+                                {% if mode == 'add' %}
                                     <div class="form-check">
                                         <input type="checkbox"
                                                name="weapon_profiles_field"
@@ -104,7 +104,7 @@
                     {% endif %}
                 {% endfor %}
             {% endif %}
-            {% if edit %}
+            {% if mode == 'add' %}
                 <tr>
                     <td colspan="9">
                         <div class="btn-group">
@@ -112,6 +112,19 @@
                                    class="btn btn-outline-primary btn-sm"
                                    form="weapon-{{ assign.equipment.id }}"
                                    value="Add {{ assign.base_name }}">
+                        </div>
+                    </td>
+                </tr>
+            {% endif %}
+            {% if mode == 'edit' %}
+                <tr>
+                    <td colspan="9" class="text-end">
+                        <div class="btn-group">
+                            <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
+                               class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i>
+                                Remove
+                            </a>
                         </div>
                     </td>
                 </tr>
