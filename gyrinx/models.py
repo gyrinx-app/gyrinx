@@ -82,3 +82,5 @@ class EquipmentCategoryChoices(models.TextChoices):
     SPECIAL_WEAPONS = "SPECIAL_WEAPONS", "Special Weapons"
     STATUS_ITEMS = "STATUS_ITEMS", "Status Items"
     VEHICLE_EQUIPMENT = "VEHICLE_EQUIPMENT", "Vehicle Equipment"
+    BOOBY_TRAPS = "BOOBY_TRAPS", "Booby Traps"
+    GANG_TERRAIN = "GANG_TERRAIN", "Gang Terrain"
