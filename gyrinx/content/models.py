@@ -317,7 +317,7 @@ class ContentFighter(Content):
 
 
 class ContentFighterEquipmentListItem(Content):
-    help_text = "The Content Fighter Equipment captures the equipment list available to a fighter in the rulebook."
+    help_text = "Captures the equipment list available to a fighter in the rulebook."
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
@@ -408,14 +408,12 @@ class ContentWeaponProfile(Content):
     )
 
     name = models.CharField(max_length=255, blank=True)
-    help_text = (
-        "The Content Weapon Profile captures the profile information for a weapon."
-    )
+    help_text = "Captures the cost, rarity and statline for a weapon."
 
     # If the cost is zero, then the profile is free to use and "standard".
     cost = models.IntegerField(
         default=0,
-        help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, then the profile is free to use and standard. Note that this can be overridden in a fighter's equipment list.",
+        help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, then the profile is free to use and standard. This cost is overridden if the profile is in the fighter's equipment list.",
     )
 
     cost_sign = models.CharField(
@@ -573,7 +571,7 @@ def check(rule, category, name):
 
 class ContentPolicy(Content):
     help_text = (
-        "The Content Policy captures the rules for equipment availability to fighters."
+        "Not used currently. Captures the rules for equipment availability to fighters."
     )
     fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
     rules = models.JSONField()
@@ -614,7 +612,7 @@ class ContentPolicy(Content):
 
 
 class ContentBook(Content):
-    help_text = "The Content Book captures the rulebook information."
+    help_text = "Captures rulebook information."
     name = models.CharField(max_length=255)
     shortname = models.CharField(max_length=50, blank=True, null=False)
     year = models.CharField(blank=True, null=False)
@@ -643,7 +641,7 @@ def similar(a, b):
 
 
 class ContentPageRef(Content):
-    help_text = "The Content Page Ref captures the page references for game content."
+    help_text = "Captures the page references for game content. Title is used to match with other entities (e.g. Skills)."
     book = models.ForeignKey(ContentBook, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     page = models.CharField(max_length=50, blank=True, null=False)
