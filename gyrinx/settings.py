@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.postgres",
+    "django.contrib.admindocs",
     # Django allauth
     "allauth",
     "allauth.account",
