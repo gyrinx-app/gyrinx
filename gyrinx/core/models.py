@@ -41,6 +41,11 @@ class List(AppBase):
     public = models.BooleanField(
         default=True, help_text="Public lists are visible to all users."
     )
+    narrative = models.TextField(
+        "about",
+        blank=True,
+        help_text="Narrative description of the gang in this list: their history and how to play them.",
+    )
 
     history = HistoricalRecords()
 
@@ -82,6 +87,11 @@ class ListFighter(AppBase):
     )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
+    narrative = models.TextField(
+        "about",
+        blank=True,
+        help_text="Narrative description of the Fighter: their history and how to play them.",
+    )
 
     history = HistoricalRecords()
 

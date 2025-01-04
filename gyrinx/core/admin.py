@@ -1,14 +1,18 @@
 from django import forms
 from django.contrib import admin
+from django.db import models
 from simple_history.admin import SimpleHistoryAdmin
+from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentWeaponProfile
 
 from .models import List, ListFighter, ListFighterEquipmentAssignment
 
 
-class ListForm(forms.ModelForm):
-    pass
+class BaseAdmin(SimpleHistoryAdmin):
+    formfield_overrides = {
+        models.TextField: {"widget": TinyMCE},
+    }
 
 
 @admin.display(description="Cost")
@@ -24,10 +28,14 @@ class ListFighterInline(admin.TabularInline):
     show_change_link = True
 
 
+class ListForm(forms.ModelForm):
+    pass
+
+
 @admin.register(List)
-class ListAdmin(SimpleHistoryAdmin):
+class ListAdmin(BaseAdmin):
     form = ListForm
-    fields = ["name", "content_house", "owner", "public", cost]
+    fields = ["name", "content_house", "owner", "public", cost, "narrative"]
     readonly_fields = [cost]
     list_display = ["name", "content_house", "owner", "public", cost]
     search_fields = ["name", "content_house__name"]
@@ -54,9 +62,9 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
 
 
 @admin.register(ListFighter)
-class ListFighterAdmin(SimpleHistoryAdmin):
+class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
-    fields = ["name", "content_fighter", "owner", "list", "skills", cost]
+    fields = ["name", "content_fighter", "owner", "list", "skills", cost, "narrative"]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]
@@ -79,7 +87,7 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
 
 
 @admin.register(ListFighterEquipmentAssignment)
-class ListFighterEquipmentAssignmentAdmin(SimpleHistoryAdmin):
+class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
     form = ListFighterEquipmentAssignmentForm
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):

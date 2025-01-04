@@ -336,6 +336,30 @@ class ListDetailView(generic.DetailView):
         return get_object_or_404(List, id=self.kwargs["id"])
 
 
+class ListAboutDetailView(generic.DetailView):
+    """
+    Display a narrative view of a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+
+    **Template**
+
+    :template:`core/list_about.html`
+    """
+
+    template_name = "core/list_about.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+        """
+        return get_object_or_404(List, id=self.kwargs["id"])
+
+
 class ListPrintView(generic.DetailView):
     """
     Display a printable view of a single :model:`core.List` object.

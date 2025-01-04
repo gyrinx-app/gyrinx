@@ -1,0 +1,35 @@
+{% load allauth custom_tags %}
+<div>
+    <div class="vstack gap-1 mb-2">
+        <h2>{{ list.name }}</h2>
+        <div>{{ list.content_house.name }}</div>
+        <div class="text-secondary">
+            <i class="bi bi-person"></i> {{ list.owner }}
+        </div>
+    </div>
+    <nav class="nav card card-body flex-column mb-3 p-2">
+        <a class="nav-link p-2 py-1" href="#about-list">Overview</a>
+        {% for fighter in list.fighters %}
+            {% if fighter.narrative %}
+                <a class="nav-link p-2 py-1" href="#about-{{ fighter.id }}">{{ fighter.name }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+    <div id="list-overview">
+        <h3 class="h4" id="about-list">Overview</h3>
+        {{ list.narrative|safe }}
+    </div>
+    <div class="grid">
+        {% for fighter in list.fighters %}
+            {% if fighter.narrative %}
+                <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
+                    <h3 class="h4">{{ fighter.name }}</h3>
+                    {{ fighter.narrative|safe }}
+                </div>
+            {% endif %}
+            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=True classes="g-col-12 g-col-md-6" %}
+        {% empty %}
+            <div class="g-col-12 py-2">This List is empty.</div>
+        {% endfor %}
+    </div>
+</div>

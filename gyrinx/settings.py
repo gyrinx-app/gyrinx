@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "gyrinx.core",
     "gyrinx.content",
+    "tinymce",
 ]
 
 MIDDLEWARE = [

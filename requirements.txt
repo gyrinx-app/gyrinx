@@ -4,6 +4,7 @@ daphne==4.1.2
 Django==5.1.4
 django-allauth==65.3.0
 django-simple-history==3.7.0
+django-tinymce==4.1.0
 djlint==1.36.3
 docutils==0.21.2
 google-cloud-logging==3.11.3
