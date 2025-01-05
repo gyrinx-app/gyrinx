@@ -64,7 +64,7 @@
             </div>
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
-                    <nav class="nav btn-group">
+                    <nav class="nav btn-group flex-nowrap">
                         {% if list.owner == user %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm">

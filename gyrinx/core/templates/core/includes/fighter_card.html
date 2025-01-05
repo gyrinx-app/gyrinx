@@ -131,9 +131,8 @@
                             {% for assign in fighter.wargear %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% spaceless %}
-                                    <span>{{ assign.name }}
-                                        {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
-                                    </span>
+                                    <span>{{ assign.name }}</span>
+                                    {% if assign.cost_int > 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                     {% if not forloop.last %}<span>,</span>{% endif %}
                                 {% endspaceless %}
                             {% endfor %}
