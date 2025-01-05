@@ -81,7 +81,6 @@ class ContentRule(Content):
     """
 
     name = models.CharField(max_length=255)
-    # TODO: Page refs
 
     history = HistoricalRecords()
 
