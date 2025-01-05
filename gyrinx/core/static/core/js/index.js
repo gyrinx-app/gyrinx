@@ -107,7 +107,6 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
 
         document.querySelectorAll("[data-bs-theme-value]").forEach((toggle) => {
             toggle.addEventListener("click", () => {
-                debugger;
                 const theme = toggle.getAttribute("data-bs-theme-value");
                 setStoredTheme(theme);
                 setTheme(theme);
