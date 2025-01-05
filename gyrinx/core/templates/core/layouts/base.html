@@ -34,40 +34,91 @@
                            {% active_aria 'core:index' %}
                            href="{% url 'core:index' %}">Home</a>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle"
-                           href="#"
-                           role="button"
-                           data-bs-toggle="dropdown"
-                           aria-expanded="false">Content</a>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item {% active_view 'core:content-gangs' %}"
-                                   {% active_aria 'core:content-gangs' %}
-                                   href="{% url 'core:content-gangs' %}">Gangs &amp; Fighters</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% active_view 'core:content-equipment' %}"
-                                   {% active_aria 'core:content-equipment' %}
-                                   href="{% url 'core:content-equipment' %}">Equipment</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {% active_view 'core:content-index' %}"
-                                   {% active_aria 'core:content-index' %}
-                                   href="{% url 'core:content-index' %}">Index</a>
-                            </li>
-                        </ul>
-                    </li>
                     <li class="nav-item">
                         <a class="nav-link {% active_view 'core:lists' %}"
                            {% active_aria 'core:lists' %}
                            href="{% url 'core:lists' %}">Lists</a>
                     </li>
+                    {% if user.is_staff %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link icon-link dropdown-toggle"
+                               href="#"
+                               role="button"
+                               data-bs-toggle="dropdown"
+                               aria-expanded="false"><i class="bi-lock"></i> Content</a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item icon-link"
+                                       href="{% url 'admin:index' %}"
+                                       target="_new">Admin <i class="bi-box-arrow-up-right"></i></a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% active_view 'core:content-gangs' %}"
+                                       {% active_aria 'core:content-gangs' %}
+                                       href="{% url 'core:content-gangs' %}">Gangs &amp; Fighters</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% active_view 'core:content-equipment' %}"
+                                       {% active_aria 'core:content-equipment' %}
+                                       href="{% url 'core:content-equipment' %}">Equipment</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% active_view 'core:content-index' %}"
+                                       {% active_aria 'core:content-index' %}
+                                       href="{% url 'core:content-index' %}">Index</a>
+                                </li>
+                            </ul>
+                        </li>
+                    {% endif %}
+                    <li class="nav-item dropdown">
+                        <button class="btn btn-link nav-link py-2 px-0 px-lg-2 dropdown-toggle d-flex align-items-center"
+                                id="bd-theme"
+                                type="button"
+                                aria-expanded="false"
+                                data-bs-toggle="dropdown"
+                                aria-label="Toggle theme (auto)">
+                            <i class="bi-circle-half theme-icon-active"></i>
+                            <span class="d-lg-none ms-2" id="bd-theme-text">Toggle theme</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end"
+                            aria-labelledby="bd-theme-text">
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center active"
+                                        data-bs-theme-value="light"
+                                        aria-pressed="true">
+                                    <i class="bi-sun-fill theme-icon opacity-50 me-2"></i>
+                                    Light
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center"
+                                        data-bs-theme-value="dark"
+                                        aria-pressed="false">
+                                    <i class="bi-moon-stars-fill theme-icon opacity-50 me-2"></i>
+                                    Dark
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center"
+                                        data-bs-theme-value="auto"
+                                        aria-pressed="false">
+                                    <i class="bi-circle-half theme-icon opacity-50 me-2"></i>
+                                    Auto
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
                 <div class="d-flex flex-column flex-sm-row gap-2">
                     {% if user.is_authenticated %}
                         <a href="{% url 'account_email' %}" class="btn btn-outline-light">
-                            <i class="bi bi-gear"></i>
+                            <i class="bi-gear"></i>
                             {{ user.username }}
                         </a>
                         <a href="{% url 'account_logout' %}" class="btn btn-danger">Sign Out</a>
@@ -116,7 +167,7 @@
                             <li class="mb-2">
                                 <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover"
                                    href="{% url 'admin:index' %}"
-                                   target="_new">Admin</a> <i class="bi bi-box-arrow-up-right"></i>
+                                   target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
                             </li>
                         {% endif %}
                         <li class="mb-2">

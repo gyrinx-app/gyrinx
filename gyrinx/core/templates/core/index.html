@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Gyrinx
+    Home
 {% endblock head_title %}
 {% block content %}
     {% if messages %}
@@ -41,7 +41,7 @@
                         </div>
                         <div class="ms-auto d-md-none">
                             <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                <i class="bi bi-chevron-right"></i>
+                                <i class="bi-chevron-right"></i>
                             </a>
                         </div>
                     </div>
@@ -53,7 +53,7 @@
                 {% if lists|length > 0 %}
                     <div class="d-md-block">
                         <a href="{% url "core:lists-new" %}" class="btn btn-primary">
-                            <i class="bi bi-plus-lg"></i>
+                            <i class="bi-plus-lg"></i>
                         New list</a>
                     </div>
                 {% endif %}

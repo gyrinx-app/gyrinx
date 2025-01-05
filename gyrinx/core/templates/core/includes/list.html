@@ -14,7 +14,7 @@
                     {% if list.owner == user %}
                         <a href="{% url 'core:list-edit' list.id %}"
                            class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-pencil"></i> Edit
+                            <i class="bi-pencil"></i> Edit
                         </a>
                     {% endif %}
                 {% endif %}
@@ -23,19 +23,19 @@
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div class="text-secondary">
-                    <i class="bi bi-person"></i> {{ list.owner }}
+                    <i class="bi-person"></i> {{ list.owner }}
                 </div>
                 {% if not print %}
                     <div class="text-secondary">
                         {% if list.public %}
-                            <i class="bi bi-eye"></i>
+                            <i class="bi-eye"></i>
                             <a data-bs-toggle="tooltip"
                                data-bs-title="This list is visible to all users"
                                href="#"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</a>
                         {% endif %}
                         {% if list.owner == user and not list.public %}
-                            <i class="bi bi-eye-slash"></i>
+                            <i class="bi-eye-slash"></i>
                             <a data-bs-toggle="tooltip"
                                data-bs-title="This list is only visible to you"
                                href="#"
@@ -46,7 +46,7 @@
                     </div>
                     {% if list.archived_fighters|length > 0 %}
                         <div class="text-secondary">
-                            <i class="bi bi-archive"></i>
+                            <i class="bi-archive"></i>
                             <a href="{% url 'core:list-archived-fighters' list.id %}"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
                                 {{ list.archived_fighters|length }} archived fighter{{ list.archived_fighters|length|pluralize }}
@@ -55,7 +55,7 @@
                     {% endif %}
                     {% if list.narrative %}
                         <div class="text-secondary">
-                            <i class="bi bi-file-text"></i>
+                            <i class="bi-file-text"></i>
                             <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
                                href="{% url 'core:list-about' list.id %}">About</a>
                         </div>
@@ -68,15 +68,15 @@
                         {% if list.owner == user %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm">
-                                <i class="bi bi-person-add"></i> Add fighter</a>
+                                <i class="bi-person-add"></i> Add fighter</a>
                         {% endif %}
                         <a href="{% url 'core:list-print' list.id %}"
                            class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-printer"></i> Print
+                            <i class="bi-printer"></i> Print
                         </a>
                         {% if list.owner == user %}
                             <a href="#" class="btn btn-outline-danger btn-sm disabled">
-                                <i class="bi bi-archive"></i> Archive
+                                <i class="bi-archive"></i> Archive
                             </a>
                         {% endif %}
                     </nav>

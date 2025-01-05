@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    "{{ list.name }}" List by {{ list.owner }} | Gyrinx
+    {{ list.name }} | {{ list.owner }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/home.html" %}
