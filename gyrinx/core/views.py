@@ -1,24 +1,15 @@
-from dataclasses import dataclass
 from itertools import zip_longest
 from random import randint
-from typing import List as TList
-from typing import TypeVar, Union
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
-from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.content.models import (
-    ContentEquipment,
-    ContentHouse,
-    ContentPageRef,
-    ContentWeaponProfile,
-)
+from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.forms import (
     EditListForm,
     ListFighterEquipmentAssignmentForm,
@@ -27,10 +18,13 @@ from gyrinx.core.forms import (
     NewListFighterForm,
     NewListForm,
 )
-from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
-
-T = TypeVar("T")
-QuerySetOf = Union[QuerySet, TList[T]]
+from gyrinx.core.models import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    VirtualListFighterEquipmentAssignment,
+)
+from gyrinx.models import QuerySetOf
 
 
 def index(request):
@@ -617,75 +611,6 @@ def edit_list_fighter_gear(request, id, fighter_id):
         "core/list_fighter_gear_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
     )
-
-
-@dataclass
-class VirtualListFighterEquipmentAssignment:
-    """
-    A virtual container that groups a :model:`core.ListFighter` with
-    :model:`content.ContentEquipment` and relevant weapon profiles.
-    """
-
-    fighter: ListFighter
-    equipment: ContentEquipment
-    profiles: QuerySetOf[ContentWeaponProfile]
-
-    @property
-    def category(self):
-        """
-        Return the category code for this equipment.
-        """
-        return self.equipment.category
-
-    def base_cost_int(self):
-        """
-        Return the integer cost for this equipment, factoring in fighter overrides.
-        """
-        return self.equipment.cost_for_fighter
-
-    def base_cost_display(self):
-        """
-        Return a formatted string of the base cost with the '¢' suffix.
-        """
-        return f"{self.base_cost_int()}¢"
-
-    def base_name(self):
-        """
-        Return the equipment's name as a string.
-        """
-        return f"{self.equipment}"
-
-    def all_profiles(self):
-        """
-        Return all profiles for this equipment.
-        """
-        return self.profiles
-
-    def standard_profiles(self):
-        """
-        Return only the standard (cost=0) weapon profiles for this equipment.
-        """
-        return [profile for profile in self.profiles if profile.cost == 0]
-
-    def weapon_profiles_display(self):
-        """
-        Return a list of dictionaries containing each profile and its cost display.
-        """
-        return [
-            {
-                "profile": profile,
-                "cost_int": profile.cost_for_fighter,
-                "cost_display": f"+{profile.cost_for_fighter}¢",
-            }
-            for profile in self.profiles
-            if profile.cost_int() > 0
-        ]
-
-    def cat(self):
-        """
-        Return the human-readable label for the equipment category.
-        """
-        return self.equipment.cat()
 
 
 @login_required

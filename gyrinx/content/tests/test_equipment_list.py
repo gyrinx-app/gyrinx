@@ -148,12 +148,12 @@ def test_content_equipment_manager():
     assert (
         ContentEquipment.objects.with_cost_for_fighter(fighter)
         .get(pk=spoon.pk)
-        .cost_for_fighter
+        .cost_for_fighter_int()
         == 0
     )
     assert (
         ContentWeaponProfile.objects.with_cost_for_fighter(fighter)
         .get(pk=knife_profile_upgraded.pk)
-        .cost_for_fighter
+        .cost_for_fighter_int()
         == 5
     )

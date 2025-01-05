@@ -209,6 +209,14 @@ class ContentEquipment(Content):
             return ""
         return f"{self.cost}¢"
 
+    def cost_for_fighter_int(self):
+        if hasattr(self, "cost_for_fighter"):
+            return self.cost_for_fighter
+
+        raise AttributeError(
+            "cost_for_fighter not available. Use with_cost_for_fighter()"
+        )
+
     def cat(self):
         """
         Returns the human-readable label of the equipment's category.
@@ -610,6 +618,14 @@ class ContentWeaponProfile(Content):
         if self.name == "" or self.cost_int() == 0:
             return ""
         return f"{self.cost_sign}{self.cost_int()}¢"
+
+    def cost_for_fighter_int(self):
+        if hasattr(self, "cost_for_fighter"):
+            return self.cost_for_fighter
+
+        raise AttributeError(
+            "cost_for_fighter not available. Use with_cost_for_fighter()"
+        )
 
     def statline(self):
         """

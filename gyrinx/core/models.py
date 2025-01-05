@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from django.contrib import admin
 from django.core import validators
 from django.core.exceptions import ValidationError
@@ -13,7 +15,7 @@ from gyrinx.content.models import (
     ContentSkill,
     ContentWeaponProfile,
 )
-from gyrinx.models import Archived, Base, Owned
+from gyrinx.models import Archived, Base, Owned, QuerySetOf
 
 
 class AppBase(Base, Owned, Archived):
@@ -341,3 +343,72 @@ class ListFighterEquipmentAssignment(AppBase):
             raise ValidationError(
                 f"{self.weapon_profile} is not a profile for {self.content_equipment}"
             )
+
+
+@dataclass
+class VirtualListFighterEquipmentAssignment:
+    """
+    A virtual container that groups a :model:`core.ListFighter` with
+    :model:`content.ContentEquipment` and relevant weapon profiles.
+    """
+
+    fighter: ListFighter
+    equipment: ContentEquipment
+    profiles: QuerySetOf[ContentWeaponProfile]
+
+    @property
+    def category(self):
+        """
+        Return the category code for this equipment.
+        """
+        return self.equipment.category
+
+    def base_cost_int(self):
+        """
+        Return the integer cost for this equipment, factoring in fighter overrides.
+        """
+        return self.equipment.cost_for_fighter_int()
+
+    def base_cost_display(self):
+        """
+        Return a formatted string of the base cost with the '¢' suffix.
+        """
+        return f"{self.base_cost_int()}¢"
+
+    def base_name(self):
+        """
+        Return the equipment's name as a string.
+        """
+        return f"{self.equipment}"
+
+    def all_profiles(self):
+        """
+        Return all profiles for this equipment.
+        """
+        return self.profiles
+
+    def standard_profiles(self):
+        """
+        Return only the standard (cost=0) weapon profiles for this equipment.
+        """
+        return [profile for profile in self.profiles if profile.cost == 0]
+
+    def weapon_profiles_display(self):
+        """
+        Return a list of dictionaries containing each profile and its cost display.
+        """
+        return [
+            {
+                "profile": profile,
+                "cost_int": profile.cost_for_fighter_int(),
+                "cost_display": f"+{profile.cost_for_fighter_int()}¢",
+            }
+            for profile in self.profiles
+            if profile.cost_int() > 0
+        ]
+
+    def cat(self):
+        """
+        Return the human-readable label for the equipment category.
+        """
+        return self.equipment.cat()

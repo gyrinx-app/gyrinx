@@ -1,6 +1,8 @@
 import uuid
+from typing import List, TypeVar, Union
 
 from django.db import models
+from django.db.models import QuerySet
 from django.utils import timezone
 
 
@@ -89,3 +91,7 @@ class EquipmentCategoryChoices(models.TextChoices):
     CYBERTEKNIKA = "CYBERTEKNIKA", "Cyberteknika"
     FIELD_ARMOUR = "FIELD_ARMOUR", "Field Armour"
     GANG_EQUIPMENT = "GANG_EQUIPMENT", "Gang Equipment"
+
+
+T = TypeVar("T")
+QuerySetOf = Union[QuerySet, List[T]]
