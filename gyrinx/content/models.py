@@ -689,6 +689,66 @@ class ContentWeaponProfile(Content):
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
+class ContentFighterDefaultAssignment(Content):
+    """
+    Associates a fighter with a piece of equipment by default, including weapon profiles.
+    """
+
+    help_text = "Captures the default equipment assignments for a fighter."
+    fighter = models.ForeignKey(
+        ContentFighter,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name="default_assignments",
+    )
+    equipment = models.ForeignKey(
+        ContentEquipment, on_delete=models.CASCADE, db_index=True
+    )
+    weapon_profiles = models.ManyToManyField(ContentWeaponProfile, blank=True)
+    cost = models.IntegerField(
+        default=0, help_text="You typically should not overwrite this."
+    )
+    history = HistoricalRecords()
+
+    def cost_int(self):
+        """
+        Returns the integer cost of this item.
+        """
+        return self.cost
+
+    def cost_display(self):
+        """
+        Returns a cost display string with '¢'.
+        """
+        return f"{self.cost}¢"
+
+    def __str__(self):
+        profiles_names = ", ".join(
+            [profile.name for profile in self.weapon_profiles.all()]
+        )
+        return f"{self.fighter} {self.equipment}" + (
+            f" ({profiles_names})" if profiles_names else ""
+        )
+
+    class Meta:
+        verbose_name = "Default Assignment"
+        verbose_name_plural = "Default Assignments"
+        unique_together = ["fighter", "equipment"]
+        ordering = ["fighter__type", "equipment__name"]
+
+    def clean(self):
+        """
+        Validation to ensure cost is not negative and that any weapon profiles
+        are associated with the correct equipment.
+        """
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
+
+        for profile in self.weapon_profiles.all():
+            if profile.equipment != self.equipment:
+                raise ValidationError("Weapon profiles must be for the same equipment.")
+
+
 def check(rule, category, name):
     """
     Check if the rule applies to the given category and name.

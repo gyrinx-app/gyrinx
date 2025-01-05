@@ -8,6 +8,7 @@ from .models import (
     ContentBook,
     ContentEquipment,
     ContentFighter,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentPageRef,
@@ -73,8 +74,17 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterEquipmentListItemAdminForm
 
 
+@admin.register(ContentFighterDefaultAssignment)
+class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
+
+
 class ContentFighterEquipmentInline(ContentTabularInline):
     model = ContentFighterEquipmentListItem
+
+
+class ContentFighterDefaultAssignmentInline(ContentTabularInline):
+    model = ContentFighterDefaultAssignment
 
 
 class ContentFighterForm(forms.ModelForm):
@@ -85,7 +95,7 @@ class ContentFighterForm(forms.ModelForm):
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
-    inlines = [ContentFighterEquipmentInline]
+    inlines = [ContentFighterEquipmentInline, ContentFighterDefaultAssignmentInline]
 
 
 class ContentFighterInline(ContentTabularInline):
