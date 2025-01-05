@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "gyrinx.core",
     "gyrinx.content",
+    "gyrinx.feedback",
     "tinymce",
 ]
 
@@ -107,6 +108,7 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
             BASE_DIR / "gyrinx/core/templates",
+            BASE_DIR / "gyrinx/feedback/templates",
         ],
         "APP_DIRS": True,
         "OPTIONS": {

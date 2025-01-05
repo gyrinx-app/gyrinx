@@ -20,6 +20,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path("", include("gyrinx.core.urls")),
+    path("feedback/", include("gyrinx.feedback.urls")),
     path("accounts/", include("allauth.urls")),
     path("admin/doc/", include("django.contrib.admindocs.urls")),
     path("admin/", admin.site.urls),
