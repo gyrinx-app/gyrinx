@@ -23,8 +23,32 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
 (() => {
     "use strict";
 
-    const getStoredTheme = () => localStorage.getItem("theme");
-    const setStoredTheme = (theme) => localStorage.setItem("theme", theme);
+    const getCookie = (name) => {
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(";");
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) == " ") {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name + "=") == 0) {
+                return c.substring(name.length + 1, c.length);
+            }
+        }
+        return null;
+    };
+
+    const setCookie = (name, value, days) => {
+        const d = new Date();
+        d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+        const expires = "expires=" + d.toUTCString();
+        document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    };
+
+    const getStoredTheme = () => getCookie("theme");
+    const setStoredTheme = (theme) => setCookie("theme", theme, 365);
+    const setStoredActiveTheme = (theme) =>
+        setCookie("theme_active", theme, 365);
 
     const getPreferredTheme = () => {
         const storedTheme = getStoredTheme();
@@ -48,6 +72,9 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
         } else {
             document.documentElement.setAttribute("data-bs-theme", theme);
         }
+        setStoredActiveTheme(
+            document.documentElement.getAttribute("data-bs-theme"),
+        );
     };
 
     setTheme(getPreferredTheme());

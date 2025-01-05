@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 {% load static custom_tags %}
-<html lang="en" data-bs-theme="auto">
+<html lang="en"
+      data-bs-theme="{% if request.COOKIES.theme_active %}{{ request.COOKIES.theme_active }}{% else %}auto{% endif %}">
+    <!-- {{ request.COOKIES.theme_active }}-->
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
