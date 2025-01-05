@@ -1,7 +1,12 @@
+import re
+
+import qrcode
+import qrcode.image.svg
 from django import template
 from django.conf import settings
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from gyrinx.content.models import ContentPageRef
 
@@ -125,6 +130,24 @@ def ref(*args, category=None, value=None):
         "#",
         value,
     )
+
+
+@register.simple_tag
+def qr_svg(value):
+    code = qrcode.make(
+        value, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=0
+    ).to_string(encoding="unicode")
+
+    code = re.sub(r'width="\d+mm"', "", code)
+    code = re.sub(r'height="\d+mm"', "", code)
+    code = re.sub(r"<svg ", '<svg width="100%" height="100%" ', code)
+
+    return mark_safe(code)
+
+
+@register.simple_tag(takes_context=True)
+def fullurl(context, path):
+    return context["request"].build_absolute_uri(path)
 
 
 @register.simple_tag

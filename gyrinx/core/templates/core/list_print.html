@@ -1,10 +1,20 @@
 {% extends "core/layouts/base_print.html" %}
-{% load allauth %}
+{% load allauth custom_tags %}
 {% block head_title %}
     {{ list.name }} | {{ list.content_house.name }}
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="p-2">
-        <div class="col px-0 vstack gap-5">{% include "core/includes/list.html" with list=list print=True %}</div>
+        <div class="col px-0 vstack gap-5">
+            {% include "core/includes/list.html" with list=list print=True %}
+            <div id="qr" class="card card-body gap-2 align-items-center">
+                {% url 'core:list-print' list.id as list_url %}
+                {% fullurl list_url as full_list_url %}
+                <div id="qr-code" class="col-4 col-sm-3 col-md-2">{% qr_svg full_list_url %}</div>
+                <div>
+                    Share &amp; return to <a href="{{ full_list_url }}">this page</a> later.
+                </div>
+            </div>
+        </div>
     </div>
 {% endblock content %}
