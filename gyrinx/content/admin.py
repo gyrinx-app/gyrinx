@@ -74,9 +74,21 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterEquipmentListItemAdminForm
 
 
+class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.equipment_id:
+            self.fields[
+                "weapon_profiles_field"
+            ].queryset = ContentWeaponProfile.objects.filter(
+                equipment=self.instance.equipment
+            )
+
+
 @admin.register(ContentFighterDefaultAssignment)
 class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
+    search_fields = ["fighter__type", "equipment__name", "weapon_profiles_field__name"]
+    form = ContentFighterDefaultAssignmentAdminForm
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):

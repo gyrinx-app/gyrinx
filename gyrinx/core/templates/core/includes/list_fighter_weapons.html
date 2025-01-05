@@ -29,6 +29,7 @@
     {% for assign in weapons %}
         <tbody class="table-group-divider {% flash assign.id %}"
                id="assign-{{ assign.id }}">
+            <!-- {{ assign.id }} ({{ assign.kind }}) -->
             {% comment %} Base-case: one profile for the weapon {% endcomment %}
             {% if assign.all_profiles|length == 1 %}
                 {% with assign.all_profiles.0 as profile %}
@@ -76,31 +77,32 @@
                 {% endfor %}
                 {% comment %} Non-standard profile(s) {% endcomment %}
                 {% for pd in assign.weapon_profiles_display %}
-                    {% comment %} This cost if should be unnecessary but it's good hygiene {% endcomment %}
-                    {% if pd.cost_int > 0 %}
-                        <tr class="align-top">
-                            <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                                {% if mode == 'add' %}
-                                    <div class="form-check">
-                                        <input type="checkbox"
-                                               name="weapon_profiles_field"
-                                               value="{{ pd.profile.id }}"
-                                               id="profile-{{ pd.profile.id }}"
-                                               form="weapon-{{ assign.equipment.id }}"
-                                               class="form-check-input">
-                                        <label class="form-check-label" for="profile-{{ pd.profile.id }}">{{ pd.profile.name }} ({{ pd.cost_display }})</label>
-                                    </div>
-                                {% else %}
-                                    - {{ pd.profile.name }} ({{ pd.cost_display }})
-                                {% endif %}
-                            </td>
-                            {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                    <tr class="align-top">
+                        <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                            {% if mode == 'add' %}
+                                <div class="form-check">
+                                    <input type="checkbox"
+                                           name="weapon_profiles_field"
+                                           value="{{ pd.profile.id }}"
+                                           id="profile-{{ pd.profile.id }}"
+                                           form="weapon-{{ assign.equipment.id }}"
+                                           class="form-check-input">
+                                    <label class="form-check-label" for="profile-{{ pd.profile.id }}">
+                                        {{ pd.profile.name }}
+                                        {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                                    </label>
+                                </div>
+                            {% else %}
+                                - {{ pd.profile.name }}
+                                {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                            {% endif %}
+                        </td>
+                        {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                    </tr>
+                    {% if pd.profile.traitline|length > 0 %}
+                        <tr>
+                            <td colspan="9">{{ pd.profile.traitline|join:", " }}</td>
                         </tr>
-                        {% if pd.profile.traitline|length > 0 %}
-                            <tr>
-                                <td colspan="9">{{ pd.profile.traitline|join:", " }}</td>
-                            </tr>
-                        {% endif %}
                     {% endif %}
                 {% endfor %}
             {% endif %}
@@ -118,7 +120,7 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if mode == 'edit' %}
+            {% if mode == 'edit' and assign.kind == 'assigned' %}
                 <tr>
                     <td colspan="9" class="text-end">
                         <div class="d-flex btn-group">

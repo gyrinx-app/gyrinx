@@ -720,7 +720,7 @@ class ContentFighterDefaultAssignment(Content):
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
-    weapon_profiles = models.ManyToManyField(ContentWeaponProfile, blank=True)
+    weapon_profiles_field = models.ManyToManyField(ContentWeaponProfile, blank=True)
     cost = models.IntegerField(
         default=0, help_text="You typically should not overwrite this."
     )
@@ -755,17 +755,17 @@ class ContentFighterDefaultAssignment(Content):
         return result
 
     def standard_profiles(self):
-        return ContentWeaponProfile.objects.filter(
-            equipment=self.content_equipment, cost=0
-        )
+        return ContentWeaponProfile.objects.filter(equipment=self.equipment, cost=0)
+
+    def weapon_profiles(self):
+        return list(self.weapon_profiles_field.all())
 
     def __str__(self):
-        profiles_names = ", ".join(
-            [profile.name for profile in self.weapon_profiles.all()]
-        )
-        return f"{self.fighter} {self.equipment}" + (
-            f" ({profiles_names})" if profiles_names else ""
-        )
+        return f"{self.fighter} – {self.name()}"
+
+    def name(self):
+        profiles_names = ", ".join([profile.name for profile in self.weapon_profiles()])
+        return f"{self.equipment}" + (f" ({profiles_names})" if profiles_names else "")
 
     class Meta:
         verbose_name = "Default Assignment"
@@ -781,7 +781,7 @@ class ContentFighterDefaultAssignment(Content):
         if self.cost_int() < 0:
             raise ValidationError("Cost cannot be negative.")
 
-        for profile in self.weapon_profiles.all():
+        for profile in self.weapon_profiles_field.all():
             if profile.equipment != self.equipment:
                 raise ValidationError("Weapon profiles must be for the same equipment.")
 

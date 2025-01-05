@@ -1,3 +1,4 @@
+import uuid
 from dataclasses import dataclass
 from typing import Union
 
@@ -133,6 +134,9 @@ class ListFighter(AppBase):
             for a in self.equipment.through.objects.filter(list_fighter=self).order_by(
                 "list_fighter__name"
             )
+        ] + [
+            VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
+            for a in self.content_fighter.default_assignments.all()
         ]
 
     def skilline(self):
@@ -387,10 +391,21 @@ class VirtualListFighterEquipmentAssignment:
             _assignment=assignment,
         )
 
+    @classmethod
+    def from_default_assignment(
+        cls, assignment: ContentFighterDefaultAssignment, fighter: ListFighter
+    ):
+        return cls(
+            fighter=fighter,
+            equipment=assignment.equipment,
+            profiles=assignment.all_profiles(),
+            _assignment=assignment,
+        )
+
     @property
     def id(self):
         if not self._assignment:
-            return None
+            return uuid.uuid4()
 
         return self._assignment.id
 
@@ -410,6 +425,15 @@ class VirtualListFighterEquipmentAssignment:
             return f"{self.equipment.name} (Virtual)"
 
         return self._assignment.name()
+
+    def kind(self):
+        if not self._assignment:
+            return "virtual"
+
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return "default"
+
+        return "assigned"
 
     def base_cost_int(self):
         """

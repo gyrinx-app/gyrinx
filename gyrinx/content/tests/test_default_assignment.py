@@ -35,8 +35,10 @@ def test_default_assignment_with_weapon_profile():
     )
 
     fighter_equip = fighter.default_assignments.create(equipment=spoon)
-    spoon_profile = fighter_equip.weapon_profiles.create(equipment=spoon)
+    spoon_profile = fighter_equip.weapon_profiles_field.create(equipment=spoon)
 
     assert fighter.default_assignments.count() == 1
     assert fighter.default_assignments.first().equipment == spoon
-    assert fighter.default_assignments.first().weapon_profiles.contains(spoon_profile)
+    assert fighter.default_assignments.first().weapon_profiles_field.contains(
+        spoon_profile
+    )
