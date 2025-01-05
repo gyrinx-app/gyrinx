@@ -738,6 +738,27 @@ class ContentFighterDefaultAssignment(Content):
         """
         return f"{self.cost}¢"
 
+    def is_weapon(self):
+        return self.equipment.is_weapon()
+
+    def all_profiles(self):
+        """Return all profiles for the equipment, including the default profiles."""
+        standard_profiles = list(self.standard_profiles())
+        weapon_profiles = self.weapon_profiles()
+
+        seen = set()
+        result = []
+        for p in standard_profiles + weapon_profiles:
+            if p.id not in seen:
+                seen.add(p.id)
+                result.append(p)
+        return result
+
+    def standard_profiles(self):
+        return ContentWeaponProfile.objects.filter(
+            equipment=self.content_equipment, cost=0
+        )
+
     def __str__(self):
         profiles_names = ", ".join(
             [profile.name for profile in self.weapon_profiles.all()]

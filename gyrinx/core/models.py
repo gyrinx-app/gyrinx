@@ -128,9 +128,12 @@ class ListFighter(AppBase):
         return assign
 
     def assignments(self):
-        return self.equipment.through.objects.filter(list_fighter=self).order_by(
-            "list_fighter__name"
-        )
+        return [
+            VirtualListFighterEquipmentAssignment.from_assignment(a)
+            for a in self.equipment.through.objects.filter(list_fighter=self).order_by(
+                "list_fighter__name"
+            )
+        ]
 
     def skilline(self):
         return [s.name for s in self.skills.all()]
@@ -358,21 +361,38 @@ class VirtualListFighterEquipmentAssignment:
     """
     A virtual container that groups a :model:`core.ListFighter` with
     :model:`content.ContentEquipment` and relevant weapon profiles.
+
+    The cases this handles:
+    * _assignment is None: Used for generating the add/edit equipment page: all the "potential"
+        assignments for a fighter.
+    * _assignment is a ContentFighterDefaultAssignment: Used to abstract over the fighter's default
+        equipment assignments so that we can treat them as if they were ListFighterEquipmentAssignments.
+    * _assignment is a ListFighterEquipmentAssignment: Used to abstract over the fighter's specific
+        equipment assignments so that we can handle the above two cases.
     """
 
     fighter: ListFighter
     equipment: ContentEquipment
     profiles: QuerySetOf[ContentWeaponProfile]
-    _assignment: Union[ListFighterEquipmentAssignment, ContentFighterDefaultAssignment]
+    _assignment: (
+        Union[ListFighterEquipmentAssignment, ContentFighterDefaultAssignment] | None
+    ) = None
 
     @classmethod
     def from_assignment(cls, assignment: ListFighterEquipmentAssignment):
         return cls(
             fighter=assignment.list_fighter,
             equipment=assignment.content_equipment,
-            profiles=assignment.weapon_profiles_field.all(),
+            profiles=assignment.all_profiles(),
             _assignment=assignment,
         )
+
+    @property
+    def id(self):
+        if not self._assignment:
+            return None
+
+        return self._assignment.id
 
     @property
     def category(self):
@@ -381,10 +401,23 @@ class VirtualListFighterEquipmentAssignment:
         """
         return self.equipment.category
 
+    @property
+    def content_equipment(self):
+        return self.equipment
+
+    def name(self):
+        if not self._assignment:
+            return f"{self.equipment.name} (Virtual)"
+
+        return self._assignment.name()
+
     def base_cost_int(self):
         """
         Return the integer cost for this equipment, factoring in fighter overrides.
         """
+        if not self._assignment:
+            return self.equipment.cost_for_fighter_int()
+
         if isinstance(self._assignment, ContentFighterDefaultAssignment):
             return 0
 
@@ -412,6 +445,9 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the integer cost for all weapon profiles, factoring in fighter overrides.
         """
+        if not self._assignment:
+            return sum([profile.cost_for_fighter_int() for profile in self.profiles])
+
         if isinstance(self._assignment, ContentFighterDefaultAssignment):
             return 0
 
@@ -427,13 +463,19 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return all profiles for this equipment.
         """
-        return self.profiles
+        if not self._assignment:
+            return self.profiles
+
+        return self._assignment.all_profiles()
 
     def standard_profiles(self):
         """
         Return only the standard (cost=0) weapon profiles for this equipment.
         """
-        return [profile for profile in self.profiles if profile.cost == 0]
+        if not self._assignment:
+            return [profile for profile in self.profiles if profile.cost == 0]
+
+        return self._assignment.standard_profiles()
 
     def weapon_profiles_display(self):
         """
@@ -450,6 +492,9 @@ class VirtualListFighterEquipmentAssignment:
         ]
 
     def _weapon_profile_cost(self, profile):
+        if not self._assignment:
+            return profile.cost_for_fighter_int()
+
         if isinstance(self._assignment, ContentFighterDefaultAssignment):
             return 0
 
@@ -460,3 +505,6 @@ class VirtualListFighterEquipmentAssignment:
         Return the human-readable label for the equipment category.
         """
         return self.equipment.cat()
+
+    def is_weapon(self):
+        return self.equipment.is_weapon()
