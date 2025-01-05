@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union
 
 from django.contrib import admin
 from django.core import validators
@@ -10,6 +11,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentSkill,
@@ -290,6 +292,9 @@ class ListFighterEquipmentAssignment(AppBase):
         return f"{self.cost_int()}¢"
 
     def _equipment_cost_with_override(self):
+        if hasattr(self.content_equipment, "cost_for_fighter"):
+            return self.content_equipment.cost_for_fighter_int()
+
         try:
             override = ContentFighterEquipmentListItem.objects.get(
                 fighter=self.list_fighter.content_fighter,
@@ -312,6 +317,9 @@ class ListFighterEquipmentAssignment(AppBase):
         return sum(after_overrides)
 
     def _profile_cost_with_override_for_profile(self, profile):
+        if hasattr(profile, "cost_for_fighter"):
+            return profile.cost_for_fighter_int()
+
         try:
             override = ContentFighterEquipmentListItem.objects.get(
                 fighter=self.list_fighter.content_fighter,
@@ -355,6 +363,16 @@ class VirtualListFighterEquipmentAssignment:
     fighter: ListFighter
     equipment: ContentEquipment
     profiles: QuerySetOf[ContentWeaponProfile]
+    _assignment: Union[ListFighterEquipmentAssignment, ContentFighterDefaultAssignment]
+
+    @classmethod
+    def from_assignment(cls, assignment: ListFighterEquipmentAssignment):
+        return cls(
+            fighter=assignment.list_fighter,
+            equipment=assignment.content_equipment,
+            profiles=assignment.weapon_profiles_field.all(),
+            _assignment=assignment,
+        )
 
     @property
     def category(self):
@@ -367,13 +385,37 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the integer cost for this equipment, factoring in fighter overrides.
         """
-        return self.equipment.cost_for_fighter_int()
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.base_cost_int()
 
     def base_cost_display(self):
         """
         Return a formatted string of the base cost with the '¢' suffix.
         """
         return f"{self.base_cost_int()}¢"
+
+    def cost_int(self):
+        """
+        Return the integer cost for this equipment, factoring in fighter overrides.
+        """
+        return self.base_cost_int() + self.profiles_cost_int()
+
+    def cost_display(self):
+        """
+        Return a formatted string of the total cost with the '¢' suffix.
+        """
+        return f"{self.cost_int()}¢"
+
+    def profiles_cost_int(self):
+        """
+        Return the integer cost for all weapon profiles, factoring in fighter overrides.
+        """
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.weapon_profiles_cost_int()
 
     def base_name(self):
         """
@@ -400,12 +442,18 @@ class VirtualListFighterEquipmentAssignment:
         return [
             {
                 "profile": profile,
-                "cost_int": profile.cost_for_fighter_int(),
-                "cost_display": f"+{profile.cost_for_fighter_int()}¢",
+                "cost_int": self._weapon_profile_cost(profile),
+                "cost_display": f"+{self._weapon_profile_cost(profile)}¢",
             }
             for profile in self.profiles
             if profile.cost_int() > 0
         ]
+
+    def _weapon_profile_cost(self, profile):
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.profile_cost_int(profile)
 
     def cat(self):
         """

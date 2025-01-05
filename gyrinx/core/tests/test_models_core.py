@@ -10,7 +10,12 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    VirtualListFighterEquipmentAssignment,
+)
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
@@ -915,7 +920,7 @@ def test_weapon_with_multiple_costed_profiles():
 
     assert fighter.cost_int() == 100
 
-    # Assign the first costed profile to the fighter
+    # Assign both costed profile to the fighter
     assignment = fighter.assign(
         spoon, weapon_profiles=[spoon_profile_costed1, spoon_profile_costed2]
     )
@@ -935,6 +940,73 @@ def test_weapon_with_multiple_costed_profiles():
     assert first_assign.cost_int() == 22
 
     assert assignment.weapon_profiles_display() == [
+        dict(
+            profile=spoon_profile_costed1,
+            cost_int=5,
+            cost_display="+5¢",
+        ),
+        dict(
+            profile=spoon_profile_costed2,
+            cost_int=7,
+            cost_display="+7¢",
+        ),
+    ]
+
+
+@pytest.mark.django_db
+def test_virtual_assignments():
+    category, house, content_fighter = make_content()
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    # Create multiple profiles for the same equipment
+    spoon_profile1, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile 1",
+    )
+
+    spoon_profile_costed1, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile with Cost 1",
+        cost=5,
+    )
+
+    spoon_profile_costed2, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="Profile with Cost 2",
+        cost=7,
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == 100
+
+    # Assign both costed profile to the fighter
+    assignment = fighter.assign(
+        spoon, weapon_profiles=[spoon_profile_costed1, spoon_profile_costed2]
+    )
+
+    v_assignment = VirtualListFighterEquipmentAssignment.from_assignment(assignment)
+
+    assert (
+        fighter.cost_int() == 122
+    )  # 100 base + 10 spoon + 5 profile cost + 7 profile cost
+
+    assert v_assignment.cost_int() == 22
+
+    weapon_assigns = fighter.weapons()
+    assert len(weapon_assigns) == 1
+
+    first_assign = weapon_assigns[0]
+    assert first_assign.cost_int() == 22
+
+    assert v_assignment.weapon_profiles_display() == [
         dict(
             profile=spoon_profile_costed1,
             cost_int=5,
