@@ -526,15 +526,19 @@ class ContentWeaponProfile(Content):
         null=True,
         blank=False,
     )
-    name = models.CharField(max_length=255, blank=True)
+    name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Leave blank if the profile has no name (i.e. is the default statline). Don't include the hyphen for named profiles.",
+    )
     help_text = "Captures the cost, rarity and statline for a weapon."
 
     # If the cost is zero, then the profile is free to use and "standard".
     cost = models.IntegerField(
         default=0,
         help_text="The credit cost of the weapon profile at the Trading Post. If the cost is zero, "
-        "then the profile is free to use and standard. This cost is overridden if the "
-        "profile is in the fighter's equipment list.",
+        "then the profile is free to use and standard. This cost can be overridden by the "
+        "fighter's equipment list.",
     )
     cost_sign = models.CharField(
         max_length=1,
@@ -553,6 +557,7 @@ class ContentWeaponProfile(Content):
         ],
         blank=True,
         default="C",
+        help_text="Use 'E' to exclude this profile from the Trading Post.",
     )
     rarity_roll = models.IntegerField(blank=True, null=True)
 
@@ -682,6 +687,40 @@ class ContentWeaponProfile(Content):
         Validation to ensure appropriate costs and cost signs for standard
         vs non-standard weapon profiles.
         """
+        print("model clean", self)
+        self.name = self.name.strip()
+
+        if self.name.startswith("-"):
+            raise ValidationError("Name should not start with a hyphen.")
+
+        if self.name == "(Standard)":
+            raise ValidationError('Name should not be "(Standard)".')
+
+        # Ensure that specific fields are not hyphens
+        for field in [
+            "range_short",
+            "range_long",
+            "accuracy_short",
+            "accuracy_long",
+            "strength",
+            "armour_piercing",
+            "damage",
+            "ammo",
+        ]:
+            setattr(self, field, getattr(self, field).strip())
+            value = getattr(self, field)
+            if value == "-":
+                setattr(self, field, "")
+
+            if field in [
+                "range_short",
+                "range_long",
+                "accuracy_short",
+                "accuracy_long",
+            ]:
+                if value and value[0].isdigit() and not value.endswith('"'):
+                    setattr(self, field, f'{value}"')
+
         if self.cost_int() < 0:
             raise ValidationError("Cost cannot be negative.")
 
