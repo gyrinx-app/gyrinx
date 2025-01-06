@@ -99,7 +99,8 @@ class ListFighterSkillsForm(forms.ModelForm):
 class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
     def label_from_instance(self, obj):
         cost = obj.cost_override if obj.cost_override is not None else obj.cost
-        return f"{obj.name} ({cost}¢)"
+        unit = "¢" if str(cost).strip().isnumeric() else ""
+        return f"{obj.name} ({cost}{unit})"
 
 
 class ListFighterGearForm(forms.ModelForm):

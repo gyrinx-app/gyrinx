@@ -414,6 +414,18 @@ def test_content_weapon_profile_validation():
     assert profile.range_short == '4"'
 
 
+@pytest.mark.django_db
+def test_equipment_with_cost_2D6X10():
+    equipment = ContentEquipment.objects.create(
+        name="Random Cost Equipment",
+        cost="2D6X10",
+    )
+
+    assert equipment.cost == "2D6X10"
+    assert equipment.cost_int() == 0
+    assert equipment.cost_display() == "2D6X10"
+
+
 @dataclass
 class PolicyCase:
     name: str

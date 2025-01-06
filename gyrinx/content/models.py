@@ -108,9 +108,11 @@ class ContentEquipmentManager(models.Manager):
             .get_queryset()
             .annotate(
                 cost_cast_int=Case(
-                    When(cost="", then=0),
-                    When(cost="-", then=0),
-                    default=Cast("cost", models.IntegerField()),
+                    When(
+                        Q(cost__regex=r"^\d+$"),
+                        then=Cast("cost", models.IntegerField()),
+                    ),
+                    default=0,
                 ),
                 has_weapon_profiles=Exists(
                     ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
@@ -185,6 +187,7 @@ class ContentEquipment(Content):
         ],
         blank=True,
         default="C",
+        help_text="Use 'E' to exclude this equipment from the Trading Post.",
     )
     rarity_roll = models.IntegerField(blank=True, null=True)
 
@@ -199,12 +202,17 @@ class ContentEquipment(Content):
         """
         if not self.cost:
             return 0
+        if not str(self.cost).isnumeric():
+            return 0
         return int(self.cost)
 
     def cost_display(self):
         """
         Returns a readable cost string with a '¢' suffix.
         """
+        if not str(self.cost).isnumeric():
+            return f"{self.cost}"
+
         if not self.cost:
             return ""
         return f"{self.cost}¢"
@@ -250,6 +258,11 @@ class ContentEquipment(Content):
         verbose_name_plural = "Equipment"
         unique_together = ["name", "category"]
         ordering = ["name"]
+
+    def clean(self):
+        self.name = self.name.strip()
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
 
     objects = ContentEquipmentManager.from_queryset(ContentEquipmentQuerySet)()
 
