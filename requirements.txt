@@ -1,11 +1,11 @@
 asgiref==3.8.1
-click==8.1.7
+click==8.1.8
 daphne==4.1.2
 Django==5.1.4
-django-allauth==65.3.0
+django-allauth==65.3.1
 django-simple-history==3.7.0
 django-tinymce==4.1.0
-djlint==1.36.3
+djlint==1.36.4
 docutils==0.21.2
 google-cloud-logging==3.11.3
 jsonschema==4.23.0
@@ -20,7 +20,7 @@ pytest-watcher==0.4.3
 python-dotenv==1.0.1
 qrcode==8.0
 referencing==0.35.1
-ruff==0.8.3
-setuptools==75.6.0
+ruff==0.8.6
+setuptools==75.7.0
 sqlparse==0.5.3
 whitenoise==6.8.2
