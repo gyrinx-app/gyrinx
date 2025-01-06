@@ -23,6 +23,11 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
 (() => {
     "use strict";
 
+    const getThemeFromQueryParam = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get("theme");
+    };
+
     const getCookie = (name) => {
         const decodedCookie = decodeURIComponent(document.cookie);
         const ca = decodedCookie.split(";");
@@ -51,6 +56,10 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
         setCookie("theme_active", theme, 365);
 
     const getPreferredTheme = () => {
+        if (getThemeFromQueryParam()) {
+            return getThemeFromQueryParam();
+        }
+
         const storedTheme = getStoredTheme();
         if (storedTheme) {
             return storedTheme;
@@ -142,3 +151,48 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
         });
     });
 })();
+
+document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
+    element.addEventListener("click", () => {
+        const textToCopy = element.getAttribute("data-clipboard-text");
+        if (!textToCopy) return;
+
+        const messageElemId = element.getAttribute("data-clipboard-message");
+
+        const success = () => {
+            if (messageElemId) {
+                const messageElem = document.getElementById(messageElemId);
+                if (messageElem) {
+                    messageElem.classList.remove("d-none");
+                    setTimeout(() => {
+                        messageElem.classList.add("d-none");
+                    }, 2000);
+                }
+            }
+        };
+
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(textToCopy).then(
+                () => {
+                    console.log("Text copied to clipboard", textToCopy);
+                    success();
+                },
+                (err) => {
+                    console.error("Could not copy text: ", err);
+                },
+            );
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand("copy");
+                success();
+            } catch (err) {
+                console.error("Could not copy text: ", err);
+            }
+            document.body.removeChild(textArea);
+        }
+    });
+});

@@ -60,6 +60,11 @@ urlpatterns = [
         views.delete_list_fighter_weapon,
         name="list-fighter-weapon-delete",
     ),
+    path(
+        "list/<id>/fighter/<fighter_id>/embed",
+        views.embed_list_fighter,
+        name="list-fighter-embed",
+    ),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
     path("cookies", views.cookies, name="cookies"),
 ]

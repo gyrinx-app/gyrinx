@@ -1,0 +1,13 @@
+{% extends "core/layouts/base_print.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div id="content" class="p-2">
+        {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=True classes="d-block" %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@iframe-resizer/child@5.3.2"
+            type="text/javascript"
+            async></script>
+{% endblock content %}

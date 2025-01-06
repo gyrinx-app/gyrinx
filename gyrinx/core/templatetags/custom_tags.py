@@ -147,6 +147,9 @@ def qr_svg(value):
 
 @register.simple_tag(takes_context=True)
 def fullurl(context, path):
+    base_url = getattr(settings, "BASE_URL", None)
+    if base_url:
+        return base_url.rstrip("/") + "/" + path.lstrip("/")
     return context["request"].build_absolute_uri(path)
 
 

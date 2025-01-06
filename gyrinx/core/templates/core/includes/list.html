@@ -74,6 +74,13 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-printer"></i> Print
                         </a>
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#embedOffcanvas"
+                                aria-controls="embedOffcanvas">
+                            <i class="bi-person-bounding-box"></i> Embed
+                        </button>
                         {% if list.owner == user %}
                             <a href="#" class="btn btn-outline-danger btn-sm disabled">
                                 <i class="bi-archive"></i> Archive
@@ -90,5 +97,48 @@
         {% empty %}
             <div class="g-col-12 py-2">This List is empty.</div>
         {% endfor %}
+    </div>
+    <div class="offcanvas offcanvas-end"
+         tabindex="-1"
+         id="embedOffcanvas"
+         aria-labelledby="embedOffcanvasLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="embedOffcanvasLabel">Embed Code</h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="offcanvas"
+                    aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <ul class="list-group">
+                <p>Copy the code below and paste it into your website to embed the fighter card.</p>
+                <p>
+                    The embed page contains the <a href="https://iframe-resizer.com/" target="new">iframe-resizer</a> child page code so you use the <a href="https://iframe-resizer.com/setup/parent/" target="new">parent page code</a> if you want.
+                </p>
+                <p>
+                    Add <code>?theme=light</code> or <code>?theme=dark</code> to the URL to force a particular theme.
+                </p>
+                {% for fighter in list.fighters %}
+                    <li class="list-group-item vstack gap-2">
+                        <h3 class="h6 mb-0">{{ fighter.name }}</h3>
+                        {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}
+                        {% fullurl embed_url as full_embed_url %}
+                        <div>
+                            <code>&lt;iframe src="{{ full_embed_url }}?theme=auto"&gt;&lt;/iframe&gt;</code>
+                        </div>
+                        <div class="hstack align-items-center gap-2">
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    data-clipboard-text="&lt;iframe src=&quot;{{ full_embed_url }}?theme=auto&quot;&gt;&lt;/iframe&gt;"
+                                    data-clipboard-message="copied-{{ fighter.id }}">
+                                <i class="bi-clipboard"></i> Copy
+                            </button>
+                            <p class="d-none text-secondary mb-0" id="copied-{{ fighter.id }}">
+                                Copied <i class="bi-check2"></i>
+                            </p>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
     </div>
 </div>

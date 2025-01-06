@@ -770,6 +770,33 @@ def archive_list_fighter(request, id, fighter_id):
     )
 
 
+def embed_list_fighter(request, id, fighter_id):
+    """
+    Display a single :model:`core.ListFighter` object in an embedded view.
+
+    **Context**
+
+    ``fighter``
+        The requested :model:`core.ListFighter` object.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_embed.html`
+    """
+    lst = get_object_or_404(List, id=id)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    res = render(
+        request,
+        "core/list_fighter_embed.html",
+        {"fighter": fighter, "list": lst},
+    )
+    res.headers["X-Frame-Options"] = "ALLOW-FROM *"
+    return res
+
+
 class ListArchivedFightersView(generic.ListView):
     """
     Display a page with archived :model:`core.ListFighter` objects within a given :model:`core.List`.
