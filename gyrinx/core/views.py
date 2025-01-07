@@ -788,13 +788,11 @@ def embed_list_fighter(request, id, fighter_id):
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
-    res = render(
+    return render(
         request,
         "core/list_fighter_embed.html",
         {"fighter": fighter, "list": lst},
     )
-    res.headers["X-Frame-Options"] = "ALLOW-FROM *"
-    return res
 
 
 class ListArchivedFightersView(generic.ListView):
