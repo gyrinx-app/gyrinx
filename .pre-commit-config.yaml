@@ -9,12 +9,6 @@ repos:
             language: script
             pass_filenames: false
             always_run: true
-          - id: schema
-            name: schema
-            entry: .venv/bin/schema
-            language: script
-            pass_filenames: false
-            always_run: true
 
     - repo: https://github.com/djlint/djLint
       rev: v1.36.1

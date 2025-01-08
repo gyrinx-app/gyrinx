@@ -44,12 +44,6 @@ jobs:
             - name: Run tests
               run: ./scripts/test.sh
 
-            - name: Run schema & data validation
-              run: |
-                  . .venv/bin/activate && \
-                  pip install --editable . && \
-                  schema | tee schema.log
-
             - name: Comment on PR
               if: ${{ github.event_name == 'pull_request' }}
               uses: thollander/actions-comment-pull-request@v3

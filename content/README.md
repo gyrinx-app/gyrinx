@@ -1,7 +1,5 @@
 # Content
 
-This directory contains the core content, organised by ruleset:
+This directory contains the seed content used for bootstrapping work on Gyrinx. It is not actively used a part of the application and will be out of sync with the deployed application.
 
--   [`necromunda-2018`](./necromunda-2018/)
-
-To test the data in these directories conforms to the schema, use the `schema` tool. Follow the instructions in the [main README.md](../README.md).
+To see how some of this data was used, see the [`notebooks`](../notebooks/) directory.

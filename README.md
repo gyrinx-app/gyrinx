@@ -1,30 +1,32 @@
 # gyrinx
 
-Core content library & application for Gyrinx
-
 ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
 
 This repository contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
 
-See the [design](./design/) directory or the [Notion](https://www.notion.so/Technical-Design-13315de8366180c19a45f5201460b804) for technical discussions.
+See the [design](./design/) directory or the [Google Doc](https://docs.google.com/document/d/1seKmLBz2L4bGPeHfUxjgl39BJ27-O1Fb0MlJWfmLQFE/edit?tab=t.5q9jh7it524z) for technical discussions. Access to the Google Doc is limited to contributors and admins.
 
-The `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so you can just use `manage` from anywhere:
+## Technical Overview
 
-```bash
-manage shell
-```
+Gyrinx is a [Django](https://www.djangoproject.com/) application running in [Google Cloud Platform](https://console.cloud.google.com/). It runs in [Cloud Run](https://cloud.google.com/run), a serverless application platform, with [Cloud SQL (specifically, Postgres)](https://cloud.google.com/sql/postgresql) for data storage. [Cloud Build](https://cloud.google.com/build) is used to deploy the application. The frontend is build with [Bootstrap 5](https://getbootstrap.com/docs/5.0/getting-started/introduction/).
 
-## Getting content into gyrinx
+The code is hosted here on [GitHub](https://github.com/gyrinx-app). When new code is pushed on main to the [gyrinx repo](https://github.com/gyrinx-app/gyrinx), it is automatically deployed by Cloud Build. This includes running database migrations. Code is tested automatically in [Github Actions](https://github.com/gyrinx-app/gyrinx/actions).
 
-> Work in progress!
+Analytics are provided by [Google Analytics](https://analytics.google.com/analytics/web/#/p470310767/reports/intelligenthome?params=_u..nav%3Dmaui). The cookie banner is [Cookiebot by Usercentrics](https://www.cookiebot.com/).
 
-The content library was static data, but we've switched to using the database directly. More documentaiton soon.
+Project tasks, issues and to-dos are managed in the [Gyrinx GitHub Project](https://github.com/orgs/gyrinx-app/projects/1).
 
 # Development
 
 To run Gyrinx, you will need [Docker](https://docs.docker.com/get-started/get-docker/) with [Compose](https://docs.docker.com/compose/gettingstarted/). You'll also need a recent Python version: [pyenv](https://github.com/pyenv/pyenv) is a good way to manage installed Python versions.
 
 There's a [devcontainer](https://code.visualstudio.com/docs/devcontainers/containers) configured in this repo which should get you up and running too, perhaps via a [Codespace](https://github.com/features/codespaces).
+
+The Django `manage.py` file (in `scripts/`) is added to your shell by `setuptools`, so you can just use `manage` from anywhere:
+
+```bash
+manage shell
+```
 
 ## Setup
 
@@ -43,13 +45,15 @@ To set up the development environment, follow these steps:
     python --version # should be >= 3.12
     ```
 
+    If you use `pyenv`, we have a `.python-version` file. If you have pyenv active in your environment, this file will automatically activate this version for you.
+
 3. Create and activate a virtual environment:
 
     ```bash
     python -m venv .venv && . .venv/bin/activate
     ```
 
-4. Install the project in editable mode so you can use the `schema` command:
+4. Install the project in editable mode so you can use the `manage` command:
 
     ```bash
     pip install --editable .
@@ -63,30 +67,13 @@ To set up the development environment, follow these steps:
     manage setupenv
     ```
 
-    WIth that run, you'll have a `.env` file with a random and unique `SECRET_KEY` and `DJANGO_SUPERUSER_PASSWORD`:
+    With that run, you'll have a `.env` file with a random and unique `SECRET_KEY` and `DJANGO_SUPERUSER_PASSWORD`:
 
     ```bash
     cat .env
     ```
 
-6. To check other things are worked, run the `schema` command:
-
-    ```bash
-    schema
-    ```
-
-    You should see the schema being checked...
-
-    ```
-    Checking schema...
-    Found these ruleset directories:
-    - content/necromunda-2018
-
-    Checking content/necromunda-2018...
-    Gathering schema files from content/necromunda-2018/schema...
-    ```
-
-7. Next, set up the frontend toolchain:
+6. Next, set up the frontend toolchain:
 
     Get `nodeenv` (installed by `pip` earlier) to install [node](https://nodejs.org/en) and [npm](https://www.npmjs.com/) in the virtual env.
 
@@ -101,19 +88,19 @@ To set up the development environment, follow these steps:
     which npm # should be /path/to/repo/.venv/bin/npm
     ```
 
-8. Install the frontend dependencies
+7. Install the frontend dependencies
 
     ```
     npm install
     ```
 
-9. Build the frontend
+8. Build the frontend
 
     ```
     npm run build
     ```
 
-10. Install the pre-commit hooks
+9. Install the pre-commit hooks
 
     Before making any changes, make sure you've got pre-commit hooks installed.
 
@@ -170,17 +157,11 @@ To run the test suite, we also use Docker (so there is a database to talk to):
 ./scripts/test.sh
 ```
 
-## Checking data against schema
-
-Make sure your virtual environment is active and you've run `pip install --editable .`.
-
-To check the data files against their schema, simply run:
+You can also use the `pytest-watcher`:
 
 ```bash
-schema
+ptw .
 ```
-
-# Django Admin
 
 ## New data migration
 
@@ -188,26 +169,4 @@ To create a new empty migration file for doing data migration:
 
 ```bash
 manage makemigrations --empty content
-```
-
-This template might be useful for importing stuff from content:
-
-```python
-from django.db import migrations
-
-from gyrinx.models import *
-
-
-def do_migration(apps, schema_editor):
-    ContentEquipment = apps.get_model("content", "ContentEquipment")
-
-    ...
-
-
-class Migration(migrations.Migration):
-    dependencies = [
-        ("content", "0014_contentweaponprofile_cost_sign_and_more"),
-    ]
-
-    operations = [migrations.RunPython(do_migration)]
 ```
