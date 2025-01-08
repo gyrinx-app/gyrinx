@@ -728,8 +728,6 @@ class ContentWeaponProfile(Content):
             if field in [
                 "range_short",
                 "range_long",
-                "accuracy_short",
-                "accuracy_long",
             ]:
                 if value and value[0].isdigit() and not value.endswith('"'):
                     setattr(self, field, f'{value}"')
