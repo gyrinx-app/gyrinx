@@ -4,7 +4,8 @@ import qrcode
 import qrcode.image.svg
 from django import template
 from django.conf import settings
-from django.urls import reverse
+from django.template.context import RequestContext
+from django.urls import resolve
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
@@ -13,22 +14,23 @@ from gyrinx.content.models import ContentPageRef
 register = template.Library()
 
 
-def is_active(context, name):
-    return context["request"].get_full_path() == reverse(name)
+def is_active(context: RequestContext, name):
+    """Check if the current view is active."""
+    return name == resolve(context.request.path).view_name
 
 
 @register.simple_tag(takes_context=True)
-def active_view(context, name):
+def active_view(context: RequestContext, name):
     return "active" if is_active(context, name) else ""
 
 
 @register.simple_tag(takes_context=True)
-def active_aria(context, name):
+def active_aria(context: RequestContext, name):
     return 'aria-current="page"' if is_active(context, name) else ""
 
 
 @register.simple_tag(takes_context=True)
-def flash(context, assign_id):
+def flash(context: RequestContext, assign_id):
     request = context["request"]
     return "flash-warn" if request.GET.get("flash") == str(assign_id) else ""
 
@@ -146,7 +148,7 @@ def qr_svg(value):
 
 
 @register.simple_tag(takes_context=True)
-def fullurl(context, path):
+def fullurl(context: RequestContext, path):
     base_url = getattr(settings, "BASE_URL", None)
     if base_url:
         return base_url.rstrip("/") + "/" + path.lstrip("/")
