@@ -24,6 +24,24 @@ class NewListForm(forms.ModelForm):
         }
 
 
+class CloneListForm(forms.ModelForm):
+    class Meta:
+        model = List
+        fields = ["name", "public"]
+        labels = {
+            "name": "Name",
+            "public": "Public",
+        }
+        help_texts = {
+            "name": "The name you use to identify this list. This may be public.",
+            "public": "If checked, this list will be visible to all users.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List

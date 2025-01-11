@@ -11,6 +11,7 @@ from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.forms import (
+    CloneListForm,
     EditListForm,
     ListFighterEquipmentAssignmentForm,
     ListFighterGearForm,
@@ -448,6 +449,53 @@ def edit_list(request, id):
         request,
         "core/list_edit.html",
         {"form": form, "error_message": error_message},
+    )
+
+
+@login_required
+def clone_list(request, id):
+    """
+    Clone an existing :model:`core.List` owned by any user.
+
+    **Context**
+
+    ``form``
+        A CloneListForm for entering the name and details of the new list.
+    ``list``
+        The :model:`core.List` to be cloned.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_clone.html`
+    """
+    # You can clone a list owned by another user
+    list_ = get_object_or_404(List, id=id)
+
+    error_message = None
+    if request.method == "POST":
+        form = CloneListForm(request.POST)
+        if form.is_valid():
+            new_list = list_.clone(
+                name=form.cleaned_data["name"],
+                owner=request.user,
+                public=form.cleaned_data["public"],
+            )
+
+            return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
+    else:
+        form = CloneListForm(
+            initial={
+                "name": f"{list_.name} (Clone)",
+                "public": list_.public,
+            }
+        )
+
+    return render(
+        request,
+        "core/list_clone.html",
+        {"form": form, "list": list_, "error_message": error_message},
     )
 
 

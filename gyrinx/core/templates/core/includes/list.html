@@ -87,6 +87,12 @@
                                         <i class="bi-person-bounding-box"></i> Embed
                                     </button>
                                 </li>
+                                <li>
+                                    <a href="{% url 'core:list-clone' list.id %}"
+                                       class="dropdown-item icon-link">
+                                        <i class="bi-copy"></i> Clone
+                                    </a>
+                                </li>
                                 {% if list.owner == user %}
                                     <li>
                                         <a href="#" class="dropdown-item icon-link disabled">

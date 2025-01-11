@@ -61,11 +61,36 @@ class List(AppBase):
     def cost_display(self):
         return f"{self.cost_int()}¢"
 
-    def fighters(self):
+    def fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.filter(archived=False)
 
-    def archived_fighters(self):
+    def archived_fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.filter(archived=True)
+
+    def clone(self, name=None, owner=None, **kwargs):
+        """Clone the list, creating a new list with the same fighters."""
+        if not name:
+            name = f"{self.name} (Clone)"
+
+        if not owner:
+            owner = self.owner
+
+        values = {
+            "public": self.public,
+            **kwargs,
+        }
+
+        clone = List.objects.create(
+            name=name,
+            content_house=self.content_house,
+            owner=owner,
+            **values,
+        )
+
+        for fighter in self.fighters():
+            fighter.clone(list=clone)
+
+        return clone
 
     class Meta:
         verbose_name = "List"
@@ -128,12 +153,13 @@ class ListFighter(AppBase):
         assign.save()
         return assign
 
+    def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
+        return self.equipment.through.objects.filter(list_fighter=self)
+
     def assignments(self):
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
-            for a in self.equipment.through.objects.filter(list_fighter=self).order_by(
-                "list_fighter__name"
-            )
+            for a in self._direct_assignments().order_by("list_fighter__name")
         ] + [
             VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
             for a in self.content_fighter.default_assignments.all()
@@ -150,6 +176,26 @@ class ListFighter(AppBase):
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
+
+    def clone(self, list=None):
+        """Clone the fighter, creating a new fighter with the same equipment."""
+        if not list:
+            list = self.list
+
+        clone = ListFighter.objects.create(
+            name=self.name,
+            content_fighter=self.content_fighter,
+            list=list,
+            owner=list.owner,
+            narrative=self.narrative,
+        )
+
+        clone.skills.set(self.skills.all())
+
+        for assignment in self._direct_assignments():
+            assignment.clone(list_fighter=clone)
+
+        return clone
 
     class Meta:
         verbose_name = "List Fighter"
@@ -342,6 +388,21 @@ class ListFighterEquipmentAssignment(AppBase):
 
     def profile_cost_display(self, profile):
         return f"+{self.profile_cost_int(profile)}¢"
+
+    def clone(self, list_fighter=None):
+        """Clone the assignment, creating a new assignment with the same weapon profiles."""
+        if not list_fighter:
+            list_fighter = self.list_fighter
+
+        clone = ListFighterEquipmentAssignment.objects.create(
+            list_fighter=list_fighter,
+            content_equipment=self.content_equipment,
+        )
+
+        for profile in self.weapon_profiles_field.all():
+            clone.weapon_profiles_field.add(profile)
+
+        return clone
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"

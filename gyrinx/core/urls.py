@@ -24,6 +24,7 @@ urlpatterns = [
     path("list/<id>", views.ListDetailView.as_view(), name="list"),
     path("list/<id>/about", views.ListAboutDetailView.as_view(), name="list-about"),
     path("list/<id>/edit", views.edit_list, name="list-edit"),
+    path("list/<id>/clone", views.clone_list, name="list-clone"),
     path("list/<id>/fighters/new", views.new_list_fighter, name="list-fighter-new"),
     path(
         "list/<id>/fighters/archived",
