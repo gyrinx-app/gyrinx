@@ -9,16 +9,6 @@
                     <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
                 </div>
             </div>
-            <div class="ms-auto flex-shrink-0">
-                {% if not print %}
-                    {% if list.owner == user %}
-                        <a href="{% url 'core:list-edit' list.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
-                    {% endif %}
-                {% endif %}
-            </div>
         </div>
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
@@ -69,23 +59,43 @@
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm">
                                 <i class="bi-person-add"></i> Add fighter</a>
-                        {% endif %}
-                        <a href="{% url 'core:list-print' list.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-printer"></i> Print
-                        </a>
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-sm"
-                                data-bs-toggle="offcanvas"
-                                data-bs-target="#embedOffcanvas"
-                                aria-controls="embedOffcanvas">
-                            <i class="bi-person-bounding-box"></i> Embed
-                        </button>
-                        {% if list.owner == user %}
-                            <a href="#" class="btn btn-outline-danger btn-sm disabled">
-                                <i class="bi-archive"></i> Archive
+                            <a href="{% url 'core:list-edit' list.id %}"
+                               class="btn btn-secondary btn-sm">
+                                <i class="bi-pencil"></i> Edit
                             </a>
                         {% endif %}
+                        <div class="btn-group" role="group">
+                            <button type="button"
+                                    class="btn btn-secondary btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                <i class="bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a href="{% url 'core:list-print' list.id %}"
+                                       class="dropdown-item icon-link">
+                                        <i class="bi-printer"></i> Print
+                                    </a>
+                                </li>
+                                <li>
+                                    <button type="button"
+                                            class="dropdown-item icon-link"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="#embedOffcanvas"
+                                            aria-controls="embedOffcanvas">
+                                        <i class="bi-person-bounding-box"></i> Embed
+                                    </button>
+                                </li>
+                                {% if list.owner == user %}
+                                    <li>
+                                        <a href="#" class="dropdown-item icon-link disabled">
+                                            <i class="bi-archive"></i> Archive
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
                     </nav>
                 {% endif %}
             </div>
