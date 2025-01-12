@@ -1,0 +1,8 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ flatpage.title }}
+{% endblock head_title %}
+{% block content %}
+    {{ flatpage.content }}
+{% endblock content %}

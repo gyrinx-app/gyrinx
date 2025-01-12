@@ -72,6 +72,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.postgres",
     "django.contrib.admindocs",
+    "django.contrib.sites",
+    "django.contrib.flatpages",
     # Django allauth
     "allauth",
     "allauth.account",
@@ -83,6 +85,7 @@ INSTALLED_APPS = [
     "gyrinx.core",
     "gyrinx.content",
     "gyrinx.feedback",
+    "gyrinx.pages",
     "tinymce",
 ]
 
@@ -109,6 +112,7 @@ TEMPLATES = [
         "DIRS": [
             BASE_DIR / "gyrinx/core/templates",
             BASE_DIR / "gyrinx/feedback/templates",
+            BASE_DIR / "gyrinx/pages/templates",
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -236,6 +240,10 @@ LOGGING = {
         },
     },
 }
+
+# Sites
+
+SITE_ID = 1
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/

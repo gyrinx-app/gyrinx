@@ -1,5 +1,5 @@
 {% extends "core/layouts/foundation.html" %}
-{% load static custom_tags %}
+{% load static custom_tags pages %}
 {% block base %}
     <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
     <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
@@ -162,17 +162,18 @@
                     </a>
                     <ul class="list-unstyled small">
                         <li class="mb-2">Designed and built in the UK.</li>
-                        <li class="mb-2">
-                            <a href="{% url 'core:cookies' %}"
-                               class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover">Privacy &amp; Cookies</a>
-                        </li>
-                        <li class="mb-2">
-                            <a href="#"
-                               class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover">Security</a>
-                        </li>
+                        {% get_pages for user as flatpages %}
+                        {% if flatpages|length > 0 %}
+                            {% for page in flatpages %}
+                                <li class="mb-2">
+                                    <a href="{{ page.url }}"
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-75-hover">{{ page.title }}</a>
+                                </li>
+                            {% endfor %}
+                        {% endif %}
                         {% if user.is_staff %}
                             <li class="mb-2">
-                                <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover"
+                                <a class="link-secondary link-underline-opacity-50 link-underline-opacity-75-hover"
                                    href="{% url 'admin:index' %}"
                                    target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
                             </li>
