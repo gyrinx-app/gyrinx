@@ -99,6 +99,49 @@ class NewListFighterForm(forms.ModelForm):
         }
 
 
+class CloneListFighterForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        # user is passed in as a kwarg from the view but is not valid
+        # for the ModelForm, so we pop it off before calling super()
+        user = kwargs.pop("user", None)
+
+        super().__init__(*args, **kwargs)
+
+        inst = kwargs.get("instance", {})
+        if inst:
+            self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
+                house=inst.list.content_house
+            )
+
+        if user:
+            self.fields["list"].queryset = List.objects.filter(
+                owner=user,
+                content_house=inst.list.content_house,
+            )
+
+        self.fields["content_fighter"] = ContentFighterChoiceField(
+            queryset=self.fields["content_fighter"].queryset
+        )
+
+    class Meta:
+        model = ListFighter
+        fields = ["name", "content_fighter", "list"]
+        labels = {
+            "name": "Name",
+            "content_fighter": "Fighter",
+            "list": "List",
+        }
+        help_texts = {
+            "name": "The name you use to identify this Fighter. This may be public.",
+            "list": "The List into which this Fighter will be cloned.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "content_fighter": forms.Select(attrs={"class": "form-select"}),
+            "list": forms.Select(attrs={"class": "form-select"}),
+        }
+
+
 class ListFighterSkillsForm(forms.ModelForm):
     class Meta:
         model = ListFighter

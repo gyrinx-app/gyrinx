@@ -1,5 +1,5 @@
 {% load allauth custom_tags %}
-<div class="card {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' %}"
+<div class="card {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' %} {% flash fighter.id %}"
      id="{{ fighter.id }}">
     <div class="card-header p-2">
         <div class="vstack gap-1">

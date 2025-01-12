@@ -11,6 +11,7 @@ from django.views import generic
 
 from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
 from gyrinx.core.forms import (
+    CloneListFighterForm,
     CloneListForm,
     EditListForm,
     ListFighterEquipmentAssignmentForm,
@@ -528,8 +529,11 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
+            query_params = urlencode(dict(flash=fighter.id))
             return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+                reverse("core:list", args=(lst.id,))
+                + f"?{query_params}"
+                + f"#{str(fighter.id)}"
             )
     else:
         form = NewListFighterForm(instance=fighter)
@@ -570,8 +574,11 @@ def edit_list_fighter(request, id, fighter_id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
+            query_params = urlencode(dict(flash=fighter.id))
             return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+                reverse("core:list", args=(lst.id,))
+                + f"?{query_params}"
+                + f"#{str(fighter.id)}"
             )
     else:
         form = NewListFighterForm(instance=fighter)
@@ -586,7 +593,7 @@ def edit_list_fighter(request, id, fighter_id):
 @login_required
 def clone_list_fighter(request: HttpRequest, id, fighter_id):
     """
-    Clone an existing :model:`core.ListFighter` within a :model:`core.List`.
+    Clone an existing :model:`core.ListFighter` to the same or another :model:`core.List`.
 
     **Context**
 
@@ -603,24 +610,30 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
 
     :template:`core/list_fighter_clone.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    lst = get_object_or_404(List, id=id)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
     error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = CloneListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
             new_fighter = fighter.clone(
                 name=form.cleaned_data["name"],
                 content_fighter=form.cleaned_data["content_fighter"],
+                list=form.cleaned_data["list"],
             )
             new_fighter.save()
+            query_params = urlencode(dict(flash=new_fighter.id))
             return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(new_fighter.id)}"
+                reverse("core:list", args=(new_fighter.list.id,))
+                + f"?{query_params}"
+                + f"#{str(new_fighter.id)}"
             )
     else:
-        form = NewListFighterForm(
-            instance=fighter, initial={"name": f"{fighter.name} (Clone)"}
+        form = CloneListFighterForm(
+            instance=fighter,
+            initial={"name": f"{fighter.name} (Clone)"},
+            user=request.user,
         )
 
     return render(
