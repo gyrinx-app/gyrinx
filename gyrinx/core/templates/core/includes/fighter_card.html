@@ -26,6 +26,10 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-pencil"></i> Edit
                         </a>
+                        <a href="{% url 'core:list-fighter-clone' list.id fighter.id %}"
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="bi-copy"></i> Clone
+                        </a>
                         <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
                            class="btn btn-outline-danger btn-sm">
                             <i class="bi-archive"></i> Archive

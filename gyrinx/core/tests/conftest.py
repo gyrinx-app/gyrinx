@@ -31,11 +31,30 @@ def content_house():
 
 
 @pytest.fixture
-def content_fighter(content_house):
-    category = FighterCategoryChoices.JUVE
-    return ContentFighter.objects.create(
+def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
+    def make_content_fighter_(
+        type: str,
+        category: FighterCategoryChoices,
+        house: ContentHouse,
+        base_cost: int,
+        **kwargs,
+    ) -> ContentFighter:
+        return ContentFighter.objects.create(
+            type=type,
+            category=category,
+            house=house,
+            base_cost=base_cost,
+            **kwargs,
+        )
+
+    return make_content_fighter_
+
+
+@pytest.fixture
+def content_fighter(content_house, make_content_fighter):
+    return make_content_fighter(
         type="Prospector Digger",
-        category=category,
+        category=FighterCategoryChoices.JUVE,
         house=content_house,
         base_cost=100,
     )

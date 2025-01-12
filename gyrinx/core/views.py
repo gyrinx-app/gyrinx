@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
-from django.http import HttpResponseRedirect
+from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
@@ -475,21 +475,21 @@ def clone_list(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = CloneListForm(request.POST)
+        form = CloneListForm(request.POST, instance=list_)
         if form.is_valid():
             new_list = list_.clone(
                 name=form.cleaned_data["name"],
                 owner=request.user,
                 public=form.cleaned_data["public"],
             )
-
+            new_list.save()
             return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
     else:
         form = CloneListForm(
+            instance=list_,
             initial={
                 "name": f"{list_.name} (Clone)",
-                "public": list_.public,
-            }
+            },
         )
 
     return render(
@@ -580,6 +580,53 @@ def edit_list_fighter(request, id, fighter_id):
         request,
         "core/list_fighter_edit.html",
         {"form": form, "list": lst, "error_message": error_message},
+    )
+
+
+@login_required
+def clone_list_fighter(request: HttpRequest, id, fighter_id):
+    """
+    Clone an existing :model:`core.ListFighter` within a :model:`core.List`.
+
+    **Context**
+
+    ``form``
+        A CloneListFighterForm for entering the name and details of the new fighter.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to be cloned.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_clone.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        form = NewListFighterForm(request.POST, instance=fighter)
+        if form.is_valid():
+            new_fighter = fighter.clone(
+                name=form.cleaned_data["name"],
+                content_fighter=form.cleaned_data["content_fighter"],
+            )
+            new_fighter.save()
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(new_fighter.id)}"
+            )
+    else:
+        form = NewListFighterForm(
+            instance=fighter, initial={"name": f"{fighter.name} (Clone)"}
+        )
+
+    return render(
+        request,
+        "core/list_fighter_clone.html",
+        {"form": form, "list": lst, "fighter": fighter, "error_message": error_message},
     )
 
 

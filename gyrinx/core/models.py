@@ -177,17 +177,20 @@ class ListFighter(AppBase):
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
 
-    def clone(self, list=None):
+    def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
-        if not list:
-            list = self.list
+
+        values = {
+            "name": self.name,
+            "content_fighter": self.content_fighter,
+            "narrative": self.narrative,
+            "list": self.list,
+            **kwargs,
+        }
 
         clone = ListFighter.objects.create(
-            name=self.name,
-            content_fighter=self.content_fighter,
-            list=list,
-            owner=list.owner,
-            narrative=self.narrative,
+            owner=values["list"].owner,
+            **values,
         )
 
         clone.skills.set(self.skills.all())
