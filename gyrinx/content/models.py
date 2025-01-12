@@ -188,8 +188,11 @@ class ContentEquipment(Content):
         blank=True,
         default="C",
         help_text="Use 'E' to exclude this equipment from the Trading Post.",
+        verbose_name="Availability",
     )
-    rarity_roll = models.IntegerField(blank=True, null=True)
+    rarity_roll = models.IntegerField(
+        blank=True, null=True, verbose_name="Availability Level"
+    )
 
     history = HistoricalRecords()
 
