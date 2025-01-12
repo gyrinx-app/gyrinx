@@ -1,8 +1,23 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth pages %}
 {% block head_title %}
     {{ flatpage.title }}
 {% endblock head_title %}
 {% block content %}
-    {{ flatpage.content }}
+    <div class="row">
+        {% pages_path_segment flatpage.url 0 as prefix %}
+        {% get_pages prefix for user as flatpages %}
+        {% if flatpages|length > 1 %}
+            <div class="col-md-3 order-md-1">
+                <ul class="card p-2 mb-3 nav flex-column">
+                    {% for page in flatpages %}
+                        <li style="padding-left:{% page_depth page %}em">
+                            <a href="{{ page.url }}">{{ page.title }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        <div class="col-md-9 order-md-2">{{ flatpage.content }}</div>
+    </div>
 {% endblock content %}

@@ -10,6 +10,8 @@ register = template.Library()
 
 
 class FlatpageNode(template.Node):
+    depth = 0
+
     def __init__(self, context_name, starts_with=None, user=None):
         self.context_name = context_name
         if starts_with:
@@ -47,6 +49,12 @@ class FlatpageNode(template.Node):
                 ).distinct()
         else:
             flatpages = flatpages.filter(registration_required=False)
+
+        if self.depth:
+            # Another addition: filter flatpages by depth
+            flatpages = flatpages.filter(
+                url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
+            )
 
         context[self.context_name] = flatpages
         return ""
@@ -108,3 +116,32 @@ def get_pages(parser, token):
         return FlatpageNode(context_name, starts_with=prefix, user=user)
     else:
         raise template.TemplateSyntaxError(syntax_message)
+
+
+@register.tag
+def get_root_pages(parser, token):
+    node = get_pages(parser, token)
+    node.depth = 1
+    return node
+
+
+@register.simple_tag
+def pages_path_segment(path, segment):
+    """
+    Return the segment of the path at the given index.
+    """
+    if not path:
+        return "/"
+    if path.endswith("/"):
+        path = path[:-1]
+    if segment <= 0:
+        return "/"
+    return "/".join(path.split("/")[: segment + 1]) + "/"
+
+
+@register.simple_tag
+def page_depth(page):
+    """
+    Return the depth of the page in the site's hierarchy.
+    """
+    return max(page.url.count("/") - 2, 0)

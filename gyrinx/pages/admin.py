@@ -7,6 +7,11 @@ from tinymce.widgets import TinyMCE
 from gyrinx.pages.models import FlatPageVisibility
 
 
+class FlatPageVisibilityInline(admin.TabularInline):
+    model = FlatPageVisibility
+    extra = 0
+
+
 class FlatPageAdmin(BaseFlatPageAdmin):
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == "content":
@@ -17,6 +22,8 @@ class FlatPageAdmin(BaseFlatPageAdmin):
                 )
             )
         return super().formfield_for_dbfield(db_field, **kwargs)
+
+    inlines = [FlatPageVisibilityInline]
 
 
 admin.site.unregister(FlatPage)

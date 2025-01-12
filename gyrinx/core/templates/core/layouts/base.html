@@ -162,7 +162,7 @@
                     </a>
                     <ul class="list-unstyled small">
                         <li class="mb-2">Designed and built in the UK.</li>
-                        {% get_pages for user as flatpages %}
+                        {% get_root_pages for user as flatpages %}
                         {% if flatpages|length > 0 %}
                             {% for page in flatpages %}
                                 <li class="mb-2">
