@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib import admin, messages
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Case, When
 from django.db.models.functions import Cast
 from django.shortcuts import render
@@ -60,6 +60,37 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 
     inlines = [ContentWeaponProfileInline]
 
+    actions = ["clone"]
+
+    @admin.action(description="Clone selected Equipment")
+    def clone(self, request, queryset):
+        try:
+            for item in queryset:
+                with transaction.atomic():
+                    profiles = ContentWeaponProfile.objects.filter(equipment=item)
+                    item.pk = None
+                    item.name = f"{item.name} (Clone)"
+                    item.save()
+                    for profile in profiles:
+                        profile.pk = None
+                        profile.equipment = item
+                        profile.save()
+
+        except Exception as e:
+            self.message_user(
+                request,
+                _("An error occurred while cloning the Equipment: %s") % str(e),
+                messages.ERROR,
+            )
+            return None
+
+        self.message_user(
+            request,
+            _("The selected Equipment has been cloned."),
+            messages.SUCCESS,
+        )
+        return None
+
 
 class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -79,7 +110,7 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
 
     actions = ["copy_selected_to"]
 
-    @admin.action(description="Copy to another ContentFighter")
+    @admin.action(description="Copy to another Fighter")
     def copy_selected_to(self, request, queryset):
         selected = queryset.values_list("pk", flat=True)
 
