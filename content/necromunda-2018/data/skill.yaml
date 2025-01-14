@@ -1,357 +1,471 @@
 skill:
-    - category: Adept Abilities - Non-Fighter
+    - category: Adept Abilities - Psychic
       name: Familiar
-    - category: Adept Abilities - Non-Fighter
+    - category: Adept Abilities - Psychic
       name: Hypnosis
-    - category: Adept Abilities - Non-Fighter
+    - category: Adept Abilities - Psychic
       name: Unbreakable Will
-    - category: Adept Abilities - Non-Fighter
+    - category: Adept Abilities - Psychic
       name: Zealot
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Catfall
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Clamber
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Dodge
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Mighty Leap
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Spring up
-    - category: Agility - Non-Fighter
+    - category: Agility
+      type: Skill
       name: Sprint
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: Big Brother
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: Bring it On!
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: Guilder Contacts
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: King Hit
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: Shotgun Savant
-    - category: Bravado - Non-Fighter
+    - category: Bravado
+      type: Skill
       name: Steady Hands
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Bulging Biceps
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Bull Charge
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Crushing Blow
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Headbutt
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Hurl
-    - category: Brawn - Non-Fighter
+    - category: Brawn
+      type: Skill
       name: Iron Jaw
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Assail
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Dark Shield
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Levitation
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Maddening Visions
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Non-sanctioned Psyker
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Scouring
-    - category: Chaos Cultist - Non-Fighter
+    - category: Chaos Cultist - Psychic
       name: Warp Strength
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Combat Master
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Counter-attack
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Disarm
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Parry
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Rain of Blows
-    - category: Combat - Non-Fighter
+    - category: Combat
+      type: Skill
       name: Step Aside
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Assail
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Force Blast
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Hypnosis
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Mind Control
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Unbreakable Will
-    - category: Cult Wyrd Powers - Non-Fighter
+    - category: Cult - Psychic
       name: Zealot
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Backstab
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Escape Artist
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Evade
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Infiltrate
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Lie Low
-    - category: Cunning - Non-Fighter
+    - category: Cunning
+      type: Skill
       name: Overwatch
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: A Perfect Void
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: Cacophony of Silence
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: Cloak of Whispers
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: Eternal Slumber
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: Penumbral Mirror
-    - category: Darkness - Non-Fighter
+    - category: Darkness - Wryd Powers
       name: Sight Blight
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Deceitful Thoughts
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Ghost and Shadow
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Opprobrious
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Seen Unseen
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Spatial Psychosis
-    - category: Delusion - Non-Fighter
+    - category: Delusion - Wryd Powers
       name: Suicidal Embrace
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: Expert Driver
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: Heavy Foot
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: Jink
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: Running Repairs
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: Slalom
-    - category: Driving - Non-Fighter
+    - category: Driving
+      type: Skill
       name: T-bone
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: Berserker
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: Fearsome
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: Impetuous
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: Nerves of Steel
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: True Grit
-    - category: Ferocity - Non-Fighter
+    - category: Ferocity
+      type: Skill
       name: Unstoppable
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Acrobatic
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Combat Focus
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Combat Virtuoso
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Hit and Run
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Lightning Reflexes
-    - category: Finesse - Non-Fighter
+    - category: Finesse
+      type: Skill
       name: Somersault
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Bigman
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Impressive Scars
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Iron Stare
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Lucky
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Rock Steady
-    - category: Impressive Leadership - Non-Fighter
+    - category: Impressive Leadership - Legendary Name
       name: Too Pretty for Primus
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: Bullet Lord
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: Chancer
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: Headshot
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: One Punch
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: One Shot
-    - category: Improbable Beatdowns - Non-Fighter
+    - category: Improbable Beatdowns - Legendary Name
       name: Two-guns
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Commanding Presence
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Inspirational
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Iron Will
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Mentor
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Overseer
-    - category: Leadership - Non-Fighter
+    - category: Leadership
+      type: Skill
       name: Regroup
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Craven Howl
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Cyclopean Gaze
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Existential Barrage
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Psychotic Lure
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Terrible Truths
-    - category: Madness - Non-Fighter
+    - category: Madness - Delaque Power
       name: Unrememberable Utterance
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Fists of Steel
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Immovable Stance
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Iron Man
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Naaargah!
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Unleash the Beast
-    - category: Muscle - Non-Fighter
+    - category: Muscle
+      type: Skill
       name: Walk it Off
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Doppelganger
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Faceless
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Fake Out
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Psi-touched
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Rumour-monger
-    - category: Obfuscation - Non-Fighter
+    - category: Obfuscation
+      type: Skill
       name: Take Down
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Body of Flame
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Crush
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Iron Arm
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Overcharge
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Terrify
-    - category: Ogryn Wyrd Powers - Non-Fighter
+    - category: Ogryn Wyrd Powers
       name: Weapon Jinx
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Got Your Six
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Helmawr's Justice
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Non-verbal Communication
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Restraint Protocols
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Team Work
-    - category: Palanite Drill - Non-Fighter
+    - category: Palanite Drill
+      type: Skill
       name: Threat Response
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Blazing Faith
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Devotional Frenzy
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Lord of Rats
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Restless Faith
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Scavenger's Eye
-    - category: Piety - Non-Fighter
+    - category: Piety
+      type: Skill
       name: Unshakable Conviction
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Avatar of Blood
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Bloodlust
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Crimson Haze
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Frenzy
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Killing Blow
-    - category: Savagery - Non-Fighter
+    - category: Savagery
+      type: Skill
       name: Slaughterborn
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Ballistics Expert
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Connected
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Fixer
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Medicae
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Munitioneer
-    - category: Savant - Non-Fighter
+    - category: Savant
+      type: Skill
       name: Savvy Trader
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Fast Shot
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Gunfighter
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Hip Shooting
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Marksman
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Precision Shot
-    - category: Shooting - Non-Fighter
+    - category: Shooting
+      type: Skill
       name: Trick Shot
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Cold and Calculating
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Gadgeteer
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Mental Mastery
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Photonic Engineer
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Rad-phaged
-    - category: Tech - Non-Fighter
+    - category: Tech
+      type: Skill
       name: Weaponsmith
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Badzone Legend
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Blade Breaker
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Bullet Dodger
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Iron Hard
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Promethium-proof Killer
-    - category: Unbelievable Escapes - Non-Fighter
+    - category: Unbelievable Escapes - Orlock Legendary Name
       name: Slippery Scummer
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Beast Handler
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Born to the Wastes
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Bring It Down
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Ever Vigilant
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Eyes of the Wasteland
-    - category: Wastelands - Non-Fighter
+    - category: Wastelands
+      type: Skill
       name: Stormwalker
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: Chemical Bonds Never Break
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: Dependable Like Kin
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: Nobody Pushes Kin Around
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: Stubborn to the Last
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: There's Always Another Secret
-    - category: Wisdom of the Ancients - Non-Fighter
+    - category: Wisdom of the Ancients
+      type: Skill
       name: Where There's Scrap, There's Creds!
-    - category: Witch Powers - Non-Fighter
+    - category: Witch Powers - Powers
       name: Dark Shield
-    - category: Witch Powers - Non-Fighter
+    - category: Witch Powers - Powers
       name: Levitation
-    - category: Witch Powers - Non-Fighter
+    - category: Witch Powers - Powers
       name: Maddening Visions
-    - category: Witch Powers - Non-Fighter
+    - category: Witch Powers - Powers
       name: Scouring
-    - category: Witch Powers - Non-Fighter
+    - category: Witch Powers - Powers
       name: Warp Strength
