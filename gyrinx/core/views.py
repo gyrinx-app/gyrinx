@@ -4,12 +4,18 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.content.models import ContentEquipment, ContentHouse, ContentPageRef
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentHouse,
+    ContentPageRef,
+    ContentSkillCategory,
+)
 from gyrinx.core.forms import (
     CloneListFighterForm,
     CloneListForm,
@@ -675,10 +681,27 @@ def edit_list_fighter_skills(request, id, fighter_id):
     else:
         form = ListFighterSkillsForm(instance=fighter)
 
+    skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
+        primary=Q(primary_fighters__in=[fighter.content_fighter]),
+        secondary=Q(secondary_fighters__in=[fighter.content_fighter]),
+    )
+    special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
+        primary=Q(primary_fighters__in=[fighter.content_fighter]),
+        secondary=Q(secondary_fighters__in=[fighter.content_fighter]),
+    )
+    n_cats = skill_cats.count() + special_cats.count()
+
     return render(
         request,
         "core/list_fighter_skills_edit.html",
-        {"form": form, "list": lst, "error_message": error_message},
+        {
+            "form": form,
+            "list": lst,
+            "error_message": error_message,
+            "n_cats": n_cats,
+            "skill_cats": list(skill_cats),
+            "special_cats": list(special_cats),
+        },
     )
 
 

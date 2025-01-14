@@ -69,14 +69,18 @@ class ContentSkillCategory(Content):
     """
 
     name = models.CharField(max_length=255)
+    restricted = models.BooleanField(
+        default=False,
+        help_text="If checked, this skill tree is only available to specific gangs.",
+    )
     history = HistoricalRecords()
 
     def __str__(self):
         return self.name
 
     class Meta:
-        verbose_name = "Skill Category"
-        verbose_name_plural = "Skill Categories"
+        verbose_name = "Skill Tree"
+        verbose_name_plural = "Skill Trees"
         ordering = ["name"]
 
 
@@ -92,17 +96,17 @@ class ContentSkill(Content):
         null=False,
         blank=False,
         related_name="skills",
-        verbose_name="category",
+        verbose_name="tree",
     )
     history = HistoricalRecords()
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.category})"
 
     class Meta:
         verbose_name = "Skill"
         verbose_name_plural = "Skills"
-        ordering = ["name"]
+        ordering = ["category", "name"]
 
 
 class ContentRule(Content):
@@ -312,7 +316,21 @@ class ContentFighter(Content):
     house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=True, blank=True
     )
-    skills = models.ManyToManyField(ContentSkill, blank=True)
+    skills = models.ManyToManyField(
+        ContentSkill, blank=True, verbose_name="Default Skills"
+    )
+    primary_skill_categories = models.ManyToManyField(
+        ContentSkillCategory,
+        blank=True,
+        related_name="primary_fighters",
+        verbose_name="Primary Skill Trees",
+    )
+    secondary_skill_categories = models.ManyToManyField(
+        ContentSkillCategory,
+        blank=True,
+        related_name="secondary_fighters",
+        verbose_name="Secondary Skill Trees",
+    )
     rules = models.ManyToManyField(ContentRule, blank=True)
     base_cost = models.IntegerField(default=0)
 

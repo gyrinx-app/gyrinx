@@ -19,6 +19,7 @@ from .models import (
     ContentPolicy,
     ContentRule,
     ContentSkill,
+    ContentSkillCategory,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
@@ -212,7 +213,21 @@ class ContentPolicyAdmin(ContentAdmin, admin.ModelAdmin):
 
 @admin.register(ContentSkill)
 class ContentSkillAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "category__name"]
+    list_display_links = ["name"]
+
+
+class ContentSkillInline(ContentTabularInline):
+    model = ContentSkill
+
+
+@admin.register(ContentSkillCategory)
+class ContentSkillCategoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+    list_display_links = ["name"]
+    list_display_fields = ["name", "restricted"]
+
+    inlines = [ContentSkillInline]
 
 
 @admin.register(ContentWeaponTrait)
