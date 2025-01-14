@@ -40,6 +40,12 @@ class ContentHouse(Content):
 
     help_text = "The Content House identifies the house or faction of a fighter."
     name = models.CharField(max_length=255)
+    skill_categories = models.ManyToManyField(
+        "ContentSkillCategory",
+        blank=True,
+        related_name="houses",
+        verbose_name="Unique Skill Categories",
+    )
     history = HistoricalRecords()
 
     def fighters(self):
@@ -57,13 +63,37 @@ class ContentHouse(Content):
         ordering = ["name"]
 
 
+class ContentSkillCategory(Content):
+    """
+    Represents a category of skills that fighters may possess.
+    """
+
+    name = models.CharField(max_length=255)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Skill Category"
+        verbose_name_plural = "Skill Categories"
+        ordering = ["name"]
+
+
 class ContentSkill(Content):
     """
     Represents a skill that fighters may possess.
     """
 
     name = models.CharField(max_length=255)
-    category = models.CharField(max_length=255, default="None")
+    category = models.ForeignKey(
+        ContentSkillCategory,
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        related_name="skills",
+        verbose_name="category",
+    )
     history = HistoricalRecords()
 
     def __str__(self):
