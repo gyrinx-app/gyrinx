@@ -14,9 +14,9 @@ def test_skills_migration():
         top_skills = json.load(file)
 
     for skill in top_skills[0:100]:
-        assert ContentSkill.objects.filter(
-            name=skill["skill"]
-        ).exists(), f"Skill {skill['skill']} not found"
+        assert ContentSkill.objects.filter(name=skill["skill"]).exists(), (
+            f"Skill {skill['skill']} not found"
+        )
 
 
 @pytest.mark.django_db

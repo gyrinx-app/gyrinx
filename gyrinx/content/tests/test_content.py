@@ -701,6 +701,6 @@ def test_equipment_policy():
             rules=case.policy["rules"],
         )
 
-        assert (
-            policy.allows(case.equipment) == case.expected
-        ), f"Failed for {case.name}: expected {case.expected}"
+        assert policy.allows(case.equipment) == case.expected, (
+            f"Failed for {case.name}: expected {case.expected}"
+        )
