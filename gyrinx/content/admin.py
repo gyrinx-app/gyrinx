@@ -153,8 +153,14 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             self.fields[
                 "weapon_profile"
             ].queryset = ContentWeaponProfile.objects.filter(
-                equipment=self.instance.equipment
+                equipment=self.instance.equipment,
             )
+
+        self.fields["weapon_profile"].queryset = self.fields[
+            "weapon_profile"
+        ].queryset.filter(
+            cost__gt=0,
+        )
 
 
 @admin.register(ContentFighterEquipmentListItem)

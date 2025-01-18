@@ -519,10 +519,15 @@ class ContentFighterEquipmentListItem(Content):
         matches the correct equipment.
         """
         if self.cost_int() < 0:
-            raise ValidationError("Cost cannot be negative.")
+            raise ValidationError({"cost": "Cost cannot be negative."})
+
+        if not self.equipment_id:
+            raise ValidationError({"equipment": "Equipment must be specified."})
 
         if self.weapon_profile and self.weapon_profile.equipment != self.equipment:
-            raise ValidationError("Weapon profile must be for the same equipment.")
+            raise ValidationError(
+                {"weapon_profile": "Weapon profile must match the equipment selected."}
+            )
 
 
 class ContentFighterEquipmentListWeaponAccessory(Content):

@@ -98,7 +98,7 @@ def test_equipment_weapon_profile_mismatch():
     )
 
     with pytest.raises(
-        ValidationError, match="Weapon profile must be for the same equipment."
+        ValidationError, match="Weapon profile must match the equipment selected."
     ):
         fighter_equip.clean()
 
