@@ -136,10 +136,15 @@
                 <tr>
                     <td colspan="9" class="text-end">
                         <div class="d-flex btn-group">
+                            <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi-plus-lg"></i>
+                                Add or edit accessories
+                            </a>
                             <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                                class="btn btn-outline-danger btn-sm">
                                 <i class="bi-trash"></i>
-                                Remove {{ assign.base_name }}
+                                Remove
                             </a>
                         </div>
                     </td>

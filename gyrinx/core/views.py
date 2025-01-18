@@ -21,6 +21,7 @@ from gyrinx.core.forms import (
     CloneListFighterForm,
     CloneListForm,
     EditListForm,
+    ListFighterEquipmentAssignmentAccessoriesForm,
     ListFighterEquipmentAssignmentForm,
     ListFighterGearForm,
     ListFighterSkillsForm,
@@ -846,6 +847,66 @@ def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
         request,
         "core/list_fighter_weapons_delete.html",
         {"list": lst, "fighter": fighter, "assign": assignment},
+    )
+
+
+@login_required
+def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
+    """
+    Managed weapon accessories for a :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be edited.
+    ``accessories``
+        A list of :model:`content.ContentWeaponAccessory` objects.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_weapons_accessories_edit.html`
+
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    error_message = None
+    if request.method == "POST":
+        form = ListFighterEquipmentAssignmentAccessoriesForm(
+            request.POST, instance=assignment
+        )
+        if form.is_valid():
+            form.save()
+
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        )
+
+    # TODO: Exclude accessories that cannot be added to this weapon
+    form = ListFighterEquipmentAssignmentAccessoriesForm(
+        instance=assignment,
+    )
+
+    return render(
+        request,
+        "core/list_fighter_weapons_accessories_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "form": form,
+            "error_message": error_message,
+        },
     )
 
 

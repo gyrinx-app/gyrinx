@@ -1,6 +1,10 @@
 from django import forms
 
-from gyrinx.content.models import ContentEquipment, ContentFighter
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentWeaponAccessory,
+)
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 
 
@@ -159,7 +163,11 @@ class ListFighterSkillsForm(forms.ModelForm):
 
 class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
     def label_from_instance(self, obj):
-        cost = obj.cost_override if obj.cost_override is not None else obj.cost
+        cost = (
+            obj.cost_override
+            if getattr(obj, "cost_override", None) is not None
+            else obj.cost
+        )
         unit = "¢" if str(cost).strip().isnumeric() else ""
         return f"{obj.name} ({cost}{unit})"
 
@@ -190,3 +198,17 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
         fields = ["content_equipment", "weapon_profiles_field"]
 
     # TODO: Add a clean method to ensure that weapon profiles are assigned to the correct equipment
+
+
+class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
+    weapon_accessories_field = ListFighterEquipmentField(
+        label="Accessories",
+        queryset=ContentWeaponAccessory.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
+        help_text="Not currently implemented: Costs reflect the Fighter's Equipment List.",
+        required=False,
+    )
+
+    class Meta:
+        model = ListFighterEquipmentAssignment
+        fields = ["weapon_accessories_field"]
