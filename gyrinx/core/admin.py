@@ -53,11 +53,17 @@ def weapon_profiles_list(obj: ListFighterEquipmentAssignment):
     return ", ".join([f"{wp.name}" for wp in weapon_profiles])
 
 
+@admin.display(description="Weapon Accessories")
+def weapon_accessories_list(obj: ListFighterEquipmentAssignment):
+    weapon_accessories = obj.weapon_accessories()
+    return ", ".join([f"{wa.name}" for wa in weapon_accessories])
+
+
 class ListFighterEquipmentAssignmentInline(admin.TabularInline):
     model = ListFighterEquipmentAssignment
     extra = 1
-    fields = ["content_equipment", weapon_profiles_list, cost]
-    readonly_fields = [weapon_profiles_list, cost]
+    fields = ["content_equipment", weapon_profiles_list, weapon_accessories_list, cost]
+    readonly_fields = [weapon_profiles_list, weapon_accessories_list, cost]
     show_change_link = True
 
 
@@ -100,16 +106,20 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "list_fighter",
         "content_equipment",
         "weapon_profiles_field",
+        "weapon_accessories_field",
         cost,
     ]
     readonly_fields = [cost]
     list_display = [
         "list_fighter",
+        "list_fighter__list__name",
         "content_equipment",
         weapon_profiles_list,
+        weapon_accessories_list,
     ]
     search_fields = [
         "list_fighter__name",
         "content_equipment__name",
-        weapon_profiles_list,
+        "weapon_profiles_field__name",
+        "weapon_accessories_field__name",
     ]

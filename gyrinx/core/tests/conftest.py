@@ -2,7 +2,12 @@ from typing import Callable
 
 import pytest
 
-from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponProfile,
+)
 from gyrinx.core.models import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
@@ -83,3 +88,13 @@ def make_equipment():
         return ContentEquipment.objects.create(name=name, **kwargs)
 
     return make_equipment_
+
+
+@pytest.fixture
+def make_weapon_profile():
+    def make_weapon_profile_(
+        equipment, **kwargs
+    ) -> Callable[[str], ContentWeaponProfile]:
+        return ContentWeaponProfile.objects.create(equipment=equipment, **kwargs)
+
+    return make_weapon_profile_

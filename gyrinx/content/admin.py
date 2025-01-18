@@ -20,6 +20,7 @@ from .models import (
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
+    ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
@@ -53,6 +54,10 @@ class ContentStackedInline(admin.StackedInline):
 
 class ContentWeaponProfileInline(ContentTabularInline):
     model = ContentWeaponProfile
+
+
+class ContentWeaponAccessoryInline(ContentTabularInline):
+    model = ContentWeaponAccessory
 
 
 @admin.register(ContentEquipment)
@@ -239,6 +244,11 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
+
+
+@admin.register(ContentWeaponAccessory)
+class ContentWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
 
 
 class ContentPageRefInline(ContentTabularInline):

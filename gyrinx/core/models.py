@@ -16,6 +16,7 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentSkill,
+    ContentWeaponAccessory,
     ContentWeaponProfile,
 )
 from gyrinx.models import Archived, Base, Owned, QuerySetOf
@@ -134,7 +135,7 @@ class ListFighter(AppBase):
     def cost_display(self):
         return f"{self.cost_int()}¢"
 
-    def assign(self, equipment, weapon_profiles=None):
+    def assign(self, equipment, weapon_profiles=None, weapon_accessories=None):
         # We create the assignment directly because Django does not use the through_defaults
         # if you .add() equipment that is already in the list, which prevents us from
         # assigning the same equipment multiple times, once with a weapon profile and once without.
@@ -144,6 +145,10 @@ class ListFighter(AppBase):
         if weapon_profiles:
             for profile in weapon_profiles:
                 assign.assign_profile(profile)
+
+        if weapon_accessories:
+            for accessory in weapon_accessories:
+                assign.weapon_accessories_field.add(accessory)
 
         assign.save()
         return assign
@@ -257,6 +262,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
         help_text="Select the costed weapon profiles to assign to this equipment. The standard profiles are automatically included in the cost of the equipment.",
     )
 
+    weapon_accessories_field = models.ManyToManyField(
+        ContentWeaponAccessory,
+        blank=True,
+        related_name="weapon_accessories",
+        verbose_name="weapon accessories",
+        help_text="Select the weapon accessories to assign to this equipment.",
+    )
+
     history = HistoricalRecords()
 
     # Information & Display
@@ -321,6 +334,11 @@ class ListFighterEquipmentAssignment(Base, Archived):
         profile_names = [p.name for p in self.weapon_profiles()]
         return ", ".join(profile_names)
 
+    # Accessories
+
+    def weapon_accessories(self):
+        return list(self.weapon_accessories_field.all())
+
     # Costs
 
     def base_cost_int(self):
@@ -335,9 +353,20 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def weapon_profiles_cost_display(self):
         return f"+{self.weapon_profiles_cost_int()}¢"
 
+    def weapon_accessories_cost_int(self):
+        # TODO: Support overrides for weapon accessories
+        return sum([wa.cost for wa in self.weapon_accessories_field.all()])
+
+    def weapon_accessories_cost_display(self):
+        return f"+{self.weapon_accessories_cost_int()}¢"
+
     @admin.display(description="Total Cost of Assignment")
     def cost_int(self):
-        return self.base_cost_int() + self.weapon_profiles_cost_int()
+        return (
+            self.base_cost_int()
+            + self.weapon_profiles_cost_int()
+            + self.weapon_accessories_cost_int()
+        )
 
     def cost_display(self):
         return f"{self.cost_int()}¢"
@@ -506,7 +535,11 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the integer cost for this equipment, factoring in fighter overrides.
         """
-        return self.base_cost_int() + self.profiles_cost_int()
+        return (
+            self.base_cost_int()
+            + self._profiles_cost_int()
+            + self._accessories_cost_int()
+        )
 
     def cost_display(self):
         """
@@ -514,7 +547,7 @@ class VirtualListFighterEquipmentAssignment:
         """
         return f"{self.cost_int()}¢"
 
-    def profiles_cost_int(self):
+    def _profiles_cost_int(self):
         """
         Return the integer cost for all weapon profiles, factoring in fighter overrides.
         """
@@ -525,6 +558,19 @@ class VirtualListFighterEquipmentAssignment:
             return 0
 
         return self._assignment.weapon_profiles_cost_int()
+
+    def _accessories_cost_int(self):
+        """
+        Return the integer cost for all weapon accessories.
+        """
+        if not self._assignment:
+            # TOOO: Support fighter cost for weapon accessories
+            return 0
+
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.weapon_accessories_cost_int()
 
     def base_name(self):
         """
@@ -550,6 +596,15 @@ class VirtualListFighterEquipmentAssignment:
 
         return self._assignment.standard_profiles()
 
+    def weapon_profiles(self):
+        """
+        Return all weapon profiles for this equipment.
+        """
+        if not self._assignment:
+            return [profile for profile in self.profiles if profile.cost_int() > 0]
+
+        return self._assignment.weapon_profiles()
+
     def weapon_profiles_display(self):
         """
         Return a list of dictionaries containing each profile and its cost display.
@@ -560,8 +615,7 @@ class VirtualListFighterEquipmentAssignment:
                 "cost_int": self._weapon_profile_cost(profile),
                 "cost_display": f"+{self._weapon_profile_cost(profile)}¢",
             }
-            for profile in self.profiles
-            if profile.cost_int() > 0
+            for profile in self.weapon_profiles()
         ]
 
     def _weapon_profile_cost(self, profile):
@@ -581,3 +635,9 @@ class VirtualListFighterEquipmentAssignment:
 
     def is_weapon(self):
         return self.equipment.is_weapon()
+
+    def weapon_accessories(self):
+        if not self._assignment:
+            return []
+
+        return self._assignment.weapon_accessories()

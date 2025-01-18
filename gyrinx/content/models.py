@@ -806,6 +806,28 @@ class ContentWeaponProfile(Content):
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
+class ContentWeaponAccessory(Content):
+    """
+    Represents an accessory that can be associated with a weapon.
+    """
+
+    name = models.CharField(max_length=255, unique=True)
+    cost = models.IntegerField(
+        default=0,
+        help_text="The credit cost of the weapon accessory at the Trading Post. This cost can be "
+        "overridden by the fighter's equipment list.",
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Weapon Accessory"
+        verbose_name_plural = "Weapon Accessories"
+        ordering = ["name"]
+
+
 class ContentFighterDefaultAssignment(Content):
     """
     Associates a fighter with a piece of equipment by default, including weapon profiles.
@@ -821,7 +843,14 @@ class ContentFighterDefaultAssignment(Content):
     equipment = models.ForeignKey(
         ContentEquipment, on_delete=models.CASCADE, db_index=True
     )
-    weapon_profiles_field = models.ManyToManyField(ContentWeaponProfile, blank=True)
+    weapon_profiles_field = models.ManyToManyField(
+        ContentWeaponProfile,
+        blank=True,
+    )
+    weapon_accessories_field = models.ManyToManyField(
+        ContentWeaponAccessory,
+        blank=True,
+    )
     cost = models.IntegerField(
         default=0, help_text="You typically should not overwrite this."
     )
@@ -860,6 +889,9 @@ class ContentFighterDefaultAssignment(Content):
 
     def weapon_profiles(self):
         return list(self.weapon_profiles_field.all())
+
+    def weapon_accessories(self):
+        return list(self.weapon_accessories_field.all())
 
     def __str__(self):
         return f"{self.fighter} – {self.name()}"

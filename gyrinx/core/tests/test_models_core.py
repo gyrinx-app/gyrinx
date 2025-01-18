@@ -1014,7 +1014,7 @@ def test_virtual_assignments():
 
     assert v_assignment.name() == assignment.name()
     assert v_assignment.content_equipment == assignment.content_equipment
-    assert v_assignment.profiles_cost_int() == 12
+    assert v_assignment._profiles_cost_int() == 12
     assert v_assignment.name() == assignment.name()
     assert list(v_assignment.all_profiles()) == list(assignment.all_profiles())
     assert list(v_assignment.standard_profiles()) == list(
