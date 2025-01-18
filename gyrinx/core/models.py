@@ -641,3 +641,13 @@ class VirtualListFighterEquipmentAssignment:
             return []
 
         return self._assignment.weapon_accessories()
+
+    def weapon_accessories_display(self):
+        return [
+            {
+                "accessory": accessory,
+                "cost_int": accessory.cost,
+                "cost_display": f"+{accessory.cost}¢",
+            }
+            for accessory in self.weapon_accessories()
+        ]

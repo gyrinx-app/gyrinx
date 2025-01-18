@@ -15,6 +15,7 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentPageRef,
     ContentSkillCategory,
+    ContentWeaponAccessory,
 )
 from gyrinx.core.forms import (
     CloneListFighterForm,
@@ -845,6 +846,53 @@ def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
         request,
         "core/list_fighter_weapons_delete.html",
         {"list": lst, "fighter": fighter, "assign": assignment},
+    )
+
+
+@login_required
+def delete_list_fighter_weapon_accessory(
+    request, id, fighter_id, assign_id, accessory_id
+):
+    """
+    Remove a :model:`content.ContentWeaponAccessory` from a fighter :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be deleted.
+    ``accessory``
+        The :model:`content.ContentWeaponAccessory` to be removed.
+
+    **Template**
+
+    :template:`core/list_fighter_weapons_accessory_delete.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+    accessory = get_object_or_404(
+        ContentWeaponAccessory,
+        pk=accessory_id,
+    )
+
+    if request.method == "POST":
+        assignment.weapon_accessories_field.remove(accessory)
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        )
+
+    return render(
+        request,
+        "core/list_fighter_weapons_accessory_delete.html",
+        {"list": lst, "fighter": fighter, "assign": assignment, "accessory": accessory},
     )
 
 

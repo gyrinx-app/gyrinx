@@ -106,6 +106,18 @@
                     {% endif %}
                 {% endfor %}
             {% endif %}
+            {% for ad in assign.weapon_accessories_display %}
+                <tr>
+                    <td colspan="9">
+                        - {{ ad.accessory.name }}
+                        {% if ad.cost_int > 0 %}({{ ad.cost_display }}){% endif %}
+                        {% if mode == 'edit' %}
+                            <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}"
+                               class="ms-auto link-danger">Remove {{ ad.accessory.name }}</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
             {% if mode == 'add' %}
                 <tr>
                     <td colspan="9">
