@@ -253,16 +253,6 @@ class ListFighterEquipmentAssignment(Base, Archived):
         ContentEquipment, on_delete=models.CASCADE, null=False, blank=False
     )
 
-    # TODO: Deprecate and remove this field
-    weapon_profile = models.ForeignKey(
-        ContentWeaponProfile,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        help_text="This field is deprecated and should not be used. Use weapon profiles instead.",
-        verbose_name="weapon profile (deprecated)",
-    )
-
     # This is a many-to-many field because we want to be able to assign equipment
     # with multiple weapon profiles.
     weapon_profiles_field = models.ManyToManyField(
@@ -282,13 +272,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         self.weapon_profiles_field.add(profile)
 
     def weapon_profiles(self):
-        profiles = self.weapon_profiles_field.all()
-        # It's possible that there is a weapon profile set, and it is also in the list of profiles.
-        # This goes away as we deprecate the weapon_profile field.
-        duplicated = self.weapon_profile in profiles
-        return list(profiles) + (
-            [self.weapon_profile] if self.weapon_profile and not duplicated else []
-        )
+        return list(self.weapon_profiles_field.all())
 
     def weapon_profiles_display(self):
         """Return a list of dictionaries with the weapon profiles and their costs."""
