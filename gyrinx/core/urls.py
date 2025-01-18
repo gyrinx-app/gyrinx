@@ -72,5 +72,4 @@ urlpatterns = [
         name="list-fighter-embed",
     ),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
-    path("cookies", views.cookies, name="cookies"),
 ]

@@ -63,46 +63,40 @@
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
         <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
-        <script id="Cookiebot"
-                src="https://consent.cookiebot.com/uc.js"
-                data-cbid="92d724a2-6639-4e73-81ef-6607b76df67d"
-                data-blockingmode="auto"
-                type="text/javascript"></script>
         {% settings_value "GOOGLE_ANALYTICS_ID" as analytics_id %}
         {% if analytics_id %}
-            <script data-cookieconsent="ignore">
-                        window.dataLayer = window.dataLayer || [];
-                        function gtag() {
-                              dataLayer.push(arguments);
-                        }
-                        gtag("consent", "default", {
-                              ad_personalization: "denied",
-                              ad_storage: "denied",
-                              ad_user_data: "denied",
-                              analytics_storage: "denied",
-                              functionality_storage: "denied",
-                              personalization_storage: "denied",
-                              security_storage: "granted",
-                              wait_for_update: 500,
-                        });
-                        gtag("set", "ads_data_redaction", true);
-                        gtag("set", "url_passthrough", false);
+            <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag() {
+                        dataLayer.push(arguments);
+                }
+                gtag("consent", "default", {
+                        ad_personalization: "denied",
+                        ad_storage: "denied",
+                        ad_user_data: "denied",
+                        analytics_storage: "denied",
+                        functionality_storage: "granted",
+                        personalization_storage: "denied",
+                        security_storage: "granted",
+                        wait_for_update: 500,
+                });
+                gtag("set", "ads_data_redaction", true);
+                gtag("set", "url_passthrough", false);
             </script>
-            <!-- Google tag (gtag.js) -->
             <script async
                     src="https://www.googletagmanager.com/gtag/js?id={{ analytics_id }}"></script>
             <script>
-                        window.dataLayer = window.dataLayer || [];
-                        function gtag(){dataLayer.push(arguments);}
-                        gtag('js', new Date());
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
 
-                        {% if user.is_authenticated %}
-                        gtag('config', '{{ analytics_id }}', {
-                              'user_id': 'id:{{ user.id }}'
-                        });
-                        {% else %}
-                        gtag('config', '{{ analytics_id }}');
-                        {% endif %}
+                {% if user.is_authenticated %}
+                gtag('config', '{{ analytics_id }}', {
+                        'user_id': 'id:{{ user.id }}'
+                });
+                {% else %}
+                gtag('config', '{{ analytics_id }}');
+                {% endif %}
             </script>
         {% endif %}
     </head>

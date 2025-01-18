@@ -61,24 +61,6 @@ def index(request):
     )
 
 
-def cookies(request):
-    """
-    Display the site's cookies policy information.
-
-    **Context**
-
-    None
-
-    **Template**
-
-    :template:`core/cookies.html`
-    """
-    return render(
-        request,
-        "core/cookies.html",
-    )
-
-
 def content(request):
     """
     Display a placeholder content page (currently unused).
