@@ -87,9 +87,11 @@
                     {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode="edit" %}
                 </div>
             </div>
-            <form method="get"
-                  action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+            <form id="search"
+                  method="get"
+                  action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search"
                   class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
+                <input type="hidden" name="flash" value="search">
                 <div class="input-group">
                     <span class="input-group-text">
                         <i class="bi-search"></i>
@@ -101,7 +103,7 @@
                            name="q"
                            value="{{ request.GET.q }}">
                     {% if request.GET.q %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search"
                            class="btn btn-outline-secondary">
                             <i class="bi-x-lg"></i>
                             <span class="d-none">Clear</span>
@@ -122,15 +124,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card-body vstack gap-2 p-0 p-sm-2">
+                    <div class="card-body vstack gap-2 p-0 p-sm-2 {% flash "search" %}">
                         {% include "core/includes/list_fighter_weapons.html" with weapons=assigns mode="add" %}
                     </div>
                 </div>
             {% empty %}
-                <div class="g-col-12">
+                <div class="g-col-12 {% flash "search" %}">
                     No weapons found.
                     {% if request.GET.q %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}">Clear your search</a>.
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search">Clear your search</a>.
                     {% endif %}
                 </div>
             {% endfor %}

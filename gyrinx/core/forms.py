@@ -205,7 +205,7 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
         label="Accessories",
         queryset=ContentWeaponAccessory.objects.all(),
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
-        help_text="Not currently implemented: Costs reflect the Fighter's Equipment List.",
+        help_text="Costs reflect the Fighter's Equipment List.",
         required=False,
     )
 

@@ -30,9 +30,9 @@ def active_aria(context: RequestContext, name):
 
 
 @register.simple_tag(takes_context=True)
-def flash(context: RequestContext, assign_id):
+def flash(context: RequestContext, id):
     request = context["request"]
-    return "flash-warn" if request.GET.get("flash") == str(assign_id) else ""
+    return "flash-warn" if request.GET.get("flash") == str(id) else ""
 
 
 @register.filter

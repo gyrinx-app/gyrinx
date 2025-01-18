@@ -14,6 +14,7 @@ from .models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
     ContentHouse,
     ContentPageRef,
     ContentPolicy,
@@ -162,6 +163,11 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
             "content/copy_equipment_list_item.html",
             context,
         )
+
+
+@admin.register(ContentFighterEquipmentListWeaponAccessory)
+class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["fighter__type", "weapon_accessory__name"]
 
 
 class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):

@@ -525,6 +525,51 @@ class ContentFighterEquipmentListItem(Content):
             raise ValidationError("Weapon profile must be for the same equipment.")
 
 
+class ContentFighterEquipmentListWeaponAccessory(Content):
+    """
+    Associates :model:`content.ContentWeaponAccessory` with a given fighter in the rulebook, optionally
+    specifying a cost override.
+    """
+
+    help_text = (
+        "Captures the weapon accessories available to a fighter in the rulebook."
+    )
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
+    weapon_accessory = models.ForeignKey(
+        "ContentWeaponAccessory", on_delete=models.CASCADE, db_index=True
+    )
+    cost = models.IntegerField(default=0)
+    history = HistoricalRecords()
+
+    def cost_int(self):
+        """
+        Returns the integer cost of this item.
+        """
+        return self.cost
+
+    def cost_display(self):
+        """
+        Returns a cost display string with '¢'.
+        """
+        return f"{self.cost}¢"
+
+    def __str__(self):
+        return f"{self.fighter} {self.weapon_accessory} ({self.cost})"
+
+    class Meta:
+        verbose_name = "Equipment List Weapon Accessory"
+        verbose_name_plural = "Equipment List Weapon Accessories"
+        unique_together = ["fighter", "weapon_accessory"]
+        ordering = ["fighter__type", "weapon_accessory__name"]
+
+    def clean(self):
+        """
+        Validation to ensure cost is not negative.
+        """
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
+
+
 class ContentWeaponTrait(Content):
     """
     Represents a trait that can be associated with a weapon, such as 'Knockback'
@@ -806,6 +851,41 @@ class ContentWeaponProfile(Content):
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
+class ContentWeaponAccessoryManager(models.Manager):
+    """
+    Custom manager for :model:`content.ContentWeaponAccessory` model. Currently unused but available
+    for future extensions.
+    """
+
+    pass
+
+
+class ContentWeaponAccessoryQuerySet(models.QuerySet):
+    """
+    Custom QuerySet for :model:`content.ContentWeaponAccessory`. Provides fighter-specific cost overrides.
+    """
+
+    def with_cost_for_fighter(
+        self, content_fighter: "ContentFighter"
+    ) -> "ContentWeaponAccessoryQuerySet":
+        """
+        Annotates the queryset with cost overrides for a given fighter, if present.
+        """
+        equipment_list_entries = (
+            ContentFighterEquipmentListWeaponAccessory.objects.filter(
+                fighter=content_fighter,
+                weapon_accessory=OuterRef("pk"),
+            )
+        )
+        return self.annotate(
+            cost_override=Subquery(
+                equipment_list_entries.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            cost_for_fighter=Coalesce("cost_override", "cost"),
+        )
+
+
 class ContentWeaponAccessory(Content):
     """
     Represents an accessory that can be associated with a weapon.
@@ -819,6 +899,20 @@ class ContentWeaponAccessory(Content):
     )
     history = HistoricalRecords()
 
+    def cost_int(self):
+        """
+        Returns the integer cost of this weapon accessory.
+        """
+        return self.cost
+
+    def cost_for_fighter_int(self):
+        if hasattr(self, "cost_for_fighter"):
+            return self.cost_for_fighter
+
+        raise AttributeError(
+            "cost_for_fighter not available. Use with_cost_for_fighter()"
+        )
+
     def __str__(self):
         return self.name
 
@@ -826,6 +920,10 @@ class ContentWeaponAccessory(Content):
         verbose_name = "Weapon Accessory"
         verbose_name_plural = "Weapon Accessories"
         ordering = ["name"]
+
+    objects = ContentWeaponAccessoryManager.from_queryset(
+        ContentWeaponAccessoryQuerySet
+    )()
 
 
 class ContentFighterDefaultAssignment(Content):

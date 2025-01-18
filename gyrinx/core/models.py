@@ -14,6 +14,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
     ContentHouse,
     ContentSkill,
     ContentWeaponAccessory,
@@ -354,8 +355,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return f"+{self.weapon_profiles_cost_int()}¢"
 
     def weapon_accessories_cost_int(self):
-        # TODO: Support overrides for weapon accessories
-        return sum([wa.cost for wa in self.weapon_accessories_field.all()])
+        return self._accessories_cost_with_override()
 
     def weapon_accessories_cost_display(self):
         return f"+{self.weapon_accessories_cost_int()}¢"
@@ -415,6 +415,33 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     def profile_cost_display(self, profile):
         return f"+{self.profile_cost_int(profile)}¢"
+
+    def _accessories_cost_with_override(self):
+        accessories = self.weapon_accessories()
+        if not accessories:
+            return 0
+
+        after_overrides = [self._accessory_cost_with_override(a) for a in accessories]
+        return sum(after_overrides)
+
+    def _accessory_cost_with_override(self, accessory):
+        if hasattr(accessory, "cost_for_fighter"):
+            return accessory.cost_for_fighter_int()
+
+        try:
+            override = ContentFighterEquipmentListWeaponAccessory.objects.get(
+                fighter=self.list_fighter.content_fighter,
+                weapon_accessory=accessory,
+            )
+            return override.cost_int()
+        except ContentFighterEquipmentListWeaponAccessory.DoesNotExist:
+            return accessory.cost_int()
+
+    def accessory_cost_int(self, accessory):
+        return self._accessory_cost_with_override(accessory)
+
+    def accessory_cost_display(self, accessory):
+        return f"+{self.accessory_cost_int(accessory)}¢"
 
     #  Behaviour
 
@@ -646,8 +673,17 @@ class VirtualListFighterEquipmentAssignment:
         return [
             {
                 "accessory": accessory,
-                "cost_int": accessory.cost,
-                "cost_display": f"+{accessory.cost}¢",
+                "cost_int": self._weapon_accessory_cost(accessory),
+                "cost_display": f"+{self._weapon_accessory_cost(accessory)}¢",
             }
             for accessory in self.weapon_accessories()
         ]
+
+    def _weapon_accessory_cost(self, accessory):
+        if not self._assignment:
+            return accessory.cost_for_fighter_int()
+
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.accessory_cost_int(accessory)

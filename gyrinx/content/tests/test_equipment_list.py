@@ -5,6 +5,8 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
+    ContentWeaponAccessory,
     ContentWeaponProfile,
 )
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
@@ -154,6 +156,27 @@ def test_content_equipment_manager():
     assert (
         ContentWeaponProfile.objects.with_cost_for_fighter(fighter)
         .get(pk=knife_profile_upgraded.pk)
+        .cost_for_fighter_int()
+        == 5
+    )
+
+
+@pytest.mark.django_db
+def test_equipment_list_weapon_accessory():
+    spoon_sight = ContentWeaponAccessory.objects.create(name="Spoon Sight", cost=10)
+
+    fighter = ContentFighter.objects.create(
+        type="Charter Master",
+        category=FighterCategoryChoices.LEADER,
+    )
+
+    ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=spoon_sight, cost=5
+    )
+
+    assert (
+        ContentWeaponAccessory.objects.with_cost_for_fighter(fighter)
+        .get(pk=spoon_sight.pk)
         .cost_for_fighter_int()
         == 5
     )
