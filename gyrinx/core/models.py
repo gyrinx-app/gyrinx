@@ -148,7 +148,8 @@ class ListFighter(AppBase):
             list_fighter=self, content_equipment=equipment
         )
         if weapon_profiles:
-            assign.weapon_profiles_field.set(weapon_profiles)
+            for profile in weapon_profiles:
+                assign.assign_profile(profile)
 
         assign.save()
         return assign
@@ -240,7 +241,8 @@ class ListFighter(AppBase):
                 )
 
 
-class ListFighterEquipmentAssignment(AppBase):
+# This class is slightly different becuase it is a through model without Owned.
+class ListFighterEquipmentAssignment(Base, Archived):
     """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
 
     help_text = "A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."
@@ -272,6 +274,12 @@ class ListFighterEquipmentAssignment(AppBase):
     )
 
     history = HistoricalRecords()
+
+    def assign_profile(self, profile):
+        """Assign a weapon profile to this equipment."""
+        if profile.equipment != self.content_equipment:
+            raise ValueError(f"{profile} is not a profile for {self.content_equipment}")
+        self.weapon_profiles_field.add(profile)
 
     def weapon_profiles(self):
         profiles = self.weapon_profiles_field.all()
@@ -413,15 +421,6 @@ class ListFighterEquipmentAssignment(AppBase):
 
     def __str__(self):
         return f"{self.list_fighter} – {self.name()}"
-
-    def clean(self):
-        if (
-            self.weapon_profile
-            and self.weapon_profile.equipment != self.content_equipment
-        ):
-            raise ValidationError(
-                f"{self.weapon_profile} is not a profile for {self.content_equipment}"
-            )
 
 
 @dataclass

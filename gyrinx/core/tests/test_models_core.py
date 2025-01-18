@@ -1027,3 +1027,29 @@ def test_virtual_assignments():
     assert list(v_assignment.standard_profiles()) == list(
         assignment.standard_profiles()
     )
+
+
+@pytest.mark.django_db
+def test_weapon_equipment_match(
+    content_fighter, make_list, make_equipment, make_list_fighter
+):
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=5,
+    )
+    fork, _ = ContentEquipment.objects.get_or_create(
+        name="Fork",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+    spoon_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="",
+    )
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, content_fighter)
+
+    with pytest.raises(Exception):
+        fighter.assign(fork, weapon_profile=spoon_profile)
