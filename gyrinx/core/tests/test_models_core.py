@@ -281,7 +281,7 @@ def test_list_fighter_with_spoon_weapon():
 
     assert fighter.cost_int() == 100
 
-    fighter.assign(spoon, weapon_profile=spoon_profile)
+    fighter.assign(spoon, weapon_profiles=[spoon_profile])
 
     assert fighter.cost_int() == 110
     assert list(
@@ -343,7 +343,7 @@ def test_fighter_with_spoon_weapon_profile_with_cost():
 
     assert fighter.cost_int() == 100
 
-    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+    fighter.assign(spoon, weapon_profiles=[spoon_spike_profile])
 
     assert fighter.cost_int() == 115
 
@@ -405,12 +405,12 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
     assert fighter.cost_int() == 100
     assert fighter2.cost_int() == 100
 
-    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+    fighter.assign(spoon, weapon_profiles=[spoon_spike_profile])
 
     assert fighter.cost_int() == 115
     assert fighter2.cost_int() == 100
 
-    fighter2.assign(spoon, weapon_profile=spoon_profile)
+    fighter2.assign(spoon, weapon_profiles=[spoon_profile])
 
     assert fighter.cost_int() == 115
     assert fighter2.cost_int() == 110
@@ -649,7 +649,7 @@ def test_weapon_cost_equipment_list_override_with_profile():
 
     # Duel-wield spoons
     fighter.assign(spoon)
-    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+    fighter.assign(spoon, weapon_profiles=[spoon_spike_profile])
 
     assert fighter.cost_int() == 122
 
@@ -728,8 +728,8 @@ def test_list_fighter_with_same_equipment_different_profiles():
     assert fighter.cost_int() == 100
 
     # Assign the same equipment with different profiles
-    fighter.assign(spoon, weapon_profile=spoon_profile)
-    fighter.assign(spoon, weapon_profile=spoon_spike_profile)
+    fighter.assign(spoon, weapon_profiles=[spoon_profile])
+    fighter.assign(spoon, weapon_profiles=[spoon_spike_profile])
 
     assert fighter.cost_int() == 125  # 100 base + 10 spoon + 15 spoon with spike
 
@@ -824,7 +824,7 @@ def test_weapon_with_multiple_profiles():
     assert fighter.cost_int() == 100
 
     # Assign the costed profile to the fighter
-    fighter.assign(spoon, weapon_profile=spoon_profile_costed)
+    fighter.assign(spoon, weapon_profiles=[spoon_profile_costed])
 
     assert fighter.cost_int() == 115  # 100 base + 10 spoon + 5 profile cost
 
@@ -1045,4 +1045,4 @@ def test_weapon_equipment_match(
     fighter = make_list_fighter(lst, content_fighter)
 
     with pytest.raises(Exception):
-        fighter.assign(fork, weapon_profile=spoon_profile)
+        fighter.assign(fork, weapon_profiles=[spoon_profile])

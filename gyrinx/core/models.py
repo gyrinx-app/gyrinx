@@ -134,13 +134,7 @@ class ListFighter(AppBase):
     def cost_display(self):
         return f"{self.cost_int()}¢"
 
-    def assign(self, equipment, weapon_profile=None, weapon_profiles=None):
-        if weapon_profiles and weapon_profile:
-            raise ValueError("Cannot specify both weapon_profile and weapon_profiles")
-
-        if weapon_profile and not weapon_profiles:
-            weapon_profiles = [weapon_profile]
-
+    def assign(self, equipment, weapon_profiles=None):
         # We create the assignment directly because Django does not use the through_defaults
         # if you .add() equipment that is already in the list, which prevents us from
         # assigning the same equipment multiple times, once with a weapon profile and once without.
