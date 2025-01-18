@@ -897,6 +897,22 @@ class ContentWeaponAccessory(Content):
         help_text="The credit cost of the weapon accessory at the Trading Post. This cost can be "
         "overridden by the fighter's equipment list.",
     )
+    rarity = models.CharField(
+        max_length=1,
+        choices=[
+            ("R", "Rare (R)"),
+            ("I", "Illegal (I)"),
+            ("E", "Exclusive (E)"),
+            ("C", "Common (C)"),
+        ],
+        blank=True,
+        default="C",
+        help_text="Use 'E' to exclude this profile from the Trading Post.",
+        verbose_name="Availability",
+    )
+    rarity_roll = models.IntegerField(
+        blank=True, null=True, verbose_name="Availability Level"
+    )
     history = HistoricalRecords()
 
     def cost_int(self):
