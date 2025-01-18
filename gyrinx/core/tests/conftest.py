@@ -18,7 +18,6 @@ def make_user(django_user_model) -> Callable[[str, str], object]:
 
 
 @pytest.fixture
-@pytest.mark.django_db
 def user(make_user):
     return make_user("testuser", "password")
 

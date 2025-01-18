@@ -1,5 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
@@ -31,10 +30,6 @@ def make_content():
         base_cost=100,
     )
     return category, house, fighter
-
-
-def make_user():
-    return User.objects.create_user("testuser", "example@example.com", "password")
 
 
 @pytest.mark.django_db
@@ -71,10 +66,9 @@ def test_basic_list_fighter():
 
 
 @pytest.mark.django_db
-def test_fighter_name_min_length():
+def test_fighter_name_min_length(user):
     category, house, content_fighter = make_content()
     lst = List.objects.create(name="Test List", content_house=house)
-    user = make_user()
 
     with pytest.raises(
         ValidationError, match="Ensure this value has at least 3 characters"
@@ -106,15 +100,14 @@ def test_list_fighter_content_fighter():
 
 
 @pytest.mark.django_db
-def test_list_fighter_house_matches_list():
+def test_list_fighter_house_matches_list(user):
     category, house, content_fighter = make_content()
 
     house = ContentHouse.objects.create(
         name="Ash Waste Nomads",
     )
 
-    owner = make_user()
-    lst = List.objects.create(name="Test List AWN", content_house=house, owner=owner)
+    lst = List.objects.create(name="Test List AWN", content_house=house, owner=user)
 
     with pytest.raises(
         ValidationError,
