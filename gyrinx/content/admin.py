@@ -6,7 +6,7 @@ from django.db.models.functions import Cast
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
-from gyrinx.content.forms import CopyEquipmentListItemForm
+from gyrinx.content.forms import CopySelectedToFighterForm
 
 from .models import (
     ContentBook,
@@ -25,6 +25,53 @@ from .models import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
+
+
+@admin.action(description="Copy to another Fighter")
+def copy_selected_to(self, request, queryset):
+    selected = queryset.values_list("pk", flat=True)
+
+    if request.POST.get("post"):
+        try:
+            for fighter_id in request.POST.getlist("to_fighters"):
+                for item in queryset:
+                    item.pk = None
+                    item.fighter_id = fighter_id
+                    item.save()
+        except Exception as e:
+            self.message_user(
+                request,
+                _("An error occurred while copying: %s") % str(e),
+                messages.ERROR,
+            )
+            return None
+
+        self.message_user(
+            request,
+            _("The selected items have been copied."),
+            messages.SUCCESS,
+        )
+        return None
+
+    form = CopySelectedToFighterForm(initial={"_selected_action": selected})
+    title = _("Copy items to another ContentFighter?")
+    subtitle = _(
+        "Select one or more ContentFighters to which you want to copy the selected items."
+    )
+
+    context = {
+        **self.admin_site.each_context(request),
+        "title": title,
+        "subtitle": subtitle,
+        "queryset": queryset,
+        "form": form,
+    }
+    request.current_app = self.admin_site.name
+    return render(
+        request,
+        "content/copy_selected_to.html",
+        context,
+    )
 
 
 class ContentAdmin(admin.ModelAdmin):
@@ -115,59 +162,14 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
     form = ContentFighterEquipmentListItemAdminForm
 
-    actions = ["copy_selected_to"]
-
-    @admin.action(description="Copy to another Fighter")
-    def copy_selected_to(self, request, queryset):
-        selected = queryset.values_list("pk", flat=True)
-
-        if request.POST.get("post"):
-            try:
-                for fighter_id in request.POST.getlist("to_fighters"):
-                    for item in queryset:
-                        item.pk = None
-                        item.fighter_id = fighter_id
-                        item.save()
-            except Exception as e:
-                self.message_user(
-                    request,
-                    _("An error occurred while copying the Equipment List Items: %s")
-                    % str(e),
-                    messages.ERROR,
-                )
-                return None
-
-            self.message_user(
-                request,
-                _("The selected Equipment List Items have been copied."),
-                messages.SUCCESS,
-            )
-            return None
-
-        form = CopyEquipmentListItemForm(initial={"_selected_action": selected})
-        title = _("Copy Equipment List Items to another ContentFighter?")
-        subtitle = _(
-            "Select one or more ContentFighters to which you want to copy the selected Equipment List Items."
-        )
-
-        context = {
-            **self.admin_site.each_context(request),
-            "title": title,
-            "subtitle": subtitle,
-            "queryset": queryset,
-            "form": form,
-        }
-        request.current_app = self.admin_site.name
-        return render(
-            request,
-            "content/copy_equipment_list_item.html",
-            context,
-        )
+    actions = [copy_selected_to]
 
 
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
+
+    actions = [copy_selected_to]
 
 
 class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
