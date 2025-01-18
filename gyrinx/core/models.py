@@ -265,6 +265,25 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     history = HistoricalRecords()
 
+    # Information & Display
+
+    def name(self):
+        profile_name = self.weapon_profiles_names()
+        return f"{self.content_equipment}" + (
+            f" ({profile_name})" if profile_name else ""
+        )
+
+    def is_weapon(self):
+        return self.content_equipment.is_weapon()
+
+    def base_name(self):
+        return f"{self.content_equipment}"
+
+    def __str__(self):
+        return f"{self.list_fighter} – {self.name()}"
+
+    # Profiles
+
     def assign_profile(self, profile):
         """Assign a weapon profile to this equipment."""
         if profile.equipment != self.content_equipment:
@@ -304,21 +323,11 @@ class ListFighterEquipmentAssignment(Base, Archived):
             equipment=self.content_equipment, cost=0
         )
 
-    def is_weapon(self):
-        return self.content_equipment.is_weapon()
-
-    def name(self):
-        profile_name = self.weapon_profiles_names()
-        return f"{self.content_equipment}" + (
-            f" ({profile_name})" if profile_name else ""
-        )
-
     def weapon_profiles_names(self):
         profile_names = [p.name for p in self.weapon_profiles()]
         return ", ".join(profile_names)
 
-    def base_name(self):
-        return f"{self.content_equipment}"
+    # Costs
 
     def base_cost_int(self):
         return self._equipment_cost_with_override()
@@ -384,6 +393,8 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def profile_cost_display(self, profile):
         return f"+{self.profile_cost_int(profile)}¢"
 
+    #  Behaviour
+
     def clone(self, list_fighter=None):
         """Clone the assignment, creating a new assignment with the same weapon profiles."""
         if not list_fighter:
@@ -402,9 +413,6 @@ class ListFighterEquipmentAssignment(Base, Archived):
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
         verbose_name_plural = "Fighter Equipment Assignments"
-
-    def __str__(self):
-        return f"{self.list_fighter} – {self.name()}"
 
 
 @dataclass
