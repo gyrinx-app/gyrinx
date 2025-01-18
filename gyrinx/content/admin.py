@@ -57,7 +57,7 @@ class ContentWeaponProfileInline(ContentTabularInline):
 
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["name", "category__name"]
+    search_fields = ["name", "category", "contentweaponprofile__name"]
 
     inlines = [ContentWeaponProfileInline]
 
