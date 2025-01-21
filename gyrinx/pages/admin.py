@@ -4,7 +4,7 @@ from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
 from tinymce.widgets import TinyMCE
 
-from gyrinx.pages.models import FlatPageVisibility
+from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry, WaitingListSkill
 
 
 class FlatPageVisibilityInline(admin.TabularInline):
@@ -41,3 +41,39 @@ class FlatPageVisibilityAdmin(admin.ModelAdmin):
     search_fields = ("page__title", "groups__name")
     ordering = ("page__title",)
     actions = None
+
+
+# Waiting List
+
+
+@admin.register(WaitingListSkill)
+class WaitingListSkillAdmin(admin.ModelAdmin):
+    list_display = ("name", "description")
+    search_fields = ("name", "description")
+    ordering = ("name",)
+
+
+def display(field, key):
+    return lambda obj: ", ".join(
+        [getattr(item, key) for item in getattr(obj, field).all()]
+    )
+
+
+@admin.register(WaitingListEntry)
+class WaitingListEntryAdmin(admin.ModelAdmin):
+    readonly_fields = ("share_code",)
+    list_display = (
+        "email",
+        "desired_username",
+        "yaktribe_username",
+        "share_code",
+        display("skills", "name"),
+    )
+    search_fields = (
+        "email",
+        "desired_username",
+        "yaktribe_username",
+        "skills__name",
+        "notes",
+    )
+    ordering = ("email",)
