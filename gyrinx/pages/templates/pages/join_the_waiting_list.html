@@ -11,7 +11,7 @@
         </p>
         <form action="{% url 'join_the_waiting_list' %}" method="post">
             {% csrf_token %}
-            <div class="vstack gap-3">
+            <div class="vstack gap-5">
                 {{ form }}
                 <input type="submit" class="btn btn-primary" value="Join the waiting list">
             </div>

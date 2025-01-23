@@ -75,6 +75,7 @@ class JoinWaitingListForm(forms.ModelForm):
     yaktribe_username = forms.CharField(
         label="YakTribe user? Tell us your username…",
         label_suffix="",
+        help_text="We're working on ways to import your YakTribe data, so this will help us match you up.",
         required=False,
         widget=forms.TextInput(
             attrs={"placeholder": "lord_helmawr", "class": "form-control"}

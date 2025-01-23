@@ -117,7 +117,7 @@ TEMPLATES = [
         "DIRS": [
             # Include the root templates directory where we
             # can override templates from django across all apps
-            # BASE_DIR / "gyrinx/templates",
+            BASE_DIR / "gyrinx/templates",
             BASE_DIR / "gyrinx/core/templates",
             BASE_DIR / "gyrinx/feedback/templates",
             BASE_DIR / "gyrinx/pages/templates",
