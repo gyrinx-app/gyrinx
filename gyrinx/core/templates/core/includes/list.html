@@ -13,7 +13,8 @@
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div class="text-secondary">
-                    <i class="bi-person"></i> {{ list.owner }}
+                    <i class="bi-person"></i> <a class="link-secondary"
+    href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
                 </div>
                 {% if not print %}
                     <div class="text-secondary">

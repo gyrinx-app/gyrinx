@@ -2,6 +2,7 @@ from itertools import zip_longest
 from random import randint
 from urllib.parse import urlencode
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
 from django.db.models import Q
@@ -1039,3 +1040,34 @@ class ListArchivedFightersView(generic.ListView):
         Retrieve the :model:`core.List` by its `id`, ensuring it's owned by the current user.
         """
         return get_object_or_404(List, id=self.kwargs["id"], owner=self.request.user)
+
+
+# Users
+
+
+def user(request, slug_or_id):
+    """
+    Display a user profile page with public lists.
+
+    **Context**
+
+    ``user``
+        The requested user object.
+
+    **Template**
+
+    :template:`core/user.html`
+    """
+    User = get_user_model()
+    slug_or_id = str(slug_or_id).lower()
+    if slug_or_id.isnumeric():
+        query = Q(id=slug_or_id)
+    else:
+        query = Q(username__iexact=slug_or_id)
+    user = get_object_or_404(User, query)
+    public_lists = List.objects.filter(owner=user, public=True)
+    return render(
+        request,
+        "core/user.html",
+        {"user": user, "public_lists": public_lists},
+    )

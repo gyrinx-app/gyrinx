@@ -82,4 +82,6 @@ urlpatterns = [
         name="list-fighter-embed",
     ),
     path("list/<id>/print", views.ListPrintView.as_view(), name="list-print"),
+    # Users
+    path("user/<slug_or_id>", views.user, name="user"),
 ]
