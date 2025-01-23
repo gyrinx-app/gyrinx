@@ -1,0 +1,14 @@
+{% with id=widget.attrs.id %}
+    <div {% if id %}id="{{ id }}"{% endif %} class="vstack gap-2">
+        {% for group, options, index in widget.optgroups %}
+            {% if group %}
+                <div class="form-check">
+                    <label>{{ group }}</label>
+                {% endif %}
+                {% for option in options %}
+                    <div class="hstack gap-2 align-items-start">{% include option.template_name with widget=option %}</div>
+                {% endfor %}
+                {% if group %}</div>{% endif %}
+        {% endfor %}
+    </div>
+{% endwith %}

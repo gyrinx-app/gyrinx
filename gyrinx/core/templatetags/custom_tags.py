@@ -10,6 +10,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from gyrinx.content.models import ContentPageRef
+from gyrinx.core import url
 
 register = template.Library()
 
@@ -149,10 +150,7 @@ def qr_svg(value):
 
 @register.simple_tag(takes_context=True)
 def fullurl(context: RequestContext, path):
-    base_url = getattr(settings, "BASE_URL", None)
-    if base_url:
-        return base_url.rstrip("/") + "/" + path.lstrip("/")
-    return context["request"].build_absolute_uri(path)
+    return url.fullurl(context["request"], path)
 
 
 @register.simple_tag

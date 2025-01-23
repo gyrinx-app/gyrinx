@@ -153,9 +153,11 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
 })();
 
 document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
-    element.addEventListener("click", () => {
+    element.addEventListener("click", (event) => {
         const textToCopy = element.getAttribute("data-clipboard-text");
         if (!textToCopy) return;
+
+        event.preventDefault();
 
         const messageElemId = element.getAttribute("data-clipboard-message");
 

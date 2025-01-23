@@ -60,6 +60,11 @@ class WaitingListEntry(Base):
     )
     notes = models.TextField(blank=True)
     share_code = models.UUIDField(default=uuid.uuid4, editable=False)
+    referred_by_code = models.UUIDField(
+        blank=True,
+        null=True,
+        help_text="The share code of the user who referred this user.",
+    )
 
     history = HistoricalRecords()
 

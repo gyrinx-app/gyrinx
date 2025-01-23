@@ -71,6 +71,15 @@ a[href="#"][data-bs-toggle="tooltip"] {
     border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
 }
 
+fieldset legend {
+    font-size: $font-size-base;
+}
+
+.errorlist {
+    @extend .list-unstyled;
+    color: var(--bs-danger);
+}
+
 @keyframes flash-warn {
     from {
         background-color: var(--bs-warning-bg-subtle) !important;

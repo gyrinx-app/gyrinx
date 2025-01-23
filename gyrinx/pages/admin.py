@@ -61,7 +61,7 @@ def display(field, key):
 
 @admin.register(WaitingListEntry)
 class WaitingListEntryAdmin(admin.ModelAdmin):
-    readonly_fields = ("share_code",)
+    readonly_fields = ["share_code", "referred_by_code"]
     list_display = (
         "email",
         "desired_username",

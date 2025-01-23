@@ -1,0 +1,20 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags pages %}
+{% block head_title %}
+    {{ flatpage.title }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Join the waiting list</h1>
+        <p>
+            We’re excited to share Gyrinx with you as soon as we can. You can reserve a spot and get early access by joining the waiting list.
+        </p>
+        <form action="{% url 'join_the_waiting_list' %}" method="post">
+            {% csrf_token %}
+            <div class="vstack gap-3">
+                {{ form }}
+                <input type="submit" class="btn btn-primary" value="Join the waiting list">
+            </div>
+        </form>
+    </div>
+{% endblock content %}

@@ -24,6 +24,16 @@ urlpatterns = [
     path("", include("gyrinx.core.urls")),
     path("accounts/", include("allauth.urls")),
     path("admin/doc/", include("django.contrib.admindocs.urls")),
+    path(
+        "join-the-waiting-list/",
+        views.join_the_waiting_list,
+        name="join_the_waiting_list",
+    ),
+    path(
+        "join-the-waiting-list/success/",
+        views.join_the_waiting_list_success,
+        name="join_the_waiting_list_success",
+    ),
     path("admin/", admin.site.urls),
     path("tinymce/", include("tinymce.urls")),
     re_path(r"^(?P<url>.*/)$", views.flatpage),

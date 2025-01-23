@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags pages %}
 {% block head_title %}
     Home
 {% endblock head_title %}
@@ -59,10 +59,41 @@
                 {% endif %}
             </div>
         {% else %}
-            <p>
-                <a href="#">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
-                <a href="{% url 'account_signup' %}">sign up</a>.
-            </p>
+            {% get_page_by_url "/about/" as about_page %}
+            {% settings_value "ACCOUNT_ALLOW_SIGNUPS" as account_signups %}
+            {% settings_value "WAITING_LIST_ALLOW_SIGNUPS" as waiting_list_signups %}
+            {% if account_signups %}
+                {% if about_page %}
+                    <p>
+                        <a href="{{ about_page.url }}">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
+                        <a href="{% url 'account_signup' %}">sign up</a>.
+                    </p>
+                {% else %}
+                    <p>
+                        <a href="{% url 'account_login' %}">Sign in</a> or <a href="{% url 'account_signup' %}">sign up</a>.
+                    </p>
+                {% endif %}
+            {% elif waiting_list_signups %}
+                {% if about_page %}
+                    <p>
+                        <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'join_the_waiting_list' %}">join the waiting list</a>.
+                    </p>
+                {% else %}
+                    <p>
+                        <a href="{% url 'join_the_waiting_list' %}">Join the waiting list</a>.
+                    </p>
+                {% endif %}
+            {% else %}
+                {% if about_page %}
+                    <p>
+                        <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'account_login' %}">sign in</a>.
+                    </p>
+                {% else %}
+                    <p>
+                        <a href="{% url 'account_login' %}">Sign in</a>.
+                    </p>
+                {% endif %}
+            {% endif %}
         {% endif %}
     </div>
 {% endblock content %}

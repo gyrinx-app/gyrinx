@@ -65,6 +65,8 @@ GOOGLE_ANALYTICS_ID = os.getenv("GOOGLE_ANALYTICS_ID", "")
 
 INSTALLED_APPS = [
     "daphne",
+    # Added so we can override templates
+    "django.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -106,10 +108,15 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "gyrinx.urls"
 
+FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
+            # Include the root templates directory where we
+            # can override templates from django across all apps
+            # BASE_DIR / "gyrinx/templates",
             BASE_DIR / "gyrinx/core/templates",
             BASE_DIR / "gyrinx/feedback/templates",
             BASE_DIR / "gyrinx/pages/templates",
@@ -195,6 +202,9 @@ ACCOUNT_ADAPTER = "gyrinx.core.adapter.CustomAccountAdapter"
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
 
+# Waiting list
+
+WAITING_LIST_ALLOW_SIGNUPS = os.getenv("WAITING_LIST_ALLOW_SIGNUPS", "False") == "True"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

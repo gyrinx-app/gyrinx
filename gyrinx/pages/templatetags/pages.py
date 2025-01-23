@@ -145,3 +145,14 @@ def page_depth(page):
     Return the depth of the page in the site's hierarchy.
     """
     return max(page.url.count("/") - 2, 0)
+
+
+@register.simple_tag
+def get_page_by_url(url):
+    """
+    Return the page with the given URL.
+    """
+    try:
+        return FlatPage.objects.get(url=url)
+    except FlatPage.DoesNotExist:
+        return None
