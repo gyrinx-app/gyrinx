@@ -87,6 +87,7 @@ class EquipmentCategoryChoices(models.TextChoices):
     HARDPOINT_UPGRADES = "HARDPOINT_UPGRADES", "Hardpoint Upgrades"
     HEAVY_WEAPONS = "HEAVY_WEAPONS", "Heavy Weapons"
     MOUNTS = "MOUNTS", "Mounts"
+    OPTIONS = "OPTIONS", "Options"
     PISTOLS = "PISTOLS", "Pistols"
     POWER_PACK_WEAPONS = "POWER_PACK_WEAPONS", "Power Pack Weapons"
     RELICS = "RELICS", "Relics"
