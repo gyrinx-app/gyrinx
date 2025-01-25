@@ -101,6 +101,70 @@ class List(AppBase):
     def __str__(self):
         return self.name
 
+        # ordering = [
+        #     Case(
+        #         *[
+        #             When(content_fighter__category=category, then=index)
+        #             for index, category in enumerate(
+        #                 [
+        #                     "LEADER",
+        #                     "CHAMPION",
+        #                     "PROSPECT",
+        #                     "SPECIALIST",
+        #                     "GANGER",
+        #                     "JUVE",
+        #                 ]
+        #             )
+        #         ],
+        #         default=99,
+        #     ),
+        #     "content_fighter__category",
+        #     "name",
+        # ]
+
+
+class ListFighterManager(models.Manager):
+    """
+    Custom manager for :model:`content.ListFighter` model.
+    """
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .annotate(
+                _category_order=Case(
+                    *[
+                        When(content_fighter__category=category, then=index)
+                        for index, category in enumerate(
+                            [
+                                "LEADER",
+                                "CHAMPION",
+                                "PROSPECT",
+                                "SPECIALIST",
+                                "GANGER",
+                                "JUVE",
+                            ]
+                        )
+                    ],
+                    default=99,
+                ),
+            )
+            .order_by(
+                "list",
+                "_category_order",
+                "name",
+            )
+        )
+
+
+class ListFighterQuerySet(models.QuerySet):
+    """
+    Custom QuerySet for :model:`content.ListFighter`.
+    """
+
+    pass
+
 
 class ListFighter(AppBase):
     """A Fighter is a member of a List."""
@@ -204,26 +268,6 @@ class ListFighter(AppBase):
     class Meta:
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
-        ordering = [
-            Case(
-                *[
-                    When(content_fighter__category=category, then=index)
-                    for index, category in enumerate(
-                        [
-                            "LEADER",
-                            "CHAMPION",
-                            "PROSPECT",
-                            "SPECIALIST",
-                            "GANGER",
-                            "JUVE",
-                        ]
-                    )
-                ],
-                default=99,
-            ),
-            "content_fighter__category",
-            "name",
-        ]
 
     def __str__(self):
         cf = self.content_fighter
@@ -239,6 +283,8 @@ class ListFighter(AppBase):
                 raise ValidationError(
                     f"{cf.type} cannot be a member of {list_house} list"
                 )
+
+    objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
 
 # This class is slightly different becuase it is a through model without Owned.

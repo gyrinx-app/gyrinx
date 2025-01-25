@@ -309,6 +309,49 @@ class ContentEquipment(Content):
     objects = ContentEquipmentManager.from_queryset(ContentEquipmentQuerySet)()
 
 
+class ContentFighterManager(models.Manager):
+    """
+    Custom manager for :model:`content.ContentFighter` model.
+    """
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .annotate(
+                _category_order=Case(
+                    *[
+                        When(category=category, then=index)
+                        for index, category in enumerate(
+                            [
+                                "LEADER",
+                                "CHAMPION",
+                                "PROSPECT",
+                                "SPECIALIST",
+                                "GANGER",
+                                "JUVE",
+                            ]
+                        )
+                    ],
+                    default=99,
+                )
+            )
+            .order_by(
+                "house__name",
+                "_category_order",
+                "type",
+            )
+        )
+
+
+class ContentFighterQuerySet(models.QuerySet):
+    """
+    Custom QuerySet for :model:`content.ContentFighter`.
+    """
+
+    pass
+
+
 class ContentFighter(Content):
     """
     Represents a fighter or character archetype. Includes stats, base cost,
@@ -505,26 +548,8 @@ class ContentFighter(Content):
     class Meta:
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"
-        ordering = [
-            "house__name",
-            Case(
-                *[
-                    When(category=category, then=index)
-                    for index, category in enumerate(
-                        [
-                            "LEADER",
-                            "CHAMPION",
-                            "PROSPECT",
-                            "SPECIALIST",
-                            "GANGER",
-                            "JUVE",
-                        ]
-                    )
-                ],
-                default=99,
-            ),
-            "type",
-        ]
+
+    objects = ContentFighterManager.from_queryset(ContentFighterQuerySet)()
 
 
 class ContentFighterEquipmentListItem(Content):
@@ -652,11 +677,27 @@ class ContentWeaponTrait(Content):
 
 class ContentWeaponProfileManager(models.Manager):
     """
-    Custom manager for :model:`content.ContentWeaponProfile` model. Currently unused but available
-    for future extensions.
+    Custom manager for :model:`content.ContentWeaponProfile` model.
     """
 
-    pass
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .annotate(
+                _name_order=Case(
+                    When(name="", then=0),
+                    default=1,
+                    output_field=models.IntegerField(),
+                )
+            )
+            .order_by(
+                "equipment__name",
+                "_name_order",
+                "name",
+                "cost",
+            )
+        )
 
 
 class ContentWeaponProfileQuerySet(models.QuerySet):
@@ -847,14 +888,6 @@ class ContentWeaponProfile(Content):
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
         unique_together = ["equipment", "name"]
-        ordering = [
-            "equipment__name",
-            Case(
-                When(name="", then=0),
-                default=99,
-            ),
-            "cost",
-        ]
 
     def clean(self):
         """
