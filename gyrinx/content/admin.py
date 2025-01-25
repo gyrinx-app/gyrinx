@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import models, transaction
@@ -72,6 +74,22 @@ def copy_selected_to(self, request, queryset):
         "content/copy_selected_to.html",
         context,
     )
+
+
+def group_equipment(form, field="equipment"):
+    grouped_equipment = groupby(
+        ContentEquipment.objects.order_by("category", "name"),
+        key=lambda equipment: equipment.cat(),
+    )
+
+    choices = [
+        (category_name, [(equipment.id, str(equipment)) for equipment in items])
+        for category_name, items in grouped_equipment
+    ]
+
+    form.fields[field].choices = [
+        ("", "---------"),
+    ] + choices
 
 
 class ContentAdmin(admin.ModelAdmin):
@@ -149,6 +167,9 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        group_equipment(self)
+
         if self.instance.equipment_id:
             self.fields[
                 "weapon_profile"
@@ -181,12 +202,19 @@ class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelA
 class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        group_equipment(self)
         if self.instance.equipment_id:
             self.fields[
                 "weapon_profiles_field"
             ].queryset = ContentWeaponProfile.objects.filter(
                 equipment=self.instance.equipment
             )
+
+        self.fields["weapon_profiles_field"].queryset = self.fields[
+            "weapon_profiles_field"
+        ].queryset.filter(
+            cost__gt=0,
+        )
 
 
 @admin.register(ContentFighterDefaultAssignment)
@@ -196,10 +224,12 @@ class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):
+    form = ContentFighterEquipmentListItemAdminForm
     model = ContentFighterEquipmentListItem
 
 
 class ContentFighterDefaultAssignmentInline(ContentTabularInline):
+    form = ContentFighterDefaultAssignmentAdminForm
     model = ContentFighterDefaultAssignment
 
 
@@ -254,8 +284,15 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
 
 
+class ContentWeaponProfileAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_equipment(self, "equipment")
+
+
 @admin.register(ContentWeaponProfile)
 class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentWeaponProfileAdminForm
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
 

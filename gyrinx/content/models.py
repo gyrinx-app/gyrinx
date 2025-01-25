@@ -16,7 +16,12 @@ from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
 from django.db.models.functions import Cast, Coalesce
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import Base, EquipmentCategoryChoices, FighterCategoryChoices
+from gyrinx.models import (
+    Base,
+    FighterCategoryChoices,
+    equipment_category_choices,
+    equipment_category_choices_flat,
+)
 
 ##
 ## Content Models
@@ -202,7 +207,7 @@ class ContentEquipment(Content):
     """
 
     name = models.CharField(max_length=255)
-    category = models.CharField(max_length=255, choices=EquipmentCategoryChoices)
+    category = models.CharField(max_length=255, choices=equipment_category_choices)
 
     cost = models.CharField(
         help_text="The credit cost of the equipment at the Trading Post. Note that, in weapons, "
@@ -266,7 +271,7 @@ class ContentEquipment(Content):
         """
         Returns the human-readable label of the equipment's category.
         """
-        return EquipmentCategoryChoices[self.category].label
+        return equipment_category_choices_flat[self.category]
 
     def is_weapon(self):
         """
@@ -672,8 +677,11 @@ class ContentWeaponProfile(Content):
         blank=True,
         default="C",
         help_text="Use 'E' to exclude this profile from the Trading Post.",
+        verbose_name="Availability",
     )
-    rarity_roll = models.IntegerField(blank=True, null=True)
+    rarity_roll = models.IntegerField(
+        blank=True, null=True, verbose_name="Availability Level"
+    )
 
     # Stat line
     range_short = models.CharField(
