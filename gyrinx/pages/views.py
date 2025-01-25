@@ -125,7 +125,14 @@ def join_the_waiting_list(request):
             instance.referred_by_code = form.cleaned_data.get("referred_by_code")
             instance.save()
             response = HttpResponseRedirect(reverse("join_the_waiting_list_success"))
-            response.set_cookie("wlid", form.instance.pk)
+            response.set_cookie(
+                "wlid",
+                form.instance.pk,
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                samesite="Strict",
+                secure=not settings.DEBUG,
+            )
             return response
     else:
         form = JoinWaitingListForm(initial={"referred_by_code": share_code})
