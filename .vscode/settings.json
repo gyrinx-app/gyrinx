@@ -29,5 +29,8 @@
     "[markdown]": {
         "editor.wordWrap": "bounded",
         "editor.wordWrapColumn": 110
-    }
+    },
+    "python.testing.pytestArgs": ["."],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }
