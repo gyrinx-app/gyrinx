@@ -450,6 +450,58 @@ class ContentFighter(Content):
         """
         return [rule.name for rule in self.rules.all()]
 
+    def copy_to_house(self, house):
+        skills = self.skills.all()
+        primary_skill_categories = self.primary_skill_categories.all()
+        secondary_skill_categories = self.secondary_skill_categories.all()
+        rules = self.rules.all()
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=self
+        )
+        equipment_list_weapon_accessories = (
+            ContentFighterEquipmentListWeaponAccessory.objects.filter(fighter=self)
+        )
+        default_assignments = ContentFighterDefaultAssignment.objects.filter(
+            fighter=self
+        )
+
+        # Copy the fighter
+        self.pk = None
+        self.house = house
+        self.save()
+        fighter_id = self.pk
+
+        self.skills.set(skills)
+        self.primary_skill_categories.set(primary_skill_categories)
+        self.secondary_skill_categories.set(secondary_skill_categories)
+        self.rules.set(rules)
+
+        for equipment in equipment_list_items:
+            equipment.pk = None
+            equipment.fighter_id = fighter_id
+            equipment.save()
+
+        for accessory in equipment_list_weapon_accessories:
+            accessory.pk = None
+            accessory.fighter_id = fighter_id
+            accessory.save()
+
+        for assignment in default_assignments:
+            weapon_profiles = assignment.weapon_profiles_field.all()
+            weapon_accessories = assignment.weapon_accessories_field.all()
+
+            assignment.pk = None
+            assignment.fighter_id = fighter_id
+            assignment.save()
+            assignment.weapon_profiles_field.set(weapon_profiles)
+            assignment.weapon_accessories_field.set(weapon_accessories)
+            assignment.save()
+
+        self.save()
+
+        # self is now the new fighter
+        return self
+
     class Meta:
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"

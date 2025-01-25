@@ -16,7 +16,7 @@
             {% for item in queryset %}<li>{{ item }}</li>{% endfor %}
         </ul>
         {{ form }}
-        <input type="hidden" name="action" value="copy_selected_to">
+        <input type="hidden" name="action" value="{{ action_name }}">
         <input type="hidden" name="post" value="yes">
         <input type="submit" value="Copy" />
         <a href="#" class="button cancel-link">{% translate "No, take me back" %}</a>

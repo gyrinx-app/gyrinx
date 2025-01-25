@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
     ContentWeaponAccessory,
@@ -180,3 +181,56 @@ def test_equipment_list_weapon_accessory():
         .cost_for_fighter_int()
         == 5
     )
+
+
+@pytest.mark.django_db
+def test_copy_to_house(
+    content_fighter,
+    make_content_house,
+    make_equipment,
+    make_weapon_profile,
+    make_weapon_accessory,
+):
+    spoon = make_equipment("Wooden Spoon", cost=10)
+    spoon_spike = make_weapon_profile(spoon, name="Spoon Spike", cost=5)
+    spoon_sight = make_weapon_accessory("Spoon Sight", cost=5)
+    fork = make_equipment("Fork", cost=15)
+    fork_double_prong = make_weapon_profile(fork, name="Double Prong", cost=10)
+    fork_sight = make_weapon_accessory("Fork Sight", cost=10)
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=content_fighter, equipment=spoon, cost=0
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=content_fighter, equipment=spoon, weapon_profile=spoon_spike, cost=0
+    )
+    ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=content_fighter, weapon_accessory=spoon_sight, cost=0
+    )
+    fork_assign = ContentFighterDefaultAssignment.objects.create(
+        fighter=content_fighter, equipment=fork
+    )
+    fork_assign.weapon_profiles_field.add(fork_double_prong)
+    fork_assign.weapon_accessories_field.add(fork_sight)
+
+    fork_assign.save()
+
+    spoon_house = make_content_house("House of Spoons")
+
+    new_content_fighter = content_fighter.copy_to_house(spoon_house)
+
+    assert new_content_fighter.house == spoon_house
+    assert ContentFighterEquipmentListItem.objects.filter(
+        fighter=new_content_fighter, equipment=spoon, cost=0
+    ).exists()
+    assert ContentFighterEquipmentListItem.objects.filter(
+        fighter=new_content_fighter, equipment=spoon, weapon_profile=spoon_spike, cost=0
+    ).exists()
+    assert ContentFighterEquipmentListWeaponAccessory.objects.filter(
+        fighter=new_content_fighter, weapon_accessory=spoon_sight, cost=0
+    ).exists()
+    new_fork_assign = ContentFighterDefaultAssignment.objects.get(
+        fighter=new_content_fighter, equipment=fork
+    )
+    assert fork_double_prong in new_fork_assign.weapon_profiles_field.all()
+    assert fork_sight in new_fork_assign.weapon_accessories_field.all()

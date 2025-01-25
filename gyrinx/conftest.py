@@ -6,6 +6,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
     ContentHouse,
+    ContentWeaponAccessory,
     ContentWeaponProfile,
 )
 from gyrinx.core.models import List, ListFighter
@@ -28,10 +29,16 @@ def user(make_user):
 
 
 @pytest.fixture
-def content_house():
-    return ContentHouse.objects.create(
-        name="Squat Prospectors",
-    )
+def make_content_house() -> Callable[[str], ContentHouse]:
+    def make_content_house_(name: str) -> ContentHouse:
+        return ContentHouse.objects.create(name=name)
+
+    return make_content_house_
+
+
+@pytest.fixture
+def content_house(make_content_house) -> ContentHouse:
+    return make_content_house("Squat Prospectors")
 
 
 @pytest.fixture
@@ -98,3 +105,13 @@ def make_weapon_profile():
         return ContentWeaponProfile.objects.create(equipment=equipment, **kwargs)
 
     return make_weapon_profile_
+
+
+@pytest.fixture
+def make_weapon_accessory():
+    def make_weapon_accessory_(
+        name, **kwargs
+    ) -> Callable[[str], ContentWeaponAccessory]:
+        return ContentWeaponAccessory.objects.create(name=name, **kwargs)
+
+    return make_weapon_accessory_

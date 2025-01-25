@@ -8,7 +8,8 @@ from django.db.models.functions import Cast
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
-from gyrinx.content.forms import CopySelectedToFighterForm
+from gyrinx.content.forms import CopySelectedToFighterForm, CopySelectedToHouseForm
+from gyrinx.models import QuerySetOf
 
 from .models import (
     ContentBook,
@@ -30,7 +31,7 @@ from .models import (
 
 
 @admin.action(description="Copy to another Fighter")
-def copy_selected_to(self, request, queryset):
+def copy_selected_to_fighter(self, request, queryset):
     selected = queryset.values_list("pk", flat=True)
 
     if request.POST.get("post"):
@@ -67,6 +68,56 @@ def copy_selected_to(self, request, queryset):
         "subtitle": subtitle,
         "queryset": queryset,
         "form": form,
+        "action_name": "copy_selected_to_fighter",
+    }
+    request.current_app = self.admin_site.name
+    return render(
+        request,
+        "content/copy_selected_to.html",
+        context,
+    )
+
+
+@admin.action(description="Copy to another House")
+def copy_selected_to_house(self, request, queryset: QuerySetOf[ContentFighter]):
+    selected = queryset.values_list("pk", flat=True)
+
+    if request.POST.get("post"):
+        try:
+            for house_id in request.POST.getlist("to_houses"):
+                house = ContentHouse.objects.get(pk=house_id)
+                with transaction.atomic():
+                    for item in queryset:
+                        item.copy_to_house(house)
+
+        except Exception as e:
+            self.message_user(
+                request,
+                _("An error occurred while copying: %s") % str(e),
+                messages.ERROR,
+            )
+            return None
+
+        self.message_user(
+            request,
+            _("The selected items have been copied."),
+            messages.SUCCESS,
+        )
+        return None
+
+    form = CopySelectedToHouseForm(initial={"_selected_action": selected})
+    title = _("Copy items to another ContentHouse?")
+    subtitle = _(
+        "Select one or more ContentHouses to which you want to copy the selected items."
+    )
+
+    context = {
+        **self.admin_site.each_context(request),
+        "title": title,
+        "subtitle": subtitle,
+        "queryset": queryset,
+        "form": form,
+        "action_name": "copy_selected_to_house",
     }
     request.current_app = self.admin_site.name
     return render(
@@ -189,14 +240,14 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
     form = ContentFighterEquipmentListItemAdminForm
 
-    actions = [copy_selected_to]
+    actions = [copy_selected_to_fighter]
 
 
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
 
-    actions = [copy_selected_to]
+    actions = [copy_selected_to_fighter]
 
 
 class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
@@ -242,6 +293,7 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
     inlines = [ContentFighterEquipmentInline, ContentFighterDefaultAssignmentInline]
+    actions = [copy_selected_to_house]
 
 
 class ContentFighterInline(ContentTabularInline):
