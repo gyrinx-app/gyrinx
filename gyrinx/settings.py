@@ -61,6 +61,10 @@ DEFAULT_FROM_EMAIL = "hello@gyrinx.app"
 
 GOOGLE_ANALYTICS_ID = os.getenv("GOOGLE_ANALYTICS_ID", "")
 
+# Patreon
+
+PATREON_HOOK_SECRET = os.getenv("PATREON_HOOK_SECRET", "")
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -89,6 +93,7 @@ INSTALLED_APPS = [
     "gyrinx.content",
     "gyrinx.feedback",
     "gyrinx.pages",
+    "gyrinx.api",
     "tinymce",
 ]
 
