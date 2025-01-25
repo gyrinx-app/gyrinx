@@ -122,6 +122,29 @@ def test_list_fighter_house_matches_list(user):
 
 
 @pytest.mark.django_db
+def test_list_fighter_generic_house(
+    user, make_content_fighter, make_content_house, make_list
+):
+    generic_house = make_content_house("Generic House", generic=True)
+    content_fighter = make_content_fighter(
+        type="Generic Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=generic_house,
+        base_cost=100,
+    )
+
+    list_house = make_content_house("List House")
+    lst = make_list("Test List", content_house=list_house, owner=user)
+
+    ListFighter.objects.create(
+        name="Test Fighter",
+        list=lst,
+        content_fighter=content_fighter,
+        owner=lst.owner,
+    ).full_clean()
+
+
+@pytest.mark.django_db
 def test_archive_list():
     category, house, content_fighter = make_content()
 

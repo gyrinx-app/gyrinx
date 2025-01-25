@@ -1,5 +1,3 @@
-from itertools import groupby
-
 from django import forms
 from django.contrib import admin, messages
 from django.db import models, transaction
@@ -8,6 +6,7 @@ from django.db.models.functions import Cast
 from django.utils.translation import gettext as _
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
+from gyrinx.forms import group_select
 
 from .models import (
     ContentBook,
@@ -26,29 +25,6 @@ from .models import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-
-
-def group_select(form, field, key=lambda x: x):
-    formfield = form.fields[field]
-    groups = groupby(
-        formfield.queryset,
-        key=key,
-    )
-
-    choices = [(cat, [(item.id, str(item)) for item in items]) for cat, items in groups]
-
-    resolved_widget = (
-        formfield.widget.widget
-        if hasattr(formfield.widget, "widget")
-        else formfield.widget
-    )
-
-    if not resolved_widget.__class__.__name__.endswith("Multiple"):
-        formfield.widget.choices = [
-            ("", "---------"),
-        ] + choices
-    else:
-        formfield.widget.choices = choices
 
 
 class ContentAdmin(admin.ModelAdmin):

@@ -51,6 +51,10 @@ class ContentHouse(Content):
         related_name="houses",
         verbose_name="Unique Skill Categories",
     )
+    generic = models.BooleanField(
+        default=False,
+        help_text="If checked, fighters in this House can join lists and gangs of any other House.",
+    )
     history = HistoricalRecords()
 
     def fighters(self):

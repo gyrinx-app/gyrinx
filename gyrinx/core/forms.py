@@ -3,9 +3,11 @@ from django import forms
 from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
+    ContentHouse,
     ContentWeaponAccessory,
 )
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.forms import group_select
 
 
 class NewListForm(forms.ModelForm):
@@ -79,13 +81,18 @@ class NewListFighterForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         inst = kwargs.get("instance", {})
         if inst:
+            generic_houses = ContentHouse.objects.filter(generic=True).values_list(
+                "id", flat=True
+            )
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house=inst.list.content_house
+                house__in=[inst.list.content_house.id] + list(generic_houses)
             )
 
         self.fields["content_fighter"] = ContentFighterChoiceField(
             queryset=self.fields["content_fighter"].queryset
         )
+
+        group_select(self, "content_fighter", key=lambda x: x.house.name)
 
     class Meta:
         model = ListFighter

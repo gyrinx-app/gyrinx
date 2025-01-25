@@ -279,7 +279,7 @@ class ListFighter(AppBase):
             cf = self.content_fighter
             cf_house = cf.house
             list_house = self.list.content_house
-            if cf_house != list_house:
+            if cf_house != list_house and not cf_house.generic:
                 raise ValidationError(
                     f"{cf.type} cannot be a member of {list_house} list"
                 )

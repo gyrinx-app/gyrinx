@@ -30,8 +30,8 @@ def user(make_user):
 
 @pytest.fixture
 def make_content_house() -> Callable[[str], ContentHouse]:
-    def make_content_house_(name: str) -> ContentHouse:
-        return ContentHouse.objects.create(name=name)
+    def make_content_house_(name: str, **kwargs) -> ContentHouse:
+        return ContentHouse.objects.create(name=name, **kwargs)
 
     return make_content_house_
 
@@ -73,8 +73,13 @@ def content_fighter(content_house, make_content_fighter):
 
 @pytest.fixture
 def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
-    def make_list_(name) -> List:
-        return List.objects.create(name=name, content_house=content_house, owner=user)
+    def make_list_(name, **kwargs) -> List:
+        kwargs = {
+            "content_house": content_house,
+            "owner": user,
+            **kwargs,
+        }
+        return List.objects.create(name=name, **kwargs)
 
     return make_list_
 
