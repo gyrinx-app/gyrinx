@@ -28,20 +28,27 @@ from .models import (
 )
 
 
-def group_equipment(form, field="equipment"):
-    grouped_equipment = groupby(
-        ContentEquipment.objects.order_by("category", "name"),
-        key=lambda equipment: equipment.cat(),
+def group_select(form, field, key=lambda x: x):
+    formfield = form.fields[field]
+    groups = groupby(
+        formfield.queryset,
+        key=key,
     )
 
-    choices = [
-        (category_name, [(equipment.id, str(equipment)) for equipment in items])
-        for category_name, items in grouped_equipment
-    ]
+    choices = [(cat, [(item.id, str(item)) for item in items]) for cat, items in groups]
 
-    form.fields[field].choices = [
-        ("", "---------"),
-    ] + choices
+    resolved_widget = (
+        formfield.widget.widget
+        if hasattr(formfield.widget, "widget")
+        else formfield.widget
+    )
+
+    if not resolved_widget.__class__.__name__.endswith("Multiple"):
+        formfield.widget.choices = [
+            ("", "---------"),
+        ] + choices
+    else:
+        formfield.widget.choices = choices
 
 
 class ContentAdmin(admin.ModelAdmin):
@@ -120,8 +127,6 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        group_equipment(self)
-
         if self.instance.equipment_id:
             self.fields[
                 "weapon_profile"
@@ -135,6 +140,10 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
+        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(self, "equipment", key=lambda x: x.cat())
+        group_select(self, "weapon_profile", key=lambda x: x.equipment.name)
+
 
 @admin.register(ContentFighterEquipmentListItem)
 class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
@@ -144,9 +153,17 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     actions = [copy_selected_to_fighter]
 
 
+class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        group_select(self, "fighter", key=lambda x: x.house.name)
+
+
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
+    form = ContentFighterEquipmentListWeaponAccessoryAdminForm
 
     actions = [copy_selected_to_fighter]
 
@@ -154,7 +171,6 @@ class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelA
 class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_equipment(self)
         if self.instance.equipment_id:
             self.fields[
                 "weapon_profiles_field"
@@ -167,6 +183,10 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
         ].queryset.filter(
             cost__gt=0,
         )
+
+        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(self, "equipment", key=lambda x: x.cat())
+        group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
 
 
 @admin.register(ContentFighterDefaultAssignment)
@@ -240,7 +260,7 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentWeaponProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_equipment(self, "equipment")
+        group_select(self, "equipment", key=lambda x: x.cat())
 
 
 @admin.register(ContentWeaponProfile)
