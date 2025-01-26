@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_list_or_404, get_object_or_404, render
 from django.urls import reverse
@@ -667,12 +667,32 @@ def edit_list_fighter_skills(request, id, fighter_id):
         form = ListFighterSkillsForm(instance=fighter)
 
     skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
-        primary=Q(primary_fighters__in=[fighter.content_fighter]),
-        secondary=Q(secondary_fighters__in=[fighter.content_fighter]),
+        primary=Exists(
+            ContentSkillCategory.primary_fighters.through.objects.filter(
+                contentskillcategory_id=OuterRef("pk"),
+                contentfighter_id=fighter.content_fighter.id,
+            )
+        ),
+        secondary=Exists(
+            ContentSkillCategory.secondary_fighters.through.objects.filter(
+                contentskillcategory_id=OuterRef("pk"),
+                contentfighter_id=fighter.content_fighter.id,
+            )
+        ),
     )
     special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
-        primary=Q(primary_fighters__in=[fighter.content_fighter]),
-        secondary=Q(secondary_fighters__in=[fighter.content_fighter]),
+        primary=Exists(
+            ContentSkillCategory.primary_fighters.through.objects.filter(
+                contentskillcategory_id=OuterRef("pk"),
+                contentfighter_id=fighter.content_fighter.id,
+            )
+        ),
+        secondary=Exists(
+            ContentSkillCategory.secondary_fighters.through.objects.filter(
+                contentskillcategory_id=OuterRef("pk"),
+                contentfighter_id=fighter.content_fighter.id,
+            )
+        ),
     )
     n_cats = skill_cats.count() + special_cats.count()
 

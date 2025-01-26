@@ -153,18 +153,26 @@ class CloneListFighterForm(forms.ModelForm):
         }
 
 
+class SkillsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
+    template_name = "pages/forms/widgets/skills_checkbox_select.html"
+    option_template_name = "pages/forms/widgets/skills_checkbox_option.html"
+
+
 class ListFighterSkillsForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "skills", key=lambda x: x.category)
+
     class Meta:
         model = ListFighter
         fields = ["skills"]
         labels = {
             "skills": "Skills",
         }
-        help_texts = {
-            "skills": "Select multiple skills by holding down the Ctrl (Windows) or Command (Mac) key.",
-        }
         widgets = {
-            "skills": forms.SelectMultiple(attrs={"class": "form-select"}),
+            "skills": SkillsCheckboxSelectMultiple(
+                attrs={"class": "form-check-input"},
+            ),
         }
 
 
