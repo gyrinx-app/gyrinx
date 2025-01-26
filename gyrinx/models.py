@@ -132,6 +132,7 @@ equipment_category_choices = {
         "POWER_PACK_WEAPONS": "Power Pack Weapons",
         "SPECIAL_WEAPONS": "Special Weapons",
     },
+    "Other": {"OPTIONS": "Options"},
 }
 equipment_category_choices_flat = {
     key: value
