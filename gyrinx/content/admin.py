@@ -62,11 +62,16 @@ class ContentWeaponAccessoryInline(ContentTabularInline):
     model = ContentWeaponAccessory
 
 
+class ContentEquipmentFighterProfileInline(ContentTabularInline):
+    model = ContentEquipmentFighterProfile
+    extra = 0
+
+
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "category", "contentweaponprofile__name"]
 
-    inlines = [ContentWeaponProfileInline]
+    inlines = [ContentWeaponProfileInline, ContentEquipmentFighterProfileInline]
 
     actions = ["clone"]
 
