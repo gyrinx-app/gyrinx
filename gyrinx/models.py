@@ -15,13 +15,20 @@ class Archived(models.Model):
     def archive(self):
         self.archived = True
         self.archived_at = timezone.now()
-        # TODO: Iterate through specific, related objects and archive them
         self.save()
+        if hasattr(self, "archive_with"):
+            for related in self.archive_with:
+                if hasattr(related, "archive"):
+                    related.archive()
 
     def unarchive(self):
         self.archived = False
         self.archived_at = None
         self.save()
+        if hasattr(self, "archive_with"):
+            for related in self.archive_with:
+                if hasattr(related, "unarchive"):
+                    related.unarchive()
 
     class Meta:
         abstract = True

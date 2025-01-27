@@ -5,6 +5,7 @@ from simple_history.admin import SimpleHistoryAdmin
 from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentWeaponProfile
+from gyrinx.forms import group_select
 
 from .models import List, ListFighter, ListFighterEquipmentAssignment
 
@@ -65,6 +66,7 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
     fields = ["content_equipment", weapon_profiles_list, weapon_accessories_list, cost]
     readonly_fields = [weapon_profiles_list, weapon_accessories_list, cost]
     show_change_link = True
+    fk_name = "list_fighter"
 
 
 @admin.register(ListFighter)
@@ -81,15 +83,22 @@ class ListFighterAdmin(BaseAdmin):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance:
+        exists = ListFighterEquipmentAssignment.objects.filter(
+            pk=self.instance.pk
+        ).exists()
+        if exists:
             # Disable the fighter field if it's already set
             self.fields["list_fighter"].disabled = True
             self.fields["content_equipment"].disabled = True
             # Filter available weapon profiles based on the equipment
-            if self.instance.content_equipment:
+            if hasattr(self.instance, "content_equipment"):
                 self.fields["weapon_profiles_field"].queryset = self.fields[
                     "weapon_profiles_field"
                 ].queryset.filter(equipment=self.instance.content_equipment)
+
+        group_select(self, "list_fighter", key=lambda x: x.list.name)
+        group_select(self, "content_equipment", key=lambda x: x.cat())
+        group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
 
 
 @admin.register(ListFighterEquipmentAssignment)
@@ -107,19 +116,22 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "content_equipment",
         "weapon_profiles_field",
         "weapon_accessories_field",
+        "linked_fighter",
         cost,
     ]
-    readonly_fields = [cost]
+    readonly_fields = ["linked_fighter", cost]
     list_display = [
         "list_fighter",
         "list_fighter__list__name",
         "content_equipment",
         weapon_profiles_list,
         weapon_accessories_list,
+        "linked_fighter",
     ]
     search_fields = [
         "list_fighter__name",
         "content_equipment__name",
         "weapon_profiles_field__name",
         "weapon_accessories_field__name",
+        "linked_fighter__name",
     ]

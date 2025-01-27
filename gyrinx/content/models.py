@@ -679,6 +679,30 @@ class ContentWeaponTrait(Content):
         ordering = ["name"]
 
 
+class ContentEquipmentFighterProfile(models.Model):
+    """
+    Links ContentEquipment to a ContentFighter for assigning Exotic Beasts and Vehicles.
+    """
+
+    equipment = models.ForeignKey(
+        ContentEquipment, on_delete=models.CASCADE, verbose_name="Equipment"
+    )
+    content_fighter = models.ForeignKey(
+        ContentFighter,
+        on_delete=models.CASCADE,
+        verbose_name="Fighter",
+        help_text="This type of Fighter will be created when this Equipment is assigned",
+    )
+
+    def __str__(self):
+        return f"{self.content_fighter}"
+
+    class Meta:
+        verbose_name = "Equipment-Fighter Link"
+        verbose_name_plural = "Equipment-Fighter Links"
+        unique_together = ["equipment", "content_fighter"]
+
+
 class ContentWeaponProfileManager(models.Manager):
     """
     Custom manager for :model:`content.ContentWeaponProfile` model.

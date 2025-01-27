@@ -20,19 +20,17 @@
                     <div class="text-secondary">
                         {% if list.public %}
                             <i class="bi-eye"></i>
-                            <a data-bs-toggle="tooltip"
-                               data-bs-title="This list is visible to all users"
-                               href="#"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</a>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This list is visible to all users"
+                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</span>
                         {% endif %}
                         {% if list.owner == user and not list.public %}
                             <i class="bi-eye-slash"></i>
-                            <a data-bs-toggle="tooltip"
-                               data-bs-title="This list is only visible to you"
-                               href="#"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This list is only visible to you"
+                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
                                 Private
-                            </a>
+                            </span>
                         {% endif %}
                     </div>
                     {% if list.archived_fighters|length > 0 %}

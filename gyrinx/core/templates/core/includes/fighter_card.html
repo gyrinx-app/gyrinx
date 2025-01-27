@@ -5,7 +5,18 @@
         <div class="vstack gap-1">
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
-                <div class="ms-auto">
+                <div class="ms-auto hstack gap-2">
+                    {% if fighter.linked_fighter.exists %}
+                        <div class="fs-7 fst-italic">
+                            <i class="bi-person"></i>
+                            <a href="#{{ fighter.linked_fighter.get.list_fighter.id }}"
+                               data-bs-toggle="tooltip"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                               title="This Fighter is linked to another as Equipment">
+                                {{ fighter.linked_fighter.get.list_fighter.name }}
+                            </a>
+                        </div>
+                    {% endif %}
                     <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
                 </div>
             </div>

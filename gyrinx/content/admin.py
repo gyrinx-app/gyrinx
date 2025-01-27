@@ -11,6 +11,7 @@ from gyrinx.forms import group_select
 from .models import (
     ContentBook,
     ContentEquipment,
+    ContentEquipmentFighterProfile,
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
@@ -231,6 +232,19 @@ class ContentSkillCategoryAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentWeaponTrait)
 class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+
+
+class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "equipment", key=lambda x: x.cat())
+        group_select(self, "content_fighter", key=lambda x: x.house.name)
+
+
+@admin.register(ContentEquipmentFighterProfile)
+class ContentEquipmentFighterProfileAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentEquipmentFighterProfileAdminForm
+    search_fields = ["equipment__name", "content_fighter__type"]
 
 
 class ContentWeaponProfileAdminForm(forms.ModelForm):

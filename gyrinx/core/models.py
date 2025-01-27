@@ -6,11 +6,15 @@ from django.contrib import admin
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, When
+from django.db.models import Case, F, Q, Value, When
+from django.db.models.functions import Concat
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentFighterProfile,
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
@@ -101,27 +105,6 @@ class List(AppBase):
     def __str__(self):
         return self.name
 
-        # ordering = [
-        #     Case(
-        #         *[
-        #             When(content_fighter__category=category, then=index)
-        #             for index, category in enumerate(
-        #                 [
-        #                     "LEADER",
-        #                     "CHAMPION",
-        #                     "PROSPECT",
-        #                     "SPECIALIST",
-        #                     "GANGER",
-        #                     "JUVE",
-        #                 ]
-        #             )
-        #         ],
-        #         default=99,
-        #     ),
-        #     "content_fighter__category",
-        #     "name",
-        # ]
-
 
 class ListFighterManager(models.Manager):
     """
@@ -133,9 +116,20 @@ class ListFighterManager(models.Manager):
             super()
             .get_queryset()
             .annotate(
+                _is_linked=Case(
+                    When(linked_fighter__isnull=False, then=True),
+                    default=False,
+                ),
                 _category_order=Case(
                     *[
-                        When(content_fighter__category=category, then=index)
+                        When(
+                            # Put linked fighters in the same category as their parent
+                            Q(content_fighter__category=category)
+                            | Q(
+                                linked_fighter__list_fighter__content_fighter__category=category
+                            ),
+                            then=index,
+                        )
                         for index, category in enumerate(
                             [
                                 "LEADER",
@@ -149,11 +143,22 @@ class ListFighterManager(models.Manager):
                     ],
                     default=99,
                 ),
+                _sort_key=Case(
+                    # Linked fighters should be sorted next to their parent
+                    When(
+                        _is_linked=True,
+                        then=Concat(
+                            "linked_fighter__list_fighter__name", Value("-after")
+                        ),
+                    ),
+                    default=F("name"),
+                    output_field=models.CharField(),
+                ),
             )
             .order_by(
                 "list",
                 "_category_order",
-                "name",
+                "_sort_key",
             )
         )
 
@@ -179,7 +184,10 @@ class ListFighter(AppBase):
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
     equipment = models.ManyToManyField(
-        ContentEquipment, through="ListFighterEquipmentAssignment", blank=True
+        ContentEquipment,
+        through="ListFighterEquipmentAssignment",
+        blank=True,
+        through_fields=("list_fighter", "content_equipment"),
     )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
@@ -201,6 +209,20 @@ class ListFighter(AppBase):
         return f"{self.cost_int()}¢"
 
     def assign(self, equipment, weapon_profiles=None, weapon_accessories=None):
+        """
+        Assign equipment to the fighter, optionally with weapon profiles and accessories.
+
+        Note that this is only used in tests. Behaviour here will not be run when assignments are made
+        through the UI.
+
+        The actual way things are assigned:
+        - We create a "virtual" assignment with main and profile fields
+        - The data from the virtual assignment is POSTed back each time equipment is added
+        - This allows us to create an instance of ListFighterEquipmentAssignment with the correct
+            weapon profiles and accessories each time equipment is added.
+
+        TODO: Deprecate this method.
+        """
         # We create the assignment directly because Django does not use the through_defaults
         # if you .add() equipment that is already in the list, which prevents us from
         # assigning the same equipment multiple times, once with a weapon profile and once without.
@@ -265,6 +287,10 @@ class ListFighter(AppBase):
 
         return clone
 
+    @property
+    def archive_with(self):
+        return ListFighter.objects.filter(linked_fighter__list_fighter=self)
+
     class Meta:
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
@@ -287,16 +313,25 @@ class ListFighter(AppBase):
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
 
-# This class is slightly different becuase it is a through model without Owned.
 class ListFighterEquipmentAssignment(Base, Archived):
     """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
 
     help_text = "A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."
     list_fighter = models.ForeignKey(
-        ListFighter, on_delete=models.CASCADE, null=False, blank=False
+        ListFighter,
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        verbose_name="Fighter",
+        help_text="The ListFighter that this equipment assignment is linked to.",
     )
     content_equipment = models.ForeignKey(
-        ContentEquipment, on_delete=models.CASCADE, null=False, blank=False
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        verbose_name="Equipment",
+        help_text="The ContentEquipment that this assignment is linked to.",
     )
 
     # This is a many-to-many field because we want to be able to assign equipment
@@ -315,6 +350,15 @@ class ListFighterEquipmentAssignment(Base, Archived):
         related_name="weapon_accessories",
         verbose_name="weapon accessories",
         help_text="Select the weapon accessories to assign to this equipment.",
+    )
+
+    linked_fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="linked_fighter",
+        help_text="The ListFighter that this Equipment assignment is linked to (e.g. Exotic Beast, Vehicle).",
     )
 
     history = HistoricalRecords()
@@ -509,6 +553,43 @@ class ListFighterEquipmentAssignment(Base, Archived):
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
         verbose_name_plural = "Fighter Equipment Assignments"
+
+
+@receiver(
+    post_save,
+    sender=ListFighterEquipmentAssignment,
+    dispatch_uid="create_linked_fighter",
+)
+def create_related_objects(sender, instance, **kwargs):
+    equipment_fighter_profile = ContentEquipmentFighterProfile.objects.filter(
+        equipment=instance.content_equipment,
+    )
+    if equipment_fighter_profile.exists() and not instance.linked_fighter:
+        if equipment_fighter_profile.count() > 1:
+            raise ValueError(
+                f"Equipment {instance.content_equipment} has multiple fighter profiles"
+            )
+
+        profile = equipment_fighter_profile.first()
+        lf = ListFighter.objects.create(
+            name=profile.content_fighter.type,
+            content_fighter=profile.content_fighter,
+            list=instance.list_fighter.list,
+            owner=instance.list_fighter.list.owner,
+        )
+        instance.linked_fighter = lf
+        lf.save()
+        instance.save()
+
+
+@receiver(
+    post_delete,
+    sender=ListFighterEquipmentAssignment,
+    dispatch_uid="delete_linked_fighter",
+)
+def delete_linked_fighter(sender, instance, **kwargs):
+    if instance.linked_fighter:
+        instance.linked_fighter.delete()
 
 
 @dataclass

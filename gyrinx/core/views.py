@@ -736,6 +736,11 @@ def edit_list_fighter_gear(request, id, fighter_id):
         form = ListFighterGearForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
+            # Find all assigns and force a save
+            for assign in ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=fighter
+            ):
+                assign.save()
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
             )

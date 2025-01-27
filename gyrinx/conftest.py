@@ -87,9 +87,12 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
 @pytest.fixture
 def make_list_fighter(user, content_fighter) -> Callable[[List, str], ListFighter]:
     def make_list_fighter_(list_: List, name: str, **kwargs) -> ListFighter:
-        return ListFighter.objects.create(
-            list=list_, name=name, content_fighter=content_fighter, owner=user, **kwargs
-        )
+        kwargs = {
+            "owner": user,
+            "content_fighter": content_fighter,
+            **kwargs,
+        }
+        return ListFighter.objects.create(list=list_, name=name, **kwargs)
 
     return make_list_fighter_
 

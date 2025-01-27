@@ -36,14 +36,13 @@
                     <tr class="align-top">
                         <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
                             {% if assign.kind == 'default' %}
-                                <a href="#"
-                                   bs-tooltip
-                                   data-bs-toggle="tooltip"
-                                   class="icon-link link-secondary"
-                                   title="This weapon is assigned to the fighter by default.">
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                      title="This weapon is assigned to the fighter by default.">
                                 {% endif %}
                                 {{ assign.base_name }}
-                                {% if assign.kind == 'default' %}</a>{% endif %}
+                                {% if assign.kind == 'default' %}</span>{% endif %}
                             {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                         </td>
                         {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -60,14 +59,13 @@
                     <tr class="align-bottom">
                         <td colspan="9">
                             {% if assign.kind == 'default' %}
-                                <a href="#"
-                                   bs-tooltip
-                                   data-bs-toggle="tooltip"
-                                   class="icon-link link-secondary"
-                                   title="This weapon is assigned to the fighter by default.">
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                      title="This weapon is assigned to the fighter by default.">
                                 {% endif %}
                                 {{ assign.base_name }}
-                                {% if assign.kind == 'default' %}</a>{% endif %}
+                                {% if assign.kind == 'default' %}</span>{% endif %}
                             {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                         </td>
                     </tr>
@@ -78,14 +76,13 @@
                             {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
                             {% if forloop.counter0 == 0 and profile.name == "" %}
                                 {% if assign.kind == 'default' %}
-                                    <a href="#"
-                                       bs-tooltip
-                                       data-bs-toggle="tooltip"
-                                       class="icon-link link-secondary"
-                                       title="This weapon is assigned to the fighter by default.">
+                                    <span bs-tooltip
+                                          data-bs-toggle="tooltip"
+                                          class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                          title="This weapon is assigned to the fighter by default.">
                                     {% endif %}
                                     {{ assign.base_name }}
-                                    {% if assign.kind == 'default' %}</a>{% endif %}
+                                    {% if assign.kind == 'default' %}</span>{% endif %}
                                 {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
                             {% elif profile.name != "" %}
                                 <i class="bi-dash"></i> {{ profile.name }}
