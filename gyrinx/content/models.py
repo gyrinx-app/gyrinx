@@ -693,6 +693,7 @@ class ContentEquipmentFighterProfile(models.Model):
         verbose_name="Fighter",
         help_text="This type of Fighter will be created when this Equipment is assigned",
     )
+    history = HistoricalRecords()
 
     def __str__(self):
         return f"{self.content_fighter}"
