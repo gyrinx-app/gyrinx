@@ -110,12 +110,12 @@
             {% if assign.weapon_accessories_display|length > 0 %}
                 {% for ad in assign.weapon_accessories_display %}
                     <tr>
-                        <td>
+                        <td colspan="9">
                             <i class="bi-dash"></i>
                             <i class="bi-crosshair"></i>
                             {{ ad.accessory.name }}
                             {% if ad.cost_int > 0 %}({{ ad.cost_display }}){% endif %}
-                            {% if mode == 'edit' %}
+                            {% if mode == 'edit' and assign.kind == 'assigned' %}
                                 <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}"
                                    class="ms-auto link-danger">Remove</a>
                             {% endif %}
