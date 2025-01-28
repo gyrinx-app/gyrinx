@@ -633,6 +633,12 @@ def create_related_objects(sender, instance, **kwargs):
             )
 
         profile = equipment_fighter_profile.first()
+
+        if profile.content_fighter == instance.list_fighter.content_fighter:
+            raise ValueError(
+                f"Equipment {instance.content_equipment} has a fighter profile for the same fighter"
+            )
+
         lf = ListFighter.objects.create(
             name=profile.content_fighter.type,
             content_fighter=profile.content_fighter,
