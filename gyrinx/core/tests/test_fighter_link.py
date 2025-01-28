@@ -218,6 +218,8 @@ def test_fighter_link_default_assignment(
     owner_lf = make_list_fighter(lst, "Owner", content_fighter=owner_cf, owner=user)
 
     assert lst.fighters().count() == 2
+    # The cost for the equipment should be 0
+    assert lst.cost_int() == 100
 
     # Check that further saves etc don't mess things up
     owner_lf.name = "Owner Renamed"

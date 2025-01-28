@@ -339,19 +339,23 @@ class ListFighter(AppBase):
     post_save, sender=ListFighter, dispatch_uid="create_linked_fighter_assignment"
 )
 def create_linked_fighter_assignment(sender, instance, **kwargs):
+    print("create_linked_fighter_assignment")
     # Find the default assignments where the equipment has a fighter profile
     default_assigns = instance.content_fighter.default_assignments.exclude(
         equipment__contentequipmentfighterprofile__isnull=True
     )
+    print(default_assigns)
     for assign in default_assigns:
         # Find disabled default assignments
         is_disabled = instance.disabled_default_assignments.contains(assign)
+        print(is_disabled)
         # Find assignments on this fighter of that equipment
         assigned = (
             instance._direct_assignments()
             .filter(content_equipment=assign.equipment)
             .exists()
         )
+        print(assigned)
 
         if not is_disabled and not assigned:
             # Disable the default assignment and assign the equipment directly
@@ -359,7 +363,9 @@ def create_linked_fighter_assignment(sender, instance, **kwargs):
             # create the linked ListFighter
             instance.toggle_default_assignment(assign, enable=False)
             ListFighterEquipmentAssignment(
-                list_fighter=instance, content_equipment=assign.equipment
+                list_fighter=instance,
+                content_equipment=assign.equipment,
+                cost_override=0,
             ).save()
 
 
@@ -382,6 +388,12 @@ class ListFighterEquipmentAssignment(Base, Archived):
         blank=False,
         verbose_name="Equipment",
         help_text="The ContentEquipment that this assignment is linked to.",
+    )
+
+    cost_override = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="If set, this will be the cost of this assignment, ignoring equipment list and trading post costs",
     )
 
     # This is a many-to-many field because we want to be able to assign equipment
@@ -512,6 +524,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return f"{self.cost_int()}¢"
 
     def _equipment_cost_with_override(self):
+        # The assignment can have an assigned cost which takes priority
+        if self.cost_override is not None:
+            return self.cost_override
+
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
 
