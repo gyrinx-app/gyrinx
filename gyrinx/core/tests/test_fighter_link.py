@@ -237,3 +237,39 @@ def test_fighter_link_default_assignment(
     owner_lf.toggle_default_assignment(default_assign, enable=True)
 
     assert lst.fighters().count() == 2
+
+
+@pytest.mark.django_db
+def test_fighter_link_default_assignment_self_fails(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    house = make_content_house("Example House")
+    owner_cf = make_content_fighter(
+        type="Owner",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+
+    # Obviously can't assign a fighter to itself, but let's make that happen
+    owner_ce = make_equipment(
+        "Owner", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+    )
+
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=owner_ce, content_fighter=owner_cf
+    )
+
+    # Assign the equipment to the fighter by default
+    owner_cf.default_assignments.create(equipment=owner_ce)
+
+    lst = make_list("Example List", content_house=house, owner=user)
+
+    # This needs to error becuase otherwise... infinite loop
+    with pytest.raises(ValueError):
+        make_list_fighter(lst, "Owner", content_fighter=owner_cf, owner=user)
