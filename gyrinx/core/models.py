@@ -190,6 +190,10 @@ class ListFighter(AppBase):
         through_fields=("list_fighter", "content_equipment"),
     )
 
+    disabled_default_assignments = models.ManyToManyField(
+        ContentFighterDefaultAssignment, blank=True
+    )
+
     skills = models.ManyToManyField(ContentSkill, blank=True)
     narrative = models.TextField(
         "about",
@@ -244,12 +248,15 @@ class ListFighter(AppBase):
         return self.equipment.through.objects.filter(list_fighter=self)
 
     def assignments(self):
+        default_assignments = self.content_fighter.default_assignments.exclude(
+            Q(pk__in=self.disabled_default_assignments.all())
+        )
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
             for a in self._direct_assignments().order_by("list_fighter__name")
         ] + [
             VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
-            for a in self.content_fighter.default_assignments.all()
+            for a in default_assignments
         ]
 
     def skilline(self):
@@ -263,6 +270,21 @@ class ListFighter(AppBase):
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
+
+    def toggle_default_assignment(
+        self, assign: ContentFighterDefaultAssignment, enable=False
+    ):
+        """
+        Turn off a specific default assignment for this Fighter.
+        """
+        exists = self.content_fighter.default_assignments.contains(assign)
+        already_disabled = self.disabled_default_assignments.contains(assign)
+        if enable and already_disabled:
+            self.disabled_default_assignments.remove(assign)
+        elif not enable and exists:
+            self.disabled_default_assignments.add(assign)
+
+        self.save()
 
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
@@ -311,6 +333,34 @@ class ListFighter(AppBase):
                 )
 
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
+
+
+@receiver(
+    post_save, sender=ListFighter, dispatch_uid="create_linked_fighter_assignment"
+)
+def create_linked_fighter_assignment(sender, instance, **kwargs):
+    # Find the default assignments where the equipment has a fighter profile
+    default_assigns = instance.content_fighter.default_assignments.exclude(
+        equipment__contentequipmentfighterprofile__isnull=True
+    )
+    for assign in default_assigns:
+        # Find disabled default assignments
+        is_disabled = instance.disabled_default_assignments.contains(assign)
+        # Find assignments on this fighter of that equipment
+        assigned = (
+            instance._direct_assignments()
+            .filter(content_equipment=assign.equipment)
+            .exists()
+        )
+
+        if not is_disabled and not assigned:
+            # Disable the default assignment and assign the equipment directly
+            # This will trigger the ListFighterEquipmentAssignment logic to
+            # create the linked ListFighter
+            instance.toggle_default_assignment(assign, enable=False)
+            ListFighterEquipmentAssignment(
+                list_fighter=instance, content_equipment=assign.equipment
+            ).save()
 
 
 class ListFighterEquipmentAssignment(Base, Archived):

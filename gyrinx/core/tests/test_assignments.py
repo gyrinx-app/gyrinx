@@ -32,6 +32,36 @@ def test_fighter_with_default_spoon_weapon_assignment(
 
 
 @pytest.mark.django_db
+def test_fighter_disable_default_assignment(
+    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    spoon_profile = make_weapon_profile(spoon)
+
+    content_fighter_equip = content_fighter.default_assignments.create(equipment=spoon)
+    content_fighter_equip.weapon_profiles_field.add(spoon_profile)
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    assert len(fighter.assignments()) == 1
+    assert fighter.cost_int() == content_fighter.cost_int()
+
+    fighter.toggle_default_assignment(content_fighter_equip)
+
+    assert len(fighter.assignments()) == 0
+
+    fighter.toggle_default_assignment(content_fighter_equip, enable=True)
+
+    assert len(fighter.assignments()) == 1
+
+
+@pytest.mark.django_db
 def test_assign_accessory(
     make_list, make_list_fighter, make_equipment, make_weapon_profile
 ):

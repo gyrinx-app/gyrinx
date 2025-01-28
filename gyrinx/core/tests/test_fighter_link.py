@@ -174,3 +174,64 @@ def test_fighter_link_archive(
     owner_lf.unarchive()
 
     assert lst.fighters().count() == 2
+
+
+@pytest.mark.django_db
+def test_fighter_link_default_assignment(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    house = make_content_house("Example House")
+    owner_cf = make_content_fighter(
+        type="Owner",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+    beast_cf = make_content_fighter(
+        type="Beast",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=house,
+        base_cost=0,
+    )
+
+    beast_ce = make_equipment(
+        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+    )
+
+    # Link the Beast Content Fighter to the Equipment
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=beast_ce, content_fighter=beast_cf
+    )
+
+    # Assign the equipment to the fighter by default
+    default_assign = owner_cf.default_assignments.create(equipment=beast_ce)
+
+    lst = make_list("Example List", content_house=house, owner=user)
+
+    # List Fighter creation triggers the default assignment to be disabled, and the linked
+    # fighter to be created.
+    owner_lf = make_list_fighter(lst, "Owner", content_fighter=owner_cf, owner=user)
+
+    assert lst.fighters().count() == 2
+
+    # Check that further saves etc don't mess things up
+    owner_lf.name = "Owner Renamed"
+    owner_lf.save()
+
+    assert lst.fighters().count() == 2
+
+    # Unassign the equipment -> delete the linked fighter
+    owner_lf._direct_assignments().delete()
+    owner_lf.save()
+
+    assert lst.fighters().count() == 1
+
+    # Once unassigned and un-disabled, the linked fighter should be recreated
+    owner_lf.toggle_default_assignment(default_assign, enable=True)
+
+    assert lst.fighters().count() == 2
