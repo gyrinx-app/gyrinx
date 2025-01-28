@@ -35,7 +35,6 @@ class ContentAdmin(admin.ModelAdmin):
             for f in model._meta.fields
             if f.name not in ["created", "modified", "id"]
         ]
-        self.list_display += ["id"]
         self.initial_list_display = self.list_display.copy()
         super().__init__(model, admin_site)
 
@@ -70,6 +69,7 @@ class ContentEquipmentFighterProfileInline(ContentTabularInline):
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "category", "contentweaponprofile__name"]
+    list_filter = ["category"]
 
     inlines = [ContentWeaponProfileInline, ContentEquipmentFighterProfileInline]
 
@@ -195,6 +195,7 @@ class ContentFighterForm(forms.ModelForm):
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
+    list_filter = ["category", "house"]
     inlines = [ContentFighterEquipmentInline, ContentFighterDefaultAssignmentInline]
     actions = [copy_selected_to_house]
 
@@ -219,6 +220,7 @@ class ContentPolicyAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentSkillAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "category__name"]
     list_display_links = ["name"]
+    list_filter = ["category"]
 
 
 class ContentSkillInline(ContentTabularInline):
