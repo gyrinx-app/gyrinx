@@ -339,23 +339,19 @@ class ListFighter(AppBase):
     post_save, sender=ListFighter, dispatch_uid="create_linked_fighter_assignment"
 )
 def create_linked_fighter_assignment(sender, instance, **kwargs):
-    print("create_linked_fighter_assignment")
     # Find the default assignments where the equipment has a fighter profile
     default_assigns = instance.content_fighter.default_assignments.exclude(
         equipment__contentequipmentfighterprofile__isnull=True
     )
-    print(default_assigns)
     for assign in default_assigns:
         # Find disabled default assignments
         is_disabled = instance.disabled_default_assignments.contains(assign)
-        print(is_disabled)
         # Find assignments on this fighter of that equipment
         assigned = (
             instance._direct_assignments()
             .filter(content_equipment=assign.equipment)
             .exists()
         )
-        print(assigned)
 
         if not is_disabled and not assigned:
             # Disable the default assignment and assign the equipment directly

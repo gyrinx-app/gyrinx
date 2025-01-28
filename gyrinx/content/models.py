@@ -923,7 +923,6 @@ class ContentWeaponProfile(Content):
         Validation to ensure appropriate costs and cost signs for standard
         vs non-standard weapon profiles.
         """
-        print("model clean", self)
         self.name = self.name.strip()
 
         if self.name.startswith("-"):
