@@ -92,6 +92,7 @@
                   action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search"
                   class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
                 <input type="hidden" name="flash" value="search">
+                {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
                 <div class="input-group">
                     <span class="input-group-text">
                         <i class="bi-search"></i>
@@ -102,18 +103,27 @@
                            aria-label="Search"
                            name="q"
                            value="{{ request.GET.q }}">
-                    {% if request.GET.q %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search"
-                           class="btn btn-outline-secondary">
-                            <i class="bi-x-lg"></i>
-                            <span class="d-none">Clear</span>
-                        </a>
-                    {% endif %}
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-primary" type="submit">Search</button>
+                    {% if request.GET.q %}
+                        <a href="?{% qt_rm request "q" "flash" %}"
+                           class="btn btn-outline-secondary">Clear</a>
+                    {% endif %}
                 </div>
             </form>
+            <ul class="g-col-12 nav nav-tabs">
+                <li class="nav-item">
+                    <a class="nav-link {% active_query "filter" "" %}"
+                       {% active_query_aria "filter" "" %}
+                       href="?{% qt_rm request "filter" %}">Equipment List Only</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% active_query "filter" "all" %}"
+                       {% active_query_aria "filter" "all" %}
+                       href="?{% qt request filter="all" %}">All</a>
+                </li>
+            </ul>
             {% regroup assigns|dictsort:"category" by cat as categories %}
             {% for category, assigns in categories %}
                 <div class="card g-col-12 g-col-md-6">
@@ -132,7 +142,7 @@
                 <div class="g-col-12 {% flash "search" %}">
                     No weapons found.
                     {% if request.GET.q %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search">Clear your search</a>.
+                        <a href="?{% qt_rm request "q" "flash" %}">Clear your search</a>.
                     {% endif %}
                 </div>
             {% endfor %}

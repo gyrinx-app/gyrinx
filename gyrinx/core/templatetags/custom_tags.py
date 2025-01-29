@@ -31,6 +31,16 @@ def active_aria(context: RequestContext, name):
 
 
 @register.simple_tag(takes_context=True)
+def active_query(context: RequestContext, key, value):
+    return "active" if context["request"].GET.get(key, "") == value else ""
+
+
+@register.simple_tag(takes_context=True)
+def active_query_aria(context: RequestContext, key, value):
+    return 'aria-current="page"' if active_query(context, key, value) else ""
+
+
+@register.simple_tag(takes_context=True)
 def flash(context: RequestContext, id):
     request = context["request"]
     return "flash-warn" if request.GET.get("flash") == str(id) else ""
@@ -94,6 +104,15 @@ def qt_append(request, **kwargs):
         current = updated.getlist(k)
         current.append(v)
         updated.setlist(k, current)
+
+    return updated.urlencode()
+
+
+@register.simple_tag
+def qt_rm(request, *args):
+    updated = request.GET.copy()
+    for k in args:
+        updated.pop(k, 0)
 
     return updated.urlencode()
 

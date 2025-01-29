@@ -13,6 +13,7 @@ from django.views import generic
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentFighterEquipmentListItem,
     ContentHouse,
     ContentPageRef,
     ContentSkillCategory,
@@ -811,6 +812,15 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             )
             .filter(search__icontains=request.GET.get("q", ""))
             .distinct("category", "name", "id")
+        )
+
+    if request.GET.get("filter") != "all":
+        weapons = weapons.exclude(
+            ~Q(
+                id__in=ContentFighterEquipmentListItem.objects.filter(
+                    fighter=fighter.content_fighter
+                ).values("equipment_id")
+            )
         )
 
     assigns = []
