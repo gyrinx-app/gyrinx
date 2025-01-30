@@ -107,7 +107,7 @@
             </div>
         </div>
     </div>
-    <div class="grid">
+    <div class="grid {% if print %}gap-2{% endif %}">
         {% for fighter in list.fighters %}
             {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
         {% empty %}
