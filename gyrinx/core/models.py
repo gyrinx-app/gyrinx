@@ -260,7 +260,8 @@ class ListFighter(AppBase):
         ]
 
     def skilline(self):
-        return [s.name for s in self.skills.all()]
+        skills = set(list(self.content_fighter.skills.all()) + list(self.skills.all()))
+        return [s.name for s in skills]
 
     def weapons(self):
         return [e for e in self.assignments() if e.is_weapon()]
