@@ -3,4 +3,4 @@
 set -e
 
 
-docker compose run -T app pytest
+docker compose run --remove-orphans -T app pytest
