@@ -13,8 +13,9 @@
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div class="text-secondary">
-                    <i class="bi-person"></i> <a class="link-secondary"
-    href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
+                    <i class="bi-person"></i>
+                    <a class="link-secondary"
+                       href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
                 </div>
                 {% if not print %}
                     <div class="text-secondary">
@@ -33,7 +34,7 @@
                             </span>
                         {% endif %}
                     </div>
-                    {% if list.archived_fighters|length > 0 %}
+                    {% if list.owner == user and list.archived_fighters|length > 0 %}
                         <div class="text-secondary">
                             <i class="bi-archive"></i>
                             <a href="{% url 'core:list-archived-fighters' list.id %}"
