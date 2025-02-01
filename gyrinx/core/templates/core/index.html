@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags pages %}
+{% load static allauth custom_tags pages %}
 {% block head_title %}
     Home
 {% endblock head_title %}
@@ -94,6 +94,9 @@
                     </p>
                 {% endif %}
             {% endif %}
+            <img src="{% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %}"
+                 alt="Gyrinx"
+                 class="img-fluid mt-4" />
         {% endif %}
     </div>
 {% endblock content %}
