@@ -157,7 +157,8 @@
                             {% endfor %}
                             {% if not print %}
                                 {% if list.owner == user %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit gear</a>
+                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                                       class="d-inline-block">Edit gear</a>
                                 {% endif %}
                             {% endif %}
                         </td>

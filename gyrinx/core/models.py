@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union
 
 from django.contrib import admin
@@ -678,7 +678,7 @@ class VirtualListFighterEquipmentAssignment:
 
     fighter: ListFighter
     equipment: ContentEquipment
-    profiles: QuerySetOf[ContentWeaponProfile]
+    profiles: QuerySetOf[ContentWeaponProfile] = field(default_factory=list)
     _assignment: (
         Union[ListFighterEquipmentAssignment, ContentFighterDefaultAssignment] | None
     ) = None

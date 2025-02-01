@@ -1,0 +1,104 @@
+{% load allauth custom_tags %}
+<div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
+    <div class="card-header border-dark p-2">
+        <div class="vstack gap-1">
+            <div class="hstack">
+                <h3 class="h5 mb-0">{{ fighter.name }}</h3>
+                <div class="ms-auto">
+                    <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body vstack p-0 p-sm-2">
+        <table class="table table-sm table-borderless mb-0">
+            <thead>
+                <tr>
+                    <th class="text-center border-bottom" scope="col">M</th>
+                    <th class="text-center border-bottom" scope="col">WS</th>
+                    <th class="text-center border-bottom" scope="col">BS</th>
+                    <th class="text-center border-bottom" scope="col">S</th>
+                    <th class="text-center border-bottom" scope="col">T</th>
+                    <th class="text-center border-bottom" scope="col">W</th>
+                    <th class="text-center border-bottom" scope="col">I</th>
+                    <th class="text-center border-bottom" scope="col">A</th>
+                    <th class="text-center border-bottom table-warning border-start"
+                        scope="col">Ld</th>
+                    <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                    <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                    <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {% for stat in fighter.content_fighter.statline %}
+                        {% if stat.highlight %}
+                            <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
+                        {% else %}
+                            <td class="text-center {{ stat.classes }}">{{ stat.value }}</td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            </tbody>
+            <tbody class="table-group-divider">
+                {% firstof gear_mode "link" as gear_mode_default %}
+                {% if fighter.wargearline|length > 0 %}
+                    {% if gear_mode == "edit" %}
+                        {% for assign in fighter.wargear %}
+                            <tr class="fs-7">
+                                {% if forloop.first %}
+                                    <th scope="row" colspan="3">Gear</th>
+                                {% else %}
+                                    <th scope="row" colspan="3"></th>
+                                {% endif %}
+                                <td colspan="12" class="{% flash assign.id %}">
+                                    {{ assign.name }}
+                                    {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
+                                    {% if not print %}
+                                        {% if list.owner == user %}
+                                            <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
+                                               class="link-danger">Remove</a>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr class="fs-7">
+                            <th scope="row" colspan="3">Gear</th>
+                            <td colspan="12">
+                                {% for assign in fighter.wargear %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% spaceless %}
+                                        <span>{{ assign.name }}</span>
+                                        {% if assign.cost_int > 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                        {% if not forloop.last %}<span>,</span>{% endif %}
+                                    {% endspaceless %}
+                                {% endfor %}
+                                {% if not print and gear_mode_default == "link" %}
+                                    {% if list.owner == user %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                                           class="d-inline-block">Edit gear</a>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% else %}
+                    {% if list.owner == user and not print %}
+                        <tr class="fs-7">
+                            <th scope="row" colspan="3">Gear</th>
+                            <td colspan="12">
+                                {% if gear_mode_default == "link" %}
+                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endif %}
+            </tbody>
+        </table>
+        {% firstof weapons_mode "edit" as weapons_mode_default %}
+        {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode=weapons_mode_default %}
+    </div>
+</div>

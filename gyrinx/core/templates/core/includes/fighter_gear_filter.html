@@ -1,0 +1,38 @@
+{% load allauth custom_tags %}
+<form id="search"
+      method="get"
+      action="{{ action }}#search"
+      class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
+    <input type="hidden" name="flash" value="search">
+    {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
+    <div class="input-group">
+        <span class="input-group-text">
+            <i class="bi-search"></i>
+        </span>
+        <input class="form-control"
+               type="search"
+               placeholder="Search"
+               aria-label="Search"
+               name="q"
+               value="{{ request.GET.q }}">
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-primary" type="submit">Search</button>
+        {% if request.GET.q %}
+            <a href="?{% qt_rm request "q" "flash" %}"
+               class="btn btn-outline-secondary">Clear</a>
+        {% endif %}
+    </div>
+</form>
+<ul class="g-col-12 nav nav-tabs">
+    <li class="nav-item">
+        <a class="nav-link {% active_query "filter" "" %}"
+           {% active_query_aria "filter" "" %}
+           href="?{% qt_rm request "filter" %}">Equipment List Only</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% active_query "filter" "all" %}"
+           {% active_query_aria "filter" "all" %}
+           href="?{% qt request filter="all" %}">All</a>
+    </li>
+</ul>

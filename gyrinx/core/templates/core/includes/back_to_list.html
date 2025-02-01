@@ -1,0 +1,2 @@
+{% url 'core:list' list.id as list_url %}
+{% include "core/includes/back.html" with text=list.name url=list_url %}

@@ -4,126 +4,13 @@
     Weapons - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:list' list.id as list_url %}
-    {% include "core/includes/back.html" with text=list.name url=list_url %}
+    {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-lg-12 px-0 vstack gap-3">
         <h1 class="h3">Weapons: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
         <div class="grid">
-            <div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
-                <div class="card-header border-dark p-2">
-                    <div class="vstack gap-1">
-                        <div class="hstack">
-                            <h3 class="h5 mb-0">{{ fighter.name }}</h3>
-                            <div class="ms-auto">
-                                <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body vstack p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0">
-                        <thead>
-                            <tr>
-                                <th class="text-center border-bottom" scope="col">M</th>
-                                <th class="text-center border-bottom" scope="col">WS</th>
-                                <th class="text-center border-bottom" scope="col">BS</th>
-                                <th class="text-center border-bottom" scope="col">S</th>
-                                <th class="text-center border-bottom" scope="col">T</th>
-                                <th class="text-center border-bottom" scope="col">W</th>
-                                <th class="text-center border-bottom" scope="col">I</th>
-                                <th class="text-center border-bottom" scope="col">A</th>
-                                <th class="text-center border-bottom table-warning border-start"
-                                    scope="col">Ld</th>
-                                <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                                <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                                <th class="text-center border-bottom table-warning" scope="col">Int</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                {% for stat in fighter.content_fighter.statline %}
-                                    {% if stat.highlight %}
-                                        <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
-                                    {% else %}
-                                        <td class="text-center {{ stat.classes }}">{{ stat.value }}</td>
-                                    {% endif %}
-                                {% endfor %}
-                            </tr>
-                        </tbody>
-                        <tbody class="table-group-divider">
-                            {% comment %} Duplicate of the list include {% endcomment %}
-                            {% if fighter.wargearline|length > 0 %}
-                                <tr class="fs-7">
-                                    <th scope="row" colspan="3">Gear</th>
-                                    <td colspan="12">
-                                        {% for assign in fighter.wargear %}
-                                            {% comment %} All this faff to avoid spaces {% endcomment %}
-                                            {% spaceless %}
-                                                <span>{{ assign.name }}
-                                                    {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
-                                                </span>
-                                                {% if not forloop.last %}<span>,</span>{% endif %}
-                                            {% endspaceless %}
-                                        {% endfor %}
-                                        {% if not print %}
-                                            {% if list.owner == user %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit gear</a>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            {% else %}
-                                {% if list.owner == user and not print %}
-                                    <tr class="fs-7">
-                                        <th scope="row" colspan="3">Gear</th>
-                                        <td colspan="12">
-                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            {% endif %}
-                        </tbody>
-                    </table>
-                    {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode="edit" %}
-                </div>
-            </div>
-            <form id="search"
-                  method="get"
-                  action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}#search"
-                  class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
-                <input type="hidden" name="flash" value="search">
-                {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="bi-search"></i>
-                    </span>
-                    <input class="form-control"
-                           type="search"
-                           placeholder="Search weapons"
-                           aria-label="Search"
-                           name="q"
-                           value="{{ request.GET.q }}">
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-primary" type="submit">Search</button>
-                    {% if request.GET.q %}
-                        <a href="?{% qt_rm request "q" "flash" %}"
-                           class="btn btn-outline-secondary">Clear</a>
-                    {% endif %}
-                </div>
-            </form>
-            <ul class="g-col-12 nav nav-tabs">
-                <li class="nav-item">
-                    <a class="nav-link {% active_query "filter" "" %}"
-                       {% active_query_aria "filter" "" %}
-                       href="?{% qt_rm request "filter" %}">Equipment List Only</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% active_query "filter" "all" %}"
-                       {% active_query_aria "filter" "all" %}
-                       href="?{% qt request filter="all" %}">All</a>
-                </li>
-            </ul>
+            {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter %}
+            {% url 'core:list-fighter-weapons-edit' list.id fighter.id as filter_action %}
+            {% include "core/includes/fighter_gear_filter.html" with action=filter_action %}
             {% regroup assigns|dictsort:"category" by cat as categories %}
             {% for category, assigns in categories %}
                 <div class="card g-col-12 g-col-md-6">
@@ -140,7 +27,11 @@
                 </div>
             {% empty %}
                 <div class="g-col-12 {% flash "search" %}">
-                    No weapons found.
+                    {% if request.GET.filter == "" %}
+                        No weapons found in the equipment list of this fighter.
+                    {% else %}
+                        No weapons found.
+                    {% endif %}
                     {% if request.GET.q %}
                         <a href="?{% qt_rm request "q" "flash" %}">Clear your search</a>.
                     {% endif %}

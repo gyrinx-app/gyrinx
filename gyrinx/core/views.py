@@ -25,7 +25,6 @@ from gyrinx.core.forms import (
     EditListForm,
     ListFighterEquipmentAssignmentAccessoriesForm,
     ListFighterEquipmentAssignmentForm,
-    ListFighterGearForm,
     ListFighterSkillsForm,
     NewListFighterForm,
     NewListForm,
@@ -37,6 +36,10 @@ from gyrinx.core.models import (
     VirtualListFighterEquipmentAssignment,
 )
 from gyrinx.models import QuerySetOf
+
+
+def make_query_params_str(**kwargs) -> str:
+    return urlencode(dict([(k, v) for k, v in kwargs.items() if v is not None]))
 
 
 def index(request):
@@ -734,24 +737,64 @@ def edit_list_fighter_gear(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = ListFighterGearForm(request.POST, instance=fighter)
+        instance = ListFighterEquipmentAssignment(list_fighter=fighter)
+        form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         if form.is_valid():
             form.save()
-            # Find all assigns and force a save
-            for assign in ListFighterEquipmentAssignment.objects.filter(
-                list_fighter=fighter
-            ):
-                assign.save()
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            query_params = make_query_params_str(
+                flash=instance.id,
+                filter=request.POST.get("filter"),
+                q=request.POST.get("q"),
             )
-    else:
-        form = ListFighterGearForm(instance=fighter)
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-gear-edit", args=(lst.id, fighter.id))
+                + f"?{query_params}"
+                + f"#{str(fighter.id)}"
+            )
+
+    equipment: QuerySetOf[ContentEquipment] = (
+        ContentEquipment.objects.non_weapons().with_cost_for_fighter(
+            fighter.content_fighter
+        )
+    )
+
+    if request.GET.get("q"):
+        equipment = (
+            equipment.annotate(
+                search=SearchVector("name", "category"),
+            )
+            .filter(search__icontains=request.GET.get("q", ""))
+            .distinct("category", "name", "id")
+        )
+
+    if request.GET.get("filter") != "all":
+        equipment = equipment.exclude(
+            ~Q(
+                id__in=ContentFighterEquipmentListItem.objects.filter(
+                    fighter=fighter.content_fighter
+                ).values("equipment_id")
+            )
+        )
+
+    assigns = []
+    for item in equipment:
+        assigns.append(
+            VirtualListFighterEquipmentAssignment(
+                fighter=fighter,
+                equipment=item,
+            )
+        )
 
     return render(
         request,
         "core/list_fighter_gear_edit.html",
-        {"form": form, "list": lst, "error_message": error_message},
+        {
+            "fighter": fighter,
+            "equipment": equipment,
+            "assigns": assigns,
+            "list": lst,
+            "error_message": error_message,
+        },
     )
 
 
@@ -792,7 +835,11 @@ def edit_list_fighter_weapons(request, id, fighter_id):
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         if form.is_valid():
             form.save()
-            query_params = urlencode(dict(flash=instance.id))
+            query_params = make_query_params_str(
+                flash=instance.id,
+                filter=request.POST.get("filter"),
+                q=request.POST.get("q"),
+            )
             return HttpResponseRedirect(
                 reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
                 + f"?{query_params}"
@@ -848,7 +895,9 @@ def edit_list_fighter_weapons(request, id, fighter_id):
 
 
 @login_required
-def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
+def delete_list_fighter_assign(
+    request, id, fighter_id, assign_id, back_name, action_name
+):
     """
     Remove a :model:`core.ListFighterEquipmentAssignment` from a fighter.
 
@@ -863,7 +912,7 @@ def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
 
     **Template**
 
-    :template:`core/list_fighter_weapons_delete.html`
+    :template:`core/list_fighter_assign_delete_confirm.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
@@ -875,14 +924,18 @@ def delete_list_fighter_weapon(request, id, fighter_id, assign_id):
 
     if request.method == "POST":
         assignment.delete()
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-        )
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     return render(
         request,
-        "core/list_fighter_weapons_delete.html",
-        {"list": lst, "fighter": fighter, "assign": assignment},
+        "core/list_fighter_assign_delete_confirm.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
     )
 
 

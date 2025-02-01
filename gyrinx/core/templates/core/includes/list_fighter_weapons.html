@@ -9,6 +9,9 @@
             <input type="hidden"
                    name="content_equipment"
                    value="{{ assign.equipment.id }}">
+            {% comment %} Propagate the query params {% endcomment %}
+            {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
+            {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
         </form>
     {% endfor %}
 {% endif %}
