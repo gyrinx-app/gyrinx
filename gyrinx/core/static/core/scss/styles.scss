@@ -61,6 +61,12 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
+.hero {
+    height: 25vh;
+    background-size: cover;
+    background-position: center;
+}
+
 a[href="#"][data-bs-toggle="tooltip"] {
     cursor: help;
 }
