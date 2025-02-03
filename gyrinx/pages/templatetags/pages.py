@@ -140,6 +140,30 @@ def pages_path_segment(path, segment):
 
 
 @register.simple_tag
+def pages_path_parent(path):
+    """
+    Return the parent of the segment of the path by removing the last segment.
+    """
+    if not path:
+        return "/"
+    if path.endswith("/"):
+        path = path[:-1]
+    return "/".join(path.split("/")[:-1]) + "/"
+
+
+@register.simple_tag
+def pages_parent(page):
+    """
+    Return the parent of the page.
+    """
+    parent_url = pages_path_parent(page.url)
+    try:
+        return FlatPage.objects.get(url=parent_url)
+    except FlatPage.DoesNotExist:
+        return None
+
+
+@register.simple_tag
 def page_depth(page):
     """
     Return the depth of the page in the site's hierarchy.

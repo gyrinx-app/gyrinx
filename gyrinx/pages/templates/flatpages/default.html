@@ -5,13 +5,45 @@
 {% endblock head_title %}
 {% block content %}
     <div class="row">
-        {% pages_path_segment flatpage.url 0 as prefix %}
+        {% page_depth flatpage as depth %}
+        {% pages_path_segment flatpage.url depth as prefix %}
         {% get_pages prefix for user as flatpages %}
-        {% if flatpages|length > 1 %}
-            <div class="col-md-3 order-md-1">
-                <h1 class="h2">{{ flatpage.title }}</h1>
-                <hr class="col-1 my-4" />
-                <ul class="nav flex-column mt-3">
+        {% pages_parent flatpage as parent %}
+        <div class="col-md-3 d-flex flex-column">
+            <div class="order-2 order-md-1">
+                {% if parent %}
+                    <i class="bi-chevron-left"></i>
+                    <a href="{{ parent.url }}"
+                       class="link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
+                        {{ parent.title }}
+                    </a>
+                {% endif %}
+                <h1>{{ flatpage.title }}</h1>
+                <hr class="my-4 d-none d-md-block" />
+            </div>
+            {% if flatpages|length > 1 %}
+                <div class="dropdown d-md-none mb-3 order-1">
+                    <button class="btn btn-secondary dropdown-toggle"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">Contents</button>
+                    <ul class="dropdown-menu">
+                        {% for page in flatpages %}
+                            <li>
+                                {% if page == flatpage %}
+                                    <span class="dropdown-item active">
+                                        <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
+                                    </span>
+                                {% else %}
+                                    <a class="dropdown-item" href="{{ page.url }}">
+                                        <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <ul class="d-none d-md-flex nav flex-column order-2">
                     {% for page in flatpages %}
                         <li style="padding-left:{% page_depth page %}em">
                             {% if page == flatpage %}
@@ -22,8 +54,8 @@
                         </li>
                     {% endfor %}
                 </ul>
-            </div>
-        {% endif %}
-        <div class="col-md-9 order-md-2">{{ flatpage.content }}</div>
+            {% endif %}
+        </div>
+        <div class="col-md-9 mt-2 mt-md-0">{{ flatpage.content }}</div>
     </div>
 {% endblock content %}
