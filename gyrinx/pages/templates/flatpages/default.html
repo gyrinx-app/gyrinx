@@ -7,9 +7,10 @@
     <div class="row">
         {% page_depth flatpage as depth %}
         {% pages_path_segment flatpage.url depth as prefix %}
+        {% get_pages for user as all_flatpages %}
         {% get_pages prefix for user as flatpages %}
         {% pages_parent flatpage as parent %}
-        <div class="col-md-3 d-flex flex-column">
+        <div class="col-md-4 d-flex flex-column">
             <div class="order-2 order-md-1">
                 {% if parent %}
                     <i class="bi-chevron-left"></i>
@@ -23,12 +24,12 @@
             </div>
             {% if flatpages|length > 1 %}
                 <div class="dropdown d-md-none mb-3 order-1">
-                    <button class="btn btn-secondary dropdown-toggle"
+                    <button class="btn btn-outline-secondary dropdown-toggle"
                             type="button"
                             data-bs-toggle="dropdown"
-                            aria-expanded="false">Contents</button>
+                            aria-expanded="false">Help &amp; Documentation</button>
                     <ul class="dropdown-menu">
-                        {% for page in flatpages %}
+                        {% for page in all_flatpages %}
                             <li>
                                 {% if page == flatpage %}
                                     <span class="dropdown-item active">
@@ -44,8 +45,8 @@
                     </ul>
                 </div>
                 <ul class="d-none d-md-flex nav flex-column order-2">
-                    {% for page in flatpages %}
-                        <li style="padding-left:{% page_depth page %}em">
+                    {% for page in all_flatpages %}
+                        <li style="padding-left:{% page_depth page %}em" class="mb-1">
                             {% if page == flatpage %}
                                 <span class="text-decoration-underline">{{ page.title }}</span>
                             {% else %}
@@ -56,6 +57,6 @@
                 </ul>
             {% endif %}
         </div>
-        <div class="col-md-9 mt-2 mt-md-0">{{ flatpage.content }}</div>
+        <div class="col-12 col-md-8 col-xl-6 mt-2 mt-md-0">{{ flatpage.content }}</div>
     </div>
 {% endblock content %}
