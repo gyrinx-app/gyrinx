@@ -7,7 +7,7 @@ django-simple-history==3.8.0
 django-tinymce==4.1.0
 djlint==1.36.4
 docutils==0.21.2
-google-cloud-logging==3.11.3
+google-cloud-logging==3.11.4
 jsonschema==4.23.0
 jupyter==1.1.1
 nbstripout==0.8.1
@@ -20,7 +20,7 @@ pytest-watcher==0.4.3
 python-dotenv==1.0.1
 qrcode==8.0
 referencing==0.36.2
-ruff==0.9.3
+ruff==0.9.4
 setuptools==75.8.0
 sqlparse==0.5.3
 whitenoise==6.8.2
