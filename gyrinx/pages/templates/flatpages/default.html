@@ -9,10 +9,16 @@
         {% get_pages prefix for user as flatpages %}
         {% if flatpages|length > 1 %}
             <div class="col-md-3 order-md-1">
-                <ul class="card p-2 mb-3 nav flex-column">
+                <h1 class="h2">{{ flatpage.title }}</h1>
+                <hr class="col-1 my-4" />
+                <ul class="nav flex-column mt-3">
                     {% for page in flatpages %}
                         <li style="padding-left:{% page_depth page %}em">
-                            <a href="{{ page.url }}">{{ page.title }}</a>
+                            {% if page == flatpage %}
+                                <span class="text-decoration-underline">{{ page.title }}</span>
+                            {% else %}
+                                <a href="{{ page.url }}">{{ page.title }}</a>
+                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>
