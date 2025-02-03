@@ -3,6 +3,19 @@
 {% block head_title %}
     Home
 {% endblock head_title %}
+{% block prebody %}
+    {% if not user.is_authenticated %}
+        <div id="hero"
+             class="hero"
+             style="background-image: url({% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %})">
+            <div class="container h-100 d-flex align-items-end py-4">
+                <h2 class="h1 fw-lighter text-light">
+                    <strong>Gyrinx</strong> is a new set of tools for the Necromunda community.
+                </h2>
+            </div>
+        </div>
+    {% endif %}
+{% endblock prebody %}
 {% block content %}
     {% if messages %}
         <div>
@@ -18,10 +31,8 @@
         </div>
     {% endif %}
     <div class="mb-5 pb-5">
-        {% if not user.is_authenticated %}
-            <p class="lead">Gyrinx is a new set of tools for the Necromunda community.</p>
-            <hr class="col-1 my-4" />
-        {% endif %}
+        {% comment %} {% if not user.is_authenticated %}{% endif %} {% endcomment %}
+        {% comment %} TODO: Replace with a user-home include {% endcomment %}
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
                 <div>
@@ -59,44 +70,103 @@
                 {% endif %}
             </div>
         {% else %}
-            {% get_page_by_url "/about/" as about_page %}
-            {% settings_value "ACCOUNT_ALLOW_SIGNUPS" as account_signups %}
-            {% settings_value "WAITING_LIST_ALLOW_SIGNUPS" as waiting_list_signups %}
-            {% if account_signups %}
-                {% if about_page %}
-                    <p>
-                        <a href="{{ about_page.url }}">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
-                        <a href="{% url 'account_signup' %}">sign up</a>.
-                    </p>
-                {% else %}
-                    <p>
-                        <a href="{% url 'account_login' %}">Sign in</a> or <a href="{% url 'account_signup' %}">sign up</a>.
-                    </p>
-                {% endif %}
-            {% elif waiting_list_signups %}
-                {% if about_page %}
-                    <p>
-                        <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'join_the_waiting_list' %}">join the waiting list</a>.
-                    </p>
-                {% else %}
-                    <p>
-                        <a href="{% url 'join_the_waiting_list' %}">Join the waiting list</a>.
-                    </p>
-                {% endif %}
-            {% else %}
-                {% if about_page %}
-                    <p>
-                        <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'account_login' %}">sign in</a>.
-                    </p>
-                {% else %}
-                    <p>
-                        <a href="{% url 'account_login' %}">Sign in</a>.
-                    </p>
-                {% endif %}
-            {% endif %}
-            <img src="{% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %}"
-                 alt="Gyrinx"
-                 class="img-fluid mt-4" />
+            <div class="vstack gap-5">
+                <div class="row">
+                    <div class="col-md-4">
+                        <p>
+                            <span class="badge text-bg-info">Limited Alpha</span>
+                        </p>
+                        <h2>Build and manage your gangs</h2>
+                        <p>
+                            Gyrinx is a new set of tools for building and running your Necromunda gangs — making the game simpler whatever your level of experience.
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <p>
+                            <span class="badge text-bg-info order-1">Limited Alpha</span>
+                        </p>
+                        <h2>All the latest content</h2>
+                        <p>
+                            We’re combing the rulebooks so every gang — and anything else you might want to use — will be available from launch. Plus, our content team will keep Gyrinx up-to-date as new rules land.
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <p>
+                            <span class="badge text-bg-secondary">Coming soon</span>
+                        </p>
+                        <h2>Take the hassle out of arbitration</h2>
+                        <p>
+                            Running a campaign can get complicated. We’ll offer support for managing all the fixed campaign types, and let arbitrators create their own with custom settings.
+                        </p>
+                    </div>
+                </div>
+                <hr class="col-1 my-4 align-self-center" />
+                {% get_page_by_url "/about/" as about_page %}
+                {% settings_value "ACCOUNT_ALLOW_SIGNUPS" as account_signups %}
+                {% settings_value "WAITING_LIST_ALLOW_SIGNUPS" as waiting_list_signups %}
+                <p class="lead text-center">
+                    {% if account_signups %}
+                        {% if about_page %}
+                            <a href="{{ about_page.url }}">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
+                            <a href="{% url 'account_signup' %}">sign up</a>.
+                        {% else %}
+                            <a href="{% url 'account_login' %}">Sign in</a> or <a href="{% url 'account_signup' %}">sign up</a>.
+                        {% endif %}
+                    {% elif waiting_list_signups %}
+                        {% if about_page %}
+                            <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'join_the_waiting_list' %}">join the waiting list</a>.
+                        {% else %}
+                            <a href="{% url 'join_the_waiting_list' %}">Join the waiting list</a>.
+                        {% endif %}
+                    {% else %}
+                        {% if about_page %}
+                            <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'account_login' %}">sign in</a>.
+                        {% else %}
+                            <a href="{% url 'account_login' %}">Sign in</a>.
+                        {% endif %}
+                    {% endif %}
+                </p>
+                <hr class="col-1 my-4 align-self-center" />
+                <div class="row justify-content-center align-items-center">
+                    <div class="col-md-4">
+                        <img src="{% static 'core/img/content/2daef2fe-5829-4052-93fb-c2007935fc1a.png' %}"
+                             class="img-fluid border rounded-2"
+                             alt="Two fighter cards from the Ironhead Squats gang">
+                    </div>
+                    <div class="col-md-6">
+                        <h2>Simplified gang creation</h2>
+                        <p>
+                            Forget the hassle of cards and spreadsheets — hire fighters and kit them out with an intuitive gang building system.
+                        </p>
+                        <p>Our tools are free to use, and we're committed to keeping them that way.</p>
+                    </div>
+                </div>
+                <hr class="col-1 my-4 align-self-center" />
+                <div class="row justify-content-center align-items-center">
+                    <div class="col-md-4 order-2">
+                        <img src="{% static 'core/img/content/f588f1ea-158c-4738-83ba-7df5c9ffe3e5.png' %}"
+                             class="img-fluid object-fit-contain border rounded-2"
+                             alt="">
+                    </div>
+                    <div class="col-md-6">
+                        <h2>Get to the rules you need</h2>
+                        <p>
+                            Tooltips for traits, skills and special rules will direct you to the right part of the rulebooks, so you can quickly find the information you need in the heat of battle.
+                        </p>
+                    </div>
+                </div>
+                <hr class="col-1 my-4 align-self-center" />
+                <div class="row text-center">
+                    <h2>And lots more...</h2>
+                </div>
+                <div class="row justify-content-center align-items-center">
+                    <div class="col-md-10">
+                        <img src="{% static 'core/img/content/773e6bb5-3a76-48bf-bf60-f70ad038c02e.png' %}"
+                             class="img-fluid object-fit-contain border rounded-2"
+                             alt="">
+                    </div>
+                </div>
+            </div>
         {% endif %}
     </div>
 {% endblock content %}
