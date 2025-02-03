@@ -8,3 +8,4 @@ class WebhookRequestAdmin(admin.ModelAdmin):
     search_fields = ["source", "event"]
     list_display = ["source", "event", "created"]
     readonly_fields = ["source", "event", "payload", "signature", "created"]
+    list_filter = ["source", "event"]

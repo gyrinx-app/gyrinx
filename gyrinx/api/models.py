@@ -16,6 +16,7 @@ class WebhookRequest(Base):
     class Meta:
         verbose_name = "webhook request"
         verbose_name_plural = "webhook requests"
+        ordering = ["-created"]
 
     def __str__(self):
         return f"{self.source} - {self.event}"
