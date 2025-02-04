@@ -65,6 +65,7 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
     height: 25vh;
     background-size: cover;
     background-position: center;
+    position: relative;
 }
 
 a[href="#"][data-bs-toggle="tooltip"] {
@@ -79,6 +80,10 @@ a[href="#"][data-bs-toggle="tooltip"] {
 
 fieldset legend {
     font-size: $font-size-base;
+}
+
+label {
+    margin-bottom: 0.25rem;
 }
 
 .errorlist {

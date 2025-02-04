@@ -18,9 +18,11 @@
                        class="link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
                         {{ parent.title }}
                     </a>
+                {% else %}
+                    <span class="text-secondary">Help &amp; Documentation</span>
                 {% endif %}
                 <h1>{{ flatpage.title }}</h1>
-                <hr class="my-4 d-none d-md-block" />
+                <hr class="my-3 my-md-4" />
             </div>
             {% if flatpages|length > 1 %}
                 <div class="dropdown d-md-none mb-3 order-1">

@@ -101,6 +101,7 @@ class List(AppBase):
     class Meta:
         verbose_name = "List"
         verbose_name_plural = "Lists"
+        ordering = ["name"]
 
     def __str__(self):
         return self.name

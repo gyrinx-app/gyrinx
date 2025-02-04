@@ -60,6 +60,7 @@ class JoinWaitingListForm(forms.ModelForm):
 
     email = forms.EmailField(
         label="What's your email address?",
+        help_text="If you support Gyrinx on Patreon, please use the email address associated with your Patreon account.",
         required=True,
         widget=forms.EmailInput(
             attrs={"placeholder": "you@example.com", "class": "form-control"}

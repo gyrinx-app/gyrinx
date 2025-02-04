@@ -4,38 +4,40 @@
     Lists
 {% endblock head_title %}
 {% block content %}
-    <div class="col-lg-12 px-0 vstack gap-5">
+    <div class="col-lg-12 px-0 vstack gap-4">
         <div>
-            <h1 class="mb-0">All Lists</h1>
-            <p>Gang Lists created by all users.</p>
-            <div class="vstack gap-4">
-                {% for list in lists %}
-                    <div class="hstack gap-3 position-relative">
-                        {% comment %} {% include "core/includes/list.html" with list=list %} {% endcomment %}
-                        <div class="d-flex flex-column gap-1">
-                            <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
-                                <h2 class="mb-0 h5">
-                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                                </h2>
-                                <div>
-                                    <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
-                                </div>
-                            </div>
-                            <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                <div>{{ list.content_house.name }}</div>
-                                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+            <h1 class="mb-1">All Lists</h1>
+            <p class="fs-5 col-12 col-md-6 mb-0">
+                These are public Lists created by all users. <a href="{% url 'core:lists-new' %}">Create a new List</a>.
+            </p>
+        </div>
+        <div class="vstack gap-4">
+            {% for list in lists %}
+                <div class="hstack gap-3 position-relative">
+                    {% comment %} {% include "core/includes/list.html" with list=list %} {% endcomment %}
+                    <div class="d-flex flex-column gap-1">
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                            <h2 class="mb-0 h5">
+                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                            </h2>
+                            <div>
+                                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
                             </div>
                         </div>
-                        <div class="ms-auto d-md-none">
-                            <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                <i class="bi-chevron-right"></i>
-                            </a>
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                            <div>{{ list.content_house.name }}</div>
+                            <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
                         </div>
                     </div>
-                {% empty %}
-                    <div class="py-2">No lists available.</div>
-                {% endfor %}
-            </div>
+                    <div class="ms-auto d-md-none">
+                        <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                            <i class="bi-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="py-2">No lists available.</div>
+            {% endfor %}
         </div>
     </div>
 {% endblock content %}

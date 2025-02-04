@@ -7,9 +7,9 @@
     {% if not user.is_authenticated %}
         <div id="hero"
              class="hero"
-             style="background-image: url({% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %})">
-            <div class="container h-100 d-flex align-items-end py-4">
-                <h2 class="h1 fw-lighter text-light">
+             style="background-image:linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.7)), url({% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %})">
+            <div class="container h-100 d-flex align-items-end py-4 z-1">
+                <h2 class="h1 fw-light text-light">
                     <strong>Gyrinx</strong> is a new set of tools for the Necromunda community.
                 </h2>
             </div>
@@ -31,46 +31,61 @@
         </div>
     {% endif %}
     <div class="mb-5 pb-5">
-        {% comment %} {% if not user.is_authenticated %}{% endif %} {% endcomment %}
-        {% comment %} TODO: Replace with a user-home include {% endcomment %}
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
                 <div>
-                    <h1 class="mb-0">Lists</h1>
-                    <p class="mb-0">Create gangs from scratch & test ideas.</p>
+                    <h1 class="mb-1">Your Lists</h1>
+                    <p class="fs-5 col-12 col-md-6 mb-0">
+                        Lists are starting points for Gangs you intend to play several times. You can test ideas to suit your budget, campaign, or skirmish. <a href="{% url 'core:lists-new' %}">Create a new List</a>.
+                    </p>
                 </div>
-                {% for list in lists %}
-                    <div class="hstack gap-3 position-relative">
-                        <div class="d-flex flex-column gap-1">
-                            <h2 class="mb-0 h5">
-                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                            </h2>
-                            <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                <div>{{ list.content_house.name }}</div>
-                                <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                <div class="grid">
+                    {% for list in lists %}
+                        <div class="g-col-12 g-col-md-6 g-col-xl-4 hstack gap-3 position-relative">
+                            <div class="d-flex flex-column gap-1">
+                                <h2 class="mb-0 h5">
+                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                </h2>
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    <div>{{ list.content_house.name }}</div>
+                                    <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                                </div>
+                            </div>
+                            <div class="ms-auto d-md-none">
+                                <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                                    <i class="bi-chevron-right"></i>
+                                </a>
                             </div>
                         </div>
-                        <div class="ms-auto d-md-none">
-                            <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                <i class="bi-chevron-right"></i>
-                            </a>
+                    {% empty %}
+                        <div class="py-2 g-col-12">
+                            <form action="{% url "core:lists-new" %}"
+                                  method="get"
+                                  class="card card-body vstack gap-4 col-12 col-md-6">
+                                <div>
+                                    <label for="id_name">What will you name your first List?</label>
+                                    <input type="text"
+                                           name="name"
+                                           placeholder="Shadowskin Spectres"
+                                           required="required"
+                                           class="form-control"
+                                           id="id_name">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Get started</button>
+                            </form>
                         </div>
-                    </div>
-                {% empty %}
-                    <div class="py-2">
-                        You haven't created any lists yet. <a href="{% url "core:lists-new" %}">Create a new list</a>.
-                    </div>
-                {% endfor %}
+                    {% endfor %}
+                </div>
                 {% if lists|length > 0 %}
                     <div class="d-md-block">
                         <a href="{% url "core:lists-new" %}" class="btn btn-primary">
                             <i class="bi-plus-lg"></i>
-                        New list</a>
+                        New List</a>
                     </div>
                 {% endif %}
             </div>
         {% else %}
-            <div class="vstack gap-5">
+            <div class="mt-4 vstack gap-4">
                 <div class="row">
                     <div class="col-md-4">
                         <h2>Build and manage your gangs</h2>
@@ -98,25 +113,25 @@
                 {% get_page_by_url "/about/" as about_page %}
                 {% settings_value "ACCOUNT_ALLOW_SIGNUPS" as account_signups %}
                 {% settings_value "WAITING_LIST_ALLOW_SIGNUPS" as waiting_list_signups %}
-                <p class="lead text-center">
+                <p class="lead fs-2 text-center">
                     {% if account_signups %}
                         {% if about_page %}
-                            <a href="{{ about_page.url }}">Find out more</a>, <a href="{% url 'account_login' %}">sign in</a> or
-                            <a href="{% url 'account_signup' %}">sign up</a>.
+                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a>, <a class="d-inline-block" href="{% url 'account_login' %}">sign in</a> or
+                            <a class="d-inline-block" href="{% url 'account_signup' %}">sign up</a>.
                         {% else %}
-                            <a href="{% url 'account_login' %}">Sign in</a> or <a href="{% url 'account_signup' %}">sign up</a>.
+                            <a class="d-inline-block" href="{% url 'account_login' %}">Sign in</a> or <a class="d-inline-block" href="{% url 'account_signup' %}">sign up</a>.
                         {% endif %}
                     {% elif waiting_list_signups %}
                         {% if about_page %}
-                            <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'join_the_waiting_list' %}">join the waiting list</a>.
+                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a> or <a class="d-inline-block" href="{% url 'join_the_waiting_list' %}">join the waiting list</a>.
                         {% else %}
-                            <a href="{% url 'join_the_waiting_list' %}">Join the waiting list</a>.
+                            <a class="d-inline-block" href="{% url 'join_the_waiting_list' %}">Join the waiting list</a>.
                         {% endif %}
                     {% else %}
                         {% if about_page %}
-                            <a href="{{ about_page.url }}">Find out more</a> or <a href="{% url 'account_login' %}">sign in</a>.
+                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a> or <a class="d-inline-block" href="{% url 'account_login' %}">sign in</a>.
                         {% else %}
-                            <a href="{% url 'account_login' %}">Sign in</a>.
+                            <a class="d-inline-block" href="{% url 'account_login' %}">Sign in</a>.
                         {% endif %}
                     {% endif %}
                 </p>

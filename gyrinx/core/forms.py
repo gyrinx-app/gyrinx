@@ -20,8 +20,8 @@ class NewListForm(forms.ModelForm):
             "public": "Public",
         }
         help_texts = {
-            "name": "The name you use to identify this list. This may be public.",
-            "public": "If checked, this list will be visible to all users.",
+            "name": "The name you use to identify this List. This may be public.",
+            "public": "If checked, this list will be visible to all users of Gyrinx. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -39,8 +39,8 @@ class CloneListForm(forms.ModelForm):
             "public": "Public",
         }
         help_texts = {
-            "name": "The name you use to identify this list. This may be public.",
-            "public": "If checked, this list will be visible to all users.",
+            "name": "The name you use to identify this List. This may be public.",
+            "public": "If checked, this List will be visible to all users of Gyrinx. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),

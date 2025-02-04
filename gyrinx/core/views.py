@@ -404,7 +404,11 @@ def new_list(request):
             list_.save()
             return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
     else:
-        form = NewListForm()
+        form = NewListForm(
+            initial={
+                "name": request.GET.get("name", ""),
+            }
+        )
 
     return render(
         request,
