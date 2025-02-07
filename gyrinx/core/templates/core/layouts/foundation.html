@@ -55,11 +55,9 @@
               type="image/png"
               href="{% static 'core/img/brand/favicon/favicon-128x128.png' %}"
               sizes="128x128" />
-        <title>
-            {% block head_title %}
-            {% endblock head_title %}
-            | Gyrinx
-        </title>
+        {# djlint:off #}
+        <title>{% block head_title %}{% endblock head_title %} | Gyrinx</title>
+        {# djlint:on #}
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
         <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
