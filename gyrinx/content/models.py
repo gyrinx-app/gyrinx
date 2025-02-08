@@ -1143,7 +1143,6 @@ class ContentFighterDefaultAssignment(Content):
     class Meta:
         verbose_name = "Default Assignment"
         verbose_name_plural = "Default Assignments"
-        unique_together = ["fighter", "equipment"]
         ordering = ["fighter__type", "equipment__name"]
 
     def clean(self):

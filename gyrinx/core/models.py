@@ -348,23 +348,26 @@ def create_linked_fighter_assignment(sender, instance, **kwargs):
     for assign in default_assigns:
         # Find disabled default assignments
         is_disabled = instance.disabled_default_assignments.contains(assign)
+
         # Find assignments on this fighter of that equipment
-        assigned = (
+        exists = (
             instance._direct_assignments()
-            .filter(content_equipment=assign.equipment)
+            .filter(content_equipment=assign.equipment, from_default_assignment=assign)
             .exists()
         )
 
-        if not is_disabled and not assigned:
+        if not is_disabled and not exists:
             # Disable the default assignment and assign the equipment directly
             # This will trigger the ListFighterEquipmentAssignment logic to
             # create the linked ListFighter
             instance.toggle_default_assignment(assign, enable=False)
-            ListFighterEquipmentAssignment(
+            new_assign = ListFighterEquipmentAssignment(
                 list_fighter=instance,
                 content_equipment=assign.equipment,
                 cost_override=0,
-            ).save()
+                from_default_assignment=assign,
+            )
+            new_assign.save()
 
 
 class ListFighterEquipmentAssignment(Base, Archived):
@@ -419,6 +422,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
         blank=True,
         related_name="linked_fighter",
         help_text="The ListFighter that this Equipment assignment is linked to (e.g. Exotic Beast, Vehicle).",
+    )
+
+    from_default_assignment = models.ForeignKey(
+        ContentFighterDefaultAssignment,
+        on_delete=models.DO_NOTHING,
+        null=True,
+        blank=True,
+        help_text="The default assignment that this equipment assignment was created from",
     )
 
     history = HistoricalRecords()
@@ -736,6 +747,12 @@ class VirtualListFighterEquipmentAssignment:
             return "default"
 
         return "assigned"
+
+    def is_from_default_assignment(self):
+        return (
+            self.kind() == "assigned"
+            and self._assignment.from_default_assignment is not None
+        )
 
     def base_cost_int(self):
         """

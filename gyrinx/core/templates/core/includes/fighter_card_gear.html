@@ -52,7 +52,14 @@
                                     <th scope="row" colspan="3"></th>
                                 {% endif %}
                                 <td colspan="12" class="{% flash assign.id %}">
-                                    {{ assign.name }}
+                                    {% if assign.is_from_default_assignment %}
+                                        <span bs-tooltip
+                                              data-bs-toggle="tooltip"
+                                              class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                              title="This is assigned to the fighter by default.">
+                                        {% endif %}
+                                        {{ assign.name }}
+                                        {% if assign.is_from_default_assignment %}</span>{% endif %}
                                     {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if not print %}
                                         {% if list.owner == user %}
