@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "django.contrib.flatpages",
     "django.contrib.humanize",
+    "django_extensions",
     # Django allauth
     "allauth",
     "allauth.account",
