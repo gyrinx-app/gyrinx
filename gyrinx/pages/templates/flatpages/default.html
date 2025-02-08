@@ -10,7 +10,7 @@
         {% get_pages for user as all_flatpages %}
         {% get_pages prefix for user as flatpages %}
         {% pages_parent flatpage as parent %}
-        <div class="col-md-4 d-flex flex-column">
+        <div class="flatpage-heading col-md-4 d-flex flex-column">
             <div class="order-2 order-md-1">
                 {% if parent %}
                     <i class="bi-chevron-left"></i>
@@ -59,6 +59,6 @@
                 </ul>
             {% endif %}
         </div>
-        <div class="col-12 col-md-8 col-xl-6 mt-2 mt-md-0">{{ flatpage.content }}</div>
+        <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">{{ flatpage.content }}</div>
     </div>
 {% endblock content %}

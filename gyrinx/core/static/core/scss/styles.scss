@@ -78,6 +78,17 @@ a[href="#"][data-bs-toggle="tooltip"] {
     border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
 }
 
+.flatpage-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+@include media-breakpoint-up(xl) {
+    .flatpage-content img {
+        max-width: 133%;
+    }
+}
+
 fieldset legend {
     font-size: $font-size-base;
 }
