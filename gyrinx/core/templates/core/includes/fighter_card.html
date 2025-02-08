@@ -46,10 +46,16 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-copy"></i> Clone
                         </a>
-                        <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
-                           class="btn btn-outline-danger btn-sm">
-                            <i class="bi-archive"></i> Archive
-                        </a>
+                        {% if fighter.linked_fighter.exists %}
+                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
+                                <i class="bi-archive"></i> Archive
+                            </button>
+                        {% else %}
+                            <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
+                               class="btn btn-outline-danger btn-sm">
+                                <i class="bi-archive"></i> Archive
+                            </a>
+                        {% endif %}
                     </div>
                 {% endif %}
             {% endif %}
