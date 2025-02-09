@@ -146,7 +146,7 @@
         <div class="container py-4 py-md-5 text-body-secondary">
             <div class="row">
                 <div class="col-md-4 mb-3">
-                    <a class="d-inline-flex align-items-center mb-2 text-body-emphasis text-decoration-none"
+                    <a class="d-inline-flex align-items-center mb-3 text-body-emphasis text-decoration-none"
                        href="{% url 'core:index' %}"
                        aria-label="Gyrinx">
                         <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
@@ -172,18 +172,34 @@
                                 Support Gyrinx
                             </a>
                         </li>
-                        <li class="mb-2">
-                            <a href="https://github.com/gyrinx-app"
-                               target="_new"
-                               class="link-secondary">
-                                <i class="bi-github"></i>
-                                <span class="visually-hidden">GitHub</span>
-                            </a>
+                        <li class="mt-3 mb-2">
+                            <div class="hstack gap-2">
+                                {% spaceless %}
+                                    <a href="https://github.com/gyrinx-app"
+                                       bs-tooltip
+                                       data-bs-toggle="tooltip"
+                                       title="Contribute to Gyrinx on GitHub"
+                                       target="_new"
+                                       class="link-secondary">
+                                        <i class="bi-github"></i>
+                                        <span class="visually-hidden">GitHub</span>
+                                    </a>
+                                    <a href="https://discord.gg/jamrJPYC"
+                                       bs-tooltip
+                                       data-bs-toggle="tooltip"
+                                       title="Join the Gyrinx Discord server"
+                                       target="_new"
+                                       class="link-secondary ms-2">
+                                        <i class="bi-discord"></i>
+                                        <span class="visually-hidden">Discord</span>
+                                    </a>
+                                {% endspaceless %}
+                            </div>
                         </li>
                     </ul>
                 </div>
                 <div class="col-md-4 mb-3 pt-1">
-                    <h3 class="fs-6">Help &amp; Documentation</h3>
+                    <h3 class="fs-6 mb-3">Help &amp; Documentation</h3>
                     <ul class="list-unstyled small">
                         {% get_root_pages for user as flatpages %}
                         {% if flatpages|length > 0 %}
@@ -197,7 +213,13 @@
                     </ul>
                 </div>
                 <div class="col-md-4 mb-3 pt-1">
-                    <h3 class="fs-6">Support Gyrinx on Patreon</h3>
+                    <h3 class="fs-6 mb-3">
+                        <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
+                           target="_new"
+                           class="link-secondary icon-link link-secondary link-underline-opacity-50 link-underline-opacity-75-hover">
+                            Support Gyrinx on Patreon
+                        </a>
+                    </h3>
                     <p>
                         <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
                            target="_new">
