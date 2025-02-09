@@ -16,6 +16,7 @@ from .models import (
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
+    ContentFighterHouseOverride,
     ContentHouse,
     ContentPageRef,
     ContentPolicy,
@@ -187,6 +188,10 @@ class ContentFighterDefaultAssignmentInline(ContentTabularInline):
     model = ContentFighterDefaultAssignment
 
 
+class ContentFighterHouseOverrideInline(ContentTabularInline):
+    model = ContentFighterHouseOverride
+
+
 class ContentFighterForm(forms.ModelForm):
     pass
 
@@ -196,7 +201,11 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
     list_filter = ["category", "house"]
-    inlines = [ContentFighterEquipmentInline, ContentFighterDefaultAssignmentInline]
+    inlines = [
+        ContentFighterHouseOverrideInline,
+        ContentFighterEquipmentInline,
+        ContentFighterDefaultAssignmentInline,
+    ]
     actions = [copy_selected_to_house]
 
 

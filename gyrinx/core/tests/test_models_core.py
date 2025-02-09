@@ -5,6 +5,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
     ContentFighterEquipmentListItem,
+    ContentFighterHouseOverride,
     ContentHouse,
     ContentWeaponProfile,
     ContentWeaponTrait,
@@ -142,6 +143,31 @@ def test_list_fighter_generic_house(
         content_fighter=content_fighter,
         owner=lst.owner,
     ).full_clean()
+
+
+@pytest.mark.django_db
+def test_fighter_cost_override_for_house(
+    user, make_content_fighter, make_content_house, make_list, make_list_fighter
+):
+    generic_house = make_content_house("Generic House", generic=True)
+    content_fighter = make_content_fighter(
+        type="Generic Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=generic_house,
+        base_cost=100,
+    )
+
+    list_house = make_content_house("List House")
+
+    # Override cost to list_house for generic fighter
+    ContentFighterHouseOverride.objects.create(
+        fighter=content_fighter, house=list_house, cost=80
+    )
+
+    lst = make_list("Test List", content_house=list_house, owner=user)
+    make_list_fighter(lst, "Generic Fighter", content_fighter=content_fighter)
+
+    assert lst.cost_int() == 80
 
 
 @pytest.mark.django_db

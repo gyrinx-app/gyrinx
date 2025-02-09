@@ -1158,6 +1158,40 @@ class ContentFighterDefaultAssignment(Content):
                 raise ValidationError("Weapon profiles must be for the same equipment.")
 
 
+class ContentFighterHouseOverride(Content):
+    """
+    Captures cases where a fighter has specific modifications (i.e. cost) when being added to
+    a specific house.
+    """
+
+    fighter = models.ForeignKey(
+        ContentFighter,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name="house_overrides",
+    )
+    house = models.ForeignKey(
+        ContentHouse,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name="fighter_overrides",
+    )
+    cost = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="What should this Fighter cost when added to this House?",
+    )
+
+    class Meta:
+        verbose_name = "Fighter-House Override"
+        verbose_name_plural = "Fighter-House Overrides"
+        ordering = ["house__name", "fighter__type"]
+        unique_together = ["fighter", "house"]
+
+    def __str__(self):
+        return f"{self.fighter} for {self.house}"
+
+
 def check(rule, category, name):
     """
     Check if the rule applies to the given category and name.

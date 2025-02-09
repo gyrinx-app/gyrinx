@@ -19,6 +19,7 @@ from gyrinx.content.models import (
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
+    ContentFighterHouseOverride,
     ContentHouse,
     ContentSkill,
     ContentWeaponAccessory,
@@ -206,9 +207,18 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        return self.content_fighter.cost_int() + sum(
-            [e.cost_int() for e in self.assignments()]
+        return self._base_cost_int() + sum([e.cost_int() for e in self.assignments()])
+
+    def _base_cost_int(self):
+        cost_overrides = ContentFighterHouseOverride.objects.filter(
+            fighter=self.content_fighter,
+            house=self.list.content_house,
+            cost__isnull=False,
         )
+        if cost_overrides.exists():
+            return cost_overrides.get().cost
+
+        return self.content_fighter.cost_int()
 
     def cost_display(self):
         return f"{self.cost_int()}¢"
