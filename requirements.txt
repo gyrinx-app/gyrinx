@@ -2,8 +2,8 @@ asgiref==3.8.1
 beautifulsoup4==4.13.3
 click==8.1.8
 daphne==4.1.2
-Django==5.1.5
-django-allauth==65.3.1
+Django==5.1.6
+django-allauth==65.4.1
 django-extensions==3.2.3
 django-simple-history==3.8.0
 django-tinymce==4.1.0
@@ -19,12 +19,12 @@ psycopg2-binary==2.9.10
 pydot==3.0.4
 pyparsing==3.2.1
 pytest==8.3.4
-pytest-django==4.9.0
+pytest-django==4.10.0
 pytest-watcher==0.4.3
 python-dotenv==1.0.1
 qrcode==8.0
 referencing==0.36.2
-ruff==0.9.4
+ruff==0.9.6
 setuptools==75.8.0
 sqlparse==0.5.3
-whitenoise==6.8.2
+whitenoise==6.9.0
