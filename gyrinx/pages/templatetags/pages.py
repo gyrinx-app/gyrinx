@@ -1,8 +1,12 @@
+import re
+
+from bs4 import BeautifulSoup
 from django import template
 from django.conf import settings
 from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
 from django.db.models import Q
+from django.utils.safestring import mark_safe
 
 register = template.Library()
 
@@ -180,3 +184,52 @@ def get_page_by_url(url):
         return FlatPage.objects.get(url=url)
     except FlatPage.DoesNotExist:
         return None
+
+
+def slugify(text):
+    """
+    Convert the provided text into a slug suitable for use as an HTML id.
+    """
+    # Convert to lowercase
+    text = text.lower()
+    # Remove any characters that aren't alphanumeric, whitespace, or hyphens
+    text = re.sub(r"[^\w\s-]", "", text)
+    # Replace spaces and hyphens with a single hyphen
+    text = re.sub(r"[-\s]+", "-", text)
+    return text.strip("-")
+
+
+@register.filter
+def add_heading_links(html):
+    """
+    Django template filter that transforms all heading tags (h1-h6) in the given HTML.
+    Each heading is given an id attribute (a slugified version of its text)
+    and is wrapped in an <a> tag with href set to "#<slug>".
+
+    Example:
+      Input:  <h1>Foo Bar Baz!</h1>
+      Output: <a href="#foo-bar-baz"><h1 id="foo-bar-baz">Foo Bar Baz!</h1></a>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Find all heading tags h1-h6 using a regex.
+    for n, heading in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
+        slug = slugify(heading.get_text()) + f"-{n}"
+        heading["id"] = slug
+        # Create a new anchor tag with the href attribute set to "#slug"
+        anchor = soup.new_tag(
+            "a",
+            href=f"#{slug}",
+            attrs={
+                "class": "link-underline link-underline-opacity-0 link-underline-opacity-75-hover text-reset",
+            },
+        )
+        icon = soup.new_tag(
+            "i", attrs={"class": "bi-link-45deg ms-2 text-body-secondary"}
+        )
+        # Wrap the heading with the new anchor tag and insert the icon
+        heading.wrap(anchor)
+        heading.insert(1, icon)
+
+    # Mark the output as safe so Django doesn't escape the HTML
+    return mark_safe(str(soup))
