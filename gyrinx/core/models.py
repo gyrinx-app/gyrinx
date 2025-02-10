@@ -15,6 +15,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentFighterProfile,
+    ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
@@ -425,6 +426,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
         help_text="Select the weapon accessories to assign to this equipment.",
     )
 
+    upgrade = models.ForeignKey(
+        ContentEquipmentUpgrade,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The upgrade that this equipment assignment is set to.",
+    )
+
     linked_fighter = models.ForeignKey(
         ListFighter,
         on_delete=models.CASCADE,
@@ -537,6 +546,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
             self.base_cost_int()
             + self.weapon_profiles_cost_int()
             + self.weapon_accessories_cost_int()
+            + self.upgrade_cost_int()
         )
 
     def cost_display(self):
@@ -618,6 +628,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def accessory_cost_display(self, accessory):
         return f"+{self.accessory_cost_int(accessory)}¢"
 
+    def upgrade_cost_int(self):
+        if not self.upgrade:
+            return 0
+
+        # TODO: Overrides?
+        return self.upgrade.cost_int()
+
     #  Behaviour
 
     def clone(self, list_fighter=None):
@@ -634,6 +651,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
             clone.weapon_profiles_field.add(profile)
 
         return clone
+
+    def clean(self):
+        if self.upgrade and self.upgrade.equipment != self.content_equipment:
+            raise ValidationError(
+                {
+                    "upgrade": f"Upgrade {self.upgrade} is not for equipment {self.content_equipment}"
+                }
+            )
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
@@ -786,10 +811,12 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the integer cost for this equipment, factoring in fighter overrides.
         """
+        # TODO: this should almost certainly be refactored to defer to the assignment
         return (
             self.base_cost_int()
             + self._profiles_cost_int()
             + self._accessories_cost_int()
+            + self._upgrade_cost_int()
         )
 
     def cost_display(self):
@@ -822,6 +849,19 @@ class VirtualListFighterEquipmentAssignment:
             return 0
 
         return self._assignment.weapon_accessories_cost_int()
+
+    def _upgrade_cost_int(self):
+        """
+        Return the integer cost for the upgrade.
+        """
+        if not self._assignment:
+            return 0
+
+        # TODO: Support default assignment upgrades?
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        return self._assignment.upgrade_cost_int()
 
     def base_name(self):
         """

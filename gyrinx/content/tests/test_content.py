@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentUpgrade,
     ContentFighter,
     ContentHouse,
     ContentRule,
@@ -189,3 +190,34 @@ def test_equipment_with_cost_2D6X10():
     assert equipment.cost == "2D6X10"
     assert equipment.cost_int() == 0
     assert equipment.cost_display() == "2D6X10"
+
+
+@pytest.mark.django_db
+def test_equipment_upgrades():
+    equipment = ContentEquipment.objects.create(
+        name="Laser Gun",
+    )
+    l1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Level 1",
+        cost=10,
+        position=0,
+    )
+    l2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Level 2",
+        cost=10,
+        position=1,
+    )
+    l3 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Level 3",
+        cost=10,
+        position=2,
+    )
+
+    assert equipment.upgrades.count() == 3
+    assert equipment.upgrades.first() == l1
+    assert l1.cost_int() == 10
+    assert l2.cost_int() == 20
+    assert l3.cost_int() == 30

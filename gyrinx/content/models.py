@@ -237,6 +237,14 @@ class ContentEquipment(Content):
         blank=True, null=True, verbose_name="Availability Level"
     )
 
+    upgrade_stack_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        default="",
+        help_text="If applicable, the name of the stack of upgrades for this equipment (e.g. Upgrade or Augmentation). Use the singular form.",
+    )
+
     history = HistoricalRecords()
 
     def __str__(self):
@@ -1066,6 +1074,45 @@ class ContentWeaponAccessory(Content):
     objects = ContentWeaponAccessoryManager.from_queryset(
         ContentWeaponAccessoryQuerySet
     )()
+
+
+class ContentEquipmentUpgrade(Content):
+    """
+    Represents an upgrade that can be associated with a piece of equipment.
+    """
+
+    equipment = models.ForeignKey(
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name="upgrades",
+    )
+    name = models.CharField(max_length=255, unique=True)
+    position = models.IntegerField(
+        default=0, help_text="The position in which this upgrade sits in the stack."
+    )
+    cost = models.IntegerField(
+        default=0,
+        help_text="The credit cost of the equipment upgrade. Costs are cumulative based on position.",
+    )
+
+    history = HistoricalRecords()
+
+    def cost_int(self):
+        """
+        Returns the integer cost of this item.
+        """
+        upgrades = self.equipment.upgrades.filter(position__lte=self.position)
+        return sum(upgrade.cost for upgrade in upgrades)
+
+    class Meta:
+        verbose_name = "Equipment Upgrade"
+        verbose_name_plural = "Equipment Upgrades"
+        ordering = ["equipment__name", "name"]
+        unique_together = ["equipment", "name"]
+
+    def __str__(self):
+        return f"{self.equipment.upgrade_stack_name or 'Upgrade'} – {self.name}"
 
 
 class ContentFighterDefaultAssignment(Content):

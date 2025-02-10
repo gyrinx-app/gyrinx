@@ -12,6 +12,7 @@ from .models import (
     ContentBook,
     ContentEquipment,
     ContentEquipmentFighterProfile,
+    ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
@@ -54,16 +55,23 @@ class ContentStackedInline(admin.StackedInline):
         super().__init__(parent_model, admin_site)
 
 
-class ContentWeaponProfileInline(ContentTabularInline):
+class ContentWeaponProfileInline(ContentStackedInline):
     model = ContentWeaponProfile
+    extra = 0
 
 
 class ContentWeaponAccessoryInline(ContentTabularInline):
     model = ContentWeaponAccessory
+    extra = 0
 
 
 class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
+    extra = 0
+
+
+class ContentEquipmentUpgradeInline(ContentTabularInline):
+    model = ContentEquipmentUpgrade
     extra = 0
 
 
@@ -72,7 +80,11 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "category", "contentweaponprofile__name"]
     list_filter = ["category"]
 
-    inlines = [ContentWeaponProfileInline, ContentEquipmentFighterProfileInline]
+    inlines = [
+        ContentWeaponProfileInline,
+        ContentEquipmentFighterProfileInline,
+        ContentEquipmentUpgradeInline,
+    ]
 
     actions = ["clone"]
 

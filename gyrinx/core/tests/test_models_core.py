@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterEquipmentListItem,
     ContentFighterHouseOverride,
@@ -1095,3 +1096,74 @@ def test_weapon_equipment_match(
 
     with pytest.raises(Exception):
         fighter.assign(fork, weapon_profiles=[spoon_profile])
+
+
+@pytest.mark.django_db
+def test_equipment_upgrades(
+    content_fighter, make_list, make_equipment, make_list_fighter
+):
+    spoon = make_equipment(
+        "Wooden Spoonetika",
+        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        cost=50,
+    )
+
+    ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Alpha", cost=20, position=0
+    )
+    u2 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Beta", cost=30, position=1
+    )
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, content_fighter)
+
+    assign = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=spoon
+    )
+
+    assert assign.cost_int() == 50
+    assert u2.cost_int() == 50
+
+    assign.upgrade = u2
+    assign.save()
+
+    assert assign.cost_int() == 100
+    assert fighter.cost_int() == 200
+
+
+@pytest.mark.django_db
+def test_invalid_equipment_upgrade(
+    content_fighter, make_list, make_equipment, make_list_fighter
+):
+    spoon = make_equipment(
+        "Wooden Spoonteknika",
+        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        cost=50,
+    )
+    fork = make_equipment(
+        "Forkteknika",
+        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        cost=50,
+    )
+
+    ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Alpha", cost=20, position=0
+    )
+    u2 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Beta", cost=30, position=1
+    )
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, content_fighter)
+
+    assign = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=fork
+    )
+
+    assert assign.cost_int() == 50
+
+    assign.upgrade = u2
+
+    with pytest.raises(Exception):
+        assign.full_clean()

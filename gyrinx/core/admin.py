@@ -90,10 +90,14 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
             # Disable the fighter field if it's already set
             self.fields["list_fighter"].disabled = True
             self.fields["content_equipment"].disabled = True
-            # Filter available weapon profiles based on the equipment
+            # Filter available weapon profiles and upgrade based on the equipment
             if hasattr(self.instance, "content_equipment"):
                 self.fields["weapon_profiles_field"].queryset = self.fields[
                     "weapon_profiles_field"
+                ].queryset.filter(equipment=self.instance.content_equipment)
+
+                self.fields["upgrade"].queryset = self.fields[
+                    "upgrade"
                 ].queryset.filter(equipment=self.instance.content_equipment)
 
         group_select(self, "list_fighter", key=lambda x: x.list.name)
@@ -117,6 +121,7 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "weapon_profiles_field",
         "weapon_accessories_field",
         "linked_fighter",
+        "upgrade",
         cost,
     ]
     readonly_fields = ["linked_fighter", cost]
