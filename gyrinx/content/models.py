@@ -1140,7 +1140,7 @@ class ContentEquipmentUpgrade(Content):
         db_index=True,
         related_name="upgrades",
     )
-    name = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
     position = models.IntegerField(
         default=0, help_text="The position in which this upgrade sits in the stack."
     )
