@@ -19,6 +19,8 @@ from .models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentHouse,
+    ContentHouseAdditionalRule,
+    ContentHouseAdditionalRuleTree,
     ContentPageRef,
     ContentPolicy,
     ContentRule,
@@ -221,17 +223,6 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     actions = [copy_selected_to_house]
 
 
-class ContentFighterInline(ContentTabularInline):
-    model = ContentFighter
-
-
-@admin.register(ContentHouse)
-class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
-    list_display_links = ["name"]
-    search_fields = ["name"]
-    inlines = [ContentFighterInline]
-
-
 @admin.register(ContentPolicy)
 class ContentPolicyAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
@@ -255,6 +246,45 @@ class ContentSkillCategoryAdmin(ContentAdmin, admin.ModelAdmin):
     list_display_fields = ["name", "restricted"]
 
     inlines = [ContentSkillInline]
+
+
+@admin.register(ContentHouseAdditionalRule)
+class ContentHouseAdditionalRuleAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["tree__name", "name"]
+
+
+class ContentHouseAdditionalRuleInline(ContentTabularInline):
+    model = ContentHouseAdditionalRule
+    extra = 0
+
+
+@admin.register(ContentHouseAdditionalRuleTree)
+class ContentHouseAdditionalRuleTreeAdmin(ContentAdmin, admin.ModelAdmin):
+    list_display_links = ["name"]
+    list_display_fields = ["house", "name"]
+    search_fields = ["house__name", "name"]
+    inlines = [ContentHouseAdditionalRuleInline]
+
+
+class ContentHouseAdditionalRuleTreeInline(ContentTabularInline):
+    def rules(obj):
+        return ", ".join([rule.name for rule in obj.rules.all()])
+
+    model = ContentHouseAdditionalRuleTree
+    extra = 0
+    fields = ["name", rules]
+    readonly_fields = [rules]
+
+
+class ContentFighterInline(ContentTabularInline):
+    model = ContentFighter
+
+
+@admin.register(ContentHouse)
+class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
+    list_display_links = ["name"]
+    search_fields = ["name"]
+    inlines = [ContentFighterInline, ContentHouseAdditionalRuleTreeInline]
 
 
 @admin.register(ContentWeaponTrait)

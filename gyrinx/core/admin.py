@@ -45,7 +45,16 @@ class ListAdmin(BaseAdmin):
 
 
 class ListFighterForm(forms.ModelForm):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(self.instance, "list"):
+            self.fields["additional_rules"].queryset = self.fields[
+                "additional_rules"
+            ].queryset.filter(tree__house=self.instance.list.content_house)
+
+        group_select(self, "content_fighter", key=lambda x: x.cat())
+        group_select(self, "skills", key=lambda x: x.category.name)
+        group_select(self, "additional_rules", key=lambda x: x.tree.name)
 
 
 @admin.display(description="Weapon Profiles")
@@ -72,7 +81,16 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
-    fields = ["name", "content_fighter", "owner", "list", "skills", cost, "narrative"]
+    fields = [
+        "name",
+        "content_fighter",
+        "owner",
+        "list",
+        "skills",
+        "additional_rules",
+        cost,
+        "narrative",
+    ]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]

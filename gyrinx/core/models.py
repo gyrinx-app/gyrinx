@@ -22,6 +22,7 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentHouse,
+    ContentHouseAdditionalRule,
     ContentSkill,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -198,6 +199,11 @@ class ListFighter(AppBase):
     )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
+    additional_rules = models.ManyToManyField(
+        ContentHouseAdditionalRule,
+        blank=True,
+        help_text="Additional rules for this fighter. Must be from the same house as the fighter.",
+    )
     narrative = models.TextField(
         "about",
         blank=True,
