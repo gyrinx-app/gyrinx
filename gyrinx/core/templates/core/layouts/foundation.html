@@ -70,42 +70,6 @@
             })(window,document,'script','dataLayer','GTM-PFFPCMPF');
         </script>
         <!-- End Google Tag Manager -->
-        {% settings_value "GOOGLE_ANALYTICS_ID" as analytics_id %}
-        {% if analytics_id %}
-            <script>
-                window.dataLayer = window.dataLayer || [];
-                function gtag() {
-                        dataLayer.push(arguments);
-                }
-                gtag("consent", "default", {
-                        ad_personalization: "denied",
-                        ad_storage: "denied",
-                        ad_user_data: "denied",
-                        analytics_storage: "denied",
-                        functionality_storage: "granted",
-                        personalization_storage: "denied",
-                        security_storage: "granted",
-                        wait_for_update: 500,
-                });
-                gtag("set", "ads_data_redaction", true);
-                gtag("set", "url_passthrough", false);
-            </script>
-            <script async
-                    src="https://www.googletagmanager.com/gtag/js?id={{ analytics_id }}"></script>
-            <script>
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-
-                {% if user.is_authenticated %}
-                gtag('config', '{{ analytics_id }}', {
-                        'user_id': 'id:{{ user.id }}'
-                });
-                {% else %}
-                gtag('config', '{{ analytics_id }}');
-                {% endif %}
-            </script>
-        {% endif %}
     </head>
     <body>
         <!-- Google Tag Manager (noscript) -->
