@@ -1,4 +1,20 @@
 steps:
+    - name: "curlimages/curl:latest"
+      id: Notify Start
+      allowFailure: true
+      entrypoint: sh
+      secretEnv:
+          - _WEBHOOK_URL
+      args:
+          - -c
+          - |
+              curl -X POST "$$_WEBHOOK_URL" \
+                  -H "Content-Type: application/json" \
+                  -d '{
+                      "username": "Google Cloud Build",
+                      "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View logs](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID)"
+                      }'
+
     - name: gcr.io/cloud-builders/docker
       args:
           - build
@@ -31,6 +47,23 @@ steps:
           - "--quiet"
       id: Deploy
       entrypoint: gcloud
+
+    - name: "curlimages/curl:latest"
+      id: Notify Deploy
+      waitFor: ["Deploy"]
+      allowFailure: true
+      entrypoint: sh
+      secretEnv:
+          - _WEBHOOK_URL
+      args:
+          - -c
+          - |
+              curl -X POST "$$_WEBHOOK_URL" \
+                  -H "Content-Type: application/json" \
+                  -d '{
+                      "username": "Google Cloud Build",
+                      "content": "Cloud Run service $_SERVICE_NAME has been deployed:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View logs](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID)"
+                      }'
 images:
     - >-
         $_AR_HOSTNAME/$PROJECT_ID/cloud-run-source-deploy/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
@@ -43,6 +76,10 @@ substitutions:
     _PLATFORM: managed
     _SERVICE_NAME: gyrinx
     _DEPLOY_REGION: europe-west2
+availableSecrets:
+    secretManager:
+        - versionName: projects/$PROJECT_ID/secrets/gyrinx-app-boostrap-discord-webhook-url/versions/latest
+          env: "_WEBHOOK_URL"
 tags:
     - gcp-cloud-build-deploy-cloud-run
     - gcp-cloud-build-deploy-cloud-run-managed
