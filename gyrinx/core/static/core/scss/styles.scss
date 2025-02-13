@@ -114,3 +114,17 @@ label {
 .flash-warn, .flash-warn td {
     animation: flash-warn 2s ease-in;
 }
+
+.img-link-transform img {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transform-style: preserve-3d;
+    will-change: transform, box-shadow;
+}
+
+.img-link-transform:hover img {
+    transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg);
+    box-shadow: 3px 5px 30px rgba(0, 0, 0, 0.2);
+}
+.img-link-transform:active img {
+    transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg) translateY(2px);
+}
