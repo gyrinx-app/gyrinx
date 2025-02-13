@@ -24,9 +24,9 @@ class FlatPageAdmin(BaseFlatPageAdmin):
                         "width": "100%",
                         "height": "66vh",
                         "external_link_list_url": reverse("tinymce-linklist"),
-                        "plugins": "code textpattern",
-                        "toolbar": "undo redo | bold italic | code",
-                        "menubar": "edit view insert format table tools",
+                        "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
+                        "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
+                        "menubar": "edit view insert format table tools help",
                         "menu": {
                             "edit": {
                                 "title": "Edit",
