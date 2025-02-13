@@ -187,6 +187,12 @@ class ListFighter(AppBase):
     )
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
+    cost_override = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="If set, this will be base cost of this fighter.",
+    )
+
     equipment = models.ManyToManyField(
         ContentEquipment,
         through="ListFighterEquipmentAssignment",
@@ -217,6 +223,15 @@ class ListFighter(AppBase):
         return self._base_cost_int() + sum([e.cost_int() for e in self.assignments()])
 
     def _base_cost_int(self):
+        # Our cost can be overridden by the user...
+        if self.cost_override is not None:
+            return self.cost_override
+
+        return self._base_cost_before_override()
+
+    def _base_cost_before_override(self):
+        # Or by the house...
+        # Is this an override? Yes, but not set on the fighter itself.
         cost_overrides = ContentFighterHouseOverride.objects.filter(
             fighter=self.content_fighter,
             house=self.list.content_house,
@@ -225,7 +240,14 @@ class ListFighter(AppBase):
         if cost_overrides.exists():
             return cost_overrides.get().cost
 
+        # But if neither of those are set, we just use the base cost from the content fighter
         return self.content_fighter.cost_int()
+
+    def base_cost_display(self):
+        return f"{self._base_cost_int()}¢"
+
+    def base_cost_before_override_display(self):
+        return f"{self._base_cost_before_override()}¢"
 
     def cost_display(self):
         return f"{self.cost_int()}¢"
@@ -289,6 +311,9 @@ class ListFighter(AppBase):
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
+
+    def has_overriden_cost(self):
+        return self.cost_override is not None
 
     def toggle_default_assignment(
         self, assign: ContentFighterDefaultAssignment, enable=False

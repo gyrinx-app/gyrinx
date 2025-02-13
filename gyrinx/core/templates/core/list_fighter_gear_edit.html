@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
-    <div class="col-lg-12 px-0 vstack gap-3">
+    <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Gear: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
         <div class="grid">
             {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter weapons_mode="none" gear_mode="edit" %}

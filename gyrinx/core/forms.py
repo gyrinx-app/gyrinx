@@ -88,6 +88,9 @@ class NewListFighterForm(forms.ModelForm):
                 house__in=[inst.list.content_house.id] + list(generic_houses)
             )
 
+            if hasattr(inst, "content_fighter"):
+                self.fields["cost_override"].placeholder = inst._base_cost_int()
+
         self.fields["content_fighter"] = ContentFighterChoiceField(
             queryset=self.fields["content_fighter"].queryset
         )
@@ -96,17 +99,22 @@ class NewListFighterForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["name", "content_fighter"]
+        fields = ["name", "content_fighter", "cost_override"]
         labels = {
             "name": "Name",
             "content_fighter": "Fighter",
+            "cost_override": "Manually Set Cost",
         }
         help_texts = {
             "name": "The name you use to identify this Fighter. This may be public.",
+            "cost_override": "Only change this if you want to override the default base cost of the Fighter.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_fighter": forms.Select(attrs={"class": "form-select"}),
+            "cost_override": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0}
+            ),
         }
 
 

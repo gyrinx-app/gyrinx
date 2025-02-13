@@ -5,7 +5,13 @@
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 <div class="ms-auto">
-                    <div class="badge text-bg-secondary">{{ fighter.cost_int }}¢</div>
+                    {% if fighter.has_overriden_cost %}
+                        <div data-bs-toggle="tooltip"
+                             title="The base cost of this Fighter is modified (default is {{ fighter.base_cost_before_override_display }})"
+                             class="badge text-bg-warning bg-warning">{{ fighter.cost_display }}</div>
+                    {% else %}
+                        <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>

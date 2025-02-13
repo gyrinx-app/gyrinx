@@ -272,6 +272,32 @@ def test_list_cost_with_archived_fighter():
 
 
 @pytest.mark.django_db
+def test_list_cost_with_fighter_cost_override():
+    category, house, content_fighter = make_content()
+    expensive_guy = ContentFighter.objects.create(
+        type="Expensive Guy",
+        category=category,
+        house=house,
+        base_cost=150,
+    )
+
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Test Fighter 2", list=lst, content_fighter=expensive_guy
+    )
+
+    assert lst.cost_int() == fighter.cost_int() + fighter2.cost_int()
+
+    fighter2.cost_override = 0
+    fighter2.save()
+
+    assert lst.cost_int() == fighter.cost_int()
+
+
+@pytest.mark.django_db
 def test_list_fighter_with_spoon():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(

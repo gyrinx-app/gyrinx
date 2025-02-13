@@ -6,7 +6,7 @@
 {% block content %}
     {% url back_url list.id fighter.id as full_back_url %}
     {% include "core/includes/back.html" with url=full_back_url %}
-    <div class="col-lg-12 px-0 vstack gap-3">
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Remove from {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
         <form action="{% url action_url list.id fighter.id assign.id %}"
               method="post">

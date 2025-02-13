@@ -24,7 +24,7 @@ def cost(obj):
 class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
-    fields = ["name", "owner", "content_fighter", cost]
+    fields = ["name", "owner", "content_fighter", "cost_override", cost]
     readonly_fields = [cost]
     show_change_link = True
 
@@ -88,6 +88,7 @@ class ListFighterAdmin(BaseAdmin):
         "list",
         "skills",
         "additional_rules",
+        "cost_override",
         cost,
         "narrative",
     ]
