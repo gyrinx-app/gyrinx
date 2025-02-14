@@ -842,13 +842,6 @@ class ContentWeaponProfile(Content):
         "then the profile is free to use and standard. This cost can be overridden by the "
         "fighter's equipment list.",
     )
-    cost_sign = models.CharField(
-        max_length=1,
-        choices=[("+", "+")],
-        blank=True,
-        null=False,
-        default="",
-    )
     rarity = models.CharField(
         max_length=1,
         choices=[
@@ -904,30 +897,13 @@ class ContentWeaponProfile(Content):
         """
         return self.cost
 
-    def cost_tp(self) -> int | None:
-        """
-        Determines the cost if purchased at the Trading Post. Returns None if
-        standard (zero cost), or a sum if the cost sign is '+', or just the
-        cost otherwise.
-        """
-        if self.cost_int() == 0:
-            return None
-
-        # If the cost is positive, then the profile is an upgrade to the equipment.
-        if self.cost_sign == "+":
-            return self.equipment.cost_int() + self.cost_int()
-
-        # Otherwise, the cost is the profile cost.
-        # TODO: When is this a thing?
-        return self.cost_int()
-
     def cost_display(self) -> str:
         """
         Returns a readable display for the cost, including any sign and '¢'.
         """
         if self.name == "" or self.cost_int() == 0:
             return ""
-        return f"{self.cost_sign}{self.cost_int()}¢"
+        return f"+{self.cost_int()}¢"
 
     def cost_for_fighter_int(self):
         if hasattr(self, "cost_for_fighter"):
@@ -1016,23 +992,13 @@ class ContentWeaponProfile(Content):
                     setattr(self, field, f'{value}"')
 
         if self.cost_int() < 0:
-            raise ValidationError("Cost cannot be negative.")
-
-        if self.cost_int() == 0 and self.cost_sign != "":
-            raise ValidationError("Cost sign should be empty for zero cost profiles.")
+            raise ValidationError({"cost": "Cost cannot be negative."})
 
         if self.name == "" and self.cost_int() != 0:
-            raise ValidationError("Standard profiles should have zero cost.")
-
-        if self.cost_int() == 0 and self.cost_sign != "":
-            raise ValidationError("Standard profiles should have zero cost.")
-
-        if self.cost_int() != 0 and self.cost_sign == "":
-            raise ValidationError("Non-standard profiles should have a cost sign.")
-
-        if self.cost_int() != 0 and self.cost_sign != "+":
             raise ValidationError(
-                "Non-standard profiles should have a positive cost sign."
+                {
+                    "cost": "Standard (un-named) profiles should have zero cost.",
+                }
             )
 
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()

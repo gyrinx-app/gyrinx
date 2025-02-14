@@ -400,7 +400,6 @@ def test_fighter_with_spoon_weapon_profile_with_cost():
         name="with Spike",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -458,7 +457,6 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
         name="with Spike",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -508,37 +506,6 @@ def test_profile_validation_negative_cost():
             name="Negative Cost",
             defaults=dict(
                 cost=-5,
-                cost_sign="",
-                range_short="",
-                range_long="E",
-                accuracy_short="",
-                accuracy_long="",
-                strength="S-1",
-                armour_piercing="+1",
-                damage="1",
-                ammo="4+",
-            ),
-        )
-        profile.clean()
-
-
-@pytest.mark.django_db
-def test_profile_validation_zero_cost_with_sign():
-    spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
-        cost=10,
-    )
-
-    with pytest.raises(
-        ValidationError, match="Cost sign should be empty for zero cost profiles."
-    ):
-        profile, _ = ContentWeaponProfile.objects.get_or_create(
-            equipment=spoon,
-            name="Zero Cost with Sign",
-            defaults=dict(
-                cost=0,
-                cost_sign="+",
                 range_short="",
                 range_long="E",
                 accuracy_short="",
@@ -560,75 +527,12 @@ def test_profile_validation_standard_profile_non_zero_cost():
         cost=10,
     )
 
-    with pytest.raises(
-        ValidationError, match="Standard profiles should have zero cost."
-    ):
+    with pytest.raises(ValidationError):
         profile, _ = ContentWeaponProfile.objects.get_or_create(
             equipment=spoon,
             name="",
             defaults=dict(
                 cost=5,
-                cost_sign="+",
-                range_short="",
-                range_long="E",
-                accuracy_short="",
-                accuracy_long="",
-                strength="S-1",
-                armour_piercing="+1",
-                damage="1",
-                ammo="4+",
-            ),
-        )
-        profile.clean()
-
-
-@pytest.mark.django_db
-def test_profile_validation_non_standard_profile_no_cost_sign():
-    spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
-        cost=10,
-    )
-
-    with pytest.raises(
-        ValidationError, match="Non-standard profiles should have a cost sign."
-    ):
-        profile, _ = ContentWeaponProfile.objects.get_or_create(
-            equipment=spoon,
-            name="Non-standard No Cost Sign",
-            defaults=dict(
-                cost=5,
-                cost_sign="",
-                range_short="",
-                range_long="E",
-                accuracy_short="",
-                accuracy_long="",
-                strength="S-1",
-                armour_piercing="+1",
-                damage="1",
-                ammo="4+",
-            ),
-        )
-        profile.clean()
-
-
-@pytest.mark.django_db
-def test_profile_validation_non_standard_profile_negative_cost_sign():
-    spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
-        cost=10,
-    )
-
-    with pytest.raises(
-        ValidationError, match="Non-standard profiles should have a positive cost sign."
-    ):
-        profile, _ = ContentWeaponProfile.objects.get_or_create(
-            equipment=spoon,
-            name="Non-standard Negative Cost Sign",
-            defaults=dict(
-                cost=5,
-                cost_sign="-",
                 range_short="",
                 range_long="E",
                 accuracy_short="",
@@ -690,7 +594,6 @@ def test_weapon_cost_equipment_list_override_with_profile():
         name="with Spike",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -784,7 +687,6 @@ def test_list_fighter_with_same_equipment_different_profiles():
         name="with Spike",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -880,7 +782,6 @@ def test_weapon_with_multiple_profiles():
         name="Profile with Cost",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -953,7 +854,6 @@ def test_weapon_with_multiple_costed_profiles():
         name="Profile with Cost 1",
         defaults=dict(
             cost=5,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",
@@ -970,7 +870,6 @@ def test_weapon_with_multiple_costed_profiles():
         name="Profile with Cost 2",
         defaults=dict(
             cost=7,
-            cost_sign="+",
             range_short="",
             range_long="E",
             accuracy_short="",

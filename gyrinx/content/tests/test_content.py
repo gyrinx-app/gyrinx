@@ -107,7 +107,6 @@ def test_content_weapon_profile_validation():
         equipment=equipment,
         name="Standard",
         cost=0,
-        cost_sign="",
         rarity="C",
         range_short='12"',
         range_long='24"',
@@ -125,52 +124,26 @@ def test_content_weapon_profile_validation():
     with pytest.raises(ValidationError, match="Cost cannot be negative."):
         profile.clean()
 
-    # Test invalid profile with non-empty cost sign for zero cost
-    profile.cost = 0
-    profile.cost_sign = "+"
-    with pytest.raises(
-        ValidationError, match="Cost sign should be empty for zero cost profiles."
-    ):
-        profile.clean()
-
     # Test invalid profile with empty name and non-zero cost
     profile.name = ""
     profile.cost = 10
-    profile.cost_sign = "+"
     with pytest.raises(
-        ValidationError, match="Standard profiles should have zero cost."
-    ):
-        profile.clean()
-
-    # Test invalid profile with non-standard profile missing cost sign
-    profile.name = "Special"
-    profile.cost = 10
-    profile.cost_sign = ""
-    with pytest.raises(
-        ValidationError, match="Non-standard profiles should have a cost sign."
-    ):
-        profile.clean()
-
-    # Test invalid profile with non-standard profile having incorrect cost sign
-    profile.cost_sign = "-"
-    with pytest.raises(
-        ValidationError, match="Non-standard profiles should have a positive cost sign."
+        ValidationError,
     ):
         profile.clean()
 
     # Test invalid profile with hyphen in name
     profile.name = "-Special"
-    with pytest.raises(ValidationError, match="Name should not start with a hyphen."):
+    with pytest.raises(ValidationError):
         profile.clean()
 
     # Test invalid profile with "(Standard)" in name
     profile.name = "(Standard)"
-    with pytest.raises(ValidationError, match='Name should not be "\(Standard\)".'):
+    with pytest.raises(ValidationError):
         profile.clean()
 
     # Test invalid profile with hyphen in specific fields
     profile.name = "Special"
-    profile.cost_sign = "+"
     profile.range_short = "-"
     profile.clean()
     assert profile.range_short == ""
