@@ -148,6 +148,54 @@
                 {% endfor %}
             {% endif %}
             {% if mode == 'add' %}
+                {% if assign.upgrades_display|length > 0 %}
+                    <tr>
+                        <td colspan="9">
+                            <legend class="fs-7">
+                                <i class="bi-arrow-up"></i> {{ assign.equipment.upgrade_stack_name }}
+                            </legend>
+                            <div class="hstack gap-1">
+                                <div>
+                                    <input type="radio"
+                                           name="upgrade"
+                                           value=""
+                                           id="upgrade-none"
+                                           form="weapon-{{ assign.equipment.id }}"
+                                           class="btn-check">
+                                    <label class="btn btn-sm" for="upgrade-none">None</label>
+                                </div>
+                                <div class="d-flex flex-grow-1 btn-group">
+                                    {% for ud in assign.upgrades_display %}
+                                        <input type="radio"
+                                               name="upgrade"
+                                               value="{{ ud.upgrade.id }}"
+                                               id="upgrade-{{ ud.upgrade.id }}"
+                                               form="weapon-{{ assign.equipment.id }}"
+                                               class="btn-check">
+                                        <label class="btn btn-outline-secondary btn-sm"
+                                               for="upgrade-{{ ud.upgrade.id }}">
+                                            {{ ud.upgrade.name }}
+                                            {% if ud.cost_int > 0 %}({{ ud.cost_display }}){% endif %}
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endif %}
+            {% if assign.active_upgrade %}
+                <tr>
+                    <td colspan="9">
+                        <i class="bi-dash"></i>
+                        <i class="bi-arrow-up"></i>
+                        {{ assign.equipment.upgrade_stack_name }}:
+                        {{ assign.active_upgrade.name }}
+                        {% if assign.active_upgrade.cost_int > 0 %}(+{{ assign.active_upgrade.cost_display }}){% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+            {% if mode == 'add' %}
                 <tr>
                     <td colspan="9">
                         <div class="d-flex btn-group">

@@ -982,3 +982,28 @@ class VirtualListFighterEquipmentAssignment:
             return 0
 
         return self._assignment.accessory_cost_int(accessory)
+
+    def active_upgrade(self):
+        if not self._assignment:
+            return None
+
+        if not hasattr(self._assignment, "upgrade"):
+            return None
+
+        return self._assignment.upgrade
+
+    def upgrades(self) -> QuerySetOf[ContentEquipmentUpgrade]:
+        if not self.equipment.upgrades:
+            return []
+
+        return self.equipment.upgrades.all()
+
+    def upgrades_display(self):
+        return [
+            {
+                "upgrade": upgrade,
+                "cost_int": upgrade.cost_int(),
+                "cost_display": f"+{upgrade.cost_int()}¢",
+            }
+            for upgrade in self.upgrades()
+        ]

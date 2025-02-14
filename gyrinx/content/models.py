@@ -1124,6 +1124,12 @@ class ContentEquipmentUpgrade(Content):
         upgrades = self.equipment.upgrades.filter(position__lte=self.position)
         return sum(upgrade.cost for upgrade in upgrades)
 
+    def cost_display(self):
+        """
+        Returns a cost display string with '¢'.
+        """
+        return f"{self.cost_int()}¢"
+
     class Meta:
         verbose_name = "Equipment Upgrade"
         verbose_name_plural = "Equipment Upgrades"

@@ -218,7 +218,7 @@ class ListFighterGearForm(forms.ModelForm):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     class Meta:
         model = ListFighterEquipmentAssignment
-        fields = ["content_equipment", "weapon_profiles_field"]
+        fields = ["content_equipment", "weapon_profiles_field", "upgrade"]
 
     # TODO: Add a clean method to ensure that weapon profiles are assigned to the correct equipment
 
