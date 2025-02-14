@@ -65,6 +65,7 @@
                                               title="This is assigned to the fighter by default.">
                                         {% endif %}
                                         {{ assign.name }}
+                                        {% if assign.active_upgrade %}({{ assign.active_upgrade.name }}){% endif %}
                                         {% if assign.is_from_default_assignment %}</span>{% endif %}
                                     {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if not print %}
