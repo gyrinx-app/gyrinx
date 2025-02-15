@@ -1,3 +1,11 @@
+## How is the Gyrinx codebase & project run?
+
+While we are in a rapid development phase, the project is run [BDFL-style](https://en.m.wikipedia.org/wiki/Benevolent_dictator_for_life):
+
+- [@tgvashworth](https://github.com/tgvashworth) is the final decision-maker on all aspects of design, development and operations
+- Decision making will be done in a benvolent-but-autocratic style, with some decisions delegated by expertise
+- This may change as the project evolves, but it is the right choice for a very early project that is moving quickly
+
 ## How to contribute to Gyrinx
 
 Before contributing, read our [Code of Conduct](./CODE-OF-CONDUCT.md) — by joining the community, you're agreeing to adhere to the contents of that document.
