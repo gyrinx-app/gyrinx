@@ -1139,6 +1139,36 @@ def archive_list_fighter(request, id, fighter_id):
     )
 
 
+@login_required
+def delete_list_fighter(request, id, fighter_id):
+    """
+    Delete a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` to be deleted.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_delete.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    if request.method == "POST":
+        fighter.delete()
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_delete.html",
+        {"fighter": fighter, "list": lst},
+    )
+
+
 def embed_list_fighter(request, id, fighter_id):
     """
     Display a single :model:`core.ListFighter` object in an embedded view.

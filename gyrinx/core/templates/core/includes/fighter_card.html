@@ -48,18 +48,28 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-pencil"></i> Edit
                         </a>
-                        <a href="{% url 'core:list-fighter-clone' list.id fighter.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-copy"></i> Clone
-                        </a>
                         {% if fighter.linked_fighter.exists %}
+                            <button class="btn btn-outline-secondary btn-sm disabled" disabled>
+                                <i class="bi-copy"></i> Clone
+                            </button>
                             <button class="btn btn-outline-danger btn-sm disabled" disabled>
                                 <i class="bi-archive"></i> Archive
                             </button>
+                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
+                                <i class="bi-trash"></i> Delete
+                            </button>
                         {% else %}
+                            <a href="{% url 'core:list-fighter-clone' list.id fighter.id %}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi-copy"></i> Clone
+                            </a>
                             <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
                                class="btn btn-outline-danger btn-sm">
                                 <i class="bi-archive"></i> Archive
+                            </a>
+                            <a href="{% url 'core:list-fighter-delete' list.id fighter.id %}"
+                               class="btn btn-outline-danger btn-sm">
+                                <i class="bi-trash"></i> Delete
                             </a>
                         {% endif %}
                     </div>
