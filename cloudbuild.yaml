@@ -12,7 +12,7 @@ steps:
                   -H "Content-Type: application/json" \
                   -d '{
                       "username": "Google Cloud Build",
-                      "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View logs](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID)"
+                      "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
                       }'
 
     - name: gcr.io/cloud-builders/docker
@@ -62,7 +62,7 @@ steps:
                   -H "Content-Type: application/json" \
                   -d '{
                       "username": "Google Cloud Build",
-                      "content": "Cloud Run service $_SERVICE_NAME has been deployed:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View logs](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID)"
+                      "content": "Cloud Run service $_SERVICE_NAME has been deployed:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
                       }'
 images:
     - >-
