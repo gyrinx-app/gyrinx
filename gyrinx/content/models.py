@@ -86,7 +86,7 @@ class ContentSkillCategory(Content):
     Represents a category of skills that fighters may possess.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     restricted = models.BooleanField(
         default=False,
         help_text="If checked, this skill tree is only available to specific gangs.",
@@ -125,6 +125,7 @@ class ContentSkill(Content):
         verbose_name = "Skill"
         verbose_name_plural = "Skills"
         ordering = ["category", "name"]
+        unique_together = ["name", "category"]
 
 
 class ContentHouseAdditionalRuleTree(Content):
