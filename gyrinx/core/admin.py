@@ -7,7 +7,12 @@ from tinymce.widgets import TinyMCE
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.forms import group_select
 
-from .models import List, ListFighter, ListFighterEquipmentAssignment
+from .models import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    ListFighterPsykerPowerAssignment,
+)
 
 
 class BaseAdmin(SimpleHistoryAdmin):
@@ -78,6 +83,19 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
     fk_name = "list_fighter"
 
 
+class ListFighterPsykerPowerAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "psyker_power", key=lambda x: x.discipline.name)
+
+
+class ListFighterPsykerPowerAssignment(admin.TabularInline):
+    model = ListFighterPsykerPowerAssignment
+    form = ListFighterPsykerPowerAssignmentForm
+    extra = 1
+    fields = ["psyker_power"]
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
@@ -96,7 +114,7 @@ class ListFighterAdmin(BaseAdmin):
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]
 
-    inlines = [ListFighterEquipmentAssignmentInline]
+    inlines = [ListFighterEquipmentAssignmentInline, ListFighterPsykerPowerAssignment]
 
 
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):

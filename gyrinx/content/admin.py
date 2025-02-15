@@ -18,11 +18,14 @@ from .models import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
+    ContentFighterPsykerDisciplineAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
     ContentHouseAdditionalRuleTree,
     ContentPageRef,
     ContentPolicy,
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
@@ -206,6 +209,11 @@ class ContentFighterHouseOverrideInline(ContentTabularInline):
     model = ContentFighterHouseOverride
 
 
+class ContentFighterPsykerDisciplineAssignmentInline(ContentTabularInline):
+    model = ContentFighterPsykerDisciplineAssignment
+    extra = 0
+
+
 class ContentFighterForm(forms.ModelForm):
     pass
 
@@ -219,6 +227,7 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
         ContentFighterHouseOverrideInline,
         ContentFighterEquipmentInline,
         ContentFighterDefaultAssignmentInline,
+        ContentFighterPsykerDisciplineAssignmentInline,
     ]
     actions = [copy_selected_to_house]
 
@@ -266,14 +275,28 @@ class ContentHouseAdditionalRuleTreeAdmin(ContentAdmin, admin.ModelAdmin):
     inlines = [ContentHouseAdditionalRuleInline]
 
 
-class ContentHouseAdditionalRuleTreeInline(ContentTabularInline):
-    def rules(obj):
-        return ", ".join([rule.name for rule in obj.rules.all()])
+def rules(obj):
+    return ", ".join([rule.name for rule in obj.rules.all()])
 
+
+class ContentHouseAdditionalRuleTreeInline(ContentTabularInline):
     model = ContentHouseAdditionalRuleTree
     extra = 0
     fields = ["name", rules]
     readonly_fields = [rules]
+
+
+class ContentPsykerPowerInline(ContentTabularInline):
+    model = ContentPsykerPower
+    extra = 0
+
+
+@admin.register(ContentPsykerDiscipline)
+class ContentPsykerDisciplineAdmin(ContentAdmin):
+    search_fields = ["name"]
+    list_filter = ["generic"]
+
+    inlines = [ContentPsykerPowerInline]
 
 
 class ContentFighterInline(ContentTabularInline):

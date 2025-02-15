@@ -165,6 +165,22 @@
                         </tr>
                     {% endif %}
                 {% endif %}
+                {% if fighter.content_fighter.is_psyker %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="3">Powers</th>
+                        <td colspan="12">
+                            {% for power in fighter.psyker_powers.all %}
+                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                {% spaceless %}
+                                    <span>{{ power.name }}</span>
+                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                {% endspaceless %}
+                            {% empty %}
+                                <span class="fst-italic">Add psychic power</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% endif %}
                 {% if fighter.wargearline|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Gear</th>

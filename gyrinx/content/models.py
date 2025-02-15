@@ -172,6 +172,95 @@ class ContentHouseAdditionalRule(Content):
         ordering = ["tree__house__name", "tree__name", "name"]
 
 
+class ContentPsykerDiscipline(Content):
+    """
+    Represents a discipline of Psyker/Wyrd powers.
+    """
+
+    name = models.CharField(max_length=255, unique=True)
+    generic = models.BooleanField(
+        default=False,
+        help_text="If checked, this discipline can be used by any psyker.",
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Psyker Discipline"
+        verbose_name_plural = "Psyker Disciplines"
+        ordering = ["name"]
+
+
+class ContentPsykerPower(Content):
+    """
+    Represents a specific power within a discipline of Psyker/Wyrd powers.
+    """
+
+    name = models.CharField(max_length=255)
+    discipline = models.ForeignKey(
+        ContentPsykerDiscipline,
+        on_delete=models.CASCADE,
+        related_name="powers",
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Psyker Power"
+        verbose_name_plural = "Psyker Powers"
+        ordering = ["discipline__name", "name"]
+        unique_together = ["name", "discipline"]
+
+
+class ContentFighterPsykerDisciplineAssignment(Content):
+    """
+    Represents a discipline assignment for a Psyker content fighter.
+    """
+
+    fighter = models.ForeignKey(
+        "ContentFighter",
+        on_delete=models.CASCADE,
+        related_name="psyker_disciplines",
+    )
+    discipline = models.ForeignKey(
+        ContentPsykerDiscipline,
+        on_delete=models.CASCADE,
+        related_name="fighter_assignments",
+    )
+    history = HistoricalRecords()
+
+    def clean(self):
+        """
+        Validation to ensure that a generic discipline cannot be assigned to a fighter.
+        """
+        if not self.fighter.is_psyker():
+            raise ValidationError(
+                {
+                    "fighter": "Cannot assign a psyker discipline to a non-psyker fighter."
+                }
+            )
+
+        if self.discipline.generic:
+            raise ValidationError(
+                {
+                    "discipline": "Cannot assign a generic psyker discipline to a fighter."
+                }
+            )
+
+    def __str__(self):
+        return f"{self.fighter} {self.discipline}"
+
+    class Meta:
+        verbose_name = "Fighter Psyker Discipline"
+        verbose_name_plural = "Fighter Psyker Disciplines"
+        unique_together = ["fighter", "discipline"]
+        ordering = ["fighter__type", "discipline__name"]
+
+
 class ContentRule(Content):
     """
     Represents a specific rule from the game system.
@@ -558,6 +647,12 @@ class ContentFighter(Content):
         Returns a list of rule names associated with this fighter.
         """
         return [rule.name for rule in self.rules.all()]
+
+    def is_psyker(self):
+        """
+        Indicates whether this fighter is a psyker.
+        """
+        return self.rules.filter(name__in=["Psyker", "Non-sanctioned Psyker"]).exists()
 
     def copy_to_house(self, house):
         skills = self.skills.all()
