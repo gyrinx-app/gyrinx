@@ -188,7 +188,7 @@
             </tbody>
         </table>
         {% comment %} Wargear {% endcomment %}
-        {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons %}
+        {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons show_edit_link=False %}
         {% if not print %}
             {% if list.owner == user %}
                 <div class="btn-group p-1">

@@ -8,7 +8,7 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Gear: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
         <div class="grid">
-            {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter weapons_mode="none" gear_mode="edit" %}
+            {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter weapons_mode="gear" gear_mode="edit" %}
             {% url 'core:list-fighter-gear-edit' list.id fighter.id as filter_action %}
             {% include "core/includes/fighter_gear_filter.html" with action=filter_action %}
             {% regroup assigns|dictsort:"category" by cat as categories %}

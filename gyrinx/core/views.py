@@ -13,6 +13,7 @@ from django.views import generic
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentUpgrade,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentPageRef,
@@ -937,6 +938,59 @@ def delete_list_fighter_assign(
             "list": lst,
             "fighter": fighter,
             "assign": assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
+    )
+
+
+@login_required
+def delete_list_fighter_gear_upgrade(
+    request, id, fighter_id, assign_id, upgrade_id, back_name, action_name
+):
+    """
+    Remove am upgrade from a :model:`core.ListFighterEquipmentAssignment` for a fighter.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be deleted.
+    ``upgrade``
+        The :model:`content.ContentEquipmentUpgrade` upgrade to be removed.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_upgrade_delete_confirm.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+    upgrade = get_object_or_404(
+        ContentEquipmentUpgrade,
+        pk=upgrade_id,
+    )
+
+    if request.method == "POST":
+        assignment.upgrade = None
+        assignment.save()
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    return render(
+        request,
+        "core/list_fighter_assign_upgrade_delete_confirm.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "upgrade": upgrade,
             "action_url": action_name,
             "back_url": back_name,
         },

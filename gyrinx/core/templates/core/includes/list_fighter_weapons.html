@@ -18,7 +18,13 @@
 <table class="table table-sm table-borderless mb-0 fs-7">
     <thead class="table-group-divider">
         <tr>
-            <th scope="col">Weapons</th>
+            <th scope="col">
+                Weapons
+                {% if mode == "gear" %}
+                    <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                       class="fw-normal">Edit weapons</a>
+                {% endif %}
+            </th>
             <th class="text-center" scope="col">S</th>
             <th class="text-center" scope="col">L</th>
             <th class="text-center border-start" scope="col">S</th>
@@ -192,6 +198,10 @@
                         {{ assign.equipment.upgrade_stack_name }}:
                         {{ assign.active_upgrade.name }}
                         {% if assign.active_upgrade.cost_int > 0 %}(+{{ assign.active_upgrade.cost_display }}){% endif %}
+                        {% if mode == 'edit' and assign.kind == 'assigned' %}
+                            <a href="{% url 'core:list-fighter-gear-upgrade-delete' list.id fighter.id assign.id assign.active_upgrade.id %}"
+                               class="ms-auto link-danger">Remove</a>
+                        {% endif %}
                     </td>
                 </tr>
             {% endif %}

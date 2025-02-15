@@ -61,6 +61,15 @@ urlpatterns = [
         ),
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade/<upgrade_id>/delete",
+        views.delete_list_fighter_gear_upgrade,
+        name="list-fighter-gear-upgrade-delete",
+        kwargs=dict(
+            back_name="core:list-fighter-gear-edit",
+            action_name="core:list-fighter-gear-upgrade-delete",
+        ),
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/archive",
         views.archive_list_fighter,
         name="list-fighter-archive",
