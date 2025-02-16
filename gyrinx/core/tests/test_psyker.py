@@ -44,7 +44,7 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
         discipline=biomancy,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()
 
     # You can't assign a discipline if the ContentFighter is not a psyker
@@ -53,7 +53,7 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
         discipline=chronomancy,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()
 
     lst = make_list("Test List")
@@ -68,7 +68,7 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
         psyker_power=arachnosis,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()
 
     content_fighter.rules.add(psyker)
@@ -87,7 +87,7 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
         psyker_power=freeze_time,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()
 
     # You can assign a discipline to a content fighter so they can use powers from that discipline
@@ -159,7 +159,7 @@ def test_psyker_default_power(content_fighter, make_list, make_list_fighter):
         psyker_power=arachnosis,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()
 
     # This content fighter is a psyker
@@ -184,5 +184,5 @@ def test_psyker_default_power(content_fighter, make_list, make_list_fighter):
         psyker_power=arachnosis,
     )
     with pytest.raises(ValidationError):
-        assign.clean()
+        assign.full_clean()
     assign.delete()

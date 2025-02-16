@@ -280,11 +280,11 @@ class ContentFighterPsykerPowerDefaultAssignment(Content):
     )
     history = HistoricalRecords()
 
-    def clean(self):
+    def clean_fields(self, exclude={}):
         """
         Validation to ensure that defaults cannot be assigned to a non-Psyker fighter.
         """
-        if not self.fighter.is_psyker():
+        if "fighter" not in exclude and not self.fighter.is_psyker():
             raise ValidationError(
                 {"fighter": "Cannot assign a psyker power to a non-psyker fighter."}
             )
