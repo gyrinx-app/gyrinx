@@ -215,6 +215,18 @@ class ContentFighterPsykerDisciplineAssignmentInline(ContentTabularInline):
     extra = 0
 
 
+class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "psyker_power", key=lambda x: x.discipline.name)
+
+
+class ContentFighterPsykerPowerDefaultAssignmentInline(ContentTabularInline):
+    model = ContentFighterPsykerPowerDefaultAssignment
+    extra = 0
+    form = ContentFighterPsykerPowerDefaultAssignmentForm
+
+
 class ContentFighterForm(forms.ModelForm):
     pass
 
@@ -229,6 +241,7 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
         ContentFighterEquipmentInline,
         ContentFighterDefaultAssignmentInline,
         ContentFighterPsykerDisciplineAssignmentInline,
+        ContentFighterPsykerPowerDefaultAssignmentInline,
     ]
     actions = [copy_selected_to_house]
 

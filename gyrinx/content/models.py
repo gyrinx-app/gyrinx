@@ -13,7 +13,7 @@ from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast, Coalesce, Lower
 from simple_history.models import HistoricalRecords
 
 from gyrinx.models import (
@@ -691,7 +691,13 @@ class ContentFighter(Content):
         """
         Indicates whether this fighter is a psyker.
         """
-        return self.rules.filter(name__in=["Psyker", "Non-sanctioned Psyker"]).exists()
+        return (
+            self.rules.annotate(name_lower=Lower("name"))
+            .filter(
+                name_lower__in=["psyker", "non-sanctioned psyker", "sanctioned psyker"]
+            )
+            .exists()
+        )
 
     def copy_to_house(self, house):
         skills = self.skills.all()

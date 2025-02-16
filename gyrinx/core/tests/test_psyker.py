@@ -17,6 +17,7 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     non_sanctioned_psyker, _ = ContentRule.objects.get_or_create(
         name="Non-sanctioned Psyker"
     )
+    sanctioned_psyker, _ = ContentRule.objects.get_or_create(name="Sanctioned Psyker")
 
     biomancy, _ = ContentPsykerDiscipline.objects.get_or_create(
         name="Biomancy",
@@ -111,12 +112,31 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     content_fighter.rules.add(non_sanctioned_psyker)
     content_fighter.rules.remove(psyker)
 
-    ListFighterPsykerPowerAssignment.objects.create(
+    ft_assign = ListFighterPsykerPowerAssignment.objects.create(
         list_fighter=fighter,
         psyker_power=freeze_time,
     )
 
     assert fighter.psyker_powers.count() == 2
+
+    ft_assign.delete()
+
+    assert fighter.psyker_powers.count() == 1
+
+    # The above also applies to sanctioned psykers
+    content_fighter.rules.add(sanctioned_psyker)
+    content_fighter.rules.remove(non_sanctioned_psyker)
+
+    ft_assign = ListFighterPsykerPowerAssignment.objects.create(
+        list_fighter=fighter,
+        psyker_power=freeze_time,
+    )
+
+    assert fighter.psyker_powers.count() == 2
+
+    ft_assign.delete()
+
+    assert fighter.psyker_powers.count() == 1
 
 
 @pytest.mark.django_db
