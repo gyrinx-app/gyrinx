@@ -1276,6 +1276,11 @@ class ContentEquipmentUpgrade(Content):
         default=0,
         help_text="The credit cost of the equipment upgrade. Costs are cumulative based on position.",
     )
+    modifiers = models.ManyToManyField(
+        "ContentMod",
+        blank=True,
+        help_text="Modifiers to apply to the equipment's statline and traits.",
+    )
 
     history = HistoricalRecords()
 

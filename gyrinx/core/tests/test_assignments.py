@@ -1,6 +1,7 @@
 import pytest
 
 from gyrinx.content.models import (
+    ContentEquipmentUpgrade,
     ContentFighterEquipmentListWeaponAccessory,
     ContentModStat,
     ContentModTrait,
@@ -370,6 +371,108 @@ def test_assign_accessory_stat_mod(
         "Add Me",
         "Rapid Fire (1)",
     ]
+
+
+@pytest.mark.django_db
+def test_upgrade_stat_mod(
+    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+):
+    t_r_f_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
+    t_rm, _ = ContentWeaponTrait.objects.get_or_create(name="Remove Me")
+    t_add, _ = ContentWeaponTrait.objects.get_or_create(name="Add Me")
+    spoon = make_equipment("Spoon")
+    spoon_profile = make_weapon_profile(
+        spoon,
+        range_short='1"',
+        range_long='2"',
+        accuracy_short="",
+        accuracy_long="-1",
+        strength="2",
+        armour_piercing="",
+        damage="2",
+        ammo="",
+    )
+    spoon_profile.traits.set([t_r_f_1, t_rm])
+
+    spoon_spike_profile = make_weapon_profile(
+        spoon,
+        name="Spoon Spike",
+        cost=10,
+        range_short='1"',
+        range_long='2"',
+        accuracy_short="",
+        accuracy_long="-1",
+        strength="2",
+        armour_piercing="-1",
+        damage="2",
+        ammo="",
+    )
+    spoon_spike_profile.traits.set([t_r_f_1, t_rm])
+
+    # You can associate a mod with an upgrade...
+
+    # ...to improve stats
+    mod_rng_s = ContentModStat.objects.create(
+        stat="range_short",
+        mode="improve",
+        value="1",
+    )
+
+    mod_dmg = ContentModStat.objects.create(
+        stat="damage",
+        mode="set",
+        value="3",
+    )
+
+    # ...to remove traits
+    mod_rm_trait = ContentModTrait.objects.create(
+        mode="remove",
+        trait=t_rm,
+    )
+
+    # ...to add traits
+    mod_add_trait = ContentModTrait.objects.create(
+        mode="add",
+        trait=t_add,
+    )
+
+    u1 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Alpha", cost=20, position=0
+    )
+    u2 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Beta", cost=30, position=1
+    )
+
+    u1.modifiers.set([mod_rng_s])
+    u2.modifiers.set([mod_dmg, mod_rm_trait, mod_add_trait])
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+    assign = fighter.assign(
+        spoon,
+        weapon_profiles=[spoon_profile, spoon_spike_profile],
+    )
+
+    profiles = assign.all_profiles()
+    assert len(profiles) == 2
+
+    assign.upgrade = u1
+    assign.save()
+
+    profiles = assign.all_profiles()
+    assert len(profiles) == 2
+    modded_profile = profiles[0]
+    assert modded_profile.range_short == '2"'
+
+    assign.upgrade = u2
+    assign.save()
+
+    profiles = assign.all_profiles()
+    assert len(profiles) == 2
+    modded_profile = profiles[0]
+    assert modded_profile.damage == "3"
+    assert t_rm not in modded_profile.traits
+    assert t_add in modded_profile.traits
 
 
 @pytest.mark.django_db

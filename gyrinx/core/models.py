@@ -579,7 +579,8 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def _mods(self):
         accessories = self.weapon_accessories_field.all()
         mods = [m for a in accessories for m in a.modifiers.all()]
-        # TODO: Upgrades should also be included here
+        if self.upgrade:
+            mods += list(self.upgrade.modifiers.all())
         return mods
 
     # Costs
@@ -1185,7 +1186,7 @@ class VirtualWeaponProfile:
         return self.profile.name
 
     def cost_int(self):
-        return self.profile.cost_int() + sum([p.cost_int() for p in self.mods])
+        return self.profile.cost_int()
 
     def cost_display(self):
         return f"{self.cost_int()}¢"
@@ -1229,9 +1230,9 @@ class VirtualWeaponProfile:
         mods = self._traitmods()
         value = list(self.profile.traits.all())
         for mod in mods:
-            if mod.mode == "add":
+            if mod.mode == "add" and mod.trait not in value:
                 value.append(mod.trait)
-            elif mod.mode == "remove":
+            elif mod.mode == "remove" and mod.trait in value:
                 value.remove(mod.trait)
         return value
 
@@ -1248,7 +1249,8 @@ class VirtualWeaponProfile:
 
     def traitline(self):
         # TODO: We need some kind of TraitDisplay thing
-        return sorted([trait.name for trait in self.traits])
+        traitline = sorted([trait.name for trait in self.traits])
+        return traitline
 
     def __str__(self):
         return self.name()
