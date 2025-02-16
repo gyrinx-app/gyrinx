@@ -1,0 +1,10 @@
+{% if assign.kind == 'default' %}
+    <a href="#"
+       bs-tooltip
+       data-bs-toggle="tooltip"
+       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+       title="This weapon is assigned to the fighter by default.">
+    {% endif %}
+    {{ assign.base_name }}
+    {% if assign.kind == 'default' %}</a>{% endif %}
+{% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}

@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Union
 
 from django.contrib import admin
@@ -24,6 +24,9 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
+    ContentMod,
+    ContentModStat,
+    ContentModTrait,
     ContentPsykerPower,
     ContentSkill,
     ContentWeaponAccessory,
@@ -254,7 +257,9 @@ class ListFighter(AppBase):
     def cost_display(self):
         return f"{self.cost_int()}¢"
 
-    def assign(self, equipment, weapon_profiles=None, weapon_accessories=None):
+    def assign(
+        self, equipment, weapon_profiles=None, weapon_accessories=None
+    ) -> "ListFighterEquipmentAssignment":
         """
         Assign equipment to the fighter, optionally with weapon profiles and accessories.
 
@@ -522,7 +527,8 @@ class ListFighterEquipmentAssignment(Base, Archived):
         self.weapon_profiles_field.add(profile)
 
     def weapon_profiles(self):
-        return list(self.weapon_profiles_field.all())
+        mods = self._mods()
+        return [VirtualWeaponProfile(p, mods) for p in self.weapon_profiles_field.all()]
 
     def weapon_profiles_display(self):
         """Return a list of dictionaries with the weapon profiles and their costs."""
@@ -536,9 +542,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
             for p in profiles
         ]
 
-    def all_profiles(self):
+    def all_profiles(self) -> list["VirtualWeaponProfile"]:
         """Return all profiles for the equipment, including the default profiles."""
-        standard_profiles = list(self.standard_profiles())
+
+        standard_profiles = self.standard_profiles()
         weapon_profiles = self.weapon_profiles()
 
         seen = set()
@@ -550,9 +557,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return result
 
     def standard_profiles(self):
-        return ContentWeaponProfile.objects.filter(
-            equipment=self.content_equipment, cost=0
-        )
+        mods = self._mods()
+        return [
+            VirtualWeaponProfile(p, mods)
+            for p in ContentWeaponProfile.objects.filter(
+                equipment=self.content_equipment, cost=0
+            )
+        ]
 
     def weapon_profiles_names(self):
         profile_names = [p.name for p in self.weapon_profiles()]
@@ -562,6 +573,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
+
+    # Mods
+
+    def _mods(self):
+        accessories = self.weapon_accessories_field.all()
+        mods = [m for a in accessories for m in a.modifiers.all()]
+        # TODO: Upgrades should also be included here
+        return mods
 
     # Costs
 
@@ -624,15 +643,15 @@ class ListFighterEquipmentAssignment(Base, Archived):
         ]
         return sum(after_overrides)
 
-    def _profile_cost_with_override_for_profile(self, profile):
-        if hasattr(profile, "cost_for_fighter"):
+    def _profile_cost_with_override_for_profile(self, profile: "VirtualWeaponProfile"):
+        if hasattr(profile.profile, "cost_for_fighter"):
             return profile.cost_for_fighter_int()
 
         try:
             override = ContentFighterEquipmentListItem.objects.get(
                 fighter=self.list_fighter.content_fighter,
                 equipment=self.content_equipment,
-                weapon_profile=profile,
+                weapon_profile=profile.profile,
             )
             return override.cost_int()
         except ContentFighterEquipmentListItem.DoesNotExist:
@@ -1146,3 +1165,93 @@ class VirtualListFighterPsykerPowerAssignment:
             return "default"
 
         return "assigned"
+
+
+@dataclass
+class VirtualWeaponProfile:
+    """
+    A virtual container for profiles that applies mods.
+    """
+
+    profile: ContentWeaponProfile
+    mods: list[ContentMod] = field(default_factory=list)
+
+    @property
+    def id(self):
+        return self.profile.id
+
+    @property
+    def name(self):
+        return self.profile.name
+
+    def cost_int(self):
+        return self.profile.cost_int() + sum([p.cost_int() for p in self.mods])
+
+    def cost_display(self):
+        return f"{self.cost_int()}¢"
+
+    def _statmods(self, stat=None) -> list[ContentModStat]:
+        return [
+            mod
+            for mod in self.mods
+            if isinstance(mod, ContentModStat) and (stat is None or mod.stat == stat)
+        ]
+
+    def _traitmods(self) -> list[ContentModTrait]:
+        return [mod for mod in self.mods if isinstance(mod, ContentModTrait)]
+
+    def __post_init__(self):
+        stats = [
+            "range_short",
+            "range_long",
+            "accuracy_short",
+            "accuracy_long",
+            "strength",
+            "armour_piercing",
+            "damage",
+            "ammo",
+        ]
+        for stat in stats:
+            value = self.profile.__getattribute__(stat)
+            setattr(
+                self,
+                stat,
+                self._apply_mods(stat, value, self._statmods(stat=stat)),
+            )
+
+    def _apply_mods(self, stat: str, value: str, mods: list[ContentModStat]):
+        for mod in mods:
+            value = mod.apply(value)
+        return value
+
+    @property
+    def traits(self):
+        mods = self._traitmods()
+        value = list(self.profile.traits.all())
+        for mod in mods:
+            if mod.mode == "add":
+                value.append(mod.trait)
+            elif mod.mode == "remove":
+                value.remove(mod.trait)
+        return value
+
+    def statline(self):
+        statline = self.profile.statline()
+        output = []
+        for stat in statline:
+            base_value = stat.value
+            value = getattr(self, stat.field_name) or "-"
+            if value != base_value:
+                stat = replace(stat, value=value, modded=True)
+            output.append(stat)
+        return output
+
+    def traitline(self):
+        # TODO: We need some kind of TraitDisplay thing
+        return sorted([trait.name for trait in self.traits])
+
+    def __str__(self):
+        return self.name()
+
+    def __eq__(self, value):
+        return self.profile == value

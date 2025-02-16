@@ -5,6 +5,7 @@ daphne==4.1.2
 Django==5.1.6
 django-allauth==65.4.1
 django-extensions==3.2.3
+django-polymorphic==3.1.0
 django-simple-history==3.8.0
 django-tinymce==4.1.0
 djlint==1.36.4

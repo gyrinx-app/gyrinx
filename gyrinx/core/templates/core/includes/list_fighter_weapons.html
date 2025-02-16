@@ -44,17 +44,9 @@
                 {% with assign.all_profiles.0 as profile %}
                     <tr class="align-top">
                         <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
-                            {% if assign.kind == 'default' %}
-                                <span bs-tooltip
-                                      data-bs-toggle="tooltip"
-                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                      title="This weapon is assigned to the fighter by default.">
-                                {% endif %}
-                                {{ assign.base_name }}
-                                {% if assign.kind == 'default' %}</span>{% endif %}
-                            {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
+                            {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                         </td>
-                        {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
                     </tr>
                     {% if profile.traitline|length > 0 %}
                         <tr>
@@ -66,17 +58,7 @@
                 {% comment %} First profile is named, so we need to add a title row {% endcomment %}
                 {% if assign.standard_profiles.0.name != "" %}
                     <tr class="align-bottom">
-                        <td colspan="9">
-                            {% if assign.kind == 'default' %}
-                                <span bs-tooltip
-                                      data-bs-toggle="tooltip"
-                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                      title="This weapon is assigned to the fighter by default.">
-                                {% endif %}
-                                {{ assign.base_name }}
-                                {% if assign.kind == 'default' %}</span>{% endif %}
-                            {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
-                        </td>
+                        <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}</td>
                     </tr>
                 {% endif %}
                 {% for profile in assign.standard_profiles %}
@@ -84,20 +66,12 @@
                         <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
                             {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
                             {% if forloop.counter0 == 0 and profile.name == "" %}
-                                {% if assign.kind == 'default' %}
-                                    <span bs-tooltip
-                                          data-bs-toggle="tooltip"
-                                          class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                          title="This weapon is assigned to the fighter by default.">
-                                    {% endif %}
-                                    {{ assign.base_name }}
-                                    {% if assign.kind == 'default' %}</span>{% endif %}
-                                {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
+                                {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                             {% elif profile.name != "" %}
                                 <i class="bi-dash"></i> {{ profile.name }}
                             {% endif %}
                         </td>
-                        {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
                     </tr>
                     {% if profile.traitline|length > 0 %}
                         <tr>
@@ -128,7 +102,7 @@
                                 {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
                             {% endif %}
                         </td>
-                        {% for stat in pd.profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
                     </tr>
                     {% if pd.profile.traitline|length > 0 %}
                         <tr>

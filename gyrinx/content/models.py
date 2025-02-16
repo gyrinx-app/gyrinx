@@ -7,6 +7,7 @@ models for fighters, equipment, rules, and more. Custom managers and querysets
 provide streamlined data access.
 """
 
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from django.core.cache import caches
@@ -14,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
 from django.db.models.functions import Cast, Coalesce, Lower
+from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
 from gyrinx.models import (
@@ -957,6 +959,15 @@ class ContentWeaponProfileQuerySet(models.QuerySet):
         )
 
 
+@dataclass
+class StatlineDisplay:
+    name: str
+    field_name: str
+    value: str
+    classes: str = ""
+    modded: bool = False
+
+
 class ContentWeaponProfile(Content):
     """
     Represents a specific profile for :model:`content.ContentEquipment`. "Standard" profiles have zero cost.
@@ -1054,7 +1065,7 @@ class ContentWeaponProfile(Content):
             "cost_for_fighter not available. Use with_cost_for_fighter()"
         )
 
-    def statline(self):
+    def statline(self) -> list[StatlineDisplay]:
         """
         Returns a list of dictionaries describing the weapon profile's stats,
         including range, accuracy, strength, and so forth.
@@ -1073,15 +1084,18 @@ class ContentWeaponProfile(Content):
             ]
         ]
         return [
-            {
-                "name": field.verbose_name,
-                "classes": (
-                    "border-start"
-                    if field.name in ["accuracy_short", "strength"]
-                    else ""
-                ),
-                "value": getattr(self, field.name) or "-",
-            }
+            StatlineDisplay(
+                **{
+                    "name": field.verbose_name,
+                    "field_name": field.name,
+                    "classes": (
+                        "border-start"
+                        if field.name in ["accuracy_short", "strength"]
+                        else ""
+                    ),
+                    "value": getattr(self, field.name) or "-",
+                }
+            )
             for field in stats
         ]
 
@@ -1207,6 +1221,13 @@ class ContentWeaponAccessory(Content):
     rarity_roll = models.IntegerField(
         blank=True, null=True, verbose_name="Availability Level"
     )
+
+    modifiers = models.ManyToManyField(
+        "ContentMod",
+        blank=True,
+        help_text="Modifiers to apply to the weapon's statline and traits.",
+    )
+
     history = HistoricalRecords()
 
     def cost_int(self):
@@ -1634,3 +1655,141 @@ class ContentPageRef(Content):
             "book__shortname",
             "title",
         )
+
+
+class ContentMod(PolymorphicModel, Content):
+    """
+    Base class for all modifications.
+    """
+
+    help_text = "Base class for all modifications."
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return "Base Modification"
+
+    class Meta:
+        verbose_name = "Modification"
+        verbose_name_plural = "Modifications"
+
+
+class ContentModStat(ContentMod):
+    """
+    Stat modifier
+    """
+
+    help_text = "A modification to a specific value in a statline"
+    stat = models.CharField(
+        max_length=255,
+        choices=[
+            # ("movement", "Movement"),
+            # ("weapon_skill", "Weapon Skill"),
+            # ("ballistic_skill", "Ballistic Skill"),
+            ("strength", "Strength"),
+            # ("toughness", "Toughness"),
+            # ("wounds", "Wounds"),
+            # ("initiative", "Initiative"),
+            # ("attacks", "Attacks"),
+            # ("leadership", "Leadership"),
+            # ("cool", "Cool"),
+            # ("willpower", "Willpower"),
+            # ("intelligence", "Intelligence"),
+            ("range_short", "Range (Short)"),
+            ("range_long", "Range (Long)"),
+            ("accuracy_short", "Accuracy (Short)"),
+            ("accuracy_long", "Accuracy (Long)"),
+            ("armour_piercing", "Armour Piercing"),
+            ("damage", "Damage"),
+            ("ammo", "Ammo"),
+        ],
+    )
+    mode = models.CharField(
+        max_length=255,
+        choices=[("improve", "Improve"), ("worsen", "Worsen"), ("set", "Set")],
+    )
+    value = models.CharField(max_length=255)
+
+    def apply(self, current_value):
+        """
+        Apply the modification to a given value.
+        """
+
+        if self.mode == "set":
+            return self.value
+
+        direction = 1 if self.mode == "improve" else -1
+        # For some stats, we need to reverse the direction
+        # e.g. if the stat is a target roll value
+        if self.stat in ["ammo", "armour_piercing"]:
+            direction = -direction
+
+        # Stats can be:
+        #   - (meaning 0)
+        #   X" (meaning X inches) — Rng
+        #   X (meaning X) _ Str, D
+        #   +X (meaning add X to roll) — Acc and Ap
+        #   X+ (meaning target X on roll) — Am
+        current_value = current_value.strip()
+        # A developer has a problem. She uses a regex... Now she has two problems.
+        if current_value in ["-", ""]:
+            current_value = 0
+        elif current_value.endswith('"'):
+            current_value = int(current_value[:-1])
+        elif current_value.endswith("+"):
+            current_value = int(current_value[:-1])
+        elif current_value.startswith("+"):
+            current_value = int(current_value[1:])
+        else:
+            current_value = int(current_value)
+
+        # TODO: We should validate that the value is number in improve/worsen mode
+        mod_value = int(self.value.strip()) * direction
+        output_value = str(current_value + mod_value)
+
+        if output_value == "0":
+            return ""
+        elif self.stat in ["range_short", "range_long"]:
+            return f'{output_value}"'
+        elif self.stat in ["accuracy_short", "accuracy_long", "armour_piercing"]:
+            if mod_value > 0:
+                return f"+{output_value}"
+            return f"{output_value}"
+        elif self.stat in ["ammo"]:
+            return f"{output_value}+"
+
+        return output_value
+
+    def __str__(self):
+        return f"{self.mode} {self.stat} by {self.value}"
+
+    class Meta:
+        verbose_name = "Stat Modifier"
+        verbose_name_plural = "Stat Modifiers"
+        ordering = ["stat"]
+
+
+class ContentModTrait(ContentMod):
+    """
+    Trait modifier
+    """
+
+    help_text = "A modification to a weapon trait"
+    trait = models.ForeignKey(
+        ContentWeaponTrait,
+        on_delete=models.CASCADE,
+        related_name="modified_by",
+        null=False,
+        blank=False,
+    )
+    mode = models.CharField(
+        max_length=255,
+        choices=[("add", "Add"), ("remove", "Remove")],
+    )
+
+    def __str__(self):
+        return f"{self.mode} {self.trait}"
+
+    class Meta:
+        verbose_name = "Trait Modifier"
+        verbose_name_plural = "Trait Modifiers"
+        ordering = ["trait__name", "mode"]

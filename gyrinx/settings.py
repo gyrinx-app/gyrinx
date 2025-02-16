@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "django.forms",
     "django.contrib.admin",
     "django.contrib.auth",
+    "polymorphic",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",

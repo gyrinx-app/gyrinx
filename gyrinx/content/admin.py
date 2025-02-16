@@ -4,6 +4,12 @@ from django.db import models, transaction
 from django.db.models import Case, When
 from django.db.models.functions import Cast
 from django.utils.translation import gettext as _
+from polymorphic.admin import (
+    PolymorphicChildModelAdmin,
+    PolymorphicChildModelFilter,
+    PolymorphicParentModelAdmin,
+    StackedPolymorphicInline,
+)
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from gyrinx.forms import group_select
@@ -23,6 +29,9 @@ from .models import (
     ContentHouse,
     ContentHouseAdditionalRule,
     ContentHouseAdditionalRuleTree,
+    ContentMod,
+    ContentModStat,
+    ContentModTrait,
     ContentPageRef,
     ContentPolicy,
     ContentPsykerDiscipline,
@@ -59,6 +68,11 @@ class ContentStackedInline(admin.StackedInline):
 
     def __init__(self, parent_model, admin_site):
         super().__init__(parent_model, admin_site)
+
+
+class ContentStackedPolymorphicInline(
+    StackedPolymorphicInline, ContentStackedInline
+): ...
 
 
 class ContentWeaponProfileInline(ContentStackedInline):
@@ -363,15 +377,42 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
 
 
 @admin.register(ContentWeaponProfile)
-class ContentWeaponProfileAdmin(ContentAdmin, admin.ModelAdmin):
+class ContentWeaponProfileAdmin(ContentAdmin):
     form = ContentWeaponProfileAdminForm
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
 
 
+def mods(obj):
+    return ", ".join([mod.name for mod in obj.modifiers.all()])
+
+
 @admin.register(ContentWeaponAccessory)
-class ContentWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
+class ContentWeaponAccessoryAdmin(ContentAdmin):
     search_fields = ["name"]
+
+
+class ContentModChildAdmin(PolymorphicChildModelAdmin):
+    """Base admin class for all child models"""
+
+    base_model = ContentMod
+
+
+@admin.register(ContentModStat)
+class ContentModStatAdmin(ContentModChildAdmin):
+    base_model = ContentModStat
+
+
+@admin.register(ContentModTrait)
+class ContentModTraitAdmin(ContentModChildAdmin):
+    base_model = ContentModTrait
+
+
+@admin.register(ContentMod)
+class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
+    base_model = ContentMod
+    child_models = (ContentModStat, ContentModTrait)
+    list_filter = (PolymorphicChildModelFilter,)
 
 
 class ContentPageRefInline(ContentTabularInline):
