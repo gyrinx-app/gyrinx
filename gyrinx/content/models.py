@@ -261,6 +261,45 @@ class ContentFighterPsykerDisciplineAssignment(Content):
         ordering = ["fighter__type", "discipline__name"]
 
 
+class ContentFighterPsykerPowerDefaultAssignment(Content):
+    """
+    Represents a default power assignment for a Psyker content fighter.
+    """
+
+    fighter = models.ForeignKey(
+        "ContentFighter",
+        on_delete=models.CASCADE,
+        related_name="default_psyker_powers",
+    )
+    psyker_power = models.ForeignKey(
+        ContentPsykerPower,
+        on_delete=models.CASCADE,
+        related_name="fighter_assignments",
+    )
+    history = HistoricalRecords()
+
+    def clean(self):
+        """
+        Validation to ensure that defaults cannot be assigned to a non-Psyker fighter.
+        """
+        if not self.fighter.is_psyker():
+            raise ValidationError(
+                {"fighter": "Cannot assign a psyker power to a non-psyker fighter."}
+            )
+
+    def name(self):
+        return f"{self.psyker_power.name} ({self.psyker_power.discipline})"
+
+    def __str__(self):
+        return f"{self.fighter} {self.psyker_power}"
+
+    class Meta:
+        verbose_name = "Psyker Fighter-Power Default Assignment"
+        verbose_name_plural = "Psyker Fighter-Power Default Assignments"
+        unique_together = ["fighter", "psyker_power"]
+        ordering = ["fighter__type", "psyker_power__name"]
+
+
 class ContentRule(Content):
     """
     Represents a specific rule from the game system.
@@ -1309,8 +1348,8 @@ class ContentFighterDefaultAssignment(Content):
         return f"{self.equipment}" + (f" ({profiles_names})" if profiles_names else "")
 
     class Meta:
-        verbose_name = "Default Assignment"
-        verbose_name_plural = "Default Assignments"
+        verbose_name = "Default Equipment Assignment"
+        verbose_name_plural = "Default Equipment Assignments"
         ordering = ["fighter__type", "equipment__name"]
 
     def clean(self):

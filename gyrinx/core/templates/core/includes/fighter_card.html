@@ -169,10 +169,10 @@
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Powers</th>
                         <td colspan="12">
-                            {% for power in fighter.psyker_powers.all %}
+                            {% for assign in fighter.powers %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% spaceless %}
-                                    <span>{{ power.name }}</span>
+                                    <span>{{ assign.name }}</span>
                                     {% if not forloop.last %}<span>,</span>{% endif %}
                                 {% endspaceless %}
                             {% empty %}

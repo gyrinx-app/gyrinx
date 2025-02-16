@@ -19,6 +19,7 @@ from .models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentFighterPsykerDisciplineAssignment,
+    ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
     ContentHouseAdditionalRuleTree,
@@ -297,6 +298,20 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
     list_filter = ["generic"]
 
     inlines = [ContentPsykerPowerInline]
+
+
+class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(self, "psyker_power", key=lambda x: x.discipline.name)
+
+
+@admin.register(ContentFighterPsykerPowerDefaultAssignment)
+class ContentFighterPsykerPowerDefaultAssignmentAdmin(ContentAdmin):
+    search_fields = ["fighter__type", "psyker_power__name"]
+    list_filter = ["fighter__type", "psyker_power__discipline"]
+    form = ContentFighterPsykerPowerDefaultAssignmentForm
 
 
 class ContentFighterInline(ContentTabularInline):

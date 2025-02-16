@@ -89,7 +89,7 @@ class ListFighterPsykerPowerAssignmentForm(forms.ModelForm):
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 
-class ListFighterPsykerPowerAssignment(admin.TabularInline):
+class ListFighterPsykerPowerAssignmentInline(admin.TabularInline):
     model = ListFighterPsykerPowerAssignment
     form = ListFighterPsykerPowerAssignmentForm
     extra = 1
@@ -114,7 +114,10 @@ class ListFighterAdmin(BaseAdmin):
     list_display = ["name", "content_fighter", "list"]
     search_fields = ["name", "content_fighter__type", "list__name"]
 
-    inlines = [ListFighterEquipmentAssignmentInline, ListFighterPsykerPowerAssignment]
+    inlines = [
+        ListFighterEquipmentAssignmentInline,
+        ListFighterPsykerPowerAssignmentInline,
+    ]
 
 
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):

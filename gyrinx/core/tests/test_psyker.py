@@ -3,6 +3,7 @@ from django.forms import ValidationError
 
 from gyrinx.content.models import (
     ContentFighterPsykerDisciplineAssignment,
+    ContentFighterPsykerPowerDefaultAssignment,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
@@ -116,3 +117,52 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     )
 
     assert fighter.psyker_powers.count() == 2
+
+
+@pytest.mark.django_db
+def test_psyker_default_power(content_fighter, make_list, make_list_fighter):
+    psyker, _ = ContentRule.objects.get_or_create(name="Psyker")
+
+    biomancy, _ = ContentPsykerDiscipline.objects.get_or_create(
+        name="Biomancy",
+        generic=True,
+    )
+
+    arachnosis, _ = ContentPsykerPower.objects.get_or_create(
+        name="Arachnosis",
+        discipline=biomancy,
+    )
+
+    # You can't assign a default psyker power if the ContentFighter is not a psyker
+    assign = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=content_fighter,
+        psyker_power=arachnosis,
+    )
+    with pytest.raises(ValidationError):
+        assign.clean()
+    assign.delete()
+
+    # This content fighter is a psyker
+    content_fighter.rules.add(psyker)
+
+    # And they have a default psyker power
+    ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=content_fighter,
+        psyker_power=arachnosis,
+    )
+
+    assert content_fighter.default_psyker_powers.count() == 1
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    assert len(fighter.powers()) == 1
+
+    # You can't assign a power that is already assigned as a default
+    assign = ListFighterPsykerPowerAssignment.objects.create(
+        list_fighter=fighter,
+        psyker_power=arachnosis,
+    )
+    with pytest.raises(ValidationError):
+        assign.clean()
+    assign.delete()

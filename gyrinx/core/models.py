@@ -21,6 +21,7 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
+    ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
     ContentPsykerPower,
@@ -312,6 +313,16 @@ class ListFighter(AppBase):
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
+
+    def powers(self):
+        default_powers = self.content_fighter.default_psyker_powers.all()
+        return [
+            VirtualListFighterPsykerPowerAssignment.from_default_assignment(p, self)
+            for p in default_powers
+        ] + [
+            VirtualListFighterPsykerPowerAssignment.from_assignment(p)
+            for p in self.psyker_powers.all()
+        ]
 
     def has_overriden_cost(self):
         return self.cost_override is not None
@@ -1050,6 +1061,15 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
                 }
             )
 
+        if self.list_fighter.content_fighter.default_psyker_powers.filter(
+            psyker_power=self.psyker_power
+        ).exists():
+            raise ValidationError(
+                {
+                    "psyker_power": "You can't assign a psyker power that is already assigned by default."
+                }
+            )
+
         if (
             not self.psyker_power.discipline.generic
             and not self.list_fighter.content_fighter.psyker_disciplines.filter(
@@ -1066,3 +1086,63 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
         verbose_name = "Fighter Psyker Power Assignment"
         verbose_name_plural = "Fighter Psyker Power Assignments"
         unique_together = ("list_fighter", "psyker_power")
+
+
+@dataclass
+class VirtualListFighterPsykerPowerAssignment:
+    """
+    A virtual container that groups a :model:`core.ListFighter` with
+    :model:`content.ContentPsykerPower`.
+
+    The cases this handles:
+    * _assignment is None: Used for generating the add/edit psyker powers page: all the "potential"
+        assignments for a fighter.
+    * _assignment is a ContentFighterPsykerPowerDefaultAssignment: Used to abstract over the fighter's default
+        psyker power assignments so that we can treat them as if they were ListFighterPsykerPowerAssignments.
+    * _assignment is a ListFighterPsykerPowerAssignment: Used to abstract over the fighter's specific
+        psyker power assignments so that we can handle the above two cases.
+    """
+
+    fighter: ListFighter
+    psyker_power: ContentPsykerPower
+    _assignment: (
+        Union[
+            ListFighterPsykerPowerAssignment, ContentFighterPsykerPowerDefaultAssignment
+        ]
+        | None
+    ) = None
+
+    @classmethod
+    def from_assignment(cls, assignment: ListFighterPsykerPowerAssignment):
+        return cls(
+            fighter=assignment.list_fighter,
+            psyker_power=assignment.psyker_power,
+            _assignment=assignment,
+        )
+
+    @classmethod
+    def from_default_assignment(
+        cls,
+        assignment: ContentFighterPsykerPowerDefaultAssignment,
+        fighter: ListFighter,
+    ):
+        return cls(
+            fighter=fighter,
+            psyker_power=assignment.psyker_power,
+            _assignment=assignment,
+        )
+
+    def name(self):
+        if not self._assignment:
+            return f"{self.psyker_power.name} (Virtual)"
+
+        return self._assignment.name()
+
+    def kind(self):
+        if not self._assignment:
+            return "virtual"
+
+        if isinstance(self._assignment, ContentFighterPsykerPowerDefaultAssignment):
+            return "default"
+
+        return "assigned"
