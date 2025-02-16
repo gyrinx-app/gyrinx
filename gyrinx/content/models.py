@@ -1735,15 +1735,24 @@ class ContentModStat(ContentMod):
         #   +X (meaning add X to roll) — Acc and Ap
         #   X+ (meaning target X on roll) — Am
         current_value = current_value.strip()
+        join = None
         # A developer has a problem. She uses a regex... Now she has two problems.
         if current_value in ["-", ""]:
             current_value = 0
         elif current_value.endswith('"'):
+            # Inches
             current_value = int(current_value[:-1])
         elif current_value.endswith("+"):
+            # Target roll
             current_value = int(current_value[:-1])
         elif current_value.startswith("+"):
+            # Modifier
             current_value = int(current_value[1:])
+        elif "+" in current_value:
+            # Stat-linked: e.g. S+1
+            split = current_value.split("+")
+            join = split[:-1]
+            current_value = int(split[-1])
         else:
             current_value = int(current_value)
 
@@ -1751,21 +1760,29 @@ class ContentModStat(ContentMod):
         mod_value = int(self.value.strip()) * direction
         output_value = str(current_value + mod_value)
 
-        if output_value == "0":
+        if join:
+            # Stat-linked: e.g. S+1
+            return f"{''.join(join)}+{output_value}"
+        elif output_value == "0":
             return ""
         elif self.stat in ["range_short", "range_long"]:
+            # Inches
             return f'{output_value}"'
         elif self.stat in ["accuracy_short", "accuracy_long", "armour_piercing"]:
+            # Modifier
             if mod_value > 0:
                 return f"+{output_value}"
             return f"{output_value}"
         elif self.stat in ["ammo"]:
+            # Target roll
             return f"{output_value}+"
 
         return output_value
 
     def __str__(self):
-        return f"{self.mode} {self.stat} by {self.value}"
+        mode_choices = dict(self._meta.get_field("mode").choices)
+        stat_choices = dict(self._meta.get_field("stat").choices)
+        return f"{mode_choices[self.mode]} {stat_choices[self.stat]} by {self.value}"
 
     class Meta:
         verbose_name = "Stat Modifier"
@@ -1792,7 +1809,8 @@ class ContentModTrait(ContentMod):
     )
 
     def __str__(self):
-        return f"{self.mode} {self.trait}"
+        choices = dict(self._meta.get_field("mode").choices)
+        return f"{choices[self.mode]} {self.trait}"
 
     class Meta:
         verbose_name = "Trait Modifier"
