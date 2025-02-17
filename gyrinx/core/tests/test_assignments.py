@@ -127,6 +127,12 @@ def test_assign_accessory(
 
     assert fighter.cost_int() == 110
 
+    assignment._assignment.total_cost_override = 20
+    assignment._assignment.save()
+
+    assert assignment.cost_int() == 20
+    assert fighter.cost_int() == 120
+
 
 @pytest.mark.django_db
 def test_assign_accessory_stat_mod(
@@ -556,3 +562,9 @@ def test_fighter_with_equipment_list_accessory(
     assert assignment.weapon_accessories()[0] == spoon_scope
     assert assignment.cost_int() == 15
     assert fighter.cost_int() == 115
+
+    assignment._assignment.total_cost_override = 25
+    assignment._assignment.save()
+
+    assert assignment.cost_int() == 25
+    assert fighter.cost_int() == 125

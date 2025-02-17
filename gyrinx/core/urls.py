@@ -85,6 +85,15 @@ urlpatterns = [
         name="list-fighter-weapons-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/cost",
+        views.edit_list_fighter_assign_cost,
+        name="list-fighter-weapon-cost-edit",
+        kwargs=dict(
+            back_name="core:list-fighter-weapons-edit",
+            action_name="core:list-fighter-weapon-cost-edit",
+        ),
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/delete",
         views.delete_list_fighter_assign,
         name="list-fighter-weapon-delete",
@@ -102,6 +111,15 @@ urlpatterns = [
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/accessory/<accessory_id>/delete",
         views.delete_list_fighter_weapon_accessory,
         name="list-fighter-weapon-accessory-delete",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/upgrade",
+        views.edit_list_fighter_weapon_upgrade,
+        name="list-fighter-weapon-upgrade-edit",
+        kwargs=dict(
+            back_name="core:list-fighter-weapons-edit",
+            action_name="core:list-fighter-weapon-upgrade-edit",
+        ),
     ),
     path(
         "list/<id>/fighter/<fighter_id>/embed",

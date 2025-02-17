@@ -453,7 +453,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
     cost_override = models.IntegerField(
         null=True,
         blank=True,
-        help_text="If set, this will be the cost of this assignment, ignoring equipment list and trading post costs",
+        help_text="If set, this will be the cost of the base equipment of this assignment, ignoring equipment list and trading post costs",
+    )
+
+    total_cost_override = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="If set, this will be the total cost of this assignment, ignoring profiles, accessories, and upgrades",
     )
 
     # This is a many-to-many field because we want to be able to assign equipment
@@ -605,12 +611,18 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     @admin.display(description="Total Cost of Assignment")
     def cost_int(self):
+        if self.has_total_cost_override():
+            return self.total_cost_override
+
         return (
             self.base_cost_int()
             + self.weapon_profiles_cost_int()
             + self.weapon_accessories_cost_int()
             + self.upgrade_cost_int()
         )
+
+    def has_total_cost_override(self):
+        return self.total_cost_override is not None
 
     def cost_display(self):
         return f"{self.cost_int()}¢"
@@ -874,13 +886,24 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the integer cost for this equipment, factoring in fighter overrides.
         """
-        # TODO: this should almost certainly be refactored to defer to the assignment
+        # TODO: this method should almost certainly be refactored to defer to the assignment
+
+        # Walks like duck... vs kind() ... vs polymorphism vs isinstance. Types!
+        if self.has_total_cost_override():
+            return self._assignment.total_cost_override
+
         return (
             self.base_cost_int()
             + self._profiles_cost_int()
             + self._accessories_cost_int()
             + self._upgrade_cost_int()
         )
+
+    def has_total_cost_override(self):
+        if hasattr(self._assignment, "has_total_cost_override"):
+            return self._assignment.has_total_cost_override()
+
+        return False
 
     def cost_display(self):
         """

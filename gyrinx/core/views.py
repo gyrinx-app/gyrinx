@@ -25,7 +25,9 @@ from gyrinx.core.forms import (
     CloneListForm,
     EditListForm,
     ListFighterEquipmentAssignmentAccessoriesForm,
+    ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
+    ListFighterEquipmentAssignmentUpgradeForm,
     ListFighterSkillsForm,
     NewListFighterForm,
     NewListForm,
@@ -900,6 +902,62 @@ def edit_list_fighter_weapons(request, id, fighter_id):
 
 
 @login_required
+def edit_list_fighter_assign_cost(
+    request, id, fighter_id, assign_id, back_name, action_name
+):
+    """
+    Edit the cost of an existing :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be edited.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_cost_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    error_message = None
+    if request.method == "POST":
+        form = ListFighterEquipmentAssignmentCostForm(request.POST, instance=assignment)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    form = ListFighterEquipmentAssignmentCostForm(
+        instance=assignment,
+    )
+
+    return render(
+        request,
+        "core/list_fighter_assign_cost_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "form": form,
+            "error_message": error_message,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
+    )
+
+
+@login_required
 def delete_list_fighter_assign(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1101,6 +1159,62 @@ def delete_list_fighter_weapon_accessory(
         request,
         "core/list_fighter_weapons_accessory_delete.html",
         {"list": lst, "fighter": fighter, "assign": assignment, "accessory": accessory},
+    )
+
+
+@login_required
+def edit_list_fighter_weapon_upgrade(
+    request, id, fighter_id, assign_id, back_name, action_name
+):
+    """
+    Edit the weapon upgrade of an existing :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be edited.
+    ``upgrade``
+        The :model:`content.ContentEquipmentUpgrade` upgrade to be added.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_upgrade_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    if request.method == "POST":
+        form = ListFighterEquipmentAssignmentUpgradeForm(
+            request.POST, instance=assignment
+        )
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+            )
+    else:
+        form = ListFighterEquipmentAssignmentUpgradeForm(instance=assignment)
+
+    return render(
+        request,
+        "core/list_fighter_assign_upgrade_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+            "form": form,
+        },
     )
 
 

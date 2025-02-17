@@ -198,6 +198,23 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     # TODO: Add a clean method to ensure that weapon profiles are assigned to the correct equipment
 
 
+class ListFighterEquipmentAssignmentCostForm(forms.ModelForm):
+    class Meta:
+        model = ListFighterEquipmentAssignment
+        fields = ["total_cost_override"]
+        labels = {
+            "total_cost_override": "Manually Set Cost",
+        }
+        help_texts = {
+            "total_cost_override": "Changing this manually sets the cost of the equipment including all accessories and upgrades. Use with caution.",
+        }
+        widgets = {
+            "total_cost_override": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0}
+            ),
+        }
+
+
 class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
     weapon_accessories_field = ListFighterEquipmentField(
         label="Accessories",
@@ -212,3 +229,22 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
     class Meta:
         model = ListFighterEquipmentAssignment
         fields = ["weapon_accessories_field"]
+
+
+class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["upgrade"].label = (
+            self.instance.content_equipment.upgrade_stack_name or "Upgrade"
+        )
+        self.fields["upgrade"].queryset = self.instance.content_equipment.upgrades.all()
+
+    class Meta:
+        model = ListFighterEquipmentAssignment
+        fields = ["upgrade"]
+        labels = {
+            "upgrade": "Upgrade",
+        }
+        widgets = {
+            "upgrade": forms.Select(attrs={"class": "form-select"}),
+        }
