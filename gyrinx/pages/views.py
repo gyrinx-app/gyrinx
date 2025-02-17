@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx.core import url
+from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry, WaitingListSkill
 
 
@@ -39,11 +40,6 @@ def flatpage(request, url):
             raise Http404
 
     return views.render_flatpage(request, f)
-
-
-class SkillsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
-    template_name = "pages/forms/widgets/skills_checkbox_select.html"
-    option_template_name = "pages/forms/widgets/skills_checkbox_option.html"
 
 
 class JoinWaitingListForm(forms.ModelForm):
@@ -87,7 +83,7 @@ class JoinWaitingListForm(forms.ModelForm):
         label="Interested in helping out? Tell us what you'd bring to the table…",
         label_suffix="",
         required=False,
-        widget=SkillsCheckboxSelectMultiple(
+        widget=BsCheckboxSelectMultiple(
             attrs={"class": "form-check-input"},
         ),
     )

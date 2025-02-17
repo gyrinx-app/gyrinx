@@ -1,11 +1,6 @@
 from django import forms
 
-from gyrinx.content.models import (
-    ContentEquipment,
-    ContentFighter,
-    ContentHouse,
-    ContentWeaponAccessory,
-)
+from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.forms import group_select
 
@@ -161,9 +156,9 @@ class CloneListFighterForm(forms.ModelForm):
         }
 
 
-class SkillsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
-    template_name = "pages/forms/widgets/skills_checkbox_select.html"
-    option_template_name = "pages/forms/widgets/skills_checkbox_option.html"
+class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
+    template_name = "pages/forms/widgets/bs_checkbox_select.html"
+    option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
 
 
 class ListFighterSkillsForm(forms.ModelForm):
@@ -178,7 +173,7 @@ class ListFighterSkillsForm(forms.ModelForm):
             "skills": "Skills",
         }
         widgets = {
-            "skills": SkillsCheckboxSelectMultiple(
+            "skills": BsCheckboxSelectMultiple(
                 attrs={"class": "form-check-input"},
             ),
         }
@@ -195,26 +190,6 @@ class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
         return f"{obj.name} ({cost}{unit})"
 
 
-class ListFighterGearForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["equipment"].queryset = self.fields[
-            "equipment"
-        ].queryset.with_cost_for_fighter(self.instance.content_fighter)
-
-    equipment = ListFighterEquipmentField(
-        label="Gear",
-        queryset=ContentEquipment.objects.non_weapons(),
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
-        help_text="Costs reflect the Fighter's Equipment List.",
-        required=False,
-    )
-
-    class Meta:
-        model = ListFighter
-        fields = ["equipment"]
-
-
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     class Meta:
         model = ListFighterEquipmentAssignment
@@ -227,7 +202,9 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
     weapon_accessories_field = ListFighterEquipmentField(
         label="Accessories",
         queryset=ContentWeaponAccessory.objects.all(),
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check"}),
+        widget=BsCheckboxSelectMultiple(
+            attrs={"class": "form-check-input"},
+        ),
         help_text="Costs reflect the Fighter's Equipment List.",
         required=False,
     )
