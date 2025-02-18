@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load i18n l10n admin_urls static %}
+{% block extrahead %}
+    {{ block.super }}
+    {{ media }}
+    <script src="{% static 'admin/js/cancel.js' %}" async></script>
+{% endblock extrahead %}
+{% block bodyclass %}
+    {{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} copy-confirmation copy-selected-confirmation
+{% endblock bodyclass %}
+{% block content %}
+    <form method="post">
+        {% csrf_token %}
+        <h2>{% translate "Items" %}:</h2>
+        <ul>
+            {% for item in queryset %}
+                <li>
+                    <strong>{{ item.email }}</strong> @{{ item.username_cleaned }} (cleaned from @{{ item.desired_username }})
+                </li>
+            {% endfor %}
+        </ul>
+        {{ form }}
+        <input type="hidden" name="action" value="{{ action_name }}">
+        <input type="hidden" name="post" value="yes">
+        <input type="submit" value="Invite" />
+        <a href="#" class="button cancel-link">{% translate "No, take me back" %}</a>
+    </form>
+{% endblock content %}

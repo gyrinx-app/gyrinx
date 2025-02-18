@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from django.contrib.auth.models import Group
@@ -53,8 +54,8 @@ class WaitingListEntry(Base):
     """
 
     email = models.EmailField(unique=True)
-    desired_username = models.CharField(max_length=150, blank=True)
-    yaktribe_username = models.CharField(max_length=150, blank=True)
+    desired_username = models.CharField(max_length=30, blank=False, unique=True)
+    yaktribe_username = models.CharField(max_length=30, blank=True, unique=True)
     skills = models.ManyToManyField(
         WaitingListSkill, blank=True, related_name="waiting_list_entries"
     )
@@ -66,7 +67,12 @@ class WaitingListEntry(Base):
         help_text="The share code of the user who referred this user.",
     )
 
+    invited = models.BooleanField(default=False)
+
     history = HistoricalRecords()
+
+    def username_cleaned(self):
+        return re.sub(r"[^a-zA-Z0-9_]", "", self.desired_username)
 
     class Meta:
         verbose_name = "waiting list entry"

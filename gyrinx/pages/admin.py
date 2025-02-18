@@ -4,6 +4,7 @@ from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
 from tinymce.widgets import TinyMCE
 
+from gyrinx.pages.actions import invite_user
 from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry, WaitingListSkill
 
 
@@ -102,9 +103,11 @@ class WaitingListSkillAdmin(admin.ModelAdmin):
 
 
 def display(field, key):
-    return lambda obj: ", ".join(
-        [getattr(item, key) for item in getattr(obj, field).all()]
-    )
+    @admin.display(description=field)
+    def _display(obj):
+        return ", ".join([getattr(item, key) for item in getattr(obj, field).all()])
+
+    return _display
 
 
 @admin.register(WaitingListEntry)
@@ -115,8 +118,11 @@ class WaitingListEntryAdmin(admin.ModelAdmin):
         "desired_username",
         "yaktribe_username",
         "share_code",
+        "referred_by_code",
+        "invited",
         display("skills", "name"),
     )
+    list_filter = ["invited"]
     search_fields = (
         "email",
         "desired_username",
@@ -125,3 +131,5 @@ class WaitingListEntryAdmin(admin.ModelAdmin):
         "notes",
     )
     ordering = ("email",)
+
+    actions = [invite_user]
