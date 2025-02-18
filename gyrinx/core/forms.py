@@ -3,6 +3,7 @@ from django import forms
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.forms import group_select
+from gyrinx.models import FighterCategoryChoices
 
 
 class NewListForm(forms.ModelForm):
@@ -76,12 +77,14 @@ class NewListFighterForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         inst = kwargs.get("instance", {})
         if inst:
+            # Fighters for the house and from generic houses, excluding Exotic Beasts
+            # who are added via equipment
             generic_houses = ContentHouse.objects.filter(generic=True).values_list(
                 "id", flat=True
             )
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house__in=[inst.list.content_house.id] + list(generic_houses)
-            )
+                house__in=[inst.list.content_house.id] + list(generic_houses),
+            ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])
 
             if hasattr(inst, "content_fighter"):
                 self.fields["cost_override"].placeholder = inst._base_cost_int()
