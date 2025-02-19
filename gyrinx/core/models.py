@@ -1,3 +1,4 @@
+import logging
 import uuid
 from dataclasses import dataclass, field, replace
 from typing import Union
@@ -33,6 +34,8 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.models import Archived, Base, Owned, QuerySetOf
+
+logger = logging.getLogger(__name__)
 
 
 class AppBase(Base, Owned, Archived):
@@ -635,16 +638,22 @@ class ListFighterEquipmentAssignment(Base, Archived):
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
 
-        try:
-            override = ContentFighterEquipmentListItem.objects.get(
-                fighter=self.list_fighter.content_fighter,
-                equipment=self.content_equipment,
-                # None here is very important: it means we're looking for the base equipment cost.
-                weapon_profile=None,
-            )
-            return override.cost_int()
-        except ContentFighterEquipmentListItem.DoesNotExist:
+        overrides = ContentFighterEquipmentListItem.objects.filter(
+            fighter=self.list_fighter.content_fighter,
+            equipment=self.content_equipment,
+            # None here is very important: it means we're looking for the base equipment cost.
+            weapon_profile=None,
+        )
+        if not overrides.exists():
             return self.content_equipment.cost_int()
+
+        if overrides.count() > 1:
+            logger.warning(
+                f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
+            )
+
+        override = overrides.first()
+        return override.cost_int()
 
     def _profile_cost_with_override(self):
         profiles = self.weapon_profiles()
