@@ -795,7 +795,8 @@ class ContentFighterEquipmentListItem(Content):
         return f"{self.cost}¢"
 
     def __str__(self):
-        return f"{self.fighter} {self.weapon_profile if self.weapon_profile else ''} ({self.cost})"
+        profile = f" ({self.weapon_profile})" if self.weapon_profile else ""
+        return f"{self.fighter}: {self.equipment}{profile}"
 
     class Meta:
         verbose_name = "Equipment List Item"
