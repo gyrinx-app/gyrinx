@@ -1,5 +1,6 @@
 from django import forms
 from django.core import validators
+from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.pages.models import WaitingListEntry, WaitingListSkill
@@ -71,4 +72,10 @@ class JoinWaitingListForm(forms.ModelForm):
     referred_by_code = forms.UUIDField(
         widget=forms.HiddenInput(),
         required=False,
+    )
+
+    captcha = ReCaptchaField(
+        widget=ReCaptchaV3(
+            action="sign_up_for_waiting_list",
+        )
     )

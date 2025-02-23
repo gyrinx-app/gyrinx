@@ -1,4 +1,6 @@
+from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
+from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
@@ -251,3 +253,15 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
         widgets = {
             "upgrade": forms.Select(attrs={"class": "form-select"}),
         }
+
+
+class ResetPasswordForm(ResetPasswordForm):
+    captcha = ReCaptchaField(widget=ReCaptchaV3(action="reset_password"))
+
+
+class LoginForm(LoginForm):
+    captcha = ReCaptchaField(widget=ReCaptchaV3(action="login"))
+
+
+class SignupForm(SignupForm):
+    captcha = ReCaptchaField(widget=ReCaptchaV3(action="signup"))

@@ -86,6 +86,8 @@ INSTALLED_APPS = [
     # Django allauth
     "allauth",
     "allauth.account",
+    # reCAPTCHA
+    "django_recaptcha",
     # simplehistory
     "simple_history",
     # Disable Django's static file handling in favour of WhiteNoise in dev
@@ -208,6 +210,11 @@ ACCOUNT_USERNAME_BLACKLIST = ["admin", "superuser", "staff", "user", "gyrinx"]
 ACCOUNT_CHANGE_EMAIL = True
 ACCOUNT_EMAIL_UNKNOWN_ACCOUNTS = False
 ACCOUNT_ADAPTER = "gyrinx.core.adapter.CustomAccountAdapter"
+ACCOUNT_FORMS = {
+    "reset_password": "gyrinx.core.forms.ResetPasswordForm",
+    "login": "gyrinx.core.forms.LoginForm",
+    "signup": "gyrinx.core.forms.SignupForm",
+}
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
 
@@ -232,6 +239,16 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# reCAPTCHA
+
+RECAPTCHA_PUBLIC_KEY = os.getenv("RECAPTCHA_PUBLIC_KEY", "")
+RECAPTCHA_PRIVATE_KEY = os.getenv("RECAPTCHA_PRIVATE_KEY", "")
+try:
+    RECAPTCHA_REQUIRED_SCORE = float(os.getenv("RECAPTCHA_REQUIRED_SCORE", 0.5))
+except ValueError:
+    logger.exception("Error parsing RECAPTCHA_REQUIRED_SCORE")
+    RECAPTCHA_REQUIRED_SCORE = 0.5
 
 # Storages
 
