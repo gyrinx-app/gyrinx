@@ -206,6 +206,7 @@ ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "name"
 ACCOUNT_USERNAME_BLACKLIST = ["admin", "superuser", "staff", "user", "gyrinx"]
 ACCOUNT_CHANGE_EMAIL = True
+ACCOUNT_EMAIL_UNKNOWN_ACCOUNTS = False
 ACCOUNT_ADAPTER = "gyrinx.core.adapter.CustomAccountAdapter"
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
