@@ -223,6 +223,7 @@ class ContentIndexIndexView(generic.ListView):
         return ContentPageRef.all_ordered()
 
 
+@login_required
 def dice(request):
     """
     Display dice roll results (regular, firepower, or injury rolls).
