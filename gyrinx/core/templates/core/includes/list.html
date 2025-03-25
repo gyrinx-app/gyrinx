@@ -6,7 +6,7 @@
                 <h2 class="mb-0">{{ list.name }}</h2>
                 <div class="ms-md-auto">{{ list.content_house.name }}</div>
                 <div class="h5 mb-0">
-                    <div class="badge text-bg-primary">{{ list.cost_int }}¢</div>
+                    <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
                 </div>
             </div>
         </div>
@@ -34,12 +34,12 @@
                             </span>
                         {% endif %}
                     </div>
-                    {% if list.owner == user and list.archived_fighters|length > 0 %}
+                    {% if list.owner == user and list.archived_fighters_cached > 0 %}
                         <div class="text-secondary">
                             <i class="bi-archive"></i>
                             <a href="{% url 'core:list-archived-fighters' list.id %}"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                {{ list.archived_fighters|length }} archived fighter{{ list.archived_fighters|length|pluralize }}
+                                {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
                             </a>
                         </div>
                     {% endif %}
@@ -108,7 +108,7 @@
         </div>
     </div>
     <div class="grid {% if print %}gap-2{% endif %}">
-        {% for fighter in list.fighters %}
+        {% for fighter in list.fighters_cached %}
             {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
         {% empty %}
             <div class="g-col-12 py-2">This List is empty.</div>
@@ -134,7 +134,7 @@
                 <p>
                     Add <code>?theme=light</code> or <code>?theme=dark</code> to the URL to force a particular theme.
                 </p>
-                {% for fighter in list.fighters %}
+                {% for fighter in list.fighters_cached %}
                     <li class="list-group-item vstack gap-2">
                         <h3 class="h6 mb-0">{{ fighter.name }}</h3>
                         {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}

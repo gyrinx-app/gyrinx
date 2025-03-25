@@ -11,6 +11,7 @@ from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Concat
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
@@ -75,6 +76,10 @@ class List(AppBase):
     def cost_int(self):
         return sum([f.cost_int() for f in self.fighters()])
 
+    @cached_property
+    def cost_int_cached(self):
+        return sum([f.cost_int() for f in self.fighters_cached])
+
     def cost_display(self):
         return f"{self.cost_int()}¢"
 
@@ -83,6 +88,14 @@ class List(AppBase):
 
     def archived_fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.filter(archived=True)
+
+    @cached_property
+    def fighters_cached(self) -> QuerySetOf["ListFighter"]:
+        return self.fighters()
+
+    @cached_property
+    def archived_fighters_cached(self) -> QuerySetOf["ListFighter"]:
+        return self.archived_fighters()
 
     def clone(self, name=None, owner=None, **kwargs):
         """Clone the list, creating a new list with the same fighters."""
