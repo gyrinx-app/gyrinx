@@ -15,12 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from debug_toolbar.toolbar import debug_toolbar_urls
 from django.contrib import admin
 from django.urls import include, path, re_path
 
 from gyrinx.pages import views
 
-urlpatterns = [
+urlpatterns = debug_toolbar_urls() + [
     path("", include("gyrinx.core.urls")),
     path("api/", include("gyrinx.api.urls")),
     path("accounts/", include("allauth.urls")),

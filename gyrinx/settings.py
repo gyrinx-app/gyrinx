@@ -40,6 +40,10 @@ except Exception as e:
     logger.error(f"Error parsing ALLOWED_HOSTS: {e}")
     ALLOWED_HOSTS = []
 
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
+
 try:
     CSRF_TRUSTED_ORIGINS = json.loads(os.getenv("CSRF_TRUSTED_ORIGINS", "[]"))
 except Exception as e:
@@ -82,6 +86,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "django.contrib.flatpages",
     "django.contrib.humanize",
+    "debug_toolbar",
     "django_extensions",
     # Django allauth
     "allauth",
@@ -110,6 +115,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
     # simplehistory

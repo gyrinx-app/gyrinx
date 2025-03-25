@@ -170,3 +170,13 @@ To create a new empty migration file for doing data migration:
 ```bash
 manage makemigrations --empty content
 ```
+
+## Debugging SQL
+
+You can debug the SQL that Gyrinx is running using the [Django Debug Toolbar](https://django-debug-toolbar.readthedocs.io/en/latest/) that is installed.
+
+You can also enable SQL logging by setting the `SQL_DEBUG` variable:
+
+```
+SQL_DEBUG=True
+```
