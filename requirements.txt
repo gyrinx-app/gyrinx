@@ -27,6 +27,6 @@ python-dotenv==1.1.0
 qrcode==8.0
 referencing==0.36.2
 ruff==0.11.2
-setuptools==77.0.3
+setuptools==78.0.2
 sqlparse==0.5.3
 whitenoise==6.9.0
