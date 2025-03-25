@@ -11,7 +11,7 @@
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 <div class="ms-auto hstack gap-2">
-                    {% if fighter.linked_fighter.exists %}
+                    {% if fighter.has_linked_fighter %}
                         <div class="fs-7 fst-italic">
                             <i class="bi-person"></i>
                             <a href="#{{ fighter.linked_fighter.get.list_fighter.id }}"
@@ -48,7 +48,7 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-pencil"></i> Edit
                         </a>
-                        {% if fighter.linked_fighter.exists %}
+                        {% if fighter.has_linked_fighter %}
                             <button class="btn btn-outline-secondary btn-sm disabled" disabled>
                                 <i class="bi-copy"></i> Clone
                             </button>

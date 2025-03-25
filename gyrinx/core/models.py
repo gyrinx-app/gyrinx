@@ -78,10 +78,10 @@ class List(AppBase):
 
     @cached_property
     def cost_int_cached(self):
-        return sum([f.cost_int() for f in self.fighters_cached])
+        return sum([f.cost_int_cached for f in self.fighters_cached])
 
     def cost_display(self):
-        return f"{self.cost_int()}¢"
+        return f"{self.cost_int_cached}¢"
 
     def fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.filter(archived=False)
@@ -241,8 +241,15 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        return self._base_cost_int() + sum([e.cost_int() for e in self.assignments()])
+        return self._base_cost_int + sum([e.cost_int() for e in self.assignments()])
 
+    @cached_property
+    def cost_int_cached(self):
+        return self._base_cost_int + sum(
+            [e.cost_int() for e in self.assignments_cached]
+        )
+
+    @cached_property
     def _base_cost_int(self):
         # Our cost can be overridden by the user...
         if self.cost_override is not None:
@@ -271,7 +278,7 @@ class ListFighter(AppBase):
         return f"{self._base_cost_before_override()}¢"
 
     def cost_display(self):
-        return f"{self.cost_int()}¢"
+        return f"{self.cost_int_cached}¢"
 
     def assign(
         self, equipment, weapon_profiles=None, weapon_accessories=None
@@ -322,15 +329,23 @@ class ListFighter(AppBase):
             for a in default_assignments
         ]
 
+    @cached_property
+    def assignments_cached(self):
+        return self.assignments()
+
+    @cached_property
+    def has_linked_fighter(self):
+        return self.linked_fighter.exists()
+
     def skilline(self):
         skills = set(list(self.content_fighter.skills.all()) + list(self.skills.all()))
         return [s.name for s in skills]
 
     def weapons(self):
-        return [e for e in self.assignments() if e.is_weapon()]
+        return [e for e in self.assignments_cached if e.is_weapon()]
 
     def wargear(self):
-        return [e for e in self.assignments() if not e.is_weapon()]
+        return [e for e in self.assignments_cached if not e.is_weapon()]
 
     def wargearline(self):
         return [e.content_equipment.name for e in self.wargear()]
