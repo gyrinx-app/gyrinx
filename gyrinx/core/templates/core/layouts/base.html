@@ -120,7 +120,7 @@
                 </ul>
                 <div class="d-flex flex-column flex-sm-row gap-2">
                     {% if user.is_authenticated %}
-                        <a href="{% url 'account_email' %}" class="btn btn-outline-light">
+                        <a href="{% url 'core:account_home' %}" class="btn btn-outline-light">
                             <i class="bi-gear"></i>
                             {{ user.username }}
                         </a>

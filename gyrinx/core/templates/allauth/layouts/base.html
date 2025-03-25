@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth i18n %}
+{% load allauth i18n custom_tags %}
 {% block body %}
     <div class="container my-3 my-md-5">
         {% if messages %}
@@ -15,42 +15,20 @@
                 {% endfor %}
             </div>
         {% endif %}
-        <div>
-            <ul>
-                {% if user.is_authenticated %}
-                    {% url 'account_email' as email_url_ %}
-                    {% if email_url_ %}
-                        <li>
-                            <a href="{{ email_url_ }}">{% trans "Change Email" %}</a>
-                        </li>
-                    {% endif %}
-                    {% url 'account_change_password' as change_password_url_ %}
-                    {% if change_password_url_ %}
-                        <li>
-                            <a href="{{ change_password_url_ }}">{% trans "Change Password" %}</a>
-                        </li>
-                    {% endif %}
-                    {% url 'mfa_index' as mfa_url_ %}
-                    {% if mfa_url_ %}
-                        <li>
-                            <a href="{{ mfa_url_ }}">{% trans "Two-Factor Authentication" %}</a>
-                        </li>
-                    {% endif %}
-                    {% url 'usersessions_list' as usersessions_list_url_ %}
-                    {% if usersessions_list_url_ %}
-                        <li>
-                            <a href="{{ usersessions_list_url_ }}">{% trans "Sessions" %}</a>
-                        </li>
-                    {% endif %}
-                    {% url 'account_logout' as logout_url_ %}
-                    {% if logout_url_ %}
-                        <li>
-                            <a href="{{ logout_url_ }}">{% trans "Sign Out" %}</a>
-                        </li>
-                    {% endif %}
-                {% endif %}
+        {% if user.is_authenticated %}
+            <div class="dropdown d-md-none mb-3 order-1">
+                <button class="btn btn-outline-secondary dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">Menu</button>
+                <ul class="dropdown-menu">
+                    {% include "account/snippets/menu.html" with list_a_class="dropdown-item" %}
+                </ul>
+            </div>
+            <ul class="d-none d-md-flex nav nav-tabs order-2">
+                {% include "account/snippets/menu.html" with list_item_class="nav-item" list_a_class="nav-link" %}
             </ul>
-        </div>
+        {% endif %}
     </div>
     <div id="content" class="container my-3 my-md-5">
         {% block content %}

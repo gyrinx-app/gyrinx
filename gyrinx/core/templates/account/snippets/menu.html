@@ -1,0 +1,51 @@
+{% load allauth i18n custom_tags %}
+{% firstof list_item_class "" as list_item_class %}
+{% firstof list_a_class "" as list_a_class %}
+{% url 'core:account_home' as account_home_url_ %}
+{% if account_home_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="icon-link {{ list_a_class }} {% active_view 'core:account_home' %}"
+           {% active_aria 'core:account_home' %}
+           href="{{ account_home_url_ }}"><i class="bi-gear"></i> {{ user.username }}</a>
+    </li>
+{% endif %}
+{% url 'account_email' as email_url_ %}
+{% if email_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="{{ list_a_class }} {% active_view 'account_email' %}"
+           {% active_aria 'account_email' %}
+           href="{{ email_url_ }}">{% trans "Change Email" %}</a>
+    </li>
+{% endif %}
+{% url 'account_change_password' as change_password_url_ %}
+{% if change_password_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="{{ list_a_class }} {% active_view 'account_change_password' %}"
+           {% active_aria 'account_change_password' %}
+           href="{{ change_password_url_ }}">{% trans "Change Password" %}</a>
+    </li>
+{% endif %}
+{% url 'mfa_index' as mfa_url_ %}
+{% if mfa_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="{{ list_a_class }} {% active_view 'mfa_index' %}"
+           {% active_aria 'mfa_index' %}
+           href="{{ mfa_url_ }}">{% trans "Two-Factor Authentication" %}</a>
+    </li>
+{% endif %}
+{% url 'usersessions_list' as usersessions_list_url_ %}
+{% if usersessions_list_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="{{ list_a_class }} {% active_view 'usersessions_list' %}"
+           {% active_aria 'usersessions_list' %}
+           href="{{ usersessions_list_url_ }}">{% trans "Sessions" %}</a>
+    </li>
+{% endif %}
+{% url 'account_logout' as logout_url_ %}
+{% if logout_url_ %}
+    <li class="{{ list_item_class }}">
+        <a class="{{ list_a_class }} link-danger {% active_view 'account_logout' %} "
+           {% active_aria 'account_logout' %}
+           href="{{ logout_url_ }}">{% trans "Sign Out" %}</a>
+    </li>
+{% endif %}

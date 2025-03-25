@@ -71,6 +71,18 @@ def index(request):
     )
 
 
+@login_required
+def account_home(request):
+    """
+    Management page for the user's account.
+
+    """
+    return render(
+        request,
+        "core/account_home.html",
+    )
+
+
 def content(request):
     """
     Display a placeholder content page (currently unused).

@@ -10,6 +10,7 @@ from . import views
 app_name = "core"
 urlpatterns = [
     path("", views.index, name="index"),
+    path("accounts/", views.account_home, name="account_home"),
     path("content/", views.content, name="content"),
     path("content/gangs", views.GangIndexView.as_view(), name="content-gangs"),
     path(
