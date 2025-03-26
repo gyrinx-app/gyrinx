@@ -564,26 +564,31 @@ class ListFighterEquipmentAssignment(Base, Archived):
         self.weapon_profiles_field.add(profile)
 
     def weapon_profiles(self):
-        mods = self._mods()
-        return [VirtualWeaponProfile(p, mods) for p in self.weapon_profiles_field.all()]
+        return [
+            VirtualWeaponProfile(p, self._mods)
+            for p in self.weapon_profiles_field.all()
+        ]
+
+    @cached_property
+    def weapon_profiles_cached(self):
+        return self.weapon_profiles()
 
     def weapon_profiles_display(self):
         """Return a list of dictionaries with the weapon profiles and their costs."""
-        profiles = self.weapon_profiles()
         return [
             dict(
                 profile=p,
                 cost_int=self.profile_cost_int(p),
                 cost_display=self.profile_cost_display(p),
             )
-            for p in profiles
+            for p in self.weapon_profiles_cached
         ]
 
     def all_profiles(self) -> list["VirtualWeaponProfile"]:
         """Return all profiles for the equipment, including the default profiles."""
 
-        standard_profiles = self.standard_profiles()
-        weapon_profiles = self.weapon_profiles()
+        standard_profiles = self.standard_profiles_cached
+        weapon_profiles = self.weapon_profiles_cached
 
         seen = set()
         result = []
@@ -593,17 +598,24 @@ class ListFighterEquipmentAssignment(Base, Archived):
                 result.append(p)
         return result
 
+    @cached_property
+    def all_profiles_cached(self) -> list["VirtualWeaponProfile"]:
+        return self.all_profiles()
+
     def standard_profiles(self):
-        mods = self._mods()
         return [
-            VirtualWeaponProfile(p, mods)
+            VirtualWeaponProfile(p, self._mods)
             for p in ContentWeaponProfile.objects.filter(
                 equipment=self.content_equipment, cost=0
             )
         ]
 
+    @cached_property
+    def standard_profiles_cached(self):
+        return self.standard_profiles()
+
     def weapon_profiles_names(self):
-        profile_names = [p.name for p in self.weapon_profiles()]
+        profile_names = [p.name for p in self.weapon_profiles_cached]
         return ", ".join(profile_names)
 
     # Accessories
@@ -611,10 +623,15 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
 
+    @cached_property
+    def weapon_accessories_cached(self):
+        return self.weapon_accessories()
+
     # Mods
 
+    @cached_property
     def _mods(self):
-        accessories = self.weapon_accessories_field.all()
+        accessories = self.weapon_accessories_cached
         mods = [m for a in accessories for m in a.modifiers.all()]
         if self.upgrade:
             mods += list(self.upgrade.modifiers.all())
@@ -623,19 +640,31 @@ class ListFighterEquipmentAssignment(Base, Archived):
     # Costs
 
     def base_cost_int(self):
-        return self._equipment_cost_with_override()
+        return self._equipment_cost_with_override_cached
+
+    @cached_property
+    def base_cost_int_cached(self):
+        return self.base_cost_int()
 
     def base_cost_display(self):
-        return f"{self.base_cost_int()}¢"
+        return f"{self.base_cost_int_cached}¢"
 
     def weapon_profiles_cost_int(self):
         return self._profile_cost_with_override()
 
+    @cached_property
+    def weapon_profiles_cost_int_cached(self):
+        return self.weapon_profiles_cost_int()
+
     def weapon_profiles_cost_display(self):
-        return f"+{self.weapon_profiles_cost_int()}¢"
+        return f"+{self.weapon_profiles_cost_int_cached}¢"
 
     def weapon_accessories_cost_int(self):
         return self._accessories_cost_with_override()
+
+    @cached_property
+    def weapon_accessories_cost_int_cached(self):
+        return self.weapon_accessories_cost_int()
 
     def weapon_accessories_cost_display(self):
         return f"+{self.weapon_accessories_cost_int()}¢"
@@ -646,17 +675,21 @@ class ListFighterEquipmentAssignment(Base, Archived):
             return self.total_cost_override
 
         return (
-            self.base_cost_int()
-            + self.weapon_profiles_cost_int()
-            + self.weapon_accessories_cost_int()
-            + self.upgrade_cost_int()
+            self.base_cost_int_cached
+            + self.weapon_profiles_cost_int_cached
+            + self.weapon_accessories_cost_int_cached
+            + self.upgrade_cost_int_cached
         )
+
+    @cached_property
+    def cost_int_cached(self):
+        return self.cost_int()
 
     def has_total_cost_override(self):
         return self.total_cost_override is not None
 
     def cost_display(self):
-        return f"{self.cost_int()}¢"
+        return f"{self.cost_int_cached}¢"
 
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
@@ -667,7 +700,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
             return self.content_equipment.cost_for_fighter_int()
 
         overrides = ContentFighterEquipmentListItem.objects.filter(
-            fighter=self.list_fighter.content_fighter,
+            fighter=self._content_fighter,
             equipment=self.content_equipment,
             # None here is very important: it means we're looking for the base equipment cost.
             weapon_profile=None,
@@ -682,6 +715,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         override = overrides.first()
         return override.cost_int()
+
+    @cached_property
+    def _equipment_cost_with_override_cached(self):
+        return self._equipment_cost_with_override()
 
     def _profile_cost_with_override(self):
         profiles = self.weapon_profiles()
@@ -699,7 +736,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         try:
             override = ContentFighterEquipmentListItem.objects.get(
-                fighter=self.list_fighter.content_fighter,
+                fighter=self._content_fighter,
                 equipment=self.content_equipment,
                 weapon_profile=profile.profile,
             )
@@ -714,7 +751,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return f"+{self.profile_cost_int(profile)}¢"
 
     def _accessories_cost_with_override(self):
-        accessories = self.weapon_accessories()
+        accessories = self.weapon_accessories_cached
         if not accessories:
             return 0
 
@@ -727,7 +764,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         try:
             override = ContentFighterEquipmentListWeaponAccessory.objects.get(
-                fighter=self.list_fighter.content_fighter,
+                fighter=self._content_fighter,
                 weapon_accessory=accessory,
             )
             return override.cost_int()
@@ -746,6 +783,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         # TODO: Overrides?
         return self.upgrade.cost_int()
+
+    @cached_property
+    def upgrade_cost_int_cached(self):
+        return self.upgrade_cost_int()
+
+    @cached_property
+    def _content_fighter(self):
+        return self.list_fighter.content_fighter
 
     #  Behaviour
 
@@ -847,7 +892,7 @@ class VirtualListFighterEquipmentAssignment:
         return cls(
             fighter=assignment.list_fighter,
             equipment=assignment.content_equipment,
-            profiles=assignment.all_profiles(),
+            profiles=assignment.all_profiles_cached,
             _assignment=assignment,
         )
 
@@ -999,6 +1044,9 @@ class VirtualListFighterEquipmentAssignment:
         if not self._assignment:
             return self.profiles
 
+        if self._assignment.all_profiles_cached:
+            return self._assignment.all_profiles_cached
+
         return self._assignment.all_profiles()
 
     def standard_profiles(self):
@@ -1008,6 +1056,9 @@ class VirtualListFighterEquipmentAssignment:
         if not self._assignment:
             return [profile for profile in self.profiles if profile.cost == 0]
 
+        if self._assignment.standard_profiles_cached:
+            return self._assignment.standard_profiles_cached
+
         return self._assignment.standard_profiles()
 
     def weapon_profiles(self):
@@ -1016,6 +1067,9 @@ class VirtualListFighterEquipmentAssignment:
         """
         if not self._assignment:
             return [profile for profile in self.profiles if profile.cost_int() > 0]
+
+        if self._assignment.weapon_profiles_cached:
+            return self._assignment.weapon_profiles_cached
 
         return self._assignment.weapon_profiles()
 
@@ -1084,20 +1138,28 @@ class VirtualListFighterEquipmentAssignment:
 
         return self._assignment.upgrade
 
+    @cached_property
+    def active_upgrade_cached(self):
+        return self.active_upgrade()
+
     def upgrades(self) -> QuerySetOf[ContentEquipmentUpgrade]:
         if not self.equipment.upgrades:
             return []
 
         return self.equipment.upgrades.all()
 
+    @cached_property
+    def upgrades_cached(self):
+        return self.upgrades()
+
     def upgrades_display(self):
         return [
             {
                 "upgrade": upgrade,
-                "cost_int": upgrade.cost_int(),
-                "cost_display": f"+{upgrade.cost_int()}¢",
+                "cost_int": upgrade.cost_int_cached,
+                "cost_display": f"+{upgrade.cost_int_cached}¢",
             }
-            for upgrade in self.upgrades()
+            for upgrade in self.upgrades_cached
         ]
 
 

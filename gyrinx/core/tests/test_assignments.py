@@ -9,7 +9,7 @@ from gyrinx.content.models import (
     ContentWeaponTrait,
     StatlineDisplay,
 )
-from gyrinx.core.models import ListFighter
+from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import EquipmentCategoryChoices
 
 
@@ -465,6 +465,8 @@ def test_upgrade_stat_mod(
     assign.upgrade = u1
     assign.save()
 
+    assign = ListFighterEquipmentAssignment.objects.get(pk=assign.pk)
+
     profiles = assign.all_profiles()
     assert len(profiles) == 2
     modded_profile = profiles[0]
@@ -472,6 +474,8 @@ def test_upgrade_stat_mod(
 
     assign.upgrade = u2
     assign.save()
+
+    assign = ListFighterEquipmentAssignment.objects.get(pk=assign.pk)
 
     profiles = assign.all_profiles()
     assert len(profiles) == 2

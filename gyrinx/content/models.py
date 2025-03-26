@@ -1293,11 +1293,15 @@ class ContentEquipmentUpgrade(Content):
         upgrades = self.equipment.upgrades.filter(position__lte=self.position)
         return sum(upgrade.cost for upgrade in upgrades)
 
+    @cached_property
+    def cost_int_cached(self):
+        return self.cost_int()
+
     def cost_display(self):
         """
         Returns a cost display string with '¢'.
         """
-        return f"{self.cost_int()}¢"
+        return f"{self.cost_int_cached}¢"
 
     class Meta:
         verbose_name = "Equipment Upgrade"
@@ -1354,8 +1358,8 @@ class ContentFighterDefaultAssignment(Content):
 
     def all_profiles(self):
         """Return all profiles for the equipment, including the default profiles."""
-        standard_profiles = list(self.standard_profiles())
-        weapon_profiles = self.weapon_profiles()
+        standard_profiles = self.standard_profiles_cached
+        weapon_profiles = self.weapon_profiles_cached
 
         seen = set()
         result = []
@@ -1368,8 +1372,16 @@ class ContentFighterDefaultAssignment(Content):
     def standard_profiles(self):
         return ContentWeaponProfile.objects.filter(equipment=self.equipment, cost=0)
 
+    @cached_property
+    def standard_profiles_cached(self):
+        return list(self.standard_profiles())
+
     def weapon_profiles(self):
         return list(self.weapon_profiles_field.all())
+
+    @cached_property
+    def weapon_profiles_cached(self):
+        return list(self.weapon_profiles())
 
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
@@ -1378,7 +1390,9 @@ class ContentFighterDefaultAssignment(Content):
         return f"{self.fighter} – {self.name()}"
 
     def name(self):
-        profiles_names = ", ".join([profile.name for profile in self.weapon_profiles()])
+        profiles_names = ", ".join(
+            [profile.name for profile in self.weapon_profiles_cached]
+        )
         return f"{self.equipment}" + (f" ({profiles_names})" if profiles_names else "")
 
     class Meta:

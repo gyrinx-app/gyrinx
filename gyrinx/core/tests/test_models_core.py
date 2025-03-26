@@ -1033,7 +1033,7 @@ def test_equipment_upgrades(
         cost=50,
     )
 
-    ContentEquipmentUpgrade.objects.create(
+    u1 = ContentEquipmentUpgrade.objects.create(
         equipment=spoon, name="Alpha", cost=20, position=0
     )
     u2 = ContentEquipmentUpgrade.objects.create(
@@ -1048,10 +1048,14 @@ def test_equipment_upgrades(
     )
 
     assert assign.cost_int() == 50
+    assert u1.cost_int() == 20
     assert u2.cost_int() == 50
 
     assign.upgrade = u2
     assign.save()
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
 
     assert assign.cost_int() == 100
     assert fighter.cost_int() == 200
