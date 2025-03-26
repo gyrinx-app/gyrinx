@@ -1,9 +1,11 @@
+import hashlib
 import re
 
 import qrcode
 import qrcode.image.svg
 from django import template
 from django.conf import settings
+from django.core.cache import cache
 from django.template.context import RequestContext
 from django.urls import resolve
 from django.utils.html import format_html
@@ -133,25 +135,48 @@ def identity(value):
 
 @register.simple_tag
 def ref(*args, category=None, value=None):
+    """
+    Render a reference to a rulebook page.
+
+    This tag takes a list of arguments and returns a link to the most similar
+    rulebook page. If no similar page is found, the original string is returned.
+
+    This tag is cached, so it can be called multiple times with the same arguments
+    without incurring a performance penalty. The references almost never change,
+    so this should be very safe to do.
+    """
     search_value = " ".join(args)
     if not value:
         value = search_value
 
+    search_value_hash = hashlib.sha1(search_value.encode("utf-8")).hexdigest()
+    cache_key = f"ref_{search_value_hash}"
+
     kwargs = {}
     if category:
         kwargs["category"] = category
+        cat_hash = hashlib.sha1(category.encode("utf-8")).hexdigest()
+        cache_key += f"_{cat_hash}"
+
+    if cache.has_key(cache_key):
+        return cache.get(cache_key)
+
     refs = ContentPageRef.find_similar(search_value, **kwargs)
+
     if not refs:
+        cache.set(cache_key, value)
         return value
 
     ref_str = ", ".join(ref.bookref() for ref in refs)
 
-    return format_html(
+    full_ref = format_html(
         '<a data-bs-toggle="tooltip" data-bs-title="{}" href=\'{}\' class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{}</a>',
         ref_str,
         "#",
         value,
     )
+    cache.set(cache_key, full_ref)
+    return full_ref
 
 
 @register.simple_tag

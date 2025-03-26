@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
 from django.db.models.functions import Cast, Coalesce, Lower
+from django.utils.functional import cached_property
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
@@ -1549,14 +1550,14 @@ class ContentPageRef(Content):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.book.shortname} - {self.category} - p{self.resolve_page()} - {self.title}".strip()
+        return f"{self.book.shortname} - {self.category} - p{self.resolve_page_cached} - {self.title}".strip()
 
     def bookref(self):
         """
         Returns a short, human-readable reference string combining the
         book shortname and resolved page number.
         """
-        return f"{self.book.shortname} p{self.resolve_page()}".strip()
+        return f"{self.book.shortname} p{self.resolve_page_cached}".strip()
 
     def resolve_page(self):
         """
@@ -1567,9 +1568,13 @@ class ContentPageRef(Content):
             return self.page
 
         if self.parent:
-            return self.parent.resolve_page()
+            return self.parent.resolve_page_cached
 
         return None
+
+    @cached_property
+    def resolve_page_cached(self):
+        return self.resolve_page()
 
     class Meta:
         verbose_name = "Page Reference"
