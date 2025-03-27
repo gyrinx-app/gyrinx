@@ -411,11 +411,12 @@ class ContentEquipment(Content):
             ("R", "Rare (R)"),
             ("I", "Illegal (I)"),
             ("E", "Exclusive (E)"),
+            ("U", "Unique (U)"),
             ("C", "Common (C)"),
         ],
         blank=True,
         default="C",
-        help_text="Use 'E' to exclude this equipment from the Trading Post.",
+        help_text="Use 'E' to exclude this equipment from the Trading Post. Use 'U' for equipment that is unique to a fighter.",
         verbose_name="Availability",
     )
     rarity_roll = models.IntegerField(
