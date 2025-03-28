@@ -1049,6 +1049,10 @@ class VirtualListFighterEquipmentAssignment:
 
         return self._assignment.all_profiles()
 
+    @cached_property
+    def all_profiles_cached(self):
+        return self.all_profiles()
+
     def standard_profiles(self):
         """
         Return only the standard (cost=0) weapon profiles for this equipment.
@@ -1061,6 +1065,10 @@ class VirtualListFighterEquipmentAssignment:
 
         return self._assignment.standard_profiles()
 
+    @cached_property
+    def standard_profiles_cached(self):
+        return self.standard_profiles()
+
     def weapon_profiles(self):
         """
         Return all weapon profiles for this equipment.
@@ -1072,6 +1080,10 @@ class VirtualListFighterEquipmentAssignment:
             return self._assignment.weapon_profiles_cached
 
         return self._assignment.weapon_profiles()
+
+    @cached_property
+    def weapon_profiles_cached(self):
+        return self.weapon_profiles()
 
     def weapon_profiles_display(self):
         """
