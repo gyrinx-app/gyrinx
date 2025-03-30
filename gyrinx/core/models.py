@@ -272,7 +272,7 @@ class ListFighter(AppBase):
         return self.content_fighter.cost_int()
 
     def base_cost_display(self):
-        return f"{self._base_cost_int()}¢"
+        return f"{self._base_cost_int}¢"
 
     def base_cost_before_override_display(self):
         return f"{self._base_cost_before_override()}¢"

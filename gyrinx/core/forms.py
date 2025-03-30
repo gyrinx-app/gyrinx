@@ -89,7 +89,7 @@ class NewListFighterForm(forms.ModelForm):
             ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])
 
             if hasattr(inst, "content_fighter"):
-                self.fields["cost_override"].placeholder = inst._base_cost_int()
+                self.fields["cost_override"].placeholder = inst._base_cost_int
 
         self.fields["content_fighter"] = ContentFighterChoiceField(
             queryset=self.fields["content_fighter"].queryset
