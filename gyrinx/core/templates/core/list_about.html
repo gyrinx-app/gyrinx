@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    About {{ list.name }} by {{ list.owner }}
+    About {{ list.name }} by {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
     {% url 'core:list' list.id as list_url %}

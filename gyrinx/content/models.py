@@ -480,6 +480,10 @@ class ContentEquipment(Content):
             return self.has_weapon_profiles
         return ContentWeaponProfile.objects.filter(equipment=self).exists()
 
+    @cached_property
+    def is_weapon_cached(self):
+        return self.is_weapon()
+
     def profiles(self):
         """
         Returns all associated weapon profiles for this equipment.
@@ -1386,6 +1390,10 @@ class ContentFighterDefaultAssignment(Content):
 
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
+
+    @cached_property
+    def weapon_accessories_cached(self):
+        return self.weapon_accessories()
 
     def __str__(self):
         return f"{self.fighter} – {self.name()}"

@@ -1,10 +1,10 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    {{ list.name }} | {{ list.owner }}
+    {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
-    {% if list.owner == request.user %}
+    {% if list.owner_cached == request.user %}
         {% include "core/includes/home.html" %}
     {% else %}
         {% url 'core:lists' as lists_url %}

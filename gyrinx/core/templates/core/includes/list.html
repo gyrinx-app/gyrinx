@@ -15,7 +15,7 @@
                 <div class="text-secondary">
                     <i class="bi-person"></i>
                     <a class="link-secondary"
-                       href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
+                       href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
                 </div>
                 {% if not print %}
                     <div class="text-secondary">
@@ -25,7 +25,7 @@
                                   data-bs-title="This list is visible to all users"
                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</span>
                         {% endif %}
-                        {% if list.owner == user and not list.public %}
+                        {% if list.owner_cached == user and not list.public %}
                             <i class="bi-eye-slash"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This list is only visible to you"
@@ -34,7 +34,7 @@
                             </span>
                         {% endif %}
                     </div>
-                    {% if list.owner == user and list.archived_fighters_cached > 0 %}
+                    {% if list.owner_cached == user and list.archived_fighters_cached > 0 %}
                         <div class="text-secondary">
                             <i class="bi-archive"></i>
                             <a href="{% url 'core:list-archived-fighters' list.id %}"
@@ -55,7 +55,7 @@
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
                     <nav class="nav btn-group flex-nowrap">
-                        {% if list.owner == user %}
+                        {% if list.owner_cached == user %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm">
                                 <i class="bi-person-add"></i> Add fighter</a>
@@ -93,7 +93,7 @@
                                         <i class="bi-copy"></i> Clone
                                     </a>
                                 </li>
-                                {% if list.owner == user %}
+                                {% if list.owner_cached == user %}
                                     <li>
                                         <a href="#" class="dropdown-item icon-link disabled">
                                             <i class="bi-archive"></i> Archive

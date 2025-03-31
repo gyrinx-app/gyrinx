@@ -43,14 +43,14 @@
             {% if assign.all_profiles_cached|length == 1 %}
                 {% with assign.all_profiles_cached.0 as profile %}
                     <tr class="align-top">
-                        <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                        <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                             {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
                     </tr>
-                    {% if profile.traitline|length > 0 %}
+                    {% if profile.traitline_cached|length > 0 %}
                         <tr>
-                            <td colspan="9">{{ profile.traitline|join:", " }}</td>
+                            <td colspan="9">{{ profile.traitline_cached|join:", " }}</td>
                         </tr>
                     {% endif %}
                 {% endwith %}
@@ -63,7 +63,7 @@
                 {% endif %}
                 {% for profile in assign.standard_profiles_cached %}
                     <tr class="align-top">
-                        <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                        <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                             {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
                             {% if forloop.counter0 == 0 and profile.name == "" %}
                                 {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
@@ -73,16 +73,16 @@
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
                     </tr>
-                    {% if profile.traitline|length > 0 %}
+                    {% if profile.traitline_cached|length > 0 %}
                         <tr>
-                            <td colspan="9">{{ profile.traitline|join:", " }}</td>
+                            <td colspan="9">{{ profile.traitline_cached|join:", " }}</td>
                         </tr>
                     {% endif %}
                 {% endfor %}
                 {% comment %} Non-standard profile(s) {% endcomment %}
                 {% for pd in assign.weapon_profiles_display %}
                     <tr class="align-top">
-                        <td rowspan="{% if pd.profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                        <td rowspan="{% if pd.profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                             {% if mode == 'add' %}
                                 <div class="form-check">
                                     <input type="checkbox"
@@ -106,15 +106,15 @@
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
                     </tr>
-                    {% if pd.profile.traitline|length > 0 %}
+                    {% if pd.profile.traitline_cached|length > 0 %}
                         <tr>
-                            <td colspan="9">{{ pd.profile.traitline|join:", " }}</td>
+                            <td colspan="9">{{ pd.profile.traitline_cached|join:", " }}</td>
                         </tr>
                     {% endif %}
                 {% endfor %}
             {% endif %}
-            {% if assign.weapon_accessories_display|length > 0 %}
-                {% for ad in assign.weapon_accessories_display %}
+            {% if assign.weapon_accessories_display_cached|length > 0 %}
+                {% for ad in assign.weapon_accessories_display_cached %}
                     <tr>
                         <td colspan="9">
                             <i class="bi-dash"></i>

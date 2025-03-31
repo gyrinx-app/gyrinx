@@ -21,7 +21,7 @@
                                 <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
                             </h2>
                             <div>
-                                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner }}</a>
+                                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>
                             </div>
                         </div>
                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">

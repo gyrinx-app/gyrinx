@@ -37,7 +37,7 @@
             </thead>
             <tbody>
                 <tr>
-                    {% for stat in fighter.content_fighter.statline %}
+                    {% for stat in fighter.content_fighter_cached.statline %}
                         {% if stat.highlight %}
                             <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
                         {% else %}
@@ -48,7 +48,7 @@
             </tbody>
             <tbody class="table-group-divider">
                 {% firstof gear_mode "link" as gear_mode_default %}
-                {% if fighter.wargearline|length > 0 %}
+                {% if fighter.wargearline_cached|length > 0 %}
                     {% if gear_mode == "edit" %}
                         {% for assign in fighter.wargear %}
                             <tr class="fs-7">
@@ -69,7 +69,7 @@
                                         {% if assign.is_from_default_assignment %}</span>{% endif %}
                                     {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if not print %}
-                                        {% if list.owner == user %}
+                                        {% if list.owner_cached == user %}
                                             <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                class="link-danger">Remove</a>
                                         {% endif %}
@@ -90,7 +90,7 @@
                                     {% endspaceless %}
                                 {% endfor %}
                                 {% if not print and gear_mode_default == "link" %}
-                                    {% if list.owner == user %}
+                                    {% if list.owner_cached == user %}
                                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
                                            class="d-inline-block">Edit gear</a>
                                     {% endif %}
@@ -99,7 +99,7 @@
                         </tr>
                     {% endif %}
                 {% else %}
-                    {% if list.owner == user and not print %}
+                    {% if list.owner_cached == user and not print %}
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Gear</th>
                             <td colspan="12">
