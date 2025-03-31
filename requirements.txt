@@ -3,11 +3,11 @@ beautifulsoup4==4.13.3
 click==8.1.8
 daphne==4.1.2
 Django==5.1.7
-django-allauth==65.5.0
+django-allauth==65.6.0
 django-debug-toolbar==5.1.0
 django-extensions==3.2.3
 django-polymorphic==3.1.0
-django-recaptcha==4.0.0
+django-recaptcha==4.1.0
 django-simple-history==3.8.0
 django-tinymce==4.1.0
 djlint==1.36.4
@@ -28,6 +28,6 @@ python-dotenv==1.1.0
 qrcode==8.0
 referencing==0.36.2
 ruff==0.11.2
-setuptools==78.0.2
+setuptools==78.1.0
 sqlparse==0.5.3
 whitenoise==6.9.0
