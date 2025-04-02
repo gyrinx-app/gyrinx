@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import caches
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
@@ -244,6 +245,54 @@ def test_list_cost_variable():
     assert fighter.cost_int() == content_fighter.cost_int()
     assert fighter2.cost_int() == content_fighter2.cost_int()
     assert lst.cost_int() == content_fighter.cost_int() + content_fighter2.cost_int()
+
+
+@pytest.mark.django_db
+def test_list_cost_cache():
+    category, house, content_fighter = make_content()
+
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    lst = List.objects.create(name="Test List", content_house=house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    assert fighter.cost_int() == content_fighter.cost_int()
+    assert lst.cost_int() == fighter.cost_int()
+
+    assert lst.cost_int_cached == fighter.cost_int()
+
+    cache = caches["core_list_cache"]
+    assert cache.has_key(lst.cost_cache_key())
+    assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
+
+    fighter.cost_override = 50
+    fighter.save()
+
+    # Refresh the objects from the database... because caching!
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+    lst = List.objects.get(pk=lst.pk)
+
+    assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
+    assert lst.cost_int() == 50
+    assert lst.cost_int_cached == 50
+
+    pre_spoon_cost = fighter.cost_int()
+    fighter.assign(spoon)
+
+    lst = List.objects.get(pk=lst.pk)
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+    post_spoon_cost = fighter.cost_int()
+
+    assert post_spoon_cost == pre_spoon_cost + spoon.cost_int()
+    assert cache.get(lst.cost_cache_key()) == post_spoon_cost
+    assert lst.cost_int() == post_spoon_cost
+    assert lst.cost_int_cached == post_spoon_cost
 
 
 @pytest.mark.django_db

@@ -190,7 +190,13 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "content-page-ref-cache",
     },
+    "core_list_cache": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "core-list-cache",
+    },
 }
+
+CACHE_LIST_TTL = os.getenv("CACHE_LIST_TTL", 60 * 5)
 
 # Authentication
 # Using django-allauth for authentication

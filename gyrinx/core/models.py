@@ -5,15 +5,17 @@ from typing import Union
 
 from django.contrib import admin
 from django.core import validators
+from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Concat
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
+from gyrinx import settings
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentFighterProfile,
@@ -78,7 +80,15 @@ class List(AppBase):
 
     @cached_property
     def cost_int_cached(self):
-        return sum([f.cost_int_cached for f in self.fighters_cached])
+        cache = caches["core_list_cache"]
+        cache_key = self.cost_cache_key()
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+
+        cost = sum([f.cost_int_cached for f in self.fighters_cached])
+        cache.set(cache_key, cost, settings.CACHE_LIST_TTL)
+        return cost
 
     def cost_display(self):
         return f"{self.cost_int_cached}¢"
@@ -100,6 +110,15 @@ class List(AppBase):
     @cached_property
     def owner_cached(self):
         return self.owner
+
+    def cost_cache_key(self):
+        return f"list_cost_{self.id}"
+
+    def update_cost_cache(self):
+        cache = caches["core_list_cache"]
+        cache_key = self.cost_cache_key()
+        cache.delete(cache_key)
+        cache.set(cache_key, self.cost_int(), settings.CACHE_LIST_TTL)
 
     def clone(self, name=None, owner=None, **kwargs):
         """Clone the list, creating a new list with the same fighters."""
@@ -480,6 +499,15 @@ def create_linked_fighter_assignment(sender, instance, **kwargs):
                 from_default_assignment=assign,
             )
             new_assign.save()
+
+
+@receiver(
+    [pre_delete, post_save, m2m_changed],
+    sender=ListFighter,
+    dispatch_uid="update_list_cost_cache",
+)
+def update_list_cost_cache(sender, instance: ListFighter, **kwargs):
+    instance.list.update_cost_cache()
 
 
 class ListFighterEquipmentAssignment(Base, Archived):
@@ -913,6 +941,17 @@ def create_related_objects(sender, instance, **kwargs):
 def delete_linked_fighter(sender, instance, **kwargs):
     if instance.linked_fighter:
         instance.linked_fighter.delete()
+
+
+@receiver(
+    [pre_delete, post_save],
+    sender=ListFighterEquipmentAssignment,
+    dispatch_uid="update_list_cache_for_assignment",
+)
+def update_list_cache_for_assignment(
+    sender, instance: ListFighterEquipmentAssignment, **kwargs
+):
+    instance.list_fighter.list.update_cost_cache()
 
 
 @dataclass
