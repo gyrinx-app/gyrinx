@@ -1,6 +1,6 @@
 import logging
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Union
 
 from django.contrib import admin
@@ -28,13 +28,11 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
-    ContentMod,
-    ContentModStat,
-    ContentModTrait,
     ContentPsykerPower,
     ContentSkill,
     ContentWeaponAccessory,
     ContentWeaponProfile,
+    VirtualWeaponProfile,
 )
 from gyrinx.models import Archived, Base, Owned, QuerySetOf
 
@@ -1409,98 +1407,3 @@ class VirtualListFighterPsykerPowerAssignment:
             return "default"
 
         return "assigned"
-
-
-@dataclass
-class VirtualWeaponProfile:
-    """
-    A virtual container for profiles that applies mods.
-    """
-
-    profile: ContentWeaponProfile
-    mods: list[ContentMod] = field(default_factory=list)
-
-    @property
-    def id(self):
-        return self.profile.id
-
-    @property
-    def name(self):
-        return self.profile.name
-
-    def cost_int(self):
-        return self.profile.cost_int()
-
-    def cost_display(self):
-        return f"{self.cost_int()}¢"
-
-    def _statmods(self, stat=None) -> list[ContentModStat]:
-        return [
-            mod
-            for mod in self.mods
-            if isinstance(mod, ContentModStat) and (stat is None or mod.stat == stat)
-        ]
-
-    def _traitmods(self) -> list[ContentModTrait]:
-        return [mod for mod in self.mods if isinstance(mod, ContentModTrait)]
-
-    def __post_init__(self):
-        stats = [
-            "range_short",
-            "range_long",
-            "accuracy_short",
-            "accuracy_long",
-            "strength",
-            "armour_piercing",
-            "damage",
-            "ammo",
-        ]
-        for stat in stats:
-            value = self.profile.__getattribute__(stat)
-            setattr(
-                self,
-                stat,
-                self._apply_mods(stat, value, self._statmods(stat=stat)),
-            )
-
-    def _apply_mods(self, stat: str, value: str, mods: list[ContentModStat]):
-        for mod in mods:
-            value = mod.apply(value)
-        return value
-
-    @property
-    def traits(self):
-        mods = self._traitmods()
-        value = list(self.profile.traits.all())
-        for mod in mods:
-            if mod.mode == "add" and mod.trait not in value:
-                value.append(mod.trait)
-            elif mod.mode == "remove" and mod.trait in value:
-                value.remove(mod.trait)
-        return value
-
-    def statline(self):
-        statline = self.profile.statline()
-        output = []
-        for stat in statline:
-            base_value = stat.value
-            value = getattr(self, stat.field_name) or "-"
-            if value != base_value:
-                stat = replace(stat, value=value, modded=True)
-            output.append(stat)
-        return output
-
-    def traitline(self):
-        # TODO: We need some kind of TraitDisplay thing
-        traitline = sorted([trait.name for trait in self.traits])
-        return traitline
-
-    @cached_property
-    def traitline_cached(self):
-        return self.traitline()
-
-    def __str__(self):
-        return self.name()
-
-    def __eq__(self, value):
-        return self.profile == value

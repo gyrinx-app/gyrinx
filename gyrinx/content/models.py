@@ -7,7 +7,7 @@ models for fighters, equipment, rules, and more. Custom managers and querysets
 provide streamlined data access.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
 from django.core.cache import caches
@@ -1131,7 +1131,7 @@ class ContentWeaponProfile(Content):
             raise ValidationError('Name should not be "(Standard)".')
 
         # Ensure that specific fields are not hyphens
-        for field in [
+        for pf in [
             "range_short",
             "range_long",
             "accuracy_short",
@@ -1141,17 +1141,17 @@ class ContentWeaponProfile(Content):
             "damage",
             "ammo",
         ]:
-            setattr(self, field, getattr(self, field).strip())
-            value = getattr(self, field)
+            setattr(self, pf, getattr(self, pf).strip())
+            value = getattr(self, pf)
             if value == "-":
-                setattr(self, field, "")
+                setattr(self, pf, "")
 
-            if field in [
+            if pf in [
                 "range_short",
                 "range_long",
             ]:
                 if value and value[0].isdigit() and not value.endswith('"'):
-                    setattr(self, field, f'{value}"')
+                    setattr(self, pf, f'{value}"')
 
         if self.cost_int() < 0:
             raise ValidationError({"cost": "Cost cannot be negative."})
@@ -1375,18 +1375,28 @@ class ContentFighterDefaultAssignment(Content):
         return result
 
     def standard_profiles(self):
-        return ContentWeaponProfile.objects.filter(equipment=self.equipment, cost=0)
+        return [
+            VirtualWeaponProfile(p, self._mods)
+            for p in ContentWeaponProfile.objects.filter(
+                equipment=self.equipment, cost=0
+            )
+        ]
 
     @cached_property
     def standard_profiles_cached(self):
         return list(self.standard_profiles())
 
     def weapon_profiles(self):
-        return list(self.weapon_profiles_field.all())
+        return [
+            VirtualWeaponProfile(p, self._mods)
+            for p in self.weapon_profiles_field.all()
+        ]
 
     @cached_property
     def weapon_profiles_cached(self):
         return list(self.weapon_profiles())
+
+    # Accessories
 
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
@@ -1394,6 +1404,16 @@ class ContentFighterDefaultAssignment(Content):
     @cached_property
     def weapon_accessories_cached(self):
         return self.weapon_accessories()
+
+    # Mods
+
+    @cached_property
+    def _mods(self):
+        accessories = self.weapon_accessories_cached
+        mods = [m for a in accessories for m in a.modifiers.all()]
+        return mods
+
+    # Behaviour
 
     def __str__(self):
         return f"{self.fighter} – {self.name()}"
@@ -1760,7 +1780,9 @@ class ContentModStat(ContentMod):
         # Stats can be:
         #   - (meaning 0)
         #   X" (meaning X inches) — Rng
-        #   X (meaning X) _ Str, D
+        #   X (meaning X) — Str, D
+        #   S (meaning fighter Str) — Str
+        #   S+X (meaning fighter Str+X) — Str
         #   +X (meaning add X to roll) — Acc and Ap
         #   X+ (meaning target X on roll) — Am
         current_value = current_value.strip()
@@ -1777,6 +1799,10 @@ class ContentModStat(ContentMod):
         elif current_value.startswith("+"):
             # Modifier
             current_value = int(current_value[1:])
+        elif current_value == "S":
+            # Stat-linked: e.g. S
+            current_value = 0
+            join = ["S"]
         elif "+" in current_value:
             # Stat-linked: e.g. S+1
             split = current_value.split("+")
@@ -1791,7 +1817,8 @@ class ContentModStat(ContentMod):
 
         if join:
             # Stat-linked: e.g. S+1
-            return f"{''.join(join)}+{output_value}"
+            sign = "+" if mod_value > 0 else "-"
+            return f"{''.join(join)}{sign}{output_value}"
         elif output_value == "0":
             return ""
         elif self.stat in ["range_short", "range_long"]:
@@ -1845,3 +1872,98 @@ class ContentModTrait(ContentMod):
         verbose_name = "Trait Modifier"
         verbose_name_plural = "Trait Modifiers"
         ordering = ["trait__name", "mode"]
+
+
+@dataclass
+class VirtualWeaponProfile:
+    """
+    A virtual container for profiles that applies mods.
+    """
+
+    profile: ContentWeaponProfile
+    mods: list[ContentMod] = field(default_factory=list)
+
+    @property
+    def id(self):
+        return self.profile.id
+
+    @property
+    def name(self):
+        return self.profile.name
+
+    def cost_int(self):
+        return self.profile.cost_int()
+
+    def cost_display(self):
+        return f"{self.cost_int()}¢"
+
+    def _statmods(self, stat=None) -> list[ContentModStat]:
+        return [
+            mod
+            for mod in self.mods
+            if isinstance(mod, ContentModStat) and (stat is None or mod.stat == stat)
+        ]
+
+    def _traitmods(self) -> list[ContentModTrait]:
+        return [mod for mod in self.mods if isinstance(mod, ContentModTrait)]
+
+    def __post_init__(self):
+        stats = [
+            "range_short",
+            "range_long",
+            "accuracy_short",
+            "accuracy_long",
+            "strength",
+            "armour_piercing",
+            "damage",
+            "ammo",
+        ]
+        for stat in stats:
+            value = self.profile.__getattribute__(stat)
+            setattr(
+                self,
+                stat,
+                self._apply_mods(stat, value, self._statmods(stat=stat)),
+            )
+
+    def _apply_mods(self, stat: str, value: str, mods: list[ContentModStat]):
+        for mod in mods:
+            value = mod.apply(value)
+        return value
+
+    @property
+    def traits(self):
+        mods = self._traitmods()
+        value = list(self.profile.traits.all())
+        for mod in mods:
+            if mod.mode == "add" and mod.trait not in value:
+                value.append(mod.trait)
+            elif mod.mode == "remove" and mod.trait in value:
+                value.remove(mod.trait)
+        return value
+
+    def statline(self):
+        statline = self.profile.statline()
+        output = []
+        for stat in statline:
+            base_value = stat.value
+            value = getattr(self, stat.field_name) or "-"
+            if value != base_value:
+                stat = replace(stat, value=value, modded=True)
+            output.append(stat)
+        return output
+
+    def traitline(self):
+        # TODO: We need some kind of TraitDisplay thing
+        traitline = sorted([trait.name for trait in self.traits])
+        return traitline
+
+    @cached_property
+    def traitline_cached(self):
+        return self.traitline()
+
+    def __str__(self):
+        return self.name()
+
+    def __eq__(self, value):
+        return self.profile == value

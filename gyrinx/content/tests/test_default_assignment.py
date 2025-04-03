@@ -1,6 +1,11 @@
 import pytest
 
-from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentFighter,
+    ContentFighterDefaultAssignment,
+    ContentHouse,
+)
 from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
 
 
@@ -34,7 +39,9 @@ def test_default_assignment_with_weapon_profile():
         name="Spoon", category=EquipmentCategoryChoices.BASIC_WEAPONS, cost=10
     )
 
-    fighter_equip = fighter.default_assignments.create(equipment=spoon)
+    fighter_equip: ContentFighterDefaultAssignment = fighter.default_assignments.create(
+        equipment=spoon
+    )
     spoon_profile = fighter_equip.weapon_profiles_field.create(equipment=spoon)
 
     assert fighter.default_assignments.count() == 1

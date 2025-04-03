@@ -24,6 +24,18 @@ def test_stat_mod():
     ).apply("S+1") == "S+2"
 
     ContentModStat.objects.create(
+        stat="strength",
+        mode="improve",
+        value="1",
+    ).apply("S") == "S+1"
+
+    ContentModStat.objects.create(
+        stat="strength",
+        mode="worsen",
+        value="1",
+    ).apply("S") == "S-1"
+
+    ContentModStat.objects.create(
         stat="range_short",
         mode="improve",
         value="2",

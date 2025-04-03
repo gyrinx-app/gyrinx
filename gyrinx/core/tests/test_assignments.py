@@ -2,6 +2,7 @@ import pytest
 
 from gyrinx.content.models import (
     ContentEquipmentUpgrade,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListWeaponAccessory,
     ContentModStat,
     ContentModTrait,
@@ -377,6 +378,57 @@ def test_assign_accessory_stat_mod(
         "Add Me",
         "Rapid Fire (1)",
     ]
+
+
+@pytest.mark.django_db
+def test_default_assignment_accessory_stat_mod(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    spoon_profile = make_weapon_profile(spoon, strength="1")
+    spoon_with_spiky_bit = make_weapon_profile(
+        spoon, name="with spiky bit", strength="S+1"
+    )
+    spoon_scope, _ = ContentWeaponAccessory.objects.get_or_create(
+        name="Spoon Scope", cost=10
+    )
+
+    mod_str = ContentModStat.objects.create(
+        stat="strength",
+        mode="improve",
+        value="1",
+    )
+
+    spoon_scope.modifiers.set([mod_str])
+
+    content_fighter_equip = content_fighter.default_assignments.create(equipment=spoon)
+    content_fighter_equip.weapon_profiles_field.add(spoon_profile)
+    content_fighter_equip.weapon_profiles_field.add(spoon_with_spiky_bit)
+    content_fighter_equip.weapon_accessories_field.add(spoon_scope)
+
+    assert content_fighter_equip.cost_int() == 0
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    # Reminder: assignments() returns List[VirtuaListFighterEquipmentAssignment]
+    assert len(fighter.assignments()) == 1
+    assignment: ContentFighterDefaultAssignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+
+    assert assignment.standard_profiles()[0].strength == "2"
+
+    assert assignment.weapon_profiles()[0].strength == "2"
+    assert assignment.weapon_profiles()[1].strength == "S+2"
 
 
 @pytest.mark.django_db
