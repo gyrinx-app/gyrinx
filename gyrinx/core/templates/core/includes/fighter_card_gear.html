@@ -50,7 +50,7 @@
                                     <th scope="row" colspan="3"></th>
                                 {% endif %}
                                 <td colspan="12" class="{% flash assign.id %}">
-                                    {% if assign.is_from_default_assignment %}
+                                    {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                         <span bs-tooltip
                                               data-bs-toggle="tooltip"
                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
@@ -58,12 +58,17 @@
                                         {% endif %}
                                         {{ assign.name }}
                                         {% if assign.active_upgrade %}({{ assign.active_upgrade.name }}){% endif %}
-                                        {% if assign.is_from_default_assignment %}</span>{% endif %}
+                                        {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                     {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if not print %}
                                         {% if list.owner_cached == user %}
-                                            <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                               class="link-danger">Remove</a>
+                                            {% if assign.kind == 'assigned' %}
+                                                <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
+                                                   class="link-danger">Remove</a>
+                                            {% elif assign.kind == 'default' %}
+                                                <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
+                                                   class="link-danger">Remove</a>
+                                            {% endif %}
                                         {% endif %}
                                     {% endif %}
                                 </td>
@@ -97,6 +102,8 @@
                             <td colspan="12">
                                 {% if gear_mode_default == "link" %}
                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
+                                {% else %}
+                                    <span class="text-secondary">This fighter has no gear.</span>
                                 {% endif %}
                             </td>
                         </tr>

@@ -169,32 +169,42 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if mode == 'edit' and assign.kind == 'assigned' %}
+            {% if mode == 'edit' %}
                 <tr>
                     <td colspan="9" class="text-end">
                         <div class="d-flex btn-group">
-                            <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                               class="btn btn-outline-secondary btn-sm">
-                                <i class="bi-crosshair"></i>
-                                <span class="d-none d-sm-inline">Accessories</span>
-                            </a>
-                            {% if assign.upgrades_display|length > 0 %}
-                                <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
+                            {% if assign.kind == 'assigned' %}
+                                <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
                                    class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-arrow-up-circle"></i>
-                                    <span class="d-none d-sm-inline">{{ assign.equipment.upgrade_stack_name }}</span>
+                                    <i class="bi-crosshair"></i>
+                                    <span class="d-none d-sm-inline">Accessories</span>
+                                </a>
+                                {% if assign.upgrades_display|length > 0 %}
+                                    <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-arrow-up-circle"></i>
+                                        <span class="d-none d-sm-inline">{{ assign.equipment.upgrade_stack_name }}</span>
+                                    </a>
+                                {% endif %}
+                                <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
+                                   class="btn btn-outline-secondary btn-sm col-2 col-sm-3 flex-grow-0">
+                                    <span class="d-none d-sm-inline"><i class="bi-pencil"></i> Cost</span>
+                                    <span class="d-inline d-sm-none fw-bold">¢</span>
                                 </a>
                             {% endif %}
-                            <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
-                               class="btn btn-outline-secondary btn-sm col-2 col-sm-3 flex-grow-0">
-                                <span class="d-none d-sm-inline"><i class="bi-pencil"></i> Cost</span>
-                                <span class="d-inline d-sm-none fw-bold">¢</span>
-                            </a>
-                            <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
-                               class="btn btn-outline-danger btn-sm col-2 col-sm-3 flex-grow-0">
-                                <i class="bi-trash"></i>
-                                <span class="d-none d-sm-inline">Remove</span>
-                            </a>
+                            {% if assign.kind == 'assigned' %}
+                                <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
+                                   class="btn btn-outline-danger btn-sm col-2 col-sm-3 flex-grow-0">
+                                    <i class="bi-trash"></i>
+                                    <span class="d-none d-sm-inline">Remove</span>
+                                </a>
+                            {% elif assign.kind == 'default' %}
+                                <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
+                                   class="btn btn-outline-danger btn-sm col-2 col-sm-3 flex-grow-0">
+                                    <i class="bi-trash"></i>
+                                    <span class="d-none d-sm-inline">Remove</span>
+                                </a>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

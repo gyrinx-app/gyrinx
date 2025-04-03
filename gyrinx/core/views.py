@@ -14,6 +14,7 @@ from django.views import generic
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentUpgrade,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentPageRef,
@@ -1227,6 +1228,51 @@ def edit_list_fighter_weapon_upgrade(
             "action_url": action_name,
             "back_url": back_name,
             "form": form,
+        },
+    )
+
+
+@login_required
+def disable_list_fighter_default_assign(
+    request, id, fighter_id, assign_id, action_name, back_name
+):
+    """
+    Disable a default assignment from :model:`content.ContentFighterDefaultAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`content.ContentFighterDefaultAssignment` to be disabled.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_disable.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ContentFighterDefaultAssignment,
+        pk=assign_id,
+    )
+
+    if request.method == "POST":
+        fighter.disabled_default_assignments.add(assignment)
+        fighter.save()
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    return render(
+        request,
+        "core/list_fighter_assign_disable.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "action_url": action_name,
+            "back_url": back_name,
         },
     )
 

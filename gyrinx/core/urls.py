@@ -71,6 +71,24 @@ urlpatterns = [
         ),
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/gear/<assign_id>/disable",
+        views.disable_list_fighter_default_assign,
+        name="list-fighter-gear-default-disable",
+        kwargs=dict(
+            back_name="core:list-fighter-gear-edit",
+            action_name="core:list-fighter-gear-default-disable",
+        ),
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/disable",
+        views.disable_list_fighter_default_assign,
+        name="list-fighter-weapons-default-disable",
+        kwargs=dict(
+            back_name="core:list-fighter-weapons-edit",
+            action_name="core:list-fighter-weapons-default-disable",
+        ),
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/archive",
         views.archive_list_fighter,
         name="list-fighter-archive",
