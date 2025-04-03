@@ -14,21 +14,15 @@
                     {% if fighter.has_linked_fighter %}
                         <div class="fs-7 fst-italic">
                             <i class="bi-person"></i>
-                            <a href="#{{ fighter.linked_fighter.get.list_fighter.id }}"
+                            <a href="#{{ fighter.linked_list_fighter.id }}"
                                data-bs-toggle="tooltip"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                               title="This Fighter is linked to another as Equipment">
-                                {{ fighter.linked_fighter.get.list_fighter.name }}
+                               title="This Fighter is linked to {{ fighter.linked_list_fighter.name }} as Gear">
+                                {{ fighter.linked_list_fighter.name }}
                             </a>
                         </div>
                     {% endif %}
-                    {% if fighter.has_overriden_cost %}
-                        <div data-bs-toggle="tooltip"
-                             title="The base cost of this Fighter is modified (default is {{ fighter.base_cost_before_override_display }})"
-                             class="badge text-bg-warning bg-warning">{{ fighter.cost_display }}</div>
-                    {% else %}
-                        <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
-                    {% endif %}
+                    {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
                 </div>
             </div>
             <div class="hstack gap-2">

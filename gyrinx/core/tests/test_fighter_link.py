@@ -25,7 +25,10 @@ def test_basic_fighter_link(
         type="Beast",
         category=FighterCategoryChoices.EXOTIC_BEAST,
         house=house,
-        base_cost=0,
+        # Note: The fighter base cost is 20, and the equipment also has a cost.
+        #       The fighter base cost should be ignored when linked: it's the equipment
+        #       that matters.
+        base_cost=20,
     )
 
     beast_ce = make_equipment(
@@ -49,6 +52,7 @@ def test_basic_fighter_link(
     assign.save()
 
     assert assign.cost_int() == 50
+    # i.e. the cost of the fighter plus equipment only
     assert lst.cost_int() == 150
     assert lst.fighters().count() == 2
     assert assign.linked_fighter.name == beast_cf.type

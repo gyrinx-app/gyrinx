@@ -282,6 +282,10 @@ class ListFighter(AppBase):
         if self.cost_override is not None:
             return self.cost_override
 
+        # Or if it's linked...
+        if self.has_linked_fighter:
+            return 0
+
         return self._base_cost_before_override()
 
     def _base_cost_before_override(self):
@@ -403,6 +407,10 @@ class ListFighter(AppBase):
 
     def has_overriden_cost(self):
         return self.cost_override is not None
+
+    @cached_property
+    def linked_list_fighter(self):
+        return self.linked_fighter.get().list_fighter
 
     def toggle_default_assignment(
         self, assign: ContentFighterDefaultAssignment, enable=False
