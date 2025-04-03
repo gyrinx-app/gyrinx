@@ -1,4 +1,4 @@
-# Gyrinx
+# Overview
 
 This documentation site captures technical documentation for Gyrinx.
 
@@ -10,7 +10,7 @@ Analytics are through [Google Analytics](https://analytics.google.com/analytics/
 
 Project tasks, issues and to-dos are managed in the [Gyrinx GitHub Project](https://github.com/orgs/gyrinx-app/projects/1).
 
-## [Project Structure](https://gyrinx.app/docs/technical-overview/#project-structure)
+## Project Structure
 
 The project is structured into four Django apps. They are: **core**, **content**, **api** and **pages**.
 
@@ -26,7 +26,7 @@ At the project level we have a few useful and shared folders or libraries such a
 * a settings\_dev.py file for local development
 * a settings\_prod.py file for production
 
-## [Hosting, Database & Migrations](https://gyrinx.app/docs/technical-overview/#hosting-database-migrations)
+## Hosting, Database & Migrations
 
 The application is hosted on Google Cloud Run. This was a decision to help mitigate operational overheads and costs. Google Cloud Run scales down to zero when not in use and the Google Cloud Platform offers a huge amount of operational tools and dashboards for free.
 

@@ -1,3 +1,3 @@
 # Table of contents
 
-* [Gyrinx](README.md)
+* [Overview](README.md)
