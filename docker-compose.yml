@@ -20,7 +20,7 @@ services:
             - postgres_data:/var/lib/postgresql/data
 
     pgadmin:
-        image: dpage/pgadmin4
+        image: dpage/pgadmin4:9
         container_name: pgadmin
         ports:
             - "8001:80"
@@ -28,8 +28,17 @@ services:
         environment:
             PGADMIN_DEFAULT_EMAIL: foo@bar.com
             PGADMIN_DEFAULT_PASSWORD: pass
+            PGADMIN_CONFIG_SERVER_MODE: "False"
+            PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+        entrypoint: /bin/sh -c "chmod 600 /pgpass; /entrypoint.sh;"
+        user: root
         volumes:
             - pgadmin-data:/var/lib/pgadmin
+        configs:
+            - source: servers.json
+              target: /pgadmin4/servers.json
+            - source: pgpass
+              target: /pgpass
         depends_on:
             postgres:
                 condition: service_healthy
@@ -57,3 +66,19 @@ services:
 volumes:
     pgadmin-data: # To persist postgres connection details
     postgres_data:
+
+configs:
+    pgpass:
+        content: postgres:5432:*:postgres:postgres
+    servers.json:
+        content: |
+            {"Servers": {"1": {
+              "Group": "Servers",
+              "Name": "postgres@16.4",
+              "Host": "postgres",
+              "Port": 5432,
+              "MaintenanceDB": "postgres",
+              "Username": "postgres",
+              "PassFile": "/pgpass",
+              "SSLMode": "prefer"
+            }}}
