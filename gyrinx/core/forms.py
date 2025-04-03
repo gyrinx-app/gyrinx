@@ -78,6 +78,10 @@ class NewListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         inst = kwargs.get("instance", {})
+        self.fields["content_fighter"] = ContentFighterChoiceField(
+            queryset=self.fields["content_fighter"].queryset
+        )
+
         if inst:
             # Fighters for the house and from generic houses, excluding Exotic Beasts
             # who are added via equipment
@@ -88,12 +92,15 @@ class NewListFighterForm(forms.ModelForm):
                 house__in=[inst.list.content_house.id] + list(generic_houses),
             ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])
 
+            # If the fighter is linked, don't allow the content_fighter to be changed
+            if inst.has_linked_fighter:
+                self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
+                    id=inst.content_fighter.id
+                )
+                self.fields["content_fighter"].disabled = True
+
             if hasattr(inst, "content_fighter"):
                 self.fields["cost_override"].placeholder = inst._base_cost_int
-
-        self.fields["content_fighter"] = ContentFighterChoiceField(
-            queryset=self.fields["content_fighter"].queryset
-        )
 
         group_select(self, "content_fighter", key=lambda x: x.house.name)
 
