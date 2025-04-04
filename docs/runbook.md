@@ -24,9 +24,7 @@ We're a small, not-for-profit team building tools for enthusiasts. If you find y
 
 ### Architecture Overview
 
-<figure><img src=".gitbook/assets/image.png" alt=""><figcaption><p>Architecture overview of Gyrinx</p></figcaption></figure>
-
-
+<figure><img src=".gitbook/assets/image (2).png" alt=""><figcaption><p>Architecture overview of Gyrinx</p></figcaption></figure>
 
 
 
