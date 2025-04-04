@@ -48,7 +48,7 @@ This approach has some complexities and some advantages.
 
 The complexities are around making sure that (to a user) there _appears_ to be no difference between "default" and "direct" assignments, and around keeping the app performance good even as we dynamically recalculate cost.
 
-The advantage is that we can easily introduce new kinds of content, or fix bugs in the application of existing content to fighter cost, and all fighters will automatically update. It's simple to test and doesn't require us to manually various fighter and list costs whenever anything changes.
+The advantage is that we can easily introduce new kinds of content, or fix bugs in the application of existing content to fighter cost, and all fighters will automatically update. It's simple to test and doesn't require us to manually update various fighter and list costs whenever anything changes.
 
 ### Trust & advise the player
 
