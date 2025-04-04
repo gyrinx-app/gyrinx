@@ -4,7 +4,7 @@
 
 ## Operations
 
-* [Hosting, Database & Migrations](operations/hosting-database-and-migrations.md)
+* [Operational Overview](operations/operational-overview.md)
 
 ***
 
