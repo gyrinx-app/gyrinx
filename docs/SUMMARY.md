@@ -17,7 +17,7 @@
 ***
 
 * [Content](content.md)
-* [Features](features.md)
+* [Lists](lists.md)
 
 ## Links
 

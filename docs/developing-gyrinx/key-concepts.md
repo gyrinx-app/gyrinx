@@ -6,6 +6,7 @@ This section assumes you are familiar with Python+Django, Postgres, and HTML/CSS
 
 Quick guide to where to go:
 
+* Jump in and run the application locally → see the [GitHub README](https://github.com/gyrinx-app/gyrinx)
 * Build or extend support for archetypal concepts in Necromunda → **Content**
 * Add user-facing functionality and tools → **Core**
 * Improve the frontend of the application → **Core**
