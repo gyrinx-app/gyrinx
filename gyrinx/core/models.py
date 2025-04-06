@@ -245,6 +245,9 @@ class ListFighter(AppBase):
     disabled_default_assignments = models.ManyToManyField(
         ContentFighterDefaultAssignment, blank=True
     )
+    disabled_pskyer_default_powers = models.ManyToManyField(
+        ContentFighterPsykerPowerDefaultAssignment, blank=True
+    )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
     additional_rules = models.ManyToManyField(
@@ -394,14 +397,40 @@ class ListFighter(AppBase):
         return self.wargearline()
 
     def powers(self):
-        default_powers = self.content_fighter_cached.default_psyker_powers.all()
+        """
+        Get the psyker powers assigned to this fighter.
+        """
+        default_powers = self.psyker_default_powers()
+        assigned_powers = self.psyker_assigned_powers()
+
+        return list(default_powers + assigned_powers)
+
+    @cached_property
+    def powers_cached(self):
+        return self.powers()
+
+    def psyker_default_powers(self):
+        default_powers = self.content_fighter_cached.default_psyker_powers.exclude(
+            Q(pk__in=self.disabled_pskyer_default_powers.all())
+        )
         return [
             VirtualListFighterPsykerPowerAssignment.from_default_assignment(p, self)
             for p in default_powers
-        ] + [
+        ]
+
+    @cached_property
+    def psyker_default_powers_cached(self):
+        return self.psyker_default_powers()
+
+    def psyker_assigned_powers(self):
+        return [
             VirtualListFighterPsykerPowerAssignment.from_assignment(p)
             for p in self.psyker_powers.all()
         ]
+
+    @cached_property
+    def psyker_assigned_powers_cached(self):
+        return self.psyker_assigned_powers()
 
     def has_overriden_cost(self):
         return self.cost_override is not None
@@ -1315,7 +1344,7 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
 
     def clean(self):
         # TODO: Find a way to build this generically, rather than special-casing it
-        if not self.list_fighter.content_fighter.is_psyker():
+        if not self.list_fighter.content_fighter.is_psyker:
             raise ValidationError(
                 {
                     "list_fighter": "You can't assign a psyker power to a fighter that is not a psyker."
@@ -1393,9 +1422,15 @@ class VirtualListFighterPsykerPowerAssignment:
             _assignment=assignment,
         )
 
+    def id(self):
+        if not self._assignment:
+            return uuid.uuid4()
+
+        return self._assignment.id
+
     def name(self):
         if not self._assignment:
-            return f"{self.psyker_power.name} (Virtual)"
+            return f"{self.psyker_power.name}"
 
         return self._assignment.name()
 
@@ -1407,3 +1442,7 @@ class VirtualListFighterPsykerPowerAssignment:
             return "default"
 
         return "assigned"
+
+    @cached_property
+    def disc(self):
+        return f"{self.psyker_power.discipline.name}"

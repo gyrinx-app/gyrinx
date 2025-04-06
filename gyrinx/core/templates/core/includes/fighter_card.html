@@ -163,15 +163,20 @@
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Powers</th>
                         <td colspan="12">
-                            {% for assign in fighter.powers %}
+                            {% for assign in fighter.powers_cached %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% spaceless %}
                                     <span>{{ assign.name }}</span>
                                     {% if not forloop.last %}<span>,</span>{% endif %}
                                 {% endspaceless %}
                             {% empty %}
-                                <span class="fst-italic">Add psychic power</span>
+                                <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
                             {% endfor %}
+                            {% if fighter.powers_cached|length > 0 and not print %}
+                                {% if list.owner_cached == user %}
+                                    <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
+                                {% endif %}
+                            {% endif %}
                         </td>
                     </tr>
                 {% endif %}

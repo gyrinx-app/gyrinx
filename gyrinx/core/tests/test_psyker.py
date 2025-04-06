@@ -8,7 +8,7 @@ from gyrinx.content.models import (
     ContentPsykerPower,
     ContentRule,
 )
-from gyrinx.core.models import ListFighterPsykerPowerAssignment
+from gyrinx.core.models import ListFighter, ListFighterPsykerPowerAssignment
 
 
 @pytest.mark.django_db
@@ -80,6 +80,8 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     )
 
     assert fighter.psyker_powers.count() == 1
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 1
 
     # You can't assign a psyker power from a non-generic discipline if the ContentFighter is not assigned that discipline
     assign = ListFighterPsykerPowerAssignment.objects.create(
@@ -103,10 +105,14 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     )
 
     assert fighter.psyker_powers.count() == 2
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 2
 
     ft_assign.delete()
 
     assert fighter.psyker_powers.count() == 1
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 1
 
     # The above also applies to non-sanctioned psykers
     content_fighter.rules.add(non_sanctioned_psyker)
@@ -118,10 +124,14 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     )
 
     assert fighter.psyker_powers.count() == 2
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 2
 
     ft_assign.delete()
 
     assert fighter.psyker_powers.count() == 1
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 1
 
     # The above also applies to sanctioned psykers
     content_fighter.rules.add(sanctioned_psyker)
@@ -133,10 +143,14 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     )
 
     assert fighter.psyker_powers.count() == 2
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 2
 
     ft_assign.delete()
 
     assert fighter.psyker_powers.count() == 1
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 1
 
 
 @pytest.mark.django_db
@@ -164,19 +178,25 @@ def test_psyker_default_power(content_fighter, make_list, make_list_fighter):
 
     # This content fighter is a psyker
     content_fighter.rules.add(psyker)
+    content_fighter.save()
 
     # And they have a default psyker power
-    ContentFighterPsykerPowerDefaultAssignment.objects.create(
+    default_assign = ContentFighterPsykerPowerDefaultAssignment.objects.create(
         fighter=content_fighter,
         psyker_power=arachnosis,
     )
+    default_assign.save()
 
     assert content_fighter.default_psyker_powers.count() == 1
 
     lst = make_list("Test List")
-    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter: ListFighter = make_list_fighter(
+        lst, "Test Fighter", content_fighter=content_fighter
+    )
 
     assert len(fighter.powers()) == 1
+    assert len(fighter.psyker_default_powers()) == 1
+    assert len(fighter.psyker_assigned_powers()) == 0
 
     # You can't assign a power that is already assigned as a default
     assign = ListFighterPsykerPowerAssignment.objects.create(
@@ -186,3 +206,21 @@ def test_psyker_default_power(content_fighter, make_list, make_list_fighter):
     with pytest.raises(ValidationError):
         assign.full_clean()
     assign.delete()
+
+    # You can disable a default psyker power
+    fighter.disabled_pskyer_default_powers.add(default_assign)
+    fighter.save()
+
+    assert len(fighter.psyker_default_powers()) == 0
+    assert len(fighter.psyker_assigned_powers()) == 0
+    assert len(fighter.powers()) == 0
+    assert len(fighter.disabled_pskyer_default_powers.all()) == 1
+
+    # You can re-enable a default psyker power
+    fighter.disabled_pskyer_default_powers.remove(default_assign)
+    fighter.save()
+
+    assert len(fighter.psyker_default_powers()) == 1
+    assert len(fighter.psyker_assigned_powers()) == 0
+    assert len(fighter.powers()) == 1
+    assert len(fighter.disabled_pskyer_default_powers.all()) == 0

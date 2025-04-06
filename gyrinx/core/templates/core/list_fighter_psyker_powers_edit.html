@@ -1,0 +1,67 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Psyker Powers - {{ fighter.name }} - {{ fighter.content_fighter_cached.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-lg-12 px-0 vstack gap-3">
+        <h1 class="h3">{{ fighter.name }} - {{ fighter.content_fighter_cached.name }}</h1>
+        <div class="card col-12 col-lg-6">
+            <div class="card-header p-2">
+                <h2 class="h5 mb-0">Psyker Powers</h2>
+            </div>
+            <div class="card-body p-0 p-sm-2">
+                <div class="table-responsive-sm">
+                    <table class="table table-sm table-borderless table-hover mb-0">
+                        {% regroup assigns|dictsort:"disc" by disc as disciplines %}
+                        {% for discipline, assigns in disciplines %}
+                            <tbody>
+                                <tr>
+                                    <th colspan="2">{{ discipline }}</th>
+                                </tr>
+                                {% for assign in assigns %}
+                                    <tr class="align-middle">
+                                        <td>
+                                            {% if assign.kind == "default" %}
+                                                <span bs-tooltip
+                                                      data-bs-toggle="tooltip"
+                                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                      title="This power assigned to the fighter by default.">
+                                                {% endif %}
+                                                {{ assign.psyker_power.name }}
+                                                {% if assign.kind == "default" %}</span>{% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <form action="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}"
+                                                  method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden"
+                                                       name="psyker_power_id"
+                                                       value="{{ assign.psyker_power.id }}">
+                                                <input type="hidden" name="assign_kind" value="{{ assign.kind }}">
+                                                {% if assign.kind == "default" or assign.kind == "assigned" %}
+                                                    <input type="hidden" name="action" value="remove">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                        <i class="bi-trash"></i>
+                                                        Remove {{ assign.psyker_power.name }}
+                                                    </button>
+                                                {% else %}
+                                                    <input type="hidden" name="action" value="add">
+                                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                        <i class="bi-plus-lg"></i>
+                                                        Add {{ assign.psyker_power.name }}
+                                                    </button>
+                                                {% endif %}
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

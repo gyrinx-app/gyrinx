@@ -48,6 +48,11 @@ urlpatterns = [
         name="list-fighter-skills-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/powers",
+        views.edit_list_fighter_powers,
+        name="list-fighter-powers-edit",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/gear",
         views.edit_list_fighter_gear,
         name="list-fighter-gear-edit",

@@ -240,7 +240,7 @@ class ContentFighterPsykerDisciplineAssignment(Content):
         """
         Validation to ensure that a generic discipline cannot be assigned to a fighter.
         """
-        if not self.fighter.is_psyker():
+        if not self.fighter.is_psyker:
             raise ValidationError(
                 {
                     "fighter": "Cannot assign a psyker discipline to a non-psyker fighter."
@@ -285,7 +285,7 @@ class ContentFighterPsykerPowerDefaultAssignment(Content):
         """
         Validation to ensure that defaults cannot be assigned to a non-Psyker fighter.
         """
-        if "fighter" not in exclude and not self.fighter.is_psyker():
+        if "fighter" not in exclude and not self.fighter.is_psyker:
             raise ValidationError(
                 {"fighter": "Cannot assign a psyker power to a non-psyker fighter."}
             )
@@ -695,6 +695,7 @@ class ContentFighter(Content):
         """
         return [rule.name for rule in self.rules.all()]
 
+    @cached_property
     def is_psyker(self):
         """
         Indicates whether this fighter is a psyker.

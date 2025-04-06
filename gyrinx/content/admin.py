@@ -249,7 +249,7 @@ class ContentFighterForm(forms.ModelForm):
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
-    list_filter = ["category", "house"]
+    list_filter = ["category", "house", "psyker_disciplines__discipline"]
     inlines = [
         ContentFighterHouseOverrideInline,
         ContentFighterEquipmentInline,

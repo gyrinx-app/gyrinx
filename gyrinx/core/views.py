@@ -16,8 +16,11 @@ from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentPageRef,
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
     ContentSkillCategory,
     ContentWeaponAccessory,
 )
@@ -37,7 +40,9 @@ from gyrinx.core.models import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,
+    ListFighterPsykerPowerAssignment,
     VirtualListFighterEquipmentAssignment,
+    VirtualListFighterPsykerPowerAssignment,
 )
 from gyrinx.models import QuerySetOf
 
@@ -731,6 +736,152 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "n_cats": n_cats,
             "skill_cats": list(skill_cats),
             "special_cats": list(special_cats),
+        },
+    )
+
+
+@login_required
+def edit_list_fighter_powers(request, id, fighter_id):
+    """
+    Edit the psyker powers of an existing :model:`core.ListFighter`.
+
+    **Context**
+
+    ``form``
+        A ListFighterPowersForm for selecting fighter powers.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_psyker_powers_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        power_id = request.POST.get("psyker_power_id", None)
+        if not power_id:
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
+            )
+
+        if request.POST.get("action") == "remove":
+            kind = request.POST.get("assign_kind")
+            if kind == "default":
+                default_assign = get_object_or_404(
+                    ContentFighterPsykerPowerDefaultAssignment,
+                    psyker_power=power_id,
+                    fighter=fighter.content_fighter_cached,
+                )
+                fighter.disabled_pskyer_default_powers.add(default_assign)
+                fighter.save()
+                return HttpResponseRedirect(
+                    reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
+                )
+            elif kind == "assigned":
+                assign = get_object_or_404(
+                    ListFighterPsykerPowerAssignment,
+                    psyker_power=power_id,
+                    list_fighter=fighter,
+                )
+                assign.delete()
+                return HttpResponseRedirect(
+                    reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
+                )
+            else:
+                error_message = "Invalid action."
+        elif request.POST.get("action") == "add":
+            power = get_object_or_404(
+                ContentPsykerPower,
+                id=power_id,
+            )
+            assign = ListFighterPsykerPowerAssignment(
+                list_fighter=fighter,
+                psyker_power=power,
+            )
+            assign.save()
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
+            )
+
+    # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
+    disabled_defaults = fighter.disabled_pskyer_default_powers.values("id")
+    powers: QuerySetOf[ContentPsykerPower] = (
+        ContentPsykerPower.objects.filter(
+            # Get powers via disciplines that are are assigned, or are generic...
+            Q(
+                discipline__in=ContentPsykerDiscipline.objects.filter(
+                    Q(fighter_assignments__fighter=fighter.content_fighter_cached)
+                    | Q(generic=True)
+                ).distinct()
+            )
+            # ...and get powers that are assigned to this fighter by default
+            | Q(
+                fighter_assignments__fighter=fighter.content_fighter_cached,
+            )
+        )
+        .distinct()
+        .prefetch_related("discipline")
+        .annotate(
+            assigned_direct=Exists(
+                ListFighterPsykerPowerAssignment.objects.filter(
+                    list_fighter=fighter,
+                    psyker_power=OuterRef("pk"),
+                ).values("psyker_power_id")
+            ),
+            assigned_default=Exists(
+                ContentFighterPsykerPowerDefaultAssignment.objects.filter(
+                    fighter=fighter.content_fighter_cached,
+                    psyker_power=OuterRef("pk"),
+                )
+                .exclude(id__in=disabled_defaults)
+                .values("psyker_power_id")
+            ),
+        )
+    )
+
+    # TODO: Re-querying this is inefficient, but it's ok for now.
+    assigns = []
+    for power in powers:
+        if power.assigned_direct:
+            assigns.append(
+                VirtualListFighterPsykerPowerAssignment.from_assignment(
+                    ListFighterPsykerPowerAssignment(
+                        list_fighter=fighter,
+                        psyker_power=power,
+                    ),
+                )
+            )
+        elif power.assigned_default:
+            assigns.append(
+                VirtualListFighterPsykerPowerAssignment.from_default_assignment(
+                    ContentFighterPsykerPowerDefaultAssignment(
+                        fighter=fighter.content_fighter_cached,
+                        psyker_power=power,
+                    ),
+                    fighter=fighter,
+                )
+            )
+        else:
+            assigns.append(
+                VirtualListFighterPsykerPowerAssignment(
+                    fighter=fighter, psyker_power=power
+                )
+            )
+
+    return render(
+        request,
+        "core/list_fighter_psyker_powers_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "powers": powers,
+            "assigns": assigns,
+            "error_message": error_message,
         },
     )
 
