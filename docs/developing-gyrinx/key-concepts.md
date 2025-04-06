@@ -1,7 +1,7 @@
 # Key Concepts
 
 {% hint style="info" %}
-This section assumes you are familiar with Python+Django, Postgres, and HTML/CSS/Javascript.
+This section assumes you are reasonably familiar with Python, Django, Postgres, and HTML/CSS/Javascript. Those are the main technologies we use. If you're not, don't let that stop you — we'd still welcome your contributions!
 {% endhint %}
 
 Quick guide to where to go:
@@ -13,15 +13,23 @@ Quick guide to where to go:
 
 ## Project Structure
 
+The project is structured into four Django apps. They are: **core**, **content**, **api** and **pages**.
 
+Within **content** we have the models and admin for the core content library; this is where our content managers spend most of their time on the admin side ensuring that all the data inside Gyrinx is up to date with the Necromunda rulebooks.
 
-At the project level we have a few useful and shared folders or libraries such as overriding core or Django templates to improve the form rendering or to have shared models between the whole application.
+In the **core** area we have lists and list fighters and all the functionality that is more user facing.
+
+Within **pages** we have the static, user-facing documentation.
+
+There are also a few useful and shared folders or libraries such as overriding core Django templates to improve the form rendering, to have shared models between the whole application.
+
+### Django Settings
 
 We manage our settings using three settings files:
 
 * a base file simply called `settings.py`
-* a `settings_dev.py` file for local development
-* a `settings_prod.py` file for production
+* a `settings_dev.py` file for **local development**
+* a `settings_prod.py` file for **production**
 
 ### Directory Structure
 
@@ -59,16 +67,6 @@ Here's a breakdown of the directories in the repo, with files that are not impor
     └── manage.py           -- Dyango command line management script
 ```
 
-### Application Structure
-
-The project is structured into four Django apps. They are: **core**, **content**, **api** and **pages**.
-
-Within **content** we have the models and admin for the core content library; this is where our content managers spend most of their time on the admin side ensuring that all the data inside Gyrinx is up to date with the Necromunda rulebooks.
-
-In the **core** area we have lists and list fighters and all the functionality that is more user facing.
-
-Within **pages** we have the static, user-facing documentation.
-
 ## Technical Principles of Gyrinx
 
 ### Not an SPA
@@ -85,3 +83,9 @@ This principle is chosen because:
 
 1. It forces thoughtful ordering, heirarchy and placement of key UI elements, helping with a simple user experience
 2. We expect users to use Gyrinx on their phones at the gaming table
+
+### Make it work; make it right; make it fast
+
+Performance comes after we build stuff _right_. Necromunda is a complex game and it can be hard to get the implementation of a specific game rule exactly right first time. As a result, we try to always-be-shipping: get stuff working, ship it, and iterate.
+
+Performance is important, but performance optimising the wrong implementation is waste of time. When optimising performance, we start with the basics: duplication of database queries and unnecessary round trips. We're not really interested in algorithmic complexity.
