@@ -228,6 +228,16 @@ class ListFighterEquipmentAssignmentCostForm(forms.ModelForm):
 
 
 class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst: ListFighterEquipmentAssignment | None = kwargs.get("instance", None)
+        if inst is not None:
+            self.fields[
+                "weapon_accessories_field"
+            ].queryset = ContentWeaponAccessory.objects.with_cost_for_fighter(
+                inst.list_fighter.content_fighter
+            ).all()
+
     weapon_accessories_field = ListFighterEquipmentField(
         label="Accessories",
         queryset=ContentWeaponAccessory.objects.all(),
