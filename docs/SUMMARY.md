@@ -16,6 +16,7 @@
 
 ***
 
+* [Technology Choices](technology-choices.md)
 * [Content](content.md)
 * [Lists](lists.md)
 * [Psykers](psykers.md)
