@@ -65,13 +65,18 @@ class EditListForm(forms.ModelForm):
 
 
 class ContentFighterChoiceField(forms.ModelChoiceField):
+    content_house: ContentHouse | None = None
+
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("widget", forms.Select(attrs={"class": "form-select"}))
         kwargs.setdefault("label", "Fighter")
         super().__init__(*args, **kwargs)
 
-    def label_from_instance(self, obj):
-        return f"{obj.name()}"
+    def label_from_instance(self, obj: ContentFighter):
+        cost_for_house = (
+            obj.cost_for_house(self.content_house) if self.content_house else obj.cost
+        )
+        return f"{obj.name()} ({cost_for_house}¢)"
 
 
 class NewListFighterForm(forms.ModelForm):
@@ -88,6 +93,7 @@ class NewListFighterForm(forms.ModelForm):
             generic_houses = ContentHouse.objects.filter(generic=True).values_list(
                 "id", flat=True
             )
+            self.fields["content_fighter"].content_house = inst.list.content_house
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
                 house__in=[inst.list.content_house.id] + list(generic_houses),
             ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])

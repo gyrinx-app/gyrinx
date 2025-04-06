@@ -292,13 +292,13 @@ class ListFighter(AppBase):
     def _base_cost_before_override(self):
         # Or by the house...
         # Is this an override? Yes, but not set on the fighter itself.
-        cost_overrides = ContentFighterHouseOverride.objects.filter(
+        cost_override = ContentFighterHouseOverride.objects.filter(
             fighter=self.content_fighter_cached,
             house=self.list.content_house,
             cost__isnull=False,
-        )
-        if cost_overrides.exists():
-            return cost_overrides.get().cost
+        ).first()
+        if cost_override:
+            return cost_override.cost
 
         # But if neither of those are set, we just use the base cost from the content fighter
         return self.content_fighter_cached.cost_int()

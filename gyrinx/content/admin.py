@@ -260,6 +260,12 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     actions = [copy_selected_to_house]
 
 
+@admin.register(ContentFighterHouseOverride)
+class ContentFighterHouseOverrideAdmin(ContentAdmin):
+    search_fields = ["fighter__type", "house__name"]
+    list_filter = ["fighter__type", "house"]
+
+
 @admin.register(ContentPolicy)
 class ContentPolicyAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]

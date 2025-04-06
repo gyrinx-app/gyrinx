@@ -655,6 +655,21 @@ class ContentFighter(Content):
         """
         return int(self.cost())
 
+    def cost_for_house(self, house):
+        """
+        Returns the cost of the fighter for a specific house, including
+        any overrides.
+        """
+        cost_override = ContentFighterHouseOverride.objects.filter(
+            fighter=self,
+            house=house,
+            cost__isnull=False,
+        ).first()
+        if cost_override:
+            return cost_override.cost
+
+        return self.cost_int()
+
     def statline(self):
         """
         Returns a list of dictionaries describing the fighter's core stats,

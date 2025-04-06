@@ -5,6 +5,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterHouseOverride,
     ContentHouse,
     ContentRule,
     ContentWeaponProfile,
@@ -25,6 +26,35 @@ def test_basic_fighter():
     fighter.save()
     assert fighter.type == "Prospector Digger"
     assert fighter.category.name == FighterCategoryChoices.JUVE
+
+
+@pytest.mark.django_db
+def test_fighter_cost_for_house():
+    category = FighterCategoryChoices.JUVE
+    house = ContentHouse.objects.create(
+        name="Squat Prospectors",
+    )
+    generic_house = ContentHouse.objects.create(
+        name="Hangers-on",
+        generic=True,
+    )
+    fighter = ContentFighter.objects.create(
+        type="Random Guy",
+        category=category,
+        house=generic_house,
+        base_cost=50,
+    )
+
+    assert fighter.cost_int() == 50
+    assert fighter.cost_for_house(house) == 50
+
+    ContentFighterHouseOverride.objects.create(
+        fighter=fighter,
+        house=house,
+        cost=40,
+    )
+    assert fighter.cost_for_house(house) == 40
+    assert fighter.cost_for_house(generic_house) == 50
 
 
 @pytest.mark.django_db
