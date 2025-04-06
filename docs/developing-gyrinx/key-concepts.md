@@ -13,6 +13,8 @@ Quick guide to where to go:
 
 ## Project Structure
 
+
+
 At the project level we have a few useful and shared folders or libraries such as overriding core or Django templates to improve the form rendering or to have shared models between the whole application.
 
 We manage our settings using three settings files:
@@ -66,3 +68,20 @@ Within **content** we have the models and admin for the core content library; th
 In the **core** area we have lists and list fighters and all the functionality that is more user facing.
 
 Within **pages** we have the static, user-facing documentation.
+
+## Technical Principles of Gyrinx
+
+### Not an SPA
+
+We could have built Gyrinx as a React-based single-page application with an API. However, for reasons of accessibility and ease of integration with Django, as well as just the simplicity of HTML and an ability to work extensively with the blessed path in Django, we did not take the SPA approach. As a result, our primary way of building should be pages that offer simple HTML-driven UI, and where changes happen, they happen via a form submit.
+
+This principle keeps the pages easy to reason about and simple, and allows us to do most performance work on the server side and simply render HTML.
+
+### Mobile-first
+
+We design and build Gyrinx mobile-first. That means that every page should work in linear, single column view _first_, and scale up from there. Explicitly: it's OK if a page's design _only_ looks right on mobile for the first iteration, with other design changes coming later.
+
+This principle is chosen because:
+
+1. It forces thoughtful ordering, heirarchy and placement of key UI elements, helping with a simple user experience
+2. We expect users to use Gyrinx on their phones at the gaming table

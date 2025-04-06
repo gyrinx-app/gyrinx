@@ -18,11 +18,11 @@ One slight variant in particular is that because we use Django, we use the Djang
 
 ### Django
 
-Django is an easy and obvious choice for a Python framework. You get a huge amount for free. There is a great community and it's very actively developed. The documentation is high quality and there is a rich ecosystem of third-party plugins and tools to build on top of and around. In many cases we get entire chunks of functionality for free just because of the Django ecosystem such as AllAuth (although there are many other examples).
+Django is an easy and obvious choice for a Python framework. You get a huge amount for free. There is a great community and it's very actively developed. The documentation is high quality and there is a rich ecosystem of third-party plugins and tools to build on top of and around. In many cases we get entire chunks of functionality for free thanks to Django ecosystem — one great example is AllAuth, although there are many other examples.
 
 ### Bootstrap
 
-Like Django, Bootstrap is a mature framework and has excellent documentation, is well battle-tested and has become much more usable for a diverse array of projects in the last few years. Their excellent support for mobile-first and responsive applications as well as accessibility built-in means we can get a lot for free as we build out the Gyrinx.
+Like Django, Bootstrap is a mature framework and has excellent documentation, is well battle-tested and has become much more usable for a diverse array of projects in the last few years. Their excellent support for mobile-first and responsive applications as well as accessibility built-in means we can get a lot for free as we build out Gyrinx.
 
 ### Postgres
 
@@ -35,12 +35,6 @@ Google Cloud has emerged as a mature and easy to use cloud provider that gives d
 ### Docker
 
 Using Docker to run Gyrinx locally, and in particular using Docker Compose standardises our use of container deployment and makes it easy for other non-core developers to spin up Gyrinx and make contributions. We should always aim to have new functionality work in Docker from the start so that it can be developed on locally. This also stands us in good stead for deployment of the application as containerised environments are fairly replicable locally and into the cloud.
-
-## Application Architecture
-
-### Not an SPA
-
-We could have built Gyrinx as a React-based single-page application with an API. However, for reasons of accessibility and ease of integration with Django, as well as just the simplicity of HTML and an ability to work extensively with the blessed path in Django, we did not take the SPA approach. As a result, our primary way of building should be pages that offer simple HTML-driven UI, and where changes happen, they happen via a form submit. This keeps the pages easy to reason about and simple, and allows us to do most performance work on the server side and simply render HTML.
 
 ## Future Tools
 
