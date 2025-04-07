@@ -19,7 +19,7 @@
     "license": "ISC",
     "dependencies": {
         "@popperjs/core": "^2.11.8",
-        "bootstrap": "^5.3.3"
+        "bootstrap": "^5.3.5"
     },
     "devDependencies": {
         "autoprefixer": "^10.4.21",
@@ -28,9 +28,9 @@
         "postcss": "^8.5.3",
         "postcss-cli": "^11.0.1",
         "prettier": "^3.5.3",
-        "sass": "^1.86.0",
+        "sass": "^1.86.3",
         "sirv-cli": "^3.0.1",
-        "stylelint": "^16.17.0",
+        "stylelint": "^16.18.0",
         "stylelint-config-twbs-bootstrap": "^16.0.0"
     }
 }
