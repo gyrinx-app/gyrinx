@@ -629,6 +629,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def content_equipment_cached(self):
         return self.content_equipment
 
+    @cached_property
+    def list_fighter_cached(self):
+        return self.list_fighter
+
     # Information & Display
 
     def name(self):
@@ -1014,8 +1018,8 @@ class VirtualListFighterEquipmentAssignment:
     @classmethod
     def from_assignment(cls, assignment: ListFighterEquipmentAssignment):
         return cls(
-            fighter=assignment.list_fighter,
-            equipment=assignment.content_equipment,
+            fighter=assignment.list_fighter_cached,
+            equipment=assignment.content_equipment_cached,
             profiles=assignment.all_profiles_cached,
             _assignment=assignment,
         )

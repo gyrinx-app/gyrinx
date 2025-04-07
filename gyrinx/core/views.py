@@ -926,7 +926,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
 
     equipment: QuerySetOf[ContentEquipment] = (
         ContentEquipment.objects.non_weapons().with_cost_for_fighter(
-            fighter.content_fighter
+            fighter.content_fighter_cached
         )
     )
 
@@ -943,7 +943,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
         equipment = equipment.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.content_fighter
+                    fighter=fighter.content_fighter_cached
                 ).values("equipment_id")
             )
         )
@@ -1019,9 +1019,9 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             )
 
     weapons: QuerySetOf[ContentEquipment] = (
-        ContentEquipment.objects.with_cost_for_fighter(
-            fighter.content_fighter
-        ).weapons()
+        ContentEquipment.objects.weapons()
+        .with_cost_for_fighter(fighter.content_fighter_cached)
+        .with_profiles_for_fighter(fighter.content_fighter_cached)
     )
 
     if request.GET.get("q"):
@@ -1037,14 +1037,14 @@ def edit_list_fighter_weapons(request, id, fighter_id):
         weapons = weapons.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.content_fighter
+                    fighter=fighter.content_fighter_cached
                 ).values("equipment_id")
             )
         )
 
     assigns = []
     for weapon in weapons:
-        profiles = weapon.profiles_for_fighter(fighter.content_fighter)
+        profiles = weapon.profiles_for_fighter(fighter.content_fighter_cached)
         assigns.append(
             VirtualListFighterEquipmentAssignment(
                 fighter=fighter,

@@ -388,6 +388,23 @@ class ContentEquipmentQuerySet(models.QuerySet):
             cost_for_fighter=Coalesce("cost_override", "cost_cast_int"),
         )
 
+    def with_profiles_for_fighter(
+        self, content_fighter: "ContentFighter"
+    ) -> "ContentEquipmentQuerySet":
+        """
+        Annotates the queryset with weapon profiles for a given fighter, if any.
+        """
+        # contentweaponprofile_set.with_cost_for_fighter(content_fighter)
+        return self.prefetch_related(
+            models.Prefetch(
+                "contentweaponprofile_set",
+                queryset=ContentWeaponProfile.objects.with_cost_for_fighter(
+                    content_fighter
+                ),
+                to_attr="pre_profiles_for_fighter",
+            )
+        )
+
 
 class ContentEquipment(Content):
     """
@@ -495,6 +512,9 @@ class ContentEquipment(Content):
         Returns all weapon profiles for this equipment, annotated with
         fighter-specific cost if available.
         """
+        if hasattr(self, "pre_profiles_for_fighter"):
+            return self.pre_profiles_for_fighter
+
         return self.contentweaponprofile_set.with_cost_for_fighter(content_fighter)
 
     class Meta:
@@ -508,7 +528,9 @@ class ContentEquipment(Content):
         if self.cost_int() < 0:
             raise ValidationError("Cost cannot be negative.")
 
-    objects = ContentEquipmentManager.from_queryset(ContentEquipmentQuerySet)()
+    objects: ContentEquipmentManager = ContentEquipmentManager.from_queryset(
+        ContentEquipmentQuerySet
+    )()
 
 
 class ContentFighterManager(models.Manager):
