@@ -191,14 +191,17 @@
                                     <span class="d-none d-sm-inline"><i class="bi-pencil"></i> Cost</span>
                                     <span class="d-inline d-sm-none fw-bold">¢</span>
                                 </a>
-                            {% endif %}
-                            {% if assign.kind == 'assigned' %}
                                 <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                                    class="btn btn-outline-danger btn-sm col-2 col-sm-3 flex-grow-0">
                                     <i class="bi-trash"></i>
                                     <span class="d-none d-sm-inline">Remove</span>
                                 </a>
                             {% elif assign.kind == 'default' %}
+                                <a href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i>
+                                    Modify from default
+                                </a>
                                 <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
                                    class="btn btn-outline-danger btn-sm col-2 col-sm-3 flex-grow-0">
                                     <i class="bi-trash"></i>

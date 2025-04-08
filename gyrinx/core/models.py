@@ -37,6 +37,7 @@ from gyrinx.content.models import (
 from gyrinx.models import Archived, Base, Owned, QuerySetOf
 
 logger = logging.getLogger(__name__)
+pylist = list
 
 
 class AppBase(Base, Owned, Archived):
@@ -313,21 +314,21 @@ class ListFighter(AppBase):
         return f"{self.cost_int_cached}¢"
 
     def assign(
-        self, equipment, weapon_profiles=None, weapon_accessories=None
+        self,
+        equipment,
+        weapon_profiles: pylist[ContentWeaponProfile] | None = None,
+        weapon_accessories: pylist[ContentWeaponAccessory] | None = None,
+        from_default_assignment: ContentFighterDefaultAssignment | None = None,
+        cost_override: int | None = None,
     ) -> "ListFighterEquipmentAssignment":
         """
         Assign equipment to the fighter, optionally with weapon profiles and accessories.
 
-        Note that this is only used in tests. Behaviour here will not be run when assignments are made
-        through the UI.
-
-        The actual way things are assigned:
+        The typical way things are assigned does not use this method:
         - We create a "virtual" assignment with main and profile fields
         - The data from the virtual assignment is POSTed back each time equipment is added
         - This allows us to create an instance of ListFighterEquipmentAssignment with the correct
             weapon profiles and accessories each time equipment is added.
-
-        TODO: Deprecate this method.
         """
         # We create the assignment directly because Django does not use the through_defaults
         # if you .add() equipment that is already in the list, which prevents us from
@@ -335,6 +336,8 @@ class ListFighter(AppBase):
         assign = ListFighterEquipmentAssignment(
             list_fighter=self, content_equipment=equipment
         )
+        assign.save()
+
         if weapon_profiles:
             for profile in weapon_profiles:
                 assign.assign_profile(profile)
@@ -343,22 +346,31 @@ class ListFighter(AppBase):
             for accessory in weapon_accessories:
                 assign.weapon_accessories_field.add(accessory)
 
+        if from_default_assignment:
+            assign.from_default_assignment = from_default_assignment
+
+        if cost_override is not None:
+            assign.cost_override = cost_override
+
         assign.save()
         return assign
 
     def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
         return self.equipment.through.objects.filter(list_fighter=self)
 
-    def assignments(self):
-        default_assignments = self.content_fighter_cached.default_assignments.exclude(
+    @cached_property
+    def _default_assignments(self):
+        return self.content_fighter_cached.default_assignments.exclude(
             Q(pk__in=self.disabled_default_assignments.all())
         )
+
+    def assignments(self):
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
             for a in self._direct_assignments().order_by("list_fighter__name")
         ] + [
             VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
-            for a in default_assignments
+            for a in self._default_assignments
         ]
 
     @cached_property
@@ -445,7 +457,7 @@ class ListFighter(AppBase):
         """
         Turn off a specific default assignment for this Fighter.
         """
-        exists = self.content_fighter.default_assignments.contains(assign)
+        exists = self.content_fighter_cached.default_assignments.contains(assign)
         already_disabled = self.disabled_default_assignments.contains(assign)
         if enable and already_disabled:
             self.disabled_default_assignments.remove(assign)
@@ -453,6 +465,31 @@ class ListFighter(AppBase):
             self.disabled_default_assignments.add(assign)
 
         self.save()
+
+    def convert_default_assignment(
+        self,
+        assign: "VirtualListFighterEquipmentAssignment | ContentFighterDefaultAssignment",
+    ):
+        """
+        Convert a default assignment to a direct assignment.
+        """
+        try:
+            assignment: ContentFighterDefaultAssignment = self._default_assignments.get(
+                id=assign.id
+            )
+        except ContentFighterDefaultAssignment.DoesNotExist:
+            raise ValueError(
+                f"Default assignment {assign} not found on {self.content_fighter}"
+            )
+
+        self.toggle_default_assignment(assignment, enable=False)
+        self.assign(
+            equipment=assignment.equipment,
+            weapon_profiles=assignment.weapon_profiles_field.all(),
+            weapon_accessories=assignment.weapon_accessories_field.all(),
+            from_default_assignment=assignment,
+            cost_override=0,
+        )
 
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
@@ -652,7 +689,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     # Profiles
 
-    def assign_profile(self, profile):
+    def assign_profile(self, profile: "ContentWeaponProfile"):
         """Assign a weapon profile to this equipment."""
         if profile.equipment != self.content_equipment_cached:
             raise ValueError(
@@ -832,9 +869,6 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self._profile_cost_with_override()
 
     def _profile_cost_with_override_for_profile(self, profile: "VirtualWeaponProfile"):
-        if hasattr(profile.profile, "cost_for_fighter"):
-            return profile.cost_for_fighter_int()
-
         # Cache the results of this method for each profile so we don't have to recalculate
         # by fetching the override each time.
         # TODO: There is almost certainly a utility method for this somewhere.
@@ -847,6 +881,27 @@ class ListFighterEquipmentAssignment(Base, Archived):
                 ]
             except KeyError:
                 pass
+
+        if (
+            self.from_default_assignment
+            and self.from_default_assignment.weapon_profiles_field.contains(
+                profile.profile
+            )
+        ):
+            # If this is a default assignment and the default assignment contains this profile,
+            # then we don't need to check for an override: it's free.
+            cost = 0
+            self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
+                cost
+            )
+            return cost
+
+        if hasattr(profile.profile, "cost_for_fighter"):
+            cost = profile.cost_for_fighter_int()
+            self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
+                cost
+            )
+            return cost
 
         try:
             override = ContentFighterEquipmentListItem.objects.get(
@@ -876,6 +931,14 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return sum(after_overrides)
 
     def _accessory_cost_with_override(self, accessory):
+        if self.from_default_assignment:
+            # If this is a default assignment and the default assignment contains this accessory,
+            # then we don't need to check for an override: it's free.
+            if self.from_default_assignment.weapon_accessories_field.contains(
+                accessory
+            ):
+                return 0
+
         if hasattr(accessory, "cost_for_fighter"):
             return accessory.cost_for_fighter_int()
 
@@ -898,7 +961,6 @@ class ListFighterEquipmentAssignment(Base, Archived):
         if not self.upgrade:
             return 0
 
-        # TODO: Overrides?
         return self.upgrade.cost_int()
 
     @cached_property
@@ -1101,6 +1163,13 @@ class VirtualListFighterEquipmentAssignment:
         # Walks like duck... vs kind() ... vs polymorphism vs isinstance. Types!
         if self.has_total_cost_override():
             return self._assignment.total_cost_override
+
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return 0
+
+        if isinstance(self._assignment, ListFighterEquipmentAssignment):
+            # If this is a direct assignment, we can use the cost directly
+            return self._assignment.cost_int()
 
         return (
             self.base_cost_int()

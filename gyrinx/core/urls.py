@@ -94,6 +94,15 @@ urlpatterns = [
         ),
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/convert",
+        views.convert_list_fighter_default_assign,
+        name="list-fighter-weapons-default-convert",
+        kwargs=dict(
+            back_name="core:list-fighter-weapons-edit",
+            action_name="core:list-fighter-weapons-default-convert",
+        ),
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/archive",
         views.archive_list_fighter,
         name="list-fighter-archive",

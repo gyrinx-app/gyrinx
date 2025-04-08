@@ -1,0 +1,25 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Enable default assignment modification - {{ assign.equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url back_url list.id fighter.id as full_back_url %}
+    {% include "core/includes/back.html" with url=full_back_url %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Enable modification of the {{ assign.equipment.name }}</h1>
+        <form action="{% url action_url list.id fighter.id assign.id %}"
+              method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to enable modification of this {{ assign.equipment.name }}?</p>
+            <div class="alert alert-warning" role="alert">
+                Watch out! If you later remove this equipment, the default assignment <strong>not</strong> be restored.
+            </div>
+            <div class="mt-3">
+                <input type="hidden" name="convert" value="1">
+                <input type="submit" class="btn btn-primary" value="Enable">
+                <a href="{{ full_back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

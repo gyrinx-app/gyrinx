@@ -1429,6 +1429,53 @@ def disable_list_fighter_default_assign(
 
 
 @login_required
+def convert_list_fighter_default_assign(
+    request, id, fighter_id, assign_id, action_name, back_name
+):
+    """
+    Convert a default assignment from :model:`content.ContentFighterDefaultAssignment` to a
+    :model:`core.ListFighterEquipmentAssignment`.
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`content.ContentFighterDefaultAssignment` to be converted.
+    ``action_url``
+        The URL to redirect to after the conversion.
+    ``back_url``
+        The URL to redirect back to the list fighter.
+
+    **Template**
+    :template:`core/list_fighter_assign_convert.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ContentFighterDefaultAssignment,
+        pk=assign_id,
+    )
+
+    if request.method == "POST":
+        fighter.convert_default_assignment(assignment)
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    return render(
+        request,
+        "core/list_fighter_assign_convert.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
+    )
+
+
+@login_required
 def archive_list_fighter(request, id, fighter_id):
     """
     Archive or unarchive a :model:`core.ListFighter`.

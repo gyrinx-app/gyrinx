@@ -54,16 +54,20 @@ def test_fighter_disable_default_assignment(
     content_fighter_equip.weapon_profiles_field.add(spoon_profile)
 
     lst = make_list("Test List")
-    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
 
     assert len(fighter.assignments()) == 1
     assert fighter.cost_int() == content_fighter.cost_int()
 
     fighter.toggle_default_assignment(content_fighter_equip)
+    # Refresh because caching
+    fighter = ListFighter.objects.get(pk=fighter.pk)
 
     assert len(fighter.assignments()) == 0
 
     fighter.toggle_default_assignment(content_fighter_equip, enable=True)
+    # Refresh because caching
+    fighter = ListFighter.objects.get(pk=fighter.pk)
 
     assert len(fighter.assignments()) == 1
 
@@ -574,6 +578,58 @@ def test_fighter_with_default_spoon_scope_assignment(
     assert assignment.cost_int() == 0
     # Spoon and scope are default and therefore free
     assert fighter.cost_int() == content_fighter.cost_int()
+
+
+@pytest.mark.django_db
+def test_fighter_default_assignment_conversion_to_full(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost=10,
+    )
+
+    spoon_profile = make_weapon_profile(spoon)
+    spoon_spike_profile = make_weapon_profile(
+        spoon, name="with spiky bit", strength="S+1", cost=11
+    )
+    spoon_scope, _ = ContentWeaponAccessory.objects.get_or_create(
+        name="Spoon Scope", cost=12
+    )
+
+    content_fighter_equip = content_fighter.default_assignments.create(equipment=spoon)
+    content_fighter_equip.weapon_profiles_field.add(spoon_profile)
+    content_fighter_equip.weapon_profiles_field.add(spoon_spike_profile)
+    content_fighter_equip.weapon_accessories_field.add(spoon_scope)
+
+    assert content_fighter_equip.cost_int() == 0
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+    # Reminder: assignments() returns List[VirtuaListFighterEquipmentAssignment]
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+
+    fighter.convert_default_assignment(assignment)
+
+    # Refresh because caching
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+    assert assignment.weapon_profiles()[0] == spoon_profile
+    assert assignment.weapon_profiles()[1] == spoon_spike_profile
+    assert assignment.weapon_accessories()[0] == spoon_scope
+    assert assignment.cost_int() == 0
+    assert assignment.is_from_default_assignment()
 
 
 @pytest.mark.django_db
