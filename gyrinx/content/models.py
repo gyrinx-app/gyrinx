@@ -1150,6 +1150,10 @@ class ContentWeaponProfile(Content):
         """
         return [trait.name for trait in self.traits.all()]
 
+    @cached_property
+    def traitline_cached(self):
+        return self.traitline()
+
     class Meta:
         verbose_name = "Weapon Profile"
         verbose_name_plural = "Weapon Profiles"
@@ -1993,8 +1997,7 @@ class VirtualWeaponProfile:
 
     def traitline(self):
         # TODO: We need some kind of TraitDisplay thing
-        traitline = sorted([trait.name for trait in self.traits])
-        return traitline
+        return sorted([trait.name for trait in self.traits])
 
     @cached_property
     def traitline_cached(self):
