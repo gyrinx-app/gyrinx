@@ -2,6 +2,7 @@ import pytest
 
 from gyrinx.content.models import (
     ContentEquipmentUpgrade,
+    ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListWeaponAccessory,
     ContentModStat,
@@ -680,3 +681,33 @@ def test_fighter_with_equipment_list_accessory(
 
     assert assignment.cost_int() == 25
     assert fighter.cost_int() == 125
+
+
+@pytest.mark.django_db
+def test_negative_cost_item(
+    content_fighter: ContentFighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        cost="-10",
+    )
+
+    spoon_profile = make_weapon_profile(spoon)
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+    fighter.assign(spoon, weapon_profiles=[spoon_profile], weapon_accessories=[])
+    # Refresh because cache
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    assert len(fighter.assignments()) == 1
+    assign = fighter.assignments()[0]
+    assert assign.content_equipment == spoon
+    assert assign.cost_int() == -10
+    assert fighter.cost_int() == content_fighter.cost_int() - 10

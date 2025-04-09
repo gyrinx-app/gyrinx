@@ -24,6 +24,7 @@ from gyrinx.models import (
     FighterCategoryChoices,
     equipment_category_choices,
     equipment_category_choices_flat,
+    is_int,
 )
 
 ##
@@ -337,7 +338,7 @@ class ContentEquipmentManager(models.Manager):
             .annotate(
                 cost_cast_int=Case(
                     When(
-                        Q(cost__regex=r"^\d+$"),
+                        Q(cost__regex=r"^-?\d+$"),
                         then=Cast("cost", models.IntegerField()),
                     ),
                     default=0,
@@ -459,19 +460,22 @@ class ContentEquipment(Content):
         """
         if not self.cost:
             return 0
-        if not str(self.cost).isnumeric():
+
+        if not is_int(self.cost):
             return 0
+
         return int(self.cost)
 
     def cost_display(self):
         """
         Returns a readable cost string with a '¢' suffix.
         """
-        if not str(self.cost).isnumeric():
+        if not is_int(self.cost):
             return f"{self.cost}"
 
         if not self.cost:
             return ""
+
         return f"{self.cost}¢"
 
     def cost_for_fighter_int(self):
@@ -525,8 +529,6 @@ class ContentEquipment(Content):
 
     def clean(self):
         self.name = self.name.strip()
-        if self.cost_int() < 0:
-            raise ValidationError("Cost cannot be negative.")
 
     objects: ContentEquipmentManager = ContentEquipmentManager.from_queryset(
         ContentEquipmentQuerySet
@@ -850,12 +852,8 @@ class ContentFighterEquipmentListItem(Content):
 
     def clean(self):
         """
-        Validation to ensure cost is not negative and that any weapon profile
-        matches the correct equipment.
+        Validation to ensure that the weapon profile matches the correct equipment.
         """
-        if self.cost_int() < 0:
-            raise ValidationError({"cost": "Cost cannot be negative."})
-
         if not self.equipment_id:
             raise ValidationError({"equipment": "Equipment must be specified."})
 

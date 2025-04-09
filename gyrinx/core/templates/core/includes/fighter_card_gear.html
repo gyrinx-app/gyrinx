@@ -59,7 +59,7 @@
                                         {{ assign.name }}
                                         {% if assign.active_upgrade %}({{ assign.active_upgrade.name }}){% endif %}
                                         {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
-                                    {% if assign.cost_int > 0 %}({{ assign.cost_display }}){% endif %}
+                                    {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if not print %}
                                         {% if list.owner_cached == user %}
                                             {% if assign.kind == 'assigned' %}
@@ -82,7 +82,7 @@
                                     {% comment %} All this faff to avoid spaces {% endcomment %}
                                     {% spaceless %}
                                         <span>{{ assign.name }}</span>
-                                        {% if assign.cost_int > 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                        {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endspaceless %}
                                 {% endfor %}

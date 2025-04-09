@@ -39,7 +39,7 @@
                                     <h4 class="h6 mb-1">
                                         {{ assign.base_name }}
                                         <span class="fs-7 text-muted">
-                                            {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
+                                            {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
                                         </span>
                                     </h4>
                                     {% if assign.upgrades_display|length > 0 %}
@@ -67,7 +67,7 @@
                                                     <label class="btn btn-outline-secondary btn-sm"
                                                            for="upgrade-{{ ud.upgrade.id }}">
                                                         {{ ud.upgrade.name }}
-                                                        {% if ud.cost_int > 0 %}({{ ud.cost_display }}){% endif %}
+                                                        {% if ud.cost_int != 0 %}({{ ud.cost_display }}){% endif %}
                                                     </label>
                                                 {% endfor %}
                                             </div>
@@ -78,7 +78,7 @@
                                             form="gear-{{ assign.equipment.id }}">
                                         <i class="bi-plus"></i>
                                         Add {{ assign.base_name }}
-                                        {% if assign.base_cost_int > 0 %}({{ assign.base_cost_display }}){% endif %}
+                                        {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
                                     </button>
                                 </div>
                             </form>

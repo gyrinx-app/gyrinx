@@ -93,14 +93,14 @@
                                            class="form-check-input">
                                     <label class="form-check-label" for="profile-{{ pd.profile.id }}">
                                         {{ pd.profile.name }}
-                                        {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                                        {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
                                     </label>
                                 </div>
                             {% else %}
                                 <i class="bi-dash"></i>
                                 {{ pd.profile.name }}
                                 {% if not assign.has_total_cost_override %}
-                                    {% if pd.cost_int > 0 %}({{ pd.cost_display }}){% endif %}
+                                    {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
                                 {% endif %}
                             {% endif %}
                         </td>
@@ -121,7 +121,7 @@
                             <i class="bi-crosshair"></i>
                             {{ ad.accessory.name }}
                             {% if not assign.has_total_cost_override %}
-                                {% if ad.cost_int > 0 %}({{ ad.cost_display }}){% endif %}
+                                {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
                             {% endif %}
                             {% if mode == 'edit' and assign.kind == 'assigned' %}
                                 <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}"

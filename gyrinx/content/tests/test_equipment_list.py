@@ -44,30 +44,6 @@ def test_equipment():
 
 
 @pytest.mark.django_db
-def test_equipment_cost_negative():
-    # Create some equipment
-    equipment = ContentEquipment.objects.create(
-        name="Wooden Spoon", category=EquipmentCategoryChoices.BASIC_WEAPONS
-    )
-    equipment.save()
-
-    # Create a fighter
-    fighter = ContentFighter.objects.create(
-        type="Charter Master",
-        category=FighterCategoryChoices.LEADER,
-    )
-    fighter.save()
-
-    # Create a equipment list with negative cost
-    fighter_equip = ContentFighterEquipmentListItem(
-        fighter=fighter, equipment=equipment, cost=-10
-    )
-
-    with pytest.raises(ValidationError, match="Cost cannot be negative."):
-        fighter_equip.clean()
-
-
-@pytest.mark.django_db
 def test_equipment_weapon_profile_mismatch():
     # Create some equipment
     equipment1 = ContentEquipment.objects.create(

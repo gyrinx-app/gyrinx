@@ -6,6 +6,15 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 
+def is_int(value):
+    """Check if a value is a number."""
+    try:
+        int(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 class Archived(models.Model):
     """An Archived object is no longer in use."""
 

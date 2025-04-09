@@ -22,7 +22,7 @@
             <label class="btn btn-outline-secondary btn-sm"
                    for="upgrade-{{ ud.upgrade.id }}">
                 {{ ud.upgrade.name }}
-                {% if ud.cost_int > 0 %}({{ ud.cost_display }}){% endif %}
+                {% if ud.cost_int != 0 %}({{ ud.cost_display }}){% endif %}
             </label>
         {% endfor %}
     </div>

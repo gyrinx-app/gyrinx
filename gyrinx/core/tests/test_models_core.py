@@ -542,33 +542,6 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
 
 
 @pytest.mark.django_db
-def test_profile_validation_negative_cost():
-    spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
-        cost=10,
-    )
-
-    with pytest.raises(ValidationError, match="Cost cannot be negative."):
-        profile, _ = ContentWeaponProfile.objects.get_or_create(
-            equipment=spoon,
-            name="Negative Cost",
-            defaults=dict(
-                cost=-5,
-                range_short="",
-                range_long="E",
-                accuracy_short="",
-                accuracy_long="",
-                strength="S-1",
-                armour_piercing="+1",
-                damage="1",
-                ammo="4+",
-            ),
-        )
-        profile.clean()
-
-
-@pytest.mark.django_db
 def test_profile_validation_standard_profile_non_zero_cost():
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
