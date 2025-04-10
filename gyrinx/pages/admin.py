@@ -20,6 +20,7 @@ class FlatPageAdmin(BaseFlatPageAdmin):
                 widget=TinyMCE(
                     attrs={"cols": 120, "rows": 30},
                     mce_attrs={
+                        "relative_urls": False,
                         "promotion": False,
                         "resize": "both",
                         "width": "100%",
