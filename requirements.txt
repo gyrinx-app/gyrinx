@@ -2,7 +2,7 @@ asgiref==3.8.1
 beautifulsoup4==4.13.3
 click==8.1.8
 daphne==4.1.2
-Django==5.1.8
+Django==5.2
 django-allauth==65.7.0
 django-debug-toolbar==5.1.0
 django-extensions==3.2.3
