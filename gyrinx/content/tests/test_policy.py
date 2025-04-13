@@ -41,7 +41,7 @@ def test_equipment_policy():
 
     big_gun = ContentEquipment.objects.create(
         name="Big Gun",
-        category_obj=ContentEquipmentCategory.objects.get(name="Heavy Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Heavy Weapons"),
     )
 
     fighter = ContentFighter.objects.create(

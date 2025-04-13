@@ -20,7 +20,7 @@ def test_basic_default_assignment():
     )
     holster, _ = ContentEquipment.objects.get_or_create(
         name="Holster",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -40,7 +40,7 @@ def test_default_assignment_with_weapon_profile():
     )
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Spoon",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 

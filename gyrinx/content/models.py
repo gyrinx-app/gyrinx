@@ -361,7 +361,7 @@ class ContentEquipmentManager(models.Manager):
                     ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
                 ),
             )
-            .order_by("category_obj__name", "name", "id")
+            .order_by("category__name", "name", "id")
         )
 
 
@@ -428,7 +428,7 @@ class ContentEquipment(Content):
     """
 
     name = models.CharField(max_length=255)
-    category_obj = models.ForeignKey(
+    category = models.ForeignKey(
         ContentEquipmentCategory,
         on_delete=models.CASCADE,
         null=True,
@@ -510,7 +510,7 @@ class ContentEquipment(Content):
         """
         Returns the human-readable label of the equipment's category.
         """
-        return self.category_obj.name
+        return self.category.name
 
     def is_weapon(self):
         """
@@ -544,7 +544,7 @@ class ContentEquipment(Content):
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
-        unique_together = ["name", "category_obj"]
+        unique_together = ["name", "category"]
         ordering = ["name"]
 
     def clean(self):
@@ -1567,7 +1567,7 @@ class ContentPolicy(Content):
         name = equipment.name
         # TODO: This won't work — this model should be dropped for now as it's not used
         #       and is deadwood.
-        category = equipment.category_obj.name
+        category = equipment.category.name
         # Work through the rules in reverse order. If any of them
         # allow, then the equipment is allowed.
         # If we get to an explicit deny, then the equipment is denied.

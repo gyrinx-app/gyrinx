@@ -108,9 +108,7 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
 class ContentEquipmentAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category_obj"].queryset = self.fields[
-            "category_obj"
-        ].queryset.order_by(
+        self.fields["category"].queryset = self.fields["category"].queryset.order_by(
             Case(
                 *[
                     When(
@@ -123,15 +121,15 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             ),
             "name",
         )
-        group_select(self, "category_obj", key=lambda x: x.group)
+        group_select(self, "category", key=lambda x: x.group)
 
 
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentAdminForm
 
-    search_fields = ["name", "category_obj", "contentweaponprofile__name"]
-    list_filter = ["category_obj"]
+    search_fields = ["name", "category", "contentweaponprofile__name"]
+    list_filter = ["category"]
 
     inlines = [
         ContentWeaponProfileInline,

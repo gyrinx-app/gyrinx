@@ -36,7 +36,7 @@ def test_basic_fighter_link(
 
     beast_ce = make_equipment(
         "Beast",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 
@@ -102,7 +102,7 @@ def test_list_ordering_with_link(
 
     beast_ce = make_equipment(
         "Beast",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 
@@ -158,7 +158,7 @@ def test_fighter_link_archive(
 
     beast_ce = make_equipment(
         "Beast",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 
@@ -214,7 +214,7 @@ def test_fighter_link_default_assignment(
 
     beast_ce = make_equipment(
         "Beast",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 
@@ -279,7 +279,7 @@ def test_fighter_link_default_assignment_duplicated(
 
     beast_ce = make_equipment(
         "Beast",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 
@@ -341,7 +341,7 @@ def test_fighter_link_default_assignment_self_fails(
     # Obviously can't assign a fighter to itself, but let's make that happen
     owner_ce = make_equipment(
         "Owner",
-        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
         cost=50,
     )
 

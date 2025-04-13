@@ -22,7 +22,7 @@ def test_equipment():
     # Create some equipment
     equipment = ContentEquipment.objects.create(
         name="Wooden Spoon",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
     )
     equipment.save()
 
@@ -50,13 +50,13 @@ def test_equipment_weapon_profile_mismatch():
     # Create some equipment
     equipment1 = ContentEquipment.objects.create(
         name="Wooden Spoon",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
     )
     equipment1.save()
 
     equipment2 = ContentEquipment.objects.create(
         name="Fork",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
     )
     equipment2.save()
 
@@ -89,19 +89,19 @@ def test_content_equipment_manager():
     # Create some equipment
     spoon = ContentEquipment.objects.create(
         name="Wooden Spoon",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost="5",
     )
 
     fork = ContentEquipment.objects.create(
         name="Fork",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost="10",
     )
 
     knife = ContentEquipment.objects.create(
         name="Knife",
-        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost="15",
     )
 
