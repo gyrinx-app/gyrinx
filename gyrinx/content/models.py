@@ -23,7 +23,7 @@ from gyrinx.models import (
     Base,
     FighterCategoryChoices,
     equipment_category_choices,
-    equipment_category_choices_flat,
+    equipment_category_group_choices,
     is_int,
 )
 
@@ -322,6 +322,21 @@ class ContentRule(Content):
         ordering = ["name"]
 
 
+class ContentEquipmentCategory(Content):
+    name = models.CharField(max_length=255, unique=True)
+    group = models.CharField(max_length=255, choices=equipment_category_group_choices)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Equipment Category"
+        verbose_name_plural = "Equipment Categories"
+        ordering = ["name"]
+
+
 class ContentEquipmentManager(models.Manager):
     """
     Custom manager for :model:`content.ContentEquipment` model, providing annotated
@@ -347,7 +362,7 @@ class ContentEquipmentManager(models.Manager):
                     ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
                 ),
             )
-            .order_by("category", "name", "id")
+            .order_by("category_obj__name", "name", "id")
         )
 
 
@@ -415,6 +430,13 @@ class ContentEquipment(Content):
 
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=255, choices=equipment_category_choices)
+    category_obj = models.ForeignKey(
+        ContentEquipmentCategory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=False,
+        related_name="equipment",
+    )
 
     cost = models.CharField(
         help_text="The credit cost of the equipment at the Trading Post. Note that, in weapons, "
@@ -490,7 +512,7 @@ class ContentEquipment(Content):
         """
         Returns the human-readable label of the equipment's category.
         """
-        return equipment_category_choices_flat[self.category]
+        return self.category_obj.name
 
     def is_weapon(self):
         """
@@ -1545,6 +1567,8 @@ class ContentPolicy(Content):
         by checking rules from last to first.
         """
         name = equipment.name
+        # TODO: This won't work — this model should be dropped for now as it's not used
+        #       and is deadwood.
         category = equipment.category.label
         # Work through the rules in reverse order. If any of them
         # allow, then the equipment is allowed.

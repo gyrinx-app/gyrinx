@@ -13,10 +13,12 @@ from polymorphic.admin import (
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from gyrinx.forms import group_select
+from gyrinx.models import equipment_category_choices
 
 from .models import (
     ContentBook,
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
@@ -75,6 +77,14 @@ class ContentStackedPolymorphicInline(
 ): ...
 
 
+@admin.register(ContentEquipmentCategory)
+class ContentEquipmentCategoryAdmin(ContentAdmin):
+    search_fields = ["name", "group"]
+    list_display_links = ["name"]
+    list_display_fields = ["name"]
+    list_filter = ["group"]
+
+
 class ContentWeaponProfileInline(ContentStackedInline):
     model = ContentWeaponProfile
     extra = 0
@@ -95,10 +105,33 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
     extra = 0
 
 
+class ContentEquipmentAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category_obj"].queryset = self.fields[
+            "category_obj"
+        ].queryset.order_by(
+            Case(
+                *[
+                    When(
+                        group=group,
+                        then=i,
+                    )
+                    for i, group in enumerate(equipment_category_choices.keys())
+                ],
+                default=99,
+            ),
+            "name",
+        )
+        group_select(self, "category_obj", key=lambda x: x.group)
+
+
 @admin.register(ContentEquipment)
 class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["name", "category", "contentweaponprofile__name"]
-    list_filter = ["category"]
+    form = ContentEquipmentAdminForm
+
+    search_fields = ["name", "category_obj", "contentweaponprofile__name"]
+    list_filter = ["category_obj"]
 
     inlines = [
         ContentWeaponProfileInline,

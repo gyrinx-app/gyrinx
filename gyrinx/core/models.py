@@ -1109,7 +1109,7 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return the category code for this equipment.
         """
-        return self.equipment.category
+        return self.equipment.category_obj.name
 
     @property
     def content_equipment(self):

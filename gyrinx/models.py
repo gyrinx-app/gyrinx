@@ -155,6 +155,7 @@ equipment_category_choices_flat = {
     for subcategories in equipment_category_choices.values()
     for key, value in subcategories.items()
 }
+equipment_category_group_choices = [(x, x) for x in equipment_category_choices.keys()]
 
 
 T = TypeVar("T")
