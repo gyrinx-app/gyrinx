@@ -935,7 +935,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
             equipment.annotate(
                 search=SearchVector("name", "category__name"),
             )
-            .filter(search__icontains=request.GET.get("q", ""))
+            .filter(search=request.GET.get("q", ""))
             .distinct("category__name", "name", "id")
         )
 
