@@ -324,6 +324,13 @@ class ContentRule(Content):
 class ContentEquipmentCategory(Content):
     name = models.CharField(max_length=255, unique=True)
     group = models.CharField(max_length=255, choices=equipment_category_group_choices)
+    restricted_to = models.ManyToManyField(
+        ContentHouse,
+        blank=True,
+        related_name="restricted_equipment_categories",
+        verbose_name="Restricted To",
+        help_text="If provided, this equipment category is only available to specific gang houses.",
+    )
 
     history = HistoricalRecords()
 
@@ -524,6 +531,13 @@ class ContentEquipment(Content):
     @cached_property
     def is_weapon_cached(self):
         return self.is_weapon()
+
+    @cached_property
+    def is_house_additional(self):
+        """
+        Indicates whether this equipment is house-specific additional gear.
+        """
+        return self.category.restricted_to.exists()
 
     def profiles(self):
         """

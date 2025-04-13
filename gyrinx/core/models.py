@@ -18,6 +18,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx import settings
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
@@ -395,7 +396,11 @@ class ListFighter(AppBase):
         return self.weapons()
 
     def wargear(self):
-        return [e for e in self.assignments_cached if not e.is_weapon_cached]
+        return [
+            e
+            for e in self.assignments_cached
+            if not e.is_weapon_cached and not e.is_house_additional
+        ]
 
     @cached_property
     def wargear_cached(self):
@@ -407,6 +412,29 @@ class ListFighter(AppBase):
     @cached_property
     def wargearline_cached(self):
         return self.wargearline()
+
+    @cached_property
+    def has_house_additional_gear(self):
+        return (
+            self.content_fighter_cached.house.restricted_equipment_categories.exists()
+        )
+
+    @cached_property
+    def house_additional_gearline_display(self):
+        return [
+            {
+                "category": cat.name,
+                "assignments": self.house_additional_assignments(cat),
+            }
+            for cat in self.content_fighter_cached.house.restricted_equipment_categories.all()
+        ]
+
+    def house_additional_assignments(self, category: ContentEquipmentCategory):
+        return [
+            e
+            for e in self.assignments_cached
+            if e.is_house_additional and e.category == category.name
+        ]
 
     def powers(self):
         """
@@ -1309,6 +1337,9 @@ class VirtualListFighterEquipmentAssignment:
         Return the human-readable label for the equipment category.
         """
         return self.equipment.cat()
+
+    def is_house_additional(self):
+        return self.equipment.is_house_additional
 
     def is_weapon(self):
         return self.equipment.is_weapon()

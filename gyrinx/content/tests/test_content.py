@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterHouseOverride,
@@ -224,3 +225,20 @@ def test_equipment_upgrades():
     assert l1.cost_int() == 10
     assert l2.cost_int() == 20
     assert l3.cost_int() == 30
+
+
+@pytest.mark.django_db
+def test_equipment_additional():
+    house, _ = ContentHouse.objects.get_or_create(
+        name="Spoonlickers",
+    )
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="House Additional Category"
+    )
+    category.restricted_to.add(house)
+    equipment = ContentEquipment.objects.create(
+        name="House Additional Equipment Example",
+        category=category,
+    )
+
+    assert equipment.is_house_additional

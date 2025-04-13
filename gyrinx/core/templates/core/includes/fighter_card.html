@@ -180,6 +180,29 @@
                         </td>
                     </tr>
                 {% endif %}
+                {% if fighter.has_house_additional_gear %}
+                    {% for line in fighter.house_additional_gearline_display %}
+                        <tr class="fs-7">
+                            <th scope="row" colspan="3">{{ line.category }}</th>
+                            <td colspan="12">
+                                {% for assign in line.assignments %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% spaceless %}
+                                        <span>{{ assign.name }}</span>
+                                        {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                        {% if not forloop.last %}<span>,</span>{% endif %}
+                                    {% endspaceless %}
+                                {% endfor %}
+                                {% comment %} {% if not print %}
+                                    {% if list.owner_cached == user %}
+                                        <a href="{% url 'core:list-fighter-house-additional-gear-edit' list.id fighter.id %}">Edit
+                                        gear</a>
+                                    {% endif %}
+                                {% endif %} {% endcomment %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endif %}
                 {% if fighter.wargearline_cached|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Gear</th>
@@ -188,8 +211,12 @@
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% spaceless %}
                                     <span>{{ assign.name }}</span>
-                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                    {% if assign.cost_int != 0 %}
+                                        <span>&nbsp;({{ assign.cost_display }})</span>
+                                    {% endif %}
+                                    {% if not forloop.last %}
+                                        <span>,</span>
+                                    {% endif %}
                                 {% endspaceless %}
                             {% endfor %}
                             {% if not print %}
