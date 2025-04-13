@@ -57,6 +57,14 @@ class ListFighterForm(forms.ModelForm):
                 "additional_rules"
             ].queryset.filter(tree__house=self.instance.list.content_house)
 
+            self.fields["disabled_default_assignments"].queryset = self.fields[
+                "disabled_default_assignments"
+            ].queryset.filter(fighter=self.instance.content_fighter)
+
+            self.fields["disabled_pskyer_default_powers"].queryset = self.fields[
+                "disabled_pskyer_default_powers"
+            ].queryset.filter(fighter=self.instance.content_fighter)
+
         group_select(self, "content_fighter", key=lambda x: x.cat())
         group_select(self, "skills", key=lambda x: x.category.name)
         group_select(self, "additional_rules", key=lambda x: x.tree.name)
@@ -109,6 +117,8 @@ class ListFighterAdmin(BaseAdmin):
         "cost_override",
         cost,
         "narrative",
+        "disabled_default_assignments",
+        "disabled_pskyer_default_powers",
     ]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
