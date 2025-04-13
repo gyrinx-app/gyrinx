@@ -2,11 +2,12 @@ import pytest
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentHouse,
 )
-from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
+from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
@@ -18,7 +19,9 @@ def test_basic_default_assignment():
         type="Sporker", category=FighterCategoryChoices.JUVE, house=house
     )
     holster, _ = ContentEquipment.objects.get_or_create(
-        name="Holster", category=EquipmentCategoryChoices.EQUIPMENT, cost=10
+        name="Holster",
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
     )
 
     fighter_equip = fighter.default_assignments.create(equipment=holster)
@@ -36,7 +39,9 @@ def test_default_assignment_with_weapon_profile():
         type="Sporker", category=FighterCategoryChoices.JUVE, house=house
     )
     spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Spoon", category=EquipmentCategoryChoices.BASIC_WEAPONS, cost=10
+        name="Spoon",
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
     )
 
     fighter_equip: ContentFighterDefaultAssignment = fighter.default_assignments.create(

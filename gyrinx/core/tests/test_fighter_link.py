@@ -1,8 +1,11 @@
 import pytest
 
-from gyrinx.content.models import ContentEquipmentFighterProfile
+from gyrinx.content.models import (
+    ContentEquipmentCategory,
+    ContentEquipmentFighterProfile,
+)
 from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
+from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
@@ -32,7 +35,9 @@ def test_basic_fighter_link(
     )
 
     beast_ce = make_equipment(
-        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Beast",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     # Link the Beast Content Fighter to the Equipment
@@ -96,7 +101,9 @@ def test_list_ordering_with_link(
     )
 
     beast_ce = make_equipment(
-        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Beast",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     # Link the Beast Content Fighter to the Equipment
@@ -150,7 +157,9 @@ def test_fighter_link_archive(
     )
 
     beast_ce = make_equipment(
-        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Beast",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     # Link the Beast Content Fighter to the Equipment
@@ -204,7 +213,9 @@ def test_fighter_link_default_assignment(
     )
 
     beast_ce = make_equipment(
-        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Beast",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     # Link the Beast Content Fighter to the Equipment
@@ -267,7 +278,9 @@ def test_fighter_link_default_assignment_duplicated(
     )
 
     beast_ce = make_equipment(
-        "Beast", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Beast",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     # Link the Beast Content Fighter to the Equipment
@@ -327,7 +340,9 @@ def test_fighter_link_default_assignment_self_fails(
 
     # Obviously can't assign a fighter to itself, but let's make that happen
     owner_ce = make_equipment(
-        "Owner", category=EquipmentCategoryChoices.STATUS_ITEMS, cost=50
+        "Owner",
+        category_obj=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
     )
 
     ContentEquipmentFighterProfile.objects.create(

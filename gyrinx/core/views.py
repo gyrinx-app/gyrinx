@@ -933,10 +933,10 @@ def edit_list_fighter_gear(request, id, fighter_id):
     if request.GET.get("q"):
         equipment = (
             equipment.annotate(
-                search=SearchVector("name", "category"),
+                search=SearchVector("name", "category_obj__name"),
             )
             .filter(search__icontains=request.GET.get("q", ""))
-            .distinct("category", "name", "id")
+            .distinct("category_obj__name", "name", "id")
         )
 
     if request.GET.get("filter") != "all":
@@ -1027,10 +1027,12 @@ def edit_list_fighter_weapons(request, id, fighter_id):
     if request.GET.get("q"):
         weapons = (
             weapons.annotate(
-                search=SearchVector("name", "category", "contentweaponprofile__name"),
+                search=SearchVector(
+                    "name", "category_obj__name", "contentweaponprofile__name"
+                ),
             )
             .filter(search=request.GET.get("q", ""))
-            .distinct("category", "name", "id")
+            .distinct("category_obj__name", "name", "id")
         )
 
     if request.GET.get("filter") != "all":

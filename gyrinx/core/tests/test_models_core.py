@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterEquipmentListItem,
@@ -18,7 +19,7 @@ from gyrinx.core.models import (
     ListFighterEquipmentAssignment,
     VirtualListFighterEquipmentAssignment,
 )
-from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
+from gyrinx.models import FighterCategoryChoices
 
 
 def make_content():
@@ -253,7 +254,7 @@ def test_list_cost_cache():
 
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -351,7 +352,7 @@ def test_list_fighter_with_spoon():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -376,7 +377,7 @@ def test_list_fighter_with_spoon_weapon():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -425,7 +426,7 @@ def test_fighter_with_spoon_weapon_profile_with_cost():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -482,7 +483,7 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -545,7 +546,7 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
 def test_profile_validation_standard_profile_non_zero_cost():
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -573,7 +574,7 @@ def test_weapon_cost_equipment_list_override():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -607,7 +608,7 @@ def test_weapon_cost_equipment_list_override_with_profile():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -685,7 +686,7 @@ def test_list_fighter_with_same_equipment_different_profiles():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -764,7 +765,7 @@ def test_weapon_with_multiple_profiles():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -851,7 +852,7 @@ def test_weapon_with_multiple_costed_profiles():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -948,7 +949,7 @@ def test_virtual_assignments():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -1025,12 +1026,12 @@ def test_weapon_equipment_match(
 ):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=5,
     )
     fork, _ = ContentEquipment.objects.get_or_create(
         name="Fork",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
     spoon_profile, _ = ContentWeaponProfile.objects.get_or_create(
@@ -1051,7 +1052,7 @@ def test_equipment_upgrades(
 ):
     spoon = make_equipment(
         "Wooden Spoonetika",
-        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        category_obj=ContentEquipmentCategory.objects.get(name="Cyberteknika"),
         cost=50,
     )
 
@@ -1089,12 +1090,12 @@ def test_invalid_equipment_upgrade(
 ):
     spoon = make_equipment(
         "Wooden Spoonteknika",
-        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        category_obj=ContentEquipmentCategory.objects.get(name="Cyberteknika"),
         cost=50,
     )
     fork = make_equipment(
         "Forkteknika",
-        category=EquipmentCategoryChoices.CYBERTEKNIKA,
+        category_obj=ContentEquipmentCategory.objects.get(name="Cyberteknika"),
         cost=50,
     )
 

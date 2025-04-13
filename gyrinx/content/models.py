@@ -22,7 +22,6 @@ from simple_history.models import HistoricalRecords
 from gyrinx.models import (
     Base,
     FighterCategoryChoices,
-    equipment_category_choices,
     equipment_category_group_choices,
     is_int,
 )
@@ -429,7 +428,6 @@ class ContentEquipment(Content):
     """
 
     name = models.CharField(max_length=255)
-    category = models.CharField(max_length=255, choices=equipment_category_choices)
     category_obj = models.ForeignKey(
         ContentEquipmentCategory,
         on_delete=models.CASCADE,
@@ -546,7 +544,7 @@ class ContentEquipment(Content):
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
-        unique_together = ["name", "category"]
+        unique_together = ["name", "category_obj"]
         ordering = ["name"]
 
     def clean(self):
@@ -1569,7 +1567,7 @@ class ContentPolicy(Content):
         name = equipment.name
         # TODO: This won't work — this model should be dropped for now as it's not used
         #       and is deadwood.
-        category = equipment.category.label
+        category = equipment.category_obj.name
         # Work through the rules in reverse order. If any of them
         # allow, then the equipment is allowed.
         # If we get to an explicit deny, then the equipment is denied.

@@ -2,10 +2,10 @@ import pytest
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from gyrinx.models import EquipmentCategoryChoices
 
 
 @pytest.mark.django_db
@@ -15,7 +15,7 @@ def test_basic_weapon():
     t_shock, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
     arc_rifle, _ = ContentEquipment.objects.get_or_create(
         name="Arc rifle",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         defaults=dict(cost=100),
     )
 
@@ -65,7 +65,7 @@ def test_special_ammo_weapon():
 
     autogun, _ = ContentEquipment.objects.get_or_create(
         name="Autogun",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=15,
     )
     autogun_profile, _ = ContentWeaponProfile.objects.get_or_create(
@@ -147,7 +147,7 @@ def test_two_standard_stats():
 
     combat_shotgun, _ = ContentEquipment.objects.get_or_create(
         name="Combat shotgun",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=70,
         rarity="R",
         rarity_roll=7,
@@ -268,14 +268,14 @@ def test_two_standard_stats():
 def test_combi_weapon():
     autopistol_combi_pistol_hand_flamer, _ = ContentEquipment.objects.get_or_create(
         name="Autopistol Combi-Pistol Hand flamer",
-        category=EquipmentCategoryChoices.PISTOLS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Pistols"),
         cost=65,
         rarity="R",
         rarity_roll=10,
     )
     autopistol_combi_pistol_plasma_pistol, _ = ContentEquipment.objects.get_or_create(
         name="Autopistol Combi-Pistol Plasma pistol",
-        category=EquipmentCategoryChoices.PISTOLS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Pistols"),
         cost=50,
         rarity="R",
         rarity_roll=10,
@@ -389,14 +389,14 @@ def test_combi_weapon():
 def test_autogun_combi_weapon():
     autogun_combi_flamer, _ = ContentEquipment.objects.get_or_create(
         name="Autogun Combi-Flamer",
-        category=EquipmentCategoryChoices.SPECIAL_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Special Weapons"),
         cost=110,
         rarity="R",
         rarity_roll=10,
     )
     autogun_combi_grenade_launcher, _ = ContentEquipment.objects.get_or_create(
         name="Autogun Combi-Grenade Launcher",
-        category=EquipmentCategoryChoices.SPECIAL_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Special Weapons"),
         cost=30,
         rarity="R",
         rarity_roll=7,
@@ -537,7 +537,7 @@ def test_two_modes():
 
     kroot_long_rifle, _ = ContentEquipment.objects.get_or_create(
         name="Kroot long rifle",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=30,
         rarity="R",
         rarity_roll=10,
@@ -595,7 +595,7 @@ def test_grenades():
 
     blasting_charge, _ = ContentEquipment.objects.get_or_create(
         name="Blasting charge",
-        category=EquipmentCategoryChoices.GRENADES,
+        category_obj=ContentEquipmentCategory.objects.get(name="Grenades"),
         cost=35,
         rarity="R",
         rarity_roll=8,

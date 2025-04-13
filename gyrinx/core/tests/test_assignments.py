@@ -1,6 +1,7 @@
 import pytest
 
 from gyrinx.content.models import (
+    ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterDefaultAssignment,
@@ -12,7 +13,6 @@ from gyrinx.content.models import (
     StatlineDisplay,
 )
 from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import EquipmentCategoryChoices
 
 
 @pytest.mark.django_db
@@ -21,7 +21,7 @@ def test_fighter_with_default_spoon_weapon_assignment(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -45,7 +45,7 @@ def test_fighter_disable_default_assignment(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -79,7 +79,7 @@ def test_fighter_multiple_default_assigns_of_same_equipment(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -395,7 +395,7 @@ def test_default_assignment_accessory_stat_mod(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -552,7 +552,7 @@ def test_fighter_with_default_spoon_scope_assignment(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -591,7 +591,7 @@ def test_fighter_default_assignment_conversion_to_full(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -643,7 +643,7 @@ def test_fighter_with_equipment_list_accessory(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
@@ -693,7 +693,7 @@ def test_negative_cost_item(
 ):
     spoon = make_equipment(
         "Wooden Spoon",
-        category=EquipmentCategoryChoices.BASIC_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost="-10",
     )
 

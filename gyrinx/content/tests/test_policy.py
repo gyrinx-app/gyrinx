@@ -6,8 +6,13 @@ import jsonschema
 import pytest
 from referencing import Registry, Resource
 
-from gyrinx.content.models import ContentEquipment, ContentFighter, ContentPolicy
-from gyrinx.models import EquipmentCategoryChoices, FighterCategoryChoices
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentFighter,
+    ContentPolicy,
+)
+from gyrinx.models import FighterCategoryChoices
 
 
 @dataclass
@@ -36,7 +41,7 @@ def test_equipment_policy():
 
     big_gun = ContentEquipment.objects.create(
         name="Big Gun",
-        category=EquipmentCategoryChoices.HEAVY_WEAPONS,
+        category_obj=ContentEquipmentCategory.objects.get(name="Heavy Weapons"),
     )
 
     fighter = ContentFighter.objects.create(
