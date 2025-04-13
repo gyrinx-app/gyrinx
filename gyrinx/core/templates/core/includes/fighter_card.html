@@ -193,12 +193,11 @@
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endspaceless %}
                                 {% endfor %}
-                                {% comment %} {% if not print %}
+                                {% if not print %}
                                     {% if list.owner_cached == user %}
-                                        <a href="{% url 'core:list-fighter-house-additional-gear-edit' list.id fighter.id %}">Edit
-                                        gear</a>
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all&q={{ line.category }}">Edit {{ line.category }}</a>
                                     {% endif %}
-                                {% endif %} {% endcomment %}
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}
@@ -211,12 +210,8 @@
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% spaceless %}
                                     <span>{{ assign.name }}</span>
-                                    {% if assign.cost_int != 0 %}
-                                        <span>&nbsp;({{ assign.cost_display }})</span>
-                                    {% endif %}
-                                    {% if not forloop.last %}
-                                        <span>,</span>
-                                    {% endif %}
+                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                    {% if not forloop.last %}<span>,</span>{% endif %}
                                 {% endspaceless %}
                             {% endfor %}
                             {% if not print %}

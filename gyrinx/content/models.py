@@ -390,6 +390,9 @@ class ContentEquipmentQuerySet(models.QuerySet):
         """
         return self.exclude(has_weapon_profiles=True)
 
+    def house_restricted(self, house: "ContentHouse") -> "ContentEquipmentQuerySet":
+        return self.filter(Q(category__restricted_to=house))
+
     def with_cost_for_fighter(
         self, content_fighter: "ContentFighter"
     ) -> "ContentEquipmentQuerySet":
