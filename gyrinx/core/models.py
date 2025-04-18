@@ -29,6 +29,7 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
+    ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
     ContentWeaponAccessory,
@@ -313,6 +314,54 @@ class ListFighter(AppBase):
 
     def cost_display(self):
         return f"{self.cost_int_cached}¢"
+
+    # Stats & rules
+
+    @cached_property
+    def _mods(self):
+        # Remember: virtual and needs flattening!
+        return [mod for assign in self.assignments_cached for mod in assign.mods]
+
+    def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
+        for mod in mods:
+            value = mod.apply(value)
+        return value
+
+    def _statmods(self, stat: str):
+        """
+        Get the stat mods for this fighter.
+        """
+        return [
+            mod
+            for mod in self._mods
+            if isinstance(mod, ContentModFighterStat) and mod.stat == stat
+        ]
+
+    @cached_property
+    def statline(self):
+        """
+        Get the statline for this fighter.
+        """
+        return [
+            {
+                **stat,
+                "value": self._apply_mods(
+                    stat["field_name"],
+                    stat["value"],
+                    self._statmods(stat["field_name"]),
+                ),
+            }
+            for stat in self.content_fighter_cached.statline()
+        ]
+
+    @cached_property
+    def ruleline(self):
+        """
+        Get the ruleline for this fighter.
+        """
+        return self.content_fighter_cached.ruleline()
+
+    # Assignments
 
     def assign(
         self,
@@ -1462,6 +1511,15 @@ class VirtualListFighterEquipmentAssignment:
             }
             for upgrade in self.upgrades_cached
         ]
+
+    # Mods
+
+    @cached_property
+    def mods(self):
+        if not self._assignment:
+            return []
+
+        return self._assignment._mods
 
 
 class ListFighterPsykerPowerAssignment(Base, Archived):

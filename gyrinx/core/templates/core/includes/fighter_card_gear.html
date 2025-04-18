@@ -29,7 +29,7 @@
             </thead>
             <tbody>
                 <tr>
-                    {% for stat in fighter.content_fighter_cached.statline %}
+                    {% for stat in fighter.statline %}
                         {% if stat.highlight %}
                             <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
                         {% else %}

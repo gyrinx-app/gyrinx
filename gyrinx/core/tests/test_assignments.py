@@ -6,8 +6,11 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListWeaponAccessory,
+    ContentModFighterRule,
+    ContentModFighterStat,
     ContentModStat,
     ContentModTrait,
+    ContentRule,
     ContentWeaponAccessory,
     ContentWeaponTrait,
     StatlineDisplay,
@@ -529,6 +532,7 @@ def test_upgrade_stat_mod(
     modded_profile = profiles[0]
     assert modded_profile.range_short == '2"'
 
+    assign.upgrades_field.remove(u1)
     assign.upgrades_field.add(u2)
     assign.save()
 
@@ -540,6 +544,75 @@ def test_upgrade_stat_mod(
     assert modded_profile.damage == "3"
     assert t_rm not in modded_profile.traits
     assert t_add in modded_profile.traits
+
+
+@pytest.mark.django_db
+def test_upgrade_fighter_stat_mod(
+    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+):
+    r_rm, _ = ContentRule.objects.get_or_create(name="Remove Me")
+    r_add, _ = ContentRule.objects.get_or_create(name="Add Me")
+    spoon = make_equipment("Spoon")
+
+    # You can associate a mod with an upgrade...
+
+    # ...to improve stats
+    mod_mv = ContentModFighterStat.objects.create(
+        stat="movement",
+        mode="improve",
+        value="1",
+    )
+
+    mod_ws = ContentModFighterStat.objects.create(
+        stat="weapon_skill",
+        mode="set",
+        value="3+",
+    )
+
+    # ...to remove rules
+    mod_rm_rule = ContentModFighterRule.objects.create(
+        mode="remove",
+        rule=r_rm,
+    )
+
+    # ...to add rules
+    mod_add_rule = ContentModFighterRule.objects.create(
+        mode="add",
+        rule=r_add,
+    )
+
+    u1 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Alpha", cost=20, position=0
+    )
+    u2 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon, name="Beta", cost=30, position=1
+    )
+
+    u1.modifiers.set([mod_mv])
+    u2.modifiers.set([mod_ws, mod_rm_rule, mod_add_rule])
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+    assign = fighter.assign(spoon)
+
+    assign.upgrades_field.add(u1)
+    assign.save()
+
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    # He moves quick for a big lad
+    assert fighter.statline[0]["value"] == '6"'
+
+    # TODO: Implement rule mods
+    # assign.upgrades_field.remove(u1)
+    # assign.upgrades_field.add(u2)
+    # assign.save()
+
+    # fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    # assert fighter.statline[1]["value"] == "3+"
+    # assert r_rm not in fighter.ruleline
+    # assert r_add in fighter.ruleline
 
 
 @pytest.mark.django_db

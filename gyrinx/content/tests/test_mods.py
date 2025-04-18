@@ -1,6 +1,6 @@
 import pytest
 
-from gyrinx.content.models import ContentModStat
+from gyrinx.content.models import ContentModFighterStat, ContentModStat
 
 
 @pytest.mark.django_db
@@ -93,4 +93,61 @@ def test_stat_mod():
             value="2",
         ).apply('2"')
         == ""
+    )
+
+
+@pytest.mark.django_db
+def test_fighter_stat_mod():
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="strength",
+            mode="improve",
+            value="1",
+        ).apply("3")
+        == "4"
+    )
+
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="weapon_skill",
+            mode="improve",
+            value="1",
+        ).apply("3+")
+        == "2+"
+    )
+
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="weapon_skill",
+            mode="worsen",
+            value="1",
+        ).apply("3+")
+        == "4+"
+    )
+
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="weapon_skill",
+            mode="improve",
+            value="1",
+        ).apply("3+")
+        == "2+"
+    )
+
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="movement",
+            mode="improve",
+            value="1",
+        ).apply('2"')
+        == '3"'
+    )
+
+    assert (
+        ContentModFighterStat.objects.create(
+            stat="movement",
+            mode="worsen",
+            value="1",
+        ).apply('2"')
+        == '1"'
     )

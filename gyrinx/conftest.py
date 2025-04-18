@@ -68,6 +68,18 @@ def content_fighter(content_house, make_content_fighter):
         category=FighterCategoryChoices.JUVE,
         house=content_house,
         base_cost=100,
+        movement='5"',
+        weapon_skill="5+",
+        ballistic_skill="5+",
+        strength="4",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="8+",
+        cool="7+",
+        willpower="6+",
+        intelligence="7+",
     )
 
 

@@ -762,8 +762,8 @@ class ContentFighter(Content):
         with additional styling indicators.
         """
         stats = [
-            self._meta.get_field(field)
-            for field in [
+            (f, self._meta.get_field(f))
+            for f in [
                 "movement",
                 "weapon_skill",
                 "ballistic_skill",
@@ -780,6 +780,7 @@ class ContentFighter(Content):
         ]
         return [
             {
+                "field_name": f,
                 "name": field.verbose_name,
                 "value": getattr(self, field.name) or "-",
                 "highlight": bool(
@@ -787,7 +788,7 @@ class ContentFighter(Content):
                 ),
                 "classes": ("border-start" if field.name in ["leadership"] else ""),
             }
-            for field in stats
+            for f, field in stats
         ]
 
     def ruleline(self):
@@ -1389,7 +1390,7 @@ class ContentEquipmentUpgrade(Content):
     modifiers = models.ManyToManyField(
         "ContentMod",
         blank=True,
-        help_text="Modifiers to apply to the equipment's statline and traits.",
+        help_text="Modifiers to apply to the equipment or fighter's statline and traits.",
     )
 
     history = HistoricalRecords()
@@ -1837,41 +1838,33 @@ class ContentMod(PolymorphicModel, Content):
         verbose_name_plural = "Modifications"
 
 
-class ContentModStat(ContentMod):
-    """
-    Stat modifier
-    """
+class ContentModStatApplyMixin:
+    inverted_stats = [
+        "ammo",
+        "armour_piercing",
+        "weapon_skill",
+        "ballistic_skill",
+        "intelligence",
+        "leadership",
+        "cool",
+        "willpower",
+        "initiative",
+    ]
 
-    help_text = "A modification to a specific value in a statline"
-    stat = models.CharField(
-        max_length=255,
-        choices=[
-            # ("movement", "Movement"),
-            # ("weapon_skill", "Weapon Skill"),
-            # ("ballistic_skill", "Ballistic Skill"),
-            ("strength", "Strength"),
-            # ("toughness", "Toughness"),
-            # ("wounds", "Wounds"),
-            # ("initiative", "Initiative"),
-            # ("attacks", "Attacks"),
-            # ("leadership", "Leadership"),
-            # ("cool", "Cool"),
-            # ("willpower", "Willpower"),
-            # ("intelligence", "Intelligence"),
-            ("range_short", "Range (Short)"),
-            ("range_long", "Range (Long)"),
-            ("accuracy_short", "Accuracy (Short)"),
-            ("accuracy_long", "Accuracy (Long)"),
-            ("armour_piercing", "Armour Piercing"),
-            ("damage", "Damage"),
-            ("ammo", "Ammo"),
-        ],
-    )
-    mode = models.CharField(
-        max_length=255,
-        choices=[("improve", "Improve"), ("worsen", "Worsen"), ("set", "Set")],
-    )
-    value = models.CharField(max_length=255)
+    inch_stats = ["range_short", "range_long", "movement"]
+
+    modifier_stats = ["accuracy_short", "accuracy_long", "armour_piercing"]
+
+    target_roll_stats = [
+        "ammo",
+        "weapon_skill",
+        "ballistic_skill",
+        "intelligence",
+        "leadership",
+        "cool",
+        "willpower",
+        "initiative",
+    ]
 
     def apply(self, input_value: str) -> str:
         """
@@ -1884,7 +1877,7 @@ class ContentModStat(ContentMod):
         direction = 1 if self.mode == "improve" else -1
         # For some stats, we need to reverse the direction
         # e.g. if the stat is a target roll value
-        if self.stat in ["ammo", "armour_piercing"]:
+        if self.stat in self.inverted_stats:
             direction = -direction
 
         # Stats can be:
@@ -1941,28 +1934,94 @@ class ContentModStat(ContentMod):
             return f"{''.join(join)}{sign}{output_value}"
         elif output_str == "0":
             return ""
-        elif self.stat in ["range_short", "range_long"]:
+        elif self.stat in self.inch_stats:
             # Inches
             return f'{output_str}"'
-        elif self.stat in ["accuracy_short", "accuracy_long", "armour_piercing"]:
+        elif self.stat in self.modifier_stats:
             # Modifier
             if mod_value > 0:
                 return f"+{output_str}"
             return f"{output_str}"
-        elif self.stat in ["ammo"]:
+        elif self.stat in self.target_roll_stats:
             # Target roll
             return f"{output_str}+"
 
         return output_str
 
+
+class ContentModStat(ContentMod, ContentModStatApplyMixin):
+    """
+    Weapon stat modifier
+    """
+
+    help_text = "A modification to a specific value in a weapon statline"
+    stat = models.CharField(
+        max_length=50,
+        choices=[
+            ("strength", "Strength"),
+            ("range_short", "Range (Short)"),
+            ("range_long", "Range (Long)"),
+            ("accuracy_short", "Accuracy (Short)"),
+            ("accuracy_long", "Accuracy (Long)"),
+            ("armour_piercing", "Armour Piercing"),
+            ("damage", "Damage"),
+            ("ammo", "Ammo"),
+        ],
+    )
+    mode = models.CharField(
+        max_length=10,
+        choices=[("improve", "Improve"), ("worsen", "Worsen"), ("set", "Set")],
+    )
+    value = models.CharField(max_length=5)
+
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
         stat_choices = dict(self._meta.get_field("stat").choices)
-        return f"{mode_choices[self.mode]} {stat_choices[self.stat]} by {self.value}"
+        return f"{mode_choices[self.mode]} weapon {stat_choices[self.stat]} by {self.value}"
 
     class Meta:
-        verbose_name = "Stat Modifier"
-        verbose_name_plural = "Stat Modifiers"
+        verbose_name = "Weapon Stat Modifier"
+        verbose_name_plural = "Weapon Stat Modifiers"
+        ordering = ["stat"]
+
+
+class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
+    """
+    Weapon stat modifier
+    """
+
+    help_text = "A modification to a specific value in a weapon statline"
+    stat = models.CharField(
+        max_length=50,
+        choices=[
+            ("movement", "Movement"),
+            ("weapon_skill", "Weapon Skill"),
+            ("ballistic_skill", "Ballistic Skill"),
+            ("strength", "Strength"),
+            ("toughness", "Toughness"),
+            ("wounds", "Wounds"),
+            ("initiative", "Initiative"),
+            ("attacks", "Attacks"),
+            ("leadership", "Leadership"),
+            ("cool", "Cool"),
+            ("willpower", "Willpower"),
+            ("intelligence", "Intelligence"),
+        ],
+    )
+    mode = models.CharField(
+        max_length=10,
+        choices=[("improve", "Improve"), ("worsen", "Worsen"), ("set", "Set")],
+    )
+    value = models.CharField(max_length=5)
+
+    def __str__(self):
+        mode_choices = dict(self._meta.get_field("mode").choices)
+        stat_choices = dict(self._meta.get_field("stat").choices)
+        return f"{mode_choices[self.mode]} fighter {stat_choices[self.stat]} by {self.value}"
+
+    class Meta:
+        verbose_name = "Figher Stat Modifier"
+        verbose_name_plural = "Figher Stat Modifiers"
         ordering = ["stat"]
 
 
@@ -1992,6 +2051,34 @@ class ContentModTrait(ContentMod):
         verbose_name = "Trait Modifier"
         verbose_name_plural = "Trait Modifiers"
         ordering = ["trait__name", "mode"]
+
+
+class ContentModFighterRule(ContentMod):
+    """
+    Rule modifier
+    """
+
+    help_text = "A modification to a fighter rule"
+    rule = models.ForeignKey(
+        ContentRule,
+        on_delete=models.CASCADE,
+        related_name="modified_by",
+        null=False,
+        blank=False,
+    )
+    mode = models.CharField(
+        max_length=255,
+        choices=[("add", "Add"), ("remove", "Remove")],
+    )
+
+    def __str__(self):
+        choices = dict(self._meta.get_field("mode").choices)
+        return f"{choices[self.mode]} {self.rule}"
+
+    class Meta:
+        verbose_name = "Rule Modifier"
+        verbose_name_plural = "Rule Modifiers"
+        ordering = ["rule__name", "mode"]
 
 
 @dataclass
