@@ -211,7 +211,7 @@ class ListFighterEquipmentField(forms.ModelMultipleChoiceField):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     class Meta:
         model = ListFighterEquipmentAssignment
-        fields = ["content_equipment", "weapon_profiles_field", "upgrade"]
+        fields = ["content_equipment", "weapon_profiles_field", "upgrades_field"]
 
     # TODO: Add a clean method to ensure that weapon profiles are assigned to the correct equipment
 
@@ -262,19 +262,23 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
 class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["upgrade"].label = (
+        self.fields["upgrades_field"].label = (
             self.instance.content_equipment.upgrade_stack_name or "Upgrade"
         )
-        self.fields["upgrade"].queryset = self.instance.content_equipment.upgrades.all()
+        self.fields[
+            "upgrades_field"
+        ].queryset = self.instance.content_equipment.upgrades.all()
 
     class Meta:
         model = ListFighterEquipmentAssignment
-        fields = ["upgrade"]
+        fields = ["upgrades_field"]
         labels = {
-            "upgrade": "Upgrade",
+            "upgrades_field": "Upgrade",
         }
         widgets = {
-            "upgrade": forms.Select(attrs={"class": "form-select"}),
+            "upgrades_field": BsCheckboxSelectMultiple(
+                attrs={"class": "form-check-input"},
+            ),
         }
 
 

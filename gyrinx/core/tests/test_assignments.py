@@ -519,7 +519,7 @@ def test_upgrade_stat_mod(
     profiles = assign.all_profiles()
     assert len(profiles) == 2
 
-    assign.upgrade = u1
+    assign.upgrades_field.add(u1)
     assign.save()
 
     assign = ListFighterEquipmentAssignment.objects.get(pk=assign.pk)
@@ -529,7 +529,7 @@ def test_upgrade_stat_mod(
     modded_profile = profiles[0]
     assert modded_profile.range_short == '2"'
 
-    assign.upgrade = u2
+    assign.upgrades_field.add(u2)
     assign.save()
 
     assign = ListFighterEquipmentAssignment.objects.get(pk=assign.pk)

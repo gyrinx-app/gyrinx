@@ -146,8 +146,8 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
                     "weapon_profiles_field"
                 ].queryset.filter(equipment=self.instance.content_equipment)
 
-                self.fields["upgrade"].queryset = self.fields[
-                    "upgrade"
+                self.fields["upgrades_field"].queryset = self.fields[
+                    "upgrades_field"
                 ].queryset.filter(equipment=self.instance.content_equipment)
 
         group_select(self, "list_fighter", key=lambda x: x.list.name)
@@ -171,7 +171,7 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "weapon_profiles_field",
         "weapon_accessories_field",
         "linked_fighter",
-        "upgrade",
+        "upgrades_field",
         cost,
     ]
     readonly_fields = ["linked_fighter", cost]

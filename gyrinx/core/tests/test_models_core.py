@@ -1074,7 +1074,7 @@ def test_equipment_upgrades(
     assert u1.cost_int() == 20
     assert u2.cost_int() == 50
 
-    assign.upgrade = u2
+    assign.upgrades_field.add(u2)
     assign.save()
 
     # Refresh the object because there is caching
@@ -1115,7 +1115,7 @@ def test_invalid_equipment_upgrade(
 
     assert assign.cost_int() == 50
 
-    assign.upgrade = u2
+    assign.upgrades_field.add(u2)
 
     with pytest.raises(Exception):
         assign.full_clean()
