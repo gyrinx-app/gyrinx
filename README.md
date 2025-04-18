@@ -35,8 +35,8 @@ To set up the development environment, follow these steps:
 1. Clone the repository:
 
     ```bash
-    git clone git@github.com:gyrinx-app/content.git
-    cd content
+    git clone git@github.com:gyrinx-app/gyrinx.git
+    cd gyrinx
     ```
 
 2. Make sure you're using the right python version:
