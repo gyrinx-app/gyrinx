@@ -36,7 +36,21 @@ Google Cloud has emerged as a mature and easy to use cloud provider that gives d
 
 Using Docker to run Gyrinx locally, and in particular using Docker Compose standardises our use of container deployment and makes it easy for other non-core developers to spin up Gyrinx and make contributions. We should always aim to have new functionality work in Docker from the start so that it can be developed on locally. This also stands us in good stead for deployment of the application as containerised environments are fairly replicable locally and into the cloud.
 
-## Future Tools
+## Tools
+
+### GitHub
+
+We use GitHub for source code hosting, because it is a high quality and feature-full tool for collaborating on software development.
+
+We use GitHub Projects for project management and track milestones within the main Gyrinx repo.
+
+We use a prioritization system of labels P0, P1, P2, and P3 to indicate the relative priority. Tasks shift up towards P0 as they become more important. Generally, the work in progress should really only be P0 or P1 unless someone is looking at a "good first task".
+
+We annotate issues in the GitHub project with whether they are features or bugs or simple tasks.&#x20;
+
+When estimating, we use a simple story point system of 1, 2, 3 where 1 is approximately a couple of hours, 2 is potentially half a day to a day, and 3 is more than a day.&#x20;
+
+## On the radar
 
 ### htmx
 
