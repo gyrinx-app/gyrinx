@@ -1410,6 +1410,39 @@ class VirtualListFighterEquipmentAssignment:
     def active_upgrade_cached(self):
         return self.active_upgrade()
 
+    def active_upgrades(self):
+        """
+        Return the active upgrades for this equipment assignment.
+        """
+        if not self._assignment:
+            return None
+
+        if not hasattr(self._assignment, "upgrades_field"):
+            return None
+
+        return self._assignment.upgrades_field.all()
+
+    @cached_property
+    def active_upgrades_cached(self):
+        return self.active_upgrades()
+
+    @cached_property
+    def active_upgrades_display(self):
+        """
+        Return a list of dictionaries containing each upgrade and its cost display.
+        """
+        return [
+            {
+                "upgrade": upgrade,
+                "name": upgrade.name,
+                "cost_int": upgrade.cost_int_cached,
+                "cost_display": f"+{upgrade.cost_int_cached}¢",
+            }
+            for upgrade in self.active_upgrades_cached
+        ]
+
+    # Note that this is about *available* upgrades, not the *active* upgrade.
+
     def upgrades(self) -> QuerySetOf[ContentEquipmentUpgrade]:
         if not self.equipment.upgrades:
             return []

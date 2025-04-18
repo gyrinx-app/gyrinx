@@ -553,6 +553,20 @@ class ContentEquipment(Content):
         """
         return self.category.restricted_to.exists()
 
+    @cached_property
+    def upgrade_mode_single(self):
+        """
+        Indicates whether this equipment is a multi-upgrade mode.
+        """
+        return self.upgrade_mode == ContentEquipment.UpgradeMode.SINGLE
+
+    @cached_property
+    def upgrade_mode_multi(self):
+        """
+        Indicates whether this equipment is a single-upgrade mode.
+        """
+        return self.upgrade_mode == ContentEquipment.UpgradeMode.MULTI
+
     def profiles(self):
         """
         Returns all associated weapon profiles for this equipment.
@@ -1384,6 +1398,11 @@ class ContentEquipmentUpgrade(Content):
         """
         Returns the integer cost of this item.
         """
+        # If the equipment is in multi-upgrade mode, return the cost directly.
+        if self.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
+            return self.cost
+
+        # Otherwise, sum the costs of all upgrades up to this position.
         upgrades = self.equipment.upgrades.filter(position__lte=self.position)
         return sum(upgrade.cost for upgrade in upgrades)
 

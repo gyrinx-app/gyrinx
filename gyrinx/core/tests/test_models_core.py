@@ -1083,6 +1083,11 @@ def test_equipment_upgrades(
     assert assign.cost_int() == 100
     assert fighter.cost_int() == 200
 
+    vassign = VirtualListFighterEquipmentAssignment.from_assignment(assign)
+    assert vassign.active_upgrades_display == [
+        {"name": "Beta", "cost_display": "+50¢", "cost_int": 50, "upgrade": u2},
+    ]
+
 
 @pytest.mark.django_db
 def test_invalid_equipment_upgrade(
@@ -1119,3 +1124,54 @@ def test_invalid_equipment_upgrade(
 
     with pytest.raises(Exception):
         assign.full_clean()
+
+
+@pytest.mark.django_db
+def test_multi_equipment_upgrades(
+    content_fighter, make_list, make_equipment, make_list_fighter
+):
+    spoon = make_equipment(
+        "Catborn",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=50,
+        upgrade_mode=ContentEquipment.UpgradeMode.MULTI,
+    )
+
+    u1 = ContentEquipmentUpgrade.objects.create(equipment=spoon, name="Alpha", cost=20)
+    u2 = ContentEquipmentUpgrade.objects.create(equipment=spoon, name="Beta", cost=30)
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, content_fighter)
+
+    assign = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=spoon
+    )
+
+    assert assign.cost_int() == 50
+    assert u1.cost_int() == 20
+    # Multi upgrades are summed by position in the stack
+    assert u2.cost_int() == 30
+
+    assign.upgrades_field.add(u2)
+    assign.save()
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+
+    assert assign.cost_int() == 80
+    assert fighter.cost_int() == 180
+
+    assign.upgrades_field.add(u1)
+    assign.save()
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+
+    assert assign.cost_int() == 100
+    assert fighter.cost_int() == 200
+
+    vassign = VirtualListFighterEquipmentAssignment.from_assignment(assign)
+    assert vassign.active_upgrades_display == [
+        {"name": "Alpha", "cost_display": "+20¢", "cost_int": 20, "upgrade": u1},
+        {"name": "Beta", "cost_display": "+30¢", "cost_int": 30, "upgrade": u2},
+    ]

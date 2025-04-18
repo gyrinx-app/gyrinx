@@ -220,6 +220,8 @@ def test_equipment_upgrades():
         position=2,
     )
 
+    assert equipment.upgrade_mode_single is True
+    assert equipment.upgrade_mode_multi is False
     assert equipment.upgrades.count() == 3
     assert equipment.upgrades.first() == l1
     assert l1.cost_int() == 10
@@ -242,3 +244,34 @@ def test_equipment_additional():
     )
 
     assert equipment.is_house_additional
+
+
+@pytest.mark.django_db
+def test_equipment_multi_upgrade():
+    equipment = ContentEquipment.objects.create(
+        name="Laser Gun",
+        upgrade_mode=ContentEquipment.UpgradeMode.MULTI,
+    )
+    u1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Upgrade 1",
+        cost=10,
+    )
+    u2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Upgrade 2",
+        cost=5,
+    )
+    u3 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Upgrade 3",
+        cost=-10,
+    )
+
+    assert equipment.upgrade_mode_single is False
+    assert equipment.upgrade_mode_multi is True
+    assert equipment.upgrades.count() == 3
+    assert equipment.upgrades.first() == u1
+    assert u1.cost_int() == 10
+    assert u2.cost_int() == 5
+    assert u3.cost_int() == -10
