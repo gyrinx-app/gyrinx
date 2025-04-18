@@ -1,5 +1,6 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+fail_fast: true
 repos:
     - repo: https://github.com/djlint/djLint
       rev: v1.36.4
@@ -61,6 +62,12 @@ repos:
 
     - repo: local
       hooks:
+          - id: check-migrations
+            name: Check for missing migrations
+            entry: ./scripts/check_migrations.sh
+            language: script
+            pass_filenames: false
+            always_run: true
           - id: pytest
             name: pytest
             entry: ./scripts/test.sh

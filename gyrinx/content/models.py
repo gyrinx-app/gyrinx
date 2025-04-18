@@ -471,6 +471,17 @@ class ContentEquipment(Content):
         blank=True, null=True, verbose_name="Availability Level"
     )
 
+    class UpgradeMode(models.TextChoices):
+        SINGLE = "SINGLE", "Single"
+        MULTI = "MULTI", "Multi"
+
+    upgrade_mode = models.CharField(
+        max_length=6,
+        choices=UpgradeMode.choices,
+        default=UpgradeMode.SINGLE,
+        help_text="If applicable, does this equipment have an upgrade stack (single, e.g. cyberteknika) or options (multi, e.g. genesmithing)?",
+    )
+
     upgrade_stack_name = models.CharField(
         max_length=255,
         blank=True,
@@ -1354,7 +1365,8 @@ class ContentEquipmentUpgrade(Content):
     )
     name = models.CharField(max_length=255)
     position = models.IntegerField(
-        default=0, help_text="The position in which this upgrade sits in the stack."
+        default=0,
+        help_text="The position in which this upgrade sits in the stack, if applicable.",
     )
     cost = models.IntegerField(
         default=0,
