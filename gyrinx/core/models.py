@@ -1338,6 +1338,7 @@ class VirtualListFighterEquipmentAssignment:
         """
         return self.equipment.cat()
 
+    @property
     def is_house_additional(self):
         return self.equipment.is_house_additional
 
