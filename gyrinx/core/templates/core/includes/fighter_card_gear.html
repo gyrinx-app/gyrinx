@@ -58,7 +58,16 @@
                                                   title="This is assigned to the fighter by default.">
                                             {% endif %}
                                             {{ assign.name }}
-                                            {% for up in assign.active_upgrades_display %}({{ up.name }}){% endfor %}
+                                            {% if assign.active_upgrades_display|length > 0 %}
+                                                {% spaceless %}
+                                                    <span>(</span>
+                                                    {% for up in assign.active_upgrades_display %}
+                                                        <span>{{ up.name }}</span>
+                                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                    {% endfor %}
+                                                    <span>)</span>
+                                                {% endspaceless %}
+                                            {% endif %}
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                         {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                         {% if not print %}
