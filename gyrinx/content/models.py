@@ -1873,7 +1873,7 @@ class ContentModStat(ContentMod):
     )
     value = models.CharField(max_length=255)
 
-    def apply(self, current_value):
+    def apply(self, input_value: str) -> str:
         """
         Apply the modification to a given value.
         """
@@ -1895,7 +1895,7 @@ class ContentModStat(ContentMod):
         #   S+X (meaning fighter Str+X) — Str
         #   +X (meaning add X to roll) — Acc and Ap
         #   X+ (meaning target X on roll) — Am
-        current_value = current_value.strip()
+        current_value = input_value.strip()
         join = None
         # A developer has a problem. She uses a regex... Now she has two problems.
         if current_value in ["-", ""]:
@@ -1918,32 +1918,42 @@ class ContentModStat(ContentMod):
             split = current_value.split("+")
             join = split[:-1]
             current_value = int(split[-1])
+        elif "-" in current_value:
+            # Stat-linked: e.g. S-1
+            split = current_value.split("-")
+            join = split[:-1]
+            # Note! Negative
+            current_value = -int(split[-1])
         else:
             current_value = int(current_value)
 
         # TODO: We should validate that the value is number in improve/worsen mode
         mod_value = int(self.value.strip()) * direction
-        output_value = str(current_value + mod_value)
+        output_value = current_value + mod_value
+        output_str = str(output_value)
 
         if join:
             # Stat-linked: e.g. S+1
-            sign = "+" if mod_value > 0 else "-"
+            # The else case handles negative case
+            if output_str == "0":
+                return f"{''.join(join)}"
+            sign = "+" if output_value > 0 else ""
             return f"{''.join(join)}{sign}{output_value}"
-        elif output_value == "0":
+        elif output_str == "0":
             return ""
         elif self.stat in ["range_short", "range_long"]:
             # Inches
-            return f'{output_value}"'
+            return f'{output_str}"'
         elif self.stat in ["accuracy_short", "accuracy_long", "armour_piercing"]:
             # Modifier
             if mod_value > 0:
-                return f"+{output_value}"
-            return f"{output_value}"
+                return f"+{output_str}"
+            return f"{output_str}"
         elif self.stat in ["ammo"]:
             # Target roll
-            return f"{output_value}+"
+            return f"{output_str}+"
 
-        return output_value
+        return output_str
 
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
