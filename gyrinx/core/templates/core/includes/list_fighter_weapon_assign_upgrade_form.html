@@ -4,7 +4,7 @@
 <div class="hstack gap-1">
     <div>
         <input type="radio"
-               name="upgrade"
+               name="upgrades_field"
                value=""
                id="upgrade-none"
                form="weapon-{{ assign.equipment.id }}"
@@ -14,7 +14,7 @@
     <div class="d-flex flex-grow-1 btn-group">
         {% for ud in assign.upgrades_display %}
             <input type="radio"
-                   name="upgrade"
+                   name="upgrades_field"
                    value="{{ ud.upgrade.id }}"
                    id="upgrade-{{ ud.upgrade.id }}"
                    form="weapon-{{ assign.equipment.id }}"

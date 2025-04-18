@@ -669,6 +669,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
         help_text="The upgrade that this equipment assignment is set to.",
     )
 
+    upgrades_field = models.ManyToManyField(
+        ContentEquipmentUpgrade,
+        blank=True,
+        related_name="fighter_equipment_assignments",
+        help_text="The upgrades that this equipment assignment has.",
+    )
+
     linked_fighter = models.ForeignKey(
         ListFighter,
         on_delete=models.CASCADE,
@@ -795,8 +802,8 @@ class ListFighterEquipmentAssignment(Base, Archived):
     def _mods(self):
         accessories = self.weapon_accessories_cached
         mods = [m for a in accessories for m in a.modifiers.all()]
-        if self.upgrade:
-            mods += list(self.upgrade.modifiers.all())
+        for upgrade in self.upgrades_field.all():
+            mods += list(upgrade.modifiers.all())
         return mods
 
     # Costs
@@ -986,10 +993,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return f"+{self.accessory_cost_int(accessory)}¢"
 
     def upgrade_cost_int(self):
-        if not self.upgrade:
+        if not self.upgrades_field.exists():
             return 0
 
-        return self.upgrade.cost_int()
+        return sum([upgrade.cost_int() for upgrade in self.upgrades_field.all()])
 
     @cached_property
     def upgrade_cost_int_cached(self):
@@ -1017,12 +1024,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return clone
 
     def clean(self):
-        if self.upgrade and self.upgrade.equipment != self.content_equipment:
-            raise ValidationError(
-                {
-                    "upgrade": f"Upgrade {self.upgrade} is not for equipment {self.content_equipment}"
-                }
-            )
+        for upgrade in self.upgrades_field.all():
+            if upgrade.equipment != self.content_equipment:
+                raise ValidationError(
+                    {
+                        "upgrade": f"Upgrade {upgrade} is not for equipment {self.content_equipment}"
+                    }
+                )
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
@@ -1383,13 +1391,20 @@ class VirtualListFighterEquipmentAssignment:
         return self._assignment.accessory_cost_int(accessory)
 
     def active_upgrade(self):
+        """
+        Return the active upgrade for this equipment assignment if the
+        equipment is in single upgrade mode.
+        """
         if not self._assignment:
             return None
 
-        if not hasattr(self._assignment, "upgrade"):
+        if not hasattr(self._assignment, "upgrades_field"):
             return None
 
-        return self._assignment.upgrade
+        if self.equipment.upgrade_mode != ContentEquipment.UpgradeMode.SINGLE:
+            return None
+
+        return self._assignment.upgrades_field.first()
 
     @cached_property
     def active_upgrade_cached(self):

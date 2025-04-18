@@ -894,7 +894,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
     **Context**
 
     ``form``
-        A ListFighterGearForm for assigning non-weapon equipment.
+        A ListFighterEquipmentAssignmentForm for assigning non-weapon equipment.
     ``list``
         The :model:`core.List` that owns this fighter.
     ``error_message``
@@ -1205,6 +1205,7 @@ def delete_list_fighter_gear_upgrade(
 
     if request.method == "POST":
         assignment.upgrade = None
+        assignment.upgrades_field.remove(upgrade)
         assignment.save()
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 

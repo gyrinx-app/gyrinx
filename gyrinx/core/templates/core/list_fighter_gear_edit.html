@@ -7,6 +7,12 @@
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Gear: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
+        {% if error_message %}
+            <div class="alert alert-danger">
+                <h4 class="alert-heading">Error</h4>
+                <p>{{ error_message }}</p>
+            </div>
+        {% endif %}
         <div class="grid">
             {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter weapons_mode="gear" gear_mode="edit" %}
             {% url 'core:list-fighter-gear-edit' list.id fighter.id as filter_action %}
@@ -49,7 +55,7 @@
                                         <div class="hstack gap-1">
                                             <div>
                                                 <input type="radio"
-                                                       name="upgrade"
+                                                       name="upgrades_field"
                                                        value=""
                                                        id="upgrade-none"
                                                        form="gear-{{ assign.equipment.id }}"
@@ -59,7 +65,7 @@
                                             <div class="d-flex flex-grow-1 btn-group">
                                                 {% for ud in assign.upgrades_display %}
                                                     <input type="radio"
-                                                           name="upgrade"
+                                                           name="upgrades_field"
                                                            value="{{ ud.upgrade.id }}"
                                                            id="upgrade-{{ ud.upgrade.id }}"
                                                            form="gear-{{ assign.equipment.id }}"
