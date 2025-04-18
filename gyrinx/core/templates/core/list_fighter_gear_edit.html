@@ -81,14 +81,14 @@
                                             </div>
                                         {% else %}
                                             {% for ud in assign.upgrades_display %}
-                                                <div class="form-check fs-7">
+                                                <div class="form-check fs-7 mb-0">
                                                     <input type="checkbox"
                                                            name="upgrades_field"
                                                            value="{{ ud.upgrade.id }}"
                                                            id="upgrade-{{ ud.upgrade.id }}"
                                                            form="gear-{{ assign.equipment.id }}"
                                                            class="form-check-input">
-                                                    <label class="form-check-label" for="upgrade-{{ ud.upgrade.id }}">
+                                                    <label class="form-check-label mb-0" for="upgrade-{{ ud.upgrade.id }}">
                                                         {{ ud.upgrade.name }}
                                                         {% if ud.cost_int != 0 %}({{ ud.cost_display }}){% endif %}
                                                     </label>

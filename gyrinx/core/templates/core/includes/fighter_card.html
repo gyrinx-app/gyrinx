@@ -189,13 +189,21 @@
                                     {% comment %} All this faff to avoid spaces {% endcomment %}
                                     {% spaceless %}
                                         <span>{{ assign.name }}</span>
+                                        {% if assign.active_upgrades_display|length > 0 %}
+                                            <span>&nbsp;(</span>
+                                            {% for up in assign.active_upgrades_display %}
+                                                <span>{{ up.name }}</span>
+                                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                            {% endfor %}
+                                            <span>)</span>
+                                        {% endif %}
                                         {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endspaceless %}
                                 {% endfor %}
                                 {% if not print %}
                                     {% if list.owner_cached == user %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all&q={{ line.category }}">Edit {{ line.category }}</a>
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all&q={{ line.category }}">Edit</a>
                                     {% endif %}
                                 {% endif %}
                             </td>
