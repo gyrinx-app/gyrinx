@@ -27,7 +27,7 @@ pytest-watcher==0.4.3
 python-dotenv==1.1.0
 qrcode==8.1
 referencing==0.36.2
-ruff==0.11.4
+ruff==0.11.5
 setuptools==78.1.0
 sqlparse==0.5.3
 whitenoise==6.9.0
