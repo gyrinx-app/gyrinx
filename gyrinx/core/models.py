@@ -1516,6 +1516,9 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return a list of dictionaries containing each upgrade and its cost display.
         """
+        if not self.active_upgrades_cached:
+            return []
+
         return [
             {
                 "upgrade": upgrade,
