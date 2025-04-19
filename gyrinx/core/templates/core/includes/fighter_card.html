@@ -92,15 +92,7 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    {% for stat in fighter.statline %}
-                        {% if stat.highlight %}
-                            <td class="text-center table-warning {{ stat.classes }}">{{ stat.value }}</td>
-                        {% else %}
-                            <td class="text-center {{ stat.classes }}">{{ stat.value }}</td>
-                        {% endif %}
-                    {% endfor %}
-                </tr>
+                <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
             </tbody>
             <tbody class="table-group-divider">
                 {% if fighter.content_fighter_cached.ruleline|length > 0 %}

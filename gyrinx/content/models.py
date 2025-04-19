@@ -1072,6 +1072,7 @@ class StatlineDisplay:
     value: str
     classes: str = ""
     modded: bool = False
+    highlight: bool = False
 
 
 class ContentWeaponProfile(Content):

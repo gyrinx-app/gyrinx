@@ -601,7 +601,7 @@ def test_upgrade_fighter_stat_mod(
     fighter = ListFighter.objects.get(pk=fighter.pk)
 
     # He moves quick for a big lad
-    assert fighter.statline[0]["value"] == '6"'
+    assert fighter.statline[0].value == '6"'
 
     # TODO: Implement rule mods
     # assign.upgrades_field.remove(u1)

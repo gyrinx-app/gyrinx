@@ -34,6 +34,7 @@ from gyrinx.content.models import (
     ContentSkill,
     ContentWeaponAccessory,
     ContentWeaponProfile,
+    StatlineDisplay,
     VirtualWeaponProfile,
 )
 from gyrinx.models import Archived, Base, Owned, QuerySetOf
@@ -338,21 +339,29 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
-    def statline(self):
+    def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
         """
-        return [
-            {
-                **stat,
-                "value": self._apply_mods(
-                    stat["field_name"],
-                    stat["value"],
-                    self._statmods(stat["field_name"]),
-                ),
-            }
-            for stat in self.content_fighter_cached.statline()
-        ]
+        stats = []
+        for stat in self.content_fighter_cached.statline():
+            value = self._apply_mods(
+                stat["field_name"],
+                stat["value"],
+                self._statmods(stat["field_name"]),
+            )
+            modded = value != stat["value"]
+            sd = StatlineDisplay(
+                name=stat["name"],
+                field_name=stat["field_name"],
+                classes=stat["classes"],
+                highlight=stat["highlight"],
+                value=value,
+                modded=modded,
+            )
+            stats.append(sd)
+
+        return stats
 
     @cached_property
     def ruleline(self):

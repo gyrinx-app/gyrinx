@@ -1,0 +1,13 @@
+{% for stat in fighter.statline %}
+    <td class="text-center {% if stat.highlight %}table-warning{% endif %} {{ stat.classes }}">
+        {% if stat.modded %}
+            <a href="#"
+               bs-tooltip
+               data-bs-toggle="tooltip"
+               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+               title="Modified by equipment, accessories or upgrades">{{ stat.value }}</a>
+        {% else %}
+            {{ stat.value }}
+        {% endif %}
+    </td>
+{% endfor %}
