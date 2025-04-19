@@ -95,23 +95,32 @@
                 <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
             </tbody>
             <tbody class="table-group-divider">
-                {% if fighter.content_fighter_cached.ruleline|length > 0 %}
+                {% if fighter.ruleline|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Rules</th>
                         <td colspan="12">
-                            {% for rule in fighter.content_fighter_cached.ruleline %}
+                            {% for rule in fighter.ruleline %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
-                                {% if not print %}
-                                    {% spaceless %}
-                                        <span>{% ref rule value=rule %}</span>
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% else %}
-                                    {% spaceless %}
-                                        <span>{{ rule }}</span>
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% endif %}
+                                {% spaceless %}
+                                    <span>
+                                        {% if not print %}
+                                            {% if rule.modded %}
+                                                <a href="#"
+                                                   bs-tooltip
+                                                   data-bs-toggle="tooltip"
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                   title="Added by equipment, accessories or upgrades">
+                                                    {{ rule.value }}
+                                                </a>
+                                            {% else %}
+                                                {% ref rule.value value=rule.value %}
+                                            {% endif %}
+                                        {% else %}
+                                            {{ rule.value }}
+                                        {% endif %}
+                                    </span>
+                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                {% endspaceless %}
                             {% endfor %}
                         </td>
                     </tr>

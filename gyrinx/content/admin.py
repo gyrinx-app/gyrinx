@@ -32,6 +32,7 @@ from .models import (
     ContentHouseAdditionalRule,
     ContentHouseAdditionalRuleTree,
     ContentMod,
+    ContentModFighterRule,
     ContentModFighterStat,
     ContentModStat,
     ContentModTrait,
@@ -451,10 +452,20 @@ class ContentModTraitAdmin(ContentModChildAdmin):
     base_model = ContentModTrait
 
 
+@admin.register(ContentModFighterRule)
+class ContentModFighterRuleAdmin(ContentModChildAdmin):
+    base_model = ContentModFighterRule
+
+
 @admin.register(ContentMod)
 class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
     base_model = ContentMod
-    child_models = (ContentModStat, ContentModTrait)
+    child_models = (
+        ContentModStat,
+        ContentModFighterStat,
+        ContentModTrait,
+        ContentModFighterRule,
+    )
     list_filter = (PolymorphicChildModelFilter,)
 
 

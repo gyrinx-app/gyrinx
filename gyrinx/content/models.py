@@ -791,7 +791,7 @@ class ContentFighter(Content):
             for f, field in stats
         ]
 
-    def ruleline(self):
+    def ruleline(self) -> list[str]:
         """
         Returns a list of rule names associated with this fighter.
         """
@@ -1063,6 +1063,12 @@ class ContentWeaponProfileQuerySet(models.QuerySet):
             ),
             cost_for_fighter=Coalesce("cost_override", "cost"),
         )
+
+
+@dataclass
+class RulelineDisplay:
+    value: str
+    modded: bool = False
 
 
 @dataclass
@@ -2021,8 +2027,8 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
         return f"{mode_choices[self.mode]} fighter {stat_choices[self.stat]} by {self.value}"
 
     class Meta:
-        verbose_name = "Figher Stat Modifier"
-        verbose_name_plural = "Figher Stat Modifiers"
+        verbose_name = "Fighter Stat Modifier"
+        verbose_name_plural = "Fighter Stat Modifiers"
         ordering = ["stat"]
 
 
@@ -2049,8 +2055,8 @@ class ContentModTrait(ContentMod):
         return f"{choices[self.mode]} {self.trait}"
 
     class Meta:
-        verbose_name = "Trait Modifier"
-        verbose_name_plural = "Trait Modifiers"
+        verbose_name = "Weapon Trait Modifier"
+        verbose_name_plural = "Weapon Trait Modifiers"
         ordering = ["trait__name", "mode"]
 
 
@@ -2077,8 +2083,8 @@ class ContentModFighterRule(ContentMod):
         return f"{choices[self.mode]} {self.rule}"
 
     class Meta:
-        verbose_name = "Rule Modifier"
-        verbose_name_plural = "Rule Modifiers"
+        verbose_name = "Fighter Rule Modifier"
+        verbose_name_plural = "Fighter Rule Modifiers"
         ordering = ["rule__name", "mode"]
 
 

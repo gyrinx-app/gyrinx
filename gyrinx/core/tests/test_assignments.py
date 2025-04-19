@@ -13,6 +13,7 @@ from gyrinx.content.models import (
     ContentRule,
     ContentWeaponAccessory,
     ContentWeaponTrait,
+    RulelineDisplay,
     StatlineDisplay,
 )
 from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
@@ -553,6 +554,8 @@ def test_upgrade_fighter_stat_mod(
     r_rm, _ = ContentRule.objects.get_or_create(name="Remove Me")
     r_add, _ = ContentRule.objects.get_or_create(name="Add Me")
     spoon = make_equipment("Spoon")
+    content_fighter.rules.add(r_rm)
+    content_fighter.save()
 
     # You can associate a mod with an upgrade...
 
@@ -595,6 +598,13 @@ def test_upgrade_fighter_stat_mod(
     fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
     assign = fighter.assign(spoon)
 
+    assert fighter.ruleline == [
+        RulelineDisplay(
+            value="Remove Me",
+            modded=False,
+        )
+    ]
+
     assign.upgrades_field.add(u1)
     assign.save()
 
@@ -603,16 +613,19 @@ def test_upgrade_fighter_stat_mod(
     # He moves quick for a big lad
     assert fighter.statline[0].value == '6"'
 
-    # TODO: Implement rule mods
-    # assign.upgrades_field.remove(u1)
-    # assign.upgrades_field.add(u2)
-    # assign.save()
+    assign.upgrades_field.remove(u1)
+    assign.upgrades_field.add(u2)
+    assign.save()
 
-    # fighter = ListFighter.objects.get(pk=fighter.pk)
+    fighter = ListFighter.objects.get(pk=fighter.pk)
 
-    # assert fighter.statline[1]["value"] == "3+"
-    # assert r_rm not in fighter.ruleline
-    # assert r_add in fighter.ruleline
+    assert fighter.statline[1].value == "3+"
+    assert fighter.ruleline == [
+        RulelineDisplay(
+            value="Add Me",
+            modded=True,
+        )
+    ]
 
 
 @pytest.mark.django_db

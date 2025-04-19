@@ -29,11 +29,13 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
+    ContentModFighterRule,
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
     ContentWeaponAccessory,
     ContentWeaponProfile,
+    RulelineDisplay,
     StatlineDisplay,
     VirtualWeaponProfile,
 )
@@ -339,6 +341,13 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
+    def _rulemods(self):
+        """
+        Get the rule mods for this fighter.
+        """
+        return [mod for mod in self._mods if isinstance(mod, ContentModFighterRule)]
+
+    @cached_property
     def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
@@ -368,7 +377,16 @@ class ListFighter(AppBase):
         """
         Get the ruleline for this fighter.
         """
-        return self.content_fighter_cached.ruleline()
+        rules = list(self.content_fighter_cached.rules.all())
+        modded = []
+        for mod in self._rulemods:
+            if mod.mode == "add" and mod.rule not in rules:
+                rules.append(mod.rule)
+                modded.append(mod.rule)
+            elif mod.mode == "remove" and mod.rule in rules:
+                rules.remove(mod.rule)
+
+        return [RulelineDisplay(rule.name, rule in modded) for rule in rules]
 
     # Assignments
 
