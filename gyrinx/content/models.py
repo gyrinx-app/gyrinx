@@ -490,6 +490,12 @@ class ContentEquipment(Content):
         help_text="If applicable, the name of the stack of upgrades for this equipment (e.g. Upgrade or Augmentation). Use the singular form.",
     )
 
+    modifiers = models.ManyToManyField(
+        "ContentMod",
+        blank=True,
+        help_text="Modifiers to apply to the fighter's statline and traits.",
+    )
+
     history = HistoricalRecords()
 
     def __str__(self):

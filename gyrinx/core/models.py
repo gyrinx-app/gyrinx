@@ -451,7 +451,7 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
-    def assignments_cached(self):
+    def assignments_cached(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return self.assignments()
 
     @cached_property
@@ -876,8 +876,17 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
     @cached_property
     def _mods(self):
+        """
+        Get the mods for this assignment.
+
+        Mods come from:
+        - the equipment itself
+        - accessories
+        - upgrades
+        """
         accessories = self.weapon_accessories_cached
         mods = [m for a in accessories for m in a.modifiers.all()]
+        mods += list(self.content_equipment_cached.modifiers.all())
         for upgrade in self.upgrades_field.all():
             mods += list(upgrade.modifiers.all())
         return mods

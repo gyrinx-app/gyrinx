@@ -629,6 +629,56 @@ def test_upgrade_fighter_stat_mod(
 
 
 @pytest.mark.django_db
+def test_equipment_fighter_stat_mod(
+    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+):
+    r_rm, _ = ContentRule.objects.get_or_create(name="Remove Me")
+    r_add, _ = ContentRule.objects.get_or_create(name="Add Me")
+    spoon = make_equipment("Spoon")
+    content_fighter.rules.add(r_rm)
+    content_fighter.save()
+
+    # You can associate a mod with equipment...
+
+    # ...to improve stats
+    mod_mv = ContentModFighterStat.objects.create(
+        stat="movement",
+        mode="improve",
+        value="1",
+    )
+
+    # ...to remove rules
+    mod_rm_rule = ContentModFighterRule.objects.create(
+        mode="remove",
+        rule=r_rm,
+    )
+
+    # ...to add rules
+    mod_add_rule = ContentModFighterRule.objects.create(
+        mode="add",
+        rule=r_add,
+    )
+
+    spoon.modifiers.set([mod_mv, mod_rm_rule, mod_add_rule])
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+    fighter.assign(spoon)
+
+    # Caching!!
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    assert fighter.statline[0].value == '6"'
+    assert fighter.ruleline == [
+        RulelineDisplay(
+            value="Add Me",
+            modded=True,
+        )
+    ]
+
+
+@pytest.mark.django_db
 def test_fighter_with_default_spoon_scope_assignment(
     content_fighter,
     make_list,

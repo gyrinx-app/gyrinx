@@ -123,6 +123,15 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             ),
             "name",
         )
+        # Filter the queryset for modifiers to only include those that change things
+        # on the fighter.
+        mod_qs = self.fields["modifiers"].queryset
+        self.fields["modifiers"].queryset = mod_qs.instance_of(
+            ContentModFighterStat,
+        ) | mod_qs.instance_of(
+            ContentModFighterRule,
+        )
+
         group_select(self, "category", key=lambda x: x.group)
 
 
