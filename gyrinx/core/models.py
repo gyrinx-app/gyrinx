@@ -30,6 +30,7 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentHouseAdditionalRule,
     ContentModFighterRule,
+    ContentModFighterSkill,
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
@@ -394,6 +395,13 @@ class ListFighter(AppBase):
         return [mod for mod in self._mods if isinstance(mod, ContentModFighterRule)]
 
     @cached_property
+    def _skillmods(self):
+        """
+        Get the skill mods for this fighter.
+        """
+        return [mod for mod in self._mods if isinstance(mod, ContentModFighterSkill)]
+
+    @cached_property
     def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
@@ -516,7 +524,16 @@ class ListFighter(AppBase):
         skills = set(
             list(self.content_fighter_cached.skills.all()) + list(self.skills.all())
         )
+        for mod in self._skillmods:
+            if mod.mode == "add" and mod.skill not in skills:
+                skills.add(mod.skill)
+            elif mod.mode == "remove" and mod.skill in skills:
+                skills.remove(mod.skill)
         return [s.name for s in skills]
+
+    @cached_property
+    def skilline_cached(self):
+        return self.skilline()
 
     def weapons(self):
         return [e for e in self.assignments_cached if e.is_weapon_cached]

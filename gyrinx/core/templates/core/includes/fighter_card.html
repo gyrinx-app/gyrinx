@@ -125,11 +125,11 @@
                         </td>
                     </tr>
                 {% endif %}
-                {% if fighter.skilline|length > 0 %}
+                {% if fighter.skilline_cached|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Skills</th>
                         <td colspan="12">
-                            {% for skill in fighter.skilline %}
+                            {% for skill in fighter.skilline_cached %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
                                 {% if not print %}
                                     {% spaceless %}

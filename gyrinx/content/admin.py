@@ -33,6 +33,7 @@ from .models import (
     ContentHouseAdditionalRuleTree,
     ContentMod,
     ContentModFighterRule,
+    ContentModFighterSkill,
     ContentModFighterStat,
     ContentModStat,
     ContentModTrait,
@@ -126,10 +127,16 @@ class ContentEquipmentAdminForm(forms.ModelForm):
         # Filter the queryset for modifiers to only include those that change things
         # on the fighter.
         mod_qs = self.fields["modifiers"].queryset
-        self.fields["modifiers"].queryset = mod_qs.instance_of(
-            ContentModFighterStat,
-        ) | mod_qs.instance_of(
-            ContentModFighterRule,
+        self.fields["modifiers"].queryset = (
+            mod_qs.instance_of(
+                ContentModFighterStat,
+            )
+            | mod_qs.instance_of(
+                ContentModFighterRule,
+            )
+            | mod_qs.instance_of(
+                ContentModFighterSkill,
+            )
         )
 
         group_select(self, "category", key=lambda x: x.group)
@@ -466,6 +473,18 @@ class ContentModFighterRuleAdmin(ContentModChildAdmin):
     base_model = ContentModFighterRule
 
 
+class ContentModFighterSkillAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "skill", key=lambda x: x.category.name)
+
+
+@admin.register(ContentModFighterSkill)
+class ContentModFighterSkillAdmin(ContentModChildAdmin):
+    base_model = ContentModFighterSkill
+    form = ContentModFighterSkillAdminForm
+
+
 @admin.register(ContentMod)
 class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
     base_model = ContentMod
@@ -474,6 +493,7 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModFighterStat,
         ContentModTrait,
         ContentModFighterRule,
+        ContentModFighterSkill,
     )
     list_filter = (PolymorphicChildModelFilter,)
 

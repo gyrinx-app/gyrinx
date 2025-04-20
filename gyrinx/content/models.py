@@ -2086,12 +2086,40 @@ class ContentModFighterRule(ContentMod):
 
     def __str__(self):
         choices = dict(self._meta.get_field("mode").choices)
-        return f"{choices[self.mode]} {self.rule}"
+        return f"{choices[self.mode]} rule {self.rule}"
 
     class Meta:
         verbose_name = "Fighter Rule Modifier"
         verbose_name_plural = "Fighter Rule Modifiers"
         ordering = ["rule__name", "mode"]
+
+
+class ContentModFighterSkill(ContentMod):
+    """
+    Skill modifier
+    """
+
+    help_text = "A modification to a fighter skills"
+    skill = models.ForeignKey(
+        ContentSkill,
+        on_delete=models.CASCADE,
+        related_name="modified_by",
+        null=False,
+        blank=False,
+    )
+    mode = models.CharField(
+        max_length=255,
+        choices=[("add", "Add"), ("remove", "Remove")],
+    )
+
+    def __str__(self):
+        choices = dict(self._meta.get_field("mode").choices)
+        return f"{choices[self.mode]} skill {self.skill}"
+
+    class Meta:
+        verbose_name = "Fighter Skill Modifier"
+        verbose_name_plural = "Fighter Skill Modifiers"
+        ordering = ["skill__name", "mode"]
 
 
 @dataclass

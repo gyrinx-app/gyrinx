@@ -7,10 +7,13 @@ from gyrinx.content.models import (
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListWeaponAccessory,
     ContentModFighterRule,
+    ContentModFighterSkill,
     ContentModFighterStat,
     ContentModStat,
     ContentModTrait,
     ContentRule,
+    ContentSkill,
+    ContentSkillCategory,
     ContentWeaponAccessory,
     ContentWeaponTrait,
     RulelineDisplay,
@@ -553,8 +556,16 @@ def test_upgrade_fighter_stat_mod(
 ):
     r_rm, _ = ContentRule.objects.get_or_create(name="Remove Me")
     r_add, _ = ContentRule.objects.get_or_create(name="Add Me")
+    skill_cat, _ = ContentSkillCategory.objects.get_or_create(name="Basic")
+    s_rm, _ = ContentSkill.objects.get_or_create(
+        name="Skill Remove Me", category=skill_cat
+    )
+    s_add, _ = ContentSkill.objects.get_or_create(
+        name="Skill Add Me", category=skill_cat
+    )
     spoon = make_equipment("Spoon")
     content_fighter.rules.add(r_rm)
+    content_fighter.skills.add(s_rm)
     content_fighter.save()
 
     # You can associate a mod with an upgrade...
@@ -584,6 +595,18 @@ def test_upgrade_fighter_stat_mod(
         rule=r_add,
     )
 
+    # ...to add skills
+    mod_add_skill = ContentModFighterSkill.objects.create(
+        mode="add",
+        skill=s_add,
+    )
+
+    # ...to remove skills
+    mod_rm_skill = ContentModFighterSkill.objects.create(
+        mode="remove",
+        skill=s_rm,
+    )
+
     u1 = ContentEquipmentUpgrade.objects.create(
         equipment=spoon, name="Alpha", cost=20, position=0
     )
@@ -592,7 +615,15 @@ def test_upgrade_fighter_stat_mod(
     )
 
     u1.modifiers.set([mod_mv])
-    u2.modifiers.set([mod_ws, mod_rm_rule, mod_add_rule])
+    u2.modifiers.set(
+        [
+            mod_ws,
+            mod_rm_rule,
+            mod_add_rule,
+            mod_add_skill,
+            mod_rm_skill,
+        ]
+    )
 
     lst = make_list("Test List")
     fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
@@ -603,6 +634,9 @@ def test_upgrade_fighter_stat_mod(
             value="Remove Me",
             modded=False,
         )
+    ]
+    assert fighter.skilline() == [
+        "Skill Remove Me",
     ]
 
     assign.upgrades_field.add(u1)
@@ -625,6 +659,9 @@ def test_upgrade_fighter_stat_mod(
             value="Add Me",
             modded=True,
         )
+    ]
+    assert fighter.skilline() == [
+        "Skill Add Me",
     ]
 
 
