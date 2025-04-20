@@ -677,6 +677,15 @@ def test_equipment_fighter_stat_mod(
         )
     ]
 
+    # Check that mods are applied after the list fighter stat override
+
+    fighter.movement_override = '12"'
+    fighter.save()
+
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    assert fighter.statline[0].value == '13"'
+
 
 @pytest.mark.django_db
 def test_fighter_with_default_spoon_scope_assignment(

@@ -174,6 +174,35 @@ def test_fighter_cost_override_for_house(
 
 
 @pytest.mark.django_db
+def test_fighter_stat_override(content_fighter, make_list, make_list_fighter):
+    lst = make_list("Test List", content_house=content_fighter.house)
+    fighter = make_list_fighter(lst, "Test Fighter", content_fighter=content_fighter)
+
+    stats = [stat.value for stat in fighter.statline]
+    assert stats == ['5"', "5+", "5+", "4", "3", "1", "4+", "1", "8+", "7+", "6+", "7+"]
+
+    fighter.movement_override = '6"'
+    fighter.weapon_skill_override = "6+"
+    fighter.ballistic_skill_override = "6+"
+    fighter.strength_override = "5"
+    fighter.toughness_override = "4"
+    fighter.wounds_override = "2"
+    fighter.initiative_override = "5+"
+    fighter.attacks_override = "2"
+    fighter.leadership_override = "9+"
+    fighter.cool_override = "8+"
+    fighter.willpower_override = "7+"
+    fighter.intelligence_override = "8+"
+    fighter.save()
+
+    # Caching!
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    stats = [stat.value for stat in fighter.statline]
+    assert stats == ['6"', "6+", "6+", "5", "4", "2", "5+", "2", "9+", "8+", "7+", "8+"]
+
+
+@pytest.mark.django_db
 def test_archive_list():
     category, house, content_fighter = make_content()
 

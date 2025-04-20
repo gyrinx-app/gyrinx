@@ -87,6 +87,21 @@ class NewListFighterForm(forms.ModelForm):
             queryset=self.fields["content_fighter"].queryset
         )
 
+        overrides = [
+            "movement_override",
+            "weapon_skill_override",
+            "ballistic_skill_override",
+            "strength_override",
+            "toughness_override",
+            "wounds_override",
+            "initiative_override",
+            "attacks_override",
+            "leadership_override",
+            "cool_override",
+            "willpower_override",
+            "intelligence_override",
+        ]
+
         if inst:
             # Fighters for the house and from generic houses, excluding Exotic Beasts
             # who are added via equipment
@@ -105,22 +120,75 @@ class NewListFighterForm(forms.ModelForm):
                 )
                 self.fields["content_fighter"].disabled = True
 
+            # The instance only has a content_fighter if it is being edited
             if hasattr(inst, "content_fighter"):
-                self.fields["cost_override"].placeholder = inst._base_cost_int
+                self.fields["cost_override"].widget.attrs["placeholder"] = (
+                    inst._base_cost_int
+                )
+
+                for field in overrides:
+                    self.fields[field].widget.attrs["placeholder"] = getattr(
+                        inst.content_fighter, field.replace("_override", "")
+                    )
+            else:
+                # If no instance is provided, we are creating a new fighter
+                # and we don't want to allow the user to override the stats
+                for field in overrides:
+                    self.fields.pop(field, None)
 
         group_select(self, "content_fighter", key=lambda x: x.house.name)
 
     class Meta:
         model = ListFighter
-        fields = ["name", "content_fighter", "cost_override"]
+        fields = [
+            "name",
+            "content_fighter",
+            "cost_override",
+            "movement_override",
+            "weapon_skill_override",
+            "ballistic_skill_override",
+            "strength_override",
+            "toughness_override",
+            "wounds_override",
+            "initiative_override",
+            "attacks_override",
+            "leadership_override",
+            "cool_override",
+            "willpower_override",
+            "intelligence_override",
+        ]
         labels = {
             "name": "Name",
             "content_fighter": "Fighter",
             "cost_override": "Manually Set Cost",
+            "movement_override": "Movement",
+            "weapon_skill_override": "Weapon Skill",
+            "ballistic_skill_override": "Ballistic Skill",
+            "strength_override": "Strength",
+            "toughness_override": "Toughness",
+            "wounds_override": "Wounds",
+            "initiative_override": "Initiative",
+            "attacks_override": "Attacks",
+            "leadership_override": "Leadership",
+            "cool_override": "Cool",
+            "willpower_override": "Willpower",
+            "intelligence_override": "Intelligence",
         }
         help_texts = {
             "name": "The name you use to identify this Fighter. This may be public.",
             "cost_override": "Only change this if you want to override the default base cost of the Fighter.",
+            "movement_override": "Override the default Movement for this fighter",
+            "weapon_skill_override": "Override the default Weapon Skill for this fighter",
+            "ballistic_skill_override": "Override the default Ballistic Skill for this fighter",
+            "strength_override": "Override the default Strength for this fighter",
+            "toughness_override": "Override the default Toughness for this fighter",
+            "wounds_override": "Override the default Wounds for this fighter",
+            "initiative_override": "Override the default Initiative for this fighter",
+            "attacks_override": "Override the default Attacks for this fighter",
+            "leadership_override": "Override the default Leadership for this fighter",
+            "cool_override": "Override the default Cool for this fighter",
+            "willpower_override": "Override the default Willpower for this fighter",
+            "intelligence_override": "Override the default Intelligence for this fighter",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -128,6 +196,20 @@ class NewListFighterForm(forms.ModelForm):
             "cost_override": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}
             ),
+            "movement_override": forms.TextInput(attrs={"class": "form-control"}),
+            "weapon_skill_override": forms.TextInput(attrs={"class": "form-control"}),
+            "ballistic_skill_override": forms.TextInput(
+                attrs={"class": "form-control"}
+            ),
+            "strength_override": forms.TextInput(attrs={"class": "form-control"}),
+            "toughness_override": forms.TextInput(attrs={"class": "form-control"}),
+            "wounds_override": forms.TextInput(attrs={"class": "form-control"}),
+            "initiative_override": forms.TextInput(attrs={"class": "form-control"}),
+            "attacks_override": forms.TextInput(attrs={"class": "form-control"}),
+            "leadership_override": forms.TextInput(attrs={"class": "form-control"}),
+            "cool_override": forms.TextInput(attrs={"class": "form-control"}),
+            "willpower_override": forms.TextInput(attrs={"class": "form-control"}),
+            "intelligence_override": forms.TextInput(attrs={"class": "form-control"}),
         }
 
 

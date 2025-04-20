@@ -235,11 +235,54 @@ class ListFighter(AppBase):
     )
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
+    # Stat overrides
+
+    movement_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="M"
+    )
+    weapon_skill_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="WS"
+    )
+    ballistic_skill_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="BS"
+    )
+    strength_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="S"
+    )
+    toughness_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="T"
+    )
+    wounds_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="W"
+    )
+    initiative_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="I"
+    )
+    attacks_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="A"
+    )
+    leadership_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="Ld"
+    )
+    cool_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="Cl"
+    )
+    willpower_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="Wil"
+    )
+    intelligence_override = models.CharField(
+        max_length=12, blank=True, null=True, verbose_name="Int"
+    )
+
+    # Cost
+
     cost_override = models.IntegerField(
         null=True,
         blank=True,
         help_text="If set, this will be base cost of this fighter.",
     )
+
+    # Assigments
 
     equipment = models.ManyToManyField(
         ContentEquipment,
@@ -261,6 +304,9 @@ class ListFighter(AppBase):
         blank=True,
         help_text="Additional rules for this fighter. Must be from the same house as the fighter.",
     )
+
+    # Other
+
     narrative = models.TextField(
         "about",
         blank=True,
@@ -354,9 +400,17 @@ class ListFighter(AppBase):
         """
         stats = []
         for stat in self.content_fighter_cached.statline():
+            input_value = stat["value"]
+
+            # Check for overrides
+            value_override = getattr(self, f"{stat['field_name']}_override", None)
+            if value_override is not None:
+                input_value = value_override
+
+            # Apply the mods
             value = self._apply_mods(
                 stat["field_name"],
-                stat["value"],
+                input_value,
                 self._statmods(stat["field_name"]),
             )
             modded = value != stat["value"]
