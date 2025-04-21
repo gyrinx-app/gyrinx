@@ -19,6 +19,7 @@ from gyrinx import settings
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
+    ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
@@ -503,7 +504,7 @@ class ListFighter(AppBase):
             Q(pk__in=self.disabled_default_assignments.all())
         )
 
-    def assignments(self):
+    def assignments(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
             for a in self._direct_assignments().order_by("list_fighter__name")
@@ -715,13 +716,12 @@ class ListFighter(AppBase):
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
 
-@receiver(
-    post_save, sender=ListFighter, dispatch_uid="create_linked_fighter_assignment"
-)
-def create_linked_fighter_assignment(sender, instance, **kwargs):
+@receiver(post_save, sender=ListFighter, dispatch_uid="create_linked_objects")
+def create_linked_objects(sender, instance, **kwargs):
     # Find the default assignments where the equipment has a fighter profile
     default_assigns = instance.content_fighter.default_assignments.exclude(
-        equipment__contentequipmentfighterprofile__isnull=True
+        Q(equipment__contentequipmentfighterprofile__isnull=True)
+        & Q(equipment__contentequipmentequipmentprofile__isnull=True)
     )
     for assign in default_assigns:
         # Find disabled default assignments
@@ -737,7 +737,7 @@ def create_linked_fighter_assignment(sender, instance, **kwargs):
         if not is_disabled and not exists:
             # Disable the default assignment and assign the equipment directly
             # This will trigger the ListFighterEquipmentAssignment logic to
-            # create the linked ListFighter
+            # create the linked objects
             instance.toggle_default_assignment(assign, enable=False)
             new_assign = ListFighterEquipmentAssignment(
                 list_fighter=instance,
@@ -830,6 +830,15 @@ class ListFighterEquipmentAssignment(Base, Archived):
         blank=True,
         related_name="linked_fighter",
         help_text="The ListFighter that this Equipment assignment is linked to (e.g. Exotic Beast, Vehicle).",
+    )
+
+    linked_equipment_parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="linked_equipment_children",
+        help_text="The parent equipment assignment that this assignment is linked to.",
     )
 
     from_default_assignment = models.ForeignKey(
@@ -1021,6 +1030,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
         if self.cost_override is not None:
             return self.cost_override
 
+        # If this is a linked assignment and is the child, then the cost is zero
+        if self.linked_equipment_parent is not None:
+            return 0
+
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
 
@@ -1196,12 +1209,13 @@ class ListFighterEquipmentAssignment(Base, Archived):
 @receiver(
     post_save,
     sender=ListFighterEquipmentAssignment,
-    dispatch_uid="create_linked_fighter",
+    dispatch_uid="create_related_objects",
 )
 def create_related_objects(sender, instance, **kwargs):
     equipment_fighter_profile = ContentEquipmentFighterProfile.objects.filter(
         equipment=instance.content_equipment,
     )
+    # If there is a profile and we aren't already linked
     if equipment_fighter_profile.exists() and not instance.linked_fighter:
         if equipment_fighter_profile.count() > 1:
             raise ValueError(
@@ -1225,13 +1239,49 @@ def create_related_objects(sender, instance, **kwargs):
         lf.save()
         instance.save()
 
+    equipment_equipment_profile = ContentEquipmentEquipmentProfile.objects.filter(
+        equipment=instance.content_equipment,
+    )
+    existing_linked_assignments = ListFighterEquipmentAssignment.objects.filter(
+        linked_equipment_parent=instance
+    )
+    for profile in equipment_equipment_profile:
+        equip_to_create = profile.linked_equipment
+        # Don't allow us to create ourselves again
+        if equip_to_create == instance.content_equipment:
+            raise ValueError(
+                f"Equipment {instance.content_equipment} has a equipment profile for the same equipment"
+            )
+
+        # Check if the profile is already linked to this assignment
+        if existing_linked_assignments.filter(
+            content_equipment=equip_to_create
+        ).exists():
+            continue
+
+        ListFighterEquipmentAssignment.objects.create(
+            list_fighter=instance.list_fighter,
+            content_equipment=equip_to_create,
+            linked_equipment_parent=instance,
+        )
+
+
+@receiver(
+    pre_delete,
+    sender=ListFighterEquipmentAssignment,
+    dispatch_uid="delete_related_objects_pre_delete",
+)
+def delete_related_objects_pre_delete(sender, instance, **kwargs):
+    for child in instance.linked_equipment_children.all():
+        child.delete()
+
 
 @receiver(
     post_delete,
     sender=ListFighterEquipmentAssignment,
-    dispatch_uid="delete_linked_fighter",
+    dispatch_uid="delete_related_objects_post_delete",
 )
-def delete_linked_fighter(sender, instance, **kwargs):
+def delete_related_objects_post_delete(sender, instance, **kwargs):
     if instance.linked_fighter:
         instance.linked_fighter.delete()
 
@@ -1327,6 +1377,14 @@ class VirtualListFighterEquipmentAssignment:
             self.kind() == "assigned"
             and self._assignment.from_default_assignment is not None
         )
+
+    @cached_property
+    def is_linked(self):
+        return self.kind() == "assigned" and self.linked_parent is not None
+
+    @cached_property
+    def linked_parent(self):
+        return self._assignment.linked_equipment_parent
 
     def base_cost_int(self):
         """

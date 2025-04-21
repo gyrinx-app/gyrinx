@@ -1,10 +1,12 @@
 import pytest
+from django.forms import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipmentCategory,
+    ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
 )
-from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -357,3 +359,140 @@ def test_fighter_link_default_assignment_self_fails(
     # This needs to error becuase otherwise... infinite loop
     with pytest.raises(ValueError):
         make_list_fighter(lst, "Owner", content_fighter=owner_cf, owner=user)
+
+
+@pytest.mark.django_db
+def test_basic_equipment_link(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    house = make_content_house("Example House")
+    owner_cf = make_content_fighter(
+        type="Owner",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+    magic_lamp = make_equipment(
+        "Magic Lamp",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    genie = make_equipment(
+        "Genie",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    # Link the second equipment to the first
+    ContentEquipmentEquipmentProfile.objects.create(
+        equipment=magic_lamp, linked_equipment=genie
+    )
+
+    lst = make_list("Example List", content_house=house, owner=user)
+    owner_lf: ListFighter = make_list_fighter(
+        lst, "Owner", content_fighter=owner_cf, owner=user
+    )
+
+    # Assign this equipment to the owner
+    assign = owner_lf.assign(magic_lamp)
+
+    # Ca-ching
+    owner_lf = ListFighter.objects.get(pk=owner_lf.pk)
+
+    assert assign.cost_int() == 50
+    # i.e. the cost of the fighter plus equipment only
+    assert lst.cost_int() == 150
+    assert lst.fighters().count() == 1
+    assignments = owner_lf.assignments()
+    assert len(assignments) == 2
+
+    assign.delete()
+    owner_lf = ListFighter.objects.get(pk=owner_lf.pk)
+    lst = List.objects.get(pk=lst.pk)
+
+    assignments = owner_lf.assignments()
+    assert len(assignments) == 0
+    assert lst.cost_int() == 100
+    assert lst.fighters().count() == 1
+
+
+@pytest.mark.django_db
+def test_equipment_self_link(
+    make_equipment,
+):
+    magic_lamp = make_equipment(
+        "Magic Lamp",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    # No bueno
+    with pytest.raises(ValidationError):
+        ContentEquipmentEquipmentProfile.objects.create(
+            equipment=magic_lamp, linked_equipment=magic_lamp
+        ).full_clean()
+
+
+@pytest.mark.django_db
+def test_default_equipment_link(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    house = make_content_house("Example House")
+    owner_cf = make_content_fighter(
+        type="Owner",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+    magic_lamp = make_equipment(
+        "Magic Lamp",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    genie = make_equipment(
+        "Genie",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    # Link the second equipment to the first
+    ContentEquipmentEquipmentProfile.objects.create(
+        equipment=magic_lamp, linked_equipment=genie
+    )
+
+    # Assign the equipment to the fighter by default
+    owner_cf.default_assignments.create(equipment=magic_lamp)
+
+    lst = make_list("Example List", content_house=house, owner=user)
+    owner_lf: ListFighter = make_list_fighter(
+        lst, "Owner", content_fighter=owner_cf, owner=user
+    )
+
+    # i.e. the cost of the fighter plus equipment only — which is
+    # zero due to the default assignment
+    assert lst.cost_int() == 100
+    assignments = owner_lf.assignments()
+    assert len(assignments) == 2
+
+    # Delete the assignment -> delete the linked assignment
+    owner_lf._direct_assignments().delete()
+    owner_lf.save()
+
+    owner_lf = ListFighter.objects.get(pk=owner_lf.pk)
+    lst = List.objects.get(pk=lst.pk)
+
+    assignments = owner_lf.assignments()
+    assert len(assignments) == 0
+    assert lst.cost_int() == 100

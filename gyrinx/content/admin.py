@@ -19,6 +19,7 @@ from .models import (
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
+    ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
@@ -103,6 +104,12 @@ class ContentEquipmentFighterProfileInline(ContentTabularInline):
     extra = 0
 
 
+class ContentEquipmentEquipmentProfileInline(ContentTabularInline):
+    model = ContentEquipmentEquipmentProfile
+    extra = 0
+    fk_name = "equipment"
+
+
 class ContentEquipmentUpgradeInline(ContentTabularInline):
     model = ContentEquipmentUpgrade
     extra = 0
@@ -152,6 +159,7 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     inlines = [
         ContentWeaponProfileInline,
         ContentEquipmentFighterProfileInline,
+        ContentEquipmentEquipmentProfileInline,
         ContentEquipmentUpgradeInline,
     ]
 
@@ -423,6 +431,19 @@ class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
 class ContentEquipmentFighterProfileAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentFighterProfileAdminForm
     search_fields = ["equipment__name", "content_fighter__type"]
+
+
+class ContentEquipmentEquipmentProfileAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "equipment", key=lambda x: x.cat())
+        group_select(self, "linked_equipment", key=lambda x: x.cat())
+
+
+@admin.register(ContentEquipmentEquipmentProfile)
+class ContentEquipmentEquipmentProfileAdmin(ContentAdmin):
+    form = ContentEquipmentEquipmentProfileAdminForm
+    search_fields = ["equipment__name", "linked_equipment__name"]
 
 
 class ContentWeaponProfileAdminForm(forms.ModelForm):

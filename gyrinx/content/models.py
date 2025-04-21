@@ -1020,6 +1020,48 @@ class ContentEquipmentFighterProfile(models.Model):
         unique_together = ["equipment", "content_fighter"]
 
 
+class ContentEquipmentEquipmentProfile(models.Model):
+    """
+    Links ContentEquipment to another ContentEquipment for auto-assigns.
+    """
+
+    equipment = models.ForeignKey(
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        verbose_name="Equipment",
+    )
+    linked_equipment = models.ForeignKey(
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        verbose_name="Auto-assigned Equipment",
+        related_name="equip_equip_link_profiles",
+        help_text="This Equipment will be auto-assigned when the main Equipment is assigned",
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.equipment} -> {self.linked_equipment}"
+
+    def clean(self):
+        """
+        Validation to ensure that the linked equipment is not the same as the main equipment.
+        """
+        if self.equipment == self.linked_equipment:
+            raise ValidationError(
+                "The linked equipment cannot be the same as the main equipment."
+            )
+
+        if self.equipment.equip_equip_link_profiles.exists():
+            raise ValidationError(
+                "The linked equipment cannot itself be linked equipment."
+            )
+
+    class Meta:
+        verbose_name = "Equipment-Equipment Link"
+        verbose_name_plural = "Equipment-Equipment Links"
+        unique_together = ["equipment", "linked_equipment"]
+
+
 class ContentWeaponProfileManager(models.Manager):
     """
     Custom manager for :model:`content.ContentWeaponProfile` model.
