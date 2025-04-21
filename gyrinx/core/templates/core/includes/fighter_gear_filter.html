@@ -1,38 +1,90 @@
 {% load allauth custom_tags %}
-<form id="search"
-      method="get"
-      action="{{ action }}#search"
-      class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
-    <input type="hidden" name="flash" value="search">
-    {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
-    <div class="input-group">
-        <span class="input-group-text">
-            <i class="bi-search"></i>
-        </span>
-        <input class="form-control"
-               type="search"
-               placeholder="Search"
-               aria-label="Search"
-               name="q"
-               value="{{ request.GET.q }}">
+<div class="g-col-12 g-col-md-6"></div>
+<div class="g-col-12 g-col-lg-6">
+    <form id="search"
+          method="get"
+          action="{{ action }}#search"
+          class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
+        <input type="hidden" name="flash" value="search">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="bi-search"></i>
+            </span>
+            <input class="form-control"
+                   type="search"
+                   placeholder="Search"
+                   aria-label="Search"
+                   name="q"
+                   value="{{ request.GET.q }}">
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" type="submit">Search</button>
+            {% if request.GET.q %}
+                <a href="?{% qt_rm request "q" "flash" %}#search"
+                   class="btn btn-outline-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+<div class="g-col-12 g-col-lg-6 align-items-center hstack gap-3 flex-wrap">
+    <div class="dropdown">
+        <button type="button"
+                class="btn btn-outline-primary dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                data-bs-auto-close="outside">Category</button>
+        <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+            {% for cat in categories %}
+                {% qt_contains request "cat" cat.id as contains_id %}
+                <div class="form-check mb-0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           form="search"
+                           id="cat-{{ cat.id }}"
+                           name="cat"
+                           value="{{ cat.id }}"
+                           {% if contains_id or request.GET.cat == "" or request.GET.cat == "all" or not request.GET.cat %}checked{% endif %}>
+                    <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
+                    •
+                    <a class="ms-auto" href="?{% qt request cat=cat.id %}#search">only</a>
+                </div>
+            {% empty %}
+                <span class="text-muted">No categories available.</span>
+            {% endfor %}
+            <div class="btn-group align-items-center">
+                <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                    <i class="bi-arrow-clockwise"></i>
+                    Update
+                </button>
+                •
+                <a class="btn btn-link text-secondary icon-link btn-sm"
+                   href="?{% qt request cat="all" %}#search">Reset</a>
+            </div>
+        </div>
     </div>
-    <div class="btn-group">
-        <button class="btn btn-primary" type="submit">Search</button>
-        {% if request.GET.q %}
-            <a href="?{% qt_rm request "q" "flash" %}"
-               class="btn btn-outline-secondary">Clear</a>
-        {% endif %}
+    <div class="form-check form-switch mb-0">
+        <!-- Hidden value is overridden if filter-switch is checked, but otherwise is used -->
+        <input type="hidden" name="filter" value="all" form="search">
+        <input class="form-check-input"
+               type="checkbox"
+               role="switch"
+               form="search"
+               id="filter-switch"
+               name="filter"
+               value="equipment-list"
+               {% if not request.GET.filter or request.GET.filter == "equipment-list" %}checked{% endif %}>
+        <label class="form-check-label fs-7 mb-0" for="filter-switch">Only Equipment List</label>
     </div>
-</form>
-<ul class="g-col-12 nav nav-tabs">
-    <li class="nav-item">
-        <a class="nav-link {% active_query "filter" "" %}"
-           {% active_query_aria "filter" "" %}
-           href="?{% qt_rm request "filter" %}">Equipment List Only</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% active_query "filter" "all" %}"
-           {% active_query_aria "filter" "all" %}
-           href="?{% qt request filter="all" %}">All</a>
-    </li>
-</ul>
+    <div class="ms-auto btn-group align-items-center">
+        <button class="btn btn-link icon-link btn-sm"
+                type="submit"
+                form="search"
+                id="update-filters">
+            <i class="bi-arrow-clockwise"></i>
+            Update
+        </button>
+        •
+        <a class="btn btn-link text-secondary icon-link btn-sm" href="?#search">Reset</a>
+    </div>
+</div>

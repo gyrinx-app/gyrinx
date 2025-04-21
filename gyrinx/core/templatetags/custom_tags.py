@@ -119,6 +119,12 @@ def qt_rm(request, *args):
     return updated.urlencode()
 
 
+@register.simple_tag
+def qt_contains(request, key, value):
+    value = str(value)
+    return key in request.GET and value in request.GET.getlist(key, list)
+
+
 @register.filter(name="min")
 def fmin(value, arg):
     return min(int(value), int(arg))
@@ -131,6 +137,12 @@ def fmax(value, arg):
 
 def identity(value):
     return value
+
+
+@register.filter
+def to_str(value):
+    """converts int to string"""
+    return str(value)
 
 
 @register.simple_tag

@@ -21,6 +21,8 @@ from django.urls import include, path, re_path
 
 from gyrinx.pages import views
 
+admin.site.site_header = "Gyrinx Admin"
+
 urlpatterns = debug_toolbar_urls() + [
     path("", include("gyrinx.core.urls")),
     path("api/", include("gyrinx.api.urls")),

@@ -13,6 +13,7 @@ from django.views import generic
 
 from gyrinx.content.models import (
     ContentEquipment,
+    ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
@@ -44,7 +45,7 @@ from gyrinx.core.models import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
 )
-from gyrinx.models import QuerySetOf
+from gyrinx.models import QuerySetOf, is_valid_uuid
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -930,6 +931,18 @@ def edit_list_fighter_gear(request, id, fighter_id):
         )
     )
 
+    categories = (
+        ContentEquipmentCategory.objects.filter(id__in=equipment.values("category_id"))
+        .distinct()
+        .order_by("name")
+    )
+
+    cats = [
+        cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
+    ]
+    if cats and "all" not in cats:
+        equipment = equipment.filter(category_id__in=cats)
+
     if request.GET.get("q"):
         equipment = (
             equipment.annotate(
@@ -939,7 +952,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
             .distinct("category__name", "name", "id")
         )
 
-    if request.GET.get("filter") != "all":
+    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
         equipment = equipment.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
@@ -963,6 +976,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
         {
             "fighter": fighter,
             "equipment": equipment,
+            "categories": categories,
             "assigns": assigns,
             "list": lst,
             "error_message": error_message,
@@ -1024,6 +1038,17 @@ def edit_list_fighter_weapons(request, id, fighter_id):
         .with_profiles_for_fighter(fighter.content_fighter_cached)
     )
 
+    # All categories with weapons in them
+    categories = (
+        ContentEquipmentCategory.objects.filter(id__in=weapons.values("category_id"))
+        .distinct()
+        .order_by("name")
+    )
+
+    cats = request.GET.getlist("cat", list())
+    if cats and "all" not in cats:
+        weapons = weapons.filter(category_id__in=cats)
+
     if request.GET.get("q"):
         weapons = (
             weapons.annotate(
@@ -1035,7 +1060,7 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             .distinct("category__name", "name", "id")
         )
 
-    if request.GET.get("filter") != "all":
+    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
         weapons = weapons.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
@@ -1061,6 +1086,7 @@ def edit_list_fighter_weapons(request, id, fighter_id):
         {
             "fighter": fighter,
             "weapons": weapons,
+            "categories": categories,
             "assigns": assigns,
             "list": lst,
             "error_message": error_message,

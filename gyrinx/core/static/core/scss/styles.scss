@@ -97,6 +97,12 @@ label {
     margin-bottom: 0.25rem;
 }
 
+.dropdown-menu-mw {
+    min-width: 20em;
+    width: 100%;
+    max-width: 30em;
+}
+
 .errorlist {
     @extend .list-unstyled;
     color: var(--bs-danger);
