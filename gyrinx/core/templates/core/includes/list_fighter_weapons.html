@@ -33,6 +33,7 @@
             <th class="text-center" scope="col">Ap</th>
             <th class="text-center" scope="col">D</th>
             <th class="text-center" scope="col">Am</th>
+            {% if mode == 'add' %}<th class="text-center border-start" scope="col">AL</th>{% endif %}
         </tr>
     </thead>
     {% for assign in weapons %}
@@ -47,6 +48,9 @@
                             {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                        {% if mode == 'add' %}
+                            <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
+                        {% endif %}
                     </tr>
                     {% if profile.traitline_cached|length > 0 %}
                         <tr>
@@ -59,6 +63,9 @@
                 {% if assign.standard_profiles_cached.0.name != "" %}
                     <tr class="align-bottom">
                         <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}</td>
+                        {% if mode == 'add' %}
+                            <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
+                        {% endif %}
                     </tr>
                 {% endif %}
                 {% for profile in assign.standard_profiles_cached %}
@@ -72,6 +79,9 @@
                             {% endif %}
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                        {% if mode == 'add' %}
+                            <td class="text-center border-start">{{ profile.rarity }}{% firstof profile.rarity_roll "" %}</td>
+                        {% endif %}
                     </tr>
                     {% if profile.traitline_cached|length > 0 %}
                         <tr>
@@ -105,6 +115,9 @@
                             {% endif %}
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
+                        {% if mode == 'add' %}
+                            <td class="text-center border-start">{{ pd.profile.rarity }}{% firstof pd.profile.rarity_roll "" %}</td>
+                        {% endif %}
                     </tr>
                     {% if pd.profile.traitline_cached|length > 0 %}
                         <tr>
@@ -157,7 +170,7 @@
             {% endif %}
             {% if mode == 'add' %}
                 <tr>
-                    <td colspan="9">
+                    <td colspan="10">
                         <div class="d-flex btn-group">
                             <button type="submit"
                                     class="btn btn-outline-primary btn-sm"

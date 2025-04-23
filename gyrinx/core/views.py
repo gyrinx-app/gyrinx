@@ -45,7 +45,7 @@ from gyrinx.core.models import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
 )
-from gyrinx.models import QuerySetOf, is_valid_uuid
+from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -961,6 +961,11 @@ def edit_list_fighter_gear(request, id, fighter_id):
             )
         )
 
+    if request.GET.get("al"):
+        equipment = equipment.filter(rarity__in=request.GET.getlist("al", list()))
+    if request.GET.get("mal") and is_int(request.GET.get("mal")):
+        equipment = equipment.filter(rarity_roll__lte=int(request.GET.get("mal", 0)))
+
     assigns = []
     for item in equipment:
         assigns.append(
@@ -1068,6 +1073,11 @@ def edit_list_fighter_weapons(request, id, fighter_id):
                 ).values("equipment_id")
             )
         )
+
+    if request.GET.get("al"):
+        weapons = weapons.filter(rarity__in=request.GET.getlist("al", list()))
+    if request.GET.get("mal") and is_int(request.GET.get("mal")):
+        weapons = weapons.filter(rarity_roll__lte=int(request.GET.get("mal", 0)))
 
     assigns = []
     for weapon in weapons:

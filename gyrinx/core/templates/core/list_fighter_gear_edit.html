@@ -42,12 +42,15 @@
                                 {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
                                 {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
                                 <div class="vstack gap-1">
-                                    <h4 class="h6 mb-1">
-                                        {{ assign.base_name }}
-                                        <span class="fs-7 text-muted">
-                                            {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
-                                        </span>
-                                    </h4>
+                                    <div class="hstack">
+                                        <h4 class="h6 mb-1">
+                                            {{ assign.base_name }}
+                                            <span class="fs-7 text-muted">
+                                                {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
+                                            </span>
+                                        </h4>
+                                        <span class="ms-auto fs-7 text-muted">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</span>
+                                    </div>
                                     {% if assign.upgrades_display|length > 0 %}
                                         <legend class="fs-7 mb-0">
                                             <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}

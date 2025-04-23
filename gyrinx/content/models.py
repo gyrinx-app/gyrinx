@@ -2251,6 +2251,15 @@ class VirtualWeaponProfile:
     def traitline_cached(self):
         return self.traitline()
 
+    @cached_property
+    def rarity(self):
+        print(f"Rarity! {self.profile}")
+        return self.profile.rarity
+
+    @cached_property
+    def rarity_roll(self):
+        return self.profile.rarity_roll
+
     def __str__(self):
         return self.name()
 

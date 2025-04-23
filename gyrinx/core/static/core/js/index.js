@@ -152,6 +152,7 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
     });
 })();
 
+// Enable copy to clipboard
 document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
     element.addEventListener("click", (event) => {
         const textToCopy = element.getAttribute("data-clipboard-text");
@@ -196,5 +197,24 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
             }
             document.body.removeChild(textArea);
         }
+    });
+});
+
+// Support syncing two or more form elements
+document.querySelectorAll("[data-gy-sync]").forEach((element) => {
+    const targets = Array.from(
+        document.querySelectorAll(
+            `[data-gy-sync=${element.getAttribute("data-gy-sync")}`,
+        ),
+    ).filter((target) => target !== element);
+
+    if (targets.length === 0) return;
+
+    element.addEventListener("change", (event) => {
+        targets.forEach((target) => {
+            if (target.value !== event.target.value) {
+                target.value = event.target.value;
+            }
+        });
     });
 });

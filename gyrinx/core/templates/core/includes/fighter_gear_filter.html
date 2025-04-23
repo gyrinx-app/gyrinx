@@ -1,6 +1,6 @@
 {% load allauth custom_tags %}
 <div class="g-col-12 g-col-md-6"></div>
-<div class="g-col-12 g-col-lg-6">
+<div class="g-col-12 g-col-xl-6">
     <form id="search"
           method="get"
           action="{{ action }}#search"
@@ -26,40 +26,158 @@
         </div>
     </form>
 </div>
-<div class="g-col-12 g-col-lg-6 align-items-center hstack gap-3 flex-wrap">
-    <div class="dropdown">
-        <button type="button"
-                class="btn btn-outline-primary dropdown-toggle"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-                data-bs-auto-close="outside">Category</button>
-        <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
-            {% for cat in categories %}
-                {% qt_contains request "cat" cat.id as contains_id %}
-                <div class="form-check mb-0">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           role="switch"
-                           form="search"
-                           id="cat-{{ cat.id }}"
-                           name="cat"
-                           value="{{ cat.id }}"
-                           {% if contains_id or request.GET.cat == "" or request.GET.cat == "all" or not request.GET.cat %}checked{% endif %}>
-                    <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
+<div class="g-col-12 g-col-xl-6 align-items-center hstack gap-3 flex-wrap">
+    <div class="btn-group">
+        <div class="btn-group">
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    data-bs-auto-close="outside">Category</button>
+            <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                {% for cat in categories %}
+                    {% qt_contains request "cat" cat.id as contains_id %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               role="switch"
+                               form="search"
+                               id="cat-{{ cat.id }}"
+                               name="cat"
+                               value="{{ cat.id }}"
+                               {% if contains_id or request.GET.cat == "" or request.GET.cat == "all" or not request.GET.cat %}checked{% endif %}>
+                        <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
+                        •
+                        <a class="ms-auto" href="?{% qt request cat=cat.id %}#search">only</a>
+                    </div>
+                {% empty %}
+                    <span class="text-muted">No categories available.</span>
+                {% endfor %}
+                <div class="btn-group align-items-center">
+                    <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                        <i class="bi-arrow-clockwise"></i>
+                        Update
+                    </button>
                     •
-                    <a class="ms-auto" href="?{% qt request cat=cat.id %}#search">only</a>
+                    <a class="btn btn-link text-secondary icon-link btn-sm"
+                       href="?{% qt request cat="all" %}#search">Reset</a>
                 </div>
-            {% empty %}
-                <span class="text-muted">No categories available.</span>
-            {% endfor %}
-            <div class="btn-group align-items-center">
-                <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
-                    <i class="bi-arrow-clockwise"></i>
-                    Update
-                </button>
-                •
-                <a class="btn btn-link text-secondary icon-link btn-sm"
-                   href="?{% qt request cat="all" %}#search">Reset</a>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    data-bs-auto-close="outside">Availability</button>
+            <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                <div class="vstack gap-3">
+                    <div>
+                        <label for="mal" class="form-label">Maximum Availability Level</label>
+                        <div class="row gx-2 align-items-center">
+                            <div class="col-3">
+                                <input type="number"
+                                       form="search"
+                                       class="form-control fs-7"
+                                       id="mal-value"
+                                       name="mal"
+                                       data-gy-sync="mal-value"
+                                       value="{{ request.GET.mal }}"
+                                       min="0"
+                                       max="16">
+                            </div>
+                            <div class="col-9">
+                                <input type="range"
+                                       class="form-range"
+                                       name="mal"
+                                       data-gy-sync="mal-value"
+                                       form="search"
+                                       step="1"
+                                       min="0"
+                                       max="16"
+                                       value="{{ request.GET.mal }}"
+                                       id="mal">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="al" class="form-label">Categories</label>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="al-c"
+                                   name="al"
+                                   value="C"
+                                   {% if not request.GET.al or "C" in request.GET.al %}checked{% endif %}>
+                            <label class="form-check-label" for="al-c">Common (C)</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request al="C" %}#search">only</a>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="al-r"
+                                   name="al"
+                                   value="R"
+                                   {% if not request.GET.al or "R" in request.GET.al %}checked{% endif %}>
+                            <label class="form-check-label" for="al-r">Rare (R)</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request al="R" %}#search">only</a>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="al-i"
+                                   name="al"
+                                   value="I"
+                                   {% if "I" in request.GET.al %}checked{% endif %}>
+                            <label class="form-check-label" for="al-i">Illegal (I)</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request al="I" %}#search">only</a>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="al-e"
+                                   name="al"
+                                   value="E"
+                                   {% if "E" in request.GET.al %}checked{% endif %}>
+                            <label class="form-check-label" for="al-e">Exclusive (E)</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request al="E" %}#search">only</a>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="al-u"
+                                   name="al"
+                                   value="U"
+                                   {% if "U" in request.GET.al %}checked{% endif %}>
+                            <label class="form-check-label" for="al-u">Unique (U)</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request al="U" %}#search">only</a>
+                        </div>
+                        <div class="btn-group align-items-center">
+                            <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                                <i class="bi-arrow-clockwise"></i>
+                                Update
+                            </button>
+                            •
+                            <a class="btn btn-link text-secondary icon-link btn-sm"
+                               href="?{% qt_rm request "al" "mal" %}#search">Reset</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
