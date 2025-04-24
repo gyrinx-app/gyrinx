@@ -24,6 +24,7 @@ from gyrinx.content.models import (
     ContentPsykerPower,
     ContentSkillCategory,
     ContentWeaponAccessory,
+    ContentWeaponProfile,
 )
 from gyrinx.core.forms import (
     CloneListFighterForm,
@@ -952,7 +953,10 @@ def edit_list_fighter_gear(request, id, fighter_id):
             .distinct("category__name", "name", "id")
         )
 
+    als = request.GET.getlist("al", ["C", "R"])
     if request.GET.get("filter", None) in [None, "", "equipment-list"]:
+        # Always show Exclusive in equipment lists
+        als += ["E"]
         equipment = equipment.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
@@ -961,8 +965,7 @@ def edit_list_fighter_gear(request, id, fighter_id):
             )
         )
 
-    if request.GET.get("al"):
-        equipment = equipment.filter(rarity__in=request.GET.getlist("al", list()))
+    equipment = equipment.filter(rarity__in=als)
     if request.GET.get("mal") and is_int(request.GET.get("mal")):
         equipment = equipment.filter(rarity_roll__lte=int(request.GET.get("mal", 0)))
 
@@ -1052,10 +1055,10 @@ def edit_list_fighter_weapons(request, id, fighter_id):
 
     cats = request.GET.getlist("cat", list())
     if cats and "all" not in cats:
-        weapons = weapons.filter(category_id__in=cats)
+        weapons: QuerySetOf[ContentEquipment] = weapons.filter(category_id__in=cats)
 
     if request.GET.get("q"):
-        weapons = (
+        weapons: QuerySetOf[ContentEquipment] = (
             weapons.annotate(
                 search=SearchVector(
                     "name", "category__name", "contentweaponprofile__name"
@@ -1065,8 +1068,11 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             .distinct("category__name", "name", "id")
         )
 
+    als = request.GET.getlist("al", ["C", "R"])
     if request.GET.get("filter", None) in [None, "", "equipment-list"]:
-        weapons = weapons.exclude(
+        # Always show Exclusive in equipment lists
+        als += ["E"]
+        weapons: QuerySetOf[ContentEquipment] = weapons.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
                     fighter=fighter.content_fighter_cached
@@ -1074,14 +1080,35 @@ def edit_list_fighter_weapons(request, id, fighter_id):
             )
         )
 
-    if request.GET.get("al"):
-        weapons = weapons.filter(rarity__in=request.GET.getlist("al", list()))
-    if request.GET.get("mal") and is_int(request.GET.get("mal")):
-        weapons = weapons.filter(rarity_roll__lte=int(request.GET.get("mal", 0)))
+    weapons: QuerySetOf[ContentEquipment] = weapons.filter(rarity__in=set(als))
+    mal = (
+        int(request.GET.get("mal"))
+        if request.GET.get("mal") and is_int(request.GET.get("mal"))
+        else None
+    )
+    if mal:
+        weapons: QuerySetOf[ContentEquipment] = weapons.filter(rarity_roll__lte=mal)
 
     assigns = []
     for weapon in weapons:
-        profiles = weapon.profiles_for_fighter(fighter.content_fighter_cached)
+        profiles: list[ContentWeaponProfile] = weapon.profiles_for_fighter(
+            fighter.content_fighter_cached
+        )
+        profiles = [
+            profile
+            for profile in profiles
+            # Keep standard profiles
+            if profile.cost == 0
+            # They have an Al that matches the filter, and no roll value
+            or (not profile.rarity_roll and profile.rarity in als)
+            # They have an Al that matches the filter, and a roll
+            or (
+                mal
+                and profile.rarity_roll
+                and profile.rarity_roll <= mal
+                and profile.rarity in als
+            )
+        ]
         assigns.append(
             VirtualListFighterEquipmentAssignment(
                 fighter=fighter,

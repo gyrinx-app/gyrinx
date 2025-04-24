@@ -83,25 +83,24 @@
                                        name="mal"
                                        data-gy-sync="mal-value"
                                        value="{{ request.GET.mal }}"
-                                       min="0"
-                                       max="16">
+                                       min="1"
+                                       max="24">
                             </div>
                             <div class="col-9">
                                 <input type="range"
                                        class="form-range"
-                                       name="mal"
                                        data-gy-sync="mal-value"
                                        form="search"
                                        step="1"
-                                       min="0"
-                                       max="16"
-                                       value="{{ request.GET.mal }}"
+                                       min="1"
+                                       max="24"
                                        id="mal">
                             </div>
                         </div>
                     </div>
                     <div>
-                        <label for="al" class="form-label">Categories</label>
+                        <label for="al" class="form-label">Availability</label>
+                        {% qt_contains request "al" "C" as al_contains_c %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
                                    type="checkbox"
@@ -110,11 +109,12 @@
                                    id="al-c"
                                    name="al"
                                    value="C"
-                                   {% if not request.GET.al or "C" in request.GET.al %}checked{% endif %}>
+                                   {% if not request.GET.al or al_contains_c %}checked{% endif %}>
                             <label class="form-check-label" for="al-c">Common (C)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="C" %}#search">only</a>
                         </div>
+                        {% qt_contains request "al" "R" as al_contains_r %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
                                    type="checkbox"
@@ -123,11 +123,12 @@
                                    id="al-r"
                                    name="al"
                                    value="R"
-                                   {% if not request.GET.al or "R" in request.GET.al %}checked{% endif %}>
+                                   {% if not request.GET.al or al_contains_r %}checked{% endif %}>
                             <label class="form-check-label" for="al-r">Rare (R)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="R" %}#search">only</a>
                         </div>
+                        {% qt_contains request "al" "I" as al_contains_i %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
                                    type="checkbox"
@@ -136,11 +137,12 @@
                                    id="al-i"
                                    name="al"
                                    value="I"
-                                   {% if "I" in request.GET.al %}checked{% endif %}>
+                                   {% if al_contains_i %}checked{% endif %}>
                             <label class="form-check-label" for="al-i">Illegal (I)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="I" %}#search">only</a>
                         </div>
+                        {% qt_contains request "al" "E" as al_contains_e %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
                                    type="checkbox"
@@ -149,11 +151,12 @@
                                    id="al-e"
                                    name="al"
                                    value="E"
-                                   {% if "E" in request.GET.al %}checked{% endif %}>
+                                   {% if al_contains_e %}checked{% endif %}>
                             <label class="form-check-label" for="al-e">Exclusive (E)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="E" %}#search">only</a>
                         </div>
+                        {% qt_contains request "al" "U" as al_contains_u %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
                                    type="checkbox"
@@ -162,7 +165,7 @@
                                    id="al-u"
                                    name="al"
                                    value="U"
-                                   {% if "U" in request.GET.al %}checked{% endif %}>
+                                   {% if al_contains_u %}checked{% endif %}>
                             <label class="form-check-label" for="al-u">Unique (U)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="U" %}#search">only</a>

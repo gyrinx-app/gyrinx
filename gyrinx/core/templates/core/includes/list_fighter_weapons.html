@@ -80,7 +80,7 @@
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
                         {% if mode == 'add' %}
-                            <td class="text-center border-start">{{ profile.rarity }}{% firstof profile.rarity_roll "" %}</td>
+                            <td class="text-center border-start">{% comment %} Nothing here because it's a standard profile {% endcomment %}</td>
                         {% endif %}
                     </tr>
                     {% if profile.traitline_cached|length > 0 %}

@@ -22,6 +22,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx.models import (
     Base,
     FighterCategoryChoices,
+    QuerySetOf,
     equipment_category_group_choices,
     is_int,
 )
@@ -579,7 +580,9 @@ class ContentEquipment(Content):
         """
         return self.contentweaponprofile_set.all()
 
-    def profiles_for_fighter(self, content_fighter):
+    def profiles_for_fighter(
+        self, content_fighter
+    ) -> QuerySetOf["ContentWeaponProfile"]:
         """
         Returns all weapon profiles for this equipment, annotated with
         fighter-specific cost if available.
@@ -2253,7 +2256,6 @@ class VirtualWeaponProfile:
 
     @cached_property
     def rarity(self):
-        print(f"Rarity! {self.profile}")
         return self.profile.rarity
 
     @cached_property
