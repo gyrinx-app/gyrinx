@@ -572,6 +572,7 @@ class ListFighter(AppBase):
         return [
             {
                 "category": cat.name,
+                "id": cat.id,
                 "assignments": self.house_additional_assignments(cat),
             }
             for cat in self.content_fighter_cached.house.restricted_equipment_categories.all()

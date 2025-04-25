@@ -204,7 +204,11 @@
                                 {% endfor %}
                                 {% if not print %}
                                     {% if list.owner_cached == user %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all&q={{ line.category }}">Edit</a>
+                                        {% if line.assignments|length > 1 %}
+                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
+                                        {% else %}
+                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                        {% endif %}
                                     {% endif %}
                                 {% endif %}
                             </td>
