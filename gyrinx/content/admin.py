@@ -308,9 +308,9 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["type", "category", "house__name"]
     list_filter = ["category", "house", "psyker_disciplines__discipline"]
     inlines = [
-        ContentFighterHouseOverrideInline,
-        ContentFighterEquipmentInline,
-        ContentFighterDefaultAssignmentInline,
+        # ContentFighterHouseOverrideInline,
+        # ContentFighterEquipmentInline,
+        # ContentFighterDefaultAssignmentInline,
         ContentFighterPsykerDisciplineAssignmentInline,
         ContentFighterPsykerPowerDefaultAssignmentInline,
     ]
