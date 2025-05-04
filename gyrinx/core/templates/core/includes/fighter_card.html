@@ -44,11 +44,10 @@
                 </div>
             {% elif fighter.can_take_legacy %}
                 {% if list.owner_cached == user and not print %}
-                    <div class="hstack gap-2">
+                    <div class="hstack text-muted fs-7">
+                        Legacy:&nbsp;
                         <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
-                           class="icon-link text-muted fs-7 link-secondary">
-                            <i class="bi-clock-history"></i> Add Gang Legacy
-                        </a>
+                           class="text-muted fs-7 link-secondary">Add Gang Legacy</a>
                     </div>
                 {% endif %}
             {% endif %}
