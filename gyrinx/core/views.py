@@ -994,7 +994,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         equipment = equipment.exclude(
             ~Q(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.content_fighter_cached
+                    fighter=fighter.equipment_list_fighter
                 ).values("equipment_id")
             )
         )
@@ -1014,7 +1014,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     assigns = []
     for item in equipment:
         if is_weapon:
-            profiles = item.profiles_for_fighter(fighter.content_fighter_cached)
+            profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
             profiles = [
                 profile
                 for profile in profiles

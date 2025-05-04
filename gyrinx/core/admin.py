@@ -65,7 +65,16 @@ class ListFighterForm(forms.ModelForm):
                 "disabled_pskyer_default_powers"
             ].queryset.filter(fighter=self.instance.content_fighter)
 
+        if hasattr(self.instance, "content_fighter"):
+            if not self.instance.content_fighter.can_take_legacy:
+                if "legacy_content_fighter" in self.fields:
+                    self.fields["legacy_content_fighter"].disabled = True
+                    self.fields[
+                        "legacy_content_fighter"
+                    ].help_text = "This fighter cannot take a legacy content fighter because the underlying content fighter does not support it."
+
         group_select(self, "content_fighter", key=lambda x: x.cat())
+        group_select(self, "legacy_content_fighter", key=lambda x: x.cat())
         group_select(self, "skills", key=lambda x: x.category.name)
         group_select(self, "additional_rules", key=lambda x: x.tree.name)
 
@@ -110,6 +119,7 @@ class ListFighterAdmin(BaseAdmin):
     fields = [
         "name",
         "content_fighter",
+        "legacy_content_fighter",
         "owner",
         "list",
         "skills",
