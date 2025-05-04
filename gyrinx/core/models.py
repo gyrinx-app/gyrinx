@@ -235,6 +235,14 @@ class ListFighter(AppBase):
     content_fighter = models.ForeignKey(
         ContentFighter, on_delete=models.CASCADE, null=False, blank=False
     )
+    legacy_content_fighter = models.ForeignKey(
+        ContentFighter,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="list_fighter_legacy",
+        help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
+    )
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
 
     # Stat overrides
@@ -320,6 +328,10 @@ class ListFighter(AppBase):
     @cached_property
     def content_fighter_cached(self):
         return self.content_fighter
+
+    @cached_property
+    def equipment_list_fighter(self):
+        return self.legacy_content_fighter or self.content_fighter
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
@@ -1039,7 +1051,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
             return self.content_equipment.cost_for_fighter_int()
 
         overrides = ContentFighterEquipmentListItem.objects.filter(
-            fighter=self._content_fighter,
+            # We use the "equipment list fighter" which, under the hood, picks between the
+            # "legacy" content fighter, if set, or the more typical content fighter. This is for
+            # Venators, which can have the Gang Legacy rule.
+            fighter=self._equipment_list_fighter,
             equipment=self.content_equipment,
             # None here is very important: it means we're looking for the base equipment cost.
             weapon_profile=None,
@@ -1110,7 +1125,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         try:
             override = ContentFighterEquipmentListItem.objects.get(
-                fighter=self._content_fighter,
+                # We use the "equipment list fighter" which, under the hood, picks between the
+                # "legacy" content fighter, if set, or the more typical content fighter. This is for
+                # Venators, which can have the Gang Legacy rule.
+                fighter=self._equipment_list_fighter,
                 equipment=self.content_equipment,
                 weapon_profile=profile.profile,
             )
@@ -1149,7 +1167,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
 
         try:
             override = ContentFighterEquipmentListWeaponAccessory.objects.get(
-                fighter=self._content_fighter,
+                # We use the "equipment list fighter" which, under the hood, picks between the
+                # "legacy" content fighter, if set, or the more typical content fighter. This is for
+                # Venators, which can have the Gang Legacy rule.
+                fighter=self._equipment_list_fighter,
                 weapon_accessory=accessory,
             )
             return override.cost_int()
@@ -1175,6 +1196,10 @@ class ListFighterEquipmentAssignment(Base, Archived):
     @cached_property
     def _content_fighter(self):
         return self.list_fighter.content_fighter
+
+    @cached_property
+    def _equipment_list_fighter(self):
+        return self.list_fighter.equipment_list_fighter
 
     #  Behaviour
 

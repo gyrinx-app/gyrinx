@@ -8,8 +8,10 @@ from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentHouse,
+    ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
@@ -711,6 +713,56 @@ def test_weapon_cost_equipment_list_override_with_profile():
 
 
 @pytest.mark.django_db
+def test_fighter_with_equipment_list_accessory(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+    )
+
+    spoon_profile = make_weapon_profile(spoon)
+    spoon_scope, _ = ContentWeaponAccessory.objects.get_or_create(
+        name="Spoon Scope", cost=10
+    )
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter.content_fighter, weapon_accessory=spoon_scope, cost=5
+    )
+
+    # With the scope, the spoon is 10 + 0 + 10 = 20
+    # With an equipment list entry for the scope, the price is 10 + 0 + 5 = 15
+    lf_assign = fighter.assign(
+        spoon, weapon_profiles=[spoon_profile], weapon_accessories=[spoon_scope]
+    )
+
+    assert lf_assign.cost_int() == 15
+
+    # Reminder: assignments() returns List[VirtuaListFighterEquipmentAssignment]
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+    assert assignment.weapon_profiles()[0] == spoon_profile
+    assert assignment.weapon_accessories()[0] == spoon_scope
+    assert assignment.cost_int() == 15
+    assert fighter.cost_int() == 115
+
+    assignment._assignment.total_cost_override = 25
+    assignment._assignment.save()
+
+    assert assignment.cost_int() == 25
+    assert fighter.cost_int() == 125
+
+
+@pytest.mark.django_db
 def test_list_fighter_with_same_equipment_different_profiles():
     category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
@@ -971,6 +1023,239 @@ def test_weapon_with_multiple_costed_profiles():
             cost_display="+7¢",
         ),
     ]
+
+
+@pytest.mark.django_db
+def test_weapon_cost_legacy_equipment_list_override(
+    make_content_house, make_content_fighter
+):
+    """
+    This is testing that fighters can have a "legacy" association with a different
+    content fighter than their base type, giving them costs from that fighter.
+
+    The use-case is Venators House Legacy, BoP p16.
+    """
+    fighter_house = make_content_house("Fighter House")
+    content_fighter = make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=fighter_house,
+        base_cost=100,
+        # TODO: Allow LFs to take legacy
+    )
+
+    legacy_house = make_content_house("Legacy House")
+    legacy_content_fighter = make_content_fighter(
+        type="Legacy Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=legacy_house,
+        base_cost=100,
+    )
+
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+    )
+
+    # Our legacy guy gets spoons on the cheap
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=legacy_content_fighter, equipment=spoon, cost=5
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=fighter_house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter", list=lst, content_fighter=content_fighter
+    )
+
+    fighter.legacy_content_fighter = legacy_content_fighter
+    # TODO: Test that this throws if CF cannot take legacy
+    # fighter.full_clean()  # This will trigger the validation
+    fighter.save()
+
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    assert fighter.cost_int() == 100
+
+    fighter.assign(spoon)
+
+    assert fighter.cost_int() == 105
+
+    assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter, content_equipment=spoon
+    )
+
+    assert assignment.cost_int() == 5
+    assert assignment.base_cost_int() == 5
+    assert assignment.base_cost_display() == "5¢"
+
+
+@pytest.mark.django_db
+def test_weapon_cost_legacy_equipment_list_override_with_profile(
+    make_content_house, make_content_fighter
+):
+    """
+    This is testing that fighters can have a "legacy" association with a different
+    content fighter than their base type, giving them costs from that fighter.
+
+    The use-case is Venators House Legacy, BoP p16.
+    """
+    fighter_house = make_content_house("Fighter House")
+    content_fighter = make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=fighter_house,
+        base_cost=100,
+        # TODO: Allow LFs to take legacy
+    )
+
+    legacy_house = make_content_house("Legacy House")
+    legacy_content_fighter = make_content_fighter(
+        type="Legacy Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=legacy_house,
+        base_cost=100,
+    )
+
+    spoon, _ = ContentEquipment.objects.get_or_create(
+        name="Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+    )
+
+    spoon_spike_profile, _ = ContentWeaponProfile.objects.get_or_create(
+        equipment=spoon,
+        name="with Spike",
+        defaults=dict(
+            cost=5,
+            range_short="",
+            range_long="E",
+            accuracy_short="",
+            accuracy_long="",
+            strength="S",
+            armour_piercing="+2",
+            damage="1",
+            ammo="4+",
+        ),
+    )
+
+    # The legacy guy gets spikes on his spoons for cheap, but spoons at full cost.
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=legacy_content_fighter,
+        equipment=spoon,
+        cost=10,
+    )
+
+    ContentFighterEquipmentListItem.objects.get_or_create(
+        fighter=legacy_content_fighter,
+        equipment=spoon,
+        weapon_profile=spoon_spike_profile,
+        cost=2,
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=fighter_house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter",
+        list=lst,
+        content_fighter=content_fighter,
+        legacy_content_fighter=legacy_content_fighter,
+    )
+
+    assert fighter.cost_int() == 100
+
+    # Duel-wield spoons
+    fighter.assign(spoon)
+    fighter.assign(spoon, weapon_profiles=[spoon_spike_profile])
+
+    # The cost is 100 base + 10 spoon + 10 spoon + 2 profile cost
+    # If the profile cost was not overridden, it would be 100 + 10 + 10 + 5 -> 125
+    assert fighter.cost_int() == 122
+
+    assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profiles_field=None,
+    )
+
+    assert assignment.cost_int() == 10
+    assert assignment.base_cost_int() == 10
+    assert assignment.base_cost_display() == "10¢"
+    assert assignment.weapon_profiles_cost_int() == 0
+    assert assignment.weapon_profiles_cost_display() == "+0¢"
+
+    spike_assignment = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter,
+        content_equipment=spoon,
+        weapon_profiles_field__in=[spoon_spike_profile],
+    )
+
+    assert spike_assignment.cost_int() == 12
+    assert spike_assignment.cost_display() == "12¢"
+    assert spike_assignment.base_cost_int() == 10
+    assert spike_assignment.base_cost_display() == "10¢"
+    assert spike_assignment.weapon_profiles_cost_int() == 2
+    assert spike_assignment.weapon_profiles_cost_display() == "+2¢"
+
+
+@pytest.mark.django_db
+def test_weapon_cost_legacy_equipment_list_override_with_accessory(
+    make_content_house, make_content_fighter, make_equipment, make_weapon_profile
+):
+    """
+    This is testing that fighters can have a "legacy" association with a different
+    content fighter than their base type, giving them costs from that fighter.
+
+    The use-case is Venators House Legacy, BoP p16.
+    """
+    fighter_house = make_content_house("Fighter House")
+    content_fighter = make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=fighter_house,
+        base_cost=100,
+        # TODO: Allow LFs to take legacy
+    )
+
+    legacy_house = make_content_house("Legacy House")
+    legacy_content_fighter = make_content_fighter(
+        type="Legacy Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=legacy_house,
+        base_cost=100,
+    )
+
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+    )
+
+    make_weapon_profile(spoon, cost=5)
+
+    spoon_scope, _ = ContentWeaponAccessory.objects.get_or_create(
+        name="Spoon Scope", cost=10
+    )
+
+    # The legacy guy gets spoons scope on the cheap
+    ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=legacy_content_fighter, weapon_accessory=spoon_scope, cost=5
+    )
+
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=fighter_house)
+    fighter, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter",
+        list=lst,
+        content_fighter=content_fighter,
+        legacy_content_fighter=legacy_content_fighter,
+    )
+
+    assert fighter.cost_int() == 100
+
+    fighter.assign(spoon, weapon_accessories=[spoon_scope])
+
+    # The cost is 100 base + 10 spoon + 5 scope -> 115
+    # If the profile cost was not overridden, it would be 100 + 10 + 10 -> 120
+    assert fighter.cost_int() == 115
 
 
 @pytest.mark.django_db

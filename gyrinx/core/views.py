@@ -945,15 +945,15 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     if is_weapon:
         equipment = (
             ContentEquipment.objects.weapons()
-            .with_cost_for_fighter(fighter.content_fighter_cached)
-            .with_profiles_for_fighter(fighter.content_fighter_cached)
+            .with_cost_for_fighter(fighter.equipment_list_fighter)
+            .with_profiles_for_fighter(fighter.equipment_list_fighter)
         )
         search_vector = SearchVector(
             "name", "category__name", "contentweaponprofile__name"
         )
     else:
         equipment = ContentEquipment.objects.non_weapons().with_cost_for_fighter(
-            fighter.content_fighter_cached
+            fighter.equipment_list_fighter
         )
         search_vector = SearchVector("name", "category__name")
 
