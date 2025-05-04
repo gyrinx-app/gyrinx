@@ -79,7 +79,7 @@
                                         <th scope="row" colspan="3">{{ line.category }}</th>
                                         <td colspan="12">
                                             {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}">Add {{ line.category }}</a>
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                             {% else %}
                                                 <span class="text-secondary">This fighter has no {{ line.category }}.</span>
                                             {% endif %}
@@ -104,11 +104,11 @@
                                     {% if list.owner_cached == user and not print %}
                                         {% if line.assignments|length > 0 %}
                                             {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}">Edit</a>
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
                                             {% endif %}
                                         {% else %}
                                             {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}">Add {{ line.category }}</a>
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                             {% else %}
                                                 <span class="text-secondary">This fighter has no {{ line.category }}.</span>
                                             {% endif %}
