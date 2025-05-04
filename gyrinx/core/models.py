@@ -726,6 +726,13 @@ class ListFighter(AppBase):
                     f"{cf.type} cannot be a member of {list_house} list"
                 )
 
+        if self.legacy_content_fighter and not self.content_fighter.can_take_legacy:
+            raise ValidationError(
+                {
+                    "legacy_content_fighter": f"Fighters of type {self.content_fighter.type} cannot take a legacy fighter.",
+                }
+            )
+
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
 

@@ -1026,6 +1026,60 @@ def test_weapon_with_multiple_costed_profiles():
 
 
 @pytest.mark.django_db
+def test_list_fighter_legacy(make_list, make_content_house, make_content_fighter):
+    """
+    This is testing that fighters can have a "legacy" association with a different
+    content fighter than their base type, giving them costs from that fighter.
+
+    The use-case is Venators House Legacy, BoP p16.
+    """
+    fighter_house = make_content_house("Fighter House")
+    content_fighter_no_legacy = make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=fighter_house,
+        base_cost=100,
+        can_take_legacy=False,
+    )
+    content_fighter_legacy = make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=fighter_house,
+        base_cost=100,
+        can_take_legacy=True,
+    )
+
+    legacy_house = make_content_house("Legacy House")
+    legacy_content_fighter = make_content_fighter(
+        type="Legacy Fighter",
+        category=FighterCategoryChoices.JUVE,
+        house=legacy_house,
+        base_cost=100,
+    )
+
+    lst = make_list(name="Test List", content_house=fighter_house)
+    fighter_nl, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter (No Legacy)",
+        list=lst,
+        content_fighter=content_fighter_no_legacy,
+        owner=lst.owner,
+    )
+    fighter_l, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter (No Legacy)",
+        list=lst,
+        content_fighter=content_fighter_legacy,
+        owner=lst.owner,
+    )
+
+    with pytest.raises(ValidationError):
+        fighter_nl.legacy_content_fighter = legacy_content_fighter
+        fighter_nl.full_clean()
+
+    fighter_l.legacy_content_fighter = legacy_content_fighter
+    fighter_l.full_clean()
+
+
+@pytest.mark.django_db
 def test_weapon_cost_legacy_equipment_list_override(
     make_content_house, make_content_fighter
 ):
@@ -1041,7 +1095,7 @@ def test_weapon_cost_legacy_equipment_list_override(
         category=FighterCategoryChoices.JUVE,
         house=fighter_house,
         base_cost=100,
-        # TODO: Allow LFs to take legacy
+        can_take_legacy=True,
     )
 
     legacy_house = make_content_house("Legacy House")
@@ -1106,7 +1160,7 @@ def test_weapon_cost_legacy_equipment_list_override_with_profile(
         category=FighterCategoryChoices.JUVE,
         house=fighter_house,
         base_cost=100,
-        # TODO: Allow LFs to take legacy
+        can_take_legacy=True,
     )
 
     legacy_house = make_content_house("Legacy House")
@@ -1213,7 +1267,7 @@ def test_weapon_cost_legacy_equipment_list_override_with_accessory(
         category=FighterCategoryChoices.JUVE,
         house=fighter_house,
         base_cost=100,
-        # TODO: Allow LFs to take legacy
+        can_take_legacy=True,
     )
 
     legacy_house = make_content_house("Legacy House")

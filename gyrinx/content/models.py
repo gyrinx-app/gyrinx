@@ -716,6 +716,15 @@ class ContentFighter(Content):
         max_length=12, blank=True, null=False, default="", verbose_name="Int"
     )
 
+    # Policy
+
+    can_take_legacy = models.BooleanField(
+        default=False,
+        help_text="If checked, list fighters of this type can take on legacy content fighters.",
+    )
+
+    # Other
+
     history = HistoricalRecords()
 
     def __str__(self):
