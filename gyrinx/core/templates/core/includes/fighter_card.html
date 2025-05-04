@@ -35,6 +35,23 @@
                     {% endif %}
                 </div>
             </div>
+            {% if fighter.legacy_content_fighter_cached %}
+                <div class="hstack gap-2">
+                    <div class="text-muted fs-7">
+                        Legacy:
+                        {{ fighter.legacy_content_fighter_cached.house.name }}
+                    </div>
+                </div>
+            {% elif fighter.can_take_legacy %}
+                {% if list.owner_cached == user and not print %}
+                    <div class="hstack gap-2">
+                        <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
+                           class="icon-link text-muted fs-7 link-secondary">
+                            <i class="bi-clock-history"></i> Add Gang Legacy
+                        </a>
+                    </div>
+                {% endif %}
+            {% endif %}
             {% if not print %}
                 {% if list.owner_cached == user %}
                     <div class="btn-group">
@@ -95,14 +112,6 @@
                 <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
             </tbody>
             <tbody class="table-group-divider">
-                {% if fighter.legacy_content_fighter_cached %}
-                    <tr class="fs-7">
-                        <th scope="row" colspan="3">Legacy</th>
-                        <td colspan="12">
-                            {{ fighter.legacy_content_fighter_cached.house.name }} {{ fighter.legacy_content_fighter_cached.name }}
-                        </td>
-                    </tr>
-                {% endif %}
                 {% if fighter.ruleline|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Rules</th>
@@ -212,7 +221,7 @@
                                 {% endfor %}
                                 {% if not print %}
                                     {% if list.owner_cached == user %}
-                                        {% if line.assignments|length > 1 %}
+                                        {% if line.assignments|length > 0 %}
                                             <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
                                         {% else %}
                                             <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>

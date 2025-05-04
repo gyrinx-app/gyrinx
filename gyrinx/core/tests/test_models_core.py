@@ -1036,14 +1036,14 @@ def test_list_fighter_legacy(make_list, make_content_house, make_content_fighter
     fighter_house = make_content_house("Fighter House")
     content_fighter_no_legacy = make_content_fighter(
         type="Test Fighter",
-        category=FighterCategoryChoices.JUVE,
+        category=FighterCategoryChoices.LEADER,
         house=fighter_house,
         base_cost=100,
         can_take_legacy=False,
     )
     content_fighter_legacy = make_content_fighter(
         type="Test Fighter",
-        category=FighterCategoryChoices.JUVE,
+        category=FighterCategoryChoices.LEADER,
         house=fighter_house,
         base_cost=100,
         can_take_legacy=True,
@@ -1052,9 +1052,17 @@ def test_list_fighter_legacy(make_list, make_content_house, make_content_fighter
     legacy_house = make_content_house("Legacy House")
     legacy_content_fighter = make_content_fighter(
         type="Legacy Fighter",
-        category=FighterCategoryChoices.JUVE,
+        category=FighterCategoryChoices.LEADER,
         house=legacy_house,
         base_cost=100,
+        can_be_legacy=True,
+    )
+    legacy_content_fighter_nl = make_content_fighter(
+        type="Legacy Fighter 2",
+        category=FighterCategoryChoices.LEADER,
+        house=legacy_house,
+        base_cost=100,
+        can_be_legacy=False,
     )
 
     lst = make_list(name="Test List", content_house=fighter_house)
@@ -1070,10 +1078,22 @@ def test_list_fighter_legacy(make_list, make_content_house, make_content_fighter
         content_fighter=content_fighter_legacy,
         owner=lst.owner,
     )
+    fighter_l_cf_nl, _ = ListFighter.objects.get_or_create(
+        name="Test Fighter (No Legacy)",
+        list=lst,
+        content_fighter=content_fighter_legacy,
+        owner=lst.owner,
+    )
 
     with pytest.raises(ValidationError):
         fighter_nl.legacy_content_fighter = legacy_content_fighter
         fighter_nl.full_clean()
+
+    # The list fighter is allowed to have a legacy content fighter, but
+    # the content fighter is not allowed to be a legacy fighter.
+    with pytest.raises(ValidationError):
+        fighter_l.legacy_content_fighter = legacy_content_fighter_nl
+        fighter_l.full_clean()
 
     fighter_l.legacy_content_fighter = legacy_content_fighter
     fighter_l.full_clean()
@@ -1104,6 +1124,7 @@ def test_weapon_cost_legacy_equipment_list_override(
         category=FighterCategoryChoices.JUVE,
         house=legacy_house,
         base_cost=100,
+        can_be_legacy=True,
     )
 
     spoon, _ = ContentEquipment.objects.get_or_create(

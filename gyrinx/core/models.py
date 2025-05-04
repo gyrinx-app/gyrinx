@@ -334,6 +334,10 @@ class ListFighter(AppBase):
         return self.legacy_content_fighter
 
     @cached_property
+    def can_take_legacy(self):
+        return self.content_fighter.can_take_legacy
+
+    @cached_property
     def equipment_list_fighter(self):
         return self.legacy_content_fighter or self.content_fighter
 
@@ -734,6 +738,16 @@ class ListFighter(AppBase):
             raise ValidationError(
                 {
                     "legacy_content_fighter": f"Fighters of type {self.content_fighter.type} cannot take a legacy fighter.",
+                }
+            )
+
+        if (
+            self.legacy_content_fighter
+            and not self.legacy_content_fighter.can_be_legacy
+        ):
+            raise ValidationError(
+                {
+                    "legacy_content_fighter": f"Fighters of type {self.legacy_content_fighter.type} cannot be used as the legacy fighter.",
                 }
             )
 

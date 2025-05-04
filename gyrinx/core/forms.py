@@ -113,6 +113,10 @@ class NewListFighterForm(forms.ModelForm):
                 house__in=[inst.list.content_house.id] + list(generic_houses),
             ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])
 
+            self.fields[
+                "legacy_content_fighter"
+            ].queryset = ContentFighter.objects.filter(can_be_legacy=True)
+
             # If the fighter is linked, don't allow the content_fighter to be changed
             if inst.has_linked_fighter:
                 self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
@@ -130,11 +134,21 @@ class NewListFighterForm(forms.ModelForm):
                     self.fields[field].widget.attrs["placeholder"] = getattr(
                         inst.content_fighter, field.replace("_override", "")
                     )
+
+                # Disable legacy content fighter if the content fighter is not a legacy
+                if not inst.content_fighter.can_take_legacy:
+                    self.fields["legacy_content_fighter"].disabled = True
+                    self.fields["legacy_content_fighter"].widget = forms.HiddenInput()
+
+                group_select(self, "legacy_content_fighter", key=lambda x: x.house.name)
             else:
                 # If no instance is provided, we are creating a new fighter
                 # and we don't want to allow the user to override the stats
                 for field in overrides:
                     self.fields.pop(field, None)
+
+                # Don't allow the user to set a legacy content fighter on creation
+                self.fields.pop("legacy_content_fighter")
 
         group_select(self, "content_fighter", key=lambda x: x.house.name)
 
@@ -143,6 +157,7 @@ class NewListFighterForm(forms.ModelForm):
         fields = [
             "name",
             "content_fighter",
+            "legacy_content_fighter",
             "cost_override",
             "movement_override",
             "weapon_skill_override",
@@ -160,6 +175,7 @@ class NewListFighterForm(forms.ModelForm):
         labels = {
             "name": "Name",
             "content_fighter": "Fighter",
+            "legacy_content_fighter": "Gang Legacy",
             "cost_override": "Manually Set Cost",
             "movement_override": "Movement",
             "weapon_skill_override": "Weapon Skill",
@@ -176,6 +192,7 @@ class NewListFighterForm(forms.ModelForm):
         }
         help_texts = {
             "name": "The name you use to identify this Fighter. This may be public.",
+            "legacy_content_fighter": "The Gang Legacy for this fighter.",
             "cost_override": "Only change this if you want to override the default base cost of the Fighter.",
             "movement_override": "Override the default Movement for this fighter",
             "weapon_skill_override": "Override the default Weapon Skill for this fighter",
@@ -193,6 +210,9 @@ class NewListFighterForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_fighter": forms.Select(attrs={"class": "form-select"}),
+            "legacy_content_fighter": forms.Select(
+                attrs={"class": "form-select"},
+            ),
             "cost_override": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}
             ),

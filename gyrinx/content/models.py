@@ -723,6 +723,11 @@ class ContentFighter(Content):
         help_text="If checked, list fighters of this type can take on legacy content fighters.",
     )
 
+    can_be_legacy = models.BooleanField(
+        default=False,
+        help_text="If checked, this fighter can be assigned as a legacy content fighter.",
+    )
+
     # Other
 
     history = HistoricalRecords()
