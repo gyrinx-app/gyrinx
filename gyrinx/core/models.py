@@ -330,6 +330,10 @@ class ListFighter(AppBase):
         return self.content_fighter
 
     @cached_property
+    def legacy_content_fighter_cached(self):
+        return self.legacy_content_fighter
+
+    @cached_property
     def equipment_list_fighter(self):
         return self.legacy_content_fighter or self.content_fighter
 

@@ -95,6 +95,14 @@
                 <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
             </tbody>
             <tbody class="table-group-divider">
+                {% if fighter.legacy_content_fighter_cached %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="3">Legacy</th>
+                        <td colspan="12">
+                            {{ fighter.legacy_content_fighter_cached.house.name }} {{ fighter.legacy_content_fighter_cached.name }}
+                        </td>
+                    </tr>
+                {% endif %}
                 {% if fighter.ruleline|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Rules</th>
