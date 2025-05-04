@@ -24,7 +24,6 @@ from gyrinx.content.models import (
     ContentPsykerPower,
     ContentSkillCategory,
     ContentWeaponAccessory,
-    ContentWeaponProfile,
 )
 from gyrinx.core.forms import (
     CloneListFighterForm,
@@ -889,25 +888,41 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
 
 @login_required
-def edit_list_fighter_gear(request, id, fighter_id):
+def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     """
-    Edit the gear of an existing :model:`core.ListFighter`.
+    Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A ListFighterEquipmentAssignmentForm for assigning non-weapon equipment.
+    ``fighter``
+        The :model:`core.ListFighter` being edited.
+    ``equipment``
+        A filtered list of :model:`content.ContentEquipment` items.
+    ``categories``
+        Available equipment categories.
+    ``assigns``
+        A list of :class:`.VirtualListFighterEquipmentAssignment` objects.
     ``list``
         The :model:`core.List` that owns this fighter.
     ``error_message``
         None or a string describing a form error.
+    ``is_weapon``
+        Boolean indicating if we're editing weapons or gear.
 
     **Template**
 
-    :template:`core/list_fighter_gear_edit.html`
+    :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    view_name = (
+        "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
+    )
+    template_name = (
+        "core/list_fighter_weapons_edit.html"
+        if is_weapon
+        else "core/list_fighter_gear_edit.html"
+    )
 
     error_message = None
     if request.method == "POST":
@@ -921,38 +936,57 @@ def edit_list_fighter_gear(request, id, fighter_id):
                 q=request.POST.get("q"),
             )
             return HttpResponseRedirect(
-                reverse("core:list-fighter-gear-edit", args=(lst.id, fighter.id))
+                reverse(view_name, args=(lst.id, fighter.id))
                 + f"?{query_params}"
                 + f"#{str(fighter.id)}"
             )
 
-    equipment: QuerySetOf[ContentEquipment] = (
-        ContentEquipment.objects.non_weapons().with_cost_for_fighter(
+    # Get the appropriate equipment
+    if is_weapon:
+        equipment = (
+            ContentEquipment.objects.weapons()
+            .with_cost_for_fighter(fighter.content_fighter_cached)
+            .with_profiles_for_fighter(fighter.content_fighter_cached)
+        )
+        search_vector = SearchVector(
+            "name", "category__name", "contentweaponprofile__name"
+        )
+    else:
+        equipment = ContentEquipment.objects.non_weapons().with_cost_for_fighter(
             fighter.content_fighter_cached
         )
-    )
+        search_vector = SearchVector("name", "category__name")
 
+    # Get categories for this equipment type
     categories = (
         ContentEquipmentCategory.objects.filter(id__in=equipment.values("category_id"))
         .distinct()
         .order_by("name")
     )
 
-    cats = [
-        cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
-    ]
+    # Filter by category if specified
+    cats = (
+        [
+            cat
+            for cat in request.GET.getlist("cat", list())
+            if cat and is_valid_uuid(cat)
+        ]
+        if not is_weapon
+        else request.GET.getlist("cat", list())
+    )
+
     if cats and "all" not in cats:
         equipment = equipment.filter(category_id__in=cats)
 
+    # Apply search filter if provided
     if request.GET.get("q"):
         equipment = (
-            equipment.annotate(
-                search=SearchVector("name", "category__name"),
-            )
+            equipment.annotate(search=search_vector)
             .filter(search=request.GET.get("q", ""))
             .distinct("category__name", "name", "id")
         )
 
+    # Filter by availability level
     als = request.GET.getlist("al", ["C", "R"])
     if request.GET.get("filter", None) in [None, "", "equipment-list"]:
         # Always show Exclusive in equipment lists
@@ -965,170 +999,67 @@ def edit_list_fighter_gear(request, id, fighter_id):
             )
         )
 
-    equipment = equipment.filter(rarity__in=als)
-    if request.GET.get("mal") and is_int(request.GET.get("mal")):
-        equipment = equipment.filter(rarity_roll__lte=int(request.GET.get("mal", 0)))
+    equipment = equipment.filter(rarity__in=set(als))
 
-    assigns = []
-    for item in equipment:
-        assigns.append(
-            VirtualListFighterEquipmentAssignment(
-                fighter=fighter,
-                equipment=item,
-            )
-        )
-
-    return render(
-        request,
-        "core/list_fighter_gear_edit.html",
-        {
-            "fighter": fighter,
-            "equipment": equipment,
-            "categories": categories,
-            "assigns": assigns,
-            "list": lst,
-            "error_message": error_message,
-        },
-    )
-
-
-@login_required
-def edit_list_fighter_weapons(request, id, fighter_id):
-    """
-    Display and handle weapon assignments for a :model:`core.ListFighter`.
-
-    **Query Parameters**
-
-    ``q`` (str)
-        Optional search string to filter weapons by name, category, or weapon profile name.
-
-    **Context**
-
-    ``fighter``
-        The :model:`core.ListFighter` being edited.
-    ``weapons``
-        A filtered or unfiltered list of :model:`content.ContentEquipment` items (weapon category).
-    ``assigns``
-        A list of :class:`.VirtualListFighterEquipmentAssignment` objects, containing
-        each weapon, its associated profiles, and cost data.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
-
-    **Template**
-
-    :template:`core/list_fighter_weapons_edit.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    error_message = None
-    if request.method == "POST":
-        instance = ListFighterEquipmentAssignment(list_fighter=fighter)
-        form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
-        if form.is_valid():
-            form.save()
-            query_params = make_query_params_str(
-                flash=instance.id,
-                filter=request.POST.get("filter"),
-                q=request.POST.get("q"),
-            )
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-                + f"?{query_params}"
-                + f"#{str(fighter.id)}"
-            )
-
-    weapons: QuerySetOf[ContentEquipment] = (
-        ContentEquipment.objects.weapons()
-        .with_cost_for_fighter(fighter.content_fighter_cached)
-        .with_profiles_for_fighter(fighter.content_fighter_cached)
-    )
-
-    # All categories with weapons in them
-    categories = (
-        ContentEquipmentCategory.objects.filter(id__in=weapons.values("category_id"))
-        .distinct()
-        .order_by("name")
-    )
-
-    cats = request.GET.getlist("cat", list())
-    if cats and "all" not in cats:
-        weapons: QuerySetOf[ContentEquipment] = weapons.filter(category_id__in=cats)
-
-    if request.GET.get("q"):
-        weapons: QuerySetOf[ContentEquipment] = (
-            weapons.annotate(
-                search=SearchVector(
-                    "name", "category__name", "contentweaponprofile__name"
-                ),
-            )
-            .filter(search=request.GET.get("q", ""))
-            .distinct("category__name", "name", "id")
-        )
-
-    als = request.GET.getlist("al", ["C", "R"])
-    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
-        # Always show Exclusive in equipment lists
-        als += ["E"]
-        weapons: QuerySetOf[ContentEquipment] = weapons.exclude(
-            ~Q(
-                id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.content_fighter_cached
-                ).values("equipment_id")
-            )
-        )
-
-    weapons: QuerySetOf[ContentEquipment] = weapons.filter(rarity__in=set(als))
+    # Apply maximum availability level filter if provided
     mal = (
         int(request.GET.get("mal"))
         if request.GET.get("mal") and is_int(request.GET.get("mal"))
         else None
     )
     if mal:
-        weapons: QuerySetOf[ContentEquipment] = weapons.filter(rarity_roll__lte=mal)
+        equipment = equipment.filter(rarity_roll__lte=mal)
 
+    # Create assignment objects
     assigns = []
-    for weapon in weapons:
-        profiles: list[ContentWeaponProfile] = weapon.profiles_for_fighter(
-            fighter.content_fighter_cached
-        )
-        profiles = [
-            profile
-            for profile in profiles
-            # Keep standard profiles
-            if profile.cost == 0
-            # They have an Al that matches the filter, and no roll value
-            or (not profile.rarity_roll and profile.rarity in als)
-            # They have an Al that matches the filter, and a roll
-            or (
-                mal
-                and profile.rarity_roll
-                and profile.rarity_roll <= mal
-                and profile.rarity in als
+    for item in equipment:
+        if is_weapon:
+            profiles = item.profiles_for_fighter(fighter.content_fighter_cached)
+            profiles = [
+                profile
+                for profile in profiles
+                # Keep standard profiles
+                if profile.cost == 0
+                # They have an Al that matches the filter, and no roll value
+                or (not profile.rarity_roll and profile.rarity in als)
+                # They have an Al that matches the filter, and a roll
+                or (
+                    mal
+                    and profile.rarity_roll
+                    and profile.rarity_roll <= mal
+                    and profile.rarity in als
+                )
+            ]
+            assigns.append(
+                VirtualListFighterEquipmentAssignment(
+                    fighter=fighter,
+                    equipment=item,
+                    profiles=profiles,
+                )
             )
-        ]
-        assigns.append(
-            VirtualListFighterEquipmentAssignment(
-                fighter=fighter,
-                equipment=weapon,
-                profiles=profiles,
+        else:
+            assigns.append(
+                VirtualListFighterEquipmentAssignment(
+                    fighter=fighter,
+                    equipment=item,
+                )
             )
-        )
 
-    return render(
-        request,
-        "core/list_fighter_weapons_edit.html",
-        {
-            "fighter": fighter,
-            "weapons": weapons,
-            "categories": categories,
-            "assigns": assigns,
-            "list": lst,
-            "error_message": error_message,
-        },
-    )
+    context = {
+        "fighter": fighter,
+        "equipment": equipment,
+        "categories": categories,
+        "assigns": assigns,
+        "list": lst,
+        "error_message": error_message,
+        "is_weapon": is_weapon,
+    }
+
+    # Add weapons-specific context if needed
+    if is_weapon:
+        context["weapons"] = equipment
+
+    return render(request, template_name, context)
 
 
 @login_required

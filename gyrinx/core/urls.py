@@ -54,8 +54,11 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear",
-        views.edit_list_fighter_gear,
+        views.edit_list_fighter_equipment,
         name="list-fighter-gear-edit",
+        kwargs=dict(
+            is_weapon=False,
+        ),
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/delete",
@@ -114,8 +117,11 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons",
-        views.edit_list_fighter_weapons,
+        views.edit_list_fighter_equipment,
         name="list-fighter-weapons-edit",
+        kwargs=dict(
+            is_weapon=True,
+        ),
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/cost",
