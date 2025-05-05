@@ -19,7 +19,7 @@ nbstripout==0.8.1
 nodeenv==1.9.1
 pre-commit==4.2.0
 psycopg2-binary==2.9.10
-pydot==3.0.4
+pydot==4.0.0
 pyparsing==3.2.3
 pytest==8.3.5
 pytest-django==4.11.1
@@ -28,6 +28,6 @@ python-dotenv==1.1.0
 qrcode==8.1
 referencing==0.36.2
 ruff==0.11.6
-setuptools==79.0.0
+setuptools==80.3.1
 sqlparse==0.5.3
 whitenoise==6.9.0
