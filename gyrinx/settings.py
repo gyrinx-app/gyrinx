@@ -100,7 +100,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "gyrinx.core",
     "gyrinx.content",
-    "gyrinx.feedback",
     "gyrinx.pages",
     "gyrinx.api",
     "tinymce",
@@ -134,7 +133,6 @@ TEMPLATES = [
             # can override templates from django across all apps
             BASE_DIR / "gyrinx/templates",
             BASE_DIR / "gyrinx/core/templates",
-            BASE_DIR / "gyrinx/feedback/templates",
             BASE_DIR / "gyrinx/pages/templates",
         ],
         "APP_DIRS": True,
