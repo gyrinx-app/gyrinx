@@ -7,7 +7,7 @@ from tinymce.widgets import TinyMCE
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.forms import group_select
 
-from .models import (
+from .models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,

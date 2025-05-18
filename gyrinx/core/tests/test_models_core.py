@@ -15,7 +15,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from gyrinx.core.models import (
+from gyrinx.core.models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,

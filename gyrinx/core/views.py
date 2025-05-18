@@ -37,7 +37,7 @@ from gyrinx.core.forms import (
     NewListFighterForm,
     NewListForm,
 )
-from gyrinx.core.models import (
+from gyrinx.core.models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,

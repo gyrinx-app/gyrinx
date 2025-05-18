@@ -2,7 +2,7 @@
 
 from django.db import migrations, transaction
 
-from gyrinx.core.models import (
+from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment as ListFighterEquipmentAssignmentModel,
 )
 

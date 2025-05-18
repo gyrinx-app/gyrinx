@@ -18,7 +18,7 @@ from gyrinx.content.models import (
     RulelineDisplay,
     StatlineDisplay,
 )
-from gyrinx.core.models import ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 
 @pytest.mark.django_db

@@ -8,7 +8,7 @@ from gyrinx.content.models import (
     ContentPsykerPower,
     ContentRule,
 )
-from gyrinx.core.models import ListFighter, ListFighterPsykerPowerAssignment
+from gyrinx.core.models.list import ListFighter, ListFighterPsykerPowerAssignment
 
 
 @pytest.mark.django_db

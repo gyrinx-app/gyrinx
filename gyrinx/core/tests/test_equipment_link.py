@@ -6,7 +6,7 @@ from gyrinx.content.models import (
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
 )
-from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 
 

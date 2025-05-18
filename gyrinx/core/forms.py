@@ -3,7 +3,7 @@ from django import forms
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
-from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 

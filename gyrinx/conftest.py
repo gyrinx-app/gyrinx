@@ -9,7 +9,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
-from gyrinx.core.models import List, ListFighter
+from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
 

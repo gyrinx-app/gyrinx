@@ -1,7 +1,7 @@
 import pytest
 
 from gyrinx.content.models import ContentEquipmentCategory
-from gyrinx.core.models import ListFighter
+from gyrinx.core.models.list import ListFighter
 
 
 @pytest.mark.django_db
