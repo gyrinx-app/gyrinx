@@ -1,13 +1,10 @@
-from itertools import zip_longest
-from random import randint
 from urllib.parse import urlencode
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
 from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
-from django.shortcuts import get_list_or_404, get_object_or_404, render
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
@@ -19,13 +16,12 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListItem,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentPageRef,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentSkillCategory,
     ContentWeaponAccessory,
 )
-from gyrinx.core.forms import (
+from gyrinx.core.forms.list import (
     CloneListFighterForm,
     CloneListForm,
     EditListForm,
@@ -45,261 +41,8 @@ from gyrinx.core.models.list import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
 )
+from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
-
-
-def make_query_params_str(**kwargs) -> str:
-    return urlencode(dict([(k, v) for k, v in kwargs.items() if v is not None]))
-
-
-def index(request):
-    """
-    Display a list of the user's :model:`core.List` objects, or an empty list if the user is anonymous.
-
-    **Context**
-
-    ``lists``
-        A list of :model:`core.List` objects owned by the current user.
-
-    **Template**
-
-    :template:`core/index.html`
-    """
-    if request.user.is_anonymous:
-        lists = []
-    else:
-        lists = List.objects.filter(owner=request.user)
-    return render(
-        request,
-        "core/index.html",
-        {
-            "lists": lists,
-        },
-    )
-
-
-@login_required
-def account_home(request):
-    """
-    Management page for the user's account.
-
-    """
-    return render(
-        request,
-        "core/account_home.html",
-    )
-
-
-def content(request):
-    """
-    Display a placeholder content page (currently unused).
-
-    **Context**
-
-    None
-
-    **Template**
-
-    :template:`core/content.html`
-    """
-    return render(
-        request,
-        "core/content.html",
-    )
-
-
-class GangIndexView(generic.ListView):
-    """
-    Display a list of all :model:`content.ContentHouse` objects.
-
-    **Context**
-
-    ``houses``
-        A list of :model:`content.ContentHouse` objects.
-
-    **Template**
-
-    :template:`core/content_gangs.html`
-    """
-
-    template_name = "core/content_gangs.html"
-    context_object_name = "houses"
-
-    def get_queryset(self):
-        """
-        Return all :model:`content.ContentHouse` objects.
-        """
-        return ContentHouse.objects.all()
-
-
-class EquipmentIndexView(generic.ListView):
-    """
-    Display a list of all :model:`content.ContentEquipment` objects.
-
-    **Context**
-
-    ``equipment``
-        A list of :model:`content.ContentEquipment` objects.
-
-    **Template**
-
-    :template:`core/content_equipment.html`
-    """
-
-    template_name = "core/content_equipment.html"
-    context_object_name = "equipment"
-
-    def get_queryset(self):
-        """
-        Return all :model:`content.ContentEquipment` objects.
-        """
-        return ContentEquipment.objects.all()
-
-
-def content_index(request):
-    """
-    Display an index of :model:`content.ContentPageRef` objects (page references),
-    ordered by book shortname and page number.
-
-    **Context**
-
-    ``page_refs``
-        A list of :model:`content.ContentPageRef` objects returned by the `all_ordered` class method.
-    ``category_order``
-        A list of string categories used to guide the display order.
-
-    **Template**
-
-    :template:`core/content_index.html`
-    """
-    page_refs = get_list_or_404(ContentPageRef.all_ordered())
-    return render(
-        request,
-        "core/content_index.html",
-        {
-            "page_refs": page_refs,
-            "category_order": [
-                "Rules",
-                "Background",
-                "Gangs",
-                "Dramatis Personae",
-                "Hangers-On",
-                "Brutes",
-                "Exotic Beasts",
-                "Trading Post",
-                "Vehicles",
-                "Skills",
-                "Gang Tactics",
-                "Campaigns",
-                "Scenarios",
-            ],
-        },
-    )
-
-
-class ContentIndexIndexView(generic.ListView):
-    """
-    Display an index of :model:`content.ContentPageRef` objects (page references),
-    ordered by book shortname and page number. This class-based view version
-    returns the same result as `content_index`.
-
-    **Context**
-
-    ``page_refs``
-        A list of :model:`content.ContentPageRef` objects returned by the `all_ordered` method.
-    ``category_order``
-        A list of string categories used to guide the display order.
-
-    **Template**
-
-    :template:`core/content_index.html`
-    """
-
-    template_name = "core/content_index.html"
-    context_object_name = "page_refs"
-    extra_context = {
-        "category_order": [
-            "Rules",
-            "Background",
-            "Gangs",
-            "Dramatis Personae",
-            "Hangers-On",
-            "Brutes",
-            "Exotic Beasts",
-            "Trading Post",
-            "Vehicles",
-            "Skills",
-            "Gang Tactics",
-            "Campaigns",
-            "Scenarios",
-        ],
-    }
-
-    def get_queryset(self):
-        """
-        Return :model:`content.ContentPageRef` objects via `all_ordered`.
-        """
-        return ContentPageRef.all_ordered()
-
-
-@login_required
-def dice(request):
-    """
-    Display dice roll results (regular, firepower, or injury rolls).
-    Users can specify query parameters to control the number of each die type.
-
-    **Query Parameters**
-
-    ``m`` (str)
-        Mode for the dice roll, e.g. 'd6' or 'd3'.
-    ``d`` (list of int)
-        Number of standard dice to roll.
-    ``fp`` (list of int)
-        Number of firepower dice to roll.
-    ``i`` (list of int)
-        Number of injury dice to roll.
-
-    **Context**
-
-    ``mode``
-        The dice mode (e.g. 'd6', 'd3').
-    ``groups``
-        A list of dictionaries, each containing:
-          - ``dice``: rolled results for standard dice.
-          - ``firepower``: rolled results for firepower dice.
-          - ``injury``: rolled results for injury dice.
-          - ``dice_n``, ``firepower_n``, ``injury_n``: the counts used.
-
-    **Template**
-
-    :template:`core/dice.html`
-    """
-    mode = request.GET.get("m", "d6")
-    d = [int(x) for x in request.GET.getlist("d")]
-    fp = [int(x) for x in request.GET.getlist("fp")]
-    i = [int(x) for x in request.GET.getlist("i")]
-    mod = {
-        "d3": 3,
-    }.get(mode, 6)
-    groups = [
-        dict(
-            dice=[randint(0, 5) % mod + 1 for _ in range(group[0])],
-            firepower=[randint(1, 6) for _ in range(group[1])],
-            injury=[randint(1, 6) for _ in range(group[2])],
-            dice_n=group[0],
-            firepower_n=group[1],
-            injury_n=group[2],
-        )
-        for group in zip_longest(d, fp, i, fillvalue=0)
-    ]
-    return render(
-        request,
-        "core/dice.html",
-        {
-            "mode": mode,
-            "groups": groups,
-        },
-    )
 
 
 class ListsListView(generic.ListView):
@@ -1584,34 +1327,3 @@ class ListArchivedFightersView(generic.ListView):
         Retrieve the :model:`core.List` by its `id`, ensuring it's owned by the current user.
         """
         return get_object_or_404(List, id=self.kwargs["id"], owner=self.request.user)
-
-
-# Users
-
-
-def user(request, slug_or_id):
-    """
-    Display a user profile page with public lists.
-
-    **Context**
-
-    ``user``
-        The requested user object.
-
-    **Template**
-
-    :template:`core/user.html`
-    """
-    User = get_user_model()
-    slug_or_id = str(slug_or_id).lower()
-    if slug_or_id.isnumeric():
-        query = Q(id=slug_or_id)
-    else:
-        query = Q(username__iexact=slug_or_id)
-    user = get_object_or_404(User, query)
-    public_lists = List.objects.filter(owner=user, public=True)
-    return render(
-        request,
-        "core/user.html",
-        {"user": user, "public_lists": public_lists},
-    )

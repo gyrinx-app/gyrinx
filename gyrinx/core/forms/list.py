@@ -3,6 +3,7 @@ from django import forms
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
+from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
@@ -274,11 +275,6 @@ class CloneListFighterForm(forms.ModelForm):
             "content_fighter": forms.Select(attrs={"class": "form-select"}),
             "list": forms.Select(attrs={"class": "form-select"}),
         }
-
-
-class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
-    template_name = "pages/forms/widgets/bs_checkbox_select.html"
-    option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
 
 
 class ListFighterSkillsForm(forms.ModelForm):

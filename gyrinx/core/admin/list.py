@@ -1,24 +1,16 @@
 from django import forms
 from django.contrib import admin
-from django.db import models
-from simple_history.admin import SimpleHistoryAdmin
-from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentWeaponProfile
+from gyrinx.core.admin import BaseAdmin
 from gyrinx.forms import group_select
 
-from .models.list import (
+from ..models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,
     ListFighterPsykerPowerAssignment,
 )
-
-
-class BaseAdmin(SimpleHistoryAdmin):
-    formfield_overrides = {
-        models.TextField: {"widget": TinyMCE},
-    }
 
 
 @admin.display(description="Cost")
