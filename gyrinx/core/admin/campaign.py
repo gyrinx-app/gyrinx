@@ -9,4 +9,4 @@ class CampaignAdmin(BaseAdmin):
     list_display = ["name", "public"]
     search_fields = ["name"]
     list_filter = ["public"]
-    fields = ["name", "public"]
+    fields = ["name", "owner", "public", "summary", "narrative"]

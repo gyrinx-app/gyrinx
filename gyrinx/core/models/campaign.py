@@ -16,6 +16,15 @@ class Campaign(AppBase):
     public = models.BooleanField(
         default=True, help_text="Public Campaigns are visible to all users."
     )
+    summary = models.TextField(
+        blank=True,
+        validators=[validators.MaxLengthValidator(300)],
+        help_text="A short summary of the campaign. This will be displayed on the campaign list page.",
+    )
+    narrative = models.TextField(
+        blank=True,
+        help_text="A longer narrative of the campaign. This will be displayed on the campaign detail page.",
+    )
 
     history = HistoricalRecords()
 

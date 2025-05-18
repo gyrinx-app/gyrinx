@@ -1,0 +1,37 @@
+{% extends "core/layouts/page.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Campaigns
+{% endblock head_title %}
+{% block page_title %}
+    All campaigns
+{% endblock page_title %}
+{% block page_description %}
+    These are public campaigns created by all users.
+{% endblock page_description %}
+{% block page_content %}
+    <div class="vstack gap-4">
+        {% for campaign in campaigns %}
+            <div class="hstack gap-3 position-relative">
+                <div class="d-flex flex-column gap-1">
+                    <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                        <h2 class="mb-0 h5">
+                            <a href="#">{{ campaign.name }}</a>
+                        </h2>
+                        <div>
+                            <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                        </div>
+                    </div>
+                    <div class="text-secondary">{{ campaign.summary|safe }}</div>
+                </div>
+                <div class="ms-auto d-md-none">
+                    <a href="#" class="p-3 stretched-link">
+                        <i class="bi-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="py-2">No campaigns available.</div>
+        {% endfor %}
+    </div>
+{% endblock page_content %}

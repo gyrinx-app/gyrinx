@@ -2,7 +2,7 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import list
+from .views import campaign, list
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -162,4 +162,6 @@ urlpatterns = [
     path("list/<id>/print", list.ListPrintView.as_view(), name="list-print"),
     # Users
     path("user/<slug_or_id>", gyrinx.core.views.user, name="user"),
+    # Campaigns
+    path("campaigns/", campaign.Campaigns.as_view(), name="campaigns"),
 ]
