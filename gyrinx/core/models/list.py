@@ -41,17 +41,11 @@ from gyrinx.content.models import (
     StatlineDisplay,
     VirtualWeaponProfile,
 )
-from gyrinx.models import Archived, Base, Owned, QuerySetOf
+from gyrinx.core.models.base import AppBase
+from gyrinx.models import Archived, Base, QuerySetOf
 
 logger = logging.getLogger(__name__)
 pylist = list
-
-
-class AppBase(Base, Owned, Archived):
-    """An AppBase object is a base class for all application models."""
-
-    class Meta:
-        abstract = True
 
 
 ##

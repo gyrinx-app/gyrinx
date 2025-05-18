@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 
 from gyrinx.content.models import ContentWeaponProfile
-from gyrinx.core.admin import BaseAdmin
+from gyrinx.core.admin.base import BaseAdmin
 from gyrinx.forms import group_select
 
 from ..models.list import (
