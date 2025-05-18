@@ -13,20 +13,6 @@ app_name = "core"
 urlpatterns = [
     path("", gyrinx.core.views.index, name="index"),
     path("accounts/", gyrinx.core.views.account_home, name="account_home"),
-    path("content/", gyrinx.core.views.content, name="content"),
-    path(
-        "content/gangs", gyrinx.core.views.GangIndexView.as_view(), name="content-gangs"
-    ),
-    path(
-        "content/equipment",
-        gyrinx.core.views.EquipmentIndexView.as_view(),
-        name="content-equipment",
-    ),
-    path(
-        "content/index",
-        gyrinx.core.views.ContentIndexIndexView.as_view(),
-        name="content-index",
-    ),
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list.ListsListView.as_view(), name="lists"),
     path("lists/new", list.new_list, name="lists-new"),

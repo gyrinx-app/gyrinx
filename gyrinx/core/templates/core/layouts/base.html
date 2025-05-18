@@ -42,37 +42,6 @@
                            {% active_aria 'core:lists' %}
                            href="{% url 'core:lists' %}">Lists</a>
                     </li>
-                    {% if user.is_staff %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link icon-link dropdown-toggle"
-                               href="#"
-                               role="button"
-                               data-bs-toggle="dropdown"
-                               aria-expanded="false"><i class="bi-lock"></i> Content</a>
-                            <ul class="dropdown-menu">
-                                <li>
-                                    <a class="dropdown-item icon-link"
-                                       href="{% url 'admin:index' %}"
-                                       target="_new">Admin <i class="bi-box-arrow-up-right"></i></a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item {% active_view 'core:content-gangs' %}"
-                                       {% active_aria 'core:content-gangs' %}
-                                       href="{% url 'core:content-gangs' %}">Gangs &amp; Fighters</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item {% active_view 'core:content-equipment' %}"
-                                       {% active_aria 'core:content-equipment' %}
-                                       href="{% url 'core:content-equipment' %}">Equipment</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item {% active_view 'core:content-index' %}"
-                                       {% active_aria 'core:content-index' %}
-                                       href="{% url 'core:content-index' %}">Index</a>
-                                </li>
-                            </ul>
-                        </li>
-                    {% endif %}
                     <li class="nav-item dropdown">
                         <button class="btn btn-link nav-link py-2 px-0 px-lg-2 dropdown-toggle d-flex align-items-center"
                                 id="bd-theme"
