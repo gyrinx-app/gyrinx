@@ -1,0 +1,132 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Development Commands
+
+### Environment Setup
+```bash
+# Setup virtual environment and install dependencies
+python -m venv .venv && . .venv/bin/activate
+pip install --editable .
+
+# Setup environment file
+manage setupenv
+
+# Install frontend dependencies and setup node in venv
+nodeenv -p
+npm install
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+### Running the Application
+```bash
+# Start database services
+docker compose up -d
+
+# Run migrations
+manage migrate
+
+# Build frontend assets
+npm run build
+
+# Start Django development server
+manage runserver
+
+# Watch and rebuild CSS (run in separate terminal)
+npm run watch
+```
+
+### Testing
+```bash
+# Run full test suite (uses Docker for database)
+./scripts/test.sh
+
+# Run tests with pytest-watcher for continuous testing
+ptw .
+
+# Run specific test
+pytest gyrinx/core/tests/test_models_core.py::TestListModel::test_list_creation
+```
+
+### Frontend Development
+```bash
+# Build CSS from SCSS
+npm run css
+
+# Lint CSS
+npm run css-lint
+
+# Format JavaScript
+npm run js-fmt
+
+# Watch for changes and rebuild CSS
+npm run watch
+```
+
+### Database Operations
+```bash
+# Create empty migration for data migration
+manage makemigrations --empty content
+
+# Check for migration issues
+./scripts/check_migrations.sh
+
+# Enable SQL debugging (set in .env)
+SQL_DEBUG=True
+```
+
+## Architecture Overview
+
+### Django Apps Structure
+- **`content`** - Game data models (fighters, equipment, weapons, skills, houses)
+  - Contains official Necromunda rulebook content
+  - Uses django-simple-history for change tracking
+  - Complex relationships between game entities
+
+- **`core`** - User lists and gang management
+  - List/ListFighter models for user-created gangs
+  - Equipment assignment system with costs and modifications
+  - Campaign functionality
+
+- **`pages`** - Static content and waiting list system
+  - Flat pages with visibility controls
+  - User registration waiting list
+
+- **`api`** - Minimal webhook handling for external integrations
+
+### Key Model Relationships
+- **Content → Core**: ContentFighter/ContentEquipment used as templates for user ListFighter assignments
+- **Virtual Equipment System**: ListFighterEquipmentAssignment handles complex equipment with profiles, accessories, upgrades
+- **Cost Calculation**: Dynamic pricing based on fighter type, equipment lists, and modifications
+- **Historical Tracking**: All models use simple-history for audit trails
+
+### Technical Principles
+- **Not an SPA**: Server-rendered HTML with form submissions, not React/API
+- **Mobile-first**: Design for mobile, scale up to desktop
+- **Make it work; make it right; make it fast**: Ship functionality first, optimize later
+
+### Settings Configuration
+- `settings.py` - Production defaults
+- `settings_dev.py` - Development overrides
+- `settings_prod.py` - Production-specific config
+- Environment variables loaded from `.env` file
+
+### Frontend Stack
+- Bootstrap 5 for UI components
+- SCSS compiled to CSS via npm scripts
+- No JavaScript framework - vanilla JS where needed
+- Django templates with custom template tags
+
+### Deployment
+- Google Cloud Platform (Cloud Run + Cloud SQL PostgreSQL)
+- Automatic deployment via Cloud Build on main branch pushes
+- WhiteNoise for static file serving
+- Docker containerized application
+
+### Content Management
+- Game data stored in YAML files with JSON schema validation (deprecated - now in database)
+- Content managed through Django admin interface
+- Complex equipment/weapon relationship modeling
