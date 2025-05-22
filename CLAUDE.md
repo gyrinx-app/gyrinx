@@ -49,6 +49,12 @@ ptw .
 
 # Run specific test
 pytest gyrinx/core/tests/test_models_core.py::TestListModel::test_list_creation
+
+# Run tests with pytest directly (faster, uses existing database)
+pytest
+
+# Collect static files before running tests (required for templates with static assets)
+manage collectstatic --noinput
 ```
 
 ### Frontend Development
@@ -68,8 +74,14 @@ npm run watch
 
 ### Database Operations
 ```bash
+# Create migration for model changes
+manage makemigrations content -n "descriptive_migration_name"
+
 # Create empty migration for data migration
 manage makemigrations --empty content
+
+# Apply migrations
+manage migrate
 
 # Check for migration issues
 ./scripts/check_migrations.sh
@@ -77,6 +89,10 @@ manage makemigrations --empty content
 # Enable SQL debugging (set in .env)
 SQL_DEBUG=True
 ```
+
+## Development Workflow
+
+- Always run ruff to fix formatting and lint the code after making python changes
 
 ## Architecture Overview
 
@@ -130,3 +146,28 @@ SQL_DEBUG=True
 - Game data stored in YAML files with JSON schema validation (deprecated - now in database)
 - Content managed through Django admin interface
 - Complex equipment/weapon relationship modeling
+- Equipment ordering handled by manager (category name, then equipment name)
+
+### Template Patterns
+- Use `{% extends "core/layouts/base.html" %}` for full-page layouts
+- Use `{% extends "core/layouts/page.html" %}` for simple content pages
+- Back buttons use `{% include "core/includes/back.html" with url=target_url text="Back Text" %}`
+- User content should use `|safe` filter for HTML rendering
+- Templates follow Bootstrap 5 patterns with cards, alerts, and responsive utilities
+
+### URL Patterns
+- List views: plural noun (e.g., `/campaigns/`, `/lists/`)
+- Detail views: singular noun with ID (e.g., `/campaign/<id>`, `/list/<id>`)
+- Action views: noun-verb pattern (e.g., `/list/<id>/edit`, `/fighter/<id>/archive`)
+
+### Testing Patterns
+- Tests use pytest with `@pytest.mark.django_db` decorator
+- Test functions at module level, not in classes
+- Use Django test client for view testing
+- Static files must be collected before running tests that render templates
+- The conftest.py configures tests to use StaticFilesStorage to avoid manifest issues
+
+### Code Quality
+- Run `ruff format` to format Python code
+- Run `ruff check --fix` to fix linting issues
+- Always run ruff after making Python changes

@@ -3,7 +3,9 @@
     "allow": [
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(ruff format:*)",
+      "Bash(ruff check:*)"
     ],
     "deny": []
   }
