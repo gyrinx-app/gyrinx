@@ -1,0 +1,47 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ campaign.name }} - Campaign
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaigns' as campaigns_url %}
+    {% include "core/includes/back.html" with url=campaigns_url text="All Campaigns" %}
+    <div class="col-lg-12 px-0 vstack gap-4">
+        <div>
+            <h1 class="mb-1">{{ campaign.name }}</h1>
+            <div class="text-secondary">
+                <i class="bi-person"></i> Created by <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+            </div>
+        </div>
+        <div class="vstack gap-4">
+            {% if campaign.summary %}
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title h5">Summary</h2>
+                        <p class="card-text">{{ campaign.summary|safe }}</p>
+                    </div>
+                </div>
+            {% endif %}
+            {% if campaign.narrative %}
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title h5">Narrative</h2>
+                        <div class="card-text">{{ campaign.narrative|safe }}</div>
+                    </div>
+                </div>
+            {% endif %}
+            {% if not campaign.summary and not campaign.narrative %}
+                <div class="alert alert-info" role="alert">
+                    <i class="bi-info-circle"></i> No campaign details have been added yet.
+                </div>
+            {% endif %}
+            {% if campaign.owner == user %}
+                <div class="hstack gap-2">
+                    <a href="#" class="btn btn-primary">
+                        <i class="bi-pencil"></i> Edit campaign
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

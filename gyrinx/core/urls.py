@@ -164,4 +164,5 @@ urlpatterns = [
     path("user/<slug_or_id>", gyrinx.core.views.user, name="user"),
     # Campaigns
     path("campaigns/", campaign.Campaigns.as_view(), name="campaigns"),
+    path("campaign/<id>", campaign.CampaignDetailView.as_view(), name="campaign"),
 ]

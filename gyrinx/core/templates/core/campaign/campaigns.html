@@ -16,7 +16,7 @@
                 <div class="d-flex flex-column gap-1">
                     <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
                         <h2 class="mb-0 h5">
-                            <a href="#">{{ campaign.name }}</a>
+                            <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
                         </h2>
                         <div>
                             <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
@@ -25,7 +25,8 @@
                     <div class="text-secondary">{{ campaign.summary|safe }}</div>
                 </div>
                 <div class="ms-auto d-md-none">
-                    <a href="#" class="p-3 stretched-link">
+                    <a href="{% url 'core:campaign' campaign.id %}"
+                       class="p-3 stretched-link">
                         <i class="bi-chevron-right"></i>
                     </a>
                 </div>

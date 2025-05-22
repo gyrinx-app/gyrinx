@@ -3,6 +3,7 @@ import os
 import google.cloud.logging
 
 from .settings import *  # noqa: F403
+from .settings import STORAGES
 
 client = google.cloud.logging.Client()
 client.setup_logging()
@@ -24,3 +25,10 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = True
 
 BASE_URL = "https://gyrinx.app"
+
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}

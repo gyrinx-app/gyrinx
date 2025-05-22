@@ -1,6 +1,7 @@
 from typing import Callable
 
 import pytest
+from django.conf import settings
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -11,6 +12,14 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
+
+
+@pytest.fixture(scope="session", autouse=True)
+def django_test_settings():
+    """Configure Django settings for tests to avoid static files issues."""
+    settings.STORAGES["staticfiles"]["BACKEND"] = (
+        "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
 
 
 @pytest.fixture
