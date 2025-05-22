@@ -165,4 +165,9 @@ urlpatterns = [
     # Campaigns
     path("campaigns/", campaign.Campaigns.as_view(), name="campaigns"),
     path("campaign/<id>", campaign.CampaignDetailView.as_view(), name="campaign"),
+    path(
+        "campaign/<id>/lists/add",
+        campaign.campaign_add_lists,
+        name="campaign-add-lists",
+    ),
 ]

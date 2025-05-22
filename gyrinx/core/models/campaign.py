@@ -25,6 +25,12 @@ class Campaign(AppBase):
         blank=True,
         help_text="A longer narrative of the campaign. This will be displayed on the campaign detail page.",
     )
+    lists = models.ManyToManyField(
+        "List",
+        blank=True,
+        help_text="Lists that are part of this campaign.",
+        related_name="campaigns",
+    )
 
     history = HistoricalRecords()
 
@@ -32,3 +38,11 @@ class Campaign(AppBase):
         verbose_name = "Campaign"
         verbose_name_plural = "Campaigns"
         ordering = ["-created"]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("core:campaign", args=[str(self.id)])

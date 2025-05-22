@@ -35,6 +35,51 @@
                     <i class="bi-info-circle"></i> No campaign details have been added yet.
                 </div>
             {% endif %}
+            <!-- Campaign Lists -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="card-title h5 mb-0">Lists in Campaign</h2>
+                    {% if campaign.owner == user %}
+                        <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                           class="btn btn-primary btn-sm">
+                            <i class="bi-plus-circle"></i> Add Lists
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    {% if campaign.lists.all %}
+                        <div class="list-group list-group-flush">
+                            {% for list in campaign.lists.all %}
+                                <a href="{% url 'core:list' list.id %}"
+                                   class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">
+                                            {{ list.name }}
+                                            {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
+                                        </h6>
+                                        <small>{{ list.cost_display }}</small>
+                                    </div>
+                                    <p class="mb-1 text-muted small">
+                                        By {{ list.owner.username }}
+                                        • {{ list.fighters.count }} fighter{{ list.fighters.count|pluralize }}
+                                    </p>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-3 text-center text-muted">
+                            No lists have been added to this campaign yet.
+                            {% if campaign.owner == user %}
+                                <br>
+                                <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                                   class="btn btn-primary btn-sm mt-2">
+                                    <i class="bi-plus-circle"></i> Add Lists
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
             {% if campaign.owner == user %}
                 <div class="hstack gap-2">
                     <a href="#" class="btn btn-primary">

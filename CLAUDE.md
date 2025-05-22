@@ -75,6 +75,7 @@ npm run watch
 ### Database Operations
 ```bash
 # Create migration for model changes
+manage makemigrations core -n "descriptive_migration_name"
 manage makemigrations content -n "descriptive_migration_name"
 
 # Create empty migration for data migration
