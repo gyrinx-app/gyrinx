@@ -5,21 +5,24 @@
 ## Operations
 
 * [Operational Overview](operations/operational-overview.md)
-
-***
-
+* [Deployment](deployment.md)
 * [Runbook](runbook.md)
 
 ## Developing Gyrinx
 
 * [Key Concepts](developing-gyrinx/key-concepts.md)
+* [Models and Database](developing-gyrinx/models-and-database.md)
+* [Frontend Development](developing-gyrinx/frontend-development.md)
+* [History Tracking](developing-gyrinx/history-tracking.md)
+* [Testing](developing-gyrinx/testing.md)
 
-***
+## Technical Reference
 
 * [Technology Choices](technology-choices.md)
 * [Content](content.md)
 * [Lists](lists.md)
 * [Psykers](psykers.md)
+* [API](api.md)
 
 ## Links
 
