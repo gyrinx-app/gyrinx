@@ -113,11 +113,25 @@ SQL_DEBUG=True
 
 - **`api`** - Minimal webhook handling for external integrations
 
+### Base Model Architecture
+- **`AppBase`** - Abstract base model for all app models, provides:
+  - UUID primary key (from `Base`)
+  - Owner tracking (from `Owned`)
+  - Archive functionality (from `Archived`)
+  - History tracking with user information (from `HistoryMixin`)
+  - History-aware manager for better user tracking
+- All models inherit from `AppBase` to get consistent behavior
+- Models already define `history = HistoricalRecords()` for SimpleHistory integration
+
 ### Key Model Relationships
 - **Content → Core**: ContentFighter/ContentEquipment used as templates for user ListFighter assignments
 - **Virtual Equipment System**: ListFighterEquipmentAssignment handles complex equipment with profiles, accessories, upgrades
 - **Cost Calculation**: Dynamic pricing based on fighter type, equipment lists, and modifications
 - **Historical Tracking**: All models use simple-history for audit trails
+  - Middleware tracks user for web requests automatically
+  - Use `save_with_user(user=user)` for manual user tracking (defaults to owner if not provided)
+  - Use `Model.objects.create_with_user(user=user, ...)` for creating with history (defaults to owner)
+  - Use `Model.bulk_create_with_history(objs, user=user)` for bulk operations with history (defaults to each object's owner)
 
 ### Technical Principles
 - **Not an SPA**: Server-rendered HTML with form submissions, not React/API
