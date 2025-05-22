@@ -94,6 +94,7 @@ SQL_DEBUG=True
 ## Development Workflow
 
 - Always run ruff to fix formatting and lint the code after making python changes
+- When building something new, create a branch for it and open a pull request at the end
 
 ## Architecture Overview
 
