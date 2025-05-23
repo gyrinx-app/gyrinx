@@ -75,7 +75,8 @@
             </div>
             {% if campaign.owner == user %}
                 <div class="hstack gap-2">
-                    <a href="#" class="btn btn-primary">
+                    <a href="{% url 'core:campaign-edit' campaign.id %}"
+                       class="btn btn-primary">
                         <i class="bi-pencil"></i> Edit campaign
                     </a>
                 </div>
