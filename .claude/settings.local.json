@@ -9,8 +9,9 @@
       "Bash(python -m pytest:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)",
-      "Bash(python manage.py makemigrations:*)"
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(find:*)",
+      "Bash(python scripts/manage.py collectstatic:*)"
     ],
     "deny": []
   }
