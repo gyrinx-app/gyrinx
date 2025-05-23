@@ -1361,6 +1361,35 @@ def update_list_cache_for_assignment(
     instance.list_fighter.list.update_cost_cache()
 
 
+@receiver(
+    m2m_changed,
+    sender=ListFighterEquipmentAssignment.weapon_profiles_field.through,
+    dispatch_uid="update_list_cache_for_weapon_profiles",
+)
+def update_list_cache_for_weapon_profiles(sender, instance, **kwargs):
+    # Update list cost cache
+    instance.list_fighter.list.update_cost_cache()
+
+
+@receiver(
+    m2m_changed,
+    sender=ListFighterEquipmentAssignment.weapon_accessories_field.through,
+    dispatch_uid="update_list_cache_for_weapon_accessories",
+)
+def update_list_cache_for_weapon_accessories(sender, instance, **kwargs):
+    # Clear cached properties that depend on weapon accessories
+    instance.list_fighter.list.update_cost_cache()
+
+
+@receiver(
+    m2m_changed,
+    sender=ListFighterEquipmentAssignment.upgrades_field.through,
+    dispatch_uid="update_list_cache_for_upgrades",
+)
+def update_list_cache_for_upgrades(sender, instance, **kwargs):
+    instance.list_fighter.list.update_cost_cache()
+
+
 @dataclass
 class VirtualListFighterEquipmentAssignment:
     """
