@@ -1,341 +1,341 @@
 {
-    "name": "Book of Judgement",
-    "shortname": "Judgement",
-    "year": "2019",
-    "description": "Book of Judgement (2019)",
-    "type": "Supplement",
-    "contents": {
-        "rules": [
-            {
-                "title": "Criminal Alliances",
-                "page": "12",
-                "subsections": [
-                    {
-                        "title": "Making an Alliance",
-                        "page": "13"
-                    },
-                    {
-                        "title": "Criminal Allies",
-                        "page": "14"
-                    },
-                    {
-                        "title": "Cold Traders",
-                        "page": "14"
-                    },
-                    {
-                        "title": "Imperial Imposters",
-                        "page": "15"
-                    },
-                    {
-                        "title": "Rogue Factoria",
-                        "page": "16"
-                    },
-                    {
-                        "title": "Narco Lords",
-                        "page": "17"
-                    },
-                    {
-                        "title": "Fallen Houses",
-                        "page": "18"
-                    },
-                    {
-                        "title": "Psi-Syndica",
-                        "page": "19"
-                    },
-                    {
-                        "title": "Smuggler Shore Party",
-                        "page": "20"
-                    },
-                    {
-                        "title": "Master Charlatan",
-                        "page": "21"
-                    },
-                    {
-                        "title": "Factoria Work Gangs",
-                        "page": "22"
-                    },
-                    {
-                        "title": "Rebel Lord",
-                        "page": "23"
-                    },
-                    {
-                        "title": "Mind-Locked Wyrd",
-                        "page": "24"
-                    }
-                ]
-            },
-            {
-                "title": "The Black Market Trading Post",
-                "page": "93",
-                "subsections": [
-                    {
-                        "title": "Using the Black Market",
-                        "page": "93"
-                    },
-                    {
-                        "title": "Enforcer Weapons Reference",
-                        "page": "100"
-                    },
-                    {
-                        "title": "Imperial Weapons Reference",
-                        "page": "102"
-                    },
-                    {
-                        "title": "Xenos Weapons Reference",
-                        "page": "104"
-                    },
-                    {
-                        "title": "Corrupted Weapons Reference",
-                        "page": "107"
-                    },
-                    {
-                        "title": "Special Ammunition",
-                        "page": "110"
-                    },
-                    {
-                        "title": "Armour",
-                        "page": "113"
-                    },
-                    {
-                        "title": "Equipment",
-                        "page": "114"
-                    },
-                    {
-                        "title": "Chems",
-                        "page": "123"
-                    },
-                    {
-                        "title": "Weapon Traits",
-                        "page": "127"
-                    }
-                ]
-            }
-        ],
-        "summaries": [
-            {
-                "title": "Enforcer Weapons Reference",
-                "page": "100"
-            },
-            {
-                "title": "Imperial Weapons Reference",
-                "page": "102"
-            },
-            {
-                "title": "Xenos Weapons Reference",
-                "page": "104"
-            },
-            {
-                "title": "Corrupted Weapons Reference",
-                "page": "107"
-            }
-        ],
-        "skills": [
-            {
-                "title": "Palanite Drill Skills",
-                "page": "128",
-                "gang": "Palanite Enforcers",
-                "skills":[
-                    {
-                        "title": "Got Your Six!"
-                    },
-                    {
-                        "title": "Helmawr's Justice"
-                    },
-                    {
-                        "title": "Non-Verbal Communication"
-                    },
-                    {
-                        "title": "Restraint Protocols"
-                    },
-                    {
-                        "title": "Team Work"
-                    },
-                    {
-                        "title": "Threat Response"
-                    }
-                ]
-            }
-        ],
-        "gangs": [
-            {
-                "title": "Palanite Enforcers",
-                "page": "26",
-                "gang": "Palanite Enforcers",
-                "main": "true",
-                "fighters": [
-                    {
-                        "title": "Palanite Captain",
-                        "rank": "Leader",
-                        "cost": "140",
-                        "page": "31"
-                    },
-                    {
-                        "title": "Palanite Sergeant",
-                        "rank": "Champion",
-                        "cost": "100",
-                        "page": "31"
-                    },
-                    {
-                        "title": "Palanite Patrolman",
-                        "rank": "Ganger",
-                        "cost": "70",
-                        "page": "32"
-                    },
-                    {
-                        "title": "Palanite Rookie Patrolman",
-                        "rank": "Juve",
-                        "cost": "0",
-                        "page": "32"
-                    }
-                ]
-            }
-        ],
-        "hangers-on": [
-            {
-                "title": "Fixer",
-                "page": "88",
-                "cost": "50"
-            },
-            {
-                "title": "Scabber",
-                "page": "88",
-                "cost": "40"
-            },
-            {
-                "title": "Narker",
-                "page": "89",
-                "cost": "30"
-            },
-            {
-                "title": "Proxy",
-                "page": "89",
-                "cost": "25"
-            },
-            {
-                "title": "Propagandist",
-                "page": "90",
-                "cost": "30"
-            }
-        ],
-        "dramatis personae": [
-            {
-                "title": "Psyreena Skar",
-                "page": "34",
-                "cost": "105"
-            },
-            {
-                "title": "Estus Jet",
-                "page": "87",
-                "cost": "130"
-            },
-            {
-                "title": "Cor 'Two Guns' Coran",
-                "page": "91",
-                "cost": "120"
-            },
-            {
-                "title": "Vunder Gorvos",
-                "page": "92",
-                "cost": "145"
-            },
-            {
-                "title": "Gaen 'The Gunk Queen' Gorvos",
-                "page": "98",
-                "cost": "150"
-            },
-            {
-                "title": "Jonny Razor",
-                "page": "99",
-                "cost": "125"
-            }
-        ],
-        "campaigns": [
-            {
-                "title": "The Law and Misrule Campaign",
-                "page": "36",
-                "subsections": [
-                    {
-                        "title": "How the Campaign Works",
-                        "page": "36"
-                    },
-                    {
-                        "title": "The Rule of Law and the Path of the Outlaw",
-                        "page": "38"
-                    },
-                    {
-                        "title": "Setting up the Campaign",
-                        "page": "40"
-                    },
-                    {
-                        "title": "Founding Gangs",
-                        "page": "42"
-                    },
-                    {
-                        "title": "Running the Campaign",
-                        "page": "44"
-                    },
-                    {
-                        "title": "The Pre- and Post- Battle Sequence",
-                        "page": "52"
-                    },
-                    {
-                        "title": "The Rewards of Infamy and Duty",
-                        "page": "60"
-                    },
-                    {
-                        "title": "Ending the Campaign",
-                        "page": "62"
-                    },
-                    {
-                        "title": "Intrigues",
-                        "page": "63"
-                    },
-                    {
-                        "title": "Rackets",
-                        "page": "72"
-                    }
-                ]
-            }
-        ],
-        "background": [
-            {
-                "title": "Crime on Necromunda",
-                "page": "5",
-                "subsections": [
-                    {
-                        "title": "Recidivists",
-                        "page": "6"
-                    },
-                    {
-                        "title": "Criminal Networks of Necromunda",
-                        "page": "7"
-                    },
-                    {
-                        "title": "Cold Trade",
-                        "page": "8"
-                    },
-                    {
-                        "title": "Imperial Imposters",
-                        "page": "8"
-                    },
-                    {
-                        "title": "Rogue Factoria",
-                        "page": "9"
-                    },
-                    {
-                        "title": "Narco Lords",
-                        "page": "10"
-                    },
-                    {
-                        "title": "Fallen Houses",
-                        "page": "10"
-                    },
-                    {
-                        "title": "Psi-Syndica",
-                        "page": "11"
-                    }
-                ]
-            }
+  "name": "Book of Judgement",
+  "shortname": "Judgement",
+  "year": "2019",
+  "description": "Book of Judgement (2019)",
+  "type": "Supplement",
+  "contents": {
+    "rules": [
+      {
+        "title": "Criminal Alliances",
+        "page": "12",
+        "subsections": [
+          {
+            "title": "Making an Alliance",
+            "page": "13"
+          },
+          {
+            "title": "Criminal Allies",
+            "page": "14"
+          },
+          {
+            "title": "Cold Traders",
+            "page": "14"
+          },
+          {
+            "title": "Imperial Imposters",
+            "page": "15"
+          },
+          {
+            "title": "Rogue Factoria",
+            "page": "16"
+          },
+          {
+            "title": "Narco Lords",
+            "page": "17"
+          },
+          {
+            "title": "Fallen Houses",
+            "page": "18"
+          },
+          {
+            "title": "Psi-Syndica",
+            "page": "19"
+          },
+          {
+            "title": "Smuggler Shore Party",
+            "page": "20"
+          },
+          {
+            "title": "Master Charlatan",
+            "page": "21"
+          },
+          {
+            "title": "Factoria Work Gangs",
+            "page": "22"
+          },
+          {
+            "title": "Rebel Lord",
+            "page": "23"
+          },
+          {
+            "title": "Mind-Locked Wyrd",
+            "page": "24"
+          }
         ]
-    }
+      },
+      {
+        "title": "The Black Market Trading Post",
+        "page": "93",
+        "subsections": [
+          {
+            "title": "Using the Black Market",
+            "page": "93"
+          },
+          {
+            "title": "Enforcer Weapons Reference",
+            "page": "100"
+          },
+          {
+            "title": "Imperial Weapons Reference",
+            "page": "102"
+          },
+          {
+            "title": "Xenos Weapons Reference",
+            "page": "104"
+          },
+          {
+            "title": "Corrupted Weapons Reference",
+            "page": "107"
+          },
+          {
+            "title": "Special Ammunition",
+            "page": "110"
+          },
+          {
+            "title": "Armour",
+            "page": "113"
+          },
+          {
+            "title": "Equipment",
+            "page": "114"
+          },
+          {
+            "title": "Chems",
+            "page": "123"
+          },
+          {
+            "title": "Weapon Traits",
+            "page": "127"
+          }
+        ]
+      }
+    ],
+    "summaries": [
+      {
+        "title": "Enforcer Weapons Reference",
+        "page": "100"
+      },
+      {
+        "title": "Imperial Weapons Reference",
+        "page": "102"
+      },
+      {
+        "title": "Xenos Weapons Reference",
+        "page": "104"
+      },
+      {
+        "title": "Corrupted Weapons Reference",
+        "page": "107"
+      }
+    ],
+    "skills": [
+      {
+        "title": "Palanite Drill Skills",
+        "page": "128",
+        "gang": "Palanite Enforcers",
+        "skills": [
+          {
+            "title": "Got Your Six!"
+          },
+          {
+            "title": "Helmawr's Justice"
+          },
+          {
+            "title": "Non-Verbal Communication"
+          },
+          {
+            "title": "Restraint Protocols"
+          },
+          {
+            "title": "Team Work"
+          },
+          {
+            "title": "Threat Response"
+          }
+        ]
+      }
+    ],
+    "gangs": [
+      {
+        "title": "Palanite Enforcers",
+        "page": "26",
+        "gang": "Palanite Enforcers",
+        "main": "true",
+        "fighters": [
+          {
+            "title": "Palanite Captain",
+            "rank": "Leader",
+            "cost": "140",
+            "page": "31"
+          },
+          {
+            "title": "Palanite Sergeant",
+            "rank": "Champion",
+            "cost": "100",
+            "page": "31"
+          },
+          {
+            "title": "Palanite Patrolman",
+            "rank": "Ganger",
+            "cost": "70",
+            "page": "32"
+          },
+          {
+            "title": "Palanite Rookie Patrolman",
+            "rank": "Juve",
+            "cost": "0",
+            "page": "32"
+          }
+        ]
+      }
+    ],
+    "hangers-on": [
+      {
+        "title": "Fixer",
+        "page": "88",
+        "cost": "50"
+      },
+      {
+        "title": "Scabber",
+        "page": "88",
+        "cost": "40"
+      },
+      {
+        "title": "Narker",
+        "page": "89",
+        "cost": "30"
+      },
+      {
+        "title": "Proxy",
+        "page": "89",
+        "cost": "25"
+      },
+      {
+        "title": "Propagandist",
+        "page": "90",
+        "cost": "30"
+      }
+    ],
+    "dramatis personae": [
+      {
+        "title": "Psyreena Skar",
+        "page": "34",
+        "cost": "105"
+      },
+      {
+        "title": "Estus Jet",
+        "page": "87",
+        "cost": "130"
+      },
+      {
+        "title": "Cor 'Two Guns' Coran",
+        "page": "91",
+        "cost": "120"
+      },
+      {
+        "title": "Vunder Gorvos",
+        "page": "92",
+        "cost": "145"
+      },
+      {
+        "title": "Gaen 'The Gunk Queen' Gorvos",
+        "page": "98",
+        "cost": "150"
+      },
+      {
+        "title": "Jonny Razor",
+        "page": "99",
+        "cost": "125"
+      }
+    ],
+    "campaigns": [
+      {
+        "title": "The Law and Misrule Campaign",
+        "page": "36",
+        "subsections": [
+          {
+            "title": "How the Campaign Works",
+            "page": "36"
+          },
+          {
+            "title": "The Rule of Law and the Path of the Outlaw",
+            "page": "38"
+          },
+          {
+            "title": "Setting up the Campaign",
+            "page": "40"
+          },
+          {
+            "title": "Founding Gangs",
+            "page": "42"
+          },
+          {
+            "title": "Running the Campaign",
+            "page": "44"
+          },
+          {
+            "title": "The Pre- and Post- Battle Sequence",
+            "page": "52"
+          },
+          {
+            "title": "The Rewards of Infamy and Duty",
+            "page": "60"
+          },
+          {
+            "title": "Ending the Campaign",
+            "page": "62"
+          },
+          {
+            "title": "Intrigues",
+            "page": "63"
+          },
+          {
+            "title": "Rackets",
+            "page": "72"
+          }
+        ]
+      }
+    ],
+    "background": [
+      {
+        "title": "Crime on Necromunda",
+        "page": "5",
+        "subsections": [
+          {
+            "title": "Recidivists",
+            "page": "6"
+          },
+          {
+            "title": "Criminal Networks of Necromunda",
+            "page": "7"
+          },
+          {
+            "title": "Cold Trade",
+            "page": "8"
+          },
+          {
+            "title": "Imperial Imposters",
+            "page": "8"
+          },
+          {
+            "title": "Rogue Factoria",
+            "page": "9"
+          },
+          {
+            "title": "Narco Lords",
+            "page": "10"
+          },
+          {
+            "title": "Fallen Houses",
+            "page": "10"
+          },
+          {
+            "title": "Psi-Syndica",
+            "page": "11"
+          }
+        ]
+      }
+    ]
+  }
 }

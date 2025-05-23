@@ -1,21 +1,21 @@
 house:
-    - name: Venators
-    - name: Van Saar (HoA)
-    - name: Van Saar (GotU)
-    - name: Squat Prospectors
-    - name: Slave Ogryn
-    - name: Orlock (HoI)
-    - name: Orlock (GotU)
-    - name: Goliath (HoC)
-    - name: Goliath (GotU)
-    - name: Genestealer Cult
-    - name: Escher (HoB)
-    - name: Escher (GotU)
-    - name: Enforcers
-    - name: Delaque (HoS)
-    - name: Delaque (GotU)
-    - name: Corpse Grinder Cult
-    - name: Chaos Cult
-    - name: Cawdor (HoF)
-    - name: Cawdor (GotU)
-    - name: Ash Waste Nomads
+  - name: Venators
+  - name: Van Saar (HoA)
+  - name: Van Saar (GotU)
+  - name: Squat Prospectors
+  - name: Slave Ogryn
+  - name: Orlock (HoI)
+  - name: Orlock (GotU)
+  - name: Goliath (HoC)
+  - name: Goliath (GotU)
+  - name: Genestealer Cult
+  - name: Escher (HoB)
+  - name: Escher (GotU)
+  - name: Enforcers
+  - name: Delaque (HoS)
+  - name: Delaque (GotU)
+  - name: Corpse Grinder Cult
+  - name: Chaos Cult
+  - name: Cawdor (HoF)
+  - name: Cawdor (GotU)
+  - name: Ash Waste Nomads

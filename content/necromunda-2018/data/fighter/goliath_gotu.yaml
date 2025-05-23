@@ -1,96 +1,96 @@
 fighter:
-    - category: Champion
-      cost: 110
-      equipment: []
-      house: Goliath (GotU)
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 6
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 8
-          ws: 3
-      type: Champion
-    - category: Ganger
-      cost: 60
-      equipment: []
-      house: Goliath (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Ganger
-    - category: Juve
-      cost: 25
-      equipment: []
-      house: Goliath (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 5
-          i: 3
-          int: 9
-          ld: 9
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 10
-          ws: 4
-      type: Juve
-    - category: Leader
-      cost: 145
-      equipment: []
-      house: Goliath (GotU)
-      skills: []
-      stats:
-          a: 3
-          bs: 3
-          cl: 4
-          i: 3
-          int: 7
-          ld: 5
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 8
-          ws: 3
-      type: Leader
-    - category: Ganger
-      cost: 60
-      equipment: []
-      house: Goliath (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Specialist
+  - category: Champion
+    cost: 110
+    equipment: []
+    house: Goliath (GotU)
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 6
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 8
+      ws: 3
+    type: Champion
+  - category: Ganger
+    cost: 60
+    equipment: []
+    house: Goliath (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Ganger
+  - category: Juve
+    cost: 25
+    equipment: []
+    house: Goliath (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 5
+      i: 3
+      int: 9
+      ld: 9
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 10
+      ws: 4
+    type: Juve
+  - category: Leader
+    cost: 145
+    equipment: []
+    house: Goliath (GotU)
+    skills: []
+    stats:
+      a: 3
+      bs: 3
+      cl: 4
+      i: 3
+      int: 7
+      ld: 5
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 8
+      ws: 3
+    type: Leader
+  - category: Ganger
+    cost: 60
+    equipment: []
+    house: Goliath (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Specialist

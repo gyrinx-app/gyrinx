@@ -1,45 +1,45 @@
 name: Tests
 
 on:
-    pull_request:
-        branches: ["**"]
-    push:
-        branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["**"]
 
 permissions:
-    id-token: write
-    contents: read
-    pull-requests: write
+  id-token: write
+  contents: read
+  pull-requests: write
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
+  test:
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-python@v5
-              with:
-                  python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-            - name: Cache pip
-              id: cache-pip
-              uses: actions/cache@v4
-              with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-                  restore-keys: |
-                      ${{ runner.os }}-pip-
+      - name: Cache pip
+        id: cache-pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-            - name: Install dependencies
-              run: |
-                  python -m venv .venv && \
-                  . .venv/bin/activate && \
-                  pip install --editable .
+      - name: Install dependencies
+        run: |
+          python -m venv .venv && \
+          . .venv/bin/activate && \
+          pip install --editable .
 
-            - name: Write to .env file
-              run: |
-                  echo "SECRET_KEY=test-secret" >> .env
-                  echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+      - name: Write to .env file
+        run: |
+          echo "SECRET_KEY=test-secret" >> .env
+          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
-            - name: Run tests
-              run: ./scripts/test.sh
+      - name: Run tests
+        run: ./scripts/test.sh

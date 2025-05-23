@@ -1,76 +1,76 @@
 house:
-    - name: Squat Prospectors
+  - name: Squat Prospectors
 category:
-    - name: Leader
-    - name: Champion
-    - name: GangerChanged
+  - name: Leader
+  - name: Champion
+  - name: GangerChanged
 equipment_category:
-    - name: Basic Weapons
-    - name: Pistols
-    - name: Close Combat Changed
+  - name: Basic Weapons
+  - name: Pistols
+  - name: Close Combat Changed
 fighter:
-    - category: Leader
-      cost: 115
-      equipment: []
-      house: Squat Prospectors
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 5
-          i: 5
-          int: 6
-          ld: 5
-          m: 4
-          s: 3
-          t: 4
-          w: 3
-          wil: 5
-          ws: 3
-      type: Charter Master Changed
-    - category: Champion
-      cost: 85
-      equipment: []
-      house: Squat Prospectors
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 5
-          int: 7
-          ld: 6
-          m: 4
-          s: 3
-          t: 4
-          w: 2
-          wil: 6
-          ws: 4
-      type: Drill Master
-    - category: Ganger
-      cost: 50
-      equipment: []
-      house: Squat Prospectors
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 5
-          int: 7
-          ld: 7
-          m: 4
-          s: 3
-          t: 4
-          w: 1
-          wil: 6
-          ws: 4
-      type: Drill-kyn
-      weapons:
-          policy:
-              rules:
-                  - deny: all
-                  - allow:
-                        - category: Basic Weapons
-                        - category: Pistols
-                        - category: Close Combat
+  - category: Leader
+    cost: 115
+    equipment: []
+    house: Squat Prospectors
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 5
+      i: 5
+      int: 6
+      ld: 5
+      m: 4
+      s: 3
+      t: 4
+      w: 3
+      wil: 5
+      ws: 3
+    type: Charter Master Changed
+  - category: Champion
+    cost: 85
+    equipment: []
+    house: Squat Prospectors
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 5
+      int: 7
+      ld: 6
+      m: 4
+      s: 3
+      t: 4
+      w: 2
+      wil: 6
+      ws: 4
+    type: Drill Master
+  - category: Ganger
+    cost: 50
+    equipment: []
+    house: Squat Prospectors
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 5
+      int: 7
+      ld: 7
+      m: 4
+      s: 3
+      t: 4
+      w: 1
+      wil: 6
+      ws: 4
+    type: Drill-kyn
+    weapons:
+      policy:
+        rules:
+          - deny: all
+          - allow:
+              - category: Basic Weapons
+              - category: Pistols
+              - category: Close Combat

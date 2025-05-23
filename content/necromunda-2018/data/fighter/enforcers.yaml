@@ -1,311 +1,311 @@
 fighter:
-    - category: Leader
-      cost: 140
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 6
-          i: 4
-          int: 6
-          ld: 4
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 3
-      type: Palanite Captain
-    - category: Ganger
-      cost: 70
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Palanite Patrolman
-    - category: Ganger
-      cost: 70
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Palanite Patrolman Specialist
-    - category: Juve
-      cost: 0
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 8
-          i: 4
-          int: 8
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Palanite Rookie
-    - category: Champion
-      cost: 100
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 4
-          int: 7
-          ld: 5
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 4
-      type: Palanite Sergeant
-    - category: Leader
-      cost: 150
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-          - category: Armor
-            name: Layered Flak Armor
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 6
-          i: 4
-          int: 6
-          ld: 4
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 3
-      type: Subjugator Captain
-    - category: Ganger
-      cost: 80
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-          - category: Armor
-            name: Layered Flak Armor
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Subjugator Patrolman
-    - category: Ganger
-      cost: 80
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-          - category: Armor
-            name: Layered Flak Armor
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Subjugator Patrolman Specialist
-    - category: Ganger
-      cost: 80
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-          - category: Armor
-            name: Layered Flak Armor
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Subjugator Patrolman Specialist
-    - category: Champion
-      cost: 110
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Equipment
-            name: Armored undersuit
-            qty: 1
-          - category: Equipment
-            name: Magnacles
-            qty: 1
-          - category: Armor
-            name: Layered Flak Armor
-            qty: 1
-      house: Enforcers
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 4
-          int: 7
-          ld: 5
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 4
-      type: Subjugator Sergeant
+  - category: Leader
+    cost: 140
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 6
+      i: 4
+      int: 6
+      ld: 4
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 3
+    type: Palanite Captain
+  - category: Ganger
+    cost: 70
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Palanite Patrolman
+  - category: Ganger
+    cost: 70
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Palanite Patrolman Specialist
+  - category: Juve
+    cost: 0
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 8
+      i: 4
+      int: 8
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Palanite Rookie
+  - category: Champion
+    cost: 100
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 4
+      int: 7
+      ld: 5
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 4
+    type: Palanite Sergeant
+  - category: Leader
+    cost: 150
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+      - category: Armor
+        name: Layered Flak Armor
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 6
+      i: 4
+      int: 6
+      ld: 4
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 3
+    type: Subjugator Captain
+  - category: Ganger
+    cost: 80
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+      - category: Armor
+        name: Layered Flak Armor
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Subjugator Patrolman
+  - category: Ganger
+    cost: 80
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+      - category: Armor
+        name: Layered Flak Armor
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Subjugator Patrolman Specialist
+  - category: Ganger
+    cost: 80
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+      - category: Armor
+        name: Layered Flak Armor
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Subjugator Patrolman Specialist
+  - category: Champion
+    cost: 110
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Equipment
+        name: Armored undersuit
+        qty: 1
+      - category: Equipment
+        name: Magnacles
+        qty: 1
+      - category: Armor
+        name: Layered Flak Armor
+        qty: 1
+    house: Enforcers
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 4
+      int: 7
+      ld: 5
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 4
+    type: Subjugator Sergeant

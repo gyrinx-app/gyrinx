@@ -1,0 +1,38 @@
+# Repo specific
+docs/
+
+# Dependencies
+package-lock.json
+node_modules/
+
+# Build outputs
+staticfiles/
+.venv/
+__pycache__/
+*.pyc
+
+# Django specific
+**/migrations/
+.env
+*.sqlite3
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+.pytest_cache/
+
+# Notebooks
+*.ipynb
+
+# Generated files
+content.egg-info/

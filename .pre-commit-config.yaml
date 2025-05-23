@@ -2,75 +2,84 @@
 # See https://pre-commit.com/hooks.html for more hooks
 fail_fast: true
 repos:
-    - repo: https://github.com/djlint/djLint
-      rev: v1.36.4
-      hooks:
-          - id: djlint-reformat-django
-          - id: djlint-django
+  - repo: https://github.com/djlint/djLint
+    rev: v1.36.4
+    hooks:
+      - id: djlint-reformat-django
+      - id: djlint-django
 
-    - repo: https://github.com/kynan/nbstripout
-      rev: 0.8.1
-      hooks:
-          - id: nbstripout
-            name: nbstripout
-            description: "nbstripout: strip output from Jupyter and IPython notebooks"
-            language: python
-            types: [jupyter]
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        name: nbstripout
+        description: "nbstripout: strip output from Jupyter and IPython notebooks"
+        language: python
+        types: [jupyter]
 
-    - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.9.1
-      hooks:
-          - id: ruff
-            types_or: [python, pyi]
-            args: [--fix]
-          - id: ruff-format
-            types_or: [python, pyi]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      - id: ruff
+        types_or: [python, pyi]
+        args: [--fix]
+      - id: ruff-format
+        types_or: [python, pyi]
 
-    - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v5.0.0
-      hooks:
-          - id: check-added-large-files
-            args: [--maxkb=5120]
-          - id: check-ast
-          - id: check-builtin-literals
-          - id: check-case-conflict
-          - id: check-docstring-first
-          - id: check-executables-have-shebangs
-          - id: check-illegal-windows-names
-          - id: check-json
-          - id: check-merge-conflict
-          - id: check-shebang-scripts-are-executable
-          - id: check-symlinks
-          - id: check-toml
-          - id: check-vcs-permalinks
-          - id: check-xml
-          - id: check-yaml
-          - id: debug-statements
-          - id: destroyed-symlinks
-          - id: detect-private-key
-          - id: end-of-file-fixer
-          - id: fix-byte-order-marker
-          - id: forbid-new-submodules
-          - id: forbid-submodules
-          - id: mixed-line-ending
-          - id: name-tests-test
-            args: [--django]
-          # - id: no-commit-to-branch
-          - id: requirements-txt-fixer
-          - id: sort-simple-yaml
-          - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: check-fmt
+        name: check-fmt
+        entry: ./scripts/fmt-check.sh
+        language: script
+        types_or: [scss, javascript, json, markdown, yaml]
+        pass_filenames: false
 
-    - repo: local
-      hooks:
-          - id: check-migrations
-            name: Check for missing migrations
-            entry: ./scripts/check_migrations.sh
-            language: script
-            pass_filenames: false
-            always_run: true
-          - id: pytest
-            name: pytest
-            entry: ./scripts/test.sh
-            language: script
-            pass_filenames: false
-            always_run: true
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=5120]
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-illegal-windows-names
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: forbid-new-submodules
+      - id: forbid-submodules
+      - id: mixed-line-ending
+      - id: name-tests-test
+        args: [--django]
+      # - id: no-commit-to-branch
+      - id: requirements-txt-fixer
+      - id: sort-simple-yaml
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: check-migrations
+        name: Check for missing migrations
+        entry: ./scripts/check_migrations.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+      - id: pytest
+        name: pytest
+        entry: ./scripts/test.sh
+        language: script
+        pass_filenames: false
+        always_run: true

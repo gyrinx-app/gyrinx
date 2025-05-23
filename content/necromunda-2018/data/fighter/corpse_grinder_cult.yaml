@@ -1,82 +1,82 @@
 fighter:
-    - category: Leader
-      cost: 130
-      equipment: []
-      house: Corpse Grinder Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 4
-          int: 7
-          ld: 5
-          m: 5
-          s: 4
-          t: 4
-          w: 2
-          wil: 5
-          ws: 2
-      type: Butcher
-    - category: Champion
-      cost: 90
-      equipment: []
-      house: Corpse Grinder Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 5
-          cl: 6
-          i: 4
-          int: 8
-          ld: 6
-          m: 5
-          s: 4
-          t: 3
-          w: 2
-          wil: 7
-          ws: 3
-      type: Cutter
-    - category: Juve
-      cost: 25
-      equipment:
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-      house: Corpse Grinder Cult
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Infiltrate
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 9
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 9
-          ws: 4
-      type: Initiate
-    - category: Ganger
-      cost: 40
-      equipment: []
-      house: Corpse Grinder Cult
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 7
-          i: 4
-          int: 9
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 3
-      type: Skinner
+  - category: Leader
+    cost: 130
+    equipment: []
+    house: Corpse Grinder Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 4
+      int: 7
+      ld: 5
+      m: 5
+      s: 4
+      t: 4
+      w: 2
+      wil: 5
+      ws: 2
+    type: Butcher
+  - category: Champion
+    cost: 90
+    equipment: []
+    house: Corpse Grinder Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 5
+      cl: 6
+      i: 4
+      int: 8
+      ld: 6
+      m: 5
+      s: 4
+      t: 3
+      w: 2
+      wil: 7
+      ws: 3
+    type: Cutter
+  - category: Juve
+    cost: 25
+    equipment:
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+    house: Corpse Grinder Cult
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Infiltrate
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 9
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 9
+      ws: 4
+    type: Initiate
+  - category: Ganger
+    cost: 40
+    equipment: []
+    house: Corpse Grinder Cult
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 7
+      i: 4
+      int: 9
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 3
+    type: Skinner

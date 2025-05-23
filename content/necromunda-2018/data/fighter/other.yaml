@@ -1,1351 +1,1351 @@
 fighter:
-    - category: Hanger-on
-      cost: 30
-      equipment:
-          - category: Close Combat
-            name: Fighting Knife
-            qty: 1
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Lie Low
-      stats:
-          a: 1
-          bs: 5
-          cl: 6
-          i: 4
-          int: 9
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 9
-          ws: 4
-      type: "'Narker"
-    - category: Hanger-on
-      cost: 215
-      equipment:
-          - category: Armor
-            name: Carapace Armor - Light
-            qty: 1
-      skills: []
-      stats:
-          a: 2
-          bs: 5
-          cl: 6
-          i: 5
-          int: 9
-          ld: 8
-          m: 4
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 3
-      type: Ambot
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Armor
-            name: Mesh Armor
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Munitioneer
-      stats:
-          a: 1
-          bs: 3
-          cl: 7
-          i: 5
-          int: 7
-          ld: 9
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Ammo-Jack
-    - category: Hanger-on
-      cost: 210
-      equipment:
-          - category: Armor
-            name: Carapace Armor - Heavy
-            qty: 1
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Fearsome
-      stats:
-          a: 4
-          bs: 5
-          cl: 8
-          i: 3
-          int: 8
-          ld: 7
-          m: 6
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 3
-      type: Arthromite Duneskuttler
-    - category: Hanger-on
-      cost: 40
-      equipment:
-          - category: Armor
-            name: Mesh Armor
-            qty: 1
-      skills:
-          - category: Wastelands - Non-Fighter
-            name: Born to the Wastes
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 3
-      type: Arthromite Herder
-    - category: Hired Gun
-      cost: 220
-      equipment: []
-      skills:
-          - category: Brawn - Non-Fighter
-            name: Headbutt
-      stats:
-          a: 2
-          bs: 5
-          cl: 6
-          i: 4
-          int: 9
-          ld: 7
-          m: 5
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 4
-      type: Awakened Ogryn
-    - category: Hired Gun
-      cost: 80
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 5
-          int: 5
-          ld: 5
-          m: 3
-          s: 3
-          t: 4
-          w: 2
-          wil: 5
-          ws: 3
-      type: Bounty Hunter M3
-    - category: Hired Gun
-      cost: 80
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 6
-          i: 4
-          int: 8
-          ld: 7
-          m: 4
-          s: 3
-          t: 4
-          w: 1
-          wil: 7
-          ws: 3
-      type: Bounty Hunter M4
-    - category: Hired Gun
-      cost: 80
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 3
-          cl: 5
-          i: 3
-          int: 6
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 3
-      type: Bounty Hunter M5
-    - category: Hanger-on
-      cost: 55
-      equipment: []
-      skills:
-          - category: Brawn - Non-Fighter
-            name: Iron Jaw
-      stats:
-          a: 1
-          bs: 5
-          cl: 6
-          i: 4
-          int: 8
-          ld: 7
-          m: 4
-          s: 3
-          t: 4
-          w: 1
-          wil: 8
-          ws: 4
-      type: Brute Handler
-    - category: Hanger-on
-      cost: 75
-      equipment: []
-      skills:
-          - category: Shooting - Non-Fighter
-            name: Fast Shot
-      stats:
-          a: 1
-          bs: 4
-          cl: 8
-          i: 4
-          int: 6
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Bullet Merchant
-    - category: Hanger-on
-      cost: 20
-      equipment:
-          - category: Close Combat
-            name: Chainaxe
-            qty: 1
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Fearsome
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 4
-          int: 8
-          ld: 8
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Cadaver Merchant
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 7
-          i: 2
-          int: 8
-          ld: 7
-          m: 6
-          s: 2
-          t: 2
-          w: 1
-          wil: 8
-          ws: 5
-      type: Caryatid
-    - category: Hanger-on
-      cost: 240
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 8
-          i: 4
-          int: 8
-          ld: 9
-          m: 4
-          s: 5
-          t: 4
-          w: 4
-          wil: 9
-          ws: 4
-      type: Cawdor Stig-Shambler
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 5
-          i: 3
-          int: 4
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Cephalopod Spekter
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 7
-          i: 2
-          int: 7
-          ld: 7
-          m: 5
-          s: 2
-          t: 2
-          w: 1
-          wil: 6
-          ws: 4
-      type: Chaos Familiar
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Fixer
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 4
-      type: Chem Dealer
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 6
-          cl: 5
-          i: 3
-          int: 9
-          ld: 7
-          m: 5
-          s: 2
-          t: 2
-          w: 1
-          wil: 5
-          ws: 5
-      type: Cherub Servitor
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 6
-          i: 4
-          int: 8
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 3
-      type: Cyber-mastiff
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 8
-          i: 2
-          int: 8
-          ld: 7
-          m: 6
-          s: 2
-          t: 2
-          w: 1
-          wil: 8
-          ws: 4
-      type: Cyberachnid
-    - category: Hanger-on
-      cost: 20
-      equipment: []
-      skills:
-          - category: Tech - Non-Fighter
-            name: Gadgeteer
-      stats:
-          a: 1
-          bs: 5
-          cl: 7
-          i: 4
-          int: 5
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 5
-      type: Data-scrivener
-    - category: Hanger-on
-      cost: 20
-      equipment: []
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Lie Low
-      stats:
-          a: 1
-          bs: 5
-          cl: 9
-          i: 3
-          int: 8
-          ld: 10
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 5
-      type: Dome Runner
-    - category: Hanger-on
-      cost: 220
-      equipment: []
-      skills:
-          - category: Brawn - Non-Fighter
-            name: Crushing Blow
-      stats:
-          a: 3
-          bs: 4
-          cl: 7
-          i: 3
-          int: 8
-          ld: 8
-          m: 6
-          s: 4
-          t: 5
-          w: 3
-          wil: 7
-          ws: 4
-      type: Escher Khimerix
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Pistols
-            name: Bolt Pistol
-            qty: 1
-          - category: Armor
-            name: Mesh Armor
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Fixer
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 4
-      type: Fixer
-    - category: Hanger-on
-      cost: 20
-      equipment: []
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Evade
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 3
-          int: 7
-          ld: 9
-          m: 5
-          s: 2
-          t: 3
-          w: 1
-          wil: 5
-          ws: 5
-      type: Gang Lookout
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 8
-          i: 3
-          int: 9
-          ld: 10
-          m: 6
-          s: 3
-          t: 3
-          w: 1
-          wil: 10
-          ws: 4
-      type: Giant Rat
-    - category: Hanger-on
-      cost: 210
-      equipment: []
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Impetuous
-      stats:
-          a: 3
-          bs: 6
-          cl: 5
-          i: 5
-          int: 10
-          ld: 7
-          m: 4
-          s: 6
-          t: 5
-          w: 3
-          wil: 8
-          ws: 3
-      type: Goliath 'Zerker
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 0
-          cl: 7
-          i: 3
-          int: 9
-          ld: 9
-          m: 8
-          s: 2
-          t: 3
-          w: 1
-          wil: 9
-          ws: 4
-      type: Grapplehawk
-    - category: Hired Gun
-      cost: 40
-      equipment: []
-      skills: []
-      stats:
-          a: 0
-          bs: 4
-          cl: 6
-          i: 0
-          int: 7
-          ld: 7
-          m: 0
-          s: 0
-          t: 0
-          w: 0
-          wil: 6
-          ws: 0
-      type: Guild of Coin Haulier
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 2
-          int: 7
-          ld: 9
-          m: 7
-          s: 2
-          t: 2
-          w: 1
-          wil: 6
-          ws: 4
-      type: Gyrinx Cat
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 6
-          i: 4
-          int: 8
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 3
-      type: Hacked Cyber-Mastiff
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills:
-          - category: Palanite Drill - Non-Fighter
-            name: Threat Response
-      stats:
-          a: 2
-          bs: 0
-          cl: 6
-          i: 4
-          int: 8
-          ld: 8
-          m: 5
-          s: 3
-          t: 4
-          w: 1
-          wil: 7
-          ws: 3
-      type: Hardcase Cyber-Mastiff
-    - category: Hanger-on
-      cost: 40
-      equipment:
-          - category: Special Weapons
-            name: Plasma Gun
-            qty: 1
-          - category: Armor
-            name: Mesh Armor
-            qty: 1
-          - category: Special Weapons
-            name: Grav-Gun
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Munitioneer
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 5
-          ld: 9
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 5
-      type: Heretek
-    - category: Hired Gun
-      cost: 30
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 8
-          i: 4
-          int: 8
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 4
-      type: Hive Scum
-    - category: Hanger-on
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 4
-          int: 9
-          ld: 7
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 9
-          ws: 3
-      type: House Agent 1
-    - category: Hanger-on
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 5
-          cl: 5
-          i: 4
-          int: 9
-          ld: 7
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 9
-          ws: 2
-      type: House Agent 2
-    - category: Hanger-on
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 2
-          cl: 5
-          i: 4
-          int: 9
-          ld: 7
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 9
-          ws: 5
-      type: House Agent 3
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 4
-          i: 5
-          int: 8
-          ld: 8
-          m: 5
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 4
-      type: Iron Automata
-    - category: Hanger-on
-      cost: 210
-      equipment: []
-      skills: []
-      stats:
-          a: 3
-          bs: 5
-          cl: 6
-          i: 4
-          int: 9
-          ld: 7
-          m: 5
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 3
-      type: Mutated Ogryn
-    - category: Hanger-on
-      cost: 230
-      equipment:
-          - category: Armor
-            name: Carapace Armor - Light
-            qty: 1
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 5
-          int: 8
-          ld: 7
-          m: 4
-          s: 5
-          t: 5
-          w: 3
-          wil: 9
-          ws: 5
-      type: Orlock Cargo Servitor
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 0
-          cl: 7
-          i: 3
-          int: 11
-          ld: 10
-          m: 6
-          s: 3
-          t: 3
-          w: 1
-          wil: 9
-          ws: 4
-      type: Phelynx
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 0
-          cl: 7
-          i: 5
-          int: 7
-          ld: 7
-          m: 7
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 3
-      type: Phyrr Cat
-    - category: Hanger-on
-      cost: 30
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Pistols
-            name: Laspistol
-            qty: 1
-      skills:
-          - category: Leadership - Non-Fighter
-            name: Inspirational
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 8
-          ld: 6
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Propagandist
-    - category: Hanger-on
-      cost: 25
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Pistols
-            name: Laspistol
-            qty: 1
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Evade
-      stats:
-          a: 1
-          bs: 5
-          cl: 8
-          i: 4
-          int: 6
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 5
-      type: Proxy
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 0
-          cl: 7
-          i: 2
-          int: 7
-          ld: 7
-          m: 5
-          s: 2
-          t: 2
-          w: 1
-          wil: 6
-          ws: 4
-      type: Psychic Familiar
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 6
-          cl: 5
-          i: 4
-          int: 8
-          ld: 8
-          m: 6
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Psychoteric Wyrm
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Equipment
-            name: Medicae Kit
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Medicae
-      stats:
-          a: 1
-          bs: 5
-          cl: 8
-          i: 4
-          int: 5
-          ld: 9
-          m: 5
-          s: 2
-          t: 3
-          w: 1
-          wil: 7
-          ws: 5
-      type: Rogue Doc
-    - category: Hanger-on
-      cost: 40
-      equipment:
-          - category: Basic Weapons
-            name: Shotgun - Solid/Scatter
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Savvy Trader
-      stats:
-          a: 1
-          bs: 4
-          cl: 8
-          i: 5
-          int: 6
-          ld: 7
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Scabber
-    - category: Hanger-on
-      cost: 220
-      equipment:
-          - category: Armor
-            name: Carapace Armor - Light
-            qty: 1
-      skills: []
-      stats:
-          a: 3
-          bs: 5
-          cl: 6
-          i: 5
-          int: 10
-          ld: 8
-          m: 4
-          s: 5
-          t: 5
-          w: 3
-          wil: 9
-          ws: 3
-      type: Scrapcode-corrupted Ambot
-    - category: Hired Gun
-      cost: 20
-      equipment: []
-      skills: []
-      stats:
-          a: 0
-          bs: 4
-          cl: 8
-          i: 0
-          int: 8
-          ld: 8
-          m: 0
-          s: 0
-          t: 0
-          w: 0
-          wil: 8
-          ws: 0
-      type: Scum Racer
-    - category: Hanger-on
-      cost: 210
-      equipment: []
-      skills:
-          - category: Brawn - Non-Fighter
-            name: Headbutt
-      stats:
-          a: 2
-          bs: 5
-          cl: 6
-          i: 4
-          int: 9
-          ld: 7
-          m: 5
-          s: 5
-          t: 5
-          w: 3
-          wil: 8
-          ws: 4
-      type: Servitor Ogryn
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 6
-          cl: 7
-          i: 3
-          int: 9
-          ld: 8
-          m: 6
-          s: 3
-          t: 2
-          w: 1
-          wil: 8
-          ws: 4
-      type: Sheen Bird
-    - category: Hanger-on
-      cost: 20
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 9
-          i: 3
-          int: 7
-          ld: 9
-          m: 4
-          s: 2
-          t: 3
-          w: 1
-          wil: 5
-          ws: 4
-      type: Slopper
-    - category: Hanger-on
-      cost: 190
-      equipment: []
-      skills: []
-      stats:
-          a: 1
-          bs: 6
-          cl: 5
-          i: 3
-          int: 6
-          ld: 5
-          m: 6
-          s: 3
-          t: 4
-          w: 4
-          wil: 4
-          ws: 6
-      type: Spyker Brute
-    - category: Hanger-on
-      cost: 200
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 4
-          i: 5
-          int: 9
-          ld: 9
-          m: 3
-          s: 5
-          t: 6
-          w: 4
-          wil: 5
-          ws: 4
-      type: Sump Beast M3
-    - category: Hanger-on
-      cost: 200
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 4
-          i: 4
-          int: 9
-          ld: 9
-          m: 4
-          s: 5
-          t: 4
-          w: 4
-          wil: 5
-          ws: 3
-      type: Sump Beast M4
-    - category: Hanger-on
-      cost: 200
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 5
-          cl: 5
-          i: 4
-          int: 10
-          ld: 8
-          m: 5
-          s: 4
-          t: 5
-          w: 4
-          wil: 6
-          ws: 4
-      type: Sump Beast M5
-    - category: Exotic Beast
-      cost: 0
-      equipment: []
-      skills: []
-      stats:
-          a: 2
-          bs: 0
-          cl: 6
-          i: 6
-          int: 11
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 7
-          ws: 3
-      type: Sumpkroc
-    - category: Hanger-on
-      cost: 80
-      equipment: []
-      skills:
-          - category: Savant - Non-Fighter
-            name: Munitioneer
-      stats:
-          a: 1
-          bs: 4
-          cl: 8
-          i: 4
-          int: 6
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Tech-merchant
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Pistols
-            name: Laspistol
-            qty: 1
-      skills:
-          - category: Leadership - Non-Fighter
-            name: Overseer
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Trader - Beastwrangler
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Basic Weapons
-            name: Lasgun
-            qty: 1
-      skills:
-          - category: Savant - Non-Fighter
-            name: Savvy Trader
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Trader - Connected
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-          - category: Pistols
-            name: Bolt Pistol
-            qty: 1
-          - category: Basic Weapons
-            name: Shotgun - Solid/Scatter
-            qty: 1
-      skills:
-          - category: Shooting - Non-Fighter
-            name: Marksman
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Trader - Gun-smyth
-    - category: Hanger-on
-      cost: 50
-      equipment:
-          - category: Close Combat
-            name: Maul
-            qty: 1
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Fearsome
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 4
-          int: 7
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Trader - Relicmonger
-    - category: Hanger-on
-      cost: 240
-      equipment:
-          - category: Armor
-            name: Carapace Armor - Light
-            qty: 1
-      skills: []
-      stats:
-          a: 4
-          bs: 4
-          cl: 5
-          i: 4
-          int: 6
-          ld: 5
-          m: 5
-          s: 5
-          t: 4
-          w: 3
-          wil: 8
-          ws: 4
-      type: Van Saar Arachni-Rig Servo-Suit
-    - category: Hanger-on
-      cost: 250
-      equipment: []
-      skills:
-          - category: Wisdom of the Ancients - Non-Fighter
-            name: Nobody Pushes Kin Around
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 5
-          int: 7
-          ld: 7
-          m: 4
-          s: 4
-          t: 5
-          w: 3
-          wil: 6
-          ws: 4
-      type: Vartijan Exo-Driller
-    - category: Hanger-on
-      cost: 210
-      equipment: []
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Nerves of Steel
-      stats:
-          a: 3
-          bs: 6
-          cl: 6
-          i: 4
-          int: 9
-          ld: 9
-          m: 6
-          s: 6
-          t: 4
-          w: 3
-          wil: 7
-          ws: 3
-      type: Warp Horror
-    - category: Hanger-on
-      cost: 60
-      equipment:
-          - category: Pistols
-            name: Stub Gun
-            qty: 1
-      skills:
-          - category: Cunning - Non-Fighter
-            name: Lie Low
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 3
-          int: 5
-          ld: 9
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Whisper Merchant
+  - category: Hanger-on
+    cost: 30
+    equipment:
+      - category: Close Combat
+        name: Fighting Knife
+        qty: 1
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Lie Low
+    stats:
+      a: 1
+      bs: 5
+      cl: 6
+      i: 4
+      int: 9
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 9
+      ws: 4
+    type: "'Narker"
+  - category: Hanger-on
+    cost: 215
+    equipment:
+      - category: Armor
+        name: Carapace Armor - Light
+        qty: 1
+    skills: []
+    stats:
+      a: 2
+      bs: 5
+      cl: 6
+      i: 5
+      int: 9
+      ld: 8
+      m: 4
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 3
+    type: Ambot
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Armor
+        name: Mesh Armor
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Munitioneer
+    stats:
+      a: 1
+      bs: 3
+      cl: 7
+      i: 5
+      int: 7
+      ld: 9
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Ammo-Jack
+  - category: Hanger-on
+    cost: 210
+    equipment:
+      - category: Armor
+        name: Carapace Armor - Heavy
+        qty: 1
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Fearsome
+    stats:
+      a: 4
+      bs: 5
+      cl: 8
+      i: 3
+      int: 8
+      ld: 7
+      m: 6
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 3
+    type: Arthromite Duneskuttler
+  - category: Hanger-on
+    cost: 40
+    equipment:
+      - category: Armor
+        name: Mesh Armor
+        qty: 1
+    skills:
+      - category: Wastelands - Non-Fighter
+        name: Born to the Wastes
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 3
+    type: Arthromite Herder
+  - category: Hired Gun
+    cost: 220
+    equipment: []
+    skills:
+      - category: Brawn - Non-Fighter
+        name: Headbutt
+    stats:
+      a: 2
+      bs: 5
+      cl: 6
+      i: 4
+      int: 9
+      ld: 7
+      m: 5
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 4
+    type: Awakened Ogryn
+  - category: Hired Gun
+    cost: 80
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 5
+      int: 5
+      ld: 5
+      m: 3
+      s: 3
+      t: 4
+      w: 2
+      wil: 5
+      ws: 3
+    type: Bounty Hunter M3
+  - category: Hired Gun
+    cost: 80
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 6
+      i: 4
+      int: 8
+      ld: 7
+      m: 4
+      s: 3
+      t: 4
+      w: 1
+      wil: 7
+      ws: 3
+    type: Bounty Hunter M4
+  - category: Hired Gun
+    cost: 80
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 3
+      cl: 5
+      i: 3
+      int: 6
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 3
+    type: Bounty Hunter M5
+  - category: Hanger-on
+    cost: 55
+    equipment: []
+    skills:
+      - category: Brawn - Non-Fighter
+        name: Iron Jaw
+    stats:
+      a: 1
+      bs: 5
+      cl: 6
+      i: 4
+      int: 8
+      ld: 7
+      m: 4
+      s: 3
+      t: 4
+      w: 1
+      wil: 8
+      ws: 4
+    type: Brute Handler
+  - category: Hanger-on
+    cost: 75
+    equipment: []
+    skills:
+      - category: Shooting - Non-Fighter
+        name: Fast Shot
+    stats:
+      a: 1
+      bs: 4
+      cl: 8
+      i: 4
+      int: 6
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Bullet Merchant
+  - category: Hanger-on
+    cost: 20
+    equipment:
+      - category: Close Combat
+        name: Chainaxe
+        qty: 1
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Fearsome
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 4
+      int: 8
+      ld: 8
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Cadaver Merchant
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 7
+      i: 2
+      int: 8
+      ld: 7
+      m: 6
+      s: 2
+      t: 2
+      w: 1
+      wil: 8
+      ws: 5
+    type: Caryatid
+  - category: Hanger-on
+    cost: 240
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 8
+      i: 4
+      int: 8
+      ld: 9
+      m: 4
+      s: 5
+      t: 4
+      w: 4
+      wil: 9
+      ws: 4
+    type: Cawdor Stig-Shambler
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 5
+      i: 3
+      int: 4
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Cephalopod Spekter
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 7
+      i: 2
+      int: 7
+      ld: 7
+      m: 5
+      s: 2
+      t: 2
+      w: 1
+      wil: 6
+      ws: 4
+    type: Chaos Familiar
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Fixer
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 4
+    type: Chem Dealer
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 6
+      cl: 5
+      i: 3
+      int: 9
+      ld: 7
+      m: 5
+      s: 2
+      t: 2
+      w: 1
+      wil: 5
+      ws: 5
+    type: Cherub Servitor
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 6
+      i: 4
+      int: 8
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 3
+    type: Cyber-mastiff
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 8
+      i: 2
+      int: 8
+      ld: 7
+      m: 6
+      s: 2
+      t: 2
+      w: 1
+      wil: 8
+      ws: 4
+    type: Cyberachnid
+  - category: Hanger-on
+    cost: 20
+    equipment: []
+    skills:
+      - category: Tech - Non-Fighter
+        name: Gadgeteer
+    stats:
+      a: 1
+      bs: 5
+      cl: 7
+      i: 4
+      int: 5
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 5
+    type: Data-scrivener
+  - category: Hanger-on
+    cost: 20
+    equipment: []
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Lie Low
+    stats:
+      a: 1
+      bs: 5
+      cl: 9
+      i: 3
+      int: 8
+      ld: 10
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 5
+    type: Dome Runner
+  - category: Hanger-on
+    cost: 220
+    equipment: []
+    skills:
+      - category: Brawn - Non-Fighter
+        name: Crushing Blow
+    stats:
+      a: 3
+      bs: 4
+      cl: 7
+      i: 3
+      int: 8
+      ld: 8
+      m: 6
+      s: 4
+      t: 5
+      w: 3
+      wil: 7
+      ws: 4
+    type: Escher Khimerix
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Pistols
+        name: Bolt Pistol
+        qty: 1
+      - category: Armor
+        name: Mesh Armor
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Fixer
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 4
+    type: Fixer
+  - category: Hanger-on
+    cost: 20
+    equipment: []
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Evade
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 3
+      int: 7
+      ld: 9
+      m: 5
+      s: 2
+      t: 3
+      w: 1
+      wil: 5
+      ws: 5
+    type: Gang Lookout
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 8
+      i: 3
+      int: 9
+      ld: 10
+      m: 6
+      s: 3
+      t: 3
+      w: 1
+      wil: 10
+      ws: 4
+    type: Giant Rat
+  - category: Hanger-on
+    cost: 210
+    equipment: []
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Impetuous
+    stats:
+      a: 3
+      bs: 6
+      cl: 5
+      i: 5
+      int: 10
+      ld: 7
+      m: 4
+      s: 6
+      t: 5
+      w: 3
+      wil: 8
+      ws: 3
+    type: Goliath 'Zerker
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 0
+      cl: 7
+      i: 3
+      int: 9
+      ld: 9
+      m: 8
+      s: 2
+      t: 3
+      w: 1
+      wil: 9
+      ws: 4
+    type: Grapplehawk
+  - category: Hired Gun
+    cost: 40
+    equipment: []
+    skills: []
+    stats:
+      a: 0
+      bs: 4
+      cl: 6
+      i: 0
+      int: 7
+      ld: 7
+      m: 0
+      s: 0
+      t: 0
+      w: 0
+      wil: 6
+      ws: 0
+    type: Guild of Coin Haulier
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 2
+      int: 7
+      ld: 9
+      m: 7
+      s: 2
+      t: 2
+      w: 1
+      wil: 6
+      ws: 4
+    type: Gyrinx Cat
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 6
+      i: 4
+      int: 8
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 3
+    type: Hacked Cyber-Mastiff
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills:
+      - category: Palanite Drill - Non-Fighter
+        name: Threat Response
+    stats:
+      a: 2
+      bs: 0
+      cl: 6
+      i: 4
+      int: 8
+      ld: 8
+      m: 5
+      s: 3
+      t: 4
+      w: 1
+      wil: 7
+      ws: 3
+    type: Hardcase Cyber-Mastiff
+  - category: Hanger-on
+    cost: 40
+    equipment:
+      - category: Special Weapons
+        name: Plasma Gun
+        qty: 1
+      - category: Armor
+        name: Mesh Armor
+        qty: 1
+      - category: Special Weapons
+        name: Grav-Gun
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Munitioneer
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 5
+      ld: 9
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 5
+    type: Heretek
+  - category: Hired Gun
+    cost: 30
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 8
+      i: 4
+      int: 8
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 4
+    type: Hive Scum
+  - category: Hanger-on
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 4
+      int: 9
+      ld: 7
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 9
+      ws: 3
+    type: House Agent 1
+  - category: Hanger-on
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 5
+      cl: 5
+      i: 4
+      int: 9
+      ld: 7
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 9
+      ws: 2
+    type: House Agent 2
+  - category: Hanger-on
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 2
+      cl: 5
+      i: 4
+      int: 9
+      ld: 7
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 9
+      ws: 5
+    type: House Agent 3
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 4
+      i: 5
+      int: 8
+      ld: 8
+      m: 5
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 4
+    type: Iron Automata
+  - category: Hanger-on
+    cost: 210
+    equipment: []
+    skills: []
+    stats:
+      a: 3
+      bs: 5
+      cl: 6
+      i: 4
+      int: 9
+      ld: 7
+      m: 5
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 3
+    type: Mutated Ogryn
+  - category: Hanger-on
+    cost: 230
+    equipment:
+      - category: Armor
+        name: Carapace Armor - Light
+        qty: 1
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 5
+      int: 8
+      ld: 7
+      m: 4
+      s: 5
+      t: 5
+      w: 3
+      wil: 9
+      ws: 5
+    type: Orlock Cargo Servitor
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 0
+      cl: 7
+      i: 3
+      int: 11
+      ld: 10
+      m: 6
+      s: 3
+      t: 3
+      w: 1
+      wil: 9
+      ws: 4
+    type: Phelynx
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 0
+      cl: 7
+      i: 5
+      int: 7
+      ld: 7
+      m: 7
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 3
+    type: Phyrr Cat
+  - category: Hanger-on
+    cost: 30
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Pistols
+        name: Laspistol
+        qty: 1
+    skills:
+      - category: Leadership - Non-Fighter
+        name: Inspirational
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 8
+      ld: 6
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Propagandist
+  - category: Hanger-on
+    cost: 25
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Pistols
+        name: Laspistol
+        qty: 1
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Evade
+    stats:
+      a: 1
+      bs: 5
+      cl: 8
+      i: 4
+      int: 6
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 5
+    type: Proxy
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 0
+      cl: 7
+      i: 2
+      int: 7
+      ld: 7
+      m: 5
+      s: 2
+      t: 2
+      w: 1
+      wil: 6
+      ws: 4
+    type: Psychic Familiar
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 6
+      cl: 5
+      i: 4
+      int: 8
+      ld: 8
+      m: 6
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Psychoteric Wyrm
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Equipment
+        name: Medicae Kit
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Medicae
+    stats:
+      a: 1
+      bs: 5
+      cl: 8
+      i: 4
+      int: 5
+      ld: 9
+      m: 5
+      s: 2
+      t: 3
+      w: 1
+      wil: 7
+      ws: 5
+    type: Rogue Doc
+  - category: Hanger-on
+    cost: 40
+    equipment:
+      - category: Basic Weapons
+        name: Shotgun - Solid/Scatter
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Savvy Trader
+    stats:
+      a: 1
+      bs: 4
+      cl: 8
+      i: 5
+      int: 6
+      ld: 7
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Scabber
+  - category: Hanger-on
+    cost: 220
+    equipment:
+      - category: Armor
+        name: Carapace Armor - Light
+        qty: 1
+    skills: []
+    stats:
+      a: 3
+      bs: 5
+      cl: 6
+      i: 5
+      int: 10
+      ld: 8
+      m: 4
+      s: 5
+      t: 5
+      w: 3
+      wil: 9
+      ws: 3
+    type: Scrapcode-corrupted Ambot
+  - category: Hired Gun
+    cost: 20
+    equipment: []
+    skills: []
+    stats:
+      a: 0
+      bs: 4
+      cl: 8
+      i: 0
+      int: 8
+      ld: 8
+      m: 0
+      s: 0
+      t: 0
+      w: 0
+      wil: 8
+      ws: 0
+    type: Scum Racer
+  - category: Hanger-on
+    cost: 210
+    equipment: []
+    skills:
+      - category: Brawn - Non-Fighter
+        name: Headbutt
+    stats:
+      a: 2
+      bs: 5
+      cl: 6
+      i: 4
+      int: 9
+      ld: 7
+      m: 5
+      s: 5
+      t: 5
+      w: 3
+      wil: 8
+      ws: 4
+    type: Servitor Ogryn
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 6
+      cl: 7
+      i: 3
+      int: 9
+      ld: 8
+      m: 6
+      s: 3
+      t: 2
+      w: 1
+      wil: 8
+      ws: 4
+    type: Sheen Bird
+  - category: Hanger-on
+    cost: 20
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 9
+      i: 3
+      int: 7
+      ld: 9
+      m: 4
+      s: 2
+      t: 3
+      w: 1
+      wil: 5
+      ws: 4
+    type: Slopper
+  - category: Hanger-on
+    cost: 190
+    equipment: []
+    skills: []
+    stats:
+      a: 1
+      bs: 6
+      cl: 5
+      i: 3
+      int: 6
+      ld: 5
+      m: 6
+      s: 3
+      t: 4
+      w: 4
+      wil: 4
+      ws: 6
+    type: Spyker Brute
+  - category: Hanger-on
+    cost: 200
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 4
+      i: 5
+      int: 9
+      ld: 9
+      m: 3
+      s: 5
+      t: 6
+      w: 4
+      wil: 5
+      ws: 4
+    type: Sump Beast M3
+  - category: Hanger-on
+    cost: 200
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 4
+      i: 4
+      int: 9
+      ld: 9
+      m: 4
+      s: 5
+      t: 4
+      w: 4
+      wil: 5
+      ws: 3
+    type: Sump Beast M4
+  - category: Hanger-on
+    cost: 200
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 5
+      cl: 5
+      i: 4
+      int: 10
+      ld: 8
+      m: 5
+      s: 4
+      t: 5
+      w: 4
+      wil: 6
+      ws: 4
+    type: Sump Beast M5
+  - category: Exotic Beast
+    cost: 0
+    equipment: []
+    skills: []
+    stats:
+      a: 2
+      bs: 0
+      cl: 6
+      i: 6
+      int: 11
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 7
+      ws: 3
+    type: Sumpkroc
+  - category: Hanger-on
+    cost: 80
+    equipment: []
+    skills:
+      - category: Savant - Non-Fighter
+        name: Munitioneer
+    stats:
+      a: 1
+      bs: 4
+      cl: 8
+      i: 4
+      int: 6
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Tech-merchant
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Pistols
+        name: Laspistol
+        qty: 1
+    skills:
+      - category: Leadership - Non-Fighter
+        name: Overseer
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Trader - Beastwrangler
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Basic Weapons
+        name: Lasgun
+        qty: 1
+    skills:
+      - category: Savant - Non-Fighter
+        name: Savvy Trader
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Trader - Connected
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+      - category: Pistols
+        name: Bolt Pistol
+        qty: 1
+      - category: Basic Weapons
+        name: Shotgun - Solid/Scatter
+        qty: 1
+    skills:
+      - category: Shooting - Non-Fighter
+        name: Marksman
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Trader - Gun-smyth
+  - category: Hanger-on
+    cost: 50
+    equipment:
+      - category: Close Combat
+        name: Maul
+        qty: 1
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Fearsome
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 4
+      int: 7
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Trader - Relicmonger
+  - category: Hanger-on
+    cost: 240
+    equipment:
+      - category: Armor
+        name: Carapace Armor - Light
+        qty: 1
+    skills: []
+    stats:
+      a: 4
+      bs: 4
+      cl: 5
+      i: 4
+      int: 6
+      ld: 5
+      m: 5
+      s: 5
+      t: 4
+      w: 3
+      wil: 8
+      ws: 4
+    type: Van Saar Arachni-Rig Servo-Suit
+  - category: Hanger-on
+    cost: 250
+    equipment: []
+    skills:
+      - category: Wisdom of the Ancients - Non-Fighter
+        name: Nobody Pushes Kin Around
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 5
+      int: 7
+      ld: 7
+      m: 4
+      s: 4
+      t: 5
+      w: 3
+      wil: 6
+      ws: 4
+    type: Vartijan Exo-Driller
+  - category: Hanger-on
+    cost: 210
+    equipment: []
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Nerves of Steel
+    stats:
+      a: 3
+      bs: 6
+      cl: 6
+      i: 4
+      int: 9
+      ld: 9
+      m: 6
+      s: 6
+      t: 4
+      w: 3
+      wil: 7
+      ws: 3
+    type: Warp Horror
+  - category: Hanger-on
+    cost: 60
+    equipment:
+      - category: Pistols
+        name: Stub Gun
+        qty: 1
+    skills:
+      - category: Cunning - Non-Fighter
+        name: Lie Low
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 3
+      int: 5
+      ld: 9
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Whisper Merchant

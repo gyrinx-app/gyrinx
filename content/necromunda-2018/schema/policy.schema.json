@@ -1,67 +1,67 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.policy",
-    "type": "object",
-    "properties": {
-        "name": {
-            "type": "string"
-        },
-        "rules": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "deny": {
-                        "oneOf": [
-                            {
-                                "type": "string",
-                                "enum": ["all"]
-                            },
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "category": {
-                                            "type": "string"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "additionalProperties": true
-                                }
-                            }
-                        ]
-                    },
-                    "allow": {
-                        "oneOf": [
-                            {
-                                "type": "string",
-                                "enum": ["all"]
-                            },
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "category": {
-                                            "type": "string"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "additionalProperties": true
-                                }
-                            }
-                        ]
-                    }
-                },
-                "additionalProperties": false,
-                "oneOf": [{ "required": ["deny"] }, { "required": ["allow"] }]
-            }
-        }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gyrinx.schema.necromunda-2018.policy",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
     },
-    "required": ["rules"]
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "deny": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": ["all"]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "category": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            ]
+          },
+          "allow": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": ["all"]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "category": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "oneOf": [{ "required": ["deny"] }, { "required": ["allow"] }]
+      }
+    }
+  },
+  "required": ["rules"]
 }

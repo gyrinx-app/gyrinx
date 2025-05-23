@@ -1,36 +1,38 @@
 {
-    "name": "gyrinx",
-    "version": "0.0.1",
-    "description": "Core content library & application for Gyrinx",
-    "private": true,
-    "repository": "gyrinx-app/gyrinx",
-    "scripts": {
-        "build": "npm run css",
-        "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules gyrinx/core/static/core/scss/:gyrinx/core/static/core/css/",
-        "css-lint": "stylelint gyrinx/core/static/core/scss/",
-        "css-prefix": "postcss --replace gyrinx/core/static/core/css/styles.css --use autoprefixer --map",
-        "css": "npm-run-all css-compile css-prefix",
-        "server": "sirv --dev --no-clear --port 3000",
-        "start": "npm-run-all --parallel watch server",
-        "watch": "nodemon -e html,scss -x \"npm run css\"",
-        "test": "npm-run-all css-lint css",
-        "js-fmt": "prettier --write gyrinx/core/static/core/js/*.js"
-    },
-    "license": "ISC",
-    "dependencies": {
-        "@popperjs/core": "^2.11.8",
-        "bootstrap": "^5.3.6"
-    },
-    "devDependencies": {
-        "autoprefixer": "^10.4.21",
-        "nodemon": "^3.1.10",
-        "npm-run-all": "^4.1.5",
-        "postcss": "^8.5.3",
-        "postcss-cli": "^11.0.1",
-        "prettier": "^3.5.3",
-        "sass": "^1.89.0",
-        "sirv-cli": "^3.0.1",
-        "stylelint": "^16.19.1",
-        "stylelint-config-twbs-bootstrap": "^16.0.0"
-    }
+  "name": "gyrinx",
+  "version": "0.0.1",
+  "description": "Core content library & application for Gyrinx",
+  "private": true,
+  "repository": "gyrinx-app/gyrinx",
+  "scripts": {
+    "build": "npm run css",
+    "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules gyrinx/core/static/core/scss/:gyrinx/core/static/core/css/",
+    "css-lint": "stylelint gyrinx/core/static/core/scss/",
+    "css-prefix": "postcss --replace gyrinx/core/static/core/css/styles.css --use autoprefixer --map",
+    "css": "npm-run-all css-compile css-prefix",
+    "server": "sirv --dev --no-clear --port 3000",
+    "start": "npm-run-all --parallel watch server",
+    "watch": "nodemon -e html,scss -x \"npm run css\"",
+    "test": "npm-run-all css-lint css",
+    "js-fmt": "prettier --write \"**/*.js\"",
+    "fmt": "prettier --write \"**/*.{js,css,scss,json,yaml,md}\"",
+    "fmt-check": "prettier --check \"**/*.{js,css,scss,json,yaml,md}\""
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.6"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "nodemon": "^3.1.10",
+    "npm-run-all": "^4.1.5",
+    "postcss": "^8.5.3",
+    "postcss-cli": "^11.0.1",
+    "prettier": "^3.5.3",
+    "sass": "^1.89.0",
+    "sirv-cli": "^3.0.1",
+    "stylelint": "^16.19.1",
+    "stylelint-config-twbs-bootstrap": "^16.0.0"
+  }
 }

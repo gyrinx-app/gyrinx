@@ -1,32 +1,32 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.equipment_category",
-    "type": "object",
-    "properties": {
-        "name": {
-            "enum": [
-                "None",
-                "Ammo",
-                "Armor",
-                "Basic Weapons",
-                "Bionics",
-                "Body Upgrades",
-                "Chems",
-                "Close Combat",
-                "Drive Upgrades",
-                "Engine Upgrades",
-                "Equipment",
-                "Grenades",
-                "Hardpoint Upgrades",
-                "Heavy Weapons",
-                "Mounts",
-                "Pistols",
-                "Special Weapons",
-                "Status Items",
-                "Vehicle Equipment"
-            ]
-        }
-    },
-    "additionalProperties": false,
-    "required": ["name"]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gyrinx.schema.necromunda-2018.equipment_category",
+  "type": "object",
+  "properties": {
+    "name": {
+      "enum": [
+        "None",
+        "Ammo",
+        "Armor",
+        "Basic Weapons",
+        "Bionics",
+        "Body Upgrades",
+        "Chems",
+        "Close Combat",
+        "Drive Upgrades",
+        "Engine Upgrades",
+        "Equipment",
+        "Grenades",
+        "Hardpoint Upgrades",
+        "Heavy Weapons",
+        "Mounts",
+        "Pistols",
+        "Special Weapons",
+        "Status Items",
+        "Vehicle Equipment"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": ["name"]
 }

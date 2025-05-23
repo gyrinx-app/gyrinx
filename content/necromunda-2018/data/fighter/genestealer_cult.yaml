@@ -1,213 +1,213 @@
 fighter:
-    - category: Ganger
-      cost: 95
-      equipment: []
-      house: Genestealer Cult
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Unstoppable
-      stats:
-          a: 2
-          bs: 6
-          cl: 4
-          i: 5
-          int: 10
-          ld: 9
-          m: 5
-          s: 5
-          t: 4
-          w: 2
-          wil: 6
-          ws: 3
-      type: Aberrant
-    - category: Ganger
-      cost: 95
-      equipment: []
-      house: Genestealer Cult
-      skills:
-          - category: Ferocity - Non-Fighter
-            name: Unstoppable
-      stats:
-          a: 2
-          bs: 6
-          cl: 4
-          i: 5
-          int: 10
-          ld: 9
-          m: 5
-          s: 5
-          t: 4
-          w: 2
-          wil: 6
-          ws: 3
-      type: Aberrant Specialist
-    - category: Leader
-      cost: 120
-      equipment: []
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 3
-          int: 4
-          ld: 3
-          m: 4
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 4
-      type: Cult Adept
-    - category: Leader
-      cost: 120
-      equipment: []
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 3
-          int: 4
-          ld: 3
-          m: 4
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 4
-      type: Cult Adept
-    - category: Leader
-      cost: 145
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 5
-          i: 3
-          int: 4
-          ld: 3
-          m: 5
-          s: 4
-          t: 3
-          w: 2
-          wil: 5
-          ws: 3
-      type: Cult Alpha
-    - category: Champion
-      cost: 85
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 1
-          bs: 3
-          cl: 5
-          i: 3
-          int: 6
-          ld: 4
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 3
-      type: Hybrid Acolyte
-    - category: Champion
-      cost: 130
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 5
-          i: 3
-          int: 6
-          ld: 4
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 3
-      type: Hybrid Acolyte Early Gen
-    - category: Ganger
-      cost: 90
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 7
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Neophyte Early Gen
-    - category: Ganger
-      cost: 45
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 7
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Neophyte Hybrid
-    - category: Ganger
-      cost: 45
-      equipment:
-          - category: Armor
-            name: Hazard Suit
-            qty: 1
-      house: Genestealer Cult
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 7
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 6
-          ws: 4
-      type: Neophyte Hybrid Specialist
+  - category: Ganger
+    cost: 95
+    equipment: []
+    house: Genestealer Cult
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Unstoppable
+    stats:
+      a: 2
+      bs: 6
+      cl: 4
+      i: 5
+      int: 10
+      ld: 9
+      m: 5
+      s: 5
+      t: 4
+      w: 2
+      wil: 6
+      ws: 3
+    type: Aberrant
+  - category: Ganger
+    cost: 95
+    equipment: []
+    house: Genestealer Cult
+    skills:
+      - category: Ferocity - Non-Fighter
+        name: Unstoppable
+    stats:
+      a: 2
+      bs: 6
+      cl: 4
+      i: 5
+      int: 10
+      ld: 9
+      m: 5
+      s: 5
+      t: 4
+      w: 2
+      wil: 6
+      ws: 3
+    type: Aberrant Specialist
+  - category: Leader
+    cost: 120
+    equipment: []
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 3
+      int: 4
+      ld: 3
+      m: 4
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 4
+    type: Cult Adept
+  - category: Leader
+    cost: 120
+    equipment: []
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 3
+      int: 4
+      ld: 3
+      m: 4
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 4
+    type: Cult Adept
+  - category: Leader
+    cost: 145
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 5
+      i: 3
+      int: 4
+      ld: 3
+      m: 5
+      s: 4
+      t: 3
+      w: 2
+      wil: 5
+      ws: 3
+    type: Cult Alpha
+  - category: Champion
+    cost: 85
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 1
+      bs: 3
+      cl: 5
+      i: 3
+      int: 6
+      ld: 4
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 3
+    type: Hybrid Acolyte
+  - category: Champion
+    cost: 130
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 5
+      i: 3
+      int: 6
+      ld: 4
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 3
+    type: Hybrid Acolyte Early Gen
+  - category: Ganger
+    cost: 90
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 7
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Neophyte Early Gen
+  - category: Ganger
+    cost: 45
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 7
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Neophyte Hybrid
+  - category: Ganger
+    cost: 45
+    equipment:
+      - category: Armor
+        name: Hazard Suit
+        qty: 1
+    house: Genestealer Cult
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 7
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 6
+      ws: 4
+    type: Neophyte Hybrid Specialist
