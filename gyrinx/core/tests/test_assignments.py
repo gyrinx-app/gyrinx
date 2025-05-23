@@ -145,6 +145,12 @@ def test_assign_accessory(
     assert assignment.cost_int() == 20
     assert fighter.cost_int() == 120
 
+    # Test cloning keeps the total cost override
+    new_fighter = fighter.clone(name="Test Fighter (Clone)")
+    new_assignment = new_fighter.assignments()[0]
+    assert new_assignment.cost_int() == 20
+    assert new_fighter.cost_int() == 120
+
 
 @pytest.mark.django_db
 def test_assign_accessory_stat_mod(
@@ -812,6 +818,60 @@ def test_fighter_default_assignment_conversion_to_full(
     assert assignment.weapon_accessories()[0] == spoon_scope
     assert assignment.cost_int() == 0
     assert assignment.is_from_default_assignment()
+
+
+@pytest.mark.django_db
+def test_fighter_clone_default_assignment_conversion_to_full(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+    )
+
+    spoon_profile = make_weapon_profile(spoon)
+    spoon_spike_profile = make_weapon_profile(
+        spoon, name="with spiky bit", strength="S+1", cost=11
+    )
+    spoon_scope, _ = ContentWeaponAccessory.objects.get_or_create(
+        name="Spoon Scope", cost=12
+    )
+
+    content_fighter_equip = content_fighter.default_assignments.create(equipment=spoon)
+    content_fighter_equip.weapon_profiles_field.add(spoon_profile)
+    content_fighter_equip.weapon_profiles_field.add(spoon_spike_profile)
+    content_fighter_equip.weapon_accessories_field.add(spoon_scope)
+
+    assert content_fighter_equip.cost_int() == 0
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+    # Reminder: assignments() returns List[VirtuaListFighterEquipmentAssignment]
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+
+    fighter.convert_default_assignment(assignment)
+
+    new_fighter = fighter.clone(name="Test Fighter (Clone)")
+
+    assert len(new_fighter.assignments()) == 1
+    assignment = new_fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+    assert assignment.weapon_profiles()[0] == spoon_profile
+    assert assignment.weapon_profiles()[1] == spoon_spike_profile
+    assert assignment.weapon_accessories()[0] == spoon_scope
+    assert assignment.cost_int() == 0
+    # Note this! The assignment is default and not "from" default
+    # assignment.
+    assert assignment.kind() == "default"
+    assert not assignment.is_from_default_assignment()
 
 
 @pytest.mark.django_db
