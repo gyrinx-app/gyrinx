@@ -1576,3 +1576,129 @@ def test_multi_equipment_upgrades(
         {"name": "Alpha", "cost_display": "+20¢", "cost_int": 20, "upgrade": u1},
         {"name": "Beta", "cost_display": "+30¢", "cost_int": 30, "upgrade": u2},
     ]
+
+
+@pytest.mark.django_db
+def test_m2m_triggers_update_cost_cache(
+    content_fighter, make_list, make_equipment, make_list_fighter
+):
+    """Test that M2M field changes trigger cost cache updates."""
+    # Create test data
+    weapon = make_equipment(
+        "Test Weapon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=50,
+    )
+
+    # Create weapon profile with cost
+    profile = ContentWeaponProfile.objects.create(
+        equipment=weapon,
+        name="Profile 1",
+        cost=25,
+    )
+
+    # Create weapon accessory with cost
+    accessory = ContentWeaponAccessory.objects.create(
+        name="Test Accessory",
+        cost=15,
+    )
+
+    # Create upgrade with cost
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        equipment=weapon,
+        name="Test Upgrade",
+        cost=20,
+    )
+
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, content_fighter)
+
+    # Create equipment assignment
+    assign = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=weapon
+    )
+
+    # Initial costs
+    initial_assign_cost = assign.cost_int()
+    initial_fighter_cost = fighter.cost_int()
+    initial_list_cost = lst.cost_int()
+
+    # Test weapon_profiles_field M2M trigger
+    assign.weapon_profiles_field.add(profile)
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+    fighter = ListFighter.objects.get(id=fighter.id)
+    lst = List.objects.get(id=lst.id)
+
+    assert assign.cost_int() == initial_assign_cost + profile.cost_int()
+    assert fighter.cost_int() == initial_fighter_cost + profile.cost_int()
+    assert lst.cost_int() == initial_list_cost + profile.cost_int()
+
+    # Test weapon_accessories_field M2M trigger
+    assign.weapon_accessories_field.add(accessory)
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+    fighter = ListFighter.objects.get(id=fighter.id)
+    lst = List.objects.get(id=lst.id)
+
+    assert (
+        assign.cost_int()
+        == initial_assign_cost + profile.cost_int() + accessory.cost_int()
+    )
+    assert (
+        fighter.cost_int()
+        == initial_fighter_cost + profile.cost_int() + accessory.cost_int()
+    )
+    assert (
+        lst.cost_int() == initial_list_cost + profile.cost_int() + accessory.cost_int()
+    )
+
+    # Test upgrades_field M2M trigger
+    assign.upgrades_field.add(upgrade)
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+    fighter = ListFighter.objects.get(id=fighter.id)
+    lst = List.objects.get(id=lst.id)
+
+    final_expected_cost = (
+        initial_assign_cost
+        + profile.cost_int()
+        + accessory.cost_int()
+        + upgrade.cost_int()
+    )
+    assert assign.cost_int() == final_expected_cost
+    assert (
+        fighter.cost_int()
+        == initial_fighter_cost
+        + profile.cost_int()
+        + accessory.cost_int()
+        + upgrade.cost_int()
+    )
+    assert (
+        lst.cost_int()
+        == initial_list_cost
+        + profile.cost_int()
+        + accessory.cost_int()
+        + upgrade.cost_int()
+    )
+
+    # Test removing M2M relationships also triggers cache updates
+    assign.weapon_profiles_field.remove(profile)
+
+    # Refresh the object because there is caching
+    assign = ListFighterEquipmentAssignment.objects.get(id=assign.id)
+    fighter = ListFighter.objects.get(id=fighter.id)
+    lst = List.objects.get(id=lst.id)
+
+    expected_cost_after_remove = final_expected_cost - profile.cost_int()
+    assert assign.cost_int() == expected_cost_after_remove
+    assert (
+        fighter.cost_int()
+        == initial_fighter_cost + accessory.cost_int() + upgrade.cost_int()
+    )
+    assert (
+        lst.cost_int() == initial_list_cost + accessory.cost_int() + upgrade.cost_int()
+    )
