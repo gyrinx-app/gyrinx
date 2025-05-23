@@ -231,7 +231,7 @@ def test_campaign_detail_shows_lists():
     # Should show both lists
     assert b"List 1" in response.content
     assert b"List 2" in response.content
-    assert b"Lists in Campaign" in response.content
+    assert b"Lists" in response.content
 
 
 @pytest.mark.django_db

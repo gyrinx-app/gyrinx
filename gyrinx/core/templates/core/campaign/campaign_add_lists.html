@@ -24,63 +24,58 @@
             </div>
         {% endif %}
         <!-- Search and Filter Section -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Search Lists</h5>
-            </div>
-            <div class="card-body">
-                <form id="search"
-                      method="get"
-                      action="{% url 'core:campaign-add-lists' campaign.id %}#search"
-                      class="vstack gap-3">
-                    <input type="hidden" name="flash" value="search">
-                    <!-- Search Input -->
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi-search"></i>
-                        </span>
-                        <input class="form-control"
-                               type="search"
-                               placeholder="Search by name, house, or owner"
-                               aria-label="Search"
-                               name="q"
-                               value="{{ request.GET.q }}">
-                        <button class="btn btn-primary" type="submit">Search</button>
-                        {% if request.GET.q %}<a href="?#search" class="btn btn-outline-secondary">Clear</a>{% endif %}
+        <div>
+            <form id="search"
+                  method="get"
+                  action="{% url 'core:campaign-add-lists' campaign.id %}#search"
+                  class="vstack gap-3">
+                <input type="hidden" name="flash" value="search">
+                <!-- Search Input -->
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi-search"></i>
+                    </span>
+                    <input class="form-control"
+                           type="search"
+                           placeholder="Search by name, house, or owner"
+                           aria-label="Search"
+                           name="q"
+                           value="{{ request.GET.q }}">
+                    <button class="btn btn-primary" type="submit">Search</button>
+                    {% if request.GET.q %}<a href="?#search" class="btn btn-outline-secondary">Clear</a>{% endif %}
+                </div>
+                <!-- Owner Filter -->
+                <div class="hstack gap-2">
+                    <label class="form-label mb-0">Filter by owner:</label>
+                    <div class="btn-group" role="group">
+                        <input type="radio"
+                               class="btn-check"
+                               name="owner"
+                               id="owner-all"
+                               value="all"
+                               {% if not request.GET.owner or request.GET.owner == "all" %}checked{% endif %}>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-all">All Lists</label>
+                        <input type="radio"
+                               class="btn-check"
+                               name="owner"
+                               id="owner-mine"
+                               value="mine"
+                               {% if request.GET.owner == "mine" %}checked{% endif %}>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Lists</label>
+                        <input type="radio"
+                               class="btn-check"
+                               name="owner"
+                               id="owner-others"
+                               value="others"
+                               {% if request.GET.owner == "others" %}checked{% endif %}>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Lists</label>
                     </div>
-                    <!-- Owner Filter -->
-                    <div class="hstack gap-2">
-                        <label class="form-label mb-0">Filter by owner:</label>
-                        <div class="btn-group" role="group">
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="owner"
-                                   id="owner-all"
-                                   value="all"
-                                   {% if not request.GET.owner or request.GET.owner == "all" %}checked{% endif %}>
-                            <label class="btn btn-outline-primary btn-sm" for="owner-all">All Lists</label>
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="owner"
-                                   id="owner-mine"
-                                   value="mine"
-                                   {% if request.GET.owner == "mine" %}checked{% endif %}>
-                            <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Lists</label>
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="owner"
-                                   id="owner-others"
-                                   value="others"
-                                   {% if request.GET.owner == "others" %}checked{% endif %}>
-                            <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Lists</label>
-                        </div>
-                        <button class="btn btn-link icon-link btn-sm" type="submit">
-                            <i class="bi-arrow-clockwise"></i>
-                            Update
-                        </button>
-                    </div>
-                </form>
-            </div>
+                    <button class="btn btn-link icon-link btn-sm" type="submit">
+                        <i class="bi-arrow-clockwise"></i>
+                        Update
+                    </button>
+                </div>
+            </form>
         </div>
         <!-- Available Lists -->
         <div class="card {% flash "search" %}">
@@ -113,8 +108,8 @@
                                               action="{% url 'core:campaign-add-lists' campaign.id %}">
                                             {% csrf_token %}
                                             <input type="hidden" name="list_id" value="{{ list.id }}">
-                                            <button type="submit" class="btn btn-primary btn-sm">
-                                                <i class="bi-plus-circle"></i> Add
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi-plus-lg"></i> Add
                                             </button>
                                         </form>
                                     </div>

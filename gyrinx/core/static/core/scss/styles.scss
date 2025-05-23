@@ -103,6 +103,10 @@ label {
     max-width: 35em;
 }
 
+.mb-last-0 > :last-child {
+  margin-bottom: 0 !important;
+}
+
 .errorlist {
     @extend .list-unstyled;
     color: var(--bs-danger);
