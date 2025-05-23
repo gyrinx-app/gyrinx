@@ -119,6 +119,8 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
+    # CSP
+    "csp.middleware.CSPMiddleware",
 ]
 
 ROOT_URLCONF = "gyrinx.urls"
@@ -313,3 +315,56 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Content Security Policy (CSP) Configuration
+# https://django-csp.readthedocs.io/
+
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ["'self'"],
+        "script-src": [
+            "'self'",
+            "'unsafe-inline'",  # Required for TinyMCE and inline scripts
+            "https://cdn.jsdelivr.net",  # Bootstrap JS and iframe-resizer
+            "https://www.googletagmanager.com",  # Google Tag Manager
+            "https://www.google-analytics.com",  # Google Analytics
+            "https://cdn-cookieyes.com",  # CookieYes consent management
+        ],
+        "style-src": [
+            "'self'",
+            "'unsafe-inline'",  # Required for TinyMCE and inline styles
+            "https://cdn.jsdelivr.net",  # Bootstrap Icons CSS
+            "https://cdn-cookieyes.com",  # CookieYes consent management styles
+        ],
+        "font-src": [
+            "'self'",
+            "https://cdn.jsdelivr.net",  # Bootstrap Icons fonts
+        ],
+        "img-src": [
+            "'self'",
+            "data:",  # Data URLs for inline images
+            "https://www.google-analytics.com",  # Google Analytics pixel
+            "https://www.googletagmanager.com",  # Google Tag Manager
+            "https://cdn-cookieyes.com",  # CookieYes consent management images
+        ],
+        "connect-src": [
+            "'self'",
+            "https://www.google-analytics.com",  # Google Analytics
+            "https://www.googletagmanager.com",  # Google Tag Manager
+            "https://cdn-cookieyes.com",  # CookieYes consent management API
+        ],
+        "frame-src": [
+            "'self'",
+            "https://www.googletagmanager.com",  # Google Tag Manager iframe
+        ],
+        "form-action": ["'self'"],
+        "base-uri": ["'self'"],
+        "frame-ancestors": ["*"],  # Allow embedding from any domain
+        "object-src": ["'none'"],
+        "media-src": ["'self'"],
+        "worker-src": ["'self'"],
+        "manifest-src": ["'self'"],
+        "upgrade-insecure-requests": True,
+        "block-all-mixed-content": True,
+    }
+}
