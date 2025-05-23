@@ -376,6 +376,18 @@ def test_list_cost_with_fighter_cost_override():
     fighter2.save()
 
     assert lst.cost_int() == fighter.cost_int()
+    pre_clone_list_cost = lst.cost_int()
+
+    # Test fighter clone keeps the cost override
+    new_fighter = fighter2.clone(
+        name="Test Fighter 2 (Clone)",
+        list=lst,
+    )
+
+    assert new_fighter.cost_int() == 0
+
+    lst = List.objects.get(pk=lst.pk)
+    assert lst.cost_int() == pre_clone_list_cost
 
 
 @pytest.mark.django_db

@@ -130,6 +130,7 @@ class List(AppBase):
 
         values = {
             "public": self.public,
+            "narrative": self.narrative,
             **kwargs,
         }
 
@@ -690,6 +691,7 @@ class ListFighter(AppBase):
             "content_fighter": self.content_fighter,
             "narrative": self.narrative,
             "list": self.list,
+            "cost_override": self.cost_override,
             **kwargs,
         }
 
@@ -701,6 +703,12 @@ class ListFighter(AppBase):
         clone.skills.set(self.skills.all())
 
         for assignment in self._direct_assignments():
+            if assignment.from_default_assignment is not None:
+                # We don't want to clone stuff that was created from a default assignment
+                # TODO: This is "safe" behaviour but not strictly correct. We should be able to
+                #       to clone an assignment that was created from a default assignment correctly.
+                #       Gotchas are there around linked fighters and the like.
+                continue
             assignment.clone(list_fighter=clone)
 
         return clone
@@ -1235,6 +1243,17 @@ class ListFighterEquipmentAssignment(Base, Archived):
         for profile in self.weapon_profiles_field.all():
             clone.weapon_profiles_field.add(profile)
 
+        for accessory in self.weapon_accessories_field.all():
+            clone.weapon_accessories_field.add(accessory)
+
+        for upgrade in self.upgrades_field.all():
+            clone.upgrades_field.add(upgrade)
+
+        if self.total_cost_override is not None:
+            clone.total_cost_override = self.total_cost_override
+
+        clone.save()
+
         return clone
 
     def clean(self):
@@ -1561,7 +1580,7 @@ class VirtualListFighterEquipmentAssignment:
     def standard_profiles_cached(self):
         return self.standard_profiles()
 
-    def weapon_profiles(self):
+    def weapon_profiles(self) -> list["VirtualWeaponProfile"]:
         """
         Return all weapon profiles for this equipment.
         """
