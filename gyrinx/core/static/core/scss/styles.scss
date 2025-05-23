@@ -56,7 +56,6 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Utilities
 @import "bootstrap/scss/utilities/api";
 
-
 //
 // Custom styles
 //
@@ -75,7 +74,8 @@ a[href="#"][data-bs-toggle="tooltip"] {
 .table-group-divider {
     // This is a custom class to add a border between table groups. The !important
     // is required so that it shows up even in .table-borderless tables.
-    border-top: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
+    border-top: var(--bs-border-width) var(--bs-border-style)
+        var(--bs-border-color) !important;
 }
 
 .flatpage-content img {
@@ -104,7 +104,7 @@ label {
 }
 
 .mb-last-0 > :last-child {
-  margin-bottom: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 .errorlist {
@@ -121,12 +121,15 @@ label {
     }
 }
 
-.flash-warn, .flash-warn td {
+.flash-warn,
+.flash-warn td {
     animation: flash-warn 2s ease-in;
 }
 
 .img-link-transform img {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
     transform-style: preserve-3d;
     will-change: transform, box-shadow;
 }
@@ -136,5 +139,6 @@ label {
     box-shadow: 3px 5px 30px rgba(0, 0, 0, 0.2);
 }
 .img-link-transform:active img {
-    transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg) translateY(2px);
+    transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg)
+        translateY(2px);
 }

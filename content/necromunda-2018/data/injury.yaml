@@ -1,25 +1,25 @@
 injury:
-    - name: Critical Injury
-      uuid: 80bac1c2-2174-139d-6ee3-931ef3330eda
-    - name: Enfeebled
-      uuid: 766ebea2-0469-36dd-1d42-505000ccba15
-    - name: Eye Injury
-      uuid: 9e4b4e91-4ef4-d957-af2e-d57ac2592145
-    - name: Grievous Injury
-      uuid: 0662321a-7432-63af-fb30-5e396dbcf9bb
-    - name: Hand Injury
-      uuid: 3d94fc97-4c56-7bd3-13cb-ce632b0444d8
-    - name: Head Injury
-      uuid: a518d1c1-03a8-0208-fac7-947475694ef7
-    - name: Hobbled
-      uuid: 8257a605-30ba-a3fd-ddc7-8f4e79246891
-    - name: Humiliated
-      uuid: 5e700db5-8ac4-eeac-04fb-b839428cdde3
-    - name: Lesson Learned
-      uuid: 39469fcf-08fc-fb15-8bfa-8f86dbac102f
-    - name: Memorable Death
-      uuid: 5ea50eab-96ab-d69c-b4d7-1b7ae3692aed
-    - name: Out Cold
-      uuid: dac88e95-7e7c-3d97-9711-9de4e7c36f3b
-    - name: Spinal Injury
-      uuid: 4274f903-0316-051c-2b36-2504357ee3bf
+  - name: Critical Injury
+    uuid: 80bac1c2-2174-139d-6ee3-931ef3330eda
+  - name: Enfeebled
+    uuid: 766ebea2-0469-36dd-1d42-505000ccba15
+  - name: Eye Injury
+    uuid: 9e4b4e91-4ef4-d957-af2e-d57ac2592145
+  - name: Grievous Injury
+    uuid: 0662321a-7432-63af-fb30-5e396dbcf9bb
+  - name: Hand Injury
+    uuid: 3d94fc97-4c56-7bd3-13cb-ce632b0444d8
+  - name: Head Injury
+    uuid: a518d1c1-03a8-0208-fac7-947475694ef7
+  - name: Hobbled
+    uuid: 8257a605-30ba-a3fd-ddc7-8f4e79246891
+  - name: Humiliated
+    uuid: 5e700db5-8ac4-eeac-04fb-b839428cdde3
+  - name: Lesson Learned
+    uuid: 39469fcf-08fc-fb15-8bfa-8f86dbac102f
+  - name: Memorable Death
+    uuid: 5ea50eab-96ab-d69c-b4d7-1b7ae3692aed
+  - name: Out Cold
+    uuid: dac88e95-7e7c-3d97-9711-9de4e7c36f3b
+  - name: Spinal Injury
+    uuid: 4274f903-0316-051c-2b36-2504357ee3bf

@@ -1,282 +1,282 @@
 {
-    "name": "Book of Peril",
-    "shortname": "Peril",
-    "year": "2019",
-    "description": "Book of Peril (2019)",
-    "type": "Supplement",
-    "contents": {
-        "rules": [
-            {
-                "title": "Alliances",
-                "page": "22",
-                "subsections": [
-                    {
-                        "title": "Making an Alliance",
-                        "page": "23"
-                    },
-                    {
-                        "title": "Guild Allies",
-                        "page": "24",
-                        "subsections": [
-                            {
-                                "title":"Water Guild",
-                                "page": "25"
-                            },
-                            {
-                                "title":"Prometheum Guild",
-                                "page": "26"
-                            },
-                            {
-                                "title":"Corpse Guild",
-                                "page": "27"
-                            },
-                            {
-                                "title":"Slave Guild",
-                                "page": "28"
-                            },
-                            {
-                                "title":"Guild of Coin",
-                                "page": "29"
-                            },
-                            {
-                                "title":"Iron Guild",
-                                "page": "30"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "title": "Guild Representatives",
-                "page": "33",
-                "subsections": [
-                    {
-                        "title":"Nautican Syphoning Delegation",
-                        "page": "34"
-                    },
-                    {
-                        "title":"Pyromantic Conclave",
-                        "page": "35"
-                    },
-                    {
-                        "title":"Corpse Harvesting Party",
-                        "page": "36"
-                    },
-                    {
-                        "title":"Slaver Entourage",
-                        "page": "38"
-                    },
-                    {
-                        "title":"Toll Collectors",
-                        "page": "39"
-                    }
-                ]
-            },
-            {
-                "title": "Badzones Battlefields",
-                "page": "46",
-                "subsections": [
-                    {
-                        "title":"Generating Events",
-                        "page": "50"
-                    }
-                ]
-            },
-            {
-                "title": "Badzones Terrain",
-                "page": "64",
-                "subsections": [
-                    {
-                        "title":"Industrial Terrain",
-                        "page": "66"
-                    },
-                    {
-                        "title":"Hive Ruins",
-                        "page": "71"
-                    },
-                    {
-                        "title":"Carnivorous Plants",
-                        "page": "74"
-                    }
-                ]
-            },
-            {
-                "title": "Wargear",
-                "page": "90"
-            },
-            {
-                "title": "Weapon Traits",
-                "page": "96"
-            }
-        ],
-        "summaries": [
-            {
-                "title": "Badzones Weapons Reference Chart",
-                "page": "89"
-            }
-        ],
-        "gangs": [
-            {
-                "title": "'Venator' Bounty Hunter Gangs",
-                "page": "10",
-                "gang": "Venator Bounty Hunter Gangs",
-                "main": "true",
-                "fighters": [
-                    {
-                        "title": "Hunt Leader",
-                        "page": "17",
-                        "cost": "110"
-                    },
-                    {
-                        "title": "Hunt Champion",
-                        "page": "17",
-                        "cost": "85"
-                    },
-                    {
-                        "title": "Hunters",
-                        "page": "17",
-                        "cost": "50"
-                    }
-                ]
-            }
-        ],
-        "scenarios": [
-            {
-                "title": "Escape the Badzone",
-                "page": "78"
-            },
-            {
-                "title": "Manufactorum Raid",
-                "page": "80"
-            },
-            {
-                "title": "The Conveyer",
-                "page": "82"
-            },
-            {
-                "title": "Fungal Horror",
-                "page": "84"
-            },
-            {
-                "title": "Toll Bridge",
-                "page": "86"
-            }
-        ],
-        "dramatis personae": [
-            {
-                "title": "Kal Jericho",
-                "page": "18",
-                "cost": "340"
-            },
-            {
-                "title": "Scabs",
-                "page": "20",
-                "cost": "200"
-            },
-            {
-                "title": "Freikstorn Strix",
-                "page": "31",
-                "cost": "290"
-            },
-            {
-                "title": "Arbalesta Raen Catallus",
-                "page": "40",
-                "cost": "250"
-            },
-            {
-                "title": "Aramista Dae Catallus",
-                "page": "41",
-                "cost": "250"
-            },
-            {
-                "title": "Mortanna Shroud",
-                "page": "44",
-                "cost": "330"
-            },
-            {
-                "title": "Apollus Kage",
-                "page": "49",
-                "cost": "305"
-            },
-            {
-                "title": "Thaetos 23-2",
-                "page": "62",
-                "cost": "285"
-            },
-            {
-                "title": "Rex Spires",
-                "page": "76",
-                "cost": "315"
-            },
-            {
-                "title": "Vorgen 'Gunner' Mortz",
-                "page": "88",
-                "cost": "305"
-            }
-        ],
-        "background": [
-            {
-                "title": "Welcome to the Badzones",
-                "page": "4"
-            },
-            {
-                "title": "The Great Web of Necromunda",
-                "page": "6",
-                "subsections": [
-                    {
-                        "title": "The Merchant's Guild",
-                        "page": "7"
-                    },
-                    {
-                        "title": "Mercator Pyros",
-                        "page": "7"
-                    },
-                    {
-                        "title": "Mercator Nautica",
-                        "page": "7"
-                    },
-                    {
-                        "title": "Mercator Pallidus",
-                        "page": "8"
-                    },
-                    {
-                        "title": "Mercator Sanguis",
-                        "page": "8"
-                    },
-                    {
-                        "title": "Mercator Gelt",
-                        "page": "9"
-                    },
-                    {
-                        "title": "Mercator Lux",
-                        "page": "9"
-                    },
-                    {
-                        "title": "Mercator Temperium",
-                        "page": "9"
-                    },
-                    {
-                        "title": "Mercator Munda",
-                        "page": "9"
-                    }
-                ]
-            }
-        ],
-        "trading post": [
-            {
-                "title":"Badzones Trading Post",
-                "page":"42",
-                "subsections":[
-                    {
-                        "title":"Special Ammunition",
-                        "page":"42"
-                    },
-                    {
-                        "title":"Wargear",
-                        "page":"43"
-                    }
-                ]
-            }
+  "name": "Book of Peril",
+  "shortname": "Peril",
+  "year": "2019",
+  "description": "Book of Peril (2019)",
+  "type": "Supplement",
+  "contents": {
+    "rules": [
+      {
+        "title": "Alliances",
+        "page": "22",
+        "subsections": [
+          {
+            "title": "Making an Alliance",
+            "page": "23"
+          },
+          {
+            "title": "Guild Allies",
+            "page": "24",
+            "subsections": [
+              {
+                "title": "Water Guild",
+                "page": "25"
+              },
+              {
+                "title": "Prometheum Guild",
+                "page": "26"
+              },
+              {
+                "title": "Corpse Guild",
+                "page": "27"
+              },
+              {
+                "title": "Slave Guild",
+                "page": "28"
+              },
+              {
+                "title": "Guild of Coin",
+                "page": "29"
+              },
+              {
+                "title": "Iron Guild",
+                "page": "30"
+              }
+            ]
+          }
         ]
-    }
+      },
+      {
+        "title": "Guild Representatives",
+        "page": "33",
+        "subsections": [
+          {
+            "title": "Nautican Syphoning Delegation",
+            "page": "34"
+          },
+          {
+            "title": "Pyromantic Conclave",
+            "page": "35"
+          },
+          {
+            "title": "Corpse Harvesting Party",
+            "page": "36"
+          },
+          {
+            "title": "Slaver Entourage",
+            "page": "38"
+          },
+          {
+            "title": "Toll Collectors",
+            "page": "39"
+          }
+        ]
+      },
+      {
+        "title": "Badzones Battlefields",
+        "page": "46",
+        "subsections": [
+          {
+            "title": "Generating Events",
+            "page": "50"
+          }
+        ]
+      },
+      {
+        "title": "Badzones Terrain",
+        "page": "64",
+        "subsections": [
+          {
+            "title": "Industrial Terrain",
+            "page": "66"
+          },
+          {
+            "title": "Hive Ruins",
+            "page": "71"
+          },
+          {
+            "title": "Carnivorous Plants",
+            "page": "74"
+          }
+        ]
+      },
+      {
+        "title": "Wargear",
+        "page": "90"
+      },
+      {
+        "title": "Weapon Traits",
+        "page": "96"
+      }
+    ],
+    "summaries": [
+      {
+        "title": "Badzones Weapons Reference Chart",
+        "page": "89"
+      }
+    ],
+    "gangs": [
+      {
+        "title": "'Venator' Bounty Hunter Gangs",
+        "page": "10",
+        "gang": "Venator Bounty Hunter Gangs",
+        "main": "true",
+        "fighters": [
+          {
+            "title": "Hunt Leader",
+            "page": "17",
+            "cost": "110"
+          },
+          {
+            "title": "Hunt Champion",
+            "page": "17",
+            "cost": "85"
+          },
+          {
+            "title": "Hunters",
+            "page": "17",
+            "cost": "50"
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "title": "Escape the Badzone",
+        "page": "78"
+      },
+      {
+        "title": "Manufactorum Raid",
+        "page": "80"
+      },
+      {
+        "title": "The Conveyer",
+        "page": "82"
+      },
+      {
+        "title": "Fungal Horror",
+        "page": "84"
+      },
+      {
+        "title": "Toll Bridge",
+        "page": "86"
+      }
+    ],
+    "dramatis personae": [
+      {
+        "title": "Kal Jericho",
+        "page": "18",
+        "cost": "340"
+      },
+      {
+        "title": "Scabs",
+        "page": "20",
+        "cost": "200"
+      },
+      {
+        "title": "Freikstorn Strix",
+        "page": "31",
+        "cost": "290"
+      },
+      {
+        "title": "Arbalesta Raen Catallus",
+        "page": "40",
+        "cost": "250"
+      },
+      {
+        "title": "Aramista Dae Catallus",
+        "page": "41",
+        "cost": "250"
+      },
+      {
+        "title": "Mortanna Shroud",
+        "page": "44",
+        "cost": "330"
+      },
+      {
+        "title": "Apollus Kage",
+        "page": "49",
+        "cost": "305"
+      },
+      {
+        "title": "Thaetos 23-2",
+        "page": "62",
+        "cost": "285"
+      },
+      {
+        "title": "Rex Spires",
+        "page": "76",
+        "cost": "315"
+      },
+      {
+        "title": "Vorgen 'Gunner' Mortz",
+        "page": "88",
+        "cost": "305"
+      }
+    ],
+    "background": [
+      {
+        "title": "Welcome to the Badzones",
+        "page": "4"
+      },
+      {
+        "title": "The Great Web of Necromunda",
+        "page": "6",
+        "subsections": [
+          {
+            "title": "The Merchant's Guild",
+            "page": "7"
+          },
+          {
+            "title": "Mercator Pyros",
+            "page": "7"
+          },
+          {
+            "title": "Mercator Nautica",
+            "page": "7"
+          },
+          {
+            "title": "Mercator Pallidus",
+            "page": "8"
+          },
+          {
+            "title": "Mercator Sanguis",
+            "page": "8"
+          },
+          {
+            "title": "Mercator Gelt",
+            "page": "9"
+          },
+          {
+            "title": "Mercator Lux",
+            "page": "9"
+          },
+          {
+            "title": "Mercator Temperium",
+            "page": "9"
+          },
+          {
+            "title": "Mercator Munda",
+            "page": "9"
+          }
+        ]
+      }
+    ],
+    "trading post": [
+      {
+        "title": "Badzones Trading Post",
+        "page": "42",
+        "subsections": [
+          {
+            "title": "Special Ammunition",
+            "page": "42"
+          },
+          {
+            "title": "Wargear",
+            "page": "43"
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -4,8 +4,8 @@ This directory contains the content for the Necromunda 2018 ruleset.
 
 The two subdirectories are:
 
--   [`schema`](./schema/) — JSON files that encode rules for the shape of the data in the YAML files of the `data` directory
--   [`data`](./data/) — YAML files that contain the core content
+- [`schema`](./schema/) — JSON files that encode rules for the shape of the data in the YAML files of the `data` directory
+- [`data`](./data/) — YAML files that contain the core content
 
 ## Schema
 

@@ -1,471 +1,471 @@
 skill:
-    - category: Adept Abilities - Psychic
-      name: Familiar
-    - category: Adept Abilities - Psychic
-      name: Hypnosis
-    - category: Adept Abilities - Psychic
-      name: Unbreakable Will
-    - category: Adept Abilities - Psychic
-      name: Zealot
-    - category: Agility
-      type: Skill
-      name: Catfall
-    - category: Agility
-      type: Skill
-      name: Clamber
-    - category: Agility
-      type: Skill
-      name: Dodge
-    - category: Agility
-      type: Skill
-      name: Mighty Leap
-    - category: Agility
-      type: Skill
-      name: Spring up
-    - category: Agility
-      type: Skill
-      name: Sprint
-    - category: Bravado
-      type: Skill
-      name: Big Brother
-    - category: Bravado
-      type: Skill
-      name: Bring it On!
-    - category: Bravado
-      type: Skill
-      name: Guilder Contacts
-    - category: Bravado
-      type: Skill
-      name: King Hit
-    - category: Bravado
-      type: Skill
-      name: Shotgun Savant
-    - category: Bravado
-      type: Skill
-      name: Steady Hands
-    - category: Brawn
-      type: Skill
-      name: Bulging Biceps
-    - category: Brawn
-      type: Skill
-      name: Bull Charge
-    - category: Brawn
-      type: Skill
-      name: Crushing Blow
-    - category: Brawn
-      type: Skill
-      name: Headbutt
-    - category: Brawn
-      type: Skill
-      name: Hurl
-    - category: Brawn
-      type: Skill
-      name: Iron Jaw
-    - category: Chaos Cultist - Psychic
-      name: Assail
-    - category: Chaos Cultist - Psychic
-      name: Dark Shield
-    - category: Chaos Cultist - Psychic
-      name: Levitation
-    - category: Chaos Cultist - Psychic
-      name: Maddening Visions
-    - category: Chaos Cultist - Psychic
-      name: Non-sanctioned Psyker
-    - category: Chaos Cultist - Psychic
-      name: Scouring
-    - category: Chaos Cultist - Psychic
-      name: Warp Strength
-    - category: Combat
-      type: Skill
-      name: Combat Master
-    - category: Combat
-      type: Skill
-      name: Counter-attack
-    - category: Combat
-      type: Skill
-      name: Disarm
-    - category: Combat
-      type: Skill
-      name: Parry
-    - category: Combat
-      type: Skill
-      name: Rain of Blows
-    - category: Combat
-      type: Skill
-      name: Step Aside
-    - category: Cult - Psychic
-      name: Assail
-    - category: Cult - Psychic
-      name: Force Blast
-    - category: Cult - Psychic
-      name: Hypnosis
-    - category: Cult - Psychic
-      name: Mind Control
-    - category: Cult - Psychic
-      name: Unbreakable Will
-    - category: Cult - Psychic
-      name: Zealot
-    - category: Cunning
-      type: Skill
-      name: Backstab
-    - category: Cunning
-      type: Skill
-      name: Escape Artist
-    - category: Cunning
-      type: Skill
-      name: Evade
-    - category: Cunning
-      type: Skill
-      name: Infiltrate
-    - category: Cunning
-      type: Skill
-      name: Lie Low
-    - category: Cunning
-      type: Skill
-      name: Overwatch
-    - category: Darkness - Wryd Powers
-      name: A Perfect Void
-    - category: Darkness - Wryd Powers
-      name: Cacophony of Silence
-    - category: Darkness - Wryd Powers
-      name: Cloak of Whispers
-    - category: Darkness - Wryd Powers
-      name: Eternal Slumber
-    - category: Darkness - Wryd Powers
-      name: Penumbral Mirror
-    - category: Darkness - Wryd Powers
-      name: Sight Blight
-    - category: Delusion - Wryd Powers
-      name: Deceitful Thoughts
-    - category: Delusion - Wryd Powers
-      name: Ghost and Shadow
-    - category: Delusion - Wryd Powers
-      name: Opprobrious
-    - category: Delusion - Wryd Powers
-      name: Seen Unseen
-    - category: Delusion - Wryd Powers
-      name: Spatial Psychosis
-    - category: Delusion - Wryd Powers
-      name: Suicidal Embrace
-    - category: Driving
-      type: Skill
-      name: Expert Driver
-    - category: Driving
-      type: Skill
-      name: Heavy Foot
-    - category: Driving
-      type: Skill
-      name: Jink
-    - category: Driving
-      type: Skill
-      name: Running Repairs
-    - category: Driving
-      type: Skill
-      name: Slalom
-    - category: Driving
-      type: Skill
-      name: T-bone
-    - category: Ferocity
-      type: Skill
-      name: Berserker
-    - category: Ferocity
-      type: Skill
-      name: Fearsome
-    - category: Ferocity
-      type: Skill
-      name: Impetuous
-    - category: Ferocity
-      type: Skill
-      name: Nerves of Steel
-    - category: Ferocity
-      type: Skill
-      name: True Grit
-    - category: Ferocity
-      type: Skill
-      name: Unstoppable
-    - category: Finesse
-      type: Skill
-      name: Acrobatic
-    - category: Finesse
-      type: Skill
-      name: Combat Focus
-    - category: Finesse
-      type: Skill
-      name: Combat Virtuoso
-    - category: Finesse
-      type: Skill
-      name: Hit and Run
-    - category: Finesse
-      type: Skill
-      name: Lightning Reflexes
-    - category: Finesse
-      type: Skill
-      name: Somersault
-    - category: Impressive Leadership - Legendary Name
-      name: Bigman
-    - category: Impressive Leadership - Legendary Name
-      name: Impressive Scars
-    - category: Impressive Leadership - Legendary Name
-      name: Iron Stare
-    - category: Impressive Leadership - Legendary Name
-      name: Lucky
-    - category: Impressive Leadership - Legendary Name
-      name: Rock Steady
-    - category: Impressive Leadership - Legendary Name
-      name: Too Pretty for Primus
-    - category: Improbable Beatdowns - Legendary Name
-      name: Bullet Lord
-    - category: Improbable Beatdowns - Legendary Name
-      name: Chancer
-    - category: Improbable Beatdowns - Legendary Name
-      name: Headshot
-    - category: Improbable Beatdowns - Legendary Name
-      name: One Punch
-    - category: Improbable Beatdowns - Legendary Name
-      name: One Shot
-    - category: Improbable Beatdowns - Legendary Name
-      name: Two-guns
-    - category: Leadership
-      type: Skill
-      name: Commanding Presence
-    - category: Leadership
-      type: Skill
-      name: Inspirational
-    - category: Leadership
-      type: Skill
-      name: Iron Will
-    - category: Leadership
-      type: Skill
-      name: Mentor
-    - category: Leadership
-      type: Skill
-      name: Overseer
-    - category: Leadership
-      type: Skill
-      name: Regroup
-    - category: Madness - Delaque Power
-      name: Craven Howl
-    - category: Madness - Delaque Power
-      name: Cyclopean Gaze
-    - category: Madness - Delaque Power
-      name: Existential Barrage
-    - category: Madness - Delaque Power
-      name: Psychotic Lure
-    - category: Madness - Delaque Power
-      name: Terrible Truths
-    - category: Madness - Delaque Power
-      name: Unrememberable Utterance
-    - category: Muscle
-      type: Skill
-      name: Fists of Steel
-    - category: Muscle
-      type: Skill
-      name: Immovable Stance
-    - category: Muscle
-      type: Skill
-      name: Iron Man
-    - category: Muscle
-      type: Skill
-      name: Naaargah!
-    - category: Muscle
-      type: Skill
-      name: Unleash the Beast
-    - category: Muscle
-      type: Skill
-      name: Walk it Off
-    - category: Obfuscation
-      type: Skill
-      name: Doppelganger
-    - category: Obfuscation
-      type: Skill
-      name: Faceless
-    - category: Obfuscation
-      type: Skill
-      name: Fake Out
-    - category: Obfuscation
-      type: Skill
-      name: Psi-touched
-    - category: Obfuscation
-      type: Skill
-      name: Rumour-monger
-    - category: Obfuscation
-      type: Skill
-      name: Take Down
-    - category: Ogryn Wyrd Powers
-      name: Body of Flame
-    - category: Ogryn Wyrd Powers
-      name: Crush
-    - category: Ogryn Wyrd Powers
-      name: Iron Arm
-    - category: Ogryn Wyrd Powers
-      name: Overcharge
-    - category: Ogryn Wyrd Powers
-      name: Terrify
-    - category: Ogryn Wyrd Powers
-      name: Weapon Jinx
-    - category: Palanite Drill
-      type: Skill
-      name: Got Your Six
-    - category: Palanite Drill
-      type: Skill
-      name: Helmawr's Justice
-    - category: Palanite Drill
-      type: Skill
-      name: Non-verbal Communication
-    - category: Palanite Drill
-      type: Skill
-      name: Restraint Protocols
-    - category: Palanite Drill
-      type: Skill
-      name: Team Work
-    - category: Palanite Drill
-      type: Skill
-      name: Threat Response
-    - category: Piety
-      type: Skill
-      name: Blazing Faith
-    - category: Piety
-      type: Skill
-      name: Devotional Frenzy
-    - category: Piety
-      type: Skill
-      name: Lord of Rats
-    - category: Piety
-      type: Skill
-      name: Restless Faith
-    - category: Piety
-      type: Skill
-      name: Scavenger's Eye
-    - category: Piety
-      type: Skill
-      name: Unshakable Conviction
-    - category: Savagery
-      type: Skill
-      name: Avatar of Blood
-    - category: Savagery
-      type: Skill
-      name: Bloodlust
-    - category: Savagery
-      type: Skill
-      name: Crimson Haze
-    - category: Savagery
-      type: Skill
-      name: Frenzy
-    - category: Savagery
-      type: Skill
-      name: Killing Blow
-    - category: Savagery
-      type: Skill
-      name: Slaughterborn
-    - category: Savant
-      type: Skill
-      name: Ballistics Expert
-    - category: Savant
-      type: Skill
-      name: Connected
-    - category: Savant
-      type: Skill
-      name: Fixer
-    - category: Savant
-      type: Skill
-      name: Medicae
-    - category: Savant
-      type: Skill
-      name: Munitioneer
-    - category: Savant
-      type: Skill
-      name: Savvy Trader
-    - category: Shooting
-      type: Skill
-      name: Fast Shot
-    - category: Shooting
-      type: Skill
-      name: Gunfighter
-    - category: Shooting
-      type: Skill
-      name: Hip Shooting
-    - category: Shooting
-      type: Skill
-      name: Marksman
-    - category: Shooting
-      type: Skill
-      name: Precision Shot
-    - category: Shooting
-      type: Skill
-      name: Trick Shot
-    - category: Tech
-      type: Skill
-      name: Cold and Calculating
-    - category: Tech
-      type: Skill
-      name: Gadgeteer
-    - category: Tech
-      type: Skill
-      name: Mental Mastery
-    - category: Tech
-      type: Skill
-      name: Photonic Engineer
-    - category: Tech
-      type: Skill
-      name: Rad-phaged
-    - category: Tech
-      type: Skill
-      name: Weaponsmith
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Badzone Legend
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Blade Breaker
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Bullet Dodger
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Iron Hard
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Promethium-proof Killer
-    - category: Unbelievable Escapes - Orlock Legendary Name
-      name: Slippery Scummer
-    - category: Wastelands
-      type: Skill
-      name: Beast Handler
-    - category: Wastelands
-      type: Skill
-      name: Born to the Wastes
-    - category: Wastelands
-      type: Skill
-      name: Bring It Down
-    - category: Wastelands
-      type: Skill
-      name: Ever Vigilant
-    - category: Wastelands
-      type: Skill
-      name: Eyes of the Wasteland
-    - category: Wastelands
-      type: Skill
-      name: Stormwalker
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: Chemical Bonds Never Break
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: Dependable Like Kin
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: Nobody Pushes Kin Around
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: Stubborn to the Last
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: There's Always Another Secret
-    - category: Wisdom of the Ancients
-      type: Skill
-      name: Where There's Scrap, There's Creds!
-    - category: Witch Powers - Powers
-      name: Dark Shield
-    - category: Witch Powers - Powers
-      name: Levitation
-    - category: Witch Powers - Powers
-      name: Maddening Visions
-    - category: Witch Powers - Powers
-      name: Scouring
-    - category: Witch Powers - Powers
-      name: Warp Strength
+  - category: Adept Abilities - Psychic
+    name: Familiar
+  - category: Adept Abilities - Psychic
+    name: Hypnosis
+  - category: Adept Abilities - Psychic
+    name: Unbreakable Will
+  - category: Adept Abilities - Psychic
+    name: Zealot
+  - category: Agility
+    type: Skill
+    name: Catfall
+  - category: Agility
+    type: Skill
+    name: Clamber
+  - category: Agility
+    type: Skill
+    name: Dodge
+  - category: Agility
+    type: Skill
+    name: Mighty Leap
+  - category: Agility
+    type: Skill
+    name: Spring up
+  - category: Agility
+    type: Skill
+    name: Sprint
+  - category: Bravado
+    type: Skill
+    name: Big Brother
+  - category: Bravado
+    type: Skill
+    name: Bring it On!
+  - category: Bravado
+    type: Skill
+    name: Guilder Contacts
+  - category: Bravado
+    type: Skill
+    name: King Hit
+  - category: Bravado
+    type: Skill
+    name: Shotgun Savant
+  - category: Bravado
+    type: Skill
+    name: Steady Hands
+  - category: Brawn
+    type: Skill
+    name: Bulging Biceps
+  - category: Brawn
+    type: Skill
+    name: Bull Charge
+  - category: Brawn
+    type: Skill
+    name: Crushing Blow
+  - category: Brawn
+    type: Skill
+    name: Headbutt
+  - category: Brawn
+    type: Skill
+    name: Hurl
+  - category: Brawn
+    type: Skill
+    name: Iron Jaw
+  - category: Chaos Cultist - Psychic
+    name: Assail
+  - category: Chaos Cultist - Psychic
+    name: Dark Shield
+  - category: Chaos Cultist - Psychic
+    name: Levitation
+  - category: Chaos Cultist - Psychic
+    name: Maddening Visions
+  - category: Chaos Cultist - Psychic
+    name: Non-sanctioned Psyker
+  - category: Chaos Cultist - Psychic
+    name: Scouring
+  - category: Chaos Cultist - Psychic
+    name: Warp Strength
+  - category: Combat
+    type: Skill
+    name: Combat Master
+  - category: Combat
+    type: Skill
+    name: Counter-attack
+  - category: Combat
+    type: Skill
+    name: Disarm
+  - category: Combat
+    type: Skill
+    name: Parry
+  - category: Combat
+    type: Skill
+    name: Rain of Blows
+  - category: Combat
+    type: Skill
+    name: Step Aside
+  - category: Cult - Psychic
+    name: Assail
+  - category: Cult - Psychic
+    name: Force Blast
+  - category: Cult - Psychic
+    name: Hypnosis
+  - category: Cult - Psychic
+    name: Mind Control
+  - category: Cult - Psychic
+    name: Unbreakable Will
+  - category: Cult - Psychic
+    name: Zealot
+  - category: Cunning
+    type: Skill
+    name: Backstab
+  - category: Cunning
+    type: Skill
+    name: Escape Artist
+  - category: Cunning
+    type: Skill
+    name: Evade
+  - category: Cunning
+    type: Skill
+    name: Infiltrate
+  - category: Cunning
+    type: Skill
+    name: Lie Low
+  - category: Cunning
+    type: Skill
+    name: Overwatch
+  - category: Darkness - Wryd Powers
+    name: A Perfect Void
+  - category: Darkness - Wryd Powers
+    name: Cacophony of Silence
+  - category: Darkness - Wryd Powers
+    name: Cloak of Whispers
+  - category: Darkness - Wryd Powers
+    name: Eternal Slumber
+  - category: Darkness - Wryd Powers
+    name: Penumbral Mirror
+  - category: Darkness - Wryd Powers
+    name: Sight Blight
+  - category: Delusion - Wryd Powers
+    name: Deceitful Thoughts
+  - category: Delusion - Wryd Powers
+    name: Ghost and Shadow
+  - category: Delusion - Wryd Powers
+    name: Opprobrious
+  - category: Delusion - Wryd Powers
+    name: Seen Unseen
+  - category: Delusion - Wryd Powers
+    name: Spatial Psychosis
+  - category: Delusion - Wryd Powers
+    name: Suicidal Embrace
+  - category: Driving
+    type: Skill
+    name: Expert Driver
+  - category: Driving
+    type: Skill
+    name: Heavy Foot
+  - category: Driving
+    type: Skill
+    name: Jink
+  - category: Driving
+    type: Skill
+    name: Running Repairs
+  - category: Driving
+    type: Skill
+    name: Slalom
+  - category: Driving
+    type: Skill
+    name: T-bone
+  - category: Ferocity
+    type: Skill
+    name: Berserker
+  - category: Ferocity
+    type: Skill
+    name: Fearsome
+  - category: Ferocity
+    type: Skill
+    name: Impetuous
+  - category: Ferocity
+    type: Skill
+    name: Nerves of Steel
+  - category: Ferocity
+    type: Skill
+    name: True Grit
+  - category: Ferocity
+    type: Skill
+    name: Unstoppable
+  - category: Finesse
+    type: Skill
+    name: Acrobatic
+  - category: Finesse
+    type: Skill
+    name: Combat Focus
+  - category: Finesse
+    type: Skill
+    name: Combat Virtuoso
+  - category: Finesse
+    type: Skill
+    name: Hit and Run
+  - category: Finesse
+    type: Skill
+    name: Lightning Reflexes
+  - category: Finesse
+    type: Skill
+    name: Somersault
+  - category: Impressive Leadership - Legendary Name
+    name: Bigman
+  - category: Impressive Leadership - Legendary Name
+    name: Impressive Scars
+  - category: Impressive Leadership - Legendary Name
+    name: Iron Stare
+  - category: Impressive Leadership - Legendary Name
+    name: Lucky
+  - category: Impressive Leadership - Legendary Name
+    name: Rock Steady
+  - category: Impressive Leadership - Legendary Name
+    name: Too Pretty for Primus
+  - category: Improbable Beatdowns - Legendary Name
+    name: Bullet Lord
+  - category: Improbable Beatdowns - Legendary Name
+    name: Chancer
+  - category: Improbable Beatdowns - Legendary Name
+    name: Headshot
+  - category: Improbable Beatdowns - Legendary Name
+    name: One Punch
+  - category: Improbable Beatdowns - Legendary Name
+    name: One Shot
+  - category: Improbable Beatdowns - Legendary Name
+    name: Two-guns
+  - category: Leadership
+    type: Skill
+    name: Commanding Presence
+  - category: Leadership
+    type: Skill
+    name: Inspirational
+  - category: Leadership
+    type: Skill
+    name: Iron Will
+  - category: Leadership
+    type: Skill
+    name: Mentor
+  - category: Leadership
+    type: Skill
+    name: Overseer
+  - category: Leadership
+    type: Skill
+    name: Regroup
+  - category: Madness - Delaque Power
+    name: Craven Howl
+  - category: Madness - Delaque Power
+    name: Cyclopean Gaze
+  - category: Madness - Delaque Power
+    name: Existential Barrage
+  - category: Madness - Delaque Power
+    name: Psychotic Lure
+  - category: Madness - Delaque Power
+    name: Terrible Truths
+  - category: Madness - Delaque Power
+    name: Unrememberable Utterance
+  - category: Muscle
+    type: Skill
+    name: Fists of Steel
+  - category: Muscle
+    type: Skill
+    name: Immovable Stance
+  - category: Muscle
+    type: Skill
+    name: Iron Man
+  - category: Muscle
+    type: Skill
+    name: Naaargah!
+  - category: Muscle
+    type: Skill
+    name: Unleash the Beast
+  - category: Muscle
+    type: Skill
+    name: Walk it Off
+  - category: Obfuscation
+    type: Skill
+    name: Doppelganger
+  - category: Obfuscation
+    type: Skill
+    name: Faceless
+  - category: Obfuscation
+    type: Skill
+    name: Fake Out
+  - category: Obfuscation
+    type: Skill
+    name: Psi-touched
+  - category: Obfuscation
+    type: Skill
+    name: Rumour-monger
+  - category: Obfuscation
+    type: Skill
+    name: Take Down
+  - category: Ogryn Wyrd Powers
+    name: Body of Flame
+  - category: Ogryn Wyrd Powers
+    name: Crush
+  - category: Ogryn Wyrd Powers
+    name: Iron Arm
+  - category: Ogryn Wyrd Powers
+    name: Overcharge
+  - category: Ogryn Wyrd Powers
+    name: Terrify
+  - category: Ogryn Wyrd Powers
+    name: Weapon Jinx
+  - category: Palanite Drill
+    type: Skill
+    name: Got Your Six
+  - category: Palanite Drill
+    type: Skill
+    name: Helmawr's Justice
+  - category: Palanite Drill
+    type: Skill
+    name: Non-verbal Communication
+  - category: Palanite Drill
+    type: Skill
+    name: Restraint Protocols
+  - category: Palanite Drill
+    type: Skill
+    name: Team Work
+  - category: Palanite Drill
+    type: Skill
+    name: Threat Response
+  - category: Piety
+    type: Skill
+    name: Blazing Faith
+  - category: Piety
+    type: Skill
+    name: Devotional Frenzy
+  - category: Piety
+    type: Skill
+    name: Lord of Rats
+  - category: Piety
+    type: Skill
+    name: Restless Faith
+  - category: Piety
+    type: Skill
+    name: Scavenger's Eye
+  - category: Piety
+    type: Skill
+    name: Unshakable Conviction
+  - category: Savagery
+    type: Skill
+    name: Avatar of Blood
+  - category: Savagery
+    type: Skill
+    name: Bloodlust
+  - category: Savagery
+    type: Skill
+    name: Crimson Haze
+  - category: Savagery
+    type: Skill
+    name: Frenzy
+  - category: Savagery
+    type: Skill
+    name: Killing Blow
+  - category: Savagery
+    type: Skill
+    name: Slaughterborn
+  - category: Savant
+    type: Skill
+    name: Ballistics Expert
+  - category: Savant
+    type: Skill
+    name: Connected
+  - category: Savant
+    type: Skill
+    name: Fixer
+  - category: Savant
+    type: Skill
+    name: Medicae
+  - category: Savant
+    type: Skill
+    name: Munitioneer
+  - category: Savant
+    type: Skill
+    name: Savvy Trader
+  - category: Shooting
+    type: Skill
+    name: Fast Shot
+  - category: Shooting
+    type: Skill
+    name: Gunfighter
+  - category: Shooting
+    type: Skill
+    name: Hip Shooting
+  - category: Shooting
+    type: Skill
+    name: Marksman
+  - category: Shooting
+    type: Skill
+    name: Precision Shot
+  - category: Shooting
+    type: Skill
+    name: Trick Shot
+  - category: Tech
+    type: Skill
+    name: Cold and Calculating
+  - category: Tech
+    type: Skill
+    name: Gadgeteer
+  - category: Tech
+    type: Skill
+    name: Mental Mastery
+  - category: Tech
+    type: Skill
+    name: Photonic Engineer
+  - category: Tech
+    type: Skill
+    name: Rad-phaged
+  - category: Tech
+    type: Skill
+    name: Weaponsmith
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Badzone Legend
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Blade Breaker
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Bullet Dodger
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Iron Hard
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Promethium-proof Killer
+  - category: Unbelievable Escapes - Orlock Legendary Name
+    name: Slippery Scummer
+  - category: Wastelands
+    type: Skill
+    name: Beast Handler
+  - category: Wastelands
+    type: Skill
+    name: Born to the Wastes
+  - category: Wastelands
+    type: Skill
+    name: Bring It Down
+  - category: Wastelands
+    type: Skill
+    name: Ever Vigilant
+  - category: Wastelands
+    type: Skill
+    name: Eyes of the Wasteland
+  - category: Wastelands
+    type: Skill
+    name: Stormwalker
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: Chemical Bonds Never Break
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: Dependable Like Kin
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: Nobody Pushes Kin Around
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: Stubborn to the Last
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: There's Always Another Secret
+  - category: Wisdom of the Ancients
+    type: Skill
+    name: Where There's Scrap, There's Creds!
+  - category: Witch Powers - Powers
+    name: Dark Shield
+  - category: Witch Powers - Powers
+    name: Levitation
+  - category: Witch Powers - Powers
+    name: Maddening Visions
+  - category: Witch Powers - Powers
+    name: Scouring
+  - category: Witch Powers - Powers
+    name: Warp Strength

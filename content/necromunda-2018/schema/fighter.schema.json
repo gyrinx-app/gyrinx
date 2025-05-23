@@ -1,117 +1,117 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.fighter",
-    "title": "Fighter",
-    "description": "Fighter archetypes that make up gang membership in Necromunda.",
-    "type": "object",
-    "properties": {
-        "type": {
-            "type": "string"
-        },
-        "category": {
-            "type": "string"
-        },
-        "house": {
-            "type": "string"
-        },
-        "cost": {
-            "type": "integer"
-        },
-        "equipment": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "category": {
-                        "type": "string"
-                    },
-                    "qty": {
-                        "type": "integer"
-                    }
-                },
-                "required": ["name", "category", "qty"]
-            }
-        },
-        "skills": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "category": {
-                        "type": "string"
-                    }
-                },
-                "required": ["name", "category"]
-            }
-        },
-        "stats": {
-            "type": "object",
-            "properties": {
-                "a": {
-                    "type": "integer",
-                    "description": "Attacks stat."
-                },
-                "bs": {
-                    "type": "integer",
-                    "description": "Ballistic Skill stat."
-                },
-                "cl": {
-                    "type": "integer",
-                    "description": "Cool stat."
-                },
-                "i": {
-                    "type": "integer",
-                    "description": "Initiative stat."
-                },
-                "int": {
-                    "type": "integer",
-                    "description": "Intelligence stat."
-                },
-                "ld": {
-                    "type": "integer",
-                    "description": "Leadership stat."
-                },
-                "m": {
-                    "type": "integer",
-                    "description": "Movement stat."
-                },
-                "s": {
-                    "type": "integer",
-                    "description": "Strength stat."
-                },
-                "t": {
-                    "type": "integer",
-                    "description": "Toughness stat."
-                },
-                "w": {
-                    "type": "integer",
-                    "description": "Wounds stat."
-                },
-                "wil": {
-                    "type": "integer",
-                    "description": "Willpower stat."
-                },
-                "ws": {
-                    "type": "integer",
-                    "description": "Weapon Skill stat."
-                }
-            }
-        },
-        "weapons": {
-            "type": "object",
-            "properties": {
-                "policy": {
-                    "$ref": "urn:gyrinx.schema.necromunda-2018.policy"
-                }
-            }
-        }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gyrinx.schema.necromunda-2018.fighter",
+  "title": "Fighter",
+  "description": "Fighter archetypes that make up gang membership in Necromunda.",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string"
     },
-    "additionalProperties": false,
-    "required": ["type", "category", "cost", "equipment", "skills", "stats"]
+    "category": {
+      "type": "string"
+    },
+    "house": {
+      "type": "string"
+    },
+    "cost": {
+      "type": "integer"
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "integer"
+          }
+        },
+        "required": ["name", "category", "qty"]
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "category"]
+      }
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "integer",
+          "description": "Attacks stat."
+        },
+        "bs": {
+          "type": "integer",
+          "description": "Ballistic Skill stat."
+        },
+        "cl": {
+          "type": "integer",
+          "description": "Cool stat."
+        },
+        "i": {
+          "type": "integer",
+          "description": "Initiative stat."
+        },
+        "int": {
+          "type": "integer",
+          "description": "Intelligence stat."
+        },
+        "ld": {
+          "type": "integer",
+          "description": "Leadership stat."
+        },
+        "m": {
+          "type": "integer",
+          "description": "Movement stat."
+        },
+        "s": {
+          "type": "integer",
+          "description": "Strength stat."
+        },
+        "t": {
+          "type": "integer",
+          "description": "Toughness stat."
+        },
+        "w": {
+          "type": "integer",
+          "description": "Wounds stat."
+        },
+        "wil": {
+          "type": "integer",
+          "description": "Willpower stat."
+        },
+        "ws": {
+          "type": "integer",
+          "description": "Weapon Skill stat."
+        }
+      }
+    },
+    "weapons": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "$ref": "urn:gyrinx.schema.necromunda-2018.policy"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": ["type", "category", "cost", "equipment", "skills", "stats"]
 }

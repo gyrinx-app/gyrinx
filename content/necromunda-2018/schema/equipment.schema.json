@@ -1,23 +1,23 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.equipment",
-    "title": "Equipment",
-    "description": "The equipment that can be used by fighters in Necromunda.",
-    "type": "object",
-    "properties": {
-        "name": {
-            "type": "string"
-        },
-        "category": {
-            "type": "string"
-        },
-        "slots": {
-            "type": "integer"
-        },
-        "trading_post_cost": {
-            "type": "integer"
-        }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gyrinx.schema.necromunda-2018.equipment",
+  "title": "Equipment",
+  "description": "The equipment that can be used by fighters in Necromunda.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
     },
-    "additionalProperties": false,
-    "required": ["name", "category", "trading_post_cost"]
+    "category": {
+      "type": "string"
+    },
+    "slots": {
+      "type": "integer"
+    },
+    "trading_post_cost": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["name", "category", "trading_post_cost"]
 }

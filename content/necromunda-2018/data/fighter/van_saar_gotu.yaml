@@ -1,96 +1,96 @@
 fighter:
-    - category: Champion
-      cost: 110
-      equipment: []
-      house: Van Saar (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 2
-          cl: 6
-          i: 4
-          int: 5
-          ld: 5
-          m: 4
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 4
-      type: Champion
-    - category: Ganger
-      cost: 65
-      equipment: []
-      house: Van Saar (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 3
-          cl: 7
-          i: 5
-          int: 6
-          ld: 6
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Ganger
-    - category: Juve
-      cost: 35
-      equipment: []
-      house: Van Saar (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 8
-          i: 4
-          int: 7
-          ld: 9
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 9
-          ws: 5
-      type: Juve
-    - category: Leader
-      cost: 130
-      equipment: []
-      house: Van Saar (GotU)
-      skills: []
-      stats:
-          a: 2
-          bs: 2
-          cl: 5
-          i: 5
-          int: 4
-          ld: 4
-          m: 4
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 4
-      type: Leader
-    - category: Ganger
-      cost: 65
-      equipment: []
-      house: Van Saar (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 3
-          cl: 7
-          i: 5
-          int: 6
-          ld: 6
-          m: 4
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Specialist
+  - category: Champion
+    cost: 110
+    equipment: []
+    house: Van Saar (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 2
+      cl: 6
+      i: 4
+      int: 5
+      ld: 5
+      m: 4
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 4
+    type: Champion
+  - category: Ganger
+    cost: 65
+    equipment: []
+    house: Van Saar (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 3
+      cl: 7
+      i: 5
+      int: 6
+      ld: 6
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Ganger
+  - category: Juve
+    cost: 35
+    equipment: []
+    house: Van Saar (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 8
+      i: 4
+      int: 7
+      ld: 9
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 9
+      ws: 5
+    type: Juve
+  - category: Leader
+    cost: 130
+    equipment: []
+    house: Van Saar (GotU)
+    skills: []
+    stats:
+      a: 2
+      bs: 2
+      cl: 5
+      i: 5
+      int: 4
+      ld: 4
+      m: 4
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 4
+    type: Leader
+  - category: Ganger
+    cost: 65
+    equipment: []
+    house: Van Saar (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 3
+      cl: 7
+      i: 5
+      int: 6
+      ld: 6
+      m: 4
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Specialist

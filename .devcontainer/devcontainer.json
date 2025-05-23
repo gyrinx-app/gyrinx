@@ -1,35 +1,35 @@
 {
-    "image": "mcr.microsoft.com/devcontainers/universal:2",
-    "hostRequirements": {
-        "cpus": 4
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "hostRequirements": {
+    "cpus": 4
+  },
+  "waitFor": "onCreateCommand",
+  "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
+  "postAttachCommand": {
+    "server": ". .venv/bin/activate && manage migrate && DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver"
+  },
+  "customizations": {
+    "codespaces": {
+      "openFiles": []
     },
-    "waitFor": "onCreateCommand",
-    "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
-    "postAttachCommand": {
-        "server": ". .venv/bin/activate && manage migrate && DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver"
-    },
-    "customizations": {
-        "codespaces": {
-            "openFiles": []
-        },
-        "vscode": {
-            "extensions": [
-                "ms-python.python",
-                "charliermarsh.ruff",
-                "GitHub.copilot",
-                "sleistner.vscode-fileutils",
-                "ms-toolsai.jupyter",
-                "esbenp.prettier-vscode",
-                "tamasfe.even-better-toml",
-                "batisteo.vscode-django"
-            ]
-        }
-    },
-    "portsAttributes": {
-        "8000": {
-            "label": "Application",
-            "onAutoForward": "openBrowser"
-        }
-    },
-    "forwardPorts": [8000]
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "GitHub.copilot",
+        "sleistner.vscode-fileutils",
+        "ms-toolsai.jupyter",
+        "esbenp.prettier-vscode",
+        "tamasfe.even-better-toml",
+        "batisteo.vscode-django"
+      ]
+    }
+  },
+  "portsAttributes": {
+    "8000": {
+      "label": "Application",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "forwardPorts": [8000]
 }

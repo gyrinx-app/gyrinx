@@ -1,15 +1,15 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "urn:gyrinx.schema.necromunda-2018.relation",
-    "type": "object",
-    "properties": {
-        "schema": {
-            "type": "string"
-        },
-        "uuid": {
-            "type": "string",
-            "format": "uuid"
-        }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gyrinx.schema.necromunda-2018.relation",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string"
     },
-    "required": ["uuid"]
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": ["uuid"]
 }

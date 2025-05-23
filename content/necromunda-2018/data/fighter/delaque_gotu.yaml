@@ -1,105 +1,105 @@
 fighter:
-    - category: Champion
-      cost: 95
-      equipment:
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-      house: Delaque (GotU)
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 4
-          int: 6
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 3
-      type: Champion
-    - category: Ganger
-      cost: 50
-      equipment:
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-      house: Delaque (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Ganger
-    - category: Juve
-      cost: 25
-      equipment: []
-      house: Delaque (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 7
-          i: 3
-          int: 8
-          ld: 9
-          m: 6
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 5
-      type: Juve
-    - category: Leader
-      cost: 110
-      equipment:
-          - category: Armor
-            name: Flak Armor
-            qty: 1
-      house: Delaque (GotU)
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 3
-          int: 6
-          ld: 6
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 5
-          ws: 3
-      type: Leader
-    - category: Ganger
-      cost: 50
-      equipment: []
-      house: Delaque (GotU)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 6
-          i: 4
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Specialist
+  - category: Champion
+    cost: 95
+    equipment:
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+    house: Delaque (GotU)
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 4
+      int: 6
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 3
+    type: Champion
+  - category: Ganger
+    cost: 50
+    equipment:
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+    house: Delaque (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Ganger
+  - category: Juve
+    cost: 25
+    equipment: []
+    house: Delaque (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 7
+      i: 3
+      int: 8
+      ld: 9
+      m: 6
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 5
+    type: Juve
+  - category: Leader
+    cost: 110
+    equipment:
+      - category: Armor
+        name: Flak Armor
+        qty: 1
+    house: Delaque (GotU)
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 3
+      int: 6
+      ld: 6
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 5
+      ws: 3
+    type: Leader
+  - category: Ganger
+    cost: 50
+    equipment: []
+    house: Delaque (GotU)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 6
+      i: 4
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Specialist

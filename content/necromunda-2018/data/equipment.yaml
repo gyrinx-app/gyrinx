@@ -1,1214 +1,1214 @@
 equipment:
-    - category: Ammo
-      name: Anti-plant-Grenade Launcher
-      trading_post_cost: 40
-    - category: Ammo
-      name: Chem Darts-Needle Pistol
-      trading_post_cost: 10
-    - category: Ammo
-      name: Chem Darts-Needle Rifle
-      trading_post_cost: 10
-    - category: Ammo
-      name: Combat Shotgun-Firestorm Ammo
-      trading_post_cost: 30
-    - category: Ammo
-      name: Dum-Dum Ammo
-      trading_post_cost: 5
-    - category: Ammo
-      name: Flares-Grenade Launcher
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Las Carbine
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Las Pistol
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Las Sub-carbine
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Lasgun
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Long Las
-      trading_post_cost: 30
-    - category: Ammo
-      name: Focusing Crystal-Suppression Laser
-      trading_post_cost: 30
-    - category: Ammo
-      name: Fragmentation Rounds
-      trading_post_cost: 10
-    - category: Ammo
-      name: Gas Shell-Bolt Pistol
-      trading_post_cost: 25
-    - category: Ammo
-      name: Gas Shell-Boltgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Gas Shell-Combat Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Gas Shell-Sawn-off Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Gas Shell-Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Grenade Launcher-Choke Ammo
-      trading_post_cost: 35
-    - category: Ammo
-      name: Grenade Launcher-Photon Ammo
-      trading_post_cost: 15
-    - category: Ammo
-      name: Grenade Launcher-Scare Ammo
-      trading_post_cost: 45
-    - category: Ammo
-      name: Grenade Launcher-Smoke Ammo
-      trading_post_cost: 15
-    - category: Ammo
-      name: Gunk Bolts - Boltgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Gunk Bolts-Bolt Pistol
-      trading_post_cost: 15
-    - category: Ammo
-      name: Gunk Bolts-Combi
-      trading_post_cost: 15
-    - category: Ammo
-      name: Gunk Bolts-Heavy Bolter
-      trading_post_cost: 15
-    - category: Ammo
-      name: Ironhead Pistol Dumdum
-      trading_post_cost: 5
-    - category: Ammo
-      name: Manstopper Rounds
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Autogun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Autopistol
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Combat Shotgun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Combi Autogun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Heavy Stubber
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Reclaimed Autogun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Reclaimed Autopistol
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Sawn-off Shotgun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Phosphor-Shotgun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Plantbuster-Autogun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Autopistol
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Combat Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Combi Autogun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Heavy Stubber
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Reclaimed Autogun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Reclaimed Autopistol
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Sawn-off Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plantbuster-Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Plasma-Grenade Launcher
-      trading_post_cost: 100
-    - category: Ammo
-      name: Rad-Autogun
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Autopistol
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Combat Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Rad-Combi Autogun
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Heavy Stubber
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Reclaimed Autogun
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Reclaimed Autopistol
-      trading_post_cost: 20
-    - category: Ammo
-      name: Rad-Sawn-off Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Rad-Shotgun
-      trading_post_cost: 25
-    - category: Ammo
-      name: Sawn-Off Shotgun-Solid Shot
-      trading_post_cost: 10
-    - category: Ammo
-      name: Shatter Shell-Bolt Pistol
-      trading_post_cost: 15
-    - category: Ammo
-      name: Shatter Shell-Boltgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Shatter Shell-Combat Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Shatter Shell-Shawn-off Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Shatter Shell-Shotgun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Shotgun - Executioner
-      trading_post_cost: 20
-    - category: Ammo
-      name: Shotgun - Inferno
-      trading_post_cost: 15
-    - category: Ammo
-      name: Static Rounds-Autogun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Static Rounds-Autopistol
-      trading_post_cost: 10
-    - category: Ammo
-      name: Static Rounds-Heavy Stubber
-      trading_post_cost: 15
-    - category: Ammo
-      name: Static Rounds-Long Rifle
-      trading_post_cost: 15
-    - category: Ammo
-      name: Static Rounds-Stub Cannon
-      trading_post_cost: 10
-    - category: Ammo
-      name: Static Rounds-Stub Gun
-      trading_post_cost: 10
-    - category: Ammo
-      name: Warp Rounds-Autogun
-      trading_post_cost: 15
-    - category: Ammo
-      name: Warp Rounds-Autopistol
-      trading_post_cost: 15
-    - category: Ammo
-      name: Warp Rounds-Heavy Stubber
-      trading_post_cost: 20
-    - category: Ammo
-      name: Warp Rounds-Long Rifle
-      trading_post_cost: 20
-    - category: Ammo
-      name: Warp Rounds-Stub Cannon
-      trading_post_cost: 15
-    - category: Ammo
-      name: Warp Rounds-Stub Gun
-      trading_post_cost: 15
-    - category: Armor
-      name: Ablative Overlay
-      trading_post_cost: 20
-    - category: Armor
-      name: Archaeo-carapace
-      trading_post_cost: 120
-    - category: Armor
-      name: Armourweave
-      trading_post_cost: 20
-    - category: Armor
-      name: Carapace Armor - Heavy
-      trading_post_cost: 100
-    - category: Armor
-      name: Carapace Armor - Light
-      trading_post_cost: 80
-    - category: Armor
-      name: Ceramite Shield
-      trading_post_cost: 40
-    - category: Armor
-      name: Conversion Field
-      trading_post_cost: 60
-    - category: Armor
-      name: Displacer Field
-      trading_post_cost: 70
-    - category: Armor
-      name: Flak Armor
-      trading_post_cost: 10
-    - category: Armor
-      name: Gutterforged Cloak
-      trading_post_cost: 15
-    - category: Armor
-      name: Hardened Flak Armor
-      trading_post_cost: 20
-    - category: Armor
-      name: Hardened Layered Flak
-      trading_post_cost: 35
-    - category: Armor
-      name: Hazard Suit
-      trading_post_cost: 10
-    - category: Armor
-      name: Layered Flak Armor
-      trading_post_cost: 20
-    - category: Armor
-      name: Mantle Malifica
-      trading_post_cost: 75
-    - category: Armor
-      name: Mesh Armor
-      trading_post_cost: 15
-    - category: Armor
-      name: Reflec Shroud
-      trading_post_cost: 30
-    - category: Armor
-      name: Refractor Field
-      trading_post_cost: 50
-    - category: Armor
-      name: Scrap Shield
-      trading_post_cost: 15
-    - category: Basic Weapons
-      name: Arc Rifle
-      trading_post_cost: 100
-    - category: Basic Weapons
-      name: Autogun
-      trading_post_cost: 15
-    - category: Basic Weapons
-      name: Boltgun
-      trading_post_cost: 55
-    - category: Basic Weapons
-      name: Combat Shotgun-w/Salvo+Shredder
-      trading_post_cost: 70
-    - category: Basic Weapons
-      name: Ironhead Autogun
-      trading_post_cost: 25
-    - category: Basic Weapons
-      name: Ironhead Boltgun
-      trading_post_cost: 95
-    - category: Basic Weapons
-      name: Kroot Long Rifle
-      trading_post_cost: 30
-    - category: Basic Weapons
-      name: Lasgun
-      trading_post_cost: 15
-    - category: Basic Weapons
-      name: Rak'Gol Razor Gun
-      trading_post_cost: 60
-    - category: Basic Weapons
-      name: Reclaimed Autogun
-      trading_post_cost: 10
-    - category: Basic Weapons
-      name: Sawn-Off Shotgun
-      trading_post_cost: 15
-    - category: Basic Weapons
-      name: Shotgun - Solid/Scatter
-      trading_post_cost: 30
-    - category: Basic Weapons
-      name: Sling Gun
-      trading_post_cost: 55
-    - category: Basic Weapons
-      name: Stake-crossbow
-      trading_post_cost: 60
-    - category: Basic Weapons
-      name: Throwing Knives
-      trading_post_cost: 10
-    - category: Basic Weapons
-      name: Warpstorm Bolter
-      trading_post_cost: 60
-    - category: Bionics
-      name: Aortic Supercharger (Mundane)
-      trading_post_cost: 65
-    - category: Bionics
-      name: Bionic Arm (Mundane)
-      trading_post_cost: 45
-    - category: Bionics
-      name: Bionic Eye (Mundane)
-      trading_post_cost: 45
-    - category: Bionics
-      name: Bionic Leg (Mundane)
-      trading_post_cost: 25
-    - category: Bionics
-      name: Cortex-Cogitator (Improved)
-      trading_post_cost: 30
-    - category: Bionics
-      name: Cortex-Cogitator (Mundane Int)
-      trading_post_cost: 15
-    - category: Bionics
-      name: Cortex-Cogitator (Mundane Will)
-      trading_post_cost: 15
-    - category: Bionics
-      name: Lobo Chip (Improved)
-      trading_post_cost: 45
-    - category: Bionics
-      name: Lobo Chip (Mundane Cl)
-      trading_post_cost: 20
-    - category: Bionics
-      name: Lobo Chip (Mundane Ld)
-      trading_post_cost: 20
-    - category: Bionics
-      name: Skeletal Enhancers (Mundane)
-      trading_post_cost: 70
-    - category: Body Upgrades
-      name: Ablative Armor
-      trading_post_cost: 15
-    - category: Body Upgrades
-      name: Crash Cage
-      trading_post_cost: 15
-    - category: Body Upgrades
-      name: Escape hatches
-      trading_post_cost: 10
-    - category: Body Upgrades
-      name: Explosive ram
-      trading_post_cost: 25
-    - category: Body Upgrades
-      name: Extra armor
-      trading_post_cost: 25
-    - category: Body Upgrades
-      name: Ram
-      trading_post_cost: 15
-    - category: Body Upgrades
-      name: Reinforced armor
-      trading_post_cost: 20
-    - category: Body Upgrades
-      name: Rockgrinder ram
-      trading_post_cost: 40
-    - category: Body Upgrades
-      name: Speed fins
-      trading_post_cost: 10
-    - category: Body Upgrades
-      name: Transport bed
-      trading_post_cost: 15
-    - category: Body Upgrades
-      name: Transport cage large
-      trading_post_cost: 50
-    - category: Body Upgrades
-      name: Transport cage small
-      trading_post_cost: 20
-    - category: Body Upgrades
-      name: Turtle back
-      trading_post_cost: 10
-    - category: Body Upgrades
-      name: Weapons stash
-      trading_post_cost: 20
-    - category: Chems
-      name: Frenzon
-      trading_post_cost: 20
-    - category: Chems
-      name: Ghast
-      trading_post_cost: 30
-    - category: Chems
-      name: Icrotic Slime
-      trading_post_cost: 35
-    - category: Chems
-      name: Kalma
-      trading_post_cost: 15
-    - category: Chems
-      name: Slaught
-      trading_post_cost: 30
-    - category: Chems
-      name: Spur
-      trading_post_cost: 35
-    - category: Chems
-      name: Stinger Mould
-      trading_post_cost: 75
-    - category: Close Combat
-      name: Axe
-      trading_post_cost: 10
-    - category: Close Combat
-      name: Boning Sword
-      trading_post_cost: 20
-    - category: Close Combat
-      name: Butcher's Chain Cleaver
-      trading_post_cost: 45
-    - category: Close Combat
-      name: Butcher's Cleaver
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Chain Glaive
-      slots: 2
-      trading_post_cost: 60
-    - category: Close Combat
-      name: Chainaxe
-      trading_post_cost: 30
-    - category: Close Combat
-      name: Chainsword
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Circular Stone Saw
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Club
-      trading_post_cost: 10
-    - category: Close Combat
-      name: Desire's Needle
-      trading_post_cost: 50
-    - category: Close Combat
-      name: Digi Laser
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Fighting Knife
-      trading_post_cost: 15
-    - category: Close Combat
-      name: Flail
-      trading_post_cost: 20
-    - category: Close Combat
-      name: Flensing Knife
-      trading_post_cost: 15
-    - category: Close Combat
-      name: Gem Extractor
-      trading_post_cost: 50
-    - category: Close Combat
-      name: Goredrinker Axe
-      trading_post_cost: 40
-    - category: Close Combat
-      name: Heavy Chain Cleaver
-      trading_post_cost: 80
-    - category: Close Combat
-      name: Heavy Rock Cutter
-      slots: 2
-      trading_post_cost: 135
-    - category: Close Combat
-      name: Heavy Rock Drill
-      slots: 2
-      trading_post_cost: 90
-    - category: Close Combat
-      name: Heavy Rock Saw
-      slots: 2
-      trading_post_cost: 120
-    - category: Close Combat
-      name: Hex'iron Blade
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Ironhead Arc Welder
-      trading_post_cost: 100
-    - category: Close Combat
-      name: Ironhead Power Fist
-      trading_post_cost: 60
-    - category: Close Combat
-      name: Las Cutter
-      trading_post_cost: 85
-    - category: Close Combat
-      name: Lightning Claw
-      trading_post_cost: 70
-    - category: Close Combat
-      name: Maul
-      trading_post_cost: 10
-    - category: Close Combat
-      name: Power Axe
-      trading_post_cost: 35
-    - category: Close Combat
-      name: Power Fist
-      trading_post_cost: 100
-    - category: Close Combat
-      name: Power Hammer
-      trading_post_cost: 45
-    - category: Close Combat
-      name: Power Knife
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Power Maul
-      trading_post_cost: 30
-    - category: Close Combat
-      name: Power Pick
-      trading_post_cost: 40
-    - category: Close Combat
-      name: Power Sword
-      trading_post_cost: 50
-    - category: Close Combat
-      name: Rotary Flensing Saw
-      slots: 2
-      trading_post_cost: 55
-    - category: Close Combat
-      name: Servo-Claw
-      trading_post_cost: 35
-    - category: Close Combat
-      name: Shock Baton
-      trading_post_cost: 30
-    - category: Close Combat
-      name: Shock Stave
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Stiletto Knife
-      trading_post_cost: 20
-    - category: Close Combat
-      name: Stiletto Sword
-      trading_post_cost: 35
-    - category: Close Combat
-      name: Sword
-      trading_post_cost: 20
-    - category: Close Combat
-      name: Tenebrous Scourge
-      trading_post_cost: 60
-    - category: Close Combat
-      name: Thunder Hammer
-      trading_post_cost: 70
-    - category: Close Combat
-      name: Two-Handed Axe
-      slots: 2
-      trading_post_cost: 25
-    - category: Close Combat
-      name: Two-Handed Hammer
-      slots: 2
-      trading_post_cost: 35
-    - category: Close Combat
-      name: Two-Handed Weapon
-      trading_post_cost: 20
-    - category: Close Combat
-      name: Whisperbane Knife
-      trading_post_cost: 30
-    - category: Close Combat
-      name: Xenarch Death-arc
-      trading_post_cost: 75
-    - category: Drive Upgrades
-      name: All-wheel steering
-      trading_post_cost: 10
-    - category: Drive Upgrades
-      name: Antigrav generators
-      trading_post_cost: 50
-    - category: Drive Upgrades
-      name: Emergency brake
-      trading_post_cost: 10
-    - category: Drive Upgrades
-      name: Pneumatic radials
-      trading_post_cost: 30
-    - category: Drive Upgrades
-      name: Powered steering
-      trading_post_cost: 30
-    - category: Drive Upgrades
-      name: Redundant drive system
-      trading_post_cost: 15
-    - category: Drive Upgrades
-      name: Tyre claws
-      trading_post_cost: 10
-    - category: Engine Upgrades
-      name: Archaotech automantic reactor
-      trading_post_cost: 40
-    - category: Engine Upgrades
-      name: Easy turnover
-      trading_post_cost: 5
-    - category: Engine Upgrades
-      name: Engine shell
-      trading_post_cost: 15
-    - category: Engine Upgrades
-      name: Gas promethium engine
-      trading_post_cost: 25
-    - category: Engine Upgrades
-      name: Glys injector
-      trading_post_cost: 20
-    - category: Engine Upgrades
-      name: Nitro burner
-      trading_post_cost: 15
-    - category: Engine Upgrades
-      name: Plasma coil engine
-      trading_post_cost: 25
-    - category: Engine Upgrades
-      name: Smoke vents
-      trading_post_cost: 25
-    - category: Equipment
-      name: Ammo cache
-      trading_post_cost: 60
-    - category: Equipment
-      name: Archaeotech Device
-      trading_post_cost: 120
-    - category: Equipment
-      name: Armored undersuit
-      trading_post_cost: 25
-    - category: Equipment
-      name: Bio-booster
-      trading_post_cost: 35
-    - category: Equipment
-      name: Bio-scanner
-      trading_post_cost: 30
-    - category: Equipment
-      name: Blind Snake Pouch
-      trading_post_cost: 60
-    - category: Equipment
-      name: Booby Trap - Frag
-      trading_post_cost: 20
-    - category: Equipment
-      name: Booby Trap - Gas
-      trading_post_cost: 40
-    - category: Equipment
-      name: Booby Trap - Melta
-      trading_post_cost: 50
-    - category: Equipment
-      name: Cameleoline Cloak
-      trading_post_cost: 35
-    - category: Equipment
-      name: Chem-synth
-      trading_post_cost: 15
-    - category: Equipment
-      name: Chrono Crystal
-      trading_post_cost: 500
-    - category: Equipment
-      name: Cred Sniffer
-      trading_post_cost: 35
-    - category: Equipment
-      name: Data-thief
-      trading_post_cost: 35
-    - category: Equipment
-      name: Drop rig
-      trading_post_cost: 10
-    - category: Equipment
-      name: Falsehood
-      trading_post_cost: 40
-    - category: Equipment
-      name: Filter plugs
-      trading_post_cost: 10
-    - category: Equipment
-      name: Forged Guilder Seal
-      trading_post_cost: 55
-    - category: Equipment
-      name: Frenzon Collar
-      trading_post_cost: 30
-    - category: Equipment
-      name: Grapnel launcher
-      trading_post_cost: 25
-    - category: Equipment
-      name: Grapplehawk
-      trading_post_cost: 90
-    - category: Equipment
-      name: Grav-chute
-      trading_post_cost: 50
-    - category: Equipment
-      name: Guilder Cartograph
-      trading_post_cost: 70
-    - category: Equipment
-      name: Gunshroud
-      trading_post_cost: 20
-    - category: Equipment
-      name: Gyrinx Cat
-      trading_post_cost: 120
-    - category: Equipment
-      name: Hacked Cyber-mastiff
-      trading_post_cost: 100
-    - category: Equipment
-      name: Halo Device
-      trading_post_cost: 250
-    - category: Equipment
-      name: Harrier-skulls
-      trading_post_cost: 40
-    - category: Equipment
-      name: Hexagrammic Fetish
-      trading_post_cost: 35
-    - category: Equipment
-      name: Holochromatic Field
-      trading_post_cost: 100
-    - category: Equipment
-      name: Hotshot Lasgun Pack
-      trading_post_cost: 20
-    - category: Equipment
-      name: Hotshot Laspistol Pack
-      trading_post_cost: 20
-    - category: Equipment
-      name: Industrial Respirator
-      trading_post_cost: 30
-    - category: Equipment
-      name: Infra-sight
-      trading_post_cost: 40
-    - category: Equipment
-      name: Iron Automata
-      trading_post_cost: 220
-    - category: Equipment
-      name: Isotropic Fuel Rod
-      trading_post_cost: 60
-    - category: Equipment
-      name: Las-projector
-      trading_post_cost: 35
-    - category: Equipment
-      name: Lho Sticks
-      trading_post_cost: 5
-    - category: Equipment
-      name: Lock-punch
-      trading_post_cost: 10
-    - category: Equipment
-      name: Magnacles
-      trading_post_cost: 20
-    - category: Equipment
-      name: Malefic Artefact
-      trading_post_cost: 90
-    - category: Equipment
-      name: Medicae Kit
-      trading_post_cost: 30
-    - category: Equipment
-      name: Mnemonic Inload Spike
-      trading_post_cost: 100
-    - category: Equipment
-      name: Mono-sight
-      trading_post_cost: 35
-    - category: Equipment
-      name: Mung Vase
-      trading_post_cost: 0
-    - category: Equipment
-      name: Necromunda Giant Rat
-      trading_post_cost: 50
-    - category: Equipment
-      name: Obscura
-      trading_post_cost: 30
-    - category: Equipment
-      name: Photo-goggles
-      trading_post_cost: 35
-    - category: Equipment
-      name: Photo-lumens
-      trading_post_cost: 15
-    - category: Equipment
-      name: Psi-grub
-      trading_post_cost: 50
-    - category: Equipment
-      name: Radcounter
-      trading_post_cost: 50
-    - category: Equipment
-      name: Ratskin Map
-      trading_post_cost: 100
-    - category: Equipment
-      name: Respirator
-      trading_post_cost: 15
-    - category: Equipment
-      name: Sanctioning Writ
-      trading_post_cost: 25
-    - category: Equipment
-      name: Second Best
-      trading_post_cost: 15
-    - category: Equipment
-      name: Servo harness - Full
-      trading_post_cost: 160
-    - category: Equipment
-      name: Servo harness - Partial
-      trading_post_cost: 130
-    - category: Equipment
-      name: Skinblade
-      trading_post_cost: 10
-    - category: Equipment
-      name: Stimm-slug stash
-      trading_post_cost: 30
-    - category: Equipment
-      name: Strip Kit
-      trading_post_cost: 15
-    - category: Equipment
-      name: Suspensor
-      trading_post_cost: 60
-    - category: Equipment
-      name: Suspensor Harness
-      trading_post_cost: 40
-    - category: Equipment
-      name: Telescopic sight
-      trading_post_cost: 25
-    - category: Equipment
-      name: Threadneedle Worms
-      trading_post_cost: 45
-    - category: Equipment
-      name: Web Solvent
-      trading_post_cost: 25
-    - category: Equipment
-      name: Wild Snake
-      trading_post_cost: 30
-    - category: Equipment
-      name: Xenoculum
-      trading_post_cost: 80
-    - category: Grenades
-      name: Anti-plant Grenades
-      trading_post_cost: 30
-    - category: Grenades
-      name: Blasting Charges
-      trading_post_cost: 35
-    - category: Grenades
-      name: Choke Grenade
-      trading_post_cost: 50
-    - category: Grenades
-      name: Demolition Charge
-      trading_post_cost: 50
-    - category: Grenades
-      name: Flares
-      trading_post_cost: 20
-    - category: Grenades
-      name: Frag Grenade
-      trading_post_cost: 30
-    - category: Grenades
-      name: Gunk Bombs
-      trading_post_cost: 40
-    - category: Grenades
-      name: Incendiary Charge
-      trading_post_cost: 40
-    - category: Grenades
-      name: Krak Grenade
-      trading_post_cost: 45
-    - category: Grenades
-      name: Meltabomb
-      trading_post_cost: 60
-    - category: Grenades
-      name: Mindflect Shard
-      trading_post_cost: 50
-    - category: Grenades
-      name: Phosphor Canister
-      trading_post_cost: 40
-    - category: Grenades
-      name: Photon Flash Grenade
-      trading_post_cost: 15
-    - category: Grenades
-      name: Plasma Grenades
-      trading_post_cost: 90
-    - category: Grenades
-      name: Scare Gas Grenade
-      trading_post_cost: 45
-    - category: Grenades
-      name: Shard Grenades
-      trading_post_cost: 30
-    - category: Grenades
-      name: Smoke Grenade
-      trading_post_cost: 15
-    - category: Grenades
-      name: Stun Grenades
-      trading_post_cost: 15
-    - category: Hardpoint Upgrades
-      name: Crew Front
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Crew Front/Left/Rear
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Crew Front/Right/Rear
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Crew Left
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Crew Left/Front/Right
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Crew Left/Rear/Right
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Crew Rear
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Crew Right
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Passenger Front
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Passenger Front/Left/Rear
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Passenger Front/Right/Rear
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Passenger Left
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Passenger Left/Front/Right
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Passenger Left/Rear/Right
-      trading_post_cost: 70
-    - category: Hardpoint Upgrades
-      name: Passenger Rear
-      trading_post_cost: 40
-    - category: Hardpoint Upgrades
-      name: Passenger Right
-      trading_post_cost: 40
-    - category: Heavy Weapons
-      name: Autocannon
-      trading_post_cost: 160
-    - category: Heavy Weapons
-      name: Demiurg Energy Drill
-      trading_post_cost: 100
-    - category: Heavy Weapons
-      name: Grav Cannon
-      trading_post_cost: 140
-    - category: Heavy Weapons
-      name: Harpoon Launcher
-      slots: 2
-      trading_post_cost: 110
-    - category: Heavy Weapons
-      name: Heavy Bolter
-      slots: 2
-      trading_post_cost: 160
-    - category: Heavy Weapons
-      name: Heavy Flamer
-      slots: 2
-      trading_post_cost: 195
-    - category: Heavy Weapons
-      name: Heavy Stubber
-      slots: 2
-      trading_post_cost: 130
-    - category: Heavy Weapons
-      name: Ironhead Heavy Flamer
-      slots: 2
-      trading_post_cost: 210
-    - category: Heavy Weapons
-      name: Ironhead Heavy Stubber
-      slots: 2
-      trading_post_cost: 140
-    - category: Heavy Weapons
-      name: Lascannon
-      slots: 2
-      trading_post_cost: 155
-    - category: Heavy Weapons
-      name: Mining Laser
-      slots: 2
-      trading_post_cost: 125
-    - category: Heavy Weapons
-      name: Missile Launcher (Frag/Krak)
-      slots: 2
-      trading_post_cost: 165
-    - category: Heavy Weapons
-      name: Mole Launcher
-      trading_post_cost: 100
-    - category: Heavy Weapons
-      name: Mortar
-      trading_post_cost: 115
-    - category: Heavy Weapons
-      name: Multi-Melta
-      slots: 2
-      trading_post_cost: 180
-    - category: Heavy Weapons
-      name: Plasma Cannon
-      slots: 2
-      trading_post_cost: 130
-    - category: Heavy Weapons
-      name: Seismic Cannon
-      slots: 2
-      trading_post_cost: 140
-    - category: Heavy Weapons
-      name: Twin-linked Autocannon
-      trading_post_cost: 185
-    - category: Heavy Weapons
-      name: Twin-linked Heavy Stubber
-      trading_post_cost: 145
-    - category: Mounts
-      name: Waster's Dirtbike
-      trading_post_cost: 50
-    - category: Pistols
-      name: Autopistol
-      trading_post_cost: 10
-    - category: Pistols
-      name: Bolt Pistol
-      trading_post_cost: 45
-    - category: Pistols
-      name: Combi-Pistol (Autopistol/Hand flamer)
-      trading_post_cost: 65
-    - category: Pistols
-      name: Combi-Pistol (Autopistol/Plasma pistol)
-      trading_post_cost: 50
-    - category: Pistols
-      name: Combi-Pistol (Bolt Pistol/Hand flamer)
-      trading_post_cost: 110
-    - category: Pistols
-      name: Combi-Pistol (Bolt Pistol/Plasma Pistol)
-      trading_post_cost: 80
-    - category: Pistols
-      name: Combi-Pistol (Stub/Plasma)
-      trading_post_cost: 40
-    - category: Pistols
-      name: Hand Flamer
-      trading_post_cost: 75
-    - category: Pistols
-      name: Inferno Pistol
-      trading_post_cost: 145
-    - category: Pistols
-      name: Ironhead Autopistol
-      trading_post_cost: 20
-    - category: Pistols
-      name: Ironhead Bolt Pistol
-      trading_post_cost: 45
-    - category: Pistols
-      name: Ironhead Hand Flamer
-      trading_post_cost: 85
-    - category: Pistols
-      name: Ironhead Stub Gun
-      trading_post_cost: 10
-    - category: Pistols
-      name: Laspistol
-      trading_post_cost: 10
-    - category: Pistols
-      name: Needle Pistol
-      trading_post_cost: 30
-    - category: Pistols
-      name: Plasma Pistol
-      trading_post_cost: 50
-    - category: Pistols
-      name: Reclaimed Autopistol
-      trading_post_cost: 5
-    - category: Pistols
-      name: Stone Burner
-      trading_post_cost: 70
-    - category: Pistols
-      name: Stub Gun
-      trading_post_cost: 5
-    - category: Pistols
-      name: Web Pistol
-      trading_post_cost: 90
-    - category: Pistols
-      name: Withertouch Pistol
-      trading_post_cost: 55
-    - category: Special Weapons
-      name: Balefire Thrower
-      trading_post_cost: 120
-    - category: Special Weapons
-      name: Combi-Weapon (Autogun/Flamer)
-      trading_post_cost: 110
-    - category: Special Weapons
-      name: Combi-Weapon (Autogun/Grenade Launcher)
-      trading_post_cost: 30
-    - category: Special Weapons
-      name: Combi-Weapon (Bolter/Flamer)
-      trading_post_cost: 180
-    - category: Special Weapons
-      name: Combi-Weapon (Bolter/Melta)
-      trading_post_cost: 170
-    - category: Special Weapons
-      name: Combi-Weapon (Bolter/Needler)
-      trading_post_cost: 90
-    - category: Special Weapons
-      name: Combi-Weapon (Bolter/Plasma)
-      trading_post_cost: 115
-    - category: Special Weapons
-      name: Flamer
-      trading_post_cost: 140
-    - category: Special Weapons
-      name: Grav-Gun
-      trading_post_cost: 120
-    - category: Special Weapons
-      name: Grenade Launcher w/Frag+Krak
-      trading_post_cost: 65
-    - category: Special Weapons
-      name: Hrud Fusil
-      trading_post_cost: 120
-    - category: Special Weapons
-      name: Ironhead Flamer
-      trading_post_cost: 150
-    - category: Special Weapons
-      name: Ironhead Meltagun
-      trading_post_cost: 155
-    - category: Special Weapons
-      name: Kai Hellspear
-      trading_post_cost: 90
-    - category: Special Weapons
-      name: Long Las
-      trading_post_cost: 20
-    - category: Special Weapons
-      name: Long Rifle
-      trading_post_cost: 30
-    - category: Special Weapons
-      name: Meltagun
-      trading_post_cost: 135
-    - category: Special Weapons
-      name: Necrotic Beamer
-      trading_post_cost: 110
-    - category: Special Weapons
-      name: Needle Rifle
-      trading_post_cost: 40
-    - category: Special Weapons
-      name: Neural Flayer
-      trading_post_cost: 90
-    - category: Special Weapons
-      name: Plasma Gun
-      trading_post_cost: 100
-    - category: Special Weapons
-      name: Storm Bolter
-      trading_post_cost: 95
-    - category: Special Weapons
-      name: Web Gun
-      trading_post_cost: 125
-    - category: Special Weapons
-      name: Yu'vath Puzzle Box
-      trading_post_cost: 150
-    - category: Status Items
-      name: Caryatid
-      trading_post_cost: 0
-    - category: Status Items
-      name: Exotic Furs
-      trading_post_cost: 50
-    - category: Status Items
-      name: Giant Rat
-      trading_post_cost: 50
-    - category: Status Items
-      name: Gold-plated Gun
-      trading_post_cost: 40
-    - category: Status Items
-      name: Grapplehawk
-      trading_post_cost: 90
-    - category: Status Items
-      name: Gun Skull
-      trading_post_cost: 65
-    - category: Status Items
-      name: Gyrinx Cat
-      trading_post_cost: 120
-    - category: Status Items
-      name: Hacked Cyber-Mastiff
-      trading_post_cost: 100
-    - category: Status Items
-      name: Iron Automata
-      trading_post_cost: 220
-    - category: Status Items
-      name: Medi Skull
-      trading_post_cost: 80
-    - category: Status Items
-      name: Opulent Jewellery
-      trading_post_cost: 80
-    - category: Status Items
-      name: Sensor Skull
-      trading_post_cost: 60
-    - category: Status Items
-      name: Uphive Raiments
-      trading_post_cost: 50
-    - category: Vehicle Equipment
-      name: Boarding Ramp
-      trading_post_cost: 15
-    - category: Vehicle Equipment
-      name: Body Spikes
-      trading_post_cost: 10
-    - category: Vehicle Equipment
-      name: Booby-trapped Fuel Tanks
-      trading_post_cost: 10
-    - category: Vehicle Equipment
-      name: Caltrop Launcher
-      trading_post_cost: 20
-    - category: Vehicle Equipment
-      name: Cargo - Armored Container
-      trading_post_cost: 50
-    - category: Vehicle Equipment
-      name: Cargo - Promethium Tank
-      trading_post_cost: 30
-    - category: Vehicle Equipment
-      name: Flare Launchers
-      trading_post_cost: 10
-    - category: Vehicle Equipment
-      name: Headlights
-      trading_post_cost: 15
-    - category: Vehicle Equipment
-      name: Kill Switch
-      trading_post_cost: 15
-    - category: Vehicle Equipment
-      name: Minelayer
-      trading_post_cost: 35
-    - category: Vehicle Equipment
-      name: Minelayer Mine
-      trading_post_cost: 20
-    - category: Vehicle Equipment
-      name: Ridgehauler Trailer
-      trading_post_cost: 130
-    - category: Vehicle Equipment
-      name: Smoke Launchers
-      trading_post_cost: 20
-    - category: Vehicle Equipment
-      name: Wheel Scythes
-      trading_post_cost: 20
+  - category: Ammo
+    name: Anti-plant-Grenade Launcher
+    trading_post_cost: 40
+  - category: Ammo
+    name: Chem Darts-Needle Pistol
+    trading_post_cost: 10
+  - category: Ammo
+    name: Chem Darts-Needle Rifle
+    trading_post_cost: 10
+  - category: Ammo
+    name: Combat Shotgun-Firestorm Ammo
+    trading_post_cost: 30
+  - category: Ammo
+    name: Dum-Dum Ammo
+    trading_post_cost: 5
+  - category: Ammo
+    name: Flares-Grenade Launcher
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Las Carbine
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Las Pistol
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Las Sub-carbine
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Lasgun
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Long Las
+    trading_post_cost: 30
+  - category: Ammo
+    name: Focusing Crystal-Suppression Laser
+    trading_post_cost: 30
+  - category: Ammo
+    name: Fragmentation Rounds
+    trading_post_cost: 10
+  - category: Ammo
+    name: Gas Shell-Bolt Pistol
+    trading_post_cost: 25
+  - category: Ammo
+    name: Gas Shell-Boltgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Gas Shell-Combat Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Gas Shell-Sawn-off Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Gas Shell-Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Grenade Launcher-Choke Ammo
+    trading_post_cost: 35
+  - category: Ammo
+    name: Grenade Launcher-Photon Ammo
+    trading_post_cost: 15
+  - category: Ammo
+    name: Grenade Launcher-Scare Ammo
+    trading_post_cost: 45
+  - category: Ammo
+    name: Grenade Launcher-Smoke Ammo
+    trading_post_cost: 15
+  - category: Ammo
+    name: Gunk Bolts - Boltgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Gunk Bolts-Bolt Pistol
+    trading_post_cost: 15
+  - category: Ammo
+    name: Gunk Bolts-Combi
+    trading_post_cost: 15
+  - category: Ammo
+    name: Gunk Bolts-Heavy Bolter
+    trading_post_cost: 15
+  - category: Ammo
+    name: Ironhead Pistol Dumdum
+    trading_post_cost: 5
+  - category: Ammo
+    name: Manstopper Rounds
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Autogun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Autopistol
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Combat Shotgun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Combi Autogun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Heavy Stubber
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Reclaimed Autogun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Reclaimed Autopistol
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Sawn-off Shotgun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Phosphor-Shotgun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Plantbuster-Autogun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Autopistol
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Combat Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Combi Autogun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Heavy Stubber
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Reclaimed Autogun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Reclaimed Autopistol
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Sawn-off Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plantbuster-Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Plasma-Grenade Launcher
+    trading_post_cost: 100
+  - category: Ammo
+    name: Rad-Autogun
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Autopistol
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Combat Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Rad-Combi Autogun
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Heavy Stubber
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Reclaimed Autogun
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Reclaimed Autopistol
+    trading_post_cost: 20
+  - category: Ammo
+    name: Rad-Sawn-off Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Rad-Shotgun
+    trading_post_cost: 25
+  - category: Ammo
+    name: Sawn-Off Shotgun-Solid Shot
+    trading_post_cost: 10
+  - category: Ammo
+    name: Shatter Shell-Bolt Pistol
+    trading_post_cost: 15
+  - category: Ammo
+    name: Shatter Shell-Boltgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Shatter Shell-Combat Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Shatter Shell-Shawn-off Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Shatter Shell-Shotgun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Shotgun - Executioner
+    trading_post_cost: 20
+  - category: Ammo
+    name: Shotgun - Inferno
+    trading_post_cost: 15
+  - category: Ammo
+    name: Static Rounds-Autogun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Static Rounds-Autopistol
+    trading_post_cost: 10
+  - category: Ammo
+    name: Static Rounds-Heavy Stubber
+    trading_post_cost: 15
+  - category: Ammo
+    name: Static Rounds-Long Rifle
+    trading_post_cost: 15
+  - category: Ammo
+    name: Static Rounds-Stub Cannon
+    trading_post_cost: 10
+  - category: Ammo
+    name: Static Rounds-Stub Gun
+    trading_post_cost: 10
+  - category: Ammo
+    name: Warp Rounds-Autogun
+    trading_post_cost: 15
+  - category: Ammo
+    name: Warp Rounds-Autopistol
+    trading_post_cost: 15
+  - category: Ammo
+    name: Warp Rounds-Heavy Stubber
+    trading_post_cost: 20
+  - category: Ammo
+    name: Warp Rounds-Long Rifle
+    trading_post_cost: 20
+  - category: Ammo
+    name: Warp Rounds-Stub Cannon
+    trading_post_cost: 15
+  - category: Ammo
+    name: Warp Rounds-Stub Gun
+    trading_post_cost: 15
+  - category: Armor
+    name: Ablative Overlay
+    trading_post_cost: 20
+  - category: Armor
+    name: Archaeo-carapace
+    trading_post_cost: 120
+  - category: Armor
+    name: Armourweave
+    trading_post_cost: 20
+  - category: Armor
+    name: Carapace Armor - Heavy
+    trading_post_cost: 100
+  - category: Armor
+    name: Carapace Armor - Light
+    trading_post_cost: 80
+  - category: Armor
+    name: Ceramite Shield
+    trading_post_cost: 40
+  - category: Armor
+    name: Conversion Field
+    trading_post_cost: 60
+  - category: Armor
+    name: Displacer Field
+    trading_post_cost: 70
+  - category: Armor
+    name: Flak Armor
+    trading_post_cost: 10
+  - category: Armor
+    name: Gutterforged Cloak
+    trading_post_cost: 15
+  - category: Armor
+    name: Hardened Flak Armor
+    trading_post_cost: 20
+  - category: Armor
+    name: Hardened Layered Flak
+    trading_post_cost: 35
+  - category: Armor
+    name: Hazard Suit
+    trading_post_cost: 10
+  - category: Armor
+    name: Layered Flak Armor
+    trading_post_cost: 20
+  - category: Armor
+    name: Mantle Malifica
+    trading_post_cost: 75
+  - category: Armor
+    name: Mesh Armor
+    trading_post_cost: 15
+  - category: Armor
+    name: Reflec Shroud
+    trading_post_cost: 30
+  - category: Armor
+    name: Refractor Field
+    trading_post_cost: 50
+  - category: Armor
+    name: Scrap Shield
+    trading_post_cost: 15
+  - category: Basic Weapons
+    name: Arc Rifle
+    trading_post_cost: 100
+  - category: Basic Weapons
+    name: Autogun
+    trading_post_cost: 15
+  - category: Basic Weapons
+    name: Boltgun
+    trading_post_cost: 55
+  - category: Basic Weapons
+    name: Combat Shotgun-w/Salvo+Shredder
+    trading_post_cost: 70
+  - category: Basic Weapons
+    name: Ironhead Autogun
+    trading_post_cost: 25
+  - category: Basic Weapons
+    name: Ironhead Boltgun
+    trading_post_cost: 95
+  - category: Basic Weapons
+    name: Kroot Long Rifle
+    trading_post_cost: 30
+  - category: Basic Weapons
+    name: Lasgun
+    trading_post_cost: 15
+  - category: Basic Weapons
+    name: Rak'Gol Razor Gun
+    trading_post_cost: 60
+  - category: Basic Weapons
+    name: Reclaimed Autogun
+    trading_post_cost: 10
+  - category: Basic Weapons
+    name: Sawn-Off Shotgun
+    trading_post_cost: 15
+  - category: Basic Weapons
+    name: Shotgun - Solid/Scatter
+    trading_post_cost: 30
+  - category: Basic Weapons
+    name: Sling Gun
+    trading_post_cost: 55
+  - category: Basic Weapons
+    name: Stake-crossbow
+    trading_post_cost: 60
+  - category: Basic Weapons
+    name: Throwing Knives
+    trading_post_cost: 10
+  - category: Basic Weapons
+    name: Warpstorm Bolter
+    trading_post_cost: 60
+  - category: Bionics
+    name: Aortic Supercharger (Mundane)
+    trading_post_cost: 65
+  - category: Bionics
+    name: Bionic Arm (Mundane)
+    trading_post_cost: 45
+  - category: Bionics
+    name: Bionic Eye (Mundane)
+    trading_post_cost: 45
+  - category: Bionics
+    name: Bionic Leg (Mundane)
+    trading_post_cost: 25
+  - category: Bionics
+    name: Cortex-Cogitator (Improved)
+    trading_post_cost: 30
+  - category: Bionics
+    name: Cortex-Cogitator (Mundane Int)
+    trading_post_cost: 15
+  - category: Bionics
+    name: Cortex-Cogitator (Mundane Will)
+    trading_post_cost: 15
+  - category: Bionics
+    name: Lobo Chip (Improved)
+    trading_post_cost: 45
+  - category: Bionics
+    name: Lobo Chip (Mundane Cl)
+    trading_post_cost: 20
+  - category: Bionics
+    name: Lobo Chip (Mundane Ld)
+    trading_post_cost: 20
+  - category: Bionics
+    name: Skeletal Enhancers (Mundane)
+    trading_post_cost: 70
+  - category: Body Upgrades
+    name: Ablative Armor
+    trading_post_cost: 15
+  - category: Body Upgrades
+    name: Crash Cage
+    trading_post_cost: 15
+  - category: Body Upgrades
+    name: Escape hatches
+    trading_post_cost: 10
+  - category: Body Upgrades
+    name: Explosive ram
+    trading_post_cost: 25
+  - category: Body Upgrades
+    name: Extra armor
+    trading_post_cost: 25
+  - category: Body Upgrades
+    name: Ram
+    trading_post_cost: 15
+  - category: Body Upgrades
+    name: Reinforced armor
+    trading_post_cost: 20
+  - category: Body Upgrades
+    name: Rockgrinder ram
+    trading_post_cost: 40
+  - category: Body Upgrades
+    name: Speed fins
+    trading_post_cost: 10
+  - category: Body Upgrades
+    name: Transport bed
+    trading_post_cost: 15
+  - category: Body Upgrades
+    name: Transport cage large
+    trading_post_cost: 50
+  - category: Body Upgrades
+    name: Transport cage small
+    trading_post_cost: 20
+  - category: Body Upgrades
+    name: Turtle back
+    trading_post_cost: 10
+  - category: Body Upgrades
+    name: Weapons stash
+    trading_post_cost: 20
+  - category: Chems
+    name: Frenzon
+    trading_post_cost: 20
+  - category: Chems
+    name: Ghast
+    trading_post_cost: 30
+  - category: Chems
+    name: Icrotic Slime
+    trading_post_cost: 35
+  - category: Chems
+    name: Kalma
+    trading_post_cost: 15
+  - category: Chems
+    name: Slaught
+    trading_post_cost: 30
+  - category: Chems
+    name: Spur
+    trading_post_cost: 35
+  - category: Chems
+    name: Stinger Mould
+    trading_post_cost: 75
+  - category: Close Combat
+    name: Axe
+    trading_post_cost: 10
+  - category: Close Combat
+    name: Boning Sword
+    trading_post_cost: 20
+  - category: Close Combat
+    name: Butcher's Chain Cleaver
+    trading_post_cost: 45
+  - category: Close Combat
+    name: Butcher's Cleaver
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Chain Glaive
+    slots: 2
+    trading_post_cost: 60
+  - category: Close Combat
+    name: Chainaxe
+    trading_post_cost: 30
+  - category: Close Combat
+    name: Chainsword
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Circular Stone Saw
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Club
+    trading_post_cost: 10
+  - category: Close Combat
+    name: Desire's Needle
+    trading_post_cost: 50
+  - category: Close Combat
+    name: Digi Laser
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Fighting Knife
+    trading_post_cost: 15
+  - category: Close Combat
+    name: Flail
+    trading_post_cost: 20
+  - category: Close Combat
+    name: Flensing Knife
+    trading_post_cost: 15
+  - category: Close Combat
+    name: Gem Extractor
+    trading_post_cost: 50
+  - category: Close Combat
+    name: Goredrinker Axe
+    trading_post_cost: 40
+  - category: Close Combat
+    name: Heavy Chain Cleaver
+    trading_post_cost: 80
+  - category: Close Combat
+    name: Heavy Rock Cutter
+    slots: 2
+    trading_post_cost: 135
+  - category: Close Combat
+    name: Heavy Rock Drill
+    slots: 2
+    trading_post_cost: 90
+  - category: Close Combat
+    name: Heavy Rock Saw
+    slots: 2
+    trading_post_cost: 120
+  - category: Close Combat
+    name: Hex'iron Blade
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Ironhead Arc Welder
+    trading_post_cost: 100
+  - category: Close Combat
+    name: Ironhead Power Fist
+    trading_post_cost: 60
+  - category: Close Combat
+    name: Las Cutter
+    trading_post_cost: 85
+  - category: Close Combat
+    name: Lightning Claw
+    trading_post_cost: 70
+  - category: Close Combat
+    name: Maul
+    trading_post_cost: 10
+  - category: Close Combat
+    name: Power Axe
+    trading_post_cost: 35
+  - category: Close Combat
+    name: Power Fist
+    trading_post_cost: 100
+  - category: Close Combat
+    name: Power Hammer
+    trading_post_cost: 45
+  - category: Close Combat
+    name: Power Knife
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Power Maul
+    trading_post_cost: 30
+  - category: Close Combat
+    name: Power Pick
+    trading_post_cost: 40
+  - category: Close Combat
+    name: Power Sword
+    trading_post_cost: 50
+  - category: Close Combat
+    name: Rotary Flensing Saw
+    slots: 2
+    trading_post_cost: 55
+  - category: Close Combat
+    name: Servo-Claw
+    trading_post_cost: 35
+  - category: Close Combat
+    name: Shock Baton
+    trading_post_cost: 30
+  - category: Close Combat
+    name: Shock Stave
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Stiletto Knife
+    trading_post_cost: 20
+  - category: Close Combat
+    name: Stiletto Sword
+    trading_post_cost: 35
+  - category: Close Combat
+    name: Sword
+    trading_post_cost: 20
+  - category: Close Combat
+    name: Tenebrous Scourge
+    trading_post_cost: 60
+  - category: Close Combat
+    name: Thunder Hammer
+    trading_post_cost: 70
+  - category: Close Combat
+    name: Two-Handed Axe
+    slots: 2
+    trading_post_cost: 25
+  - category: Close Combat
+    name: Two-Handed Hammer
+    slots: 2
+    trading_post_cost: 35
+  - category: Close Combat
+    name: Two-Handed Weapon
+    trading_post_cost: 20
+  - category: Close Combat
+    name: Whisperbane Knife
+    trading_post_cost: 30
+  - category: Close Combat
+    name: Xenarch Death-arc
+    trading_post_cost: 75
+  - category: Drive Upgrades
+    name: All-wheel steering
+    trading_post_cost: 10
+  - category: Drive Upgrades
+    name: Antigrav generators
+    trading_post_cost: 50
+  - category: Drive Upgrades
+    name: Emergency brake
+    trading_post_cost: 10
+  - category: Drive Upgrades
+    name: Pneumatic radials
+    trading_post_cost: 30
+  - category: Drive Upgrades
+    name: Powered steering
+    trading_post_cost: 30
+  - category: Drive Upgrades
+    name: Redundant drive system
+    trading_post_cost: 15
+  - category: Drive Upgrades
+    name: Tyre claws
+    trading_post_cost: 10
+  - category: Engine Upgrades
+    name: Archaotech automantic reactor
+    trading_post_cost: 40
+  - category: Engine Upgrades
+    name: Easy turnover
+    trading_post_cost: 5
+  - category: Engine Upgrades
+    name: Engine shell
+    trading_post_cost: 15
+  - category: Engine Upgrades
+    name: Gas promethium engine
+    trading_post_cost: 25
+  - category: Engine Upgrades
+    name: Glys injector
+    trading_post_cost: 20
+  - category: Engine Upgrades
+    name: Nitro burner
+    trading_post_cost: 15
+  - category: Engine Upgrades
+    name: Plasma coil engine
+    trading_post_cost: 25
+  - category: Engine Upgrades
+    name: Smoke vents
+    trading_post_cost: 25
+  - category: Equipment
+    name: Ammo cache
+    trading_post_cost: 60
+  - category: Equipment
+    name: Archaeotech Device
+    trading_post_cost: 120
+  - category: Equipment
+    name: Armored undersuit
+    trading_post_cost: 25
+  - category: Equipment
+    name: Bio-booster
+    trading_post_cost: 35
+  - category: Equipment
+    name: Bio-scanner
+    trading_post_cost: 30
+  - category: Equipment
+    name: Blind Snake Pouch
+    trading_post_cost: 60
+  - category: Equipment
+    name: Booby Trap - Frag
+    trading_post_cost: 20
+  - category: Equipment
+    name: Booby Trap - Gas
+    trading_post_cost: 40
+  - category: Equipment
+    name: Booby Trap - Melta
+    trading_post_cost: 50
+  - category: Equipment
+    name: Cameleoline Cloak
+    trading_post_cost: 35
+  - category: Equipment
+    name: Chem-synth
+    trading_post_cost: 15
+  - category: Equipment
+    name: Chrono Crystal
+    trading_post_cost: 500
+  - category: Equipment
+    name: Cred Sniffer
+    trading_post_cost: 35
+  - category: Equipment
+    name: Data-thief
+    trading_post_cost: 35
+  - category: Equipment
+    name: Drop rig
+    trading_post_cost: 10
+  - category: Equipment
+    name: Falsehood
+    trading_post_cost: 40
+  - category: Equipment
+    name: Filter plugs
+    trading_post_cost: 10
+  - category: Equipment
+    name: Forged Guilder Seal
+    trading_post_cost: 55
+  - category: Equipment
+    name: Frenzon Collar
+    trading_post_cost: 30
+  - category: Equipment
+    name: Grapnel launcher
+    trading_post_cost: 25
+  - category: Equipment
+    name: Grapplehawk
+    trading_post_cost: 90
+  - category: Equipment
+    name: Grav-chute
+    trading_post_cost: 50
+  - category: Equipment
+    name: Guilder Cartograph
+    trading_post_cost: 70
+  - category: Equipment
+    name: Gunshroud
+    trading_post_cost: 20
+  - category: Equipment
+    name: Gyrinx Cat
+    trading_post_cost: 120
+  - category: Equipment
+    name: Hacked Cyber-mastiff
+    trading_post_cost: 100
+  - category: Equipment
+    name: Halo Device
+    trading_post_cost: 250
+  - category: Equipment
+    name: Harrier-skulls
+    trading_post_cost: 40
+  - category: Equipment
+    name: Hexagrammic Fetish
+    trading_post_cost: 35
+  - category: Equipment
+    name: Holochromatic Field
+    trading_post_cost: 100
+  - category: Equipment
+    name: Hotshot Lasgun Pack
+    trading_post_cost: 20
+  - category: Equipment
+    name: Hotshot Laspistol Pack
+    trading_post_cost: 20
+  - category: Equipment
+    name: Industrial Respirator
+    trading_post_cost: 30
+  - category: Equipment
+    name: Infra-sight
+    trading_post_cost: 40
+  - category: Equipment
+    name: Iron Automata
+    trading_post_cost: 220
+  - category: Equipment
+    name: Isotropic Fuel Rod
+    trading_post_cost: 60
+  - category: Equipment
+    name: Las-projector
+    trading_post_cost: 35
+  - category: Equipment
+    name: Lho Sticks
+    trading_post_cost: 5
+  - category: Equipment
+    name: Lock-punch
+    trading_post_cost: 10
+  - category: Equipment
+    name: Magnacles
+    trading_post_cost: 20
+  - category: Equipment
+    name: Malefic Artefact
+    trading_post_cost: 90
+  - category: Equipment
+    name: Medicae Kit
+    trading_post_cost: 30
+  - category: Equipment
+    name: Mnemonic Inload Spike
+    trading_post_cost: 100
+  - category: Equipment
+    name: Mono-sight
+    trading_post_cost: 35
+  - category: Equipment
+    name: Mung Vase
+    trading_post_cost: 0
+  - category: Equipment
+    name: Necromunda Giant Rat
+    trading_post_cost: 50
+  - category: Equipment
+    name: Obscura
+    trading_post_cost: 30
+  - category: Equipment
+    name: Photo-goggles
+    trading_post_cost: 35
+  - category: Equipment
+    name: Photo-lumens
+    trading_post_cost: 15
+  - category: Equipment
+    name: Psi-grub
+    trading_post_cost: 50
+  - category: Equipment
+    name: Radcounter
+    trading_post_cost: 50
+  - category: Equipment
+    name: Ratskin Map
+    trading_post_cost: 100
+  - category: Equipment
+    name: Respirator
+    trading_post_cost: 15
+  - category: Equipment
+    name: Sanctioning Writ
+    trading_post_cost: 25
+  - category: Equipment
+    name: Second Best
+    trading_post_cost: 15
+  - category: Equipment
+    name: Servo harness - Full
+    trading_post_cost: 160
+  - category: Equipment
+    name: Servo harness - Partial
+    trading_post_cost: 130
+  - category: Equipment
+    name: Skinblade
+    trading_post_cost: 10
+  - category: Equipment
+    name: Stimm-slug stash
+    trading_post_cost: 30
+  - category: Equipment
+    name: Strip Kit
+    trading_post_cost: 15
+  - category: Equipment
+    name: Suspensor
+    trading_post_cost: 60
+  - category: Equipment
+    name: Suspensor Harness
+    trading_post_cost: 40
+  - category: Equipment
+    name: Telescopic sight
+    trading_post_cost: 25
+  - category: Equipment
+    name: Threadneedle Worms
+    trading_post_cost: 45
+  - category: Equipment
+    name: Web Solvent
+    trading_post_cost: 25
+  - category: Equipment
+    name: Wild Snake
+    trading_post_cost: 30
+  - category: Equipment
+    name: Xenoculum
+    trading_post_cost: 80
+  - category: Grenades
+    name: Anti-plant Grenades
+    trading_post_cost: 30
+  - category: Grenades
+    name: Blasting Charges
+    trading_post_cost: 35
+  - category: Grenades
+    name: Choke Grenade
+    trading_post_cost: 50
+  - category: Grenades
+    name: Demolition Charge
+    trading_post_cost: 50
+  - category: Grenades
+    name: Flares
+    trading_post_cost: 20
+  - category: Grenades
+    name: Frag Grenade
+    trading_post_cost: 30
+  - category: Grenades
+    name: Gunk Bombs
+    trading_post_cost: 40
+  - category: Grenades
+    name: Incendiary Charge
+    trading_post_cost: 40
+  - category: Grenades
+    name: Krak Grenade
+    trading_post_cost: 45
+  - category: Grenades
+    name: Meltabomb
+    trading_post_cost: 60
+  - category: Grenades
+    name: Mindflect Shard
+    trading_post_cost: 50
+  - category: Grenades
+    name: Phosphor Canister
+    trading_post_cost: 40
+  - category: Grenades
+    name: Photon Flash Grenade
+    trading_post_cost: 15
+  - category: Grenades
+    name: Plasma Grenades
+    trading_post_cost: 90
+  - category: Grenades
+    name: Scare Gas Grenade
+    trading_post_cost: 45
+  - category: Grenades
+    name: Shard Grenades
+    trading_post_cost: 30
+  - category: Grenades
+    name: Smoke Grenade
+    trading_post_cost: 15
+  - category: Grenades
+    name: Stun Grenades
+    trading_post_cost: 15
+  - category: Hardpoint Upgrades
+    name: Crew Front
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Crew Front/Left/Rear
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Crew Front/Right/Rear
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Crew Left
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Crew Left/Front/Right
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Crew Left/Rear/Right
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Crew Rear
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Crew Right
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Passenger Front
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Passenger Front/Left/Rear
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Passenger Front/Right/Rear
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Passenger Left
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Passenger Left/Front/Right
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Passenger Left/Rear/Right
+    trading_post_cost: 70
+  - category: Hardpoint Upgrades
+    name: Passenger Rear
+    trading_post_cost: 40
+  - category: Hardpoint Upgrades
+    name: Passenger Right
+    trading_post_cost: 40
+  - category: Heavy Weapons
+    name: Autocannon
+    trading_post_cost: 160
+  - category: Heavy Weapons
+    name: Demiurg Energy Drill
+    trading_post_cost: 100
+  - category: Heavy Weapons
+    name: Grav Cannon
+    trading_post_cost: 140
+  - category: Heavy Weapons
+    name: Harpoon Launcher
+    slots: 2
+    trading_post_cost: 110
+  - category: Heavy Weapons
+    name: Heavy Bolter
+    slots: 2
+    trading_post_cost: 160
+  - category: Heavy Weapons
+    name: Heavy Flamer
+    slots: 2
+    trading_post_cost: 195
+  - category: Heavy Weapons
+    name: Heavy Stubber
+    slots: 2
+    trading_post_cost: 130
+  - category: Heavy Weapons
+    name: Ironhead Heavy Flamer
+    slots: 2
+    trading_post_cost: 210
+  - category: Heavy Weapons
+    name: Ironhead Heavy Stubber
+    slots: 2
+    trading_post_cost: 140
+  - category: Heavy Weapons
+    name: Lascannon
+    slots: 2
+    trading_post_cost: 155
+  - category: Heavy Weapons
+    name: Mining Laser
+    slots: 2
+    trading_post_cost: 125
+  - category: Heavy Weapons
+    name: Missile Launcher (Frag/Krak)
+    slots: 2
+    trading_post_cost: 165
+  - category: Heavy Weapons
+    name: Mole Launcher
+    trading_post_cost: 100
+  - category: Heavy Weapons
+    name: Mortar
+    trading_post_cost: 115
+  - category: Heavy Weapons
+    name: Multi-Melta
+    slots: 2
+    trading_post_cost: 180
+  - category: Heavy Weapons
+    name: Plasma Cannon
+    slots: 2
+    trading_post_cost: 130
+  - category: Heavy Weapons
+    name: Seismic Cannon
+    slots: 2
+    trading_post_cost: 140
+  - category: Heavy Weapons
+    name: Twin-linked Autocannon
+    trading_post_cost: 185
+  - category: Heavy Weapons
+    name: Twin-linked Heavy Stubber
+    trading_post_cost: 145
+  - category: Mounts
+    name: Waster's Dirtbike
+    trading_post_cost: 50
+  - category: Pistols
+    name: Autopistol
+    trading_post_cost: 10
+  - category: Pistols
+    name: Bolt Pistol
+    trading_post_cost: 45
+  - category: Pistols
+    name: Combi-Pistol (Autopistol/Hand flamer)
+    trading_post_cost: 65
+  - category: Pistols
+    name: Combi-Pistol (Autopistol/Plasma pistol)
+    trading_post_cost: 50
+  - category: Pistols
+    name: Combi-Pistol (Bolt Pistol/Hand flamer)
+    trading_post_cost: 110
+  - category: Pistols
+    name: Combi-Pistol (Bolt Pistol/Plasma Pistol)
+    trading_post_cost: 80
+  - category: Pistols
+    name: Combi-Pistol (Stub/Plasma)
+    trading_post_cost: 40
+  - category: Pistols
+    name: Hand Flamer
+    trading_post_cost: 75
+  - category: Pistols
+    name: Inferno Pistol
+    trading_post_cost: 145
+  - category: Pistols
+    name: Ironhead Autopistol
+    trading_post_cost: 20
+  - category: Pistols
+    name: Ironhead Bolt Pistol
+    trading_post_cost: 45
+  - category: Pistols
+    name: Ironhead Hand Flamer
+    trading_post_cost: 85
+  - category: Pistols
+    name: Ironhead Stub Gun
+    trading_post_cost: 10
+  - category: Pistols
+    name: Laspistol
+    trading_post_cost: 10
+  - category: Pistols
+    name: Needle Pistol
+    trading_post_cost: 30
+  - category: Pistols
+    name: Plasma Pistol
+    trading_post_cost: 50
+  - category: Pistols
+    name: Reclaimed Autopistol
+    trading_post_cost: 5
+  - category: Pistols
+    name: Stone Burner
+    trading_post_cost: 70
+  - category: Pistols
+    name: Stub Gun
+    trading_post_cost: 5
+  - category: Pistols
+    name: Web Pistol
+    trading_post_cost: 90
+  - category: Pistols
+    name: Withertouch Pistol
+    trading_post_cost: 55
+  - category: Special Weapons
+    name: Balefire Thrower
+    trading_post_cost: 120
+  - category: Special Weapons
+    name: Combi-Weapon (Autogun/Flamer)
+    trading_post_cost: 110
+  - category: Special Weapons
+    name: Combi-Weapon (Autogun/Grenade Launcher)
+    trading_post_cost: 30
+  - category: Special Weapons
+    name: Combi-Weapon (Bolter/Flamer)
+    trading_post_cost: 180
+  - category: Special Weapons
+    name: Combi-Weapon (Bolter/Melta)
+    trading_post_cost: 170
+  - category: Special Weapons
+    name: Combi-Weapon (Bolter/Needler)
+    trading_post_cost: 90
+  - category: Special Weapons
+    name: Combi-Weapon (Bolter/Plasma)
+    trading_post_cost: 115
+  - category: Special Weapons
+    name: Flamer
+    trading_post_cost: 140
+  - category: Special Weapons
+    name: Grav-Gun
+    trading_post_cost: 120
+  - category: Special Weapons
+    name: Grenade Launcher w/Frag+Krak
+    trading_post_cost: 65
+  - category: Special Weapons
+    name: Hrud Fusil
+    trading_post_cost: 120
+  - category: Special Weapons
+    name: Ironhead Flamer
+    trading_post_cost: 150
+  - category: Special Weapons
+    name: Ironhead Meltagun
+    trading_post_cost: 155
+  - category: Special Weapons
+    name: Kai Hellspear
+    trading_post_cost: 90
+  - category: Special Weapons
+    name: Long Las
+    trading_post_cost: 20
+  - category: Special Weapons
+    name: Long Rifle
+    trading_post_cost: 30
+  - category: Special Weapons
+    name: Meltagun
+    trading_post_cost: 135
+  - category: Special Weapons
+    name: Necrotic Beamer
+    trading_post_cost: 110
+  - category: Special Weapons
+    name: Needle Rifle
+    trading_post_cost: 40
+  - category: Special Weapons
+    name: Neural Flayer
+    trading_post_cost: 90
+  - category: Special Weapons
+    name: Plasma Gun
+    trading_post_cost: 100
+  - category: Special Weapons
+    name: Storm Bolter
+    trading_post_cost: 95
+  - category: Special Weapons
+    name: Web Gun
+    trading_post_cost: 125
+  - category: Special Weapons
+    name: Yu'vath Puzzle Box
+    trading_post_cost: 150
+  - category: Status Items
+    name: Caryatid
+    trading_post_cost: 0
+  - category: Status Items
+    name: Exotic Furs
+    trading_post_cost: 50
+  - category: Status Items
+    name: Giant Rat
+    trading_post_cost: 50
+  - category: Status Items
+    name: Gold-plated Gun
+    trading_post_cost: 40
+  - category: Status Items
+    name: Grapplehawk
+    trading_post_cost: 90
+  - category: Status Items
+    name: Gun Skull
+    trading_post_cost: 65
+  - category: Status Items
+    name: Gyrinx Cat
+    trading_post_cost: 120
+  - category: Status Items
+    name: Hacked Cyber-Mastiff
+    trading_post_cost: 100
+  - category: Status Items
+    name: Iron Automata
+    trading_post_cost: 220
+  - category: Status Items
+    name: Medi Skull
+    trading_post_cost: 80
+  - category: Status Items
+    name: Opulent Jewellery
+    trading_post_cost: 80
+  - category: Status Items
+    name: Sensor Skull
+    trading_post_cost: 60
+  - category: Status Items
+    name: Uphive Raiments
+    trading_post_cost: 50
+  - category: Vehicle Equipment
+    name: Boarding Ramp
+    trading_post_cost: 15
+  - category: Vehicle Equipment
+    name: Body Spikes
+    trading_post_cost: 10
+  - category: Vehicle Equipment
+    name: Booby-trapped Fuel Tanks
+    trading_post_cost: 10
+  - category: Vehicle Equipment
+    name: Caltrop Launcher
+    trading_post_cost: 20
+  - category: Vehicle Equipment
+    name: Cargo - Armored Container
+    trading_post_cost: 50
+  - category: Vehicle Equipment
+    name: Cargo - Promethium Tank
+    trading_post_cost: 30
+  - category: Vehicle Equipment
+    name: Flare Launchers
+    trading_post_cost: 10
+  - category: Vehicle Equipment
+    name: Headlights
+    trading_post_cost: 15
+  - category: Vehicle Equipment
+    name: Kill Switch
+    trading_post_cost: 15
+  - category: Vehicle Equipment
+    name: Minelayer
+    trading_post_cost: 35
+  - category: Vehicle Equipment
+    name: Minelayer Mine
+    trading_post_cost: 20
+  - category: Vehicle Equipment
+    name: Ridgehauler Trailer
+    trading_post_cost: 130
+  - category: Vehicle Equipment
+    name: Smoke Launchers
+    trading_post_cost: 20
+  - category: Vehicle Equipment
+    name: Wheel Scythes
+    trading_post_cost: 20

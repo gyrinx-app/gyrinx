@@ -1,348 +1,347 @@
 {
-    "name": "House of Blades",
-    "shortname": "Blades",
-    "year": "2020",
-    "description": "House of Blades (2020)",
-    "type": "Gangbook",
-    "contents": {
-        "rules": [
-            {
-                "title": "Strong Alliances",
-                "page": "74",
-                "subsections": [
-                    {
-                        "title": "Making an Alliance",
-                        "page": "75"
-                    },
-                    {
-                        "title": "Allies of House Escher",
-                        "page": "76"
-                    },
-                    {
-                        "title": "Water Guild",
-                        "page": "76"
-                    },
-                    {
-                        "title": "Cold Traders",
-                        "page": "79"
-                    },
-                    {
-                        "title": "House Ulanti",
-                        "page": "80"
-                    },
-                    {
-                        "title": "Smuggler Shore Party",
-                        "page": "82"
-                    },
-                    {
-                        "title": "Nautican Syphoning Delegation",
-                        "page": "84"
-                    },
-                    {
-                        "title": "House Ulanti Court Advisor",
-                        "page": "86"
-                    }
-                ]
-            },
-            {
-                "title": "Additional Rules",
-                "page": "88",
-                "gang": "Escher",
-                "subsections": [
-                    {
-                        "title": "Escher Sub-Plots",
-                        "page": "89"
-                    },
-                    {
-                        "title": "Escher House Favours",
-                        "page": "91"
-                    },
-                    {
-                        "title": "Finesse Skills",
-                        "page": "92"
-                    }
-                ]
-            },
-            {
-                "title": "Escher Chem-Alchemy",
-                "page": "93",
-                "gang": "Escher",
-                "subsections": [
-                    {
-                        "title": "Stimms",
-                        "page": "94"
-                    },
-                    {
-                        "title": "Gaseous Ammo",
-                        "page": "96"
-                    },
-                    {
-                        "title": "Toxic Ammo",
-                        "page": "98"
-                    }
-                ]
-            },
-            {
-                "title": "Escher Terrain",
-                "page": "100"
-            }
-        ],
-        "background": [
-            {
-                "title": "House Escher History & Background",
-                "page": "5",
-                "subsections": [
-                    {
-                        "title": "House Escher Timeline",
-                        "page": "13"
-                    },
-                    {
-                        "title": "House Structure",
-                        "page": "17"
-                    },
-                    {
-                        "title": "House Industries",
-                        "page": "21"
-                    },
-                    {
-                        "title": "House Territories",
-                        "page": "22"
-                    },
-                    {
-                        "title": "House Enclaves",
-                        "page": "25"
-                    },
-                    {
-                        "title": "Gangs of Legend",
-                        "page": "26"
-                    }
-                ]
-            }
-        ],
-        "gangs": [
-            {
-                "title": "House Escher",
-                "page": "29",
-                "gang": "Escher",
-                "main": "true",
-                "fighters": [
-                    {
-                        "title": "Escher Gang Queen",
-                        "page": "32",
-                        "rank": "Leader",
-                        "cost": "125"
-                    },
-                    {
-                        "title": "Escher Gang Matriarch",
-                        "page": "34",
-                        "rank": "Champion",
-                        "cost": "100"
-                    },
-                    {
-                        "title": "Escher Death-Maiden",
-                        "page": "36",
-                        "rank": "Champion",
-                        "cost": "115"
-                    },
-                    {
-                        "title": "Escher Wyld Runner",
-                        "page": "38",
-                        "rank": "Prospect",
-                        "cost": "45"
-                    },
-                    {
-                        "title": "Escher Gang Sister",
-                        "page": "40",
-                        "rank": "Ganger",
-                        "cost": "50"
-                    },
-                    {
-                        "title": "Escher Little Sister",
-                        "page": "42",
-                        "rank": "Juve",
-                        "cost": "50"
-                    }
-                ]
-
-            }
-        ],
-        "exotic beasts": [
-            {
-                "title": "Phyrr Cat",
-                "page": "46",
-                "gang": "Escher",
-                "max": "2",
-                "cost": "120"
-            },
-            {
-                "title": "Phelynx",
-                "page": "47",
-                "gang": "Escher",
-                "max": "3",
-                "cost": "50"
-            }
-        ],
-        "hangers-on": [
-            {
-                "title": "Apprentice Clan Chymist",
-                "page": "50",
-                "gang": "Escher",
-                "max": "1",
-                "cost": "75"
-            },
-            {
-                "title": "Shivver",
-                "page": "50",
-                "gang": "Escher",
-                "max": "1",
-                "cost": "100"
-            },
-            {
-                "title": "Ammo-Jack",
-                "page": "52",
-                "max": "3",
-                "cost": "50"
-            },
-            {
-                "title": "Rogue Doc",
-                "page": "53",
-                "max": "2",
-                "cost": "50"
-            },
-            {
-                "title": "Dome Runner",
-                "page": "54",
-                "max": "1",
-                "cost": "20"
-            },
-            {
-                "title": "Slopper",
-                "page": "54",
-                "max": "1",
-                "cost": "20"
-            },
-            {
-                "title": "Gang Lookout",
-                "page": "55",
-                "max": "1",
-                "cost": "20"
-            }
-        ],
-        "brutes": [
-            {
-                "title": "House Escher Khymerix",
-                "page": "56",
-                "gang": "Escher",
-                "max": "1",
-                "cost": "220"
-            },
-            {
-                "title": "Luther Pattern Excavation Automata ('Ambot')",
-                "page": "58",
-                "max": "2",
-                "cost": "215"
-            },
-            {
-                "title": "'Jotunn' H-Grade Servitor Ogryn",
-                "page": "60",
-                "max": "2",
-                "cost": "210"
-            }
-        ],
-        "hired guns": [
-            {
-                "title": "Hive Scum",
-                "page": "64",
-                "max": "5",
-                "cost": "30"
-            },
-            {
-                "title": "Bounty Hunter",
-                "page": "66",
-                "max": "1",
-                "cost": "80"
-            },
-            {
-                "title": "House Agents",
-                "page": "70",
-                "max": "1",
-                "cost": "varies"
-            }
-        ],
-        "scenarios": [
-            {
-                "title": "Khimerix Hunt",
-                "page": "104",
-                "gang": "Escher"
-            },
-            {
-                "title": "Back From the Dead",
-                "page": "106",
-                "gang": "Escher"
-            }
-        ],
-        "summaries": [
-            {
-                "title": "Weapon Reference Chart",
-                "page": "115"
-            }
-        ],
-        "skills": [
-            {
-                "title": "Finesse Skills",
-                "page": "92",
-                "gang": "Escher",
-                "skills":[
-                    {
-                        "title": "Acrobatic"
-                    },
-                    {
-                        "title": "Combat Focus"
-                    },
-                    {
-                        "title": "Combat Virtuoso"
-                    },
-                    {
-                        "title": "Hit and Run"
-                    },
-                    {
-                        "title": "Lightning Reflexes"
-                    },
-                    {
-                        "title": "Somersault"
-                    }
-                ]
-            }
-        ],
-        "gang tactics": [
-            {
-                "title": "House Escher Gang Tactics",
-                "page": "126",
-                "gang": "Escher"
-            }
-        ],
-        "dramatis personae":[
-            {
-                "title": "Betti Banshee",
-                "description": "House Escher Bounty Hunter",
-                "page": "44",
-                "gang": "Escher",
-                "cost": "170"
-            },
-            {
-                "title": "Necrana",
-                "description": "Escher House Agent",
-                "page": "68",
-                "gang": "Escher",
-                "cost": "*"
-            },
-            {
-                "title": "Cyniss",
-                "description": "Escher House Agent",
-                "page": "72",
-                "gang": "Escher",
-                "cost": "*"
-            }
+  "name": "House of Blades",
+  "shortname": "Blades",
+  "year": "2020",
+  "description": "House of Blades (2020)",
+  "type": "Gangbook",
+  "contents": {
+    "rules": [
+      {
+        "title": "Strong Alliances",
+        "page": "74",
+        "subsections": [
+          {
+            "title": "Making an Alliance",
+            "page": "75"
+          },
+          {
+            "title": "Allies of House Escher",
+            "page": "76"
+          },
+          {
+            "title": "Water Guild",
+            "page": "76"
+          },
+          {
+            "title": "Cold Traders",
+            "page": "79"
+          },
+          {
+            "title": "House Ulanti",
+            "page": "80"
+          },
+          {
+            "title": "Smuggler Shore Party",
+            "page": "82"
+          },
+          {
+            "title": "Nautican Syphoning Delegation",
+            "page": "84"
+          },
+          {
+            "title": "House Ulanti Court Advisor",
+            "page": "86"
+          }
         ]
-    }
+      },
+      {
+        "title": "Additional Rules",
+        "page": "88",
+        "gang": "Escher",
+        "subsections": [
+          {
+            "title": "Escher Sub-Plots",
+            "page": "89"
+          },
+          {
+            "title": "Escher House Favours",
+            "page": "91"
+          },
+          {
+            "title": "Finesse Skills",
+            "page": "92"
+          }
+        ]
+      },
+      {
+        "title": "Escher Chem-Alchemy",
+        "page": "93",
+        "gang": "Escher",
+        "subsections": [
+          {
+            "title": "Stimms",
+            "page": "94"
+          },
+          {
+            "title": "Gaseous Ammo",
+            "page": "96"
+          },
+          {
+            "title": "Toxic Ammo",
+            "page": "98"
+          }
+        ]
+      },
+      {
+        "title": "Escher Terrain",
+        "page": "100"
+      }
+    ],
+    "background": [
+      {
+        "title": "House Escher History & Background",
+        "page": "5",
+        "subsections": [
+          {
+            "title": "House Escher Timeline",
+            "page": "13"
+          },
+          {
+            "title": "House Structure",
+            "page": "17"
+          },
+          {
+            "title": "House Industries",
+            "page": "21"
+          },
+          {
+            "title": "House Territories",
+            "page": "22"
+          },
+          {
+            "title": "House Enclaves",
+            "page": "25"
+          },
+          {
+            "title": "Gangs of Legend",
+            "page": "26"
+          }
+        ]
+      }
+    ],
+    "gangs": [
+      {
+        "title": "House Escher",
+        "page": "29",
+        "gang": "Escher",
+        "main": "true",
+        "fighters": [
+          {
+            "title": "Escher Gang Queen",
+            "page": "32",
+            "rank": "Leader",
+            "cost": "125"
+          },
+          {
+            "title": "Escher Gang Matriarch",
+            "page": "34",
+            "rank": "Champion",
+            "cost": "100"
+          },
+          {
+            "title": "Escher Death-Maiden",
+            "page": "36",
+            "rank": "Champion",
+            "cost": "115"
+          },
+          {
+            "title": "Escher Wyld Runner",
+            "page": "38",
+            "rank": "Prospect",
+            "cost": "45"
+          },
+          {
+            "title": "Escher Gang Sister",
+            "page": "40",
+            "rank": "Ganger",
+            "cost": "50"
+          },
+          {
+            "title": "Escher Little Sister",
+            "page": "42",
+            "rank": "Juve",
+            "cost": "50"
+          }
+        ]
+      }
+    ],
+    "exotic beasts": [
+      {
+        "title": "Phyrr Cat",
+        "page": "46",
+        "gang": "Escher",
+        "max": "2",
+        "cost": "120"
+      },
+      {
+        "title": "Phelynx",
+        "page": "47",
+        "gang": "Escher",
+        "max": "3",
+        "cost": "50"
+      }
+    ],
+    "hangers-on": [
+      {
+        "title": "Apprentice Clan Chymist",
+        "page": "50",
+        "gang": "Escher",
+        "max": "1",
+        "cost": "75"
+      },
+      {
+        "title": "Shivver",
+        "page": "50",
+        "gang": "Escher",
+        "max": "1",
+        "cost": "100"
+      },
+      {
+        "title": "Ammo-Jack",
+        "page": "52",
+        "max": "3",
+        "cost": "50"
+      },
+      {
+        "title": "Rogue Doc",
+        "page": "53",
+        "max": "2",
+        "cost": "50"
+      },
+      {
+        "title": "Dome Runner",
+        "page": "54",
+        "max": "1",
+        "cost": "20"
+      },
+      {
+        "title": "Slopper",
+        "page": "54",
+        "max": "1",
+        "cost": "20"
+      },
+      {
+        "title": "Gang Lookout",
+        "page": "55",
+        "max": "1",
+        "cost": "20"
+      }
+    ],
+    "brutes": [
+      {
+        "title": "House Escher Khymerix",
+        "page": "56",
+        "gang": "Escher",
+        "max": "1",
+        "cost": "220"
+      },
+      {
+        "title": "Luther Pattern Excavation Automata ('Ambot')",
+        "page": "58",
+        "max": "2",
+        "cost": "215"
+      },
+      {
+        "title": "'Jotunn' H-Grade Servitor Ogryn",
+        "page": "60",
+        "max": "2",
+        "cost": "210"
+      }
+    ],
+    "hired guns": [
+      {
+        "title": "Hive Scum",
+        "page": "64",
+        "max": "5",
+        "cost": "30"
+      },
+      {
+        "title": "Bounty Hunter",
+        "page": "66",
+        "max": "1",
+        "cost": "80"
+      },
+      {
+        "title": "House Agents",
+        "page": "70",
+        "max": "1",
+        "cost": "varies"
+      }
+    ],
+    "scenarios": [
+      {
+        "title": "Khimerix Hunt",
+        "page": "104",
+        "gang": "Escher"
+      },
+      {
+        "title": "Back From the Dead",
+        "page": "106",
+        "gang": "Escher"
+      }
+    ],
+    "summaries": [
+      {
+        "title": "Weapon Reference Chart",
+        "page": "115"
+      }
+    ],
+    "skills": [
+      {
+        "title": "Finesse Skills",
+        "page": "92",
+        "gang": "Escher",
+        "skills": [
+          {
+            "title": "Acrobatic"
+          },
+          {
+            "title": "Combat Focus"
+          },
+          {
+            "title": "Combat Virtuoso"
+          },
+          {
+            "title": "Hit and Run"
+          },
+          {
+            "title": "Lightning Reflexes"
+          },
+          {
+            "title": "Somersault"
+          }
+        ]
+      }
+    ],
+    "gang tactics": [
+      {
+        "title": "House Escher Gang Tactics",
+        "page": "126",
+        "gang": "Escher"
+      }
+    ],
+    "dramatis personae": [
+      {
+        "title": "Betti Banshee",
+        "description": "House Escher Bounty Hunter",
+        "page": "44",
+        "gang": "Escher",
+        "cost": "170"
+      },
+      {
+        "title": "Necrana",
+        "description": "Escher House Agent",
+        "page": "68",
+        "gang": "Escher",
+        "cost": "*"
+      },
+      {
+        "title": "Cyniss",
+        "description": "Escher House Agent",
+        "page": "72",
+        "gang": "Escher",
+        "cost": "*"
+      }
+    ]
+  }
 }

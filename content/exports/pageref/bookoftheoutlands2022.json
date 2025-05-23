@@ -1,388 +1,376 @@
 {
-    "name": "Book of the Outlands",
-    "shortname": "Outlands",
-    "year": "2022",
-    "description": "Book of the Outlands (2022)",
-    "type": "Supplement",
-    "contents": {
-        "rules": [
-            {
-                "title": "Wasteland Gangs",
-                "page": "38",
-                "subsections": [
-                    {
-                        "title": "Gang Composition",
-                        "page": "40"
-                    },
-                    {
-                        "title": "Adding Vehicles",
-                        "page": "40"
-                    },
-                    {
-                        "title": "Vehicle Crews",
-                        "page": "42"
-                    },
-                    {
-                        "title": "Vehicle Crew Skills and Equipment List",
-                        "page": "43"
-                    },
-                    {
-                        "title": "Hangers-on and Brutes",
-                        "page": "44"
-                    },
-                    {
-                        "title": "Exotic Beasts",
-                        "page": "52"
-                    }
-                ]
-            },
-            {
-                "title": "Wasteland Workshop",
-                "page": "58",
-                "subsections": [
-                    {
-                        "title": "Designing Your Own Vehicle",
-                        "page": "60"
-                    },
-                    {
-                        "title": "Vehicle Upgrades",
-                        "page": "64"
-                    },
-                    {
-                        "title": "Vehicle Wargear",
-                        "page": "69"
-                    }
-                ]
-            },
-            {
-                "title": "Battles in the Ash Wastes",
-                "page": "84",
-                "subsections": [
-                    {
-                        "title": "Generating Battlefield Conditions",
-                        "page": "85"
-                    }
-                ]
-            },
-            {
-                "title": "Vehicle Rules",
-                "page": "106",
-                "subsections": [
-                    {
-                        "title": "General Principles",
-                        "page": "107"
-                    },
-                    {
-                        "title": "Conditions",
-                        "page": "108"
-                    },
-                    {
-                        "title": "Vehicle Characteristic Profiles",
-                        "page": "110"
-                    },
-                    {
-                        "title": "Vehicle Characteristics and Characteristic Checks",
-                        "page": "111"
-                    },
-                    {
-                        "title": "Vehicle Cards",
-                        "page": "112"
-                    },
-                    {
-                        "title": "Vehicle Movement",
-                        "page": "113"
-                    },
-                    {
-                        "title": "Vehicle Impacts",
-                        "page": "116"
-                    },
-                    {
-                        "title": "Resolving Hit On and By Vehicles",
-                        "page": "118"
-                    },
-                    {
-                        "title": "Vehicles in the End Phase",
-                        "page": "129"
-                    }
-                ]
-            }
-        ],
-        "summaries": [
-            {
-                "title": "Weapon Reference Chart",
-                "page": "132"
-            }
-        ],
-        "gang tactics": [
-            {
-                "title": "Ash Wastes Nomads Gang Tactics",
-                "page": "95",
-                "gang": "Ash Wastes Nomads"
-            },
-            {
-                "title": "Ironhead Squat Prospectors Gang Tactics",
-                "page": "98",
-                "gang": "Ironhead Squat Prospectors"
-            },
-            {
-                "title": "Orlock Vehicle Gang Tactics",
-                "page": "100",
-                "gang": "Orlock"
-            }
-        ],
-        "gangs": [
-            {
-                "title": "Ash Wastes Nomads",
-                "page": "5",
-                "gang": "Ash Wastes Nomads",
-                "main": "true",
-                "nostandardvehicles": "true",
-                "fighters": [
-                    {
-                        "title": "Ash Wastes Nomads Kha'tragi Chieftain",
-                        "rank": "Leader",
-                        "cost": "120",
-                        "page": "10"
-                    },
-                    {
-                        "title": "Ash Wastes Nomads Naku'taari Watcher",
-                        "rank": "Champion",
-                        "cost": "100",
-                        "page": "12"
-                    },
-                    {
-                        "title": "Ash Wastes Nomads Wy'tari Stormcaller",
-                        "rank": "Champion",
-                        "cost": "120",
-                        "page": "14"
-                    },
-                    {
-                        "title": "Ash Wastes Nomads Tarh'nuki Dust Rider",
-                        "rank": "Prospect",
-                        "cost": "80",
-                        "page": "16"
-                    },
-                    {
-                        "title": "Ash Wastes Nomads Tarn'runi Warrior",
-                        "rank": "Ganger",
-                        "cost": "60",
-                        "page": "18"
-                    },
-                    {
-                        "title": "Ash Wastes Nomads Run'taani Dust Runner",
-                        "rank": "Juve",
-                        "cost": "35",
-                        "page": "20"
-                    }
-                ]
-            },
-            {
-                "title": "Ironhead Squat Prospectors",
-                "page": "25",
-                "gang": "Ironhead Squat Prospectors",
-                "main": "true",
-                "fighters": [
-                    {
-                        "title": "Ironhead Squat Prospectors Charter Master",
-                        "rank": "Leader",
-                        "cost": "115",
-                        "page": "28"
-                    },
-                    {
-                        "title": "Ironhead Squat Prospectors Drill Master",
-                        "rank": "Champion",
-                        "cost": "85",
-                        "page": "30"
-                    },
-                    {
-                        "title": "Ironhead Squat Prospectors Drill-kyn",
-                        "rank": "Ganger",
-                        "cost": "50",
-                        "page": "32"
-                    },
-                    {
-                        "title": "Ironhead Squat Prospectors Digger",
-                        "rank": "Juve",
-                        "cost": "35",
-                        "page": "34"
-                    }
-                ]
-            }
-        ],
-        "vehicles": [
-            {
-                "title": "Orlock Outrider Quad",
-                "page": "71",
-                "gangs": [
-                    "Orlock"
-                ]
-            },
-            {
-                "title": "Ridgerunner",
-                "page": "72"
-            },
-            {
-                "title": "Wolfquad",
-                "page": "74"
-            },
-            {
-                "title": "Rockgrinder",
-                "page": "75"
-            },
-            {
-                "title": "Guild of Coin Cargo-8 Ridgerunner",
-                "page": "76"
-            }
-        ],
-        "vehicle crews": [
-            {
-                "title": "Ironhead Squat Prospectors Gearhead",
-                "rank": "Crew",
-                "cost": "40",
-                "gangs": [
-                    "Ironhead Squat Prospectors"
-                ],
-                "page": "36"
-            },
-            {
-                "title": "Orlock Iron Rider",
-                "page": "42",
-                "gangs": [
-                    "Orlock"
-                ]
-            },
-            {
-                "title": "Scum Racer",
-                "page": "42"
-            },
-            {
-                "title": "Guild of Coin Hauler",
-                "page": "42"
-            }
-        ],
-        "hangers-on": [
-            {
-                "title": "Nomad Arthromite Herder",
-                "page": "46",
-                "cost": "40",
-                "gangs": [
-                    "Ash Waste Nomads"
-                ]
-            }
-        ],
-        "brutes": [
-            {
-                "title": "Arthromite Dunescuttler",
-                "page": "47",
-                "cost": "210",
-                "gangs": [
-                    "Ash Waste Nomads"
-                ]
-            },
-            {
-                "title": "Ironhead Squat Prospector Vartijan Exo-Driller",
-                "page": "48",
-                "cost": "250",
-                "gangs": [
-                    "Ironhead Squat Prospectors"
-                ]
-            },
-            {
-                "title": "Outland Beastmaster",
-                "page": "50",
-                "cost": "100"
-            }
-        ],
-        "exotic beasts": [
-            {
-                "title": "Wasteland Giant Rat",
-                "page": "53",
-                "cost": "30"
-            },
-            {
-                "title": "Millisaur",
-                "page": "54",
-                "cost": "60"
-            },
-            {
-                "title": "Ripperjack",
-                "page": "55",
-                "cost": "70"
-            }
-        ],
-        "skills": [
-            {
-                "title": "Wisdom of the Ancients",
-                "page": "102",
-                "skills": [
-                    {
-                        "title": "Where There's Scrap, There's Creds!"
-                    },
-                    {
-                        "title": "Nobody Pushes Kin Around"
-                    },
-                    {
-                        "title": "Chemical Bonds Never Break"
-                    },
-                    {
-                        "title": "Dependable Like Kin"
-                    },
-                    {
-                        "title": "Stubborn to the Last"
-                    },
-                    {
-                        "title": "There's Always Another Secret"
-                    }
-                ]
-            },
-            {
-                "title": "Driving",
-                "page": "103",
-                "skills": [
-                    {
-                        "title": "Jink"
-                    },
-                    {
-                        "title": "Expert Driver"
-                    },
-                    {
-                        "title": "Heavy Foot"
-                    },
-                    {
-                        "title": "Slalom"
-                    },
-                    {
-                        "title": "T-Bone"
-                    },
-                    {
-                        "title": "Running Repairs"
-                    }
-                ]
-            },
-            {
-                "title": "Wastelands",
-                "page": "103",
-                "skills": [
-                    {
-                        "title": "Born to the Wastes"
-                    },
-                    {
-                        "title": "Stormwalker"
-                    },
-                    {
-                        "title": "Eyes of the Wasteland"
-                    },
-                    {
-                        "title": "Beast Handler"
-                    },
-                    {
-                        "title": "Ever Vigilant"
-                    },
-                    {
-                        "title": "Bring It Down"
-                    }
-                ]
-            }
+  "name": "Book of the Outlands",
+  "shortname": "Outlands",
+  "year": "2022",
+  "description": "Book of the Outlands (2022)",
+  "type": "Supplement",
+  "contents": {
+    "rules": [
+      {
+        "title": "Wasteland Gangs",
+        "page": "38",
+        "subsections": [
+          {
+            "title": "Gang Composition",
+            "page": "40"
+          },
+          {
+            "title": "Adding Vehicles",
+            "page": "40"
+          },
+          {
+            "title": "Vehicle Crews",
+            "page": "42"
+          },
+          {
+            "title": "Vehicle Crew Skills and Equipment List",
+            "page": "43"
+          },
+          {
+            "title": "Hangers-on and Brutes",
+            "page": "44"
+          },
+          {
+            "title": "Exotic Beasts",
+            "page": "52"
+          }
         ]
-    }
+      },
+      {
+        "title": "Wasteland Workshop",
+        "page": "58",
+        "subsections": [
+          {
+            "title": "Designing Your Own Vehicle",
+            "page": "60"
+          },
+          {
+            "title": "Vehicle Upgrades",
+            "page": "64"
+          },
+          {
+            "title": "Vehicle Wargear",
+            "page": "69"
+          }
+        ]
+      },
+      {
+        "title": "Battles in the Ash Wastes",
+        "page": "84",
+        "subsections": [
+          {
+            "title": "Generating Battlefield Conditions",
+            "page": "85"
+          }
+        ]
+      },
+      {
+        "title": "Vehicle Rules",
+        "page": "106",
+        "subsections": [
+          {
+            "title": "General Principles",
+            "page": "107"
+          },
+          {
+            "title": "Conditions",
+            "page": "108"
+          },
+          {
+            "title": "Vehicle Characteristic Profiles",
+            "page": "110"
+          },
+          {
+            "title": "Vehicle Characteristics and Characteristic Checks",
+            "page": "111"
+          },
+          {
+            "title": "Vehicle Cards",
+            "page": "112"
+          },
+          {
+            "title": "Vehicle Movement",
+            "page": "113"
+          },
+          {
+            "title": "Vehicle Impacts",
+            "page": "116"
+          },
+          {
+            "title": "Resolving Hit On and By Vehicles",
+            "page": "118"
+          },
+          {
+            "title": "Vehicles in the End Phase",
+            "page": "129"
+          }
+        ]
+      }
+    ],
+    "summaries": [
+      {
+        "title": "Weapon Reference Chart",
+        "page": "132"
+      }
+    ],
+    "gang tactics": [
+      {
+        "title": "Ash Wastes Nomads Gang Tactics",
+        "page": "95",
+        "gang": "Ash Wastes Nomads"
+      },
+      {
+        "title": "Ironhead Squat Prospectors Gang Tactics",
+        "page": "98",
+        "gang": "Ironhead Squat Prospectors"
+      },
+      {
+        "title": "Orlock Vehicle Gang Tactics",
+        "page": "100",
+        "gang": "Orlock"
+      }
+    ],
+    "gangs": [
+      {
+        "title": "Ash Wastes Nomads",
+        "page": "5",
+        "gang": "Ash Wastes Nomads",
+        "main": "true",
+        "nostandardvehicles": "true",
+        "fighters": [
+          {
+            "title": "Ash Wastes Nomads Kha'tragi Chieftain",
+            "rank": "Leader",
+            "cost": "120",
+            "page": "10"
+          },
+          {
+            "title": "Ash Wastes Nomads Naku'taari Watcher",
+            "rank": "Champion",
+            "cost": "100",
+            "page": "12"
+          },
+          {
+            "title": "Ash Wastes Nomads Wy'tari Stormcaller",
+            "rank": "Champion",
+            "cost": "120",
+            "page": "14"
+          },
+          {
+            "title": "Ash Wastes Nomads Tarh'nuki Dust Rider",
+            "rank": "Prospect",
+            "cost": "80",
+            "page": "16"
+          },
+          {
+            "title": "Ash Wastes Nomads Tarn'runi Warrior",
+            "rank": "Ganger",
+            "cost": "60",
+            "page": "18"
+          },
+          {
+            "title": "Ash Wastes Nomads Run'taani Dust Runner",
+            "rank": "Juve",
+            "cost": "35",
+            "page": "20"
+          }
+        ]
+      },
+      {
+        "title": "Ironhead Squat Prospectors",
+        "page": "25",
+        "gang": "Ironhead Squat Prospectors",
+        "main": "true",
+        "fighters": [
+          {
+            "title": "Ironhead Squat Prospectors Charter Master",
+            "rank": "Leader",
+            "cost": "115",
+            "page": "28"
+          },
+          {
+            "title": "Ironhead Squat Prospectors Drill Master",
+            "rank": "Champion",
+            "cost": "85",
+            "page": "30"
+          },
+          {
+            "title": "Ironhead Squat Prospectors Drill-kyn",
+            "rank": "Ganger",
+            "cost": "50",
+            "page": "32"
+          },
+          {
+            "title": "Ironhead Squat Prospectors Digger",
+            "rank": "Juve",
+            "cost": "35",
+            "page": "34"
+          }
+        ]
+      }
+    ],
+    "vehicles": [
+      {
+        "title": "Orlock Outrider Quad",
+        "page": "71",
+        "gangs": ["Orlock"]
+      },
+      {
+        "title": "Ridgerunner",
+        "page": "72"
+      },
+      {
+        "title": "Wolfquad",
+        "page": "74"
+      },
+      {
+        "title": "Rockgrinder",
+        "page": "75"
+      },
+      {
+        "title": "Guild of Coin Cargo-8 Ridgerunner",
+        "page": "76"
+      }
+    ],
+    "vehicle crews": [
+      {
+        "title": "Ironhead Squat Prospectors Gearhead",
+        "rank": "Crew",
+        "cost": "40",
+        "gangs": ["Ironhead Squat Prospectors"],
+        "page": "36"
+      },
+      {
+        "title": "Orlock Iron Rider",
+        "page": "42",
+        "gangs": ["Orlock"]
+      },
+      {
+        "title": "Scum Racer",
+        "page": "42"
+      },
+      {
+        "title": "Guild of Coin Hauler",
+        "page": "42"
+      }
+    ],
+    "hangers-on": [
+      {
+        "title": "Nomad Arthromite Herder",
+        "page": "46",
+        "cost": "40",
+        "gangs": ["Ash Waste Nomads"]
+      }
+    ],
+    "brutes": [
+      {
+        "title": "Arthromite Dunescuttler",
+        "page": "47",
+        "cost": "210",
+        "gangs": ["Ash Waste Nomads"]
+      },
+      {
+        "title": "Ironhead Squat Prospector Vartijan Exo-Driller",
+        "page": "48",
+        "cost": "250",
+        "gangs": ["Ironhead Squat Prospectors"]
+      },
+      {
+        "title": "Outland Beastmaster",
+        "page": "50",
+        "cost": "100"
+      }
+    ],
+    "exotic beasts": [
+      {
+        "title": "Wasteland Giant Rat",
+        "page": "53",
+        "cost": "30"
+      },
+      {
+        "title": "Millisaur",
+        "page": "54",
+        "cost": "60"
+      },
+      {
+        "title": "Ripperjack",
+        "page": "55",
+        "cost": "70"
+      }
+    ],
+    "skills": [
+      {
+        "title": "Wisdom of the Ancients",
+        "page": "102",
+        "skills": [
+          {
+            "title": "Where There's Scrap, There's Creds!"
+          },
+          {
+            "title": "Nobody Pushes Kin Around"
+          },
+          {
+            "title": "Chemical Bonds Never Break"
+          },
+          {
+            "title": "Dependable Like Kin"
+          },
+          {
+            "title": "Stubborn to the Last"
+          },
+          {
+            "title": "There's Always Another Secret"
+          }
+        ]
+      },
+      {
+        "title": "Driving",
+        "page": "103",
+        "skills": [
+          {
+            "title": "Jink"
+          },
+          {
+            "title": "Expert Driver"
+          },
+          {
+            "title": "Heavy Foot"
+          },
+          {
+            "title": "Slalom"
+          },
+          {
+            "title": "T-Bone"
+          },
+          {
+            "title": "Running Repairs"
+          }
+        ]
+      },
+      {
+        "title": "Wastelands",
+        "page": "103",
+        "skills": [
+          {
+            "title": "Born to the Wastes"
+          },
+          {
+            "title": "Stormwalker"
+          },
+          {
+            "title": "Eyes of the Wasteland"
+          },
+          {
+            "title": "Beast Handler"
+          },
+          {
+            "title": "Ever Vigilant"
+          },
+          {
+            "title": "Bring It Down"
+          }
+        ]
+      }
+    ]
+  }
 }

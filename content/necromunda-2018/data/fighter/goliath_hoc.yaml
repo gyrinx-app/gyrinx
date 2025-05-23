@@ -1,134 +1,134 @@
 fighter:
-    - category: Ganger
-      cost: 55
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Bruiser
-    - category: Ganger
-      cost: 55
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Bruiser (Specialist)
-    - category: Juve
-      cost: 35
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 7
-          i: 4
-          int: 9
-          ld: 9
-          m: 4
-          s: 4
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Bully
-    - category: Champion
-      cost: 100
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 2
-          bs: 4
-          cl: 5
-          i: 4
-          int: 8
-          ld: 6
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 8
-          ws: 3
-      type: Forge Boss
-    - category: Leader
-      cost: 135
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 3
-          bs: 3
-          cl: 4
-          i: 3
-          int: 7
-          ld: 5
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 8
-          ws: 3
-      type: Forge Tyrant
-    - category: Prospect
-      cost: 35
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 7
-          i: 4
-          int: 9
-          ld: 9
-          m: 5
-          s: 3
-          t: 4
-          w: 1
-          wil: 9
-          ws: 4
-      type: Forge-Born
-    - category: Champion
-      cost: 125
-      equipment: []
-      house: Goliath (HoC)
-      skills: []
-      stats:
-          a: 3
-          bs: 4
-          cl: 4
-          i: 3
-          int: 8
-          ld: 8
-          m: 4
-          s: 4
-          t: 4
-          w: 2
-          wil: 7
-          ws: 2
-      type: Stimmer
+  - category: Ganger
+    cost: 55
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Bruiser
+  - category: Ganger
+    cost: 55
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Bruiser (Specialist)
+  - category: Juve
+    cost: 35
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 7
+      i: 4
+      int: 9
+      ld: 9
+      m: 4
+      s: 4
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Bully
+  - category: Champion
+    cost: 100
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 2
+      bs: 4
+      cl: 5
+      i: 4
+      int: 8
+      ld: 6
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 8
+      ws: 3
+    type: Forge Boss
+  - category: Leader
+    cost: 135
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 3
+      bs: 3
+      cl: 4
+      i: 3
+      int: 7
+      ld: 5
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 8
+      ws: 3
+    type: Forge Tyrant
+  - category: Prospect
+    cost: 35
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 7
+      i: 4
+      int: 9
+      ld: 9
+      m: 5
+      s: 3
+      t: 4
+      w: 1
+      wil: 9
+      ws: 4
+    type: Forge-Born
+  - category: Champion
+    cost: 125
+    equipment: []
+    house: Goliath (HoC)
+    skills: []
+    stats:
+      a: 3
+      bs: 4
+      cl: 4
+      i: 3
+      int: 8
+      ld: 8
+      m: 4
+      s: 4
+      t: 4
+      w: 2
+      wil: 7
+      ws: 2
+    type: Stimmer

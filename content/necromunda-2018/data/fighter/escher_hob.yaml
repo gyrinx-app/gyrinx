@@ -1,134 +1,134 @@
 fighter:
-    - category: Champion
-      cost: 115
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 3
-          bs: 3
-          cl: 4
-          i: 2
-          int: 7
-          ld: 8
-          m: 6
-          s: 3
-          t: 4
-          w: 2
-          wil: 7
-          ws: 2
-      type: Deathmaiden
-    - category: Juve
-      cost: 20
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 1
-          bs: 5
-          cl: 8
-          i: 3
-          int: 8
-          ld: 8
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 8
-          ws: 4
-      type: Little Sister
-    - category: Champion
-      cost: 100
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 2
-          bs: 3
-          cl: 6
-          i: 2
-          int: 6
-          ld: 6
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 3
-      type: Matriarch
-    - category: Champion
-      cost: 125
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 3
-          bs: 3
-          cl: 5
-          i: 2
-          int: 7
-          ld: 5
-          m: 5
-          s: 3
-          t: 3
-          w: 2
-          wil: 6
-          ws: 3
-      type: Queen
-    - category: Ganger
-      cost: 50
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 3
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Sister
-    - category: Ganger
-      cost: 50
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 3
-          int: 7
-          ld: 7
-          m: 5
-          s: 3
-          t: 3
-          w: 1
-          wil: 7
-          ws: 4
-      type: Sister (Specialist)
-    - category: Prospect
-      cost: 45
-      equipment: []
-      house: Escher (HoB)
-      skills: []
-      stats:
-          a: 1
-          bs: 4
-          cl: 7
-          i: 3
-          int: 9
-          ld: 9
-          m: 6
-          s: 2
-          t: 3
-          w: 1
-          wil: 9
-          ws: 4
-      type: Wyld Runner
+  - category: Champion
+    cost: 115
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 3
+      bs: 3
+      cl: 4
+      i: 2
+      int: 7
+      ld: 8
+      m: 6
+      s: 3
+      t: 4
+      w: 2
+      wil: 7
+      ws: 2
+    type: Deathmaiden
+  - category: Juve
+    cost: 20
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 1
+      bs: 5
+      cl: 8
+      i: 3
+      int: 8
+      ld: 8
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 8
+      ws: 4
+    type: Little Sister
+  - category: Champion
+    cost: 100
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 2
+      bs: 3
+      cl: 6
+      i: 2
+      int: 6
+      ld: 6
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 3
+    type: Matriarch
+  - category: Champion
+    cost: 125
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 3
+      bs: 3
+      cl: 5
+      i: 2
+      int: 7
+      ld: 5
+      m: 5
+      s: 3
+      t: 3
+      w: 2
+      wil: 6
+      ws: 3
+    type: Queen
+  - category: Ganger
+    cost: 50
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 3
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Sister
+  - category: Ganger
+    cost: 50
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 3
+      int: 7
+      ld: 7
+      m: 5
+      s: 3
+      t: 3
+      w: 1
+      wil: 7
+      ws: 4
+    type: Sister (Specialist)
+  - category: Prospect
+    cost: 45
+    equipment: []
+    house: Escher (HoB)
+    skills: []
+    stats:
+      a: 1
+      bs: 4
+      cl: 7
+      i: 3
+      int: 9
+      ld: 9
+      m: 6
+      s: 2
+      t: 3
+      w: 1
+      wil: 9
+      ws: 4
+    type: Wyld Runner

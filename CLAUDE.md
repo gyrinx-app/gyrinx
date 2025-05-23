@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Environment Setup
+
 ```bash
 # Setup virtual environment and install dependencies
 python -m venv .venv && . .venv/bin/activate
@@ -22,6 +23,7 @@ pre-commit install
 ```
 
 ### Running the Application
+
 ```bash
 # Start database services
 docker compose up -d
@@ -40,6 +42,7 @@ npm run watch
 ```
 
 ### Testing
+
 ```bash
 # Run full test suite (uses Docker for database)
 ./scripts/test.sh
@@ -58,6 +61,7 @@ manage collectstatic --noinput
 ```
 
 ### Frontend Development
+
 ```bash
 # Build CSS from SCSS
 npm run css
@@ -73,6 +77,7 @@ npm run watch
 ```
 
 ### Database Operations
+
 ```bash
 # Create migration for model changes
 manage makemigrations core -n "descriptive_migration_name"
@@ -99,72 +104,84 @@ SQL_DEBUG=True
 ## Architecture Overview
 
 ### Django Apps Structure
+
 - **`content`** - Game data models (fighters, equipment, weapons, skills, houses)
-  - Contains official Necromunda rulebook content
-  - Uses django-simple-history for change tracking
-  - Complex relationships between game entities
+
+    - Contains official Necromunda rulebook content
+    - Uses django-simple-history for change tracking
+    - Complex relationships between game entities
 
 - **`core`** - User lists and gang management
-  - List/ListFighter models for user-created gangs
-  - Equipment assignment system with costs and modifications
-  - Campaign functionality
+
+    - List/ListFighter models for user-created gangs
+    - Equipment assignment system with costs and modifications
+    - Campaign functionality
 
 - **`pages`** - Static content and waiting list system
-  - Flat pages with visibility controls
-  - User registration waiting list
+
+    - Flat pages with visibility controls
+    - User registration waiting list
 
 - **`api`** - Minimal webhook handling for external integrations
 
 ### Base Model Architecture
+
 - **`AppBase`** - Abstract base model for all app models, provides:
-  - UUID primary key (from `Base`)
-  - Owner tracking (from `Owned`)
-  - Archive functionality (from `Archived`)
-  - History tracking with user information (from `HistoryMixin`)
-  - History-aware manager for better user tracking
+    - UUID primary key (from `Base`)
+    - Owner tracking (from `Owned`)
+    - Archive functionality (from `Archived`)
+    - History tracking with user information (from `HistoryMixin`)
+    - History-aware manager for better user tracking
 - All models inherit from `AppBase` to get consistent behavior
 - Models already define `history = HistoricalRecords()` for SimpleHistory integration
 
 ### Key Model Relationships
+
 - **Content → Core**: ContentFighter/ContentEquipment used as templates for user ListFighter assignments
 - **Virtual Equipment System**: ListFighterEquipmentAssignment handles complex equipment with profiles, accessories, upgrades
 - **Cost Calculation**: Dynamic pricing based on fighter type, equipment lists, and modifications
 - **Historical Tracking**: All models use simple-history for audit trails
-  - Middleware tracks user for web requests automatically
-  - Use `save_with_user(user=user)` for manual user tracking (defaults to owner if not provided)
-  - Use `Model.objects.create_with_user(user=user, ...)` for creating with history (defaults to owner)
-  - Use `Model.bulk_create_with_history(objs, user=user)` for bulk operations with history (defaults to each object's owner)
+    - Middleware tracks user for web requests automatically
+    - Use `save_with_user(user=user)` for manual user tracking (defaults to owner if not provided)
+    - Use `Model.objects.create_with_user(user=user, ...)` for creating with history (defaults to owner)
+    - Use `Model.bulk_create_with_history(objs, user=user)` for bulk operations with history (defaults to each object's owner)
 
 ### Technical Principles
+
 - **Not an SPA**: Server-rendered HTML with form submissions, not React/API
 - **Mobile-first**: Design for mobile, scale up to desktop
 - **Make it work; make it right; make it fast**: Ship functionality first, optimize later
 
 ### Settings Configuration
+
 - `settings.py` - Production defaults
 - `settings_dev.py` - Development overrides
 - `settings_prod.py` - Production-specific config
 - Environment variables loaded from `.env` file
 
 ### Frontend Stack
+
 - Bootstrap 5 for UI components
 - SCSS compiled to CSS via npm scripts
 - No JavaScript framework - vanilla JS where needed
 - Django templates with custom template tags
 
 ### Deployment
+
 - Google Cloud Platform (Cloud Run + Cloud SQL PostgreSQL)
 - Automatic deployment via Cloud Build on main branch pushes
 - WhiteNoise for static file serving
 - Docker containerized application
 
 ### Content Management
+
 - Game data stored in YAML files with JSON schema validation (deprecated - now in database)
 - Content managed through Django admin interface
 - Complex equipment/weapon relationship modeling
 - Equipment ordering handled by manager (category name, then equipment name)
 
 ### Template Patterns
+
 - Use `{% extends "core/layouts/base.html" %}` for full-page layouts
 - Use `{% extends "core/layouts/page.html" %}` for simple content pages
 - Back buttons use `{% include "core/includes/back.html" with url=target_url text="Back Text" %}`
@@ -172,11 +189,13 @@ SQL_DEBUG=True
 - Templates follow Bootstrap 5 patterns with cards, alerts, and responsive utilities
 
 ### URL Patterns
+
 - List views: plural noun (e.g., `/campaigns/`, `/lists/`)
 - Detail views: singular noun with ID (e.g., `/campaign/<id>`, `/list/<id>`)
 - Action views: noun-verb pattern (e.g., `/list/<id>/edit`, `/fighter/<id>/archive`)
 
 ### Testing Patterns
+
 - Tests use pytest with `@pytest.mark.django_db` decorator
 - Test functions at module level, not in classes
 - Use Django test client for view testing
@@ -184,6 +203,7 @@ SQL_DEBUG=True
 - The conftest.py configures tests to use StaticFilesStorage to avoid manifest issues
 
 ### Code Quality
+
 - Run `ruff format` to format Python code
 - Run `ruff check --fix` to fix linting issues
 - Always run ruff after making Python changes
