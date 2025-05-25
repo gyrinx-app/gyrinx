@@ -11,7 +11,8 @@
       "Bash(git add:*)",
       "Bash(python manage.py makemigrations:*)",
       "Bash(find:*)",
-      "Bash(python scripts/manage.py collectstatic:*)"
+      "Bash(python scripts/manage.py collectstatic:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

@@ -1,6 +1,4 @@
-from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
-from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
@@ -378,15 +376,3 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
                 attrs={"class": "form-check-input"},
             ),
         }
-
-
-class ResetPasswordForm(ResetPasswordForm):
-    captcha = ReCaptchaField(widget=ReCaptchaV3(action="reset_password"))
-
-
-class LoginForm(LoginForm):
-    captcha = ReCaptchaField(widget=ReCaptchaV3(action="login"))
-
-
-class SignupForm(SignupForm):
-    captcha = ReCaptchaField(widget=ReCaptchaV3(action="signup"))
