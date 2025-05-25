@@ -4,6 +4,7 @@ click==8.2.1
 daphne==4.2.0
 Django==5.2.1
 django-allauth==65.8.1
+django-csp==4.0b1
 django-debug-toolbar==5.2.0
 django-extensions==4.1
 django-polymorphic==4.1.0
