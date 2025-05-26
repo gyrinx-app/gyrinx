@@ -12,6 +12,7 @@ from .views import campaign, list
 app_name = "core"
 urlpatterns = [
     path("", gyrinx.core.views.index, name="index"),
+    # TODO: This is overridden by the allauth urls, so it should be removed
     path("accounts/", gyrinx.core.views.account_home, name="account_home"),
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list.ListsListView.as_view(), name="lists"),

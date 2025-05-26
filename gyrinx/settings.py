@@ -18,6 +18,7 @@ import logging
 import os
 from pathlib import Path
 
+from csp.constants import NONCE, SELF, UNSAFE_INLINE
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -103,6 +104,7 @@ INSTALLED_APPS = [
     "gyrinx.pages",
     "gyrinx.api",
     "tinymce",
+    "csp",
 ]
 
 MIDDLEWARE = [
@@ -144,6 +146,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "csp.context_processors.nonce",
             ],
         },
     },
@@ -319,55 +322,55 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Content Security Policy (CSP) Configuration
 # https://django-csp.readthedocs.io/
 
-CONTENT_SECURITY_POLICY = {
+CONTENT_SECURITY_POLICY_REPORT_ONLY = {
     "DIRECTIVES": {
-        "default-src": ["'self'"],
+        "default-src": [SELF],
         "script-src": [
-            "'self'",
-            "'unsafe-inline'",  # Required for TinyMCE and inline scripts
+            SELF,
+            UNSAFE_INLINE,  # Required for TinyMCE and inline scripts
+            NONCE,
             "https://cdn.jsdelivr.net",  # Bootstrap JS and iframe-resizer
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://www.google-analytics.com",  # Google Analytics
             "https://cdn-cookieyes.com",  # CookieYes consent management
-            "https://www.google.com",  # Google reCAPTCHA
-            "https://www.gstatic.com",  # Google reCAPTCHA static resources
         ],
         "style-src": [
-            "'self'",
-            "'unsafe-inline'",  # Required for TinyMCE and inline styles
+            SELF,
+            UNSAFE_INLINE,  # Required for TinyMCE and inline styles
             "https://cdn.jsdelivr.net",  # Bootstrap Icons CSS
             "https://cdn-cookieyes.com",  # CookieYes consent management styles
         ],
         "font-src": [
-            "'self'",
+            SELF,
             "https://cdn.jsdelivr.net",  # Bootstrap Icons fonts
         ],
         "img-src": [
-            "'self'",
+            SELF,
             "data:",  # Data URLs for inline images
             "https://www.google-analytics.com",  # Google Analytics pixel
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://cdn-cookieyes.com",  # CookieYes consent management images
         ],
         "connect-src": [
-            "'self'",
+            SELF,
             "https://www.google-analytics.com",  # Google Analytics
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://cdn-cookieyes.com",  # CookieYes consent management API
             "https://log.cookieyes.com",  # CookieYes logging API
         ],
         "frame-src": [
-            "'self'",
+            SELF,
             "https://www.googletagmanager.com",  # Google Tag Manager iframe
         ],
-        "form-action": ["'self'"],
-        "base-uri": ["'self'"],
+        "form-action": [SELF],
+        "base-uri": [SELF],
         "frame-ancestors": ["*"],  # Allow embedding from any domain
         "object-src": ["'none'"],
-        "media-src": ["'self'"],
-        "worker-src": ["'self'"],
-        "manifest-src": ["'self'"],
+        "media-src": [SELF],
+        "worker-src": [SELF],
+        "manifest-src": [SELF],
         "upgrade-insecure-requests": True,
         "block-all-mixed-content": True,
+        "report-uri": "/api/csp-report.json",
     }
 }
