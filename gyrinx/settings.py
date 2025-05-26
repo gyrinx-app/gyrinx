@@ -330,6 +330,7 @@ CONTENT_SECURITY_POLICY = {
             "https://www.google-analytics.com",  # Google Analytics
             "https://cdn-cookieyes.com",  # CookieYes consent management
             "https://www.google.com",  # Google reCAPTCHA
+            "https://www.gstatic.com",  # Google reCAPTCHA static resources
         ],
         "style-src": [
             "'self'",
