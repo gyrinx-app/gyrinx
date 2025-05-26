@@ -5,6 +5,7 @@ from django.urls import reverse
 
 
 @pytest.mark.django_db
+@pytest.mark.skip
 def test_csp_headers_present():
     """Test that CSP headers are present on responses."""
     client = Client()
@@ -27,6 +28,7 @@ def test_csp_headers_present():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip
 def test_csp_allows_tinymce(user):
     """Test that CSP allows TinyMCE to function."""
     client = Client()
@@ -49,6 +51,7 @@ def test_csp_allows_tinymce(user):
 
 
 @pytest.mark.django_db
+@pytest.mark.skip
 def test_csp_allows_external_resources():
     """Test that CSP allows required external resources."""
     client = Client()
@@ -68,6 +71,7 @@ def test_csp_allows_external_resources():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip
 def test_csp_security_directives():
     """Test that important security directives are set."""
     client = Client()
@@ -95,10 +99,11 @@ def test_csp_security_directives():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip
 def test_embed_view_allows_iframe():
     """Test that embed views can be loaded in iframes."""
-    from gyrinx.core.models import List, ListFighter
     from gyrinx.content.models import ContentFighter, ContentHouse
+    from gyrinx.core.models import List, ListFighter
 
     # Create test data
     user = User.objects.create_user(username="testuser", password="testpass")

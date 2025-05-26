@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     "gyrinx.pages",
     "gyrinx.api",
     "tinymce",
+    # "csp"
 ]
 
 MIDDLEWARE = [
@@ -120,7 +121,7 @@ MIDDLEWARE = [
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
-    "csp.middleware.CSPMiddleware",
+    # "csp.middleware.CSPMiddleware",
 ]
 
 ROOT_URLCONF = "gyrinx.urls"
@@ -319,7 +320,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Content Security Policy (CSP) Configuration
 # https://django-csp.readthedocs.io/
 
-CONTENT_SECURITY_POLICY = {
+# Note! Disabled
+DISABLED_CONTENT_SECURITY_POLICY = {
     "DIRECTIVES": {
         "default-src": ["'self'"],
         "script-src": [
