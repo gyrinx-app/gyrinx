@@ -329,6 +329,7 @@ CONTENT_SECURITY_POLICY = {
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://www.google-analytics.com",  # Google Analytics
             "https://cdn-cookieyes.com",  # CookieYes consent management
+            "https://www.google.com",  # Google reCAPTCHA
         ],
         "style-src": [
             "'self'",
@@ -352,6 +353,7 @@ CONTENT_SECURITY_POLICY = {
             "https://www.google-analytics.com",  # Google Analytics
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://cdn-cookieyes.com",  # CookieYes consent management API
+            "https://log.cookieyes.com",  # CookieYes logging API
         ],
         "frame-src": [
             "'self'",
