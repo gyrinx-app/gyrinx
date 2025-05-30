@@ -1,7 +1,7 @@
 from django import forms
 from tinymce.widgets import TinyMCE
 
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.campaign import Campaign, CampaignAction
 
 
 # TinyMCE configuration shared between forms
@@ -82,6 +82,57 @@ class NewCampaignForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class CampaignActionForm(forms.ModelForm):
+    """Form for creating campaign actions with optional dice rolls"""
+
+    class Meta:
+        model = CampaignAction
+        fields = ["description", "dice_count"]
+        labels = {
+            "description": "Action Description",
+            "dice_count": "Number of D6 Dice (optional)",
+        }
+        help_texts = {
+            "description": "Describe the action being taken",
+            "dice_count": "How many D6 dice to roll (leave at 0 for no roll)",
+        }
+        widgets = {
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "e.g., Attacking enemy fighter with bolt pistol",
+                }
+            ),
+            "dice_count": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "max": 20, "value": 0}
+            ),
+        }
+
+
+class CampaignActionOutcomeForm(forms.ModelForm):
+    """Form for editing the outcome of a campaign action"""
+
+    class Meta:
+        model = CampaignAction
+        fields = ["outcome"]
+        labels = {
+            "outcome": "Action Outcome",
+        }
+        help_texts = {
+            "outcome": "Describe the result of the action",
+        }
+        widgets = {
+            "outcome": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "e.g., Hit! Enemy takes 1 wound",
+                }
+            ),
         }
 
 
