@@ -14,18 +14,13 @@
                 <h5 class="card-title">Action Details</h5>
                 <p class="card-text">{{ action.description }}</p>
                 {% if action.dice_count > 0 %}
-                    <div class="mb-3">
-                        <h6>Dice Roll Results:</h6>
-                        <div>
-                            <span class="badge bg-secondary">
-                                <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6
-                            </span>
-                            <span class="ms-2">
-                                {% for result in action.dice_results %}<span class="badge bg-primary fs-6">{{ result }}</span>{% endfor %}
-                                = <strong class="fs-5">{{ action.dice_total }}</strong>
-                            </span>
-                        </div>
-                    </div>
+                    <p class="card-text">
+                        <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6
+                        <span class="ms-2">
+                            {% for result in action.dice_results %}<span class="badge bg-secondary ">{{ result }}</span>{% endfor %}
+                            = <strong>{{ action.dice_total }}</strong>
+                        </span>
+                    </p>
                 {% endif %}
             </div>
         </div>

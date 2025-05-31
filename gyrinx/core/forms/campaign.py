@@ -3,7 +3,6 @@ from tinymce.widgets import TinyMCE
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 
-
 # TinyMCE configuration shared between forms
 TINYMCE_CONFIG = {
     "relative_urls": False,
@@ -93,18 +92,18 @@ class CampaignActionForm(forms.ModelForm):
         fields = ["description", "dice_count"]
         labels = {
             "description": "Action Description",
-            "dice_count": "Number of D6 Dice (optional)",
+            "dice_count": "Number of D6 Dice",
         }
         help_texts = {
             "description": "Describe the action being taken",
-            "dice_count": "How many D6 dice to roll (leave at 0 for no roll)",
+            "dice_count": "How many D6 dice to roll. Leave at 0 for no roll.",
         }
         widgets = {
             "description": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "e.g., Attacking enemy fighter with bolt pistol",
+                    "placeholder": "Rolling for lasting injuries",
                 }
             ),
             "dice_count": forms.NumberInput(
@@ -130,7 +129,7 @@ class CampaignActionOutcomeForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "e.g., Hit! Enemy takes 1 wound",
+                    "placeholder": "Memorable Death",
                 }
             ),
         }
