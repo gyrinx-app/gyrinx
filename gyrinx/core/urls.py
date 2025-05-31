@@ -172,4 +172,19 @@ urlpatterns = [
         campaign.campaign_add_lists,
         name="campaign-add-lists",
     ),
+    path(
+        "campaign/<id>/action/new",
+        campaign.campaign_log_action,
+        name="campaign-action-new",
+    ),
+    path(
+        "campaign/<id>/action/<action_id>/outcome",
+        campaign.campaign_action_outcome,
+        name="campaign-action-outcome",
+    ),
+    path(
+        "campaign/<id>/actions",
+        campaign.CampaignActionList.as_view(),
+        name="campaign-actions",
+    ),
 ]

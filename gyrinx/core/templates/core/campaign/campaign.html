@@ -28,6 +28,68 @@
                     <i class="bi-info-circle"></i> No campaign details have been added yet.
                 </div>
             {% endif %}
+            <!-- Campaign Actions -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="card-title h5 mb-0">Campaign Actions</h2>
+                    <div class="hstack gap-2">
+                        {% if can_log_actions %}
+                            <a href="{% url 'core:campaign-action-new' campaign.id %}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi-plus-circle"></i> Log Action
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'core:campaign-actions' campaign.id %}"
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="bi-list-ul"></i> View All
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% with recent_actions=campaign.actions.all|slice:":5" %}
+                        {% if recent_actions %}
+                            <div class="list-group list-group-flush">
+                                {% for action in recent_actions %}
+                                    <div class="list-group-item px-0">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <small class="text-muted">
+                                                <strong>{{ action.user.username }}</strong> • {{ action.created|timesince }} ago
+                                            </small>
+                                        </div>
+                                        <p class="mb-1 text-truncate">{{ action.description }}</p>
+                                        {% if action.dice_count > 0 %}
+                                            <small class="text-muted">
+                                                <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
+                                                {% for result in action.dice_results %}
+                                                    {{ result }}
+                                                    {% if not forloop.last %},{% endif %}
+                                                {% endfor %}
+                                                = <strong>{{ action.dice_total }}</strong>
+                                            </small>
+                                        {% endif %}
+                                        {% if action.outcome %}
+                                            <small class="text-muted d-block">
+                                                <strong>Outcome:</strong> {{ action.outcome|truncatewords:10 }}
+                                            </small>
+                                        {% elif action.user == user %}
+                                            <small>
+                                                <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
+                                                   class="link-primary">Add outcome</a>
+                                            </small>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <div class="text-center mt-2">
+                                <a href="{% url 'core:campaign-actions' campaign.id %}"
+                                   class="btn btn-sm btn-link">View all actions →</a>
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">No actions logged yet.</p>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
             <!-- Campaign Lists -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">

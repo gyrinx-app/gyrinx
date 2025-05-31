@@ -6,8 +6,13 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.core.forms.campaign import EditCampaignForm, NewCampaignForm
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.forms.campaign import (
+    CampaignActionForm,
+    CampaignActionOutcomeForm,
+    EditCampaignForm,
+    NewCampaignForm,
+)
+from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 
 
@@ -41,6 +46,19 @@ class CampaignDetailView(generic.DetailView):
         Retrieve the :model:`core.Campaign` by its `id`.
         """
         return get_object_or_404(Campaign, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Check if user can log actions (owner or has a list in campaign)
+        user = self.request.user
+        if user.is_authenticated:
+            campaign = self.object
+            context["can_log_actions"] = (
+                campaign.owner == user or campaign.lists.filter(owner=user).exists()
+            )
+        else:
+            context["can_log_actions"] = False
+        return context
 
 
 @login_required
@@ -213,3 +231,149 @@ def edit_campaign(request, id):
         "core/campaign/campaign_edit.html",
         {"form": form, "campaign": campaign, "error_message": error_message},
     )
+
+
+@login_required
+def campaign_log_action(request, id):
+    """
+    Log a new action for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the action is being logged for.
+    ``form``
+        A CampaignActionForm for entering the action details.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/campaign/campaign_log_action.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    # Check if user is part of the campaign (owner or has a list in it)
+    user_lists_in_campaign = campaign.lists.filter(owner=request.user).exists()
+    if campaign.owner != request.user and not user_lists_in_campaign:
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    error_message = None
+    if request.method == "POST":
+        form = CampaignActionForm(request.POST)
+        if form.is_valid():
+            action = form.save(commit=False)
+            action.campaign = campaign
+            action.user = request.user
+            action.save()
+
+            # Redirect to outcome edit page
+            return HttpResponseRedirect(
+                reverse("core:campaign-action-outcome", args=(campaign.id, action.id))
+            )
+    else:
+        form = CampaignActionForm()
+
+    return render(
+        request,
+        "core/campaign/campaign_log_action.html",
+        {"form": form, "campaign": campaign, "error_message": error_message},
+    )
+
+
+@login_required
+def campaign_action_outcome(request, id, action_id):
+    """
+    Edit the outcome of a campaign action.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the action belongs to.
+    ``action``
+        The :model:`core.CampaignAction` being edited.
+    ``form``
+        A CampaignActionOutcomeForm for editing the outcome.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/campaign/campaign_action_outcome.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    action = get_object_or_404(CampaignAction, id=action_id, campaign=campaign)
+
+    # Check if user can edit this action (only the creator)
+    if action.user != request.user:
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    error_message = None
+    if request.method == "POST":
+        form = CampaignActionOutcomeForm(request.POST, instance=action)
+        if form.is_valid():
+            form.save()
+
+            # Check which button was clicked
+            if "save_and_new" in request.POST:
+                # Redirect to create another action
+                return HttpResponseRedirect(
+                    reverse("core:campaign-action-new", args=(campaign.id,))
+                )
+            else:
+                # Default: redirect to campaign
+                return HttpResponseRedirect(
+                    reverse("core:campaign", args=(campaign.id,))
+                )
+    else:
+        form = CampaignActionOutcomeForm(instance=action)
+
+    return render(
+        request,
+        "core/campaign/campaign_action_outcome.html",
+        {
+            "form": form,
+            "campaign": campaign,
+            "action": action,
+            "error_message": error_message,
+        },
+    )
+
+
+class CampaignActionList(generic.ListView):
+    """
+    Display all actions for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` whose actions are being displayed.
+    ``object_list``
+        The list of :model:`core.CampaignAction` objects.
+
+    **Template**
+
+    :template:`core/campaign/campaign_actions.html`
+    """
+
+    template_name = "core/campaign/campaign_actions.html"
+    context_object_name = "actions"
+    paginate_by = 50
+
+    def get_queryset(self):
+        self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
+        return self.campaign.actions.select_related("user").order_by("-created")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["campaign"] = self.campaign
+        # Check if user can log actions (owner or has a list in campaign)
+        user = self.request.user
+        if user.is_authenticated:
+            context["can_log_actions"] = (
+                self.campaign.owner == user
+                or self.campaign.lists.filter(owner=user).exists()
+            )
+        else:
+            context["can_log_actions"] = False
+        return context
