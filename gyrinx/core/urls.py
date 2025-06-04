@@ -187,4 +187,14 @@ urlpatterns = [
         campaign.CampaignActionList.as_view(),
         name="campaign-actions",
     ),
+    path(
+        "campaign/<id>/start",
+        campaign.start_campaign,
+        name="campaign-start",
+    ),
+    path(
+        "campaign/<id>/end",
+        campaign.end_campaign,
+        name="campaign-end",
+    ),
 ]

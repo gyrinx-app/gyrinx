@@ -1,0 +1,35 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Start Campaign - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign' campaign.id as campaign_url %}
+    {% include "core/includes/back.html" with url=campaign_url text=campaign.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Start Campaign: {{ campaign.name }}</h1>
+        <form action="{% url 'core:campaign-start' campaign.id %}" method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to start this campaign?</p>
+            <div class="alert alert-warning" role="alert">
+                <i class="bi-exclamation-triangle"></i> This action cannot be undone. Once started, the campaign will move from <strong>Pre-Campaign</strong> to <strong>In Progress</strong> status.
+            </div>
+            <p>
+                <strong>Current lists in campaign:</strong>
+            </p>
+            <ul>
+                {% for list in campaign.lists.all %}
+                    <li>{{ list.name }} ({{ list.owner.username }})</li>
+                {% empty %}
+                    <li>
+                        <em>No lists added yet</em>
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="mt-3">
+                <input type="submit" class="btn btn-success" value="Start Campaign">
+                <a href="{% url 'core:campaign' campaign.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

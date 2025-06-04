@@ -24,6 +24,15 @@
                         <div>
                             <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
                         </div>
+                        <div>
+                            {% if campaign.is_pre_campaign %}
+                                <span class="badge bg-secondary">Pre-Campaign</span>
+                            {% elif campaign.is_in_progress %}
+                                <span class="badge bg-success">In Progress</span>
+                            {% else %}
+                                <span class="badge bg-dark">Post-Campaign</span>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="text-secondary">{{ campaign.summary|safe }}</div>
                 </div>

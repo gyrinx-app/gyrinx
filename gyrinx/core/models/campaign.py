@@ -13,6 +13,17 @@ User = get_user_model()
 
 
 class Campaign(AppBase):
+    # Status choices
+    PRE_CAMPAIGN = "pre_campaign"
+    IN_PROGRESS = "in_progress"
+    POST_CAMPAIGN = "post_campaign"
+
+    STATUS_CHOICES = [
+        (PRE_CAMPAIGN, "Pre-Campaign"),
+        (IN_PROGRESS, "In Progress"),
+        (POST_CAMPAIGN, "Post-Campaign"),
+    ]
+
     name = models.CharField(
         max_length=255, validators=[validators.MinLengthValidator(3)]
     )
@@ -34,6 +45,12 @@ class Campaign(AppBase):
         help_text="Lists that are part of this campaign.",
         related_name="campaigns",
     )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=PRE_CAMPAIGN,
+        help_text="Current status of the campaign.",
+    )
 
     history = HistoricalRecords()
 
@@ -49,6 +66,42 @@ class Campaign(AppBase):
         from django.urls import reverse
 
         return reverse("core:campaign", args=[str(self.id)])
+
+    @property
+    def is_pre_campaign(self):
+        return self.status == self.PRE_CAMPAIGN
+
+    @property
+    def is_in_progress(self):
+        return self.status == self.IN_PROGRESS
+
+    @property
+    def is_post_campaign(self):
+        return self.status == self.POST_CAMPAIGN
+
+    def can_start_campaign(self):
+        """Check if the campaign can be started."""
+        return self.status == self.PRE_CAMPAIGN and self.lists.exists()
+
+    def can_end_campaign(self):
+        """Check if the campaign can be ended."""
+        return self.status == self.IN_PROGRESS
+
+    def start_campaign(self):
+        """Start the campaign (transition from pre-campaign to in-progress)."""
+        if self.can_start_campaign():
+            self.status = self.IN_PROGRESS
+            self.save()
+            return True
+        return False
+
+    def end_campaign(self):
+        """End the campaign (transition from in-progress to post-campaign)."""
+        if self.can_end_campaign():
+            self.status = self.POST_CAMPAIGN
+            self.save()
+            return True
+        return False
 
 
 class CampaignAction(AppBase):
