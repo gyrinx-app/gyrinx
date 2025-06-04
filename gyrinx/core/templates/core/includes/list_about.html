@@ -16,15 +16,51 @@
         {% endfor %}
     </nav>
     <div id="list-overview">
-        <h3 class="h4" id="about-list">Overview</h3>
-        {{ list.narrative|safe }}
+        <div class="hstack">
+            <h3 class="h4" id="about-list">Overview</h3>
+            {% if list.owner_cached == user %}
+                <div class="ms-auto">
+                    <a href="{% url 'core:list-edit' list.id %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi-pencil"></i> Edit
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+        {% if list.narrative %}
+            {{ list.narrative|safe }}
+        {% elif list.owner_cached == user %}
+            <div class="text-muted fst-italic">No narrative added yet. <a href="{% url 'core:list-edit' list.id %}">Add one</a> to tell the story of your gang.</div>
+        {% else %}
+            <div class="text-muted fst-italic">No narrative added yet.</div>
+        {% endif %}
     </div>
     <div class="grid">
         {% for fighter in list.fighters %}
             {% if fighter.narrative %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
-                    <h3 class="h4">{{ fighter.name }}</h3>
+                    <div class="hstack">
+                        <h3 class="h4">{{ fighter.name }}</h3>
+                        {% if list.owner_cached == user %}
+                            <div class="ms-auto">
+                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
                     {{ fighter.narrative|safe }}
+                </div>
+            {% elif list.owner_cached == user %}
+                <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
+                    <div class="hstack">
+                        <h3 class="h4">{{ fighter.name }}</h3>
+                        <div class="ms-auto">
+                            <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi-plus"></i> Add About
+                            </a>
+                        </div>
+                    </div>
+                    <div class="text-muted fst-italic">No narrative added yet.</div>
                 </div>
             {% endif %}
             {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=True classes="g-col-12 g-col-md-6" %}

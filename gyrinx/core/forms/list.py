@@ -1,4 +1,5 @@
 from django import forms
+from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
@@ -6,23 +7,79 @@ from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssig
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 
+# TinyMCE configuration for narrative fields
+TINYMCE_CONFIG = {
+    "relative_urls": False,
+    "promotion": False,
+    "resize": "both",
+    "width": "100%",
+    "height": "400px",
+    "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
+    "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
+    "menubar": "edit view insert format table tools help",
+    "menu": {
+        "edit": {
+            "title": "Edit",
+            "items": "undo redo | cut copy paste pastetext | selectall | searchreplace",
+        },
+        "view": {
+            "title": "View",
+            "items": "code revisionhistory | visualaid visualchars visualblocks | spellchecker | preview fullscreen | showcomments",
+        },
+        "insert": {
+            "title": "Insert",
+            "items": "image link media addcomment pageembed codesample inserttable | math | charmap emoticons hr | pagebreak nonbreaking anchor tableofcontents | insertdatetime",
+        },
+        "format": {
+            "title": "Format",
+            "items": "bold italic underline strikethrough superscript subscript codeformat | styles blocks fontfamily fontsize align lineheight | forecolor backcolor | language | removeformat",
+        },
+        "tools": {
+            "title": "Tools",
+            "items": "spellchecker spellcheckerlanguage | a11ycheck code wordcount",
+        },
+        "table": {
+            "title": "Table",
+            "items": "inserttable | cell row column | advtablesort | tableprops deletetable",
+        },
+    },
+    "textpattern_patterns": [
+        {"start": "# ", "replacement": "<h1>%</h1>"},
+        {"start": "## ", "replacement": "<h2>%</h2>"},
+        {"start": "### ", "replacement": "<h3>%</h3>"},
+        {"start": "#### ", "replacement": "<h4>%</h4>"},
+        {"start": "##### ", "replacement": "<h5>%</h5>"},
+        {"start": "###### ", "replacement": "<h6>%</h6>"},
+        {
+            "start": r"\*\*([^\*]+)\*\*",
+            "replacement": "<strong>%</strong>",
+        },
+        {"start": r"\*([^\*]+)\*", "replacement": "<em>%</em>"},
+    ],
+}
+
 
 class NewListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "content_house", "public"]
+        fields = ["name", "content_house", "narrative", "public"]
         labels = {
             "name": "Name",
             "content_house": "House",
+            "narrative": "About",
             "public": "Public",
         }
         help_texts = {
             "name": "The name you use to identify this List. This may be public.",
+            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
             "public": "If checked, this list will be visible to all users of Gyrinx. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_house": forms.Select(attrs={"class": "form-select"}),
+            "narrative": TinyMCE(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
@@ -30,17 +87,22 @@ class NewListForm(forms.ModelForm):
 class CloneListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "public"]
+        fields = ["name", "narrative", "public"]
         labels = {
             "name": "Name",
+            "narrative": "About",
             "public": "Public",
         }
         help_texts = {
             "name": "The name you use to identify this List. This may be public.",
+            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
             "public": "If checked, this List will be visible to all users of Gyrinx. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
+            "narrative": TinyMCE(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
@@ -48,17 +110,22 @@ class CloneListForm(forms.ModelForm):
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "public"]
+        fields = ["name", "narrative", "public"]
         labels = {
             "name": "Name",
+            "narrative": "About",
             "public": "Public",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
+            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
             "public": "If checked, this list will be visible to all users.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
+            "narrative": TinyMCE(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
@@ -374,5 +441,22 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
         widgets = {
             "upgrades_field": BsCheckboxSelectMultiple(
                 attrs={"class": "form-check-input"},
+            ),
+        }
+
+
+class EditListFighterNarrativeForm(forms.ModelForm):
+    class Meta:
+        model = ListFighter
+        fields = ["narrative"]
+        labels = {
+            "narrative": "About",
+        }
+        help_texts = {
+            "narrative": "Narrative description of the Fighter: their history and how to play them.",
+        }
+        widgets = {
+            "narrative": TinyMCE(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
             ),
         }

@@ -25,6 +25,7 @@ from gyrinx.core.forms.list import (
     CloneListFighterForm,
     CloneListForm,
     EditListForm,
+    EditListFighterNarrativeForm,
     ListFighterEquipmentAssignmentAccessoriesForm,
     ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
@@ -626,6 +627,49 @@ def edit_list_fighter_powers(request, id, fighter_id):
             "fighter": fighter,
             "powers": powers,
             "assigns": assigns,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+def edit_list_fighter_narrative(request, id, fighter_id):
+    """
+    Edit the narrative of an existing :model:`core.ListFighter`.
+
+    **Context**
+
+    ``form``
+        A EditListFighterNarrativeForm for editing fighter narrative.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_narrative_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    error_message = None
+    if request.method == "POST":
+        form = EditListFighterNarrativeForm(request.POST, instance=fighter)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+            )
+    else:
+        form = EditListFighterNarrativeForm(instance=fighter)
+
+    return render(
+        request,
+        "core/list_fighter_narrative_edit.html",
+        {
+            "form": form,
+            "list": lst,
             "error_message": error_message,
         },
     )
