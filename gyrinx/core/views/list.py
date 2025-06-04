@@ -64,9 +64,10 @@ class ListsListView(generic.ListView):
 
     def get_queryset(self):
         """
-        Return :model:`core.List` objects that are public.
+        Return :model:`core.List` objects that are public and in list building mode.
+        Campaign mode lists are only visible within their campaigns.
         """
-        return List.objects.filter(public=True)
+        return List.objects.filter(public=True, status=List.LIST_BUILDING)
 
 
 class ListDetailView(generic.DetailView):

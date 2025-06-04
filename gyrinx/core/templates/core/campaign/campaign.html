@@ -102,7 +102,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h2 class="card-title h5 mb-0">Lists</h2>
-                    {% if campaign.owner == user and not campaign.is_post_campaign %}
+                    {% if campaign.owner == user and campaign.is_pre_campaign %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="btn btn-primary btn-sm">
                             <i class="bi-plus-circle"></i> Add Lists
@@ -132,7 +132,7 @@
                     {% else %}
                         <div class="p-3 text-center text-muted">
                             No lists have been added to this campaign yet.
-                            {% if campaign.owner == user and not campaign.is_post_campaign %}
+                            {% if campaign.owner == user and campaign.is_pre_campaign %}
                                 <br>
                                 <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                                    class="btn btn-primary btn-sm mt-2">

@@ -88,8 +88,20 @@ class Campaign(AppBase):
         return self.status == self.IN_PROGRESS
 
     def start_campaign(self):
-        """Start the campaign (transition from pre-campaign to in-progress)."""
+        """Start the campaign (transition from pre-campaign to in-progress).
+
+        This will clone all associated lists into campaign mode.
+        """
         if self.can_start_campaign():
+            # Clone all lists for the campaign
+            original_lists = list(self.lists.all())
+            self.lists.clear()  # Remove the original lists
+
+            for original_list in original_lists:
+                # Clone the list for campaign mode
+                campaign_clone = original_list.clone(for_campaign=self)
+                self.lists.add(campaign_clone)
+
             self.status = self.IN_PROGRESS
             self.save()
             return True

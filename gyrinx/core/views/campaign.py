@@ -88,8 +88,8 @@ def campaign_add_lists(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     # Check if campaign is in a state where lists can be added
-    if campaign.is_post_campaign:
-        messages.error(request, "Cannot add lists to a completed campaign.")
+    if not campaign.is_pre_campaign:
+        messages.error(request, "Lists can only be added before a campaign starts.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     added_list = None
     error_message = None
@@ -121,13 +121,20 @@ def campaign_add_lists(request, id):
                 error_message = "List not found."
 
     # Get lists that can be added (user's own lists or public lists)
-    # Start with all lists the user can see
+    # Only show lists in list building mode
     lists = List.objects.filter(
-        models.Q(owner=request.user) | models.Q(public=True)
-    ).exclude(
-        # Exclude lists already in the campaign
-        id__in=campaign.lists.values_list("id", flat=True)
+        (models.Q(owner=request.user) | models.Q(public=True))
+        & models.Q(status=List.LIST_BUILDING)
     )
+
+    # If the campaign has started, exclude lists that have been cloned into it
+    if campaign.is_in_progress or campaign.is_post_campaign:
+        # The campaign lists have original_list pointing to the source lists
+        cloned_original_ids = campaign.lists.values_list("original_list_id", flat=True)
+        lists = lists.exclude(id__in=cloned_original_ids)
+    else:
+        # Pre-campaign: exclude lists that are directly added
+        lists = lists.exclude(id__in=campaign.lists.values_list("id", flat=True))
 
     # Apply search filter if provided
     if request.GET.get("q"):

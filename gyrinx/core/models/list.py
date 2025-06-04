@@ -56,6 +56,15 @@ pylist = list
 class List(AppBase):
     """A List is a reusable collection of fighters."""
 
+    # Status choices
+    LIST_BUILDING = "list_building"
+    CAMPAIGN_MODE = "campaign_mode"
+
+    STATUS_CHOICES = [
+        (LIST_BUILDING, "List Building"),
+        (CAMPAIGN_MODE, "Campaign Mode"),
+    ]
+
     help_text = "A List is a reusable collection of fighters."
     name = models.CharField(
         max_length=255, validators=[validators.MinLengthValidator(3)]
@@ -70,6 +79,32 @@ class List(AppBase):
         "about",
         blank=True,
         help_text="Narrative description of the gang in this list: their history and how to play them.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=LIST_BUILDING,
+        help_text="Current status of the list.",
+    )
+
+    # Track the original list if this is a campaign clone
+    original_list = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campaign_clones",
+        help_text="The original list this was cloned from for a campaign.",
+    )
+
+    # Track which campaign this list is associated with (if in campaign mode)
+    campaign = models.ForeignKey(
+        "Campaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campaign_lists",
+        help_text="The campaign this list is participating in (if in campaign mode).",
     )
 
     history = HistoricalRecords()
@@ -111,6 +146,23 @@ class List(AppBase):
     def owner_cached(self):
         return self.owner
 
+    @property
+    def is_list_building(self):
+        return self.status == self.LIST_BUILDING
+
+    @property
+    def is_campaign_mode(self):
+        return self.status == self.CAMPAIGN_MODE
+
+    @property
+    def active_campaign_clones(self):
+        """Get campaign clones that are in active (in-progress) campaigns."""
+        from .campaign import Campaign
+
+        return self.campaign_clones.filter(
+            status=self.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
+        )
+
     def cost_cache_key(self):
         return f"list_cost_{self.id}"
 
@@ -120,16 +172,33 @@ class List(AppBase):
         cache.delete(cache_key)
         cache.set(cache_key, self.cost_int(), settings.CACHE_LIST_TTL)
 
-    def clone(self, name=None, owner=None, **kwargs):
-        """Clone the list, creating a new list with the same fighters."""
-        if not name:
-            name = f"{self.name} (Clone)"
+    def clone(self, name=None, owner=None, for_campaign=None, **kwargs):
+        """Clone the list, creating a new list with the same fighters.
+
+        Args:
+            name: Name for the clone (defaults to original name + suffix)
+            owner: Owner of the clone (defaults to original owner)
+            for_campaign: If provided, creates a campaign mode clone for this campaign
+            **kwargs: Additional fields to set on the clone
+        """
+        if for_campaign:
+            # Campaign clones keep the same name but go into campaign mode
+            if not name:
+                name = self.name
+            kwargs["status"] = self.CAMPAIGN_MODE
+            kwargs["original_list"] = self
+            kwargs["campaign"] = for_campaign
+            kwargs["public"] = False  # Campaign lists are always private
+        else:
+            # Regular clones get a suffix
+            if not name:
+                name = f"{self.name} (Clone)"
 
         if not owner:
             owner = self.owner
 
         values = {
-            "public": self.public,
+            "public": self.public if for_campaign is None else False,
             "narrative": self.narrative,
             **kwargs,
         }
