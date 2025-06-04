@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchVector
 from django.db import models
@@ -49,11 +50,11 @@ class CampaignDetailView(generic.DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Check if user can log actions (owner or has a list in campaign)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         user = self.request.user
         if user.is_authenticated:
             campaign = self.object
-            context["can_log_actions"] = (
+            context["can_log_actions"] = campaign.is_in_progress and (
                 campaign.owner == user or campaign.lists.filter(owner=user).exists()
             )
         else:
@@ -67,6 +68,7 @@ def campaign_add_lists(request, id):
     Add lists to a campaign.
 
     Allows the campaign owner to search for and add lists to their campaign.
+    Only available for campaigns in pre-campaign or in-progress status.
 
     **Context**
 
@@ -84,6 +86,11 @@ def campaign_add_lists(request, id):
     :template:`core/campaign/campaign_add_lists.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    # Check if campaign is in a state where lists can be added
+    if campaign.is_post_campaign:
+        messages.error(request, "Cannot add lists to a completed campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     added_list = None
     error_message = None
 
@@ -253,9 +260,12 @@ def campaign_log_action(request, id):
     """
     campaign = get_object_or_404(Campaign, id=id)
 
-    # Check if user is part of the campaign (owner or has a list in it)
+    # Check if user is part of the campaign (owner or has a list in it) and campaign is in progress
     user_lists_in_campaign = campaign.lists.filter(owner=request.user).exists()
-    if campaign.owner != request.user and not user_lists_in_campaign:
+    if not campaign.is_in_progress or (
+        campaign.owner != request.user and not user_lists_in_campaign
+    ):
+        messages.error(request, "You cannot log actions for this campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     error_message = None
@@ -367,13 +377,90 @@ class CampaignActionList(generic.ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["campaign"] = self.campaign
-        # Check if user can log actions (owner or has a list in campaign)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         user = self.request.user
         if user.is_authenticated:
-            context["can_log_actions"] = (
+            context["can_log_actions"] = self.campaign.is_in_progress and (
                 self.campaign.owner == user
                 or self.campaign.lists.filter(owner=user).exists()
             )
         else:
             context["can_log_actions"] = False
         return context
+
+
+@login_required
+def start_campaign(request, id):
+    """
+    Start a campaign (transition from pre-campaign to in-progress).
+
+    Only the campaign owner can start a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be started.
+
+    **Template**
+
+    :template:`core/campaign/campaign_start.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        if campaign.start_campaign():
+            messages.success(request, "Campaign has been started!")
+        else:
+            if not campaign.lists.exists():
+                messages.error(request, "Cannot start campaign without any lists.")
+            else:
+                messages.error(request, "Campaign cannot be started.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # For GET request, show confirmation page
+    if not campaign.can_start_campaign():
+        messages.error(request, "This campaign cannot be started.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_start.html",
+        {"campaign": campaign},
+    )
+
+
+@login_required
+def end_campaign(request, id):
+    """
+    End a campaign (transition from in-progress to post-campaign).
+
+    Only the campaign owner can end a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be ended.
+
+    **Template**
+
+    :template:`core/campaign/campaign_end.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        if campaign.end_campaign():
+            messages.success(request, "Campaign has been ended!")
+        else:
+            messages.error(request, "Campaign cannot be ended.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # For GET request, show confirmation page
+    if not campaign.can_end_campaign():
+        messages.error(request, "This campaign cannot be ended.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_end.html",
+        {"campaign": campaign},
+    )

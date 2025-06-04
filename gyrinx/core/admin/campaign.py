@@ -6,10 +6,10 @@ from gyrinx.core.models.campaign import Campaign, CampaignAction
 
 @admin.register(Campaign)
 class CampaignAdmin(BaseAdmin):
-    list_display = ["name", "public"]
-    search_fields = ["name"]
-    list_filter = ["public"]
-    fields = ["name", "owner", "public", "summary", "narrative"]
+    list_display = ["name", "status", "public", "owner", "created"]
+    search_fields = ["name", "owner__username"]
+    list_filter = ["status", "public", "created"]
+    fields = ["name", "owner", "status", "public", "summary", "narrative"]
 
 
 @admin.register(CampaignAction)
