@@ -47,6 +47,11 @@ urlpatterns = [
         name="list-fighter-powers-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/narrative",
+        list.edit_list_fighter_narrative,
+        name="list-fighter-narrative-edit",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/gear",
         list.edit_list_fighter_equipment,
         name="list-fighter-gear-edit",
