@@ -33,10 +33,21 @@ class ListForm(forms.ModelForm):
 @admin.register(List)
 class ListAdmin(BaseAdmin):
     form = ListForm
-    fields = ["name", "content_house", "owner", "public", cost, "narrative"]
-    readonly_fields = [cost]
-    list_display = ["name", "content_house", "owner", "public", cost]
-    search_fields = ["name", "content_house__name"]
+    fields = [
+        "name",
+        "content_house",
+        "owner",
+        "status",
+        "original_list",
+        "campaign",
+        "public",
+        cost,
+        "narrative",
+    ]
+    readonly_fields = [cost, "original_list", "campaign"]
+    list_display = ["name", "content_house", "owner", "status", "public", cost]
+    list_filter = ["status", "public", "content_house"]
+    search_fields = ["name", "content_house__name", "campaign__name"]
 
     inlines = [ListFighterInline]
 

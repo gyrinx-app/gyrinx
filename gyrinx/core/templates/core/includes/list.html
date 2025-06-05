@@ -4,7 +4,10 @@
         <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
             <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
                 <h2 class="mb-0">{{ list.name }}</h2>
-                <div class="ms-md-auto">{{ list.content_house.name }}</div>
+                <div class="ms-md-auto">
+                    {{ list.content_house.name }}
+                    {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}
+                </div>
                 <div class="h5 mb-0">
                     <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
                 </div>
@@ -106,6 +109,24 @@
                 {% endif %}
             </div>
         </div>
+        {% if list.is_list_building and list.active_campaign_clones.exists %}
+            <div class="alert alert-info" role="alert">
+                <i class="bi-flag"></i> This list has active campaign versions:
+                <ul class="mb-0 mt-1">
+                    {% for clone in list.active_campaign_clones %}
+                        <li>
+                            <a href="{% url 'core:campaign' clone.campaign.id %}">{{ clone.campaign.name }}</a>
+                            ({{ clone.campaign.owner.username }})
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        {% if list.is_campaign_mode and list.original_list %}
+            <div class="alert alert-info" role="alert">
+                <i class="bi-arrow-return-right"></i> This is a campaign version of <a href="{% url 'core:list' list.original_list.id %}">{{ list.original_list.name }}</a>
+            </div>
+        {% endif %}
     </div>
     <div class="grid {% if print %}gap-2{% endif %}">
         {% for fighter in list.fighters_cached %}

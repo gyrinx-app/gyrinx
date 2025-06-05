@@ -30,7 +30,7 @@ def index(request):
     if request.user.is_anonymous:
         lists = []
     else:
-        lists = List.objects.filter(owner=request.user)
+        lists = List.objects.filter(owner=request.user, status=List.LIST_BUILDING)
     return render(
         request,
         "core/index.html",
@@ -132,7 +132,9 @@ def user(request, slug_or_id):
     else:
         query = Q(username__iexact=slug_or_id)
     user = get_object_or_404(User, query)
-    public_lists = List.objects.filter(owner=user, public=True)
+    public_lists = List.objects.filter(
+        owner=user, public=True, status=List.LIST_BUILDING
+    )
     return render(
         request,
         "core/user.html",
