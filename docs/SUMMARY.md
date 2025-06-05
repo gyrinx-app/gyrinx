@@ -14,6 +14,7 @@
 * [Models and Database](developing-gyrinx/models-and-database.md)
 * [Frontend Development](developing-gyrinx/frontend-development.md)
 * [History Tracking](developing-gyrinx/history-tracking.md)
+* [Group-Based Features](developing-gyrinx/group-based-features.md)
 * [Testing](developing-gyrinx/testing.md)
 
 ## Technical Reference
@@ -21,6 +22,7 @@
 * [Technology Choices](technology-choices.md)
 * [Content](content.md)
 * [Lists](lists.md)
+* [Campaigns](campaigns.md)
 * [Psykers](psykers.md)
 * [API](api.md)
 

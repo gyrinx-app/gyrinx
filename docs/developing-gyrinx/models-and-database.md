@@ -107,9 +107,39 @@ The core app handles user-created content - lists, gangs, and campaigns.
 ### Campaign Models
 
 **Campaign**
-- Container for ongoing narrative campaigns
-- Tracks multiple gangs and their progression
-- Stores campaign rules and house rules
+- Container for narrative campaigns with multiple participating gangs
+- Three status phases: pre-campaign, in-progress, post-campaign
+- Tracks participating lists, narrative, and summary
+- When started, clones all participating lists for campaign-specific tracking
+
+**CampaignAction**
+- Records player actions during campaigns
+- Supports optional dice rolls (D6)
+- Tracks outcomes and results
+- Immutable audit log of campaign events
+
+**CampaignAssetType**
+- Defines types of assets (e.g., Territory, Relic)
+- Singular and plural naming
+- Rich text descriptions
+- Campaign-specific configuration
+
+**CampaignAsset**
+- Individual assets that can be held by gangs
+- Links to asset type and current holder
+- Supports transfers between gangs
+- Full history tracking
+
+**CampaignResourceType**
+- Defines countable resources (e.g., Credits, Ammunition)
+- Default amounts allocated on campaign start
+- Rich text descriptions
+
+**CampaignListResource**
+- Tracks resource amounts for each gang
+- Supports modifications with validation
+- Cannot go below zero
+- Creates action log entries on changes
 
 ## Virtual Models
 

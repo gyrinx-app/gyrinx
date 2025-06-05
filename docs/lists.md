@@ -14,9 +14,7 @@ Lists and list building are unencumbered by the parts of Necromunda involved in 
 
 Instead, taking a list into a campaign as your gang is like taking a _snapshot_ of a list, so that advancements and XP and deaths and other campaign-specific activities can be tracked separately. If the list is tweaked and changed later, the campaign version of that list that was actually played is unaffected so that there is a historical record.
 
-{% hint style="info" %}
-At time of writing, the campaign and battle features were not actually built, but the idea is that a list is converted into something that can be fought in a campaign or a battle, and the underlying list isn't unaffected.
-{% endhint %}
+Lists can now be used in campaigns! When a campaign starts, participating lists are cloned to create campaign-specific versions that can track advancement, injuries, and other campaign effects without affecting the original list.
 
 ### Immutable Layers... ish
 
@@ -64,3 +62,57 @@ Examples of advisory rules that could be implemented include over-filling a figh
 At time of writing, advisory rule implementations are not yet implemented.
 {% endhint %}
 
+## List Status Modes
+
+Lists have three status modes that control their usage:
+
+### List Building
+- Default status for new lists
+- Can be edited freely
+- Can be added to pre-campaign phase campaigns
+- Represents work-in-progress gangs
+
+### Campaign Mode
+- Automatically set when a list enters an active campaign
+- Indicates the list is being used in ongoing games
+- Original list remains in "List Building" status
+- Campaign version tracks all game effects
+
+### Retired
+- Can be set by list owner
+- Indicates the list is no longer actively used
+- Preserved for historical reference
+- Cannot be added to new campaigns
+
+## Narrative Features
+
+Lists and fighters support rich narrative content:
+
+### List Narrative
+- Add background story and lore for your gang
+- Rich text editing with formatting options
+- Displayed on list detail page
+- Optional - focus on mechanics or storytelling as desired
+
+### Fighter Narratives
+- Individual stories for each fighter
+- Track notable deeds and character development
+- Rich text editing support
+- Build deeper connection with your gang members
+
+To edit narratives:
+1. Navigate to your list
+2. Use "Edit Narrative" for list story
+3. Use fighter menu → "Edit Narrative" for individual fighters
+
+## Campaign Integration
+
+Lists integrate seamlessly with the campaign system:
+
+1. **Pre-Campaign**: Add your list to campaigns before they start
+2. **Campaign Start**: List is cloned for campaign-specific tracking
+3. **During Campaign**:
+   - Track resources and assets
+   - Log actions and outcomes
+   - Original list remains unchanged
+4. **Post-Campaign**: Campaign version preserved as historical record
