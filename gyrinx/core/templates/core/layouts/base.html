@@ -1,5 +1,5 @@
 {% extends "core/layouts/foundation.html" %}
-{% load static custom_tags pages %}
+{% load static custom_tags pages group_tags %}
 {% block base %}
     <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
     <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
@@ -42,6 +42,13 @@
                            {% active_aria 'core:lists' %}
                            href="{% url 'core:lists' %}">Lists</a>
                     </li>
+                    {% if user|in_group:"Campaigns Alpha" %}
+                        <li class="nav-item">
+                            <a class="nav-link {% active_view 'core:campaigns' %}"
+                               {% active_aria 'core:campaigns' %}
+                               href="{% url 'core:campaigns' %}">Campaigns</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <button class="btn btn-link nav-link py-2 px-0 px-lg-2 dropdown-toggle d-flex align-items-center"
                                 id="bd-theme"
