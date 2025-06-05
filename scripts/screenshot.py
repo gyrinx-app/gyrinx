@@ -202,26 +202,8 @@ class ScreenshotCapture:
 
             # Add authentication cookie if available
             session_cookie = await self.authenticate()
-            cookies = []
             if session_cookie:
-                cookies.append(session_cookie)
-
-            # Add Django Debug Toolbar cookie to keep it closed
-            # The toolbar reads this cookie and stays hidden when value is "hide"
-            cookies.append(
-                {
-                    "name": "djdt",
-                    "value": "hide",
-                    "domain": "localhost",
-                    "path": "/",
-                    "httpOnly": False,
-                    "secure": False,
-                    "sameSite": "Lax",
-                }
-            )
-
-            if cookies:
-                await context.add_cookies(cookies)
+                await context.add_cookies([session_cookie])
 
             # Create page and navigate
             page = await context.new_page()
@@ -238,6 +220,20 @@ class ScreenshotCapture:
                     return False
                 else:
                     raise
+
+            # Hide Django Debug Toolbar by injecting CSS
+            # This ensures the toolbar is hidden regardless of its state
+            await page.add_style_tag(
+                content="""
+                #djDebug, #djDebugToolbar, .djdt-hidden {
+                    display: none !important;
+                }
+                /* Also hide the sidebar panel */
+                #djDebugWindow, #djDebugToolbarHandle {
+                    display: none !important;
+                }
+            """
+            )
 
             # Wait for any animations to complete
             await page.wait_for_timeout(1000)

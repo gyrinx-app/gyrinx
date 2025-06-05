@@ -100,6 +100,7 @@ SQL_DEBUG=True
 
 - Always run ruff to fix formatting and lint the code after making python changes
 - When building something new, create a branch for it and open a pull request at the end
+- Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
 
 ## Architecture Overview
 
