@@ -80,23 +80,15 @@ class CampaignDetailView(generic.DetailView):
             )
         )
 
-        # Get resource types with totals and ranges
-        from django.db.models import Sum, Min, Max
-
-        resource_types = []
-        for resource_type in campaign.resource_types.all():
-            aggregates = resource_type.list_resources.aggregate(
-                total=Sum("amount"), min_amount=Min("amount"), max_amount=Max("amount")
+        # Get resource types with their list resources
+        context["resource_types"] = campaign.resource_types.prefetch_related(
+            models.Prefetch(
+                "list_resources",
+                queryset=CampaignListResource.objects.select_related("list").order_by(
+                    "list__name"
+                ),
             )
-            resource_types.append(
-                {
-                    "resource_type": resource_type,
-                    "total": aggregates["total"] or 0,
-                    "min": aggregates["min_amount"] or 0,
-                    "max": aggregates["max_amount"] or 0,
-                }
-            )
-        context["resource_types"] = resource_types
+        )
 
         context["is_owner"] = user == campaign.owner
         return context
