@@ -18,6 +18,7 @@ jsonschema==4.24.0
 jupyter==1.1.1
 nbstripout==0.8.1
 nodeenv==1.9.1
+playwright==1.48.0
 pre-commit==4.2.0
 psycopg2-binary==2.9.10
 pydot==4.0.0
