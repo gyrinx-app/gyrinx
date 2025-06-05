@@ -29,6 +29,22 @@ from gyrinx.core.models.campaign import (
 from gyrinx.core.models.list import List
 
 
+def get_campaign_resource_types_with_resources(campaign):
+    """
+    Get resource types with their list resources prefetched and ordered.
+
+    This helper function ensures consistent prefetching across views.
+    """
+    return campaign.resource_types.prefetch_related(
+        models.Prefetch(
+            "list_resources",
+            queryset=CampaignListResource.objects.select_related("list").order_by(
+                "list__name"
+            ),
+        )
+    )
+
+
 class Campaigns(generic.ListView):
     template_name = "core/campaign/campaigns.html"
     context_object_name = "campaigns"
@@ -81,14 +97,7 @@ class CampaignDetailView(generic.DetailView):
         )
 
         # Get resource types with their list resources
-        context["resource_types"] = campaign.resource_types.prefetch_related(
-            models.Prefetch(
-                "list_resources",
-                queryset=CampaignListResource.objects.select_related("list").order_by(
-                    "list__name"
-                ),
-            )
-        )
+        context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
         context["is_owner"] = user == campaign.owner
         return context
@@ -772,14 +781,7 @@ def campaign_resources(request, id):
     campaign = get_object_or_404(Campaign, id=id)
 
     # Get all resource types with their list resources
-    resource_types = campaign.resource_types.prefetch_related(
-        models.Prefetch(
-            "list_resources",
-            queryset=CampaignListResource.objects.select_related("list").order_by(
-                "list__name"
-            ),
-        )
-    )
+    resource_types = get_campaign_resource_types_with_resources(campaign)
 
     # Check permissions
     user = request.user
