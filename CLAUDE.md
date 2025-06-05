@@ -254,6 +254,7 @@ The list view establishes the standard UI pattern for detail pages:
 - Consider running `git stash`
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
+- When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
 
 ### UI Documentation
 
