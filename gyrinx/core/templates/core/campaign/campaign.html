@@ -226,19 +226,40 @@
                 </div>
                 <div class="card-body p-0">
                     {% if resource_types %}
-                        <div class="p-3">
-                            <div class="row g-3">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3">Resource</th>
+                                    <th class="text-center">Total</th>
+                                    {% if campaign.lists.count > 0 %}<th class="text-end pe-3">Range</th>{% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
                                 {% for item in resource_types %}
-                                    <div class="col-6 col-md-4 col-lg-3">
-                                        <div class="text-center">
-                                            <h6 class="text-muted mb-1">{{ item.resource_type.name }}</h6>
-                                            <div class="badge bg-primary fs-6">{{ item.total }}</div>
-                                            <div class="text-muted small">total</div>
-                                        </div>
-                                    </div>
+                                    <tr>
+                                        <td class="ps-3">
+                                            <strong>{{ item.resource_type.name }}</strong>
+                                            {% if item.resource_type.description %}
+                                                <br>
+                                                <small class="text-muted">{{ item.resource_type.description|striptags|truncatewords:10 }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-primary">{{ item.total }}</span>
+                                        </td>
+                                        {% if campaign.lists.count > 0 %}
+                                            <td class="text-end pe-3">
+                                                {% if item.min == item.max %}
+                                                    <span class="text-muted">{{ item.min }} each</span>
+                                                {% else %}
+                                                    <span class="text-muted">{{ item.min }}-{{ item.max }}</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endif %}
+                                    </tr>
                                 {% endfor %}
-                            </div>
-                        </div>
+                            </tbody>
+                        </table>
                     {% else %}
                         <div class="p-3 text-center text-muted">
                             No resource types defined yet.
