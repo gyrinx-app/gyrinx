@@ -188,6 +188,45 @@ SQL_DEBUG=True
 - User content should use `|safe` filter for HTML rendering
 - Templates follow Bootstrap 5 patterns with cards, alerts, and responsive utilities
 
+### UI Layout Patterns (List/Campaign View Style)
+
+The list view establishes the standard UI pattern for detail pages:
+
+1. **Header Structure**:
+
+    - Title uses `<h2 class="mb-0">` (or h1 for main pages)
+    - Metadata in a horizontal stack (`hstack`) with `text-secondary` styling
+    - Cost/status badges aligned to the right using `ms-md-auto`
+    - Status badges use contextual colors (e.g., `bg-success` for active states)
+
+2. **Metadata Row**:
+
+    - Uses `d-flex flex-column flex-sm-row` for responsive stacking
+    - Each metadata item in `<div class="text-secondary">` with icon + text
+    - Links use `link-secondary link-underline-opacity-25 link-underline-opacity-100-hover`
+    - Items separated by `column-gap-2`
+
+3. **Action Buttons**:
+
+    - Positioned right with `ms-sm-auto`
+    - Primary actions use `btn btn-primary btn-sm`
+    - Secondary actions use `btn btn-secondary btn-sm`
+    - More options in a dropdown with `btn-group` and three-dots icon
+
+4. **Information Callouts**:
+
+    - Avoid `alert` classes
+    - Use simple text with `text-secondary` or `text-muted`
+    - For separated content, use `border rounded p-2` instead of alerts
+    - Keep messaging minimal and inline where possible
+
+5. **Button Patterns**:
+    - All action buttons use `btn-sm` size
+    - Primary actions (Add/Create) use `btn-primary`
+    - Edit/modify actions use `btn-secondary`
+    - Destructive actions use `btn-danger`
+    - View/navigation use `btn-outline-secondary`
+
 ### URL Patterns
 
 - List views: plural noun (e.g., `/campaigns/`, `/lists/`)
@@ -207,3 +246,10 @@ SQL_DEBUG=True
 - Run `ruff format` to format Python code
 - Run `ruff check --fix` to fix linting issues
 - Always run ruff after making Python changes
+
+### Git Workflow
+
+- Before `git pull`, check the index
+- Consider running `git stash`
+- After a `stash` then `pull`, run `git stash pop` if necessary
+- This is useful for keeping the claude local file up-to-date

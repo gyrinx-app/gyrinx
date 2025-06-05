@@ -193,7 +193,7 @@ def test_campaign_status_display(client):
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
     assert response.status_code == 200
     assert b"Pre-Campaign" in response.content
-    assert b"Start Campaign" not in response.content  # No lists yet
+    assert b"bi-play-circle" not in response.content  # No lists yet, so no start button
 
     # Add a list to pre_campaign
     list_obj = List.objects.create_with_user(
@@ -205,16 +205,18 @@ def test_campaign_status_display(client):
     pre_campaign.lists.add(list_obj)
 
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
-    assert b"Start Campaign" in response.content
+    assert b"Start" in response.content
+    assert b"bi-play-circle" in response.content  # Check for the start icon
 
     response = client.get(reverse("core:campaign", args=[in_progress.id]))
     assert b"In Progress" in response.content
-    assert b"End Campaign" in response.content
+    assert b"End" in response.content
+    assert b"bi-stop-circle" in response.content  # Check for the end icon
 
     response = client.get(reverse("core:campaign", args=[post_campaign.id]))
     assert b"Post-Campaign" in response.content
-    assert b"Start Campaign" not in response.content
-    assert b"End Campaign" not in response.content
+    assert b"bi-play-circle" not in response.content  # No start button
+    assert b"bi-stop-circle" not in response.content  # No end button
 
 
 @pytest.mark.django_db

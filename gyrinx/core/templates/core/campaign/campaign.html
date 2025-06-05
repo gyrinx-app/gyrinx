@@ -7,22 +7,74 @@
     {% url 'core:campaigns' as campaigns_url %}
     {% include "core/includes/back.html" with url=campaigns_url text="All Campaigns" %}
     <div class="col-lg-12 px-0 vstack gap-3">
-        <header>
-            <h1 class="mb-1">{{ campaign.name }}</h1>
-            <div class="text-secondary mb-2">
-                <i class="bi-person"></i> Created by <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+        <div class="vstack gap-0 mb-2">
+            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
+                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
+                    <h1 class="mb-0">{{ campaign.name }}</h1>
+                    <div class="ms-md-auto">
+                        {% if campaign.is_pre_campaign %}
+                            <span class="badge bg-secondary">Pre-Campaign</span>
+                        {% elif campaign.is_in_progress %}
+                            <span class="badge bg-success">In Progress</span>
+                        {% else %}
+                            <span class="badge bg-dark">Post-Campaign</span>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            <div>
-                {% if campaign.is_pre_campaign %}
-                    <span class="badge bg-secondary">Pre-Campaign</span>
-                {% elif campaign.is_in_progress %}
-                    <span class="badge bg-success">In Progress</span>
-                {% else %}
-                    <span class="badge bg-dark">Post-Campaign</span>
-                {% endif %}
+            <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
+                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
+                    <div class="text-secondary">
+                        <i class="bi-person"></i>
+                        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                           href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                    </div>
+                    {% if campaign.public %}
+                        <div class="text-secondary">
+                            <i class="bi-eye"></i>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This campaign is visible to all users"
+                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</span>
+                        </div>
+                    {% else %}
+                        <div class="text-secondary">
+                            <i class="bi-eye-slash"></i>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This campaign is only visible to you"
+                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Private</span>
+                        </div>
+                    {% endif %}
+                    {% if campaign.lists.count > 0 %}
+                        <div class="text-secondary">
+                            <i class="bi-list-ul"></i>
+                            <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} list{{ campaign.lists.count|pluralize }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="ms-sm-auto mt-2 mt-sm-0">
+                    {% if campaign.owner == user %}
+                        <nav class="nav btn-group flex-nowrap">
+                            <a href="{% url 'core:campaign-edit' campaign.id %}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                            {% if campaign.can_start_campaign %}
+                                <a href="{% url 'core:campaign-start' campaign.id %}"
+                                   class="btn btn-success btn-sm">
+                                    <i class="bi-play-circle"></i> Start
+                                </a>
+                            {% elif campaign.can_end_campaign %}
+                                <a href="{% url 'core:campaign-end' campaign.id %}"
+                                   class="btn btn-danger btn-sm">
+                                    <i class="bi-stop-circle"></i> End
+                                </a>
+                            {% endif %}
+                        </nav>
+                    {% endif %}
+                </div>
             </div>
-            {% if campaign.summary %}<p>{{ campaign.summary|safe }}</p>{% endif %}
-        </header>
+            {% if campaign.summary %}<div class="text-muted mt-2">{{ campaign.summary|safe }}</div>{% endif %}
+        </div>
         <div class="vstack gap-3">
             {% if campaign.narrative %}
                 <div class="card">
@@ -32,7 +84,7 @@
                 </div>
             {% endif %}
             {% if not campaign.summary and not campaign.narrative %}
-                <div class="alert alert-info" role="alert">
+                <div class="text-muted">
                     <i class="bi-info-circle"></i> No campaign details have been added yet.
                 </div>
             {% endif %}
@@ -93,7 +145,7 @@
                                    class="btn btn-sm btn-link">View all actions →</a>
                             </div>
                         {% else %}
-                            <p class="text-muted mb-0">No actions logged yet.</p>
+                            <div class="p-3 text-center text-muted">No actions logged yet.</div>
                         {% endif %}
                     {% endwith %}
                 </div>
@@ -143,25 +195,6 @@
                     {% endif %}
                 </div>
             </div>
-            {% if campaign.owner == user %}
-                <div class="hstack gap-2">
-                    <a href="{% url 'core:campaign-edit' campaign.id %}"
-                       class="btn btn-primary">
-                        <i class="bi-pencil"></i> Edit campaign
-                    </a>
-                    {% if campaign.can_start_campaign %}
-                        <a href="{% url 'core:campaign-start' campaign.id %}"
-                           class="btn btn-success">
-                            <i class="bi-play-circle"></i> Start Campaign
-                        </a>
-                    {% elif campaign.can_end_campaign %}
-                        <a href="{% url 'core:campaign-end' campaign.id %}"
-                           class="btn btn-danger">
-                            <i class="bi-stop-circle"></i> End Campaign
-                        </a>
-                    {% endif %}
-                </div>
-            {% endif %}
         </div>
     </div>
 {% endblock content %}
