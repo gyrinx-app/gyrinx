@@ -253,3 +253,43 @@ The list view establishes the standard UI pattern for detail pages:
 - Consider running `git stash`
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
+
+### UI Documentation
+
+When making UI changes, use the automated screenshot utility to capture before/after screenshots:
+
+```bash
+# Install Playwright if not already installed
+pip install playwright
+
+# Capture before screenshots (Chromium will be installed automatically)
+python scripts/screenshot.py core:campaign --before --args <campaign_id>
+
+# Make your UI changes...
+
+# Capture after screenshots
+python scripts/screenshot.py core:campaign --after --args <campaign_id>
+
+# Capture multiple viewports
+python scripts/screenshot.py core:list --viewports desktop,tablet,mobile --args <list_id>
+
+# Capture specific element only
+python scripts/screenshot.py core:campaign --selector ".campaign-header" --args <id>
+```
+
+The automated script will:
+
+1. Use Playwright to launch a headless browser
+2. Authenticate using Django test client
+3. Navigate to the specified URL
+4. Capture full-page screenshots
+5. Save to `ui_archive/` with comparison markdown
+6. Support multiple viewports and themes
+
+Screenshots are organized as:
+
+- `ui_archive/<url_name>_<label>_<viewport>_<timestamp>.png`
+- `ui_archive/<url_name>_<label>_<viewport>_latest.png`
+- `ui_archive/<url_name>_comparison.md` for before/after pairs
+
+The `ui_archive/` directory is gitignored to keep the repository clean.

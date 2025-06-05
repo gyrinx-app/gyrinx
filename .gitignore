@@ -11,3 +11,5 @@ venv/
 css/
 dist/
 /node_modules/
+ui_archive/
+screenshots/
