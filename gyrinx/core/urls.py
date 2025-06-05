@@ -233,4 +233,25 @@ urlpatterns = [
         campaign.campaign_asset_transfer,
         name="campaign-asset-transfer",
     ),
+    # Campaign Resources
+    path(
+        "campaign/<id>/resources",
+        campaign.campaign_resources,
+        name="campaign-resources",
+    ),
+    path(
+        "campaign/<id>/resources/type/new",
+        campaign.campaign_resource_type_new,
+        name="campaign-resource-type-new",
+    ),
+    path(
+        "campaign/<id>/resources/type/<type_id>/edit",
+        campaign.campaign_resource_type_edit,
+        name="campaign-resource-type-edit",
+    ),
+    path(
+        "campaign/<id>/resources/<resource_id>/modify",
+        campaign.campaign_resource_modify,
+        name="campaign-resource-modify",
+    ),
 ]

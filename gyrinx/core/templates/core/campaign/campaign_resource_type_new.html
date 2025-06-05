@@ -1,0 +1,48 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add Resource Type - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {{ form.media }}
+    {% url 'core:campaign-resources' campaign.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Back to Resources" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Add Resource Type</h1>
+        <h2 class="h5 text-muted">{{ campaign.name }}</h2>
+        <form action="{% url 'core:campaign-resource-type-new' campaign.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                {{ form.name.label_tag }}
+                {{ form.name }}
+                {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
+            </div>
+            <div>
+                {{ form.description.label_tag }}
+                {{ form.description }}
+                {% if form.description.help_text %}
+                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                {% endif %}
+                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
+            </div>
+            <div>
+                {{ form.default_amount.label_tag }}
+                {{ form.default_amount }}
+                {% if form.default_amount.help_text %}
+                    <small class="form-text text-muted">{{ form.default_amount.help_text }}</small>
+                {% endif %}
+                {% if form.default_amount.errors %}
+                    <div class="invalid-feedback d-block">{{ form.default_amount.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="mt-3">
+                <input type="submit" class="btn btn-primary" value="Create Resource Type">
+                <a href="{% url 'core:campaign-resources' campaign.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

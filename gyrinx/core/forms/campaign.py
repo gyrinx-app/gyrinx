@@ -6,6 +6,7 @@ from gyrinx.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignResourceType,
 )
 
 # TinyMCE configuration shared between forms
@@ -252,3 +253,57 @@ class AssetTransferForm(forms.Form):
         if asset.holder:
             campaign_lists = campaign_lists.exclude(pk=asset.holder.pk)
         self.fields["new_holder"].queryset = campaign_lists
+
+
+class CampaignResourceTypeForm(forms.ModelForm):
+    """Form for creating and editing campaign resource types"""
+
+    class Meta:
+        model = CampaignResourceType
+        fields = ["name", "description", "default_amount"]
+        labels = {
+            "name": "Resource Name",
+            "description": "Description",
+            "default_amount": "Default Amount",
+        }
+        help_texts = {
+            "name": "Name of the resource (e.g., 'Meat', 'Credits', 'Ammo')",
+            "description": "Describe what this resource represents and how it's used",
+            "default_amount": "Amount given to each list when the campaign starts",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": TinyMCE(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            ),
+            "default_amount": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0}
+            ),
+        }
+
+
+class ResourceModifyForm(forms.Form):
+    """Form for modifying a list's resource amount"""
+
+    modification = forms.IntegerField(
+        label="Amount to Modify",
+        help_text="Enter a positive number to add or negative to subtract",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.resource = kwargs.pop("resource")
+        super().__init__(*args, **kwargs)
+
+    def clean_modification(self):
+        modification = self.cleaned_data["modification"]
+        new_amount = self.resource.amount + modification
+
+        if new_amount < 0:
+            raise forms.ValidationError(
+                f"Cannot reduce {self.resource.resource_type.name} below zero. "
+                f"Current amount: {self.resource.amount}, "
+                f"Attempted change: {modification}"
+            )
+
+        return modification
