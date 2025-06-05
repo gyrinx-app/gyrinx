@@ -659,7 +659,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         if form.is_valid():
             form.save()
             return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+                reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
             )
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
