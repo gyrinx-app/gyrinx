@@ -21,7 +21,8 @@
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(./scripts/test.sh:*)"
     ],
     "deny": []
   },

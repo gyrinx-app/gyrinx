@@ -24,8 +24,8 @@ from gyrinx.content.models import (
 from gyrinx.core.forms.list import (
     CloneListFighterForm,
     CloneListForm,
-    EditListForm,
     EditListFighterNarrativeForm,
+    EditListForm,
     ListFighterEquipmentAssignmentAccessoriesForm,
     ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
@@ -330,6 +330,7 @@ def edit_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_edit.html`
     """
+    print(f"Editing fighter {fighter_id} in list {id}")
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
@@ -796,7 +797,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         else None
     )
     if mal:
-        equipment = equipment.filter(rarity_roll__lte=mal)
+        # Only filter by rarity_roll for items that aren't Common
+        # Common items should always be visible
+        equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
 
     # Create assignment objects
     assigns = []
@@ -812,10 +815,14 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 or (not profile.rarity_roll and profile.rarity in als)
                 # They have an Al that matches the filter, and a roll
                 or (
-                    mal
-                    and profile.rarity_roll
-                    and profile.rarity_roll <= mal
+                    profile.rarity_roll
                     and profile.rarity in als
+                    and (
+                        # If mal is set, check if profile passes the threshold
+                        (mal and profile.rarity_roll <= mal)
+                        # If mal is not set, show all profiles with matching rarity
+                        or not mal
+                    )
                 )
             ]
             assigns.append(
