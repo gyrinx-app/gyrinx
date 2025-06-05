@@ -1,0 +1,46 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit {{ asset.name }}
+{% endblock head_title %}
+{% block content %}
+    {{ form.media }}
+    {% url 'core:campaign-assets' campaign.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Back to Assets" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Edit {{ asset.asset_type.name_singular }}</h1>
+        <h2 class="h5 text-muted">{{ asset.name }}</h2>
+        <form action="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                {{ form.name.label_tag }}
+                {{ form.name }}
+                {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
+            </div>
+            <div>
+                {{ form.description.label_tag }}
+                {{ form.description }}
+                {% if form.description.help_text %}
+                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                {% endif %}
+                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
+            </div>
+            <div>
+                {{ form.holder.label_tag }}
+                {{ form.holder }}
+                {% if form.holder.help_text %}<small class="form-text text-muted">{{ form.holder.help_text }}</small>{% endif %}
+                {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
+            </div>
+            <div class="mt-3">
+                <input type="submit"
+                       class="btn btn-primary"
+                       value="Update {{ asset.asset_type.name_singular }}">
+                <a href="{% url 'core:campaign-assets' campaign.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

@@ -1,7 +1,12 @@
 from django import forms
 from tinymce.widgets import TinyMCE
 
-from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.campaign import (
+    Campaign,
+    CampaignAction,
+    CampaignAsset,
+    CampaignAssetType,
+)
 
 # TinyMCE configuration shared between forms
 TINYMCE_CONFIG = {
@@ -162,3 +167,88 @@ class EditCampaignForm(forms.ModelForm):
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+
+class CampaignAssetTypeForm(forms.ModelForm):
+    """Form for creating and editing campaign asset types"""
+
+    class Meta:
+        model = CampaignAssetType
+        fields = ["name_singular", "name_plural", "description"]
+        labels = {
+            "name_singular": "Name (Singular)",
+            "name_plural": "Name (Plural)",
+            "description": "Description",
+        }
+        help_texts = {
+            "name_singular": "Singular form of the asset type (e.g., 'Territory')",
+            "name_plural": "Plural form of the asset type (e.g., 'Territories')",
+            "description": "Describe what this type of asset represents in your campaign",
+        }
+        widgets = {
+            "name_singular": forms.TextInput(attrs={"class": "form-control"}),
+            "name_plural": forms.TextInput(attrs={"class": "form-control"}),
+            "description": TinyMCE(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            ),
+        }
+
+
+class CampaignAssetForm(forms.ModelForm):
+    """Form for creating and editing campaign assets"""
+
+    class Meta:
+        model = CampaignAsset
+        fields = ["name", "description", "holder"]
+        labels = {
+            "name": "Asset Name",
+            "description": "Description",
+            "holder": "Current Holder",
+        }
+        help_texts = {
+            "name": "Name of this specific asset (e.g., 'The Sump')",
+            "description": "Describe this asset - its benefits, location, or any special rules",
+            "holder": "The list currently holding this asset (leave blank if unowned)",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": TinyMCE(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            ),
+            "holder": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        asset_type = kwargs.pop("asset_type", None)
+        super().__init__(*args, **kwargs)
+
+        # Limit holder choices to lists in the campaign
+        if asset_type:
+            self.fields["holder"].queryset = asset_type.campaign.lists.all()
+        elif self.instance and self.instance.pk:
+            self.fields[
+                "holder"
+            ].queryset = self.instance.asset_type.campaign.lists.all()
+
+
+class AssetTransferForm(forms.Form):
+    """Form for transferring an asset to a new holder"""
+
+    new_holder = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        label="New Holder",
+        help_text="Select the list to transfer this asset to (or leave blank to make it unowned)",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="No one (unowned)",
+    )
+
+    def __init__(self, *args, **kwargs):
+        asset = kwargs.pop("asset")
+        super().__init__(*args, **kwargs)
+
+        # Set queryset to lists in the campaign, excluding current holder
+        campaign_lists = asset.asset_type.campaign.lists.all()
+        if asset.holder:
+            campaign_lists = campaign_lists.exclude(pk=asset.holder.pk)
+        self.fields["new_holder"].queryset = campaign_lists

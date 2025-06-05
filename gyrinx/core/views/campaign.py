@@ -8,12 +8,20 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx.core.forms.campaign import (
+    AssetTransferForm,
     CampaignActionForm,
     CampaignActionOutcomeForm,
+    CampaignAssetForm,
+    CampaignAssetTypeForm,
     EditCampaignForm,
     NewCampaignForm,
 )
-from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.campaign import (
+    Campaign,
+    CampaignAction,
+    CampaignAsset,
+    CampaignAssetType,
+)
 from gyrinx.core.models.list import List
 
 
@@ -50,15 +58,25 @@ class CampaignDetailView(generic.DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        campaign = self.object
         user = self.request.user
+
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         if user.is_authenticated:
-            campaign = self.object
             context["can_log_actions"] = campaign.is_in_progress and (
                 campaign.owner == user or campaign.lists.filter(owner=user).exists()
             )
         else:
             context["can_log_actions"] = False
+
+        # Get asset types with their assets for the summary
+        context["asset_types"] = campaign.asset_types.prefetch_related(
+            models.Prefetch(
+                "assets", queryset=CampaignAsset.objects.select_related("holder")
+            )
+        )
+
+        context["is_owner"] = user == campaign.owner
         return context
 
 
@@ -470,4 +488,252 @@ def end_campaign(request, id):
         request,
         "core/campaign/campaign_end.html",
         {"campaign": campaign},
+    )
+
+
+@login_required
+def campaign_assets(request, id):
+    """
+    Manage assets for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` whose assets are being managed.
+    ``asset_types``
+        List of :model:`core.CampaignAssetType` objects for this campaign.
+
+    **Template**
+
+    :template:`core/campaign/campaign_assets.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    # Get all asset types for this campaign with their assets
+    asset_types = campaign.asset_types.prefetch_related(
+        models.Prefetch(
+            "assets", queryset=CampaignAsset.objects.select_related("holder")
+        )
+    )
+
+    return render(
+        request,
+        "core/campaign/campaign_assets.html",
+        {
+            "campaign": campaign,
+            "asset_types": asset_types,
+            "is_owner": request.user == campaign.owner,
+        },
+    )
+
+
+@login_required
+def campaign_asset_type_new(request, id):
+    """
+    Create a new asset type for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset type is being created for.
+    ``form``
+        A CampaignAssetTypeForm for creating the asset type.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_type_new.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        form = CampaignAssetTypeForm(request.POST)
+        if form.is_valid():
+            asset_type = form.save(commit=False)
+            asset_type.campaign = campaign
+            asset_type.owner = request.user
+            asset_type.save()
+            messages.success(
+                request, f"Asset type '{asset_type.name_singular}' created."
+            )
+            return HttpResponseRedirect(
+                reverse("core:campaign-assets", args=(campaign.id,))
+            )
+    else:
+        form = CampaignAssetTypeForm()
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_type_new.html",
+        {"form": form, "campaign": campaign},
+    )
+
+
+@login_required
+def campaign_asset_type_edit(request, id, type_id):
+    """
+    Edit an existing asset type.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset type belongs to.
+    ``asset_type``
+        The :model:`core.CampaignAssetType` being edited.
+    ``form``
+        A CampaignAssetTypeForm for editing the asset type.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_type_edit.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
+
+    if request.method == "POST":
+        form = CampaignAssetTypeForm(request.POST, instance=asset_type)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Asset type updated.")
+            return HttpResponseRedirect(
+                reverse("core:campaign-assets", args=(campaign.id,))
+            )
+    else:
+        form = CampaignAssetTypeForm(instance=asset_type)
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_type_edit.html",
+        {"form": form, "campaign": campaign, "asset_type": asset_type},
+    )
+
+
+@login_required
+def campaign_asset_new(request, id, type_id):
+    """
+    Create a new asset for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset is being created for.
+    ``asset_type``
+        The :model:`core.CampaignAssetType` this asset belongs to.
+    ``form``
+        A CampaignAssetForm for creating the asset.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_new.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
+
+    if request.method == "POST":
+        form = CampaignAssetForm(request.POST, asset_type=asset_type)
+        if form.is_valid():
+            asset = form.save(commit=False)
+            asset.asset_type = asset_type
+            asset.owner = request.user
+            asset.save()
+            messages.success(request, f"Asset '{asset.name}' created.")
+
+            # Check which button was clicked
+            if "save_and_add_another" in request.POST:
+                # Redirect back to the same form to create another
+                return HttpResponseRedirect(
+                    reverse(
+                        "core:campaign-asset-new", args=(campaign.id, asset_type.id)
+                    )
+                )
+            else:
+                # Default: redirect to assets list
+                return HttpResponseRedirect(
+                    reverse("core:campaign-assets", args=(campaign.id,))
+                )
+    else:
+        form = CampaignAssetForm(asset_type=asset_type)
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_new.html",
+        {"form": form, "campaign": campaign, "asset_type": asset_type},
+    )
+
+
+@login_required
+def campaign_asset_edit(request, id, asset_id):
+    """
+    Edit an existing asset.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset belongs to.
+    ``asset``
+        The :model:`core.CampaignAsset` being edited.
+    ``form``
+        A CampaignAssetForm for editing the asset.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_edit.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
+
+    if request.method == "POST":
+        form = CampaignAssetForm(request.POST, instance=asset)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Asset updated.")
+            return HttpResponseRedirect(
+                reverse("core:campaign-assets", args=(campaign.id,))
+            )
+    else:
+        form = CampaignAssetForm(instance=asset)
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_edit.html",
+        {"form": form, "campaign": campaign, "asset": asset},
+    )
+
+
+@login_required
+def campaign_asset_transfer(request, id, asset_id):
+    """
+    Transfer an asset to a new holder.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset belongs to.
+    ``asset``
+        The :model:`core.CampaignAsset` being transferred.
+    ``form``
+        An AssetTransferForm for selecting the new holder.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_transfer.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
+
+    if request.method == "POST":
+        form = AssetTransferForm(request.POST, asset=asset)
+        if form.is_valid():
+            new_holder = form.cleaned_data["new_holder"]
+            asset.transfer_to(new_holder, user=request.user)
+            messages.success(request, "Asset transferred successfully.")
+            return HttpResponseRedirect(
+                reverse("core:campaign-assets", args=(campaign.id,))
+            )
+    else:
+        form = AssetTransferForm(asset=asset)
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_transfer.html",
+        {"form": form, "campaign": campaign, "asset": asset},
     )

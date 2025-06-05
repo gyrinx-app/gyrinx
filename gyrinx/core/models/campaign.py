@@ -174,3 +174,104 @@ class CampaignAction(AppBase):
         if self.dice_count > 0 and not self.dice_results:
             self.roll_dice()
         super().save(*args, **kwargs)
+
+
+class CampaignAssetType(AppBase):
+    """Type of asset that can be held in a campaign (e.g., Territory, Relic)"""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="asset_types",
+        help_text="The campaign this asset type belongs to",
+    )
+    name_singular = models.CharField(
+        max_length=100,
+        help_text="Singular form of the asset type name (e.g., 'Territory')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    name_plural = models.CharField(
+        max_length=100,
+        help_text="Plural form of the asset type name (e.g., 'Territories')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this asset type",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Asset Type"
+        verbose_name_plural = "Campaign Asset Types"
+        unique_together = [("campaign", "name_singular")]
+        ordering = ["name_singular"]
+
+    def __str__(self):
+        return f"{self.campaign.name} - {self.name_singular}"
+
+
+class CampaignAsset(AppBase):
+    """An asset that can be held by a list in a campaign"""
+
+    asset_type = models.ForeignKey(
+        CampaignAssetType,
+        on_delete=models.CASCADE,
+        related_name="assets",
+        help_text="The type of this asset",
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of the asset (e.g., 'The Sump')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this asset",
+    )
+    holder = models.ForeignKey(
+        "List",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="held_assets",
+        help_text="The list currently holding this asset",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Asset"
+        verbose_name_plural = "Campaign Assets"
+        ordering = ["asset_type", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.asset_type.name_singular})"
+
+    def transfer_to(self, new_holder, user):
+        """Transfer this asset to a new holder and log the action
+
+        Args:
+            new_holder: The List that will hold this asset (can be None)
+            user: The User performing the transfer (required)
+        """
+        if not user:
+            raise ValueError("User is required for asset transfers")
+
+        old_holder = self.holder
+        self.holder = new_holder
+        self.save_with_user(user=user)
+
+        # Create action log entry
+        if old_holder or new_holder:
+            old_name = old_holder.name if old_holder else "no one"
+            new_name = new_holder.name if new_holder else "no one"
+            description = f"{self.asset_type.name_singular} Transfer: {self.name} transferred from {old_name} to {new_name}"
+
+            CampaignAction.objects.create(
+                campaign=self.asset_type.campaign,
+                user=user,
+                description=description,
+                dice_count=0,
+            )

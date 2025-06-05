@@ -1,0 +1,52 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Transfer {{ asset.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign-assets' campaign.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Back to Assets" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Transfer {{ asset.asset_type.name_singular }}</h1>
+        <h2 class="h5 text-muted">{{ asset.name }}</h2>
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Current Status</h6>
+                {% if asset.holder %}
+                    <p class="mb-0">
+                        <span class="badge bg-info">
+                            <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
+                        </span>
+                    </p>
+                {% else %}
+                    <p class="mb-0">
+                        <span class="badge bg-secondary">
+                            <i class="bi-dash-circle"></i> Unowned
+                        </span>
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+        <form action="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                {{ form.new_holder.label_tag }}
+                {{ form.new_holder }}
+                {% if form.new_holder.help_text %}
+                    <small class="form-text text-muted">{{ form.new_holder.help_text }}</small>
+                {% endif %}
+                {% if form.new_holder.errors %}<div class="invalid-feedback d-block">{{ form.new_holder.errors }}</div>{% endif %}
+            </div>
+            <div class="alert alert-info" role="alert">
+                <i class="bi-info-circle"></i> This action will be recorded in the campaign action log.
+            </div>
+            <div class="mt-3">
+                <input type="submit" class="btn btn-primary" value="Transfer Asset">
+                <a href="{% url 'core:campaign-assets' campaign.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

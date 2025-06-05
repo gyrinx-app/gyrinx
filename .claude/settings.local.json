@@ -9,7 +9,6 @@
       "Bash(python -m pytest:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(python manage.py makemigrations:*)",
       "Bash(find:*)",
       "Bash(python scripts/manage.py collectstatic:*)",
       "WebFetch(domain:github.com)",
@@ -22,7 +21,8 @@
       "Bash(gh pr create:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(./scripts/test.sh:*)"
+      "Bash(./scripts/test.sh:*)",
+      "Bash(npm run fmt:*)"
     ],
     "deny": []
   },

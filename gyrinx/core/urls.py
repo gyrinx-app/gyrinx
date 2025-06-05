@@ -202,4 +202,35 @@ urlpatterns = [
         campaign.end_campaign,
         name="campaign-end",
     ),
+    # Campaign Assets
+    path(
+        "campaign/<id>/assets",
+        campaign.campaign_assets,
+        name="campaign-assets",
+    ),
+    path(
+        "campaign/<id>/assets/type/new",
+        campaign.campaign_asset_type_new,
+        name="campaign-asset-type-new",
+    ),
+    path(
+        "campaign/<id>/assets/type/<type_id>/edit",
+        campaign.campaign_asset_type_edit,
+        name="campaign-asset-type-edit",
+    ),
+    path(
+        "campaign/<id>/assets/type/<type_id>/new",
+        campaign.campaign_asset_new,
+        name="campaign-asset-new",
+    ),
+    path(
+        "campaign/<id>/assets/<asset_id>/edit",
+        campaign.campaign_asset_edit,
+        name="campaign-asset-edit",
+    ),
+    path(
+        "campaign/<id>/assets/<asset_id>/transfer",
+        campaign.campaign_asset_transfer,
+        name="campaign-asset-transfer",
+    ),
 ]
