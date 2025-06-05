@@ -21,6 +21,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+import socket
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -52,6 +53,18 @@ VIEWPORTS = {
     "tablet": {"width": 768, "height": 1024},
     "mobile": {"width": 375, "height": 812},
 }
+
+
+def check_server_running(host="localhost", port=8000):
+    """Check if the Django development server is running."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    try:
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
 
 
 def ensure_browser_installed():
@@ -409,6 +422,14 @@ def main():
             print(f"Error: Invalid viewport '{viewport}'")
             print(f"Valid viewports: {', '.join(VIEWPORTS.keys())}")
             sys.exit(1)
+
+    # Check if server is running
+    if not check_server_running():
+        print("\n✗ Error: Django development server is not running")
+        print("Please start the server with:")
+        print("  python manage.py runserver")
+        print("\nThen run this command again.")
+        sys.exit(1)
 
     # Ensure browser is installed before attempting to capture
     if not ensure_browser_installed():
