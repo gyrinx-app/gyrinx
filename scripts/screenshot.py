@@ -202,8 +202,26 @@ class ScreenshotCapture:
 
             # Add authentication cookie if available
             session_cookie = await self.authenticate()
+            cookies = []
             if session_cookie:
-                await context.add_cookies([session_cookie])
+                cookies.append(session_cookie)
+
+            # Add Django Debug Toolbar cookie to keep it closed
+            # The toolbar reads this cookie and stays hidden when value is "hide"
+            cookies.append(
+                {
+                    "name": "djdt",
+                    "value": "hide",
+                    "domain": "localhost",
+                    "path": "/",
+                    "httpOnly": False,
+                    "secure": False,
+                    "sameSite": "Lax",
+                }
+            )
+
+            if cookies:
+                await context.add_cookies(cookies)
 
             # Create page and navigate
             page = await context.new_page()
