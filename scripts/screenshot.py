@@ -35,6 +35,7 @@ django.setup()
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.test import Client  # noqa: E402
 from django.urls import reverse  # noqa: E402
+from asgiref.sync import sync_to_async  # noqa: E402
 
 try:
     from playwright.async_api import async_playwright
@@ -95,31 +96,38 @@ class ScreenshotCapture:
         self.server_url = server_url
         self.client = Client()
 
-    def authenticate(self, username="admin"):
+    async def authenticate(self, username="admin"):
         """Authenticate using Django test client and return session cookie."""
         User = get_user_model()
-        try:
-            user = User.objects.get(username=username)
-            self.client.force_login(user)
 
-            # Get session cookie
-            if hasattr(self.client, "cookies"):
-                session_cookie = self.client.cookies.get(settings.SESSION_COOKIE_NAME)
-                if session_cookie:
-                    return {
-                        "name": settings.SESSION_COOKIE_NAME,
-                        "value": session_cookie.value,
-                        "domain": "localhost",
-                        "path": "/",
-                        "httpOnly": True,
-                        "secure": False,
-                        "sameSite": "Lax",
-                    }
-        except User.DoesNotExist:
-            print(
-                f"Warning: User '{username}' not found, proceeding without authentication"
-            )
-        return None
+        @sync_to_async
+        def get_user_and_login():
+            try:
+                user = User.objects.get(username=username)
+                self.client.force_login(user)
+
+                # Get session cookie
+                if hasattr(self.client, "cookies"):
+                    session_cookie = self.client.cookies.get(
+                        settings.SESSION_COOKIE_NAME
+                    )
+                    if session_cookie:
+                        return {
+                            "name": settings.SESSION_COOKIE_NAME,
+                            "value": session_cookie.value,
+                            "domain": "localhost",
+                            "path": "/",
+                            "httpOnly": True,
+                            "secure": False,
+                            "sameSite": "Lax",
+                        }
+            except User.DoesNotExist:
+                print(
+                    f"Warning: User '{username}' not found, proceeding without authentication"
+                )
+            return None
+
+        return await get_user_and_login()
 
     async def capture_screenshot(
         self,
@@ -139,10 +147,16 @@ class ScreenshotCapture:
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Build URL
-        try:
-            url_path = reverse(url_name, args=url_args or [])
-        except Exception as e:
-            print(f"Error: Failed to reverse URL '{url_name}': {e}")
+        @sync_to_async
+        def get_url_path():
+            try:
+                return reverse(url_name, args=url_args or [])
+            except Exception as e:
+                print(f"Error: Failed to reverse URL '{url_name}': {e}")
+                return None
+
+        url_path = await get_url_path()
+        if url_path is None:
             return False
 
         full_url = f"{self.server_url}{url_path}"
@@ -174,7 +188,7 @@ class ScreenshotCapture:
             )
 
             # Add authentication cookie if available
-            session_cookie = self.authenticate()
+            session_cookie = await self.authenticate()
             if session_cookie:
                 await context.add_cookies([session_cookie])
 
@@ -182,7 +196,17 @@ class ScreenshotCapture:
             page = await context.new_page()
 
             print(f"Navigating to {full_url}...")
-            await page.goto(full_url, wait_until="networkidle")
+            try:
+                await page.goto(full_url, wait_until="networkidle")
+            except Exception as e:
+                if "net::ERR_CONNECTION_REFUSED" in str(e):
+                    print(f"\n✗ Error: Could not connect to {self.server_url}")
+                    print("Please ensure the Django development server is running:")
+                    print("  python manage.py runserver")
+                    await browser.close()
+                    return False
+                else:
+                    raise
 
             # Wait for any animations to complete
             await page.wait_for_timeout(1000)
@@ -298,7 +322,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Automated UI screenshot capture using Playwright"
     )
-    parser.add_argument("url_name", help="Django URL name (e.g., 'core:campaign')")
+    parser.add_argument(
+        "url_name", nargs="?", help="Django URL name (e.g., 'core:campaign')"
+    )
     parser.add_argument("--args", nargs="*", help="Arguments for the URL", default=[])
     parser.add_argument(
         "--before", action="store_true", help="Label screenshot as 'before'"
@@ -362,6 +388,10 @@ def main():
             print("\nTo install, run:")
             print("  pip install playwright")
             return
+
+    # Require url_name if not checking
+    if not args.url_name:
+        parser.error("url_name is required unless using --check")
 
     # Determine label
     label = args.label
