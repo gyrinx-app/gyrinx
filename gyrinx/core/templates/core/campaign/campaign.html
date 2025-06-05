@@ -150,6 +150,34 @@
                     {% endwith %}
                 </div>
             </div>
+            <!-- Campaign Assets -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="card-title h5 mb-0">Campaign Assets</h2>
+                    <a href="{% url 'core:campaign-assets' campaign.id %}"
+                       class="btn btn-secondary btn-sm">
+                        <i class="bi-box-seam"></i> View Assets
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    {% with asset_count=campaign.asset_types.count %}
+                        {% if asset_count > 0 %}
+                            <div class="p-3">
+                                <p class="mb-0 text-muted">This campaign has {{ asset_count }} asset type{{ asset_count|pluralize }}.</p>
+                            </div>
+                        {% else %}
+                            <div class="p-3 text-center text-muted">
+                                No asset types defined yet.
+                                {% if campaign.owner == user %}
+                                    <br>
+                                    <a href="{% url 'core:campaign-assets' campaign.id %}"
+                                       class="btn btn-link btn-sm mt-2">Manage Assets →</a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
             <!-- Campaign Lists -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
