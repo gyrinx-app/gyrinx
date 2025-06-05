@@ -47,36 +47,32 @@
                                 <div class="list-group list-group-flush">
                                     {% for asset in assets %}
                                         <div class="list-group-item">
-                                            <div class="d-flex w-100 justify-content-between align-items-start">
-                                                <div class="flex-grow-1">
-                                                    <h6 class="mb-1">{{ asset.name }}</h6>
-                                                    {% if asset.description %}
-                                                        <div class="small text-muted">{{ asset.description|safe|truncatewords_html:20 }}</div>
+                                            <div class="vstack gap-3">
+                                                <div class="mt-2 d-flex justify-content-between align-items-center">
+                                                    <h6 class="mb-0 me-2">{{ asset.name }}</h6>
+                                                    {% if asset.holder %}
+                                                        <span class="badge bg-info">
+                                                            <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">
+                                                            <i class="bi-dash-circle"></i> Unowned
+                                                        </span>
                                                     {% endif %}
-                                                    <div class="mt-2">
-                                                        {% if asset.holder %}
-                                                            <span class="badge bg-info">
-                                                                <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
-                                                            </span>
-                                                        {% else %}
-                                                            <span class="badge bg-secondary">
-                                                                <i class="bi-dash-circle"></i> Unowned
-                                                            </span>
-                                                        {% endif %}
-                                                    </div>
+                                                    {% if is_owner %}
+                                                        <div class="btn-group btn-group-sm flex-shrink-0 ms-auto">
+                                                            <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                               class="btn btn-outline-primary">
+                                                                <i class="bi-arrow-left-right"></i> Transfer
+                                                            </a>
+                                                            <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+                                                               class="btn btn-outline-secondary">
+                                                                <i class="bi-pencil"></i> Edit
+                                                            </a>
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
-                                                {% if is_owner %}
-                                                    <div class="btn-group btn-group-sm ms-2">
-                                                        <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                           class="btn btn-outline-primary">
-                                                            <i class="bi-arrow-left-right"></i> Transfer
-                                                        </a>
-                                                        <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                           class="btn btn-outline-secondary">
-                                                            <i class="bi-pencil"></i> Edit
-                                                        </a>
-                                                    </div>
-                                                {% endif %}
+                                                {% if asset.description %}<div class="small text-muted">{{ asset.description|safe }}</div>{% endif %}
                                             </div>
                                         </div>
                                     {% endfor %}

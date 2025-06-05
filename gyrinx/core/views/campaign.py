@@ -58,15 +58,25 @@ class CampaignDetailView(generic.DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        campaign = self.object
         user = self.request.user
+
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         if user.is_authenticated:
-            campaign = self.object
             context["can_log_actions"] = campaign.is_in_progress and (
                 campaign.owner == user or campaign.lists.filter(owner=user).exists()
             )
         else:
             context["can_log_actions"] = False
+
+        # Get asset types with their assets for the summary
+        context["asset_types"] = campaign.asset_types.prefetch_related(
+            models.Prefetch(
+                "assets", queryset=CampaignAsset.objects.select_related("holder")
+            )
+        )
+
+        context["is_owner"] = user == campaign.owner
         return context
 
 
