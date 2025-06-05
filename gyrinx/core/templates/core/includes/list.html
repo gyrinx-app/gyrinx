@@ -110,12 +110,13 @@
             </div>
         </div>
         {% if list.is_list_building and list.active_campaign_clones.exists %}
-            <div class="alert alert-info" role="alert">
+            <div class="text-secondary mt-2">
                 <i class="bi-flag"></i> This list has active campaign versions:
                 <ul class="mb-0 mt-1">
                     {% for clone in list.active_campaign_clones %}
                         <li>
-                            <a href="{% url 'core:campaign' clone.campaign.id %}">{{ clone.campaign.name }}</a>
+                            <a href="{% url 'core:campaign' clone.campaign.id %}"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.name }}</a>
                             ({{ clone.campaign.owner.username }})
                         </li>
                     {% endfor %}
@@ -123,8 +124,13 @@
             </div>
         {% endif %}
         {% if list.is_campaign_mode and list.original_list %}
-            <div class="alert alert-info" role="alert">
-                <i class="bi-arrow-return-right"></i> This is a campaign version of <a href="{% url 'core:list' list.original_list.id %}">{{ list.original_list.name }}</a>
+            <div class="text-secondary mt-2">
+                <i class="bi-arrow-return-right"></i> This is a campaign version of <a href="{% url 'core:list' list.original_list.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.original_list.name }}</a>
+                {% if list.campaign %}
+                    in <a href="{% url 'core:campaign' list.campaign.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
+                {% endif %}
             </div>
         {% endif %}
     </div>

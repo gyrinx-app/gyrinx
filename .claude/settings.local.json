@@ -12,8 +12,18 @@
       "Bash(python manage.py makemigrations:*)",
       "Bash(find:*)",
       "Bash(python scripts/manage.py collectstatic:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(python scripts/manage.py makemigrations:*)",
+      "Bash(sed:*)",
+      "Bash(python:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": false
 }
