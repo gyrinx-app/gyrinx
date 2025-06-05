@@ -90,17 +90,30 @@ class Campaign(AppBase):
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
-        This will clone all associated lists into campaign mode.
+        This will clone all associated lists into campaign mode and allocate default resources.
         """
         if self.can_start_campaign():
             # Clone all lists for the campaign
             original_lists = list(self.lists.all())
             self.lists.clear()  # Remove the original lists
 
+            cloned_lists = []
             for original_list in original_lists:
                 # Clone the list for campaign mode
                 campaign_clone = original_list.clone(for_campaign=self)
                 self.lists.add(campaign_clone)
+                cloned_lists.append(campaign_clone)
+
+            # Allocate default resources to each list
+            for resource_type in self.resource_types.all():
+                for cloned_list in cloned_lists:
+                    CampaignListResource.objects.create(
+                        campaign=self,
+                        resource_type=resource_type,
+                        list=cloned_list,
+                        amount=resource_type.default_amount,
+                        owner=self.owner,  # Campaign owner owns the resource tracking
+                    )
 
             self.status = self.IN_PROGRESS
             self.save()
@@ -274,4 +287,116 @@ class CampaignAsset(AppBase):
                 user=user,
                 description=description,
                 dice_count=0,
+                owner=user,
             )
+
+
+class CampaignResourceType(AppBase):
+    """Type of resource tracked in a campaign (e.g., Meat, Ammo, Credits)"""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="resource_types",
+        help_text="The campaign this resource type belongs to",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Name of the resource (e.g., 'Meat', 'Credits')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this resource type",
+    )
+    default_amount = models.PositiveIntegerField(
+        default=0,
+        help_text="Default amount allocated to each list when campaign starts",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Resource Type"
+        verbose_name_plural = "Campaign Resource Types"
+        unique_together = [("campaign", "name")]
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.campaign.name} - {self.name}"
+
+
+class CampaignListResource(AppBase):
+    """Tracks the amount of a resource that a list has in a campaign"""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="list_resources",
+        help_text="The campaign this resource belongs to",
+    )
+    resource_type = models.ForeignKey(
+        CampaignResourceType,
+        on_delete=models.CASCADE,
+        related_name="list_resources",
+        help_text="The type of resource",
+    )
+    list = models.ForeignKey(
+        "List",
+        on_delete=models.CASCADE,
+        related_name="campaign_resources",
+        help_text="The list that has this resource",
+    )
+    amount = models.PositiveIntegerField(
+        default=0,
+        help_text="Current amount of this resource",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign List Resource"
+        verbose_name_plural = "Campaign List Resources"
+        unique_together = [("campaign", "resource_type", "list")]
+        ordering = ["resource_type__name", "list__name"]
+
+    def __str__(self):
+        return f"{self.list.name} - {self.resource_type.name}: {self.amount}"
+
+    def modify_amount(self, modification, user):
+        """Modify the resource amount and log the action
+
+        Args:
+            modification: Integer amount to add (positive) or subtract (negative)
+            user: The User performing the modification
+
+        Raises:
+            ValueError: If modification would result in negative amount
+        """
+        if not user:
+            raise ValueError("User is required for resource modifications")
+
+        new_amount = self.amount + modification
+        if new_amount < 0:
+            raise ValueError(
+                f"Cannot reduce {self.resource_type.name} below zero. Current: {self.amount}, Attempted change: {modification}"
+            )
+
+        self.amount = new_amount
+        self.save_with_user(user=user)
+
+        # Create action log entry
+        if modification > 0:
+            action = f"gained {modification}"
+        else:
+            action = f"lost {abs(modification)}"
+
+        description = f"{self.resource_type.name} Update: {self.list.name} {action} {self.resource_type.name} (new total: {new_amount})"
+
+        CampaignAction.objects.create(
+            campaign=self.campaign,
+            user=user,
+            description=description,
+            dice_count=0,
+            owner=user,
+        )

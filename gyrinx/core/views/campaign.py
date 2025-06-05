@@ -13,16 +13,36 @@ from gyrinx.core.forms.campaign import (
     CampaignActionOutcomeForm,
     CampaignAssetForm,
     CampaignAssetTypeForm,
+    CampaignResourceTypeForm,
     EditCampaignForm,
     NewCampaignForm,
+    ResourceModifyForm,
 )
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignListResource,
+    CampaignResourceType,
 )
 from gyrinx.core.models.list import List
+
+
+def get_campaign_resource_types_with_resources(campaign):
+    """
+    Get resource types with their list resources prefetched and ordered.
+
+    This helper function ensures consistent prefetching across views.
+    """
+    return campaign.resource_types.prefetch_related(
+        models.Prefetch(
+            "list_resources",
+            queryset=CampaignListResource.objects.select_related("list").order_by(
+                "list__name"
+            ),
+        )
+    )
 
 
 class Campaigns(generic.ListView):
@@ -75,6 +95,9 @@ class CampaignDetailView(generic.DetailView):
                 "assets", queryset=CampaignAsset.objects.select_related("holder")
             )
         )
+
+        # Get resource types with their list resources
+        context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
         context["is_owner"] = user == campaign.owner
         return context
@@ -736,4 +759,191 @@ def campaign_asset_transfer(request, id, asset_id):
         request,
         "core/campaign/campaign_asset_transfer.html",
         {"form": form, "campaign": campaign, "asset": asset},
+    )
+
+
+@login_required
+def campaign_resources(request, id):
+    """
+    Manage resources for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` whose resources are being managed.
+    ``resource_types``
+        List of :model:`core.CampaignResourceType` objects for this campaign.
+
+    **Template**
+
+    :template:`core/campaign/campaign_resources.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    # Get all resource types with their list resources
+    resource_types = get_campaign_resource_types_with_resources(campaign)
+
+    # Check permissions
+    user = request.user
+    is_owner = user == campaign.owner
+    user_lists = campaign.lists.filter(owner=user) if user.is_authenticated else []
+
+    return render(
+        request,
+        "core/campaign/campaign_resources.html",
+        {
+            "campaign": campaign,
+            "resource_types": resource_types,
+            "is_owner": is_owner,
+            "user_lists": user_lists,
+        },
+    )
+
+
+@login_required
+def campaign_resource_type_new(request, id):
+    """
+    Create a new resource type for a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the resource type is being created for.
+    ``form``
+        A CampaignResourceTypeForm for creating the resource type.
+
+    **Template**
+
+    :template:`core/campaign/campaign_resource_type_new.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        form = CampaignResourceTypeForm(request.POST)
+        if form.is_valid():
+            resource_type = form.save(commit=False)
+            resource_type.campaign = campaign
+            resource_type.owner = request.user
+            resource_type.save()
+
+            # If campaign is already started, allocate resources to existing lists
+            if campaign.is_in_progress:
+                for list_obj in campaign.lists.all():
+                    CampaignListResource.objects.create(
+                        campaign=campaign,
+                        resource_type=resource_type,
+                        list=list_obj,
+                        amount=resource_type.default_amount,
+                        owner=request.user,
+                    )
+
+            messages.success(request, f"Resource type '{resource_type.name}' created.")
+            return HttpResponseRedirect(
+                reverse("core:campaign-resources", args=(campaign.id,))
+            )
+    else:
+        form = CampaignResourceTypeForm()
+
+    return render(
+        request,
+        "core/campaign/campaign_resource_type_new.html",
+        {"form": form, "campaign": campaign},
+    )
+
+
+@login_required
+def campaign_resource_type_edit(request, id, type_id):
+    """
+    Edit an existing resource type.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the resource type belongs to.
+    ``resource_type``
+        The :model:`core.CampaignResourceType` being edited.
+    ``form``
+        A CampaignResourceTypeForm for editing the resource type.
+
+    **Template**
+
+    :template:`core/campaign/campaign_resource_type_edit.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    resource_type = get_object_or_404(
+        CampaignResourceType, id=type_id, campaign=campaign
+    )
+
+    if request.method == "POST":
+        form = CampaignResourceTypeForm(request.POST, instance=resource_type)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Resource type updated.")
+            return HttpResponseRedirect(
+                reverse("core:campaign-resources", args=(campaign.id,))
+            )
+    else:
+        form = CampaignResourceTypeForm(instance=resource_type)
+
+    return render(
+        request,
+        "core/campaign/campaign_resource_type_edit.html",
+        {"form": form, "campaign": campaign, "resource_type": resource_type},
+    )
+
+
+@login_required
+def campaign_resource_modify(request, id, resource_id):
+    """
+    Modify a list's resource amount.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the resource belongs to.
+    ``resource``
+        The :model:`core.CampaignListResource` being modified.
+    ``form``
+        A ResourceModifyForm for entering the modification amount.
+
+    **Template**
+
+    :template:`core/campaign/campaign_resource_modify.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    resource = get_object_or_404(
+        CampaignListResource, id=resource_id, campaign=campaign
+    )
+
+    # Check permissions - owner can modify any, list owner can modify their own
+    if request.user != campaign.owner and request.user != resource.list.owner:
+        messages.error(request, "You don't have permission to modify this resource.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    if request.method == "POST":
+        form = ResourceModifyForm(request.POST, resource=resource)
+        if form.is_valid():
+            modification = form.cleaned_data["modification"]
+            try:
+                resource.modify_amount(modification, user=request.user)
+                messages.success(request, "Resource updated successfully.")
+            except ValueError as e:
+                messages.error(request, str(e))
+            return HttpResponseRedirect(
+                reverse("core:campaign-resources", args=(campaign.id,))
+            )
+    else:
+        form = ResourceModifyForm(resource=resource)
+
+    return render(
+        request,
+        "core/campaign/campaign_resource_modify.html",
+        {
+            "form": form,
+            "campaign": campaign,
+            "resource": resource,
+            "new_amount_preview": resource.amount,  # Will be updated via JS
+        },
     )
