@@ -795,7 +795,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if request.GET.get("mal") and is_int(request.GET.get("mal"))
         else None
     )
-    if mal:
+    if mal and not is_weapon:
+        # Don't filter weapons by rarity_roll at equipment level since
+        # weapon profiles have their own rarity_roll values that are
+        # handled separately in the profile filtering logic below
         equipment = equipment.filter(rarity_roll__lte=mal)
 
     # Create assignment objects
@@ -808,14 +811,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 for profile in profiles
                 # Keep standard profiles
                 if profile.cost == 0
-                # They have an Al that matches the filter, and no roll value
-                or (not profile.rarity_roll and profile.rarity in als)
-                # They have an Al that matches the filter, and a roll
-                or (
-                    mal
-                    and profile.rarity_roll
-                    and profile.rarity_roll <= mal
-                    and profile.rarity in als
+                # They have rarity that matches the filter, regardless of availability level
+                or profile.rarity in als and (
+                    # No availability level required (common case for standard ammo)
+                    not profile.rarity_roll
+                    # Or availability level within maximum if specified
+                    or not mal
+                    or profile.rarity_roll <= mal
                 )
             ]
             assigns.append(
