@@ -71,7 +71,9 @@ def tinymce_upload(request):
         logger.error(f"File upload error: {str(e)}", exc_info=True)
 
         # Return a generic user-friendly error message to avoid information exposure
-        return JsonResponse({"error": "File upload failed due to validation errors"}, status=400)
+        return JsonResponse(
+            {"error": "File upload failed due to validation errors"}, status=400
+        )
 
     except Exception as e:
         # Handle any other unexpected errors

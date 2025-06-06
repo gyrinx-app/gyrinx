@@ -4,6 +4,7 @@ import google.cloud.logging
 
 from .settings import *  # noqa: F403
 from .settings import STORAGES
+from .storage_settings import configure_gcs_storage
 
 client = google.cloud.logging.Client()
 client.setup_logging()
@@ -34,23 +35,15 @@ STORAGES = {
 }
 
 # Google Cloud Storage configuration for media files
-DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
-GS_BUCKET_NAME = os.environ.get("GS_BUCKET_NAME", "gyrinx-app-bootstrap-uploads")
-GS_PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
-# With Uniform bucket-level access, ACLs are not used
-GS_DEFAULT_ACL = None  # ACLs are disabled with uniform access
-# Files are served based on bucket IAM policies
-GS_QUERYSTRING_AUTH = False
-# Set proper cache headers for CDN
-GS_OBJECT_PARAMETERS = {
-    "CacheControl": "public, max-age=2592000",  # 30 days for uploaded images
-}
+# Apply GCS configuration
+gcs_config = configure_gcs_storage(STORAGES)
 
-# Media URL configuration
-# Use CDN domain if available, otherwise fall back to direct GCS access
-CDN_DOMAIN = os.environ.get("CDN_DOMAIN", None)
-if CDN_DOMAIN:
-    MEDIA_URL = f"https://{CDN_DOMAIN}/"
-else:
-    # Fall back to direct GCS access
-    MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/"
+# Extract settings to module namespace
+DEFAULT_FILE_STORAGE = gcs_config["DEFAULT_FILE_STORAGE"]
+GS_BUCKET_NAME = gcs_config["GS_BUCKET_NAME"]
+GS_PROJECT_ID = gcs_config["GS_PROJECT_ID"]
+GS_DEFAULT_ACL = gcs_config["GS_DEFAULT_ACL"]
+GS_QUERYSTRING_AUTH = gcs_config["GS_QUERYSTRING_AUTH"]
+GS_OBJECT_PARAMETERS = gcs_config["GS_OBJECT_PARAMETERS"]
+CDN_DOMAIN = gcs_config["CDN_DOMAIN"]
+MEDIA_URL = gcs_config["MEDIA_URL"]

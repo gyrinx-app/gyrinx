@@ -289,7 +289,7 @@ class TestUploadedFileModel:
         assert can_upload is False
         assert "Daily upload limit exceeded" in message
 
-    @override_settings(CDN_DOMAIN="https://cdn.example.com")
+    @override_settings(CDN_DOMAIN="cdn.example.com")
     def test_file_url_with_cdn(self, authenticated_client):
         """Test that file_url uses CDN domain when configured."""
         client, user = authenticated_client

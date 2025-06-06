@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -50,9 +51,8 @@ class UploadedFile(AppBase):
     def file_url(self):
         """Get the URL for the file, using CDN domain if configured."""
         if self.file:
-            from django.conf import settings
             if hasattr(settings, "CDN_DOMAIN") and settings.CDN_DOMAIN:
-                return f"{settings.CDN_DOMAIN}/{self.file.name}"
+                return f"https://{settings.CDN_DOMAIN}/{self.file.name}"
             return self.file.url
         return None
 
