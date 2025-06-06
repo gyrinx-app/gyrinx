@@ -1,62 +1,11 @@
 from django import forms
-from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
-
-# TinyMCE configuration for narrative fields
-TINYMCE_CONFIG = {
-    "relative_urls": False,
-    "promotion": False,
-    "resize": "both",
-    "width": "100%",
-    "height": "400px",
-    "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-    "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-    "menubar": "edit view insert format table tools help",
-    "menu": {
-        "edit": {
-            "title": "Edit",
-            "items": "undo redo | cut copy paste pastetext | selectall | searchreplace",
-        },
-        "view": {
-            "title": "View",
-            "items": "code revisionhistory | visualaid visualchars visualblocks | spellchecker | preview fullscreen | showcomments",
-        },
-        "insert": {
-            "title": "Insert",
-            "items": "image link media addcomment pageembed codesample inserttable | math | charmap emoticons hr | pagebreak nonbreaking anchor tableofcontents | insertdatetime",
-        },
-        "format": {
-            "title": "Format",
-            "items": "bold italic underline strikethrough superscript subscript codeformat | styles blocks fontfamily fontsize align lineheight | forecolor backcolor | language | removeformat",
-        },
-        "tools": {
-            "title": "Tools",
-            "items": "spellchecker spellcheckerlanguage | a11ycheck code wordcount",
-        },
-        "table": {
-            "title": "Table",
-            "items": "inserttable | cell row column | advtablesort | tableprops deletetable",
-        },
-    },
-    "textpattern_patterns": [
-        {"start": "# ", "replacement": "<h1>%</h1>"},
-        {"start": "## ", "replacement": "<h2>%</h2>"},
-        {"start": "### ", "replacement": "<h3>%</h3>"},
-        {"start": "#### ", "replacement": "<h4>%</h4>"},
-        {"start": "##### ", "replacement": "<h5>%</h5>"},
-        {"start": "###### ", "replacement": "<h6>%</h6>"},
-        {
-            "start": r"\*\*([^\*]+)\*\*",
-            "replacement": "<strong>%</strong>",
-        },
-        {"start": r"\*([^\*]+)\*", "replacement": "<em>%</em>"},
-    ],
-}
 
 
 class NewListForm(forms.ModelForm):
@@ -77,8 +26,8 @@ class NewListForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_house": forms.Select(attrs={"class": "form-select"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -100,8 +49,8 @@ class CloneListForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -123,8 +72,8 @@ class EditListForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -456,7 +405,7 @@ class EditListFighterNarrativeForm(forms.ModelForm):
             "narrative": "Narrative description of the Fighter: their history and how to play them.",
         }
         widgets = {
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }

@@ -30,12 +30,15 @@ class HistoryMixin(models.Model):
 
         This is useful when saving outside of a request context where
         the middleware can't determine the user.
+
+        Raises:
+            ValidationError: If model validation fails
         """
         # If no user provided but object has an owner, use the owner
         if user is None and hasattr(self, "owner") and self.owner:
             user = self.owner
 
-        # Save the model first
+        # Save the model first - this will raise ValidationError if validation fails
         super().save(**kwargs)
 
         # If a user was provided, update the history record

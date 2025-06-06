@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404, render
 
 from gyrinx.core.models.list import List
 
+from .upload import tinymce_upload as tinymce_upload
+
 
 def make_query_params_str(**kwargs) -> str:
     return urlencode(dict([(k, v) for k, v in kwargs.items() if v is not None]))

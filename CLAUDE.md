@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Infrastructure
+
+- All our infra is in GCP europe-west2 (London)
+- In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
+
 ## Development Commands
 
 ### Environment Setup

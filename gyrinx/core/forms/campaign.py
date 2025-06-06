@@ -1,5 +1,4 @@
 from django import forms
-from tinymce.widgets import TinyMCE
 
 from gyrinx.core.models.campaign import (
     Campaign,
@@ -8,57 +7,7 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
     CampaignResourceType,
 )
-
-# TinyMCE configuration shared between forms
-TINYMCE_CONFIG = {
-    "relative_urls": False,
-    "promotion": False,
-    "resize": "both",
-    "width": "100%",
-    "height": "400px",
-    "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-    "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-    "menubar": "edit view insert format table tools help",
-    "menu": {
-        "edit": {
-            "title": "Edit",
-            "items": "undo redo | cut copy paste pastetext | selectall | searchreplace",
-        },
-        "view": {
-            "title": "View",
-            "items": "code revisionhistory | visualaid visualchars visualblocks | spellchecker | preview fullscreen | showcomments",
-        },
-        "insert": {
-            "title": "Insert",
-            "items": "image link media addcomment pageembed codesample inserttable | math | charmap emoticons hr | pagebreak nonbreaking anchor tableofcontents | insertdatetime",
-        },
-        "format": {
-            "title": "Format",
-            "items": "bold italic underline strikethrough superscript subscript codeformat | styles blocks fontfamily fontsize align lineheight | forecolor backcolor | language | removeformat",
-        },
-        "tools": {
-            "title": "Tools",
-            "items": "spellchecker spellcheckerlanguage | a11ycheck code wordcount",
-        },
-        "table": {
-            "title": "Table",
-            "items": "inserttable | cell row column | advtablesort | tableprops deletetable",
-        },
-    },
-    "textpattern_patterns": [
-        {"start": "# ", "replacement": "<h1>%</h1>"},
-        {"start": "## ", "replacement": "<h2>%</h2>"},
-        {"start": "### ", "replacement": "<h3>%</h3>"},
-        {"start": "#### ", "replacement": "<h4>%</h4>"},
-        {"start": "##### ", "replacement": "<h5>%</h5>"},
-        {"start": "###### ", "replacement": "<h6>%</h6>"},
-        {
-            "start": r"\*\*([^\*]+)\*\*",
-            "replacement": "<strong>%</strong>",
-        },
-        {"start": r"\*([^\*]+)\*", "replacement": "<em>%</em>"},
-    ],
-}
+from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS
 
 
 class NewCampaignForm(forms.ModelForm):
@@ -79,12 +28,12 @@ class NewCampaignForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "summary": TinyMCE(
+            "summary": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 5},
-                mce_attrs={**TINYMCE_CONFIG, "height": "150px"},
+                mce_attrs={"height": "150px", **TINYMCE_EXTRA_ATTRS},
             ),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -159,12 +108,12 @@ class EditCampaignForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "summary": TinyMCE(
+            "summary": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 5},
-                mce_attrs={**TINYMCE_CONFIG, "height": "150px"},
+                mce_attrs={"height": "150px", **TINYMCE_EXTRA_ATTRS},
             ),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -189,8 +138,8 @@ class CampaignAssetTypeForm(forms.ModelForm):
         widgets = {
             "name_singular": forms.TextInput(attrs={"class": "form-control"}),
             "name_plural": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
 
@@ -213,8 +162,8 @@ class CampaignAssetForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "holder": forms.Select(attrs={"class": "form-select"}),
         }
@@ -273,8 +222,8 @@ class CampaignResourceTypeForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "default_amount": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}

@@ -254,4 +254,10 @@ urlpatterns = [
         campaign.campaign_resource_modify,
         name="campaign-resource-modify",
     ),
+    # TinyMCE upload
+    path(
+        "tinymce/upload/",
+        gyrinx.core.views.tinymce_upload,
+        name="tinymce-upload",
+    ),
 ]

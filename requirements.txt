@@ -10,6 +10,7 @@ django-extensions==4.1
 django-polymorphic==4.1.0
 django-recaptcha==4.1.0
 django-simple-history==3.8.0
+django-storages[google]==1.14.6
 django-tinymce==4.1.0
 djlint==1.36.4
 docutils==0.21.2
