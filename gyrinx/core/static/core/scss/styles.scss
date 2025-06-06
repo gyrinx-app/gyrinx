@@ -126,6 +126,11 @@ label {
     animation: flash-warn 2s ease-in;
 }
 
+img {
+    max-width: 100%;
+    height: auto;
+}
+
 .img-link-transform img {
     transition:
         transform 0.2s ease,
