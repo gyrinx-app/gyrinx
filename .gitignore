@@ -13,3 +13,4 @@ dist/
 /node_modules/
 ui_archive/
 screenshots/
+.claude/settings.local.json
