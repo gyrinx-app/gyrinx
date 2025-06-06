@@ -48,8 +48,11 @@ class UploadedFile(AppBase):
 
     @property
     def file_url(self):
-        """Get the URL for the file."""
+        """Get the URL for the file, using CDN domain if configured."""
         if self.file:
+            from django.conf import settings
+            if hasattr(settings, "CDN_DOMAIN") and settings.CDN_DOMAIN:
+                return f"{settings.CDN_DOMAIN}/{self.file.name}"
             return self.file.url
         return None
 

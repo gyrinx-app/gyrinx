@@ -70,25 +70,8 @@ def tinymce_upload(request):
         logger = logging.getLogger(__name__)
         logger.error(f"File upload error: {str(e)}", exc_info=True)
 
-        # Return a user-friendly error message
-        error_message = "File upload failed"
-
-        # Check for specific validation errors
-        if hasattr(e, "message_dict"):
-            # Django ValidationError
-            errors = []
-            for field, messages in e.message_dict.items():
-                errors.extend(messages)
-            error_message = ". ".join(errors)
-        elif hasattr(e, "messages"):
-            # Simple validation error
-            error_message = ". ".join(e.messages)
-        elif "File size" in str(e):
-            error_message = str(e)
-        elif "File type" in str(e):
-            error_message = str(e)
-
-        return JsonResponse({"error": error_message}, status=400)
+        # Return a generic user-friendly error message to avoid information exposure
+        return JsonResponse({"error": "File upload failed due to validation errors"}, status=400)
 
     except Exception as e:
         # Handle any other unexpected errors

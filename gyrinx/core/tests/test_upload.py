@@ -126,8 +126,7 @@ class TestTinyMCEUpload:
         assert response.status_code == 400
 
         data = response.json()
-        assert "not allowed" in data["error"]
-        assert "text/plain" in data["error"]
+        assert data["error"] == "File upload failed due to validation errors"
 
     def test_upload_file_too_large(self, authenticated_client, large_image):
         """Test that files over 10MB are rejected."""
@@ -142,7 +141,7 @@ class TestTinyMCEUpload:
         assert response.status_code == 400
 
         data = response.json()
-        assert "exceed 10MB" in data["error"]
+        assert data["error"] == "File upload failed due to validation errors"
 
     @override_settings(MEDIA_ROOT="/tmp/test_media")
     def test_daily_quota_limit(self, authenticated_client, test_image):
@@ -289,3 +288,40 @@ class TestUploadedFileModel:
         )
         assert can_upload is False
         assert "Daily upload limit exceeded" in message
+
+    @override_settings(CDN_DOMAIN="https://cdn.example.com")
+    def test_file_url_with_cdn(self, authenticated_client):
+        """Test that file_url uses CDN domain when configured."""
+        client, user = authenticated_client
+        
+        # Create an upload with a mock file
+        upload = UploadedFile.objects.create_with_user(
+            user=user,
+            owner=user,
+            file_size=1024,
+            original_filename="test.png",
+            content_type="image/png",
+        )
+        # Mock the file name
+        upload.file.name = "uploads/test-uuid.png"
+        
+        # Test CDN URL
+        assert upload.file_url == "https://cdn.example.com/uploads/test-uuid.png"
+
+    def test_file_url_without_cdn(self, authenticated_client):
+        """Test that file_url returns normal URL when CDN not configured."""
+        client, user = authenticated_client
+        
+        # Create an upload with a mock file
+        upload = UploadedFile.objects.create_with_user(
+            user=user,
+            owner=user,
+            file_size=1024,
+            original_filename="test.png",
+            content_type="image/png",
+        )
+        # Mock the file URL
+        upload.file.url = "/media/uploads/test-uuid.png"
+        
+        # Test regular URL (no CDN)
+        assert upload.file_url == "/media/uploads/test-uuid.png"
