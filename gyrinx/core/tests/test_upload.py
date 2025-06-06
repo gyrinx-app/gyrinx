@@ -293,7 +293,7 @@ class TestUploadedFileModel:
     def test_file_url_with_cdn(self, authenticated_client):
         """Test that file_url uses CDN domain when configured."""
         client, user = authenticated_client
-        
+
         # Create an upload with a mock file
         upload = UploadedFile.objects.create_with_user(
             user=user,
@@ -304,14 +304,16 @@ class TestUploadedFileModel:
         )
         # Mock the file name
         upload.file.name = "uploads/test-uuid.png"
-        
+
         # Test CDN URL
         assert upload.file_url == "https://cdn.example.com/uploads/test-uuid.png"
 
     def test_file_url_without_cdn(self, authenticated_client):
         """Test that file_url returns normal URL when CDN not configured."""
+        from unittest.mock import Mock
+
         client, user = authenticated_client
-        
+
         # Create an upload with a mock file
         upload = UploadedFile.objects.create_with_user(
             user=user,
@@ -320,8 +322,11 @@ class TestUploadedFileModel:
             original_filename="test.png",
             content_type="image/png",
         )
-        # Mock the file URL
-        upload.file.url = "/media/uploads/test-uuid.png"
-        
+
+        # Mock the file object to return a URL
+        mock_file = Mock()
+        mock_file.url = "/media/uploads/test-uuid.png"
+        upload.file = mock_file
+
         # Test regular URL (no CDN)
         assert upload.file_url == "/media/uploads/test-uuid.png"
