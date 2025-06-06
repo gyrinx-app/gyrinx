@@ -1,0 +1,83 @@
+from tinymce.widgets import TinyMCE
+
+# TinyMCE configuration with CSRF-aware upload handler
+TINYMCE_UPLOAD_CONFIG = {
+    "relative_urls": False,
+    "promotion": False,
+    "resize": "both",
+    "width": "100%",
+    "height": "400px",
+    "plugins": "autoresize autosave code emoticons fullscreen help image link lists quickbars textpattern visualblocks",
+    "toolbar": "undo redo | blocks | bold italic underline link image | numlist bullist align | code",
+    "menubar": "edit view insert format table tools help",
+    # Image upload configuration
+    "automatic_uploads": True,
+    "images_upload_credentials": True,
+    "file_picker_types": "image",
+    "images_reuse_filename": False,
+    # Custom upload handler to include CSRF token
+    "images_upload_handler": """
+        async function (blobInfo, progress) {
+            // Get CSRF token from form field or cookie
+            const getCsrfToken = () => {
+                // Try to get from form field first
+                const tokenField = document.querySelector('[name=csrfmiddlewaretoken]');
+                if (tokenField?.value) {
+                    return tokenField.value;
+                }
+
+                // Fall back to cookie
+                const name = 'csrftoken';
+                const cookies = document.cookie.split(';');
+                for (const cookie of cookies) {
+                    const trimmed = cookie.trim();
+                    if (trimmed.startsWith(name + '=')) {
+                        return decodeURIComponent(trimmed.substring(name.length + 1));
+                    }
+                }
+                return null;
+            };
+
+            const formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+
+            try {
+                const response = await fetch('/tinymce/upload/', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data || typeof data.location !== 'string') {
+                    throw new Error('Invalid response: missing location');
+                }
+
+                return data.location;
+            } catch (error) {
+                throw new Error(`Image upload failed: ${error.message}`);
+            }
+        }
+    """,
+}
+
+
+class TinyMCEWithUpload(TinyMCE):
+    """TinyMCE widget with image upload support and CSRF handling."""
+
+    def __init__(self, attrs=None, mce_attrs=None, **kwargs):
+        if mce_attrs is None:
+            mce_attrs = {}
+
+        # Merge with default upload config
+        final_mce_attrs = {**TINYMCE_UPLOAD_CONFIG, **mce_attrs}
+
+        super().__init__(attrs=attrs, mce_attrs=final_mce_attrs, **kwargs)

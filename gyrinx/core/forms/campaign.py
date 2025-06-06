@@ -1,5 +1,4 @@
 from django import forms
-from tinymce.widgets import TinyMCE
 
 from gyrinx.core.models.campaign import (
     Campaign,
@@ -8,17 +7,10 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
     CampaignResourceType,
 )
+from gyrinx.core.widgets import TinyMCEWithUpload
 
-# TinyMCE configuration shared between forms
-TINYMCE_CONFIG = {
-    "relative_urls": False,
-    "promotion": False,
-    "resize": "both",
-    "width": "100%",
-    "height": "400px",
-    "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-    "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-    "menubar": "edit view insert format table tools help",
+# Additional TinyMCE configuration for forms
+TINYMCE_EXTRA_ATTRS = {
     "menu": {
         "edit": {
             "title": "Edit",
@@ -79,12 +71,12 @@ class NewCampaignForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "summary": TinyMCE(
+            "summary": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 5},
-                mce_attrs={**TINYMCE_CONFIG, "height": "150px"},
+                mce_attrs={"height": "150px", **TINYMCE_EXTRA_ATTRS},
             ),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -159,12 +151,12 @@ class EditCampaignForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "summary": TinyMCE(
+            "summary": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 5},
-                mce_attrs={**TINYMCE_CONFIG, "height": "150px"},
+                mce_attrs={"height": "150px", **TINYMCE_EXTRA_ATTRS},
             ),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -189,8 +181,8 @@ class CampaignAssetTypeForm(forms.ModelForm):
         widgets = {
             "name_singular": forms.TextInput(attrs={"class": "form-control"}),
             "name_plural": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
 
@@ -213,8 +205,8 @@ class CampaignAssetForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "holder": forms.Select(attrs={"class": "form-select"}),
         }
@@ -273,8 +265,8 @@ class CampaignResourceTypeForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCE(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_CONFIG
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "default_amount": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}

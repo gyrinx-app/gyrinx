@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.contrib.flatpages.admin import FlatPageAdmin as BaseFlatPageAdmin
 from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
-from tinymce.widgets import TinyMCE
 
+from gyrinx.core.widgets import TinyMCEWithUpload
 from gyrinx.pages.actions import invite_user
 from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry, WaitingListSkill
 
@@ -17,18 +17,11 @@ class FlatPageAdmin(BaseFlatPageAdmin):
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == "content":
             return db_field.formfield(
-                widget=TinyMCE(
+                widget=TinyMCEWithUpload(
                     attrs={"cols": 120, "rows": 30},
                     mce_attrs={
-                        "relative_urls": False,
-                        "promotion": False,
-                        "resize": "both",
-                        "width": "100%",
                         "height": "66vh",
                         "external_link_list_url": reverse("tinymce-linklist"),
-                        "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-                        "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-                        "menubar": "edit view insert format table tools help",
                         "menu": {
                             "edit": {
                                 "title": "Edit",

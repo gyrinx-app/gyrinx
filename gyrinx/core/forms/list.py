@@ -1,22 +1,14 @@
 from django import forms
-from tinymce.widgets import TinyMCE
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.widgets import TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 
-# TinyMCE configuration for narrative fields
-TINYMCE_CONFIG = {
-    "relative_urls": False,
-    "promotion": False,
-    "resize": "both",
-    "width": "100%",
-    "height": "400px",
-    "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-    "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-    "menubar": "edit view insert format table tools help",
+# Additional TinyMCE configuration for forms
+TINYMCE_EXTRA_ATTRS = {
     "menu": {
         "edit": {
             "title": "Edit",
@@ -77,8 +69,8 @@ class NewListForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "content_house": forms.Select(attrs={"class": "form-select"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -100,8 +92,8 @@ class CloneListForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -123,8 +115,8 @@ class EditListForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -456,7 +448,7 @@ class EditListFighterNarrativeForm(forms.ModelForm):
             "narrative": "Narrative description of the Fighter: their history and how to play them.",
         }
         widgets = {
-            "narrative": TinyMCE(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_CONFIG
+            "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }

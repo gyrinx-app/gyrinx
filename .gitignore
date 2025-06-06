@@ -14,3 +14,6 @@ dist/
 ui_archive/
 screenshots/
 .claude/settings.local.json
+.claude/memory.local.json
+CLAUDE.local.md
+media/

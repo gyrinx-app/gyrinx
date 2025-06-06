@@ -32,3 +32,25 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+# Google Cloud Storage configuration for media files
+DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
+GS_BUCKET_NAME = os.environ.get("GS_BUCKET_NAME", "gyrinx-app-bootstrap-uploads")
+GS_PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+# With Uniform bucket-level access, ACLs are not used
+GS_DEFAULT_ACL = None  # ACLs are disabled with uniform access
+# Files are served based on bucket IAM policies
+GS_QUERYSTRING_AUTH = False
+# Set proper cache headers for CDN
+GS_OBJECT_PARAMETERS = {
+    "CacheControl": "public, max-age=2592000",  # 30 days for uploaded images
+}
+
+# Media URL configuration
+# Use CDN domain if available, otherwise fall back to direct GCS access
+CDN_DOMAIN = os.environ.get("CDN_DOMAIN", None)
+if CDN_DOMAIN:
+    MEDIA_URL = f"https://{CDN_DOMAIN}/"
+else:
+    # Fall back to direct GCS access
+    MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/"

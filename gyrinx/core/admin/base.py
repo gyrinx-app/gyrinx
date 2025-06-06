@@ -1,9 +1,10 @@
 from django.db import models
 from simple_history.admin import SimpleHistoryAdmin
-from tinymce.widgets import TinyMCE
+
+from gyrinx.core.widgets import TinyMCEWithUpload
 
 
 class BaseAdmin(SimpleHistoryAdmin):
     formfield_overrides = {
-        models.TextField: {"widget": TinyMCE},
+        models.TextField: {"widget": TinyMCEWithUpload},
     }
