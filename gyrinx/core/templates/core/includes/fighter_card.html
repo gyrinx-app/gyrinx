@@ -270,12 +270,10 @@
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <span class="badge {% if injury.injury.phase == 'recovery' %}bg-warning {% elif injury.injury.phase == 'convalescence' %}bg-warning {% elif injury.injury.phase == 'permanent' %}bg-danger {% elif injury.injury.phase == 'out_cold' %}bg-secondary {% endif %}">{{ injury.injury.get_phase_display }}</span>
                                     <span>{{ injury.injury.name }}</span>
-                                    {% if injury.injury.description %}<span class="text-muted fs-7">({{ injury.injury.description }})</span>{% endif %}
                                 </div>
                             {% endfor %}
                             {% if not print and list.owner_cached == user %}
-                                <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
-                                   class="link-secondary">Manage injuries</a>
+                                <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
                             {% endif %}
                         </td>
                     </tr>
@@ -283,7 +281,7 @@
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Injuries</th>
                         <td colspan="12">
-                            <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}">Add injuries</a>
+                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
                         </td>
                     </tr>
                 {% endif %}

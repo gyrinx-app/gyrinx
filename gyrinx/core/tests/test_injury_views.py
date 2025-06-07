@@ -112,9 +112,11 @@ def test_add_injury_view_post_success():
         },
     )
 
-    # Should redirect to gear edit page
+    # Should redirect to injuries edit page
     assert response.status_code == 302
-    assert response.url == reverse("core:list", args=[lst.id]) + f"#{fighter.id}"
+    assert response.url == reverse(
+        "core:list-fighter-injuries-edit", args=[lst.id, fighter.id]
+    )
 
     # Check injury was created
     assert fighter.injuries.count() == 1
@@ -243,9 +245,11 @@ def test_remove_injury_view_post():
     )
     response = client.post(url)
 
-    # Should redirect to gear edit page
+    # Should redirect to injuries edit page
     assert response.status_code == 302
-    assert response.url == reverse("core:list", args=[lst.id]) + f"#{fighter.id}"
+    assert response.url == reverse(
+        "core:list-fighter-injuries-edit", args=[lst.id, fighter.id]
+    )
 
     # Check injury was removed
     assert fighter.injuries.count() == 0

@@ -1384,6 +1384,44 @@ class ListArchivedFightersView(generic.ListView):
 
 
 @login_required
+def list_fighter_injuries_edit(request, id, fighter_id):
+    """
+    Edit injuries for a :model:`core.ListFighter` in campaign mode.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` whose injuries are being managed.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_injuries_edit.html`
+    """
+    from django.contrib import messages
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Injuries can only be managed for fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_injuries_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+        },
+    )
+
+
+@login_required
 def list_fighter_add_injury(request, id, fighter_id):
     """
     Add an injury to a :model:`core.ListFighter` in campaign mode.
@@ -1448,7 +1486,7 @@ def list_fighter_add_injury(request, id, fighter_id):
                 request, f"Added injury '{injury.injury.name}' to {fighter.name}"
             )
             return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{fighter.id}"
+                reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )
     else:
         form = AddInjuryForm()
@@ -1506,7 +1544,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
         messages.success(request, f"Removed injury '{injury_name}' from {fighter.name}")
         return HttpResponseRedirect(
-            reverse("core:list", args=(lst.id,)) + f"#{fighter.id}"
+            reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
         )
 
     return render(
