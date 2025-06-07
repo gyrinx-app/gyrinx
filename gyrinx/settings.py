@@ -91,6 +91,8 @@ INSTALLED_APPS = [
     # Django allauth
     "allauth",
     "allauth.account",
+    "allauth.usersessions",  # Required for MFA
+    "allauth.mfa",  # Multi-factor authentication
     # reCAPTCHA
     "django_recaptcha",
     # simplehistory
@@ -217,6 +219,7 @@ LOGIN_REDIRECT_URL = "/"
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Gyrinx] "
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "name"
@@ -231,6 +234,11 @@ ACCOUNT_FORMS = {
 }
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+
+# MFA (Multi-Factor Authentication) settings
+# https://docs.allauth.org/en/latest/mfa/introduction.html
+MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
+MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
 
 # Waiting list
 

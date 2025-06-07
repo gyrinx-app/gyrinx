@@ -4,8 +4,8 @@ set -e
 
 ARGS=""
 
-if git status --porcelain | grep -q 'requirements.txt'; then
-    echo "requirements.txt has changed"
+if git diff --name-only origin/main...HEAD | grep -q 'requirements.txt'; then
+    echo "requirements.txt has changed between main and HEAD"
     ARGS="--build"
 fi
 
