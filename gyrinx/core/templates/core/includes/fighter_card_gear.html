@@ -209,43 +209,6 @@
                 {% endif %}
             </tbody>
         </table>
-        
-        {% comment %} Injuries (only in campaign mode) {% endcomment %}
-        {% if list.is_campaign_mode and fighter.injuries.exists %}
-            <table class="table table-sm table-borderless mb-0 mt-2">
-                <tbody class="table-group-divider">
-                    <tr class="fs-7">
-                        <th scope="row" colspan="3">Injuries</th>
-                        <td colspan="12">
-                            {% for injury in fighter.injuries.all %}
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <span class="badge 
-                                        {% if injury.injury.phase == 'recovery' %}bg-warning
-                                        {% elif injury.injury.phase == 'convalescence' %}bg-warning
-                                        {% elif injury.injury.phase == 'permanent' %}bg-danger
-                                        {% elif injury.injury.phase == 'out_cold' %}bg-secondary
-                                        {% endif %}">{{ injury.injury.get_phase_display }}</span>
-                                    <span>{{ injury.injury.name }}</span>
-                                    {% if list.owner_cached == user and gear_mode == "edit" %}
-                                        <a href="{% url 'core:list-fighter-injury-remove' list.id fighter.id injury.id %}"
-                                           class="link-danger ms-auto">Remove</a>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        {% endif %}
-        {% if list.is_campaign_mode and list.owner_cached == user and gear_mode == "edit" %}
-            <div class="mt-2">
-                <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
-                   class="btn btn-sm btn-secondary">
-                    <i class="bi-plus-circle"></i> Add Injury
-                </a>
-            </div>
-        {% endif %}
-        
         {% firstof weapons_mode "edit" as weapons_mode_default %}
         {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode=weapons_mode_default %}
     </div>

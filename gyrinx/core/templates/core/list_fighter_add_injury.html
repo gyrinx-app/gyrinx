@@ -7,19 +7,18 @@
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-lg-8 px-0 vstack gap-3">
         <h1 class="h3">Add Injury: {{ fighter.name }}</h1>
-        
         <div class="border rounded p-2 text-secondary">
             <i class="bi bi-info-circle me-1"></i>
             Adding an injury will automatically log this event to the campaign action log.
             The injury's modifiers will be applied to the fighter's stats immediately.
         </div>
-
-        <form action="{% url 'core:list-fighter-injury-add' list.id fighter.id %}" method="post">
+        <form action="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
+              method="post">
             {% csrf_token %}
-            {% element form=form %}
+            {{ form }}
             <div class="mt-3">
                 <input type="submit" class="btn btn-primary" value="Add Injury">
-                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}" class="btn btn-link">Cancel</a>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
             </div>
         </form>
     </div>

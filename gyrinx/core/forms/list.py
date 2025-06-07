@@ -3,7 +3,7 @@ from django import forms
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
-from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS, ColorRadioSelect
+from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 
@@ -432,4 +432,11 @@ class AddInjuryForm(forms.Form):
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
         from gyrinx.content.models import ContentInjury
-        self.fields["injury"].queryset = ContentInjury.objects.select_related().order_by("phase", "name")
+
+        self.fields["injury"].queryset = ContentInjury.objects.select_related()
+
+        group_select(
+            self,
+            "injury",
+            key=lambda x: x.get_phase_display(),
+        )

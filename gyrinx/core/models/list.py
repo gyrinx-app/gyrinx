@@ -30,7 +30,6 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseAdditionalRule,
-    ContentInjury,
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
@@ -469,14 +468,18 @@ class ListFighter(AppBase):
     @cached_property
     def _mods(self):
         # Remember: virtual and needs flattening!
-        equipment_mods = [mod for assign in self.assignments_cached for mod in assign.mods]
-        
+        equipment_mods = [
+            mod for assign in self.assignments_cached for mod in assign.mods
+        ]
+
         # Add injury mods if in campaign mode
         injury_mods = []
         if self.list.is_campaign_mode:
-            for injury in self.injuries.select_related('injury').prefetch_related('injury__modifiers'):
+            for injury in self.injuries.select_related("injury").prefetch_related(
+                "injury__modifiers"
+            ):
                 injury_mods.extend(injury.injury.modifiers.all())
-        
+
         return equipment_mods + injury_mods
 
     def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
@@ -2015,7 +2018,7 @@ class ListFighterInjury(AppBase):
     """Track injuries for fighters in campaign mode."""
 
     help_text = "Tracks lasting injuries sustained by a fighter during campaign play."
-    
+
     fighter = models.ForeignKey(
         ListFighter,
         on_delete=models.CASCADE,
@@ -2035,13 +2038,18 @@ class ListFighterInjury(AppBase):
         blank=True,
         help_text="Optional notes about how this injury was received.",
     )
-    
+
     history = HistoricalRecords()
 
     class Meta:
         ordering = ["-date_received"]
         verbose_name = "Fighter Injury"
         verbose_name_plural = "Fighter Injuries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fighter", "injury"], name="unique_fighter_injury"
+            )
+        ]
 
     def __str__(self):
         return f"{self.fighter.name} - {self.injury.name}"

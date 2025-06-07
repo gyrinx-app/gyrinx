@@ -2,153 +2,16 @@
 
 from django.db import migrations
 
-
-def create_sample_injuries(apps, schema_editor):
-    ContentInjury = apps.get_model('content', 'ContentInjury')
-    ContentModFighterStat = apps.get_model('content', 'ContentModFighterStat')
-    ContentModFighterSkill = apps.get_model('content', 'ContentModFighterSkill')
-    ContentSkill = apps.get_model('content', 'ContentSkill')
-    
-    # Create injuries from the lasting injury table
-    injuries = [
-        # Out Cold injuries
-        {"name": "Lesson Learned", "phase": "convalescence", "description": "Fighter gains D3 Experience (not implemented)"},
-        {"name": "Out Cold", "phase": "out_cold", "description": "Miss rest of battle, no long-term effects"},
-        
-        # Convalescence injuries
-        {"name": "Convalescence", "phase": "convalescence", "description": "Fighter must rest and recover"},
-        
-        # Permanent injuries with stat modifiers
-        {"name": "Old Battle Wound", "phase": "permanent", "description": "Roll D6 after each battle: 1 = Convalescence"},
-        {"name": "Partially Deafened", "phase": "permanent", "description": "No penalty first time, -1 Leadership if rolled again"},
-        {"name": "Humiliated", "phase": "convalescence", "description": "Convalescence, -1 Leadership, -1 Cool"},
-        {"name": "Eye Injury", "phase": "recovery", "description": "Recovery, -1 Ballistic Skill"},
-        {"name": "Hand Injury", "phase": "recovery", "description": "Recovery, -1 Weapon Skill"},
-        {"name": "Hobbled", "phase": "recovery", "description": "Recovery, -1 Movement"},
-        {"name": "Spinal Injury", "phase": "recovery", "description": "Recovery, -1 Strength"},
-        {"name": "Enfeebled", "phase": "recovery", "description": "Recovery, -1 Toughness"},
-        {"name": "Head Injury", "phase": "recovery", "description": "Recovery, -1 Intelligence, -1 Willpower"},
-        
-        # Special injuries
-        {"name": "Multiple Injuries", "phase": "permanent", "description": "Roll D3 additional times (re-roll Captured, Multiple Injuries, Memorable Death, Critical Injury, Out Cold)"},
-        {"name": "Captured", "phase": "permanent", "description": "Fighter might be Captured"},
-        {"name": "Critical Injury", "phase": "permanent", "description": "Must visit Doc or die"},
-        {"name": "Memorable Death", "phase": "permanent", "description": "Killed instantly, attacker gains +1 XP"},
-    ]
-    
-    # Create the injuries
-    for injury_data in injuries:
-        injury = ContentInjury.objects.create(
-            name=injury_data["name"],
-            phase=injury_data["phase"],
-            description=injury_data["description"]
-        )
-        
-        # Add stat modifiers for specific injuries
-        if injury.name == "Humiliated":
-            # -1 Leadership
-            mod1 = ContentModFighterStat.objects.create(
-                stat="leadership",
-                mode="worsen",
-                value="1"
-            )
-            # -1 Cool
-            mod2 = ContentModFighterStat.objects.create(
-                stat="cool",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod1, mod2)
-            
-        elif injury.name == "Eye Injury":
-            # -1 Ballistic Skill
-            mod = ContentModFighterStat.objects.create(
-                stat="ballistic_skill",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod)
-            
-        elif injury.name == "Hand Injury":
-            # -1 Weapon Skill
-            mod = ContentModFighterStat.objects.create(
-                stat="weapon_skill",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod)
-            
-        elif injury.name == "Hobbled":
-            # -1 Movement
-            mod = ContentModFighterStat.objects.create(
-                stat="movement",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod)
-            
-        elif injury.name == "Spinal Injury":
-            # -1 Strength
-            mod = ContentModFighterStat.objects.create(
-                stat="strength",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod)
-            
-        elif injury.name == "Enfeebled":
-            # -1 Toughness
-            mod = ContentModFighterStat.objects.create(
-                stat="toughness",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod)
-            
-        elif injury.name == "Head Injury":
-            # -1 Intelligence, -1 Willpower
-            mod1 = ContentModFighterStat.objects.create(
-                stat="intelligence",
-                mode="worsen",
-                value="1"
-            )
-            mod2 = ContentModFighterStat.objects.create(
-                stat="willpower",
-                mode="worsen",
-                value="1"
-            )
-            injury.modifiers.add(mod1, mod2)
-    
-    # Create special injuries that add skills/rules
-    
-    # Impressive Scars (+1 Cool, once only)
-    impressive_scars = ContentInjury.objects.create(
-        name="Impressive Scars",
-        phase="permanent",
-        description="+1 Cool (once only, further results = Out Cold)"
-    )
-    mod = ContentModFighterStat.objects.create(
-        stat="cool",
-        mode="improve",
-        value="1"
-    )
-    impressive_scars.modifiers.add(mod)
-    
-    # Note: Horrid Scars and Bitter Enmity would need skills, but we can't
-    # add them without knowing if the required skills exist in the database
-
-
-def reverse_sample_injuries(apps, schema_editor):
-    ContentInjury = apps.get_model('content', 'ContentInjury')
-    ContentInjury.objects.all().delete()
+# This migration is intentionally left empty as a placeholder.
+# It is used to ensure that the migration history is consistent
+# and to allow for future migrations to be added without conflicts.
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0103_add_injury_models'),
+        ("content", "0103_add_injury_models"),
     ]
 
     operations = [
-        migrations.RunPython(create_sample_injuries, reverse_sample_injuries),
+        migrations.RunPython(migrations.RunPython.noop, migrations.RunPython.noop),
     ]

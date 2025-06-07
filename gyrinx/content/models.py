@@ -2312,7 +2312,6 @@ class ContentInjury(Content):
         help_text="Modifiers applied when this injury is active.",
         related_name="injuries",
     )
-    page_refs = models.ManyToManyField(ContentPageRef, blank=True)
     history = HistoricalRecords()
 
     def __str__(self):
@@ -2321,4 +2320,13 @@ class ContentInjury(Content):
     class Meta:
         verbose_name = "Injury"
         verbose_name_plural = "Injuries"
-        ordering = ["phase", "name"]
+        ordering = [
+            Case(
+                When(phase="recovery", then=0),
+                When(phase="convalescence", then=1),
+                When(phase="permanent", then=2),
+                When(phase="out_cold", then=3),
+                default=99,
+            ),
+            "name",
+        ]

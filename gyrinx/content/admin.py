@@ -570,9 +570,10 @@ class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
     list_filter = ["phase"]
     list_display = ["name", "phase", "get_modifier_count"]
     readonly_fields = ["id", "created", "modified"]
-    
-    inlines = [ContentModInline, ContentPageRefInline]
-    
+
+    inlines = [ContentModInline]
+
     def get_modifier_count(self, obj):
         return obj.modifiers.count()
+
     get_modifier_count.short_description = "Modifiers"
