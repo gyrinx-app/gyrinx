@@ -22,6 +22,7 @@ nodeenv==1.9.1
 playwright==1.48.0
 pre-commit==4.2.0
 psycopg2-binary==2.9.10
+pycolornames==0.4.0
 pydot==4.0.0
 pyparsing==3.2.3
 pytest==8.4.0

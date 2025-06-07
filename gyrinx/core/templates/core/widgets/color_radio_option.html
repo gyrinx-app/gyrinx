@@ -1,34 +1,42 @@
 {% load color_tags %}
 <input type="radio"
-       class="btn-check"
+       class="visually-hidden color-radio-input"
        name="{{ widget.name }}"
        value="{{ widget.value|stringformat:'s' }}"
        id="{{ widget.attrs.id }}"
        {% if widget.selected %}checked{% endif %}
        {% if widget.attrs.disabled %}disabled{% endif %}
        {% include "django/forms/widgets/attrs.html" %}>
-<label class="btn position-relative p-2"
+<label class="color-radio-label position-relative p-0 border-0 rounded-2"
        for="{{ widget.attrs.id }}"
-       style="width: 3em;
-              height: 3em"
-       title="{{ widget.label }}">
+       style="width: 3rem;
+              height: 3rem;
+              cursor: pointer;
+              transition: all 0.2s ease;"
+       title="{{ widget.label }}"
+       data-bs-toggle="tooltip"
+       data-bs-placement="top">
     {% if widget.color %}
-        <span class="position-absolute top-50 start-50 translate-middle d-block rounded-1"
-              style="width: 2em;
-                     height: 2em;
-                     background-color: {{ widget.color }};
-                     border: 2px solid rgba(0,0,0,0.2)"></span>
-        {% if widget.color == "#fefdfb" %}
-            {# djlint:off H021 #}
-            <span class="position-absolute top-50 start-50 translate-middle"
-                  style="font-size: 0.7rem;
-                         color: black">W</span>
-            {# djlint:on #}
-        {% endif %}
+        <span class="d-block w-100 h-100 rounded-2"
+              style="background-color: {{ widget.color }};
+                     border: 2px solid rgba(0,0,0,0.15);
+                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            {% if widget.color == "#fefdfb" %}
+                {# djlint:off H021 #}
+                <span class="position-absolute top-50 start-50 translate-middle fw-bold"
+                      style="font-size: 0.8rem;
+                             color: #666;
+                             text-shadow: 1px 1px 1px rgba(255,255,255,0.5);">W</span>
+                {# djlint:on #}
+            {% endif %}
+        </span>
     {% else %}
         {# djlint:off H021 #}
-        <span class="position-absolute top-50 start-50 translate-middle text-muted"
-              style="font-size: 0.7rem">None</span>
+        <span class="d-flex align-items-center justify-content-center w-100 h-100 border border-2 rounded-2"
+              style="border-style: dashed;">
+            <span class="text-muted"
+                  style="font-size: 0.7rem">None</span>
+        </span>
         {# djlint:on #}
     {% endif %}
 </label>
