@@ -70,6 +70,7 @@ images:
 options:
   substitutionOption: ALLOW_LOOSE
   logging: CLOUD_LOGGING_ONLY
+  queueTtl: "3600s"  # Queue builds for up to 1 hour if needed
 substitutions:
   _TRIGGER_ID: bd49e415-bc5c-411a-a19d-ec77599c3ddf
   _AR_HOSTNAME: europe-west2-docker.pkg.dev
