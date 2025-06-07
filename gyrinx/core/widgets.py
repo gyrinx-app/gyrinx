@@ -138,13 +138,31 @@ class ColorRadioSelect(forms.RadioSelect):
     # Predefined color palette
     COLOR_PALETTE = [
         ("", "None (Default)"),
-        ("#386b33", "Fern Green"),
-        ("#4e9e47", "Pigment Green"),
-        ("#ffa629", "Orange Peel"),
-        ("#ffbb5c", "Hunyadi Yellow"),
-        ("#d62e31", "Persian Red"),
-        ("#4593c4", "Celestial Blue"),
-        ("#a1c8e2", "Uranian Blue"),
+        # Base colors
+        ("#386b33", "Green"),
+        ("#6bb261", "Bright Green"),
+        ("#a7d9a3", "Pastel Green"),
+        ("#d62e31", "Red"),
+        ("#ff5a5e", "Bright Red"),
+        ("#ffb3b5", "Pastel Red"),
+        ("#ffa629", "Orange"),
+        ("#ffbc5c", "Bright Orange"),
+        ("#ffd6a6", "Pastel Orange"),
+        ("#ffbb5c", "Yellow"),
+        ("#ffcc77", "Bright Yellow"),
+        ("#ffe4b3", "Pastel Yellow"),
+        ("#4593c4", "Blue"),
+        ("#5fa9d9", "Bright Blue"),
+        ("#a1c8e2", "Pastel Blue"),
+        ("#7b68ee", "Purple"),
+        ("#9d8fff", "Bright Purple"),
+        ("#c4b5fd", "Pastel Purple"),
+        ("#ff69b4", "Pink"),
+        ("#ff8ec4", "Bright Pink"),
+        ("#ffb6d9", "Pastel Pink"),
+        ("#40e0d0", "Turquoise"),
+        ("#66e9de", "Bright Turquoise"),
+        ("#a3f0e8", "Pastel Turquoise"),
         ("#fefdfb", "White"),
     ]
 
@@ -159,4 +177,5 @@ class ColorRadioSelect(forms.RadioSelect):
         )
         # Add the color value to the option context for use in the template
         option["color"] = value
+        option["label"] = label  # Ensure label is available for tooltip
         return option
