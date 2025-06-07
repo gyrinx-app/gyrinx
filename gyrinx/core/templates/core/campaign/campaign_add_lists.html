@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     Add Lists - {{ campaign.name }}
 {% endblock head_title %}
@@ -17,11 +17,8 @@
             <div class="alert alert-success" id="added">
                 <h4 class="alert-heading">List Added</h4>
                 <p>
-                    {% if added_list.theme_color %}
-                        <span class="badge border me-1"
-                              style="background-color: {{ added_list.theme_color }}; color: white; border-color: {{ added_list.theme_color }} !important;">
-                            {{ added_list.name }}
-                        </span>
+                    {% if added_list %}
+                        {% list_with_theme added_list "fw-bold" %}
                     {% else %}
                         <strong>{{ added_list.name }}</strong>
                     {% endif %}
@@ -97,15 +94,8 @@
                                 <div class="row align-items-center">
                                     <div class="col">
                                         <h6 class="mb-1">
-                                            {% if list.theme_color %}
-                                                <span class="badge border me-1"
-                                                      style="background-color: {{ list.theme_color }}; color: white; border-color: {{ list.theme_color }} !important;">
-                                                    {{ list.name }}
-                                                </span>
-                                            {% else %}
-                                                {{ list.name }}
-                                            {% endif %}
-                                            {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
+                                            {% list_with_theme list %}
+                                            {% if list.content_house %}<span class="badge bg-secondary ms-1">{{ list.content_house.name }}</span>{% endif %}
                                         </h6>
                                         <p class="mb-0 text-muted small">
                                             {% if list.owner == request.user %}
