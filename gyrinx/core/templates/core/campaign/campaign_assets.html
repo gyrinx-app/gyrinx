@@ -51,7 +51,8 @@
                                                 <div class="mt-2 d-flex justify-content-between align-items-center">
                                                     <h6 class="mb-0 me-2">{{ asset.name }}</h6>
                                                     {% if asset.holder %}
-                                                        <span class="badge bg-info">
+                                                        <span class="badge {% if asset.holder.theme_color %}border{% else %}bg-info{% endif %}"
+                                                              {% if asset.holder.theme_color %}style="background-color: {{ asset.holder.theme_color }}; color: white; border-color: {{ asset.holder.theme_color }} !important;"{% endif %}>
                                                             <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
                                                         </span>
                                                     {% else %}

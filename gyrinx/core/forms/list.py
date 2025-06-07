@@ -59,16 +59,18 @@ class CloneListForm(forms.ModelForm):
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "narrative", "public"]
+        fields = ["name", "narrative", "public", "theme_color"]
         labels = {
             "name": "Name",
             "narrative": "About",
             "public": "Public",
+            "theme_color": "Theme Color",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
             "public": "If checked, this list will be visible to all users.",
+            "theme_color": "Hex color code for your gang (e.g., #FF0000). Used in campaign views.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -76,6 +78,13 @@ class EditListForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "theme_color": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "#000000",
+                    "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$",
+                }
+            ),
         }
 
 

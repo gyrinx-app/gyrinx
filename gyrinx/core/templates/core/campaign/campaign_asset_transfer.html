@@ -14,7 +14,8 @@
                 <h6 class="card-subtitle mb-2 text-muted">Current Status</h6>
                 {% if asset.holder %}
                     <p class="mb-0">
-                        <span class="badge bg-info">
+                        <span class="badge {% if asset.holder.theme_color %}border{% else %}bg-info{% endif %}"
+                              {% if asset.holder.theme_color %}style="background-color: {{ asset.holder.theme_color }}; color: white; border-color: {{ asset.holder.theme_color }} !important;"{% endif %}>
                             <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
                         </span>
                     </p>

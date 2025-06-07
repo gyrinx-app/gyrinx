@@ -17,7 +17,14 @@
             <div class="alert alert-success" id="added">
                 <h4 class="alert-heading">List Added</h4>
                 <p>
-                    <strong>{{ added_list.name }}</strong>
+                    {% if added_list.theme_color %}
+                        <span class="badge border me-1"
+                              style="background-color: {{ added_list.theme_color }}; color: white; border-color: {{ added_list.theme_color }} !important;">
+                            {{ added_list.name }}
+                        </span>
+                    {% else %}
+                        <strong>{{ added_list.name }}</strong>
+                    {% endif %}
                     {% if added_list.content_house %}({{ added_list.content_house.name }}){% endif %}
                     has been added to the campaign.
                 </p>
@@ -90,7 +97,14 @@
                                 <div class="row align-items-center">
                                     <div class="col">
                                         <h6 class="mb-1">
-                                            {{ list.name }}
+                                            {% if list.theme_color %}
+                                                <span class="badge border me-1"
+                                                      style="background-color: {{ list.theme_color }}; color: white; border-color: {{ list.theme_color }} !important;">
+                                                    {{ list.name }}
+                                                </span>
+                                            {% else %}
+                                                {{ list.name }}
+                                            {% endif %}
                                             {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
                                         </h6>
                                         <p class="mb-0 text-muted small">

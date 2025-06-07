@@ -179,7 +179,10 @@
                                                     <td class="ps-3">{{ asset.name }}</td>
                                                     <td class="{% if not is_owner %}text-end pe-3{% else %}text-center{% endif %}">
                                                         {% if asset.holder %}
-                                                            <span class="badge bg-info">{{ asset.holder.name }}</span>
+                                                            <span class="badge {% if asset.holder.theme_color %}border{% else %}bg-info{% endif %}"
+                                                                  {% if asset.holder.theme_color %}style="background-color: {{ asset.holder.theme_color }}; color: white; border-color: {{ asset.holder.theme_color }} !important;"{% endif %}>
+                                                                {{ asset.holder.name }}
+                                                            </span>
                                                         {% else %}
                                                             <span class="badge bg-secondary">Unowned</span>
                                                         {% endif %}
@@ -244,7 +247,14 @@
                                                     <td class="ps-3">
                                                         <a href="{% url 'core:list' resource.list.id %}"
                                                            class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                            {{ resource.list.name }}
+                                                            {% if resource.list.theme_color %}
+                                                                <span class="badge border me-1"
+                                                                      style="background-color: {{ resource.list.theme_color }}; color: white; border-color: {{ resource.list.theme_color }} !important;">
+                                                                    {{ resource.list.name }}
+                                                                </span>
+                                                            {% else %}
+                                                                {{ resource.list.name }}
+                                                            {% endif %}
                                                         </a>
                                                     </td>
                                                     <td class="text-center">
@@ -300,7 +310,14 @@
                                    class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1">
-                                            {{ list.name }}
+                                            {% if list.theme_color %}
+                                                <span class="badge border me-1"
+                                                      style="background-color: {{ list.theme_color }}; color: white; border-color: {{ list.theme_color }} !important;">
+                                                    {{ list.name }}
+                                                </span>
+                                            {% else %}
+                                                {{ list.name }}
+                                            {% endif %}
                                             {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
                                         </h6>
                                         <small>{{ list.cost_display }}</small>
