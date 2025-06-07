@@ -2281,3 +2281,44 @@ class VirtualWeaponProfile:
 
     def __eq__(self, value):
         return self.profile == value
+
+
+class ContentInjuryPhase(models.TextChoices):
+    """Phases that injuries can apply to"""
+
+    RECOVERY = "recovery", "Recovery"
+    CONVALESCENCE = "convalescence", "Convalescence"
+    PERMANENT = "permanent", "Permanent"
+    OUT_COLD = "out_cold", "Out Cold"
+
+
+class ContentInjury(Content):
+    """
+    Named injuries that can be applied to fighters during campaigns.
+    """
+
+    help_text = "Represents a lasting injury that can be suffered by a fighter during campaign play."
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    phase = models.CharField(
+        max_length=20,
+        choices=ContentInjuryPhase.choices,
+        default=ContentInjuryPhase.PERMANENT,
+        help_text="The phase that this injury applies to (recovery, convalescence, permanent, or out cold).",
+    )
+    modifiers = models.ManyToManyField(
+        ContentMod,
+        blank=True,
+        help_text="Modifiers applied when this injury is active.",
+        related_name="injuries",
+    )
+    page_refs = models.ManyToManyField(ContentPageRef, blank=True)
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.name} ({self.get_phase_display()})"
+
+    class Meta:
+        verbose_name = "Injury"
+        verbose_name_plural = "Injuries"
+        ordering = ["phase", "name"]

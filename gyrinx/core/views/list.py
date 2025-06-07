@@ -22,6 +22,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
 )
 from gyrinx.core.forms.list import (
+    AddInjuryForm,
     CloneListFighterForm,
     CloneListForm,
     EditListFighterNarrativeForm,
@@ -38,6 +39,7 @@ from gyrinx.core.models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,
+    ListFighterInjury,
     ListFighterPsykerPowerAssignment,
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
@@ -1379,3 +1381,130 @@ class ListArchivedFightersView(generic.ListView):
         Retrieve the :model:`core.List` by its `id`, ensuring it's owned by the current user.
         """
         return get_object_or_404(List, id=self.kwargs["id"], owner=self.request.user)
+
+
+@login_required
+def list_fighter_add_injury(request, id, fighter_id):
+    """
+    Add an injury to a :model:`core.ListFighter` in campaign mode.
+
+    **Context**
+
+    ``form``
+        An AddInjuryForm for selecting the injury to add.
+    ``fighter``
+        The :model:`core.ListFighter` being injured.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_add_injury.html`
+    """
+    from django.contrib import messages
+    from gyrinx.core.models.campaign import CampaignAction
+    
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(request, "Injuries can only be added to fighters in campaign mode.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    
+    if request.method == "POST":
+        form = AddInjuryForm(request.POST)
+        if form.is_valid():
+            injury = ListFighterInjury.objects.create_with_user(
+                user=request.user,
+                fighter=fighter,
+                injury=form.cleaned_data["injury"],
+                notes=form.cleaned_data.get("notes", ""),
+                owner=request.user,
+            )
+            
+            # Log to campaign action
+            if lst.campaign:
+                description = f"Injury: {fighter.name} suffered {injury.injury.name}"
+                if form.cleaned_data.get("notes"):
+                    description += f" - {form.cleaned_data['notes']}"
+                
+                outcome = f"{injury.injury.get_phase_display()}"
+                if injury.injury.description:
+                    outcome += f": {injury.injury.description}"
+                
+                CampaignAction.objects.create_with_user(
+                    user=request.user,
+                    campaign=lst.campaign,
+                    description=description,
+                    outcome=outcome,
+                    owner=request.user,
+                )
+            
+            messages.success(request, f"Added injury '{injury.injury.name}' to {fighter.name}")
+            return HttpResponseRedirect(reverse("core:list-fighter-gear-edit", args=(lst.id, fighter.id)))
+    else:
+        form = AddInjuryForm()
+    
+    return render(
+        request,
+        "core/list_fighter_add_injury.html",
+        {
+            "form": form,
+            "list": lst,
+            "fighter": fighter,
+        },
+    )
+
+
+@login_required
+def list_fighter_remove_injury(request, id, fighter_id, injury_id):
+    """
+    Remove an injury from a :model:`core.ListFighter` in campaign mode.
+
+    **Context**
+
+    ``injury``
+        The :model:`core.ListFighterInjury` to be removed.
+    ``fighter``
+        The :model:`core.ListFighter` being healed.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_remove_injury.html`
+    """
+    from django.contrib import messages
+    from gyrinx.core.models.campaign import CampaignAction
+    
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
+    
+    if request.method == "POST":
+        injury_name = injury.injury.name
+        injury.delete()
+        
+        # Log to campaign action
+        if lst.campaign:
+            CampaignAction.objects.create_with_user(
+                user=request.user,
+                campaign=lst.campaign,
+                description=f"Recovery: {fighter.name} recovered from {injury_name}",
+                outcome="Injury removed",
+                owner=request.user,
+            )
+        
+        messages.success(request, f"Removed injury '{injury_name}' from {fighter.name}")
+        return HttpResponseRedirect(reverse("core:list-fighter-gear-edit", args=(lst.id, fighter.id)))
+    
+    return render(
+        request,
+        "core/list_fighter_remove_injury.html",
+        {
+            "injury": injury,
+            "fighter": fighter,
+            "list": lst,
+        },
+    )

@@ -412,3 +412,24 @@ class EditListFighterNarrativeForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
+
+
+class AddInjuryForm(forms.Form):
+    injury = forms.ModelChoiceField(
+        queryset=None,  # Will be set in __init__
+        label="Select Injury",
+        help_text="Choose the lasting injury to apply to this fighter.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    notes = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        required=False,
+        label="Notes",
+        help_text="Optional notes about how this injury was received (will be included in campaign log).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Import here to avoid circular imports
+        from gyrinx.content.models import ContentInjury
+        self.fields["injury"].queryset = ContentInjury.objects.select_related().order_by("phase", "name")
