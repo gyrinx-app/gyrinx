@@ -4,7 +4,10 @@
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
-    {% if list.owner_cached == request.user %}
+    {% if list.campaign %}
+        {% url 'core:campaign' list.campaign.id as campaign_url %}
+        {% include "core/includes/back.html" with url=campaign_url text=list.campaign.name %}
+    {% elif list.owner_cached == request.user %}
         {% include "core/includes/home.html" %}
     {% else %}
         {% url 'core:lists' as lists_url %}
