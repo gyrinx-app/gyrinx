@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     Add Lists - {{ campaign.name }}
 {% endblock head_title %}
@@ -17,7 +17,7 @@
             <div class="alert alert-success" id="added">
                 <h4 class="alert-heading">List Added</h4>
                 <p>
-                    <strong>{{ added_list.name }}</strong>
+                    {% list_with_theme added_list "fw-bold" %}
                     {% if added_list.content_house %}({{ added_list.content_house.name }}){% endif %}
                     has been added to the campaign.
                 </p>
@@ -90,8 +90,8 @@
                                 <div class="row align-items-center">
                                     <div class="col">
                                         <h6 class="mb-1">
-                                            {{ list.name }}
-                                            {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
+                                            {% list_with_theme list %}
+                                            {% if list.content_house %}<span class="badge bg-secondary ms-1">{{ list.content_house.name }}</span>{% endif %}
                                         </h6>
                                         <p class="mb-0 text-muted small">
                                             {% if list.owner == request.user %}

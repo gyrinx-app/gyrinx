@@ -107,6 +107,19 @@ class List(AppBase):
         help_text="The campaign this list is participating in (if in campaign mode).",
     )
 
+    theme_color = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Theme color for this gang in hex format (e.g., #FF0000).",
+        validators=[
+            validators.RegexValidator(
+                r"^#(?:[0-9a-fA-F]{3}){1,2}$|^$",
+                "Enter a valid hex color code (e.g., #FF0000) or leave empty.",
+            )
+        ],
+    )
+
     history = HistoricalRecords()
 
     @admin.display(description="Cost")

@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     Transfer {{ asset.name }}
 {% endblock head_title %}
@@ -11,18 +11,12 @@
         <h2 class="h5 text-muted">{{ asset.name }}</h2>
         <div class="card">
             <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Current Status</h6>
+                <h6 class="card-subtitle mb-2 text-muted">Current Holder</h6>
                 {% if asset.holder %}
-                    <p class="mb-0">
-                        <span class="badge bg-info">
-                            <i class="bi-person-check"></i> Held by: {{ asset.holder.name }}
-                        </span>
-                    </p>
+                    <p class="mb-0">{% list_with_theme asset.holder %}</p>
                 {% else %}
-                    <p class="mb-0">
-                        <span class="badge bg-secondary">
-                            <i class="bi-dash-circle"></i> Unowned
-                        </span>
+                    <p class="mb-0 text-muted">
+                        <i class="bi-dash-circle"></i> Unowned
                     </p>
                 {% endif %}
             </div>

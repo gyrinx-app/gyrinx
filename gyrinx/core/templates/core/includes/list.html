@@ -1,9 +1,9 @@
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 <div>
     <div class="vstack gap-0 mb-2">
         <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
             <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                <h2 class="mb-0">{{ list.name }}</h2>
+                <h2 class="mb-0">{% list_with_theme list %}</h2>
                 <div class="ms-md-auto">
                     {{ list.content_house.name }}
                     {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}

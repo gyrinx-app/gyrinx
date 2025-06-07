@@ -3,7 +3,7 @@ from django import forms
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
-from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS
+from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS, ColorRadioSelect
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 
@@ -59,16 +59,18 @@ class CloneListForm(forms.ModelForm):
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "narrative", "public"]
+        fields = ["name", "narrative", "public", "theme_color"]
         labels = {
             "name": "Name",
             "narrative": "About",
             "public": "Public",
+            "theme_color": "Theme Color",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
             "public": "If checked, this list will be visible to all users.",
+            "theme_color": "Select a theme color for your gang. Used in campaign views.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -76,6 +78,7 @@ class EditListForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "theme_color": ColorRadioSelect(),
         }
 
 

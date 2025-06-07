@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     {{ campaign.name }} - Campaign
 {% endblock head_title %}
@@ -179,9 +179,9 @@
                                                     <td class="ps-3">{{ asset.name }}</td>
                                                     <td class="{% if not is_owner %}text-end pe-3{% else %}text-center{% endif %}">
                                                         {% if asset.holder %}
-                                                            <span class="badge bg-info">{{ asset.holder.name }}</span>
+                                                            {% list_with_theme asset.holder %}
                                                         {% else %}
-                                                            <span class="badge bg-secondary">Unowned</span>
+                                                            <span class="text-muted">Unowned</span>
                                                         {% endif %}
                                                     </td>
                                                     {% if is_owner %}
@@ -244,7 +244,7 @@
                                                     <td class="ps-3">
                                                         <a href="{% url 'core:list' resource.list.id %}"
                                                            class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                            {{ resource.list.name }}
+                                                            {% list_with_theme resource.list "me-1" %}
                                                         </a>
                                                     </td>
                                                     <td class="text-center">
@@ -300,7 +300,7 @@
                                    class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1">
-                                            {{ list.name }}
+                                            {% list_with_theme list "me-1" %}
                                             {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
                                         </h6>
                                         <small>{{ list.cost_display }}</small>

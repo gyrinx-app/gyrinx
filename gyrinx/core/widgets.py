@@ -1,3 +1,4 @@
+from django import forms
 from tinymce.widgets import TinyMCE
 
 # Additional TinyMCE configuration for forms
@@ -124,3 +125,38 @@ class TinyMCEWithUpload(TinyMCE):
         final_mce_attrs = {**TINYMCE_UPLOAD_CONFIG, **mce_attrs}
 
         super().__init__(attrs=attrs, mce_attrs=final_mce_attrs, **kwargs)
+
+
+class ColorRadioSelect(forms.RadioSelect):
+    """
+    Custom radio select widget for choosing colors from a predefined palette.
+    """
+
+    template_name = "core/widgets/color_radio_select.html"
+    option_template_name = "core/widgets/color_radio_option.html"
+
+    # Predefined color palette
+    COLOR_PALETTE = [
+        ("", "None (Default)"),
+        ("#386b33", "Fern Green"),
+        ("#4e9e47", "Pigment Green"),
+        ("#ffa629", "Orange Peel"),
+        ("#ffbb5c", "Hunyadi Yellow"),
+        ("#d62e31", "Persian Red"),
+        ("#4593c4", "Celestial Blue"),
+        ("#a1c8e2", "Uranian Blue"),
+        ("#fefdfb", "White"),
+    ]
+
+    def __init__(self, attrs=None):
+        super().__init__(attrs=attrs, choices=self.COLOR_PALETTE)
+
+    def create_option(
+        self, name, value, label, selected, index, subindex=None, attrs=None
+    ):
+        option = super().create_option(
+            name, value, label, selected, index, subindex, attrs
+        )
+        # Add the color value to the option context for use in the template
+        option["color"] = value
+        return option
