@@ -244,11 +244,7 @@
                                                     <td class="ps-3">
                                                         <a href="{% url 'core:list' resource.list.id %}"
                                                            class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                            {% if resource.list %}
-                                                                {% list_with_theme resource.list "me-1" %}
-                                                            {% else %}
-                                                                {{ resource.list.name }}
-                                                            {% endif %}
+                                                            {% list_with_theme resource.list "me-1" %}
                                                         </a>
                                                     </td>
                                                     <td class="text-center">

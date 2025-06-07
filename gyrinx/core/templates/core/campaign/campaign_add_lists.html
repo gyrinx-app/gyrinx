@@ -17,11 +17,7 @@
             <div class="alert alert-success" id="added">
                 <h4 class="alert-heading">List Added</h4>
                 <p>
-                    {% if added_list %}
-                        {% list_with_theme added_list "fw-bold" %}
-                    {% else %}
-                        <strong>{{ added_list.name }}</strong>
-                    {% endif %}
+                    {% list_with_theme added_list "fw-bold" %}
                     {% if added_list.content_house %}({{ added_list.content_house.name }}){% endif %}
                     has been added to the campaign.
                 </p>
