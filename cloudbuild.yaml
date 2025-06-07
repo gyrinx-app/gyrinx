@@ -70,10 +70,8 @@ images:
 options:
   substitutionOption: ALLOW_LOOSE
   logging: CLOUD_LOGGING_ONLY
-  queueTtl: "${_QUEUE_TTL}"  # Queue builds for up to 1 hour if needed
 substitutions:
   _TRIGGER_ID: bd49e415-bc5c-411a-a19d-ec77599c3ddf
-  _QUEUE_TTL: "3600s"
   _AR_HOSTNAME: europe-west2-docker.pkg.dev
   _PLATFORM: managed
   _SERVICE_NAME: gyrinx
