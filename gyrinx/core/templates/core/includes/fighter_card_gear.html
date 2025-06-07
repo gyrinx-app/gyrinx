@@ -64,9 +64,16 @@
                                         {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                         {% if list.owner_cached == user and not print %}
                                             {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                                <br>
+                                                {% if not assign.is_from_default_assignment %}
+                                                    <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
+                                                       class="link-secondary">Edit</a>
+                                                    <span class="text-muted">·</span>
+                                                {% endif %}
                                                 <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                    class="link-danger">Remove</a>
                                             {% elif assign.kind == 'default' %}
+                                                <br>
                                                 <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
                                                    class="link-danger">Remove</a>
                                             {% endif %}
@@ -148,9 +155,16 @@
                                     {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                     {% if list.owner_cached == user and not print %}
                                         {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                            <br>
+                                            {% if not assign.is_from_default_assignment %}
+                                                <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
+                                                   class="link-secondary">Edit</a>
+                                                <span class="text-muted">·</span>
+                                            {% endif %}
                                             <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                class="link-danger">Remove</a>
                                         {% elif assign.kind == 'default' %}
+                                            <br>
                                             <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
                                                class="link-danger">Remove</a>
                                         {% endif %}
