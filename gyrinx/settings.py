@@ -91,6 +91,8 @@ INSTALLED_APPS = [
     # Django allauth
     "allauth",
     "allauth.account",
+    "allauth.usersessions",  # Required for MFA
+    "allauth.mfa",  # Multi-factor authentication
     # reCAPTCHA
     "django_recaptcha",
     # simplehistory
@@ -231,6 +233,11 @@ ACCOUNT_FORMS = {
 }
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+
+# MFA (Multi-Factor Authentication) settings
+# https://docs.allauth.org/en/latest/mfa/introduction.html
+MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
+MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
 
 # Waiting list
 
