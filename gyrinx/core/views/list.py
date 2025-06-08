@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchVector
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -772,9 +772,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # Apply search filter if provided
     if request.GET.get("q"):
+        search_query = SearchQuery(request.GET.get("q", ""))
         equipment = (
             equipment.annotate(search=search_vector)
-            .filter(search=request.GET.get("q", ""))
+            .filter(search=search_query)
             .distinct("category__name", "name", "id")
         )
 

@@ -182,9 +182,10 @@ def campaign_add_lists(request, id):
 
     # Apply search filter if provided
     if request.GET.get("q"):
+        search_query = SearchQuery(request.GET.get("q"))
         lists = lists.annotate(
             search=SearchVector("name", "content_house__name", "owner__username")
-        ).filter(search=request.GET.get("q"))
+        ).filter(search=search_query)
 
     # Filter by owner type
     owner_filter = request.GET.get("owner", "all")
