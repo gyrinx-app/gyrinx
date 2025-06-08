@@ -142,6 +142,38 @@ class Campaign(AppBase):
             return True
         return False
 
+    def add_list_to_campaign(self, list_to_add):
+        """Add a list to the campaign, cloning if necessary.
+
+        For pre-campaign: adds the list directly.
+        For in-progress: clones the list and allocates resources.
+
+        Returns the added list (original for pre-campaign, clone for in-progress).
+        """
+        if self.is_pre_campaign:
+            # Pre-campaign: just add the list directly
+            self.lists.add(list_to_add)
+            return list_to_add
+        elif self.is_in_progress:
+            # In-progress: clone the list and allocate resources
+            campaign_clone = list_to_add.clone(for_campaign=self)
+            self.lists.add(campaign_clone)
+
+            # Allocate default resources to the new list
+            for resource_type in self.resource_types.all():
+                CampaignListResource.objects.create(
+                    campaign=self,
+                    resource_type=resource_type,
+                    list=campaign_clone,
+                    amount=resource_type.default_amount,
+                    owner=self.owner,  # Campaign owner owns the resource tracking
+                )
+
+            return campaign_clone
+        else:
+            # Post-campaign: cannot add lists
+            raise ValueError("Cannot add lists to a completed campaign")
+
 
 class CampaignAction(AppBase):
     """An action taken during a campaign with optional dice rolls"""
