@@ -452,19 +452,21 @@ def test_campaign_action_list_filtering():
     
     # Test that pagination preserves filters
     # Create more actions to trigger pagination
+    # We need more than 50 results matching the filter to see pagination
     for i in range(55):
         CampaignAction.objects.create(
             campaign=campaign,
             user=user1,
-            description=f"Action {i}",
+            description=f"Gang Alpha trades water supplies - batch {i}",
         )
     
+    # Now we have 56 water-related actions (1 original + 55 new), which triggers pagination
     response = client.get(
         reverse("core:campaign-actions", args=[campaign.id]),
-        {"q": "water", "page": "1"}
+        {"q": "water"}
     )
     assert response.status_code == 200
     content = response.content.decode()
     # Check that filter parameters are preserved in pagination links
-    assert "page=2" in content
-    assert "q=water" in content
+    assert "page=2" in content  # Next page link should exist
+    assert "q=water" in content  # Filter should be preserved
