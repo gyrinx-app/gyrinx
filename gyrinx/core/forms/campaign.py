@@ -73,14 +73,14 @@ class CampaignActionForm(forms.ModelForm):
         campaign = kwargs.pop("campaign", None)
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        
+
         if campaign:
             # Filter lists to only show those in the campaign that the user owns
             if user:
                 self.fields["list"].queryset = campaign.lists.filter(owner=user)
             else:
                 self.fields["list"].queryset = campaign.lists.all()
-            
+
             # Make the field not required
             self.fields["list"].required = False
 

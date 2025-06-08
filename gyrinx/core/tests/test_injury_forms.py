@@ -55,14 +55,24 @@ def test_add_injury_form_initialization():
 def test_add_injury_form_queryset_ordering():
     """Test that injuries are ordered correctly in the form."""
     # Create injuries in specific order to test sorting
-    ContentInjury.objects.create(name="Z Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE)
-    ContentInjury.objects.create(name="A Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY)
-    ContentInjury.objects.create(name="B Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY)
+    ContentInjury.objects.create(
+        name="Z Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE
+    )
+    ContentInjury.objects.create(
+        name="A Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    ContentInjury.objects.create(
+        name="B Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
     ContentInjury.objects.create(
         name="A Convalescence", phase=ContentInjuryDefaultOutcome.CONVALESCENCE
     )
-    ContentInjury.objects.create(name="A Out Cold", phase=ContentInjuryDefaultOutcome.RECOVERY)
-    ContentInjury.objects.create(name="A Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE)
+    ContentInjury.objects.create(
+        name="A Out Cold", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    ContentInjury.objects.create(
+        name="A Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE
+    )
 
     form = AddInjuryForm()
     queryset_injuries = list(form.fields["injury"].queryset)

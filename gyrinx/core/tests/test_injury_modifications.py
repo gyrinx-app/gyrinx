@@ -167,11 +167,11 @@ def test_multiple_injuries_stat_stacking():
     # Create two injuries that both modify strength
     injury1, _ = ContentInjury.objects.get_or_create(
         name="Test Spinal Stack",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
         name="Test Enfeebled Stack",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
 
     # Both reduce strength by 1
@@ -331,7 +331,7 @@ def test_injury_with_no_modifiers():
         name="Test Out Cold",
         defaults={
             "description": "Miss rest of battle, no long-term effects",
-            "phase": ContentInjuryPhase.OUT_COLD,
+            "phase": ContentInjuryDefaultOutcome.NO_CHANGE,
         },
     )
 
@@ -361,10 +361,10 @@ def test_injury_phase_display():
     user, fighter = create_base_test_data()
 
     phases = [
-        (ContentInjuryPhase.RECOVERY, "Recovery"),
-        (ContentInjuryPhase.CONVALESCENCE, "Convalescence"),
-        (ContentInjuryPhase.PERMANENT, "Permanent"),
-        (ContentInjuryPhase.OUT_COLD, "Out Cold"),
+        (ContentInjuryDefaultOutcome.RECOVERY, "Recovery"),
+        (ContentInjuryDefaultOutcome.CONVALESCENCE, "Convalescence"),
+        (ContentInjuryDefaultOutcome.DEAD, "Dead"),
+        (ContentInjuryDefaultOutcome.NO_CHANGE, "No Change"),
     ]
 
     for phase_value, expected_display in phases:

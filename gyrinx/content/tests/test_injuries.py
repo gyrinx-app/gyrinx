@@ -154,7 +154,7 @@ def test_injury_ordering():
     # Should be ordered by group (empty groups first), then by name
     assert injuries[0] == injury4  # No group, Gamma
     assert injuries[1] == injury1  # Group A, Alpha
-    assert injuries[2] == injury3  # Group A, Zebra  
+    assert injuries[2] == injury3  # Group A, Zebra
     assert injuries[3] == injury2  # Group B, Beta
 
 

@@ -106,7 +106,9 @@ class CampaignDetailView(generic.DetailView):
         context["campaign"] = Campaign.objects.prefetch_related(
             models.Prefetch(
                 "actions",
-                queryset=CampaignAction.objects.select_related("user", "list").order_by("-created")
+                queryset=CampaignAction.objects.select_related("user", "list").order_by(
+                    "-created"
+                ),
             )
         ).get(id=campaign.id)
 
@@ -432,33 +434,34 @@ class CampaignActionList(generic.ListView):
 
     def get_queryset(self):
         self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
-        
+
         # Start with all campaign actions with list relationship
-        actions = self.campaign.actions.select_related("user", "list").order_by("-created")
-        
+        actions = self.campaign.actions.select_related("user", "list").order_by(
+            "-created"
+        )
+
         # Apply text search filter if provided
         search_query = self.request.GET.get("q", "").strip()
         if search_query:
             actions = actions.annotate(
                 search=SearchVector("description", "outcome", "user__username")
             ).filter(search=SearchQuery(search_query))
-        
+
         # Apply gang filter if provided
         gang_id = self.request.GET.get("gang")
         if gang_id:
             # Filter actions by users who own the specified list/gang
             actions = actions.filter(
                 user__in=List.objects.filter(
-                    id=gang_id, 
-                    campaign=self.campaign
+                    id=gang_id, campaign=self.campaign
                 ).values_list("owner", flat=True)
             )
-        
+
         # Apply author filter if provided
         author_id = self.request.GET.get("author")
         if author_id:
             actions = actions.filter(user__id=author_id)
-        
+
         # Apply timeframe filter if provided
         timeframe = self.request.GET.get("timeframe", "all")
         if timeframe != "all":
@@ -469,24 +472,25 @@ class CampaignActionList(generic.ListView):
                 actions = actions.filter(created__gte=now - timedelta(days=7))
             elif timeframe == "30d":
                 actions = actions.filter(created__gte=now - timedelta(days=30))
-        
+
         return actions
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["campaign"] = self.campaign
-        
+
         # Get all lists/gangs in the campaign for the gang filter
-        context["campaign_lists"] = self.campaign.lists.select_related("owner", "content_house").order_by("name")
-        
+        context["campaign_lists"] = self.campaign.lists.select_related(
+            "owner", "content_house"
+        ).order_by("name")
+
         # Get all users who have performed actions for the author filter
         context["action_authors"] = (
-            self.campaign.actions
-            .values_list("user__id", "user__username")
+            self.campaign.actions.values_list("user__id", "user__username")
             .distinct()
             .order_by("user__username")
         )
-        
+
         # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         user = self.request.user
         if user.is_authenticated:

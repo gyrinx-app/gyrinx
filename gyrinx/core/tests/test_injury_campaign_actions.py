@@ -310,7 +310,7 @@ def test_multiple_injuries_multiple_actions():
         ),
         ContentInjury.objects.create(
             name="Injury 2",
-            phase=ContentInjuryPhase.PERMANENT,
+            phase=ContentInjuryDefaultOutcome.DEAD,
         ),
         ContentInjury.objects.create(
             name="Injury 3",

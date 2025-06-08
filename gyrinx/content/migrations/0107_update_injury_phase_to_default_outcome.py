@@ -5,16 +5,16 @@ from django.db import migrations, models
 
 def convert_phase_to_default_outcome(apps, schema_editor):
     """Convert existing phase values to new default outcome values"""
-    ContentInjury = apps.get_model('content', 'ContentInjury')
-    
+    ContentInjury = apps.get_model("content", "ContentInjury")
+
     # Map old phase values to new default outcome values
     phase_mapping = {
-        'recovery': 'recovery',
-        'convalescence': 'convalescence',
-        'permanent': 'active',  # Permanent injuries default to active state
-        'out_cold': 'recovery',  # Out cold injuries default to recovery state
+        "recovery": "recovery",
+        "convalescence": "convalescence",
+        "permanent": "active",  # Permanent injuries default to active state
+        "out_cold": "recovery",  # Out cold injuries default to recovery state
     }
-    
+
     for injury in ContentInjury.objects.all():
         if injury.phase in phase_mapping:
             injury.phase = phase_mapping[injury.phase]
@@ -23,17 +23,17 @@ def convert_phase_to_default_outcome(apps, schema_editor):
 
 def reverse_default_outcome_to_phase(apps, schema_editor):
     """Reverse the conversion for rollback"""
-    ContentInjury = apps.get_model('content', 'ContentInjury')
-    
+    ContentInjury = apps.get_model("content", "ContentInjury")
+
     # Map new default outcome values back to old phase values
     outcome_mapping = {
-        'no_change': 'permanent',  # Default no_change to permanent
-        'active': 'permanent',
-        'recovery': 'recovery',
-        'convalescence': 'convalescence',
-        'dead': 'permanent',  # Dead doesn't have a direct mapping, default to permanent
+        "no_change": "permanent",  # Default no_change to permanent
+        "active": "permanent",
+        "recovery": "recovery",
+        "convalescence": "convalescence",
+        "dead": "permanent",  # Dead doesn't have a direct mapping, default to permanent
     }
-    
+
     for injury in ContentInjury.objects.all():
         if injury.phase in outcome_mapping:
             injury.phase = outcome_mapping[injury.phase]

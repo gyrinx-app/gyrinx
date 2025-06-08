@@ -169,13 +169,16 @@ def test_injury_ordering():
 
     # Create injuries with specific order
     injury1, _ = ContentInjury.objects.get_or_create(
-        name="Test First Injury", defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY}
+        name="Test First Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
-        name="Test Second Injury", defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE}
+        name="Test Second Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE},
     )
     injury3, _ = ContentInjury.objects.get_or_create(
-        name="Test Third Injury", defaults={"phase": ContentInjuryDefaultOutcome.CONVALESCENCE}
+        name="Test Third Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.CONVALESCENCE},
     )
 
     # Add injuries to fighter (will have different timestamps)

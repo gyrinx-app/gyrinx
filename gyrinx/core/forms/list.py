@@ -441,7 +441,7 @@ class AddInjuryForm(forms.Form):
         from gyrinx.forms import group_select
 
         self.fields["injury"].queryset = ContentInjury.objects.select_related()
-        
+
         # Group injuries by their group field if it exists
         group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
 
