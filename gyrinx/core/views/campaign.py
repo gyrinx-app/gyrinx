@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchVector
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db import models
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -429,7 +429,7 @@ class CampaignActionList(generic.ListView):
         if search_query:
             actions = actions.annotate(
                 search=SearchVector("description", "outcome", "user__username")
-            ).filter(search=search_query)
+            ).filter(search=SearchQuery(search_query))
         
         # Apply gang filter if provided
         gang_id = self.request.GET.get("gang")
