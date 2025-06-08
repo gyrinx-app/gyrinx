@@ -11,6 +11,8 @@ from gyrinx.core.models.base import AppBase
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+pylist = list  # Alias for type hinting JSONField to use list type
+
 
 class Campaign(AppBase):
     # Status choices
@@ -165,7 +167,7 @@ class CampaignAction(AppBase):
         default=0, help_text="Number of D6 dice rolled (0 if no roll)"
     )
     dice_results = models.JSONField(
-        default=list, blank=True, help_text="Results of each die rolled"
+        default=pylist, blank=True, help_text="Results of each die rolled"
     )
     dice_total = models.PositiveIntegerField(
         default=0, help_text="Total sum of all dice rolled"
