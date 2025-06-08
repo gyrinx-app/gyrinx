@@ -523,6 +523,14 @@ def start_campaign(request, id):
 
     if request.method == "POST":
         if campaign.start_campaign():
+            # Log the campaign start action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Started: {campaign.name} is now active",
+                outcome="Campaign transitioned from pre-campaign to active status",
+            )
             messages.success(request, "Campaign has been started!")
         else:
             if not campaign.lists.exists():
@@ -563,6 +571,14 @@ def end_campaign(request, id):
 
     if request.method == "POST":
         if campaign.end_campaign():
+            # Log the campaign end action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Ended: {campaign.name} has concluded",
+                outcome="Campaign transitioned from active to post-campaign status",
+            )
             messages.success(request, "Campaign has been ended!")
         else:
             messages.error(request, "Campaign cannot be ended.")
@@ -600,6 +616,14 @@ def reopen_campaign(request, id):
 
     if request.method == "POST":
         if campaign.reopen_campaign():
+            # Log the campaign reopen action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Reopened: {campaign.name} is active again",
+                outcome="Campaign transitioned from post-campaign back to active status",
+            )
             messages.success(request, "Campaign has been reopened!")
         else:
             messages.error(request, "Campaign cannot be reopened.")

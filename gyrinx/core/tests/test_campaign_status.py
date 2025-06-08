@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from gyrinx.content.models import ContentHouse
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 
 User = get_user_model()
@@ -432,3 +432,84 @@ def test_campaign_post_campaign_restrictions(client):
     # Check that the button is shown
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
     assert b"Add Lists" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_state_change_actions(client):
+    """Test that campaign state changes create CampaignAction entries."""
+    user = User.objects.create_user(username="testuser", password="password")
+    client.login(username="testuser", password="password")
+
+    # Create a house
+    house = ContentHouse.objects.create(
+        name="Test House",
+    )
+
+    # Create a campaign
+    campaign = Campaign.objects.create_with_user(
+        user=user,
+        name="Test Campaign",
+        owner=user,
+    )
+
+    # Add a list so we can start the campaign
+    list_obj = List.objects.create_with_user(
+        user=user,
+        name="Test List",
+        owner=user,
+        content_house=house,
+    )
+    campaign.lists.add(list_obj)
+
+    # Verify no actions exist yet
+    assert CampaignAction.objects.filter(campaign=campaign).count() == 0
+
+    # Start the campaign
+    response = client.post(reverse("core:campaign-start", args=[campaign.id]))
+    assert response.status_code == 302
+
+    # Verify campaign started and action was created
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.IN_PROGRESS
+
+    start_actions = CampaignAction.objects.filter(campaign=campaign)
+    assert start_actions.count() == 1
+    start_action = start_actions.first()
+    assert start_action.user == user
+    assert start_action.description == "Campaign Started: Test Campaign is now active"
+    assert start_action.outcome == "Campaign transitioned from pre-campaign to active status"
+
+    # End the campaign
+    response = client.post(reverse("core:campaign-end", args=[campaign.id]))
+    assert response.status_code == 302
+
+    # Verify campaign ended and action was created
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.POST_CAMPAIGN
+
+    end_actions = CampaignAction.objects.filter(campaign=campaign).exclude(id=start_action.id)
+    assert end_actions.count() == 1
+    end_action = end_actions.first()
+    assert end_action.user == user
+    assert end_action.description == "Campaign Ended: Test Campaign has concluded"
+    assert end_action.outcome == "Campaign transitioned from active to post-campaign status"
+
+    # Reopen the campaign
+    response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
+    assert response.status_code == 302
+
+    # Verify campaign reopened and action was created
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.IN_PROGRESS
+
+    reopen_actions = CampaignAction.objects.filter(campaign=campaign).exclude(
+        id__in=[start_action.id, end_action.id]
+    )
+    assert reopen_actions.count() == 1
+    reopen_action = reopen_actions.first()
+    assert reopen_action.user == user
+    assert reopen_action.description == "Campaign Reopened: Test Campaign is active again"
+    assert reopen_action.outcome == "Campaign transitioned from post-campaign back to active status"
+
+    # Verify total actions count
+    assert CampaignAction.objects.filter(campaign=campaign).count() == 3
