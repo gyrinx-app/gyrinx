@@ -11,6 +11,8 @@ from gyrinx.core.models.base import AppBase
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+pylist = list  # Alias for type hinting JSONField to use list type
+
 
 class Campaign(AppBase):
     # Status choices
@@ -144,6 +146,14 @@ class CampaignAction(AppBase):
         related_name="campaign_actions",
         help_text="The user who performed this action",
     )
+    list = models.ForeignKey(
+        "List",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campaign_actions",
+        help_text="The list this action is related to",
+    )
     description = models.TextField(
         help_text="Description of the action taken",
         validators=[validators.MinLengthValidator(1)],
@@ -157,7 +167,7 @@ class CampaignAction(AppBase):
         default=0, help_text="Number of D6 dice rolled (0 if no roll)"
     )
     dice_results = models.JSONField(
-        default=list, blank=True, help_text="Results of each die rolled"
+        default=pylist, blank=True, help_text="Results of each die rolled"
     )
     dice_total = models.PositiveIntegerField(
         default=0, help_text="Total sum of all dice rolled"
@@ -285,6 +295,7 @@ class CampaignAsset(AppBase):
             CampaignAction.objects.create(
                 campaign=self.asset_type.campaign,
                 user=user,
+                list=new_holder,
                 description=description,
                 dice_count=0,
                 owner=user,
@@ -396,6 +407,7 @@ class CampaignListResource(AppBase):
         CampaignAction.objects.create(
             campaign=self.campaign,
             user=user,
+            list=self.list,
             description=description,
             dice_count=0,
             owner=user,

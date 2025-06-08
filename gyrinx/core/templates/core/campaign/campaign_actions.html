@@ -18,11 +18,12 @@
                 </a>
             {% endif %}
         </div>
-        
         <!-- Filter Section -->
         <div class="card">
             <div class="card-body">
-                <form method="get" action="{% url 'core:campaign-actions' campaign.id %}" class="vstack gap-3">
+                <form method="get"
+                      action="{% url 'core:campaign-actions' campaign.id %}"
+                      class="vstack gap-3">
                     <!-- Search Input -->
                     <div class="row g-2">
                         <div class="col-12">
@@ -41,7 +42,6 @@
                             </div>
                         </div>
                     </div>
-                    
                     <!-- Gang and Author Filters -->
                     <div class="row g-2">
                         <div class="col-md-4">
@@ -49,7 +49,8 @@
                             <select class="form-select" id="gang" name="gang">
                                 <option value="">All gangs</option>
                                 {% for list in campaign_lists %}
-                                    <option value="{{ list.id }}" {% if request.GET.gang == list.id|stringformat:"s" %}selected{% endif %}>
+                                    <option value="{{ list.id }}"
+                                            {% if request.GET.gang == list.id|stringformat:"s" %}selected{% endif %}>
                                         {{ list.name }}
                                         {% if list.content_house %}({{ list.content_house.name }}){% endif %}
                                         - {{ list.owner.username }}
@@ -62,7 +63,8 @@
                             <select class="form-select" id="author" name="author">
                                 <option value="">All authors</option>
                                 {% for author_id, author_username in action_authors %}
-                                    <option value="{{ author_id }}" {% if request.GET.author == author_id|stringformat:"s" %}selected{% endif %}>
+                                    <option value="{{ author_id }}"
+                                            {% if request.GET.author == author_id|stringformat:"s" %}selected{% endif %}>
                                         {{ author_username }}
                                     </option>
                                 {% endfor %}
@@ -71,21 +73,30 @@
                         <div class="col-md-4">
                             <label for="timeframe" class="form-label">Timeframe</label>
                             <select class="form-select" id="timeframe" name="timeframe">
-                                <option value="all" {% if request.GET.timeframe == "all" or not request.GET.timeframe %}selected{% endif %}>Any time</option>
-                                <option value="24h" {% if request.GET.timeframe == "24h" %}selected{% endif %}>Last 24 hours</option>
+                                <option value="all"
+                                        {% if request.GET.timeframe == "all" or not request.GET.timeframe %}selected{% endif %}>
+                                    Any time
+                                </option>
+                                <option value="24h"
+                                        {% if request.GET.timeframe == "24h" %}selected{% endif %}>
+                                    Last 24 hours
+                                </option>
                                 <option value="7d" {% if request.GET.timeframe == "7d" %}selected{% endif %}>Last 7 days</option>
-                                <option value="30d" {% if request.GET.timeframe == "30d" %}selected{% endif %}>Last 30 days</option>
+                                <option value="30d"
+                                        {% if request.GET.timeframe == "30d" %}selected{% endif %}>
+                                    Last 30 days
+                                </option>
                             </select>
                         </div>
                     </div>
-                    
                     <!-- Filter Buttons -->
                     <div class="d-flex gap-2">
                         <button class="btn btn-primary btn-sm" type="submit">
                             <i class="bi bi-funnel"></i> Apply Filters
                         </button>
                         {% if request.GET.q or request.GET.gang or request.GET.author or request.GET.timeframe %}
-                            <a href="{% url 'core:campaign-actions' campaign.id %}" class="btn btn-outline-secondary btn-sm">
+                            <a href="{% url 'core:campaign-actions' campaign.id %}"
+                               class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-x-circle"></i> Clear Filters
                             </a>
                         {% endif %}
@@ -99,7 +110,12 @@
                     <div class="list-group-item px-0">
                         <div class="d-flex w-100 justify-content-between">
                             <small class="text-muted">
-                                <strong>{{ action.user.username }}</strong> • {{ action.created|timesince }} ago
+                                <strong>{{ action.user.username }}</strong>
+                                {% if action.list %}
+                                    •
+                                    {% list_with_theme action.list %}
+                                {% endif %}
+                                • {{ action.created|timesince }} ago
                             </small>
                         </div>
                         <p class="mb-1">{{ action.description }}</p>
@@ -131,7 +147,8 @@
                     <ul class="pagination justify-content-center">
                         {% if page_obj.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Previous</a>
+                                <a class="page-link"
+                                   href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Previous</a>
                             </li>
                         {% endif %}
                         <li class="page-item active">
@@ -139,7 +156,8 @@
                         </li>
                         {% if page_obj.has_next %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Next</a>
+                                <a class="page-link"
+                                   href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Next</a>
                             </li>
                         {% endif %}
                     </ul>

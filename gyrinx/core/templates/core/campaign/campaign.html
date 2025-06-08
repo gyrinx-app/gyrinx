@@ -289,7 +289,12 @@
                                     <div class="list-group-item">
                                         <div class="d-flex w-100 justify-content-between">
                                             <small class="text-muted">
-                                                <strong>{{ action.user.username }}</strong> • {{ action.created|timesince }} ago
+                                                <strong>{{ action.user.username }}</strong>
+                                                {% if action.list %}
+                                                    •
+                                                    {% list_with_theme action.list %}
+                                                {% endif %}
+                                                • {{ action.created|timesince }} ago
                                             </small>
                                         </div>
                                         <p class="mb-1 text-truncate">{{ action.description }}</p>
