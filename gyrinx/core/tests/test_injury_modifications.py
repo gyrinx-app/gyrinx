@@ -5,7 +5,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
     ContentModFighterStat,
     ContentModFighterRule,
     ContentModFighterSkill,
@@ -77,7 +77,7 @@ def test_injury_stat_modification_single():
         name="Test Spinal Injury Mod",
         defaults={
             "description": "Recovery, -1 Strength",
-            "phase": ContentInjuryPhase.RECOVERY,
+            "phase": ContentInjuryDefaultOutcome.RECOVERY,
         },
     )
 
@@ -118,7 +118,7 @@ def test_injury_stat_modification_multiple():
         name="Test Humiliated",
         defaults={
             "description": "Convalescence, -1 Leadership, -1 Cool",
-            "phase": ContentInjuryPhase.CONVALESCENCE,
+            "phase": ContentInjuryDefaultOutcome.CONVALESCENCE,
         },
     )
 
@@ -167,11 +167,11 @@ def test_multiple_injuries_stat_stacking():
     # Create two injuries that both modify strength
     injury1, _ = ContentInjury.objects.get_or_create(
         name="Test Spinal Stack",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
         name="Test Enfeebled Stack",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
 
     # Both reduce strength by 1
@@ -215,7 +215,7 @@ def test_injury_movement_modification():
         name="Test Hobbled",
         defaults={
             "description": "Recovery, -1 Movement",
-            "phase": ContentInjuryPhase.RECOVERY,
+            "phase": ContentInjuryDefaultOutcome.RECOVERY,
         },
     )
 
@@ -260,7 +260,7 @@ def test_injury_skill_addition():
         name="Test Battle Hardened",
         defaults={
             "description": "Gains Berserker skill",
-            "phase": ContentInjuryPhase.PERMANENT,
+            "phase": ContentInjuryDefaultOutcome.ACTIVE,
         },
     )
 
@@ -299,7 +299,7 @@ def test_injury_rule_addition():
         name="Test Horrific Scars",
         defaults={
             "description": "Gains Fearsome rule",
-            "phase": ContentInjuryPhase.PERMANENT,
+            "phase": ContentInjuryDefaultOutcome.ACTIVE,
         },
     )
 
@@ -331,7 +331,7 @@ def test_injury_with_no_modifiers():
         name="Test Out Cold",
         defaults={
             "description": "Miss rest of battle, no long-term effects",
-            "phase": ContentInjuryPhase.OUT_COLD,
+            "phase": ContentInjuryDefaultOutcome.NO_CHANGE,
         },
     )
 
@@ -361,10 +361,10 @@ def test_injury_phase_display():
     user, fighter = create_base_test_data()
 
     phases = [
-        (ContentInjuryPhase.RECOVERY, "Recovery"),
-        (ContentInjuryPhase.CONVALESCENCE, "Convalescence"),
-        (ContentInjuryPhase.PERMANENT, "Permanent"),
-        (ContentInjuryPhase.OUT_COLD, "Out Cold"),
+        (ContentInjuryDefaultOutcome.RECOVERY, "Recovery"),
+        (ContentInjuryDefaultOutcome.CONVALESCENCE, "Convalescence"),
+        (ContentInjuryDefaultOutcome.DEAD, "Dead"),
+        (ContentInjuryDefaultOutcome.NO_CHANGE, "No Change"),
     ]
 
     for phase_value, expected_display in phases:

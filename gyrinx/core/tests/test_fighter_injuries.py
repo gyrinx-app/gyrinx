@@ -7,7 +7,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
 )
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -51,7 +51,7 @@ def create_test_data():
         name="Test Spinal Injury",
         defaults={
             "description": "Recovery, -1 Strength",
-            "phase": ContentInjuryPhase.RECOVERY,
+            "phase": ContentInjuryDefaultOutcome.RECOVERY,
         },
     )
 
@@ -136,11 +136,11 @@ def test_fighter_injuries_relationship():
     # Create multiple injuries
     injury1, _ = ContentInjury.objects.get_or_create(
         name="Test Eye Injury",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
         name="Test Old Battle Wound",
-        defaults={"phase": ContentInjuryPhase.PERMANENT},
+        defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE},
     )
 
     # Add injuries to fighter
@@ -169,13 +169,16 @@ def test_injury_ordering():
 
     # Create injuries with specific order
     injury1, _ = ContentInjury.objects.get_or_create(
-        name="Test First Injury", defaults={"phase": ContentInjuryPhase.RECOVERY}
+        name="Test First Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
-        name="Test Second Injury", defaults={"phase": ContentInjuryPhase.PERMANENT}
+        name="Test Second Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE},
     )
     injury3, _ = ContentInjury.objects.get_or_create(
-        name="Test Third Injury", defaults={"phase": ContentInjuryPhase.CONVALESCENCE}
+        name="Test Third Injury",
+        defaults={"phase": ContentInjuryDefaultOutcome.CONVALESCENCE},
     )
 
     # Add injuries to fighter (will have different timestamps)
@@ -282,31 +285,6 @@ def test_multiple_fighters_with_same_injury():
     assert fighter1.injuries.count() == 1
     assert fighter2.injuries.count() == 1
     assert injury1.injury == injury2.injury
-
-
-@pytest.mark.django_db
-def test_fighter_cannot_have_duplicate_injuries():
-    """Test that a fighter cannot have multiple instances of the same injury."""
-    user, _, _, _, lst, fighter, injury = create_test_data()
-
-    # Add injury once
-    ListFighterInjury.objects.create(
-        fighter=fighter,
-        injury=injury,
-        notes="First occurrence",
-        owner=user,
-    )
-
-    # Try to add same injury again should fail
-    with pytest.raises(
-        Exception
-    ):  # Will raise IntegrityError when migration is applied
-        ListFighterInjury.objects.create(
-            fighter=fighter,
-            injury=injury,
-            notes="Second occurrence",
-            owner=user,
-        )
 
 
 @pytest.mark.django_db

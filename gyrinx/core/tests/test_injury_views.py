@@ -7,7 +7,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
 )
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -54,21 +54,21 @@ def create_test_data(client):
             name="Test Eye Injury View",
             defaults={
                 "description": "Recovery, -1 Ballistic Skill",
-                "phase": ContentInjuryPhase.RECOVERY,
+                "phase": ContentInjuryDefaultOutcome.RECOVERY,
             },
         )[0],
         ContentInjury.objects.get_or_create(
             name="Test Old Battle Wound View",
             defaults={
                 "description": "Roll D6 after each battle",
-                "phase": ContentInjuryPhase.PERMANENT,
+                "phase": ContentInjuryDefaultOutcome.ACTIVE,
             },
         )[0],
         ContentInjury.objects.get_or_create(
             name="Test Humiliated View",
             defaults={
                 "description": "Convalescence, -1 Leadership, -1 Cool",
-                "phase": ContentInjuryPhase.CONVALESCENCE,
+                "phase": ContentInjuryDefaultOutcome.CONVALESCENCE,
             },
         )[0],
     ]
@@ -93,6 +93,41 @@ def test_add_injury_view_get():
     content = response.content.decode()
     for injury in injuries:
         assert injury.name in content
+
+
+@pytest.mark.django_db
+def test_add_injury_view_defaults_to_fighter_state():
+    """Test that add injury view sets fighter_state to current fighter state."""
+    client = Client()
+    user, campaign, lst, fighter, injuries = create_test_data(client)
+
+    # Set fighter to RECOVERY state
+    fighter.injury_state = ListFighter.RECOVERY
+    fighter.save()
+
+    url = reverse("core:list-fighter-injury-add", args=[lst.id, fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+
+    # Check that the form has the correct initial value
+    form = response.context["form"]
+    assert form.fields["fighter_state"].initial == ListFighter.RECOVERY
+
+    # Check that RECOVERY is selected in the HTML
+    content = response.content.decode()
+    assert 'value="recovery" selected' in content.lower()
+
+    # Test with CONVALESCENCE state
+    fighter.injury_state = ListFighter.CONVALESCENCE
+    fighter.save()
+
+    response = client.get(url)
+    form = response.context["form"]
+    assert form.fields["fighter_state"].initial == ListFighter.CONVALESCENCE
+
+    content = response.content.decode()
+    assert 'value="convalescence" selected' in content.lower()
 
 
 @pytest.mark.django_db
@@ -304,7 +339,7 @@ def test_add_injury_wrong_user():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Try to add injury as user2
@@ -353,7 +388,7 @@ def test_remove_injury_wrong_user():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     fighter_injury = ListFighterInjury.objects.create(

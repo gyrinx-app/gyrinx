@@ -2283,13 +2283,14 @@ class VirtualWeaponProfile:
         return self.profile == value
 
 
-class ContentInjuryPhase(models.TextChoices):
-    """Phases that injuries can apply to"""
+class ContentInjuryDefaultOutcome(models.TextChoices):
+    """Default fighter state outcomes when injuries are applied"""
 
+    NO_CHANGE = "no_change", "No Change"
+    ACTIVE = "active", "Active"
     RECOVERY = "recovery", "Recovery"
     CONVALESCENCE = "convalescence", "Convalescence"
-    PERMANENT = "permanent", "Permanent"
-    OUT_COLD = "out_cold", "Out Cold"
+    DEAD = "dead", "Dead"
 
 
 class ContentInjury(Content):
@@ -2302,9 +2303,15 @@ class ContentInjury(Content):
     description = models.TextField(blank=True)
     phase = models.CharField(
         max_length=20,
-        choices=ContentInjuryPhase.choices,
-        default=ContentInjuryPhase.PERMANENT,
-        help_text="The phase that this injury applies to (recovery, convalescence, permanent, or out cold).",
+        choices=ContentInjuryDefaultOutcome.choices,
+        default=ContentInjuryDefaultOutcome.NO_CHANGE,
+        help_text="The default fighter state outcome when this injury is applied.",
+        verbose_name="Default Outcome",
+    )
+    group = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional grouping for organizing injuries in selection dropdowns.",
     )
     modifiers = models.ManyToManyField(
         ContentMod,
@@ -2315,18 +2322,9 @@ class ContentInjury(Content):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.name} ({self.get_phase_display()})"
+        return self.name
 
     class Meta:
         verbose_name = "Injury"
         verbose_name_plural = "Injuries"
-        ordering = [
-            Case(
-                When(phase="recovery", then=0),
-                When(phase="convalescence", then=1),
-                When(phase="permanent", then=2),
-                When(phase="out_cold", then=3),
-                default=99,
-            ),
-            "name",
-        ]
+        ordering = ["group", "name"]

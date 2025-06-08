@@ -1,8 +1,15 @@
 import pytest
 from django import forms
+from django.contrib.auth.models import User
 
-from gyrinx.content.models import ContentInjury, ContentInjuryPhase
+from gyrinx.content.models import (
+    ContentInjury,
+    ContentInjuryDefaultOutcome,
+    ContentFighter,
+    ContentHouse,
+)
 from gyrinx.core.forms.list import AddInjuryForm
+from gyrinx.core.models.list import List, ListFighter
 
 
 @pytest.mark.django_db
@@ -11,15 +18,15 @@ def test_add_injury_form_initialization():
     # Create some test injuries
     ContentInjury.objects.create(
         name="Eye Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
     ContentInjury.objects.create(
         name="Old Battle Wound",
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
     )
     ContentInjury.objects.create(
         name="Humiliated",
-        phase=ContentInjuryPhase.CONVALESCENCE,
+        phase=ContentInjuryDefaultOutcome.CONVALESCENCE,
     )
 
     form = AddInjuryForm()
@@ -55,29 +62,36 @@ def test_add_injury_form_initialization():
 def test_add_injury_form_queryset_ordering():
     """Test that injuries are ordered correctly in the form."""
     # Create injuries in specific order to test sorting
-    ContentInjury.objects.create(name="Z Permanent", phase=ContentInjuryPhase.PERMANENT)
-    ContentInjury.objects.create(name="A Recovery", phase=ContentInjuryPhase.RECOVERY)
-    ContentInjury.objects.create(name="B Recovery", phase=ContentInjuryPhase.RECOVERY)
     ContentInjury.objects.create(
-        name="A Convalescence", phase=ContentInjuryPhase.CONVALESCENCE
+        name="Z Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE
     )
-    ContentInjury.objects.create(name="A Out Cold", phase=ContentInjuryPhase.OUT_COLD)
-    ContentInjury.objects.create(name="A Permanent", phase=ContentInjuryPhase.PERMANENT)
+    ContentInjury.objects.create(
+        name="A Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    ContentInjury.objects.create(
+        name="B Recovery", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    ContentInjury.objects.create(
+        name="A Convalescence", phase=ContentInjuryDefaultOutcome.CONVALESCENCE
+    )
+    ContentInjury.objects.create(
+        name="A Out Cold", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    ContentInjury.objects.create(
+        name="A Permanent", phase=ContentInjuryDefaultOutcome.ACTIVE
+    )
 
     form = AddInjuryForm()
     queryset_injuries = list(form.fields["injury"].queryset)
 
-    # Check ordering - should be by phase order (recovery, convalescence, permanent, out_cold), then by name
-    assert queryset_injuries[0].name == "A Recovery"
-    assert queryset_injuries[1].name == "B Recovery"
-    assert queryset_injuries[2].name == "A Convalescence"
-
-    # Find the permanent injuries
-    permanent_injuries = [
-        i for i in queryset_injuries if i.phase == ContentInjuryPhase.PERMANENT
-    ]
-    assert permanent_injuries[0].name == "A Permanent"
-    assert permanent_injuries[1].name == "Z Permanent"
+    # Check ordering - should be by group (empty groups first), then by name
+    # Since no groups are specified, all injuries should be ordered by name
+    assert queryset_injuries[0].name == "A Convalescence"
+    assert queryset_injuries[1].name == "A Out Cold"
+    assert queryset_injuries[2].name == "A Permanent"
+    assert queryset_injuries[3].name == "A Recovery"
+    assert queryset_injuries[4].name == "B Recovery"
+    assert queryset_injuries[5].name == "Z Permanent"
 
 
 @pytest.mark.django_db
@@ -85,7 +99,7 @@ def test_add_injury_form_valid_data():
     """Test form validation with valid data."""
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     form = AddInjuryForm(
@@ -107,7 +121,7 @@ def test_add_injury_form_valid_without_notes():
     """Test form validation without notes (optional field)."""
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     form = AddInjuryForm(
@@ -179,10 +193,11 @@ def test_add_injury_form_queryset_includes_all_injuries():
         )
         for i, phase in enumerate(
             [
-                ContentInjuryPhase.RECOVERY,
-                ContentInjuryPhase.CONVALESCENCE,
-                ContentInjuryPhase.PERMANENT,
-                ContentInjuryPhase.OUT_COLD,
+                ContentInjuryDefaultOutcome.NO_CHANGE,
+                ContentInjuryDefaultOutcome.ACTIVE,
+                ContentInjuryDefaultOutcome.RECOVERY,
+                ContentInjuryDefaultOutcome.CONVALESCENCE,
+                ContentInjuryDefaultOutcome.DEAD,
             ]
         )
     ]
@@ -202,7 +217,7 @@ def test_add_injury_form_select_related():
     # Create an injury
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     form = AddInjuryForm()
@@ -222,3 +237,55 @@ def test_add_injury_form_empty_choice():
     # ModelChoiceField should have empty_label by default
     injury_field = form.fields["injury"]
     assert injury_field.empty_label is not None  # Default is "---------"
+
+
+@pytest.mark.django_db
+def test_add_injury_form_defaults_to_fighter_current_state():
+    """Test that the fighter_state field defaults to the fighter's current injury state."""
+    # Create test data
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        category="GANGER",
+        house=house,
+    )
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=house,
+    )
+
+    # Create fighter in RECOVERY state
+    fighter = ListFighter.objects.create(
+        name="Injured Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.RECOVERY,
+    )
+
+    # Create form with fighter
+    form = AddInjuryForm(fighter=fighter)
+
+    # Check that fighter_state initial value matches fighter's current state
+    assert form.fields["fighter_state"].initial == ListFighter.RECOVERY
+
+    # Test with fighter in CONVALESCENCE state
+    fighter.injury_state = ListFighter.CONVALESCENCE
+    fighter.save()
+
+    form = AddInjuryForm(fighter=fighter)
+    assert form.fields["fighter_state"].initial == ListFighter.CONVALESCENCE
+
+    # Test with no fighter passed
+    form = AddInjuryForm()
+    assert form.fields["fighter_state"].initial is None
+
+    # Test with bound form (POST data) - initial should not be set
+    form = AddInjuryForm(
+        {"injury": "1", "fighter_state": ListFighter.ACTIVE}, fighter=fighter
+    )
+    assert (
+        form.fields["fighter_state"].initial is None
+    )  # Initial is not set for bound forms

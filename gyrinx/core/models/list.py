@@ -2106,11 +2106,6 @@ class ListFighterInjury(AppBase):
         ordering = ["-date_received"]
         verbose_name = "Fighter Injury"
         verbose_name_plural = "Fighter Injuries"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["fighter", "injury"], name="unique_fighter_injury"
-            )
-        ]
 
     def __str__(self):
         return f"{self.fighter.name} - {self.injury.name}"

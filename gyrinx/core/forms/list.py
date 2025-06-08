@@ -435,11 +435,17 @@ class AddInjuryForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        # Extract fighter from kwargs if provided
+        fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
         from gyrinx.content.models import ContentInjury
+        from gyrinx.forms import group_select
 
         self.fields["injury"].queryset = ContentInjury.objects.select_related()
+
+        # Group injuries by their group field if it exists
+        group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
 
         # Set fighter state choices including Active for injuries that don't affect availability
         self.fields["fighter_state"].choices = [
@@ -448,6 +454,10 @@ class AddInjuryForm(forms.Form):
             (ListFighter.CONVALESCENCE, "Convalescence"),
             (ListFighter.DEAD, "Dead"),
         ]
+
+        # Set initial fighter state to the fighter's current state if provided
+        if fighter and not self.is_bound:
+            self.fields["fighter_state"].initial = fighter.injury_state
 
 
 class EditFighterStateForm(forms.Form):
