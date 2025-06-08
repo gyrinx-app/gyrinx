@@ -2,7 +2,7 @@ import pytest
 
 from gyrinx.content.models import (
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
     ContentModFighterSkill,
     ContentModFighterStat,
     ContentSkill,
@@ -16,24 +16,25 @@ def test_content_injury_creation():
     injury = ContentInjury.objects.create(
         name="Spinal Injury",
         description="Recovery, -1 Strength",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     assert injury.name == "Spinal Injury"
     assert injury.description == "Recovery, -1 Strength"
-    assert injury.phase == ContentInjuryPhase.RECOVERY
+    assert injury.phase == ContentInjuryDefaultOutcome.RECOVERY
     assert injury.get_phase_display() == "Recovery"
-    assert str(injury) == "Spinal Injury (Recovery)"
+    assert str(injury) == "Spinal Injury"
 
 
 @pytest.mark.django_db
 def test_injury_phases():
-    """Test all injury phase choices."""
+    """Test all injury default outcome choices."""
     phases = [
-        (ContentInjuryPhase.RECOVERY, "Recovery"),
-        (ContentInjuryPhase.CONVALESCENCE, "Convalescence"),
-        (ContentInjuryPhase.PERMANENT, "Permanent"),
-        (ContentInjuryPhase.OUT_COLD, "Out Cold"),
+        (ContentInjuryDefaultOutcome.NO_CHANGE, "No Change"),
+        (ContentInjuryDefaultOutcome.ACTIVE, "Active"),
+        (ContentInjuryDefaultOutcome.RECOVERY, "Recovery"),
+        (ContentInjuryDefaultOutcome.CONVALESCENCE, "Convalescence"),
+        (ContentInjuryDefaultOutcome.DEAD, "Dead"),
     ]
 
     for phase_value, phase_display in phases:
@@ -51,7 +52,7 @@ def test_injury_with_stat_modifiers():
     injury = ContentInjury.objects.create(
         name="Humiliated",
         description="Convalescence, -1 Leadership, -1 Cool",
-        phase=ContentInjuryPhase.CONVALESCENCE,
+        phase=ContentInjuryDefaultOutcome.CONVALESCENCE,
     )
 
     # Create stat modifiers
@@ -89,7 +90,7 @@ def test_injury_with_skill_modifiers():
     injury = ContentInjury.objects.create(
         name="Toughened",
         description="Gains Iron Jaw skill",
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
     )
 
     # Create skill modifier
@@ -111,47 +112,50 @@ def test_injury_unique_name():
     """Test that injury names must be unique."""
     ContentInjury.objects.create(
         name="Critical Injury",
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
     )
 
     # Try to create another with the same name
     with pytest.raises(Exception):  # IntegrityError
         ContentInjury.objects.create(
             name="Critical Injury",
-            phase=ContentInjuryPhase.RECOVERY,
+            phase=ContentInjuryDefaultOutcome.RECOVERY,
         )
 
 
 @pytest.mark.django_db
 def test_injury_ordering():
-    """Test that injuries are ordered by phase then name."""
+    """Test that injuries are ordered by group then name."""
     # Create injuries in non-alphabetical order
     injury3 = ContentInjury.objects.create(
         name="Zebra Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+        group="Group A",
     )
     injury1 = ContentInjury.objects.create(
         name="Alpha Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+        group="Group A",
     )
     injury2 = ContentInjury.objects.create(
         name="Beta Injury",
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
+        group="Group B",
     )
     injury4 = ContentInjury.objects.create(
         name="Gamma Injury",
-        phase=ContentInjuryPhase.OUT_COLD,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+        group="",  # No group
     )
 
     # Get all injuries in order
     injuries = list(ContentInjury.objects.all())
 
-    # Should be ordered by phase (following enum order), then by name
-    # Phase order: recovery, convalescence, permanent, out_cold
-    assert injuries[0] == injury1  # Recovery, Alpha
-    assert injuries[1] == injury3  # Recovery, Zebra
-    assert injuries[2] == injury2  # Permanent, Beta
-    assert injuries[3] == injury4  # Out Cold, Gamma
+    # Should be ordered by group (empty groups first), then by name
+    assert injuries[0] == injury4  # No group, Gamma
+    assert injuries[1] == injury1  # Group A, Alpha
+    assert injuries[2] == injury3  # Group A, Zebra  
+    assert injuries[3] == injury2  # Group B, Beta
 
 
 @pytest.mark.django_db
@@ -160,7 +164,7 @@ def test_injury_blank_description():
     injury = ContentInjury.objects.create(
         name="Mystery Injury",
         description="",
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
     )
 
     assert injury.description == ""
@@ -172,7 +176,7 @@ def test_injury_history_tracking():
     """Test that injury model has history tracking."""
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Check that history is tracked

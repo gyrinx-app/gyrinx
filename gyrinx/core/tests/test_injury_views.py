@@ -7,7 +7,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
 )
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -54,21 +54,21 @@ def create_test_data(client):
             name="Test Eye Injury View",
             defaults={
                 "description": "Recovery, -1 Ballistic Skill",
-                "phase": ContentInjuryPhase.RECOVERY,
+                "phase": ContentInjuryDefaultOutcome.RECOVERY,
             },
         )[0],
         ContentInjury.objects.get_or_create(
             name="Test Old Battle Wound View",
             defaults={
                 "description": "Roll D6 after each battle",
-                "phase": ContentInjuryPhase.PERMANENT,
+                "phase": ContentInjuryDefaultOutcome.ACTIVE,
             },
         )[0],
         ContentInjury.objects.get_or_create(
             name="Test Humiliated View",
             defaults={
                 "description": "Convalescence, -1 Leadership, -1 Cool",
-                "phase": ContentInjuryPhase.CONVALESCENCE,
+                "phase": ContentInjuryDefaultOutcome.CONVALESCENCE,
             },
         )[0],
     ]
@@ -304,7 +304,7 @@ def test_add_injury_wrong_user():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Try to add injury as user2
@@ -353,7 +353,7 @@ def test_remove_injury_wrong_user():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     fighter_injury = ListFighterInjury.objects.create(

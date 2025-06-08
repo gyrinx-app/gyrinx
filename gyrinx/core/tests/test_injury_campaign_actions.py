@@ -7,7 +7,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
 )
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -58,7 +58,7 @@ def test_injury_campaign_action_creation():
     injury = ContentInjury.objects.create(
         name="Spinal Injury",
         description="Recovery, -1 Strength",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # No campaign actions initially
@@ -99,7 +99,7 @@ def test_injury_campaign_action_without_notes():
     injury = ContentInjury.objects.create(
         name="Out Cold",
         description="",  # No description
-        phase=ContentInjuryPhase.OUT_COLD,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     client = Client()
@@ -130,7 +130,7 @@ def test_injury_removal_campaign_action():
 
     injury = ContentInjury.objects.create(
         name="Eye Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Add injury first
@@ -197,7 +197,7 @@ def test_no_campaign_action_without_campaign():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Add injury via the view
@@ -231,7 +231,7 @@ def test_campaign_action_with_injury_description():
     injury = ContentInjury.objects.create(
         name="Humiliated",
         description="Convalescence, -1 Leadership, -1 Cool",
-        phase=ContentInjuryPhase.CONVALESCENCE,
+        phase=ContentInjuryDefaultOutcome.CONVALESCENCE,
     )
 
     client = Client()
@@ -270,7 +270,7 @@ def test_campaign_action_user_tracking():
 
     injury = ContentInjury.objects.create(
         name="Test Injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     # Add injury as user2
@@ -306,7 +306,7 @@ def test_multiple_injuries_multiple_actions():
     injuries = [
         ContentInjury.objects.create(
             name="Injury 1",
-            phase=ContentInjuryPhase.RECOVERY,
+            phase=ContentInjuryDefaultOutcome.RECOVERY,
         ),
         ContentInjury.objects.create(
             name="Injury 2",
@@ -314,7 +314,7 @@ def test_multiple_injuries_multiple_actions():
         ),
         ContentInjury.objects.create(
             name="Injury 3",
-            phase=ContentInjuryPhase.CONVALESCENCE,
+            phase=ContentInjuryDefaultOutcome.CONVALESCENCE,
         ),
     ]
 
@@ -352,7 +352,7 @@ def test_injury_and_removal_campaign_actions():
     injury = ContentInjury.objects.create(
         name="Broken Ribs",
         description="Recovery phase injury",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
 
     client = Client()

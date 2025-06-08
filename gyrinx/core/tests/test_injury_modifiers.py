@@ -5,7 +5,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
     ContentModFighterStat,
 )
 from gyrinx.core.models.campaign import Campaign
@@ -96,28 +96,28 @@ def test_multiple_injury_modifiers_stack():
     injury1 = ContentInjury.objects.create(
         name="Eye Injury",
         description="Recovery, -1 Ballistic Skill",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
     injury1.modifiers.add(mod_bs_minus_1)
 
     injury2 = ContentInjury.objects.create(
         name="Hand Injury",
         description="Recovery, -1 Weapon Skill",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
     injury2.modifiers.add(mod_ws_minus_1)
 
     injury3 = ContentInjury.objects.create(
         name="Hobbled",
         description='Permanent, -1" Movement',
-        phase=ContentInjuryPhase.PERMANENT,
+        phase=ContentInjuryDefaultOutcome.ACTIVE,
     )
     injury3.modifiers.add(mod_move_minus_1)
 
     injury4 = ContentInjury.objects.create(
         name="Humiliated",
         description="Convalescence, -1 Leadership, -1 Cool",
-        phase=ContentInjuryPhase.CONVALESCENCE,
+        phase=ContentInjuryDefaultOutcome.CONVALESCENCE,
     )
     injury4.modifiers.add(mod_leadership_minus_1)
     injury4.modifiers.add(mod_cool_minus_1)
@@ -279,7 +279,7 @@ def test_injury_modifiers_only_apply_in_campaign_mode():
     injury = ContentInjury.objects.create(
         name="Eye Injury",
         description="Recovery, -1 Ballistic Skill",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
     injury.modifiers.add(mod_bs_minus_1)
 
@@ -355,7 +355,7 @@ def test_injury_modifiers_removed_when_injury_removed():
     injury = ContentInjury.objects.create(
         name="Eye Injury",
         description="Recovery, -1 Ballistic Skill",
-        phase=ContentInjuryPhase.RECOVERY,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
     )
     injury.modifiers.add(mod_bs_minus_1)
 

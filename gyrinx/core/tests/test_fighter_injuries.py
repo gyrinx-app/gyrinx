@@ -7,7 +7,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
     ContentInjury,
-    ContentInjuryPhase,
+    ContentInjuryDefaultOutcome,
 )
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -51,7 +51,7 @@ def create_test_data():
         name="Test Spinal Injury",
         defaults={
             "description": "Recovery, -1 Strength",
-            "phase": ContentInjuryPhase.RECOVERY,
+            "phase": ContentInjuryDefaultOutcome.RECOVERY,
         },
     )
 
@@ -136,11 +136,11 @@ def test_fighter_injuries_relationship():
     # Create multiple injuries
     injury1, _ = ContentInjury.objects.get_or_create(
         name="Test Eye Injury",
-        defaults={"phase": ContentInjuryPhase.RECOVERY},
+        defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
     injury2, _ = ContentInjury.objects.get_or_create(
         name="Test Old Battle Wound",
-        defaults={"phase": ContentInjuryPhase.PERMANENT},
+        defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE},
     )
 
     # Add injuries to fighter
@@ -169,13 +169,13 @@ def test_injury_ordering():
 
     # Create injuries with specific order
     injury1, _ = ContentInjury.objects.get_or_create(
-        name="Test First Injury", defaults={"phase": ContentInjuryPhase.RECOVERY}
+        name="Test First Injury", defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY}
     )
     injury2, _ = ContentInjury.objects.get_or_create(
-        name="Test Second Injury", defaults={"phase": ContentInjuryPhase.PERMANENT}
+        name="Test Second Injury", defaults={"phase": ContentInjuryDefaultOutcome.ACTIVE}
     )
     injury3, _ = ContentInjury.objects.get_or_create(
-        name="Test Third Injury", defaults={"phase": ContentInjuryPhase.CONVALESCENCE}
+        name="Test Third Injury", defaults={"phase": ContentInjuryDefaultOutcome.CONVALESCENCE}
     )
 
     # Add injuries to fighter (will have different timestamps)
