@@ -99,7 +99,15 @@
                     <div class="list-group-item px-0">
                         <div class="d-flex w-100 justify-content-between">
                             <small class="text-muted">
-                                <strong>{{ action.user.username }}</strong> • {{ action.created|timesince }} ago
+                                <strong>{{ action.user.username }}</strong>
+                                {% if action.list %}
+                                    •
+                                    <span class="badge"
+                                          style="{% if action.list.theme_color %}background-color: {{ action.list.theme_color }}; color: {{ action.list.theme_color|text_color_for_bg }};{% else %}background-color: #6c757d;{% endif %}">
+                                        {{ action.list.name }}
+                                    </span>
+                                {% endif %}
+                                • {{ action.created|timesince }} ago
                             </small>
                         </div>
                         <p class="mb-1">{{ action.description }}</p>

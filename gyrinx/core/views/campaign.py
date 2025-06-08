@@ -102,6 +102,14 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Prefetch recent actions with related list data
+        context["campaign"] = Campaign.objects.prefetch_related(
+            models.Prefetch(
+                "actions",
+                queryset=CampaignAction.objects.select_related("user", "list").order_by("-created")
+            )
+        ).get(id=campaign.id)
+
         context["is_owner"] = user == campaign.owner
         return context
 
@@ -322,7 +330,7 @@ def campaign_log_action(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = CampaignActionForm(request.POST)
+        form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
         if form.is_valid():
             action = form.save(commit=False)
             action.campaign = campaign
@@ -334,7 +342,7 @@ def campaign_log_action(request, id):
                 reverse("core:campaign-action-outcome", args=(campaign.id, action.id))
             )
     else:
-        form = CampaignActionForm()
+        form = CampaignActionForm(campaign=campaign, user=request.user)
 
     return render(
         request,
@@ -425,8 +433,8 @@ class CampaignActionList(generic.ListView):
     def get_queryset(self):
         self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
         
-        # Start with all campaign actions
-        actions = self.campaign.actions.select_related("user").order_by("-created")
+        # Start with all campaign actions with list relationship
+        actions = self.campaign.actions.select_related("user", "list").order_by("-created")
         
         # Apply text search filter if provided
         search_query = self.request.GET.get("q", "").strip()
