@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load static allauth custom_tags pages %}
+{% load static allauth custom_tags pages color_tags %}
 {% block head_title %}
     Home
 {% endblock head_title %}
@@ -28,48 +28,108 @@
                         </p>
                     </div>
                 </div>
-                <div>
-                    <h1 class="mb-1">Your Lists</h1>
-                    <p class="fs-5 col-12 col-md-6 mb-0">
-                        Lists are starting points for Gangs you intend to play several times. You can test ideas to suit your budget, campaign, or skirmish. <a href="{% url 'core:lists-new' %}">Create a new List</a>.
-                    </p>
-                </div>
-                <div class="grid">
-                    {% for list in lists %}
-                        <div class="g-col-12 g-col-md-6 g-col-xl-4 hstack gap-3 position-relative">
-                            <div class="d-flex flex-column gap-1">
-                                <h2 class="mb-0 h5">
-                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                                </h2>
-                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                    <div>{{ list.content_house.name }}</div>
-                                    <div class="badge text-bg-primary">{{ list.cost_display }}</div>
+                <!-- Three column layout for desktop, stacked for mobile -->
+                <div class="row g-4">
+                    <!-- Campaign gangs column -->
+                    <div class="col-12 col-lg-4">
+                        <h2 class="h4 mb-3">Campaign gangs</h2>
+                        <div class="vstack gap-3">
+                            {% for gang in campaign_gangs %}
+                                <div class="hstack gap-3 position-relative">
+                                    <div class="d-flex flex-column gap-1">
+                                        <h3 class="mb-0 h5">
+                                            <a href="{% url 'core:list' gang.id %}">{% list_with_theme gang %}</a>
+                                        </h3>
+                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                            <div class="text-secondary">{{ gang.content_house.name }}</div>
+                                            <div class="text-secondary">{{ gang.campaign.name }}</div>
+                                            <div class="badge text-bg-primary">{{ gang.cost_display }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto d-md-none">
+                                        <a href="{% url 'core:list' gang.id %}" class="p-3 stretched-link">
+                                            <i class="bi-chevron-right"></i>
+                                        </a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="ms-auto d-md-none">
-                                <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                    <i class="bi-chevron-right"></i>
-                                </a>
-                            </div>
+                            {% empty %}
+                                <p class="text-secondary">You have no campaign gangs.</p>
+                            {% endfor %}
                         </div>
-                    {% empty %}
-                        <div class="py-2 g-col-12">
-                            <form action="{% url "core:lists-new" %}"
-                                  method="get"
-                                  class="card card-body vstack gap-4 col-12 col-md-6">
-                                <div>
-                                    <label for="id_name">What will you name your first List?</label>
-                                    <input type="text"
-                                           name="name"
-                                           placeholder="Shadowskin Spectres"
-                                           required="required"
-                                           class="form-control"
-                                           id="id_name">
+                    </div>
+                    
+                    <!-- Campaigns column -->
+                    <div class="col-12 col-lg-4">
+                        <h2 class="h4 mb-3">Campaigns</h2>
+                        <div class="vstack gap-3">
+                            {% for campaign in campaigns %}
+                                <div class="hstack gap-3 position-relative">
+                                    <div class="d-flex flex-column gap-1">
+                                        <h3 class="mb-0 h5">
+                                            <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+                                        </h3>
+                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                            {% if campaign.owner == user %}
+                                                <div class="text-secondary"><i class="bi-person-badge"></i> Administrator</div>
+                                            {% endif %}
+                                            <div class="badge text-bg-{% if campaign.is_in_progress %}success{% elif campaign.is_pre_campaign %}secondary{% else %}light{% endif %}">
+                                                {{ campaign.get_status_display }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto d-md-none">
+                                        <a href="{% url 'core:campaign' campaign.id %}" class="p-3 stretched-link">
+                                            <i class="bi-chevron-right"></i>
+                                        </a>
+                                    </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary">Get started</button>
-                            </form>
+                            {% empty %}
+                                <p class="text-secondary">You are not part of any campaigns. <a href="{% url 'core:campaigns' %}">Click here to create a new campaign</a>.</p>
+                            {% endfor %}
                         </div>
-                    {% endfor %}
+                    </div>
+                    
+                    <!-- Lists column -->
+                    <div class="col-12 col-lg-4">
+                        <h2 class="h4 mb-3">Lists</h2>
+                        <div class="vstack gap-3">
+                            {% for list in lists %}
+                                <div class="hstack gap-3 position-relative">
+                                    <div class="d-flex flex-column gap-1">
+                                        <h3 class="mb-0 h5">
+                                            <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                        </h3>
+                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                            <div class="text-secondary">{{ list.content_house.name }}</div>
+                                            <div class="badge text-bg-primary">{{ list.cost_display }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto d-md-none">
+                                        <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                                            <i class="bi-chevron-right"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="py-2">
+                                    <form action="{% url "core:lists-new" %}"
+                                          method="get"
+                                          class="card card-body vstack gap-4">
+                                        <div>
+                                            <label for="id_name">What will you name your first List?</label>
+                                            <input type="text"
+                                                   name="name"
+                                                   placeholder="Shadowskin Spectres"
+                                                   required="required"
+                                                   class="form-control"
+                                                   id="id_name">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">Get started</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
                 {% if lists|length > 0 %}
                     <div class="d-md-block">
