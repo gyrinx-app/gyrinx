@@ -564,11 +564,23 @@ class ContentModInline(ContentTabularInline):
     verbose_name_plural = "Modifiers"
 
 
+class ContentInjuryForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "phase" in self.fields:
+            self.fields["phase"].label = "Default Outcome"
+
+    class Meta:
+        model = ContentInjury
+        fields = "__all__"
+
+
 @admin.register(ContentInjury)
 class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["name", "description"]
-    list_filter = ["phase"]
-    list_display = ["name", "phase", "get_modifier_count"]
+    form = ContentInjuryForm
+    search_fields = ["name", "description", "group"]
+    list_filter = ["group", "phase"]
+    list_display = ["name", "group", "phase", "get_modifier_count"]
     readonly_fields = ["id", "created", "modified"]
 
     inlines = [ContentModInline]

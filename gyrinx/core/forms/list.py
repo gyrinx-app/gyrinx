@@ -438,8 +438,12 @@ class AddInjuryForm(forms.Form):
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
         from gyrinx.content.models import ContentInjury
+        from gyrinx.forms import group_select
 
         self.fields["injury"].queryset = ContentInjury.objects.select_related()
+        
+        # Group injuries by their group field if it exists
+        group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
 
         # Set fighter state choices including Active for injuries that don't affect availability
         self.fields["fighter_state"].choices = [
