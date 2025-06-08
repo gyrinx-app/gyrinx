@@ -23,4 +23,38 @@
             </div>
         </form>
     </div>
+    <script>
+        // Map injury phases to fighter states
+        const phaseToStateMap = {
+            'Recovery': 'recovery',
+            'Convalescence': 'convalescence',
+            'Permanent': 'active',    // Default permanent injuries to active
+            'Out Cold': 'recovery'    // Default out cold to recovery
+        };
+
+        // Get injury data from the server
+        const injuryPhases = {
+            {% for injury in form.fields.injury.queryset %}
+                '{{ injury.id }}': '{{ injury.get_phase_display }}',
+            {% endfor %}
+        };
+
+        // Update fighter state when injury selection changes
+        document.getElementById('id_injury').addEventListener('change', function() {
+            const selectedInjuryId = this.value;
+            const fighterStateSelect = document.getElementById('id_fighter_state');
+
+            if (selectedInjuryId && injuryPhases[selectedInjuryId]) {
+                const phase = injuryPhases[selectedInjuryId];
+                const defaultState = phaseToStateMap[phase] || 'recovery';
+                fighterStateSelect.value = defaultState;
+            }
+        });
+
+        // Trigger change event on page load if an injury is already selected
+        const injurySelect = document.getElementById('id_injury');
+        if (injurySelect.value) {
+            injurySelect.dispatchEvent(new Event('change'));
+        }
+    </script>
 {% endblock content %}

@@ -400,6 +400,26 @@ class ListFighter(AppBase):
         help_text="Narrative description of the Fighter: their history and how to play them.",
     )
 
+    # Injury state choices
+    ACTIVE = "active"
+    RECOVERY = "recovery"
+    CONVALESCENCE = "convalescence"
+    DEAD = "dead"
+
+    INJURY_STATE_CHOICES = [
+        (ACTIVE, "Active"),
+        (RECOVERY, "Recovery"),
+        (CONVALESCENCE, "Convalescence"),
+        (DEAD, "Dead"),
+    ]
+
+    injury_state = models.CharField(
+        max_length=20,
+        choices=INJURY_STATE_CHOICES,
+        default=ACTIVE,
+        help_text="The current injury state of the fighter in campaign mode.",
+    )
+
     history = HistoricalRecords()
 
     @cached_property

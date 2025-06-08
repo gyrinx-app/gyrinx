@@ -26,6 +26,7 @@ def test_add_injury_form_initialization():
 
     # Check form fields
     assert "injury" in form.fields
+    assert "fighter_state" in form.fields
     assert "notes" in form.fields
 
     # Check injury field properties
@@ -90,12 +91,14 @@ def test_add_injury_form_valid_data():
     form = AddInjuryForm(
         data={
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Injured during gang war",
         }
     )
 
     assert form.is_valid()
     assert form.cleaned_data["injury"] == injury
+    assert form.cleaned_data["fighter_state"] == "recovery"
     assert form.cleaned_data["notes"] == "Injured during gang war"
 
 
@@ -110,12 +113,14 @@ def test_add_injury_form_valid_without_notes():
     form = AddInjuryForm(
         data={
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "",
         }
     )
 
     assert form.is_valid()
     assert form.cleaned_data["injury"] == injury
+    assert form.cleaned_data["fighter_state"] == "recovery"
     assert form.cleaned_data["notes"] == ""
 
 

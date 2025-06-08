@@ -108,6 +108,7 @@ def test_add_injury_view_post_success():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Shot by enemy sniper",
         },
     )
@@ -129,7 +130,7 @@ def test_add_injury_view_post_success():
     assert action.campaign == campaign
     assert f"{fighter.name} suffered {injury.name}" in action.description
     assert "Shot by enemy sniper" in action.description
-    assert injury.get_phase_display() in action.outcome
+    assert "was put into Recovery" in action.outcome
 
 
 @pytest.mark.django_db
@@ -145,6 +146,7 @@ def test_add_injury_view_post_without_notes():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "active",  # Permanent injuries can keep fighter active
             "notes": "",
         },
     )
@@ -259,7 +261,7 @@ def test_remove_injury_view_post():
     action = CampaignAction.objects.last()
     assert action.campaign == campaign
     assert f"{fighter.name} recovered from {injuries[0].name}" in action.description
-    assert action.outcome == "Injury removed"
+    assert action.outcome == "Fighter became available"
 
 
 @pytest.mark.django_db

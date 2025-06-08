@@ -11,15 +11,11 @@
             <div class="card-body">
                 <h5 class="card-title">{{ injury.injury.name }}</h5>
                 <p class="card-text">
-                    <span class="badge bg-secondary">{{ injury.injury.get_phase_display }}</span>
                     {% if injury.injury.description %}
-                        <br>
                         {{ injury.injury.description }}
-                    {% endif %}
-                    {% if injury.notes %}
                         <br>
-                        <em>Notes: {{ injury.notes }}</em>
                     {% endif %}
+                    {% if injury.notes %}<em>Notes: {{ injury.notes }}</em>{% endif %}
                 </p>
                 <p class="text-muted mb-0">Received: {{ injury.date_received|date:"M j, Y" }}</p>
             </div>

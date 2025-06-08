@@ -73,6 +73,7 @@ def test_injury_campaign_action_creation():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Fell from platform",
         },
     )
@@ -87,7 +88,7 @@ def test_injury_campaign_action_creation():
     assert action.owner == user
     assert f"{fighter.name} suffered {injury.name}" in action.description
     assert "Fell from platform" in action.description
-    assert action.outcome == f"Recovery: {injury.description}"
+    assert action.outcome == f"{fighter.name} was put into Recovery"
 
 
 @pytest.mark.django_db
@@ -109,6 +110,7 @@ def test_injury_campaign_action_without_notes():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",  # Out Cold defaults to recovery
             "notes": "",  # No notes
         },
     )
@@ -118,7 +120,7 @@ def test_injury_campaign_action_without_notes():
     # Check campaign action
     action = CampaignAction.objects.first()
     assert action.description == f"Injury: {fighter.name} suffered {injury.name}"
-    assert action.outcome == "Out Cold"  # Just the phase since no description
+    assert action.outcome == f"{fighter.name} was put into Recovery"
 
 
 @pytest.mark.django_db
@@ -161,7 +163,7 @@ def test_injury_removal_campaign_action():
     assert (
         action.description == f"Recovery: {fighter.name} recovered from {injury.name}"
     )
-    assert action.outcome == "Injury removed"
+    assert action.outcome == "Fighter became available"
 
 
 @pytest.mark.django_db
@@ -207,6 +209,7 @@ def test_no_campaign_action_without_campaign():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Test notes",
         },
     )
@@ -239,15 +242,16 @@ def test_campaign_action_with_injury_description():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "convalescence",
             "notes": "Lost in a duel",
         },
     )
 
     assert response.status_code == 302
 
-    # Check campaign action outcome includes phase and description
+    # Check campaign action outcome includes fighter state
     action = CampaignAction.objects.first()
-    assert action.outcome == "Convalescence: Convalescence, -1 Leadership, -1 Cool"
+    assert action.outcome == f"{fighter.name} was put into Convalescence"
 
 
 @pytest.mark.django_db
@@ -278,6 +282,7 @@ def test_campaign_action_user_tracking():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Test",
         },
     )
@@ -323,6 +328,7 @@ def test_multiple_injuries_multiple_actions():
             url,
             {
                 "injury": injury.id,
+                "fighter_state": ["recovery", "active", "convalescence"][i],
                 "notes": f"Notes for injury {i + 1}",
             },
         )
@@ -358,6 +364,7 @@ def test_injury_and_removal_campaign_actions():
         url,
         {
             "injury": injury.id,
+            "fighter_state": "recovery",
             "notes": "Hit by hammer",
         },
     )
@@ -384,4 +391,4 @@ def test_injury_and_removal_campaign_actions():
 
     # Second action: injury removed
     assert "recovered from Broken Ribs" in actions[1].description
-    assert actions[1].outcome == "Injury removed"
+    assert actions[1].outcome == "Fighter became available"

@@ -174,6 +174,11 @@ urlpatterns = [
         name="list-fighter-injuries-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/state/edit",
+        list.list_fighter_state_edit,
+        name="list-fighter-state-edit",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/injury/add",
         list.list_fighter_add_injury,
         name="list-fighter-injury-add",

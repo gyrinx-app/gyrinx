@@ -421,6 +421,12 @@ class AddInjuryForm(forms.Form):
         help_text="Choose the lasting injury to apply to this fighter.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    fighter_state = forms.ChoiceField(
+        choices=[],  # Will be set in __init__
+        label="Fighter State",
+        help_text="Select the state to put the fighter into. Defaults to the injury's phase.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     notes = forms.CharField(
         widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         required=False,
@@ -435,8 +441,36 @@ class AddInjuryForm(forms.Form):
 
         self.fields["injury"].queryset = ContentInjury.objects.select_related()
 
-        group_select(
-            self,
-            "injury",
-            key=lambda x: x.get_phase_display(),
-        )
+        # Set fighter state choices including Active for injuries that don't affect availability
+        self.fields["fighter_state"].choices = [
+            (ListFighter.ACTIVE, "Active"),
+            (ListFighter.RECOVERY, "Recovery"),
+            (ListFighter.CONVALESCENCE, "Convalescence"),
+            (ListFighter.DEAD, "Dead"),
+        ]
+
+
+class EditFighterStateForm(forms.Form):
+    fighter_state = forms.ChoiceField(
+        choices=[],  # Will be set in __init__
+        label="Fighter State",
+        help_text="Select the new state for this fighter.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        required=False,
+        label="Reason",
+        help_text="Optional reason for the state change (will be included in campaign log).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        current_state = kwargs.pop("current_state", None)
+        super().__init__(*args, **kwargs)
+
+        # Set all state choices
+        self.fields["fighter_state"].choices = ListFighter.INJURY_STATE_CHOICES
+
+        # Set initial value to current state
+        if current_state:
+            self.fields["fighter_state"].initial = current_state

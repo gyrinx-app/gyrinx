@@ -10,6 +10,11 @@
         <div class="vstack gap-1">
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
+                {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
+                    <span class="badge ms-2 {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% endif %}">
+                        {{ fighter.get_injury_state_display }}
+                    </span>
+                {% endif %}
                 <div class="ms-auto hstack gap-2">
                     {% if fighter.has_linked_fighter %}
                         <div class="fs-7 fst-italic">
@@ -267,10 +272,8 @@
                         <th scope="row" colspan="3">Injuries</th>
                         <td colspan="12">
                             {% for injury in fighter.injuries.all %}
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <span class="badge {% if injury.injury.phase == 'recovery' %}bg-warning {% elif injury.injury.phase == 'convalescence' %}bg-warning {% elif injury.injury.phase == 'permanent' %}bg-danger {% elif injury.injury.phase == 'out_cold' %}bg-secondary {% endif %}">{{ injury.injury.get_phase_display }}</span>
-                                    <span>{{ injury.injury.name }}</span>
-                                </div>
+                                {% if not forloop.first %},{% endif %}
+                                {{ injury.injury.name }}
                             {% endfor %}
                             {% if not print and list.owner_cached == user %}
                                 <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
