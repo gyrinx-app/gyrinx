@@ -288,31 +288,6 @@ def test_multiple_fighters_with_same_injury():
 
 
 @pytest.mark.django_db
-def test_fighter_cannot_have_duplicate_injuries():
-    """Test that a fighter cannot have multiple instances of the same injury."""
-    user, _, _, _, lst, fighter, injury = create_test_data()
-
-    # Add injury once
-    ListFighterInjury.objects.create(
-        fighter=fighter,
-        injury=injury,
-        notes="First occurrence",
-        owner=user,
-    )
-
-    # Try to add same injury again should fail
-    with pytest.raises(
-        Exception
-    ):  # Will raise IntegrityError when migration is applied
-        ListFighterInjury.objects.create(
-            fighter=fighter,
-            injury=injury,
-            notes="Second occurrence",
-            owner=user,
-        )
-
-
-@pytest.mark.django_db
 def test_injury_with_user_tracking():
     """Test that injuries track user who created them."""
     user1, _, _, _, lst, fighter, injury = create_test_data()

@@ -1,8 +1,15 @@
 import pytest
 from django import forms
+from django.contrib.auth.models import User
 
-from gyrinx.content.models import ContentInjury, ContentInjuryDefaultOutcome
+from gyrinx.content.models import (
+    ContentInjury,
+    ContentInjuryDefaultOutcome,
+    ContentFighter,
+    ContentHouse,
+)
 from gyrinx.core.forms.list import AddInjuryForm
+from gyrinx.core.models.list import List, ListFighter
 
 
 @pytest.mark.django_db
@@ -230,3 +237,55 @@ def test_add_injury_form_empty_choice():
     # ModelChoiceField should have empty_label by default
     injury_field = form.fields["injury"]
     assert injury_field.empty_label is not None  # Default is "---------"
+
+
+@pytest.mark.django_db
+def test_add_injury_form_defaults_to_fighter_current_state():
+    """Test that the fighter_state field defaults to the fighter's current injury state."""
+    # Create test data
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        category="GANGER",
+        house=house,
+    )
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=house,
+    )
+
+    # Create fighter in RECOVERY state
+    fighter = ListFighter.objects.create(
+        name="Injured Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.RECOVERY,
+    )
+
+    # Create form with fighter
+    form = AddInjuryForm(fighter=fighter)
+
+    # Check that fighter_state initial value matches fighter's current state
+    assert form.fields["fighter_state"].initial == ListFighter.RECOVERY
+
+    # Test with fighter in CONVALESCENCE state
+    fighter.injury_state = ListFighter.CONVALESCENCE
+    fighter.save()
+
+    form = AddInjuryForm(fighter=fighter)
+    assert form.fields["fighter_state"].initial == ListFighter.CONVALESCENCE
+
+    # Test with no fighter passed
+    form = AddInjuryForm()
+    assert form.fields["fighter_state"].initial is None
+
+    # Test with bound form (POST data) - initial should not be set
+    form = AddInjuryForm(
+        {"injury": "1", "fighter_state": ListFighter.ACTIVE}, fighter=fighter
+    )
+    assert (
+        form.fields["fighter_state"].initial is None
+    )  # Initial is not set for bound forms

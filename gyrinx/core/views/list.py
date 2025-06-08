@@ -1537,7 +1537,7 @@ def list_fighter_add_injury(request, id, fighter_id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        form = AddInjuryForm(request.POST)
+        form = AddInjuryForm(request.POST, fighter=fighter)
         if form.is_valid():
             injury = ListFighterInjury.objects.create_with_user(
                 user=request.user,
@@ -1579,7 +1579,7 @@ def list_fighter_add_injury(request, id, fighter_id):
                 reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )
     else:
-        form = AddInjuryForm()
+        form = AddInjuryForm(fighter=fighter)
 
     return render(
         request,

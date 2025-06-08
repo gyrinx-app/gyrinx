@@ -96,6 +96,41 @@ def test_add_injury_view_get():
 
 
 @pytest.mark.django_db
+def test_add_injury_view_defaults_to_fighter_state():
+    """Test that add injury view sets fighter_state to current fighter state."""
+    client = Client()
+    user, campaign, lst, fighter, injuries = create_test_data(client)
+
+    # Set fighter to RECOVERY state
+    fighter.injury_state = ListFighter.RECOVERY
+    fighter.save()
+
+    url = reverse("core:list-fighter-injury-add", args=[lst.id, fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+
+    # Check that the form has the correct initial value
+    form = response.context["form"]
+    assert form.fields["fighter_state"].initial == ListFighter.RECOVERY
+
+    # Check that RECOVERY is selected in the HTML
+    content = response.content.decode()
+    assert 'value="recovery" selected' in content.lower()
+
+    # Test with CONVALESCENCE state
+    fighter.injury_state = ListFighter.CONVALESCENCE
+    fighter.save()
+
+    response = client.get(url)
+    form = response.context["form"]
+    assert form.fields["fighter_state"].initial == ListFighter.CONVALESCENCE
+
+    content = response.content.decode()
+    assert 'value="convalescence" selected' in content.lower()
+
+
+@pytest.mark.django_db
 def test_add_injury_view_post_success():
     """Test successful POST to add injury."""
     client = Client()

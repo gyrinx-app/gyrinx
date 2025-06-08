@@ -435,6 +435,8 @@ class AddInjuryForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        # Extract fighter from kwargs if provided
+        fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
         from gyrinx.content.models import ContentInjury
@@ -452,6 +454,10 @@ class AddInjuryForm(forms.Form):
             (ListFighter.CONVALESCENCE, "Convalescence"),
             (ListFighter.DEAD, "Dead"),
         ]
+
+        # Set initial fighter state to the fighter's current state if provided
+        if fighter and not self.is_bound:
+            self.fields["fighter_state"].initial = fighter.injury_state
 
 
 class EditFighterStateForm(forms.Form):
