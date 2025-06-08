@@ -140,12 +140,16 @@ def test_fighter_clone_with_stat_overrides(
 
 @pytest.mark.django_db
 def test_fighter_clone_with_legacy_content_fighter(
-    content_fighter, make_list, make_list_fighter, make_content_fighter
+    content_fighter, content_house, make_list, make_list_fighter, make_content_fighter
 ):
     """Test that legacy content fighter is properly cloned."""
     # Create a legacy content fighter
     legacy_fighter = make_content_fighter(
-        type="Legacy Fighter", category="GANGER", can_be_legacy=True
+        type="Legacy Fighter", 
+        category="GANGER", 
+        house=content_house,
+        base_cost=50,
+        can_be_legacy=True
     )
 
     # Create list and fighter
