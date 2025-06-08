@@ -117,7 +117,7 @@
             {% if messages %}
                 <div>
                     {% for message in messages %}
-                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <div class="alert alert-{% if message.tags == 'debug' %}secondary{% elif message.tags == 'info' %}info{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% elif message.tags == 'error' %}danger{% else %}info{% endif %} alert-dismissible fade show" role="alert">
                             {{ message }}
                             <button type="button"
                                     class="btn-close"
