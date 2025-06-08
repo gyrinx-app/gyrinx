@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
@@ -5,6 +7,7 @@ from django.db import models
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views import generic
 
 from gyrinx.core.forms.campaign import (
@@ -446,6 +449,17 @@ class CampaignActionList(generic.ListView):
         author_id = self.request.GET.get("author")
         if author_id:
             actions = actions.filter(user__id=author_id)
+        
+        # Apply timeframe filter if provided
+        timeframe = self.request.GET.get("timeframe", "all")
+        if timeframe != "all":
+            now = timezone.now()
+            if timeframe == "24h":
+                actions = actions.filter(created__gte=now - timedelta(hours=24))
+            elif timeframe == "7d":
+                actions = actions.filter(created__gte=now - timedelta(days=7))
+            elif timeframe == "30d":
+                actions = actions.filter(created__gte=now - timedelta(days=30))
         
         return actions
 

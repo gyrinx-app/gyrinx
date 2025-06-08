@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
@@ -470,3 +473,162 @@ def test_campaign_action_list_filtering():
     # Check that filter parameters are preserved in pagination links
     assert "page=2" in content  # Next page link should exist
     assert "q=water" in content  # Filter should be preserved
+
+
+@pytest.mark.django_db
+def test_campaign_action_list_timeframe_filtering():
+    """Test that campaign action list view supports timeframe filtering."""
+    client = Client()
+    
+    # Create test users
+    user1 = User.objects.create_user(username="player1", password="testpass")
+    owner = User.objects.create_user(username="owner", password="testpass")
+    
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=owner,
+        public=True,
+        summary="A test campaign",
+        status=Campaign.IN_PROGRESS,
+    )
+    
+    # Create a list for the campaign
+    house1 = ContentHouse.objects.create(name="House Goliath")
+    list1 = List.objects.create(
+        name="Gang Alpha",
+        owner=user1,
+        content_house=house1,
+        campaign=campaign,
+    )
+    campaign.lists.add(list1)
+    
+    # Create actions with different timestamps
+    now = timezone.now()
+    
+    # Action from 1 hour ago
+    action_1h = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user1,
+        description="Recent action from 1 hour ago",
+    )
+    action_1h.created = now - timedelta(hours=1)
+    action_1h.save()
+    
+    # Action from 3 days ago
+    action_3d = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user1,
+        description="Action from 3 days ago",
+    )
+    action_3d.created = now - timedelta(days=3)
+    action_3d.save()
+    
+    # Action from 10 days ago
+    action_10d = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user1,
+        description="Action from 10 days ago",
+    )
+    action_10d.created = now - timedelta(days=10)
+    action_10d.save()
+    
+    # Action from 40 days ago
+    action_40d = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user1,
+        description="Old action from 40 days ago",
+    )
+    action_40d.created = now - timedelta(days=40)
+    action_40d.save()
+    
+    # Log in as owner
+    client.login(username="owner", password="testpass")
+    
+    # Test unfiltered view (all actions)
+    response = client.get(reverse("core:campaign-actions", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Recent action from 1 hour ago" in content
+    assert "Action from 3 days ago" in content
+    assert "Action from 10 days ago" in content
+    assert "Old action from 40 days ago" in content
+    
+    # Test last 24 hours filter
+    response = client.get(
+        reverse("core:campaign-actions", args=[campaign.id]), 
+        {"timeframe": "24h"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Recent action from 1 hour ago" in content
+    assert "Action from 3 days ago" not in content
+    assert "Action from 10 days ago" not in content
+    assert "Old action from 40 days ago" not in content
+    
+    # Test last 7 days filter
+    response = client.get(
+        reverse("core:campaign-actions", args=[campaign.id]),
+        {"timeframe": "7d"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Recent action from 1 hour ago" in content
+    assert "Action from 3 days ago" in content
+    assert "Action from 10 days ago" not in content
+    assert "Old action from 40 days ago" not in content
+    
+    # Test last 30 days filter
+    response = client.get(
+        reverse("core:campaign-actions", args=[campaign.id]),
+        {"timeframe": "30d"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Recent action from 1 hour ago" in content
+    assert "Action from 3 days ago" in content
+    assert "Action from 10 days ago" in content
+    assert "Old action from 40 days ago" not in content
+    
+    # Test that timeframe filter form element is present
+    response = client.get(reverse("core:campaign-actions", args=[campaign.id]))
+    content = response.content.decode()
+    assert 'name="timeframe"' in content
+    assert "Any time" in content
+    assert "Last 24 hours" in content
+    assert "Last 7 days" in content
+    assert "Last 30 days" in content
+    
+    # Test combined filters (timeframe + text search)
+    response = client.get(
+        reverse("core:campaign-actions", args=[campaign.id]),
+        {"timeframe": "7d", "q": "action"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Recent action from 1 hour ago" in content
+    assert "Action from 3 days ago" in content
+    assert "Action from 10 days ago" not in content
+    assert "Old action from 40 days ago" not in content
+    
+    # Test that pagination preserves timeframe filter
+    # Create more actions to trigger pagination
+    for i in range(55):
+        new_action = CampaignAction.objects.create(
+            campaign=campaign,
+            user=user1,
+            description=f"Recent batch action {i}",
+        )
+        # Set them all within last 24 hours
+        new_action.created = now - timedelta(hours=i % 24)
+        new_action.save()
+    
+    response = client.get(
+        reverse("core:campaign-actions", args=[campaign.id]),
+        {"timeframe": "24h"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Check that filter parameters are preserved in pagination links
+    assert "page=2" in content  # Next page link should exist
+    assert "timeframe=24h" in content  # Filter should be preserved
