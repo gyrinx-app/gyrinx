@@ -1476,6 +1476,7 @@ def list_fighter_state_edit(request, id, fighter_id):
                         user=request.user,
                         owner=request.user,
                         campaign=lst.campaign,
+                        list=lst,
                         description=description,
                         outcome=f"{fighter.name} is now {new_state_display}",
                     )
@@ -1566,6 +1567,7 @@ def list_fighter_add_injury(request, id, fighter_id):
                     user=request.user,
                     owner=request.user,
                     campaign=lst.campaign,
+                    list=lst,
                     description=description,
                     outcome=outcome,
                 )
@@ -1634,6 +1636,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
                 user=request.user,
                 owner=request.user,
                 campaign=lst.campaign,
+                list=lst,
                 description=f"Recovery: {fighter.name} recovered from {injury_name}",
                 outcome=outcome,
             )
