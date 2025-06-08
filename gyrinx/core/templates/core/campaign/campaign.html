@@ -292,10 +292,7 @@
                                                 <strong>{{ action.user.username }}</strong>
                                                 {% if action.list %}
                                                     •
-                                                    <span class="badge"
-                                                          style="{% if action.list.theme_color %}background-color: {{ action.list.theme_color }}; color: {{ action.list.theme_color|text_color_for_bg }};{% else %}background-color: #6c757d;{% endif %}">
-                                                        {{ action.list.name }}
-                                                    </span>
+                                                    {% list_with_theme action.list %}
                                                 {% endif %}
                                                 • {{ action.created|timesince }} ago
                                             </small>
