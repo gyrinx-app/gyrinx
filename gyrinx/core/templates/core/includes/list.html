@@ -115,7 +115,7 @@
                 <ul class="mb-0 mt-1">
                     {% for clone in list.active_campaign_clones %}
                         <li>
-                            <a href="{% url 'core:campaign' clone.campaign.id %}"
+                            <a href="{% url 'core:list' clone.id %}"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.name }}</a>
                             ({{ clone.campaign.owner.username }})
                         </li>
