@@ -68,6 +68,11 @@
                                    class="btn btn-danger btn-sm">
                                     <i class="bi-stop-circle"></i> End
                                 </a>
+                            {% elif campaign.can_reopen_campaign %}
+                                <a href="{% url 'core:campaign-reopen' campaign.id %}"
+                                   class="btn btn-success btn-sm">
+                                    <i class="bi-arrow-clockwise"></i> Reopen
+                                </a>
                             {% endif %}
                         </nav>
                     {% endif %}

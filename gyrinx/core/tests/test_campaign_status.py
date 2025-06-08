@@ -91,6 +91,7 @@ def test_campaign_status_transitions(client):
     response = client.get(reverse("core:campaign-end", args=[campaign.id]))
     assert response.status_code == 200
     assert b"Are you sure you want to end this campaign?" in response.content
+    assert b"you will be able to reopen it later if needed" in response.content
 
     # Then POST to actually end it
     response = client.post(reverse("core:campaign-end", args=[campaign.id]))
@@ -101,6 +102,123 @@ def test_campaign_status_transitions(client):
     assert campaign.is_post_campaign
     assert not campaign.can_start_campaign()
     assert not campaign.can_end_campaign()
+
+
+@pytest.mark.django_db
+def test_campaign_reopen_functionality(client):
+    """Test that ended campaigns can be reopened."""
+    owner = User.objects.create_user(username="owner", password="password")
+    client.login(username="owner", password="password")
+
+    # Create a house
+    house = ContentHouse.objects.create(
+        name="Test House",
+    )
+
+    # Create a campaign
+    campaign = Campaign.objects.create_with_user(
+        user=owner,
+        name="Test Campaign",
+        owner=owner,
+    )
+
+    # Add a list so we can start the campaign
+    list_obj = List.objects.create_with_user(
+        user=owner,
+        name="Test List",
+        owner=owner,
+        content_house=house,
+    )
+    campaign.lists.add(list_obj)
+
+    # Start the campaign
+    campaign.start_campaign()
+    assert campaign.status == Campaign.IN_PROGRESS
+
+    # End the campaign
+    campaign.end_campaign()
+    assert campaign.status == Campaign.POST_CAMPAIGN
+    assert campaign.can_reopen_campaign()
+
+    # Get the number of lists before reopening
+    lists_before = campaign.lists.count()
+
+    # Test reopening via view
+    # First, GET should show confirmation page
+    response = client.get(reverse("core:campaign-reopen", args=[campaign.id]))
+    assert response.status_code == 200
+    assert b"Are you sure you want to reopen this campaign?" in response.content
+    assert b"No new clones will be created" in response.content
+
+    # Then POST to actually reopen it
+    response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
+    assert response.status_code == 302
+
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.IN_PROGRESS
+    assert campaign.is_in_progress
+    assert not campaign.can_reopen_campaign()
+    assert campaign.can_end_campaign()
+
+    # Verify no new lists were cloned
+    assert campaign.lists.count() == lists_before
+
+    # Check that the campaign detail page shows "End" button again
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert b"End" in response.content
+    assert b"bi-stop-circle" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_reopen_button_display(client):
+    """Test that the reopen button is displayed correctly for ended campaigns."""
+    user = User.objects.create_user(username="testuser", password="password")
+    client.login(username="testuser", password="password")
+
+    # Create a post-campaign
+    campaign = Campaign.objects.create_with_user(
+        user=user,
+        name="Ended Campaign",
+        owner=user,
+        status=Campaign.POST_CAMPAIGN,
+        public=True,
+    )
+
+    # Check that the reopen button is shown on campaign detail page
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    assert b"Reopen" in response.content
+    assert b"bi-arrow-clockwise" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_reopen_permissions(client):
+    """Test that only the owner can reopen a campaign."""
+    owner = User.objects.create_user(username="owner", password="password")
+    other = User.objects.create_user(username="other", password="password")
+
+    campaign = Campaign.objects.create_with_user(
+        user=owner,
+        name="Test Campaign",
+        owner=owner,
+        status=Campaign.POST_CAMPAIGN,
+    )
+
+    # Try to reopen campaign as non-owner
+    client.login(username="other", password="password")
+    response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
+    assert response.status_code == 404  # Should not find campaign for non-owner
+
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.POST_CAMPAIGN  # Status unchanged
+
+    # Reopen campaign as owner
+    client.login(username="owner", password="password")
+    response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
+    assert response.status_code == 302
+
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.IN_PROGRESS
 
 
 @pytest.mark.django_db

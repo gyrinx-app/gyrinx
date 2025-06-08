@@ -581,6 +581,43 @@ def end_campaign(request, id):
 
 
 @login_required
+def reopen_campaign(request, id):
+    """
+    Reopen a campaign (transition from post-campaign back to in-progress).
+
+    Only the campaign owner can reopen a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be reopened.
+
+    **Template**
+
+    :template:`core/campaign/campaign_reopen.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        if campaign.reopen_campaign():
+            messages.success(request, "Campaign has been reopened!")
+        else:
+            messages.error(request, "Campaign cannot be reopened.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # For GET request, show confirmation page
+    if not campaign.can_reopen_campaign():
+        messages.error(request, "This campaign cannot be reopened.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_reopen.html",
+        {"campaign": campaign},
+    )
+
+
+@login_required
 def campaign_assets(request, id):
     """
     Manage assets for a campaign.
