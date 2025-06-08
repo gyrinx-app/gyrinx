@@ -146,6 +146,18 @@
                         </td>
                     </tr>
                 {% endif %}
+                {% comment %} XP (only in campaign mode) {% endcomment %}
+                {% if list.is_campaign_mode %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="3">XP</th>
+                        <td colspan="12">
+                            <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
+                            {% if not print and list.owner_cached == user %}
+                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
                 {% if fighter.skilline_cached|length > 0 %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">Skills</th>

@@ -420,6 +420,16 @@ class ListFighter(AppBase):
         help_text="The current injury state of the fighter in campaign mode.",
     )
 
+    # Experience tracking
+    xp_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Current XP available to spend",
+    )
+    xp_total = models.PositiveIntegerField(
+        default=0,
+        help_text="Total XP ever earned",
+    )
+
     history = HistoricalRecords()
 
     @cached_property
