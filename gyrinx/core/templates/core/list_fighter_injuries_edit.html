@@ -1,0 +1,80 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit Injuries - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">Edit Injuries: {{ fighter.name }}</h1>
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>Fighter State:</strong>
+                        <span class="badge {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% else %}bg-success{% endif %} ms-2">
+                            {{ fighter.get_injury_state_display }}
+                        </span>
+                    </div>
+                    <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
+                       class="btn btn-secondary btn-sm">
+                        <i class="bi bi-pencil"></i>
+                        Update Fighter State
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% if fighter.injuries.exists %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Injuries</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <thead>
+                            <tr>
+                                <th>Injury</th>
+                                <th>Received</th>
+                                <th>
+                                    <span class="visually-hidden">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for injury in fighter.injuries.all %}
+                                <tr>
+                                    <td {% if injury.notes %}rowspan="2"{% endif %}>{{ injury.injury.name }}</td>
+                                    <td>{{ injury.date_received|date:"M j, Y" }}</td>
+                                    <td>
+                                        <a href="{% url 'core:list-fighter-injury-remove' list.id fighter.id injury.id %}"
+                                           class="link-danger">Remove</a>
+                                    </td>
+                                </tr>
+                                {% if injury.notes %}
+                                    <tr>
+                                        <td colspan="2" class="ps-4 fs-7 text-muted">
+                                            <em>{{ injury.notes }}</em>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-1"></i>
+                This fighter has no injuries.
+            </div>
+        {% endif %}
+        <div>
+            <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
+               class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Injury
+            </a>
+            <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+               class="btn btn-link">Back to list</a>
+        </div>
+    </div>
+{% endblock content %}

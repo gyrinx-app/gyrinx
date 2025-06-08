@@ -1,0 +1,60 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add Injury - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">Add Injury: {{ fighter.name }}</h1>
+        <div class="border rounded p-2 text-secondary">
+            <i class="bi bi-info-circle me-1"></i>
+            Adding an injury will automatically log this event to the campaign action log.
+            The injury's modifiers will be applied to the fighter's stats immediately.
+        </div>
+        <form action="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
+              method="post">
+            {% csrf_token %}
+            {{ form }}
+            <div class="mt-3">
+                <input type="submit" class="btn btn-primary" value="Add Injury">
+                <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+    <script>
+        // Map injury phases to fighter states
+        const phaseToStateMap = {
+            'Recovery': 'recovery',
+            'Convalescence': 'convalescence',
+            'Permanent': 'active',    // Default permanent injuries to active
+            'Out Cold': 'recovery'    // Default out cold to recovery
+        };
+
+        // Get injury data from the server
+        const injuryPhases = {
+            {% for injury in form.fields.injury.queryset %}
+                '{{ injury.id }}': '{{ injury.get_phase_display }}',
+            {% endfor %}
+        };
+
+        // Update fighter state when injury selection changes
+        document.getElementById('id_injury').addEventListener('change', function() {
+            const selectedInjuryId = this.value;
+            const fighterStateSelect = document.getElementById('id_fighter_state');
+
+            if (selectedInjuryId && injuryPhases[selectedInjuryId]) {
+                const phase = injuryPhases[selectedInjuryId];
+                const defaultState = phaseToStateMap[phase] || 'recovery';
+                fighterStateSelect.value = defaultState;
+            }
+        });
+
+        // Trigger change event on page load if an injury is already selected
+        const injurySelect = document.getElementById('id_injury');
+        if (injurySelect.value) {
+            injurySelect.dispatchEvent(new Event('change'));
+        }
+    </script>
+{% endblock content %}

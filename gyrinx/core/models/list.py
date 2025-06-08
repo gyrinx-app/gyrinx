@@ -400,6 +400,26 @@ class ListFighter(AppBase):
         help_text="Narrative description of the Fighter: their history and how to play them.",
     )
 
+    # Injury state choices
+    ACTIVE = "active"
+    RECOVERY = "recovery"
+    CONVALESCENCE = "convalescence"
+    DEAD = "dead"
+
+    INJURY_STATE_CHOICES = [
+        (ACTIVE, "Active"),
+        (RECOVERY, "Recovery"),
+        (CONVALESCENCE, "Convalescence"),
+        (DEAD, "Dead"),
+    ]
+
+    injury_state = models.CharField(
+        max_length=20,
+        choices=INJURY_STATE_CHOICES,
+        default=ACTIVE,
+        help_text="The current injury state of the fighter in campaign mode.",
+    )
+
     history = HistoricalRecords()
 
     @cached_property
@@ -468,7 +488,19 @@ class ListFighter(AppBase):
     @cached_property
     def _mods(self):
         # Remember: virtual and needs flattening!
-        return [mod for assign in self.assignments_cached for mod in assign.mods]
+        equipment_mods = [
+            mod for assign in self.assignments_cached for mod in assign.mods
+        ]
+
+        # Add injury mods if in campaign mode
+        injury_mods = []
+        if self.list.is_campaign_mode:
+            for injury in self.injuries.select_related("injury").prefetch_related(
+                "injury__modifiers"
+            ):
+                injury_mods.extend(injury.injury.modifiers.all())
+
+        return equipment_mods + injury_mods
 
     def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
         for mod in mods:
@@ -2000,3 +2032,51 @@ class VirtualListFighterPsykerPowerAssignment:
     @cached_property
     def disc(self):
         return f"{self.psyker_power.discipline.name}"
+
+
+class ListFighterInjury(AppBase):
+    """Track injuries for fighters in campaign mode."""
+
+    help_text = "Tracks lasting injuries sustained by a fighter during campaign play."
+
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="injuries",
+        help_text="The fighter who has sustained this injury.",
+    )
+    injury = models.ForeignKey(
+        "content.ContentInjury",
+        on_delete=models.CASCADE,
+        help_text="The specific injury sustained.",
+    )
+    date_received = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this injury was sustained.",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about how this injury was received.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-date_received"]
+        verbose_name = "Fighter Injury"
+        verbose_name_plural = "Fighter Injuries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fighter", "injury"], name="unique_fighter_injury"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.fighter.name} - {self.injury.name}"
+
+    def clean(self):
+        # Only allow injuries on campaign mode fighters
+        if self.fighter.list.status != List.CAMPAIGN_MODE:
+            raise ValidationError(
+                "Injuries can only be added to fighters in campaign mode."
+            )

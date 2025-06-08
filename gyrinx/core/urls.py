@@ -169,6 +169,26 @@ urlpatterns = [
         ),
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/injuries",
+        list.list_fighter_injuries_edit,
+        name="list-fighter-injuries-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/state/edit",
+        list.list_fighter_state_edit,
+        name="list-fighter-state-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/injury/add",
+        list.list_fighter_add_injury,
+        name="list-fighter-injury-add",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/injury/<injury_id>/remove",
+        list.list_fighter_remove_injury,
+        name="list-fighter-injury-remove",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/embed",
         list.embed_list_fighter,
         name="list-fighter-embed",
