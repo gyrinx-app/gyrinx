@@ -69,15 +69,21 @@ def test_fighter_clone_with_additional_rules(
     """Test that additional rules are properly cloned with a fighter."""
     # Create house additional rules
     house = content_fighter.house
-    rule1 = ContentHouseAdditionalRule.objects.create(
+    from gyrinx.content.models import ContentHouseAdditionalRuleTree
+
+    # Create rule tree first
+    rule_tree = ContentHouseAdditionalRuleTree.objects.create(
         house=house,
+        name="Test Rules",
+    )
+
+    rule1 = ContentHouseAdditionalRule.objects.create(
+        tree=rule_tree,
         name="Test Rule 1",
-        description="Description 1",
     )
     rule2 = ContentHouseAdditionalRule.objects.create(
-        house=house,
+        tree=rule_tree,
         name="Test Rule 2",
-        description="Description 2",
     )
 
     # Create list and fighter
@@ -145,11 +151,11 @@ def test_fighter_clone_with_legacy_content_fighter(
     """Test that legacy content fighter is properly cloned."""
     # Create a legacy content fighter
     legacy_fighter = make_content_fighter(
-        type="Legacy Fighter", 
-        category="GANGER", 
+        type="Legacy Fighter",
+        category="GANGER",
         house=content_house,
         base_cost=50,
-        can_be_legacy=True
+        can_be_legacy=True,
     )
 
     # Create list and fighter
