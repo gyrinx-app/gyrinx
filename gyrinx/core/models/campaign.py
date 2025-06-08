@@ -89,6 +89,10 @@ class Campaign(AppBase):
         """Check if the campaign can be ended."""
         return self.status == self.IN_PROGRESS
 
+    def can_reopen_campaign(self):
+        """Check if the campaign can be reopened."""
+        return self.status == self.POST_CAMPAIGN
+
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
@@ -126,6 +130,14 @@ class Campaign(AppBase):
         """End the campaign (transition from in-progress to post-campaign)."""
         if self.can_end_campaign():
             self.status = self.POST_CAMPAIGN
+            self.save()
+            return True
+        return False
+
+    def reopen_campaign(self):
+        """Reopen the campaign (transition from post-campaign back to in-progress)."""
+        if self.can_reopen_campaign():
+            self.status = self.IN_PROGRESS
             self.save()
             return True
         return False
