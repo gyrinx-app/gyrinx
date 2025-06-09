@@ -142,33 +142,42 @@ def campaign_add_lists(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     # Check if campaign is in a state where lists can be added
-    if not campaign.is_pre_campaign:
-        messages.error(request, "Lists can only be added before a campaign starts.")
+    if campaign.is_post_campaign:
+        messages.error(request, "Lists cannot be added to a completed campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
     added_list = None
     error_message = None
+    show_confirmation = False
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
+        confirm = request.POST.get("confirm") == "true"
+
         if list_id:
             try:
                 list_to_add = List.objects.get(id=list_id)
                 # Check if user can add this list (either owner or public)
                 if list_to_add.owner == request.user or list_to_add.public:
-                    campaign.lists.add(list_to_add)
-                    added_list = list_to_add
-                    # Redirect to the same page with the search params preserved
-                    query_params = []
-                    if request.GET.get("q"):
-                        query_params.append(f"q={request.GET.get('q')}")
-                    if request.GET.get("owner"):
-                        query_params.append(f"owner={request.GET.get('owner')}")
-                    query_str = "&".join(query_params)
-                    return HttpResponseRedirect(
-                        reverse("core:campaign-add-lists", args=(campaign.id,))
-                        + (f"?{query_str}" if query_str else "")
-                        + "#added"
-                    )
+                    # For in-progress campaigns, require confirmation
+                    if campaign.is_in_progress and not confirm:
+                        show_confirmation = True
+                        # Don't redirect, show confirmation instead
+                    else:
+                        # Use the new method to add the list
+                        added_list = campaign.add_list_to_campaign(list_to_add)
+                        # Redirect to the same page with the search params preserved
+                        query_params = []
+                        if request.GET.get("q"):
+                            query_params.append(f"q={request.GET.get('q')}")
+                        if request.GET.get("owner"):
+                            query_params.append(f"owner={request.GET.get('owner')}")
+                        query_str = "&".join(query_params)
+                        return HttpResponseRedirect(
+                            reverse("core:campaign-add-lists", args=(campaign.id,))
+                            + (f"?{query_str}" if query_str else "")
+                            + "#added"
+                        )
                 else:
                     error_message = "You can only add your own lists or public lists."
             except List.DoesNotExist:
@@ -215,6 +224,14 @@ def campaign_add_lists(request, id):
         if latest_list:
             added_list = latest_list
 
+    # If showing confirmation, get the list to confirm
+    list_to_confirm = None
+    if show_confirmation and list_id:
+        try:
+            list_to_confirm = List.objects.get(id=list_id)
+        except List.DoesNotExist:
+            pass
+
     return render(
         request,
         "core/campaign/campaign_add_lists.html",
@@ -223,6 +240,8 @@ def campaign_add_lists(request, id):
             "lists": lists,
             "added_list": added_list,
             "error_message": error_message,
+            "show_confirmation": show_confirmation,
+            "list_to_confirm": list_to_confirm,
         },
     )
 
