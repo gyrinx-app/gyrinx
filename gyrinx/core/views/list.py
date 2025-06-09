@@ -82,6 +82,8 @@ class ListDetailView(generic.DetailView):
 
     ``list``
         The requested :model:`core.List` object.
+    ``recent_actions``
+        Recent campaign actions related to this list (if in campaign mode).
 
     **Template**
 
@@ -96,6 +98,25 @@ class ListDetailView(generic.DetailView):
         Retrieve the :model:`core.List` by its `id`.
         """
         return get_object_or_404(List, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+        
+        # If list is in campaign mode and has a campaign, fetch recent actions
+        if list_obj.is_campaign_mode and list_obj.campaign:
+            from gyrinx.core.models.campaign import CampaignAction
+            
+            # Get recent actions for this list (related to this list or by the list owner)
+            recent_actions = CampaignAction.objects.filter(
+                campaign=list_obj.campaign
+            ).filter(
+                Q(list=list_obj) | Q(user=list_obj.owner)
+            ).select_related("user", "list").order_by("-created")[:5]
+            
+            context["recent_actions"] = recent_actions
+        
+        return context
 
 
 class ListAboutDetailView(generic.DetailView):
