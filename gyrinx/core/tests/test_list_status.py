@@ -205,8 +205,59 @@ def test_active_campaign_clones_display(client):
     # View the original list
     response = client.get(reverse("core:list", args=[original_list.id]))
     assert response.status_code == 200
-    assert b"This list has active campaign versions" in response.content
-    assert campaign.name.encode() in response.content
+    # Check that the list shows the "Active in Campaigns" link
+    assert b"Active in Campaigns" in response.content
+    assert reverse("core:list-campaign-clones", args=[original_list.id]).encode() in response.content
+
+
+@pytest.mark.django_db
+def test_list_campaign_clones_view(client):
+    """Test the list campaign clones view."""
+    user = User.objects.create_user(username="testuser", password="password")
+    house = ContentHouse.objects.create(name="Test House")
+    client.login(username="testuser", password="password")
+
+    # Create original list
+    original_list = List.objects.create_with_user(
+        user=user,
+        name="Original List",
+        owner=user,
+        content_house=house,
+    )
+
+    # Create two campaigns and add list to each
+    campaign1 = Campaign.objects.create_with_user(
+        user=user,
+        name="Campaign 1",
+        owner=user,
+    )
+    campaign2 = Campaign.objects.create_with_user(
+        user=user,
+        name="Campaign 2",
+        owner=user,
+    )
+    
+    campaign1.lists.add(original_list)
+    campaign2.lists.add(original_list)
+    
+    # Start both campaigns to create clones
+    campaign1.start_campaign()
+    campaign2.start_campaign()
+
+    # View the campaign clones page
+    response = client.get(reverse("core:list-campaign-clones", args=[original_list.id]))
+    assert response.status_code == 200
+    
+    # Check that both campaign clones are shown
+    assert b"Campaign 1" in response.content
+    assert b"Campaign 2" in response.content
+    assert b"Original List" in response.content
+    
+    # Check that the table is shown (not the "no campaign versions" message)
+    assert b"This list has no campaign versions" not in response.content
+    
+    # Check for status badges
+    assert b"In Progress" in response.content
 
 
 @pytest.mark.django_db

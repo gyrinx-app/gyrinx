@@ -53,6 +53,40 @@
                                href="{% url 'core:list-about' list.id %}">About</a>
                         </div>
                     {% endif %}
+                    {% if list.is_campaign_mode and list.original_list %}
+                        <div class="text-secondary">
+                            <i class="bi-copy"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="This list was created via cloning"></i>
+                            <a href="{% url 'core:list' list.original_list.id %}"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.original_list.name }}</a>
+                        </div>
+                        {% if list.campaign %}
+                            <div class="text-secondary">
+                                <i class="bi-award"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-title="Active in Campaign"></i>
+                                <a href="{% url 'core:campaign' list.campaign.id %}"
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
+                                {% if list.campaign.is_pre_campaign %}
+                                    <span class="badge bg-secondary ms-1">Pre-Campaign</span>
+                                {% elif list.campaign.is_in_progress %}
+                                    <span class="badge bg-success ms-1">In Progress</span>
+                                {% elif list.campaign.is_post_campaign %}
+                                    <span class="badge bg-secondary ms-1">Post-Campaign</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    {% if list.is_list_building and list.active_campaign_clones.exists %}
+                        <div class="text-secondary">
+                            <i class="bi-award"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Active in Campaign"></i>
+                            <a href="{% url 'core:list-campaign-clones' list.id %}"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Active in Campaigns</a>
+                        </div>
+                    {% endif %}
                 {% endif %}
             </div>
             <div class="ms-sm-auto mt-2 mt-sm-0">
@@ -109,33 +143,6 @@
                 {% endif %}
             </div>
         </div>
-        {% if list.is_list_building and list.active_campaign_clones.exists %}
-            <div class="text-secondary mt-2">
-                <i class="bi-flag"></i> This list has active campaign versions:
-                <ul class="mb-0 mt-1">
-                    {% for clone in list.active_campaign_clones %}
-                        <li>
-                            <a href="{% url 'core:list' clone.id %}"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">View gang</a>
-                            in
-                            <a href="{% url 'core:campaign' clone.campaign.id %}"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.name }}</a>
-                            ({{ clone.campaign.owner.username }})
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% endif %}
-        {% if list.is_campaign_mode and list.original_list %}
-            <div class="text-secondary mt-2">
-                <i class="bi-arrow-return-right"></i> This is a campaign version of <a href="{% url 'core:list' list.original_list.id %}"
-    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.original_list.name }}</a>
-                {% if list.campaign %}
-                    in <a href="{% url 'core:campaign' list.campaign.id %}"
-    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
-                {% endif %}
-            </div>
-        {% endif %}
     </div>
     <div class="grid {% if print %}gap-2{% endif %}">
         {% for fighter in list.fighters_cached %}

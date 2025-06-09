@@ -1,0 +1,69 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags color_tags %}
+{% block head_title %}
+    Campaign Versions of {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:list' list.id as list_url %}
+    {% include "core/includes/back.html" with url=list_url text="Back to List" %}
+    
+    <div class="col-lg-8 px-0">
+        <h1>Campaign Versions</h1>
+        <p class="text-secondary">
+            All campaign versions of <a href="{{ list_url }}" class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.name }}</a>
+        </p>
+        
+        {% if campaign_clones %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>List Name</th>
+                            <th>Campaign</th>
+                            <th>Campaign Owner</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for clone in campaign_clones %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'core:list' clone.id %}" class="link-primary">{% list_with_theme clone %}</a>
+                                </td>
+                                <td>
+                                    {% if clone.campaign %}
+                                        <a href="{% url 'core:campaign' clone.campaign.id %}" class="link-primary">{{ clone.campaign.name }}</a>
+                                    {% else %}
+                                        <span class="text-muted">No campaign</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if clone.campaign %}
+                                        <a href="{% url 'core:user' clone.campaign.owner.username %}" class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.owner.username }}</a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if clone.campaign %}
+                                        {% if clone.campaign.is_pre_campaign %}
+                                            <span class="badge bg-secondary">Pre-Campaign</span>
+                                        {% elif clone.campaign.is_in_progress %}
+                                            <span class="badge bg-success">In Progress</span>
+                                        {% elif clone.campaign.is_post_campaign %}
+                                            <span class="badge bg-secondary">Post-Campaign</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">This list has no campaign versions.</p>
+        {% endif %}
+    </div>
+{% endblock content %}

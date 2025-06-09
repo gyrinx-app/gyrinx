@@ -1759,3 +1759,37 @@ def edit_list_fighter_xp(request, id, fighter_id):
             "fighter": fighter,
         },
     )
+
+
+class ListCampaignClonesView(generic.DetailView):
+    """
+    Display the campaign clones of a :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``campaign_clones``
+        QuerySet of campaign mode clones of this list.
+
+    **Template**
+
+    :template:`core/list_campaign_clones.html`
+    """
+
+    template_name = "core/list_campaign_clones.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+        """
+        return get_object_or_404(List, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get all campaign clones, not just active ones
+        context["campaign_clones"] = self.object.campaign_clones.all().select_related(
+            "campaign", "campaign__owner"
+        )
+        return context
