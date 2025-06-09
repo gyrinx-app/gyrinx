@@ -7,6 +7,9 @@ from .settings import STORAGES
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
 
+# Disable secure cookies for local development
+CSRF_COOKIE_SECURE = False
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
