@@ -30,6 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY
 SECRET_KEY = os.getenv("SECRET_KEY")
 CSRF_COOKIE_SECURE = True
+CSRF_FAILURE_VIEW = "gyrinx.core.views.csrf_failure"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
