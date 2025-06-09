@@ -484,3 +484,56 @@ class EditFighterStateForm(forms.Form):
         # Set initial value to current state
         if current_state:
             self.fields["fighter_state"].initial = current_state
+
+
+class EditFighterXPForm(forms.Form):
+    """Form for modifying fighter XP in campaign mode."""
+
+    XP_OPERATION_CHOICES = [
+        ("add", "Add XP"),
+        ("spend", "Spend XP"),
+        ("reduce", "Reduce XP"),
+    ]
+
+    operation = forms.ChoiceField(
+        choices=XP_OPERATION_CHOICES,
+        label="Operation",
+        help_text="Select what you want to do with XP",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    amount = forms.IntegerField(
+        min_value=1,
+        label="Amount",
+        help_text="How much XP to add, spend, or reduce",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        required=False,
+        label="Description",
+        help_text="Optional description for this XP change (will be included in campaign log)",
+    )
+
+    def __init__(self, *args, **kwargs):
+        fighter = kwargs.pop("fighter", None)
+        super().__init__(*args, **kwargs)
+
+        # Store fighter instance for use in clean method
+        self.fighter = fighter
+
+        # Add helpful hints based on current XP
+        if fighter:
+            self.fields["amount"].help_text = (
+                f"How much XP to add, spend, or reduce. "
+                f"Current: {fighter.xp_current} XP, Total earned: {fighter.xp_total} XP"
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        amount = cleaned_data.get("amount")
+
+        if amount and amount <= 0:
+            raise forms.ValidationError("Amount must be greater than 0.")
+
+        # We'll do more validation in the view where we have access to the fighter
+        return cleaned_data
