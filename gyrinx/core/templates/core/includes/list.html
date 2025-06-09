@@ -55,13 +55,17 @@
                     {% endif %}
                     {% if list.is_campaign_mode and list.original_list %}
                         <div class="text-secondary">
-                            <i class="bi-copy" data-bs-toggle="tooltip" data-bs-title="This list was created via cloning"></i>
+                            <i class="bi-copy"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="This list was created via cloning"></i>
                             <a href="{% url 'core:list' list.original_list.id %}"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.original_list.name }}</a>
                         </div>
                         {% if list.campaign %}
                             <div class="text-secondary">
-                                <i class="bi-award"></i>
+                                <i class="bi-award"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-title="Active in Campaign"></i>
                                 <a href="{% url 'core:campaign' list.campaign.id %}"
                                    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
                                 {% if list.campaign.is_pre_campaign %}
@@ -76,7 +80,9 @@
                     {% endif %}
                     {% if list.is_list_building and list.active_campaign_clones.exists %}
                         <div class="text-secondary">
-                            <i class="bi-award"></i>
+                            <i class="bi-award"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Active in Campaign"></i>
                             <a href="{% url 'core:list-campaign-clones' list.id %}"
                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Active in Campaigns</a>
                         </div>

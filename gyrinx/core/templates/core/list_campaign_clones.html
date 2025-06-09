@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     Campaign Versions of {{ list.name }}
 {% endblock head_title %}
@@ -22,14 +22,13 @@
                             <th>Campaign</th>
                             <th>Campaign Owner</th>
                             <th>Status</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for clone in campaign_clones %}
                             <tr>
                                 <td>
-                                    <a href="{% url 'core:list' clone.id %}" class="link-primary">{{ clone.name }}</a>
+                                    <a href="{% url 'core:list' clone.id %}" class="link-primary">{% list_with_theme clone %}</a>
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
@@ -57,9 +56,6 @@
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{% url 'core:list' clone.id %}" class="btn btn-outline-secondary btn-sm">View</a>
                                 </td>
                             </tr>
                         {% endfor %}
