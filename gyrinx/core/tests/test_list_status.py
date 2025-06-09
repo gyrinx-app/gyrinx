@@ -321,15 +321,15 @@ def test_can_add_lists_to_in_progress_campaign(client):
 
     # Post with confirmation - should work
     response = client.post(
-        reverse("core:campaign-add-lists", args=[campaign.id]), 
-        {"list_id": list2.id, "confirm": "true"}
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": list2.id, "confirm": "true"},
     )
     assert response.status_code == 302  # Redirects after success
 
     # Verify list was cloned and added
     campaign.refresh_from_db()
     assert campaign.lists.count() == 2  # Original cloned list1 + new cloned list2
-    
+
     # Check campaign view shows "Add Lists" button
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200

@@ -195,7 +195,7 @@ def test_campaign_reopen_button_display(client):
 def test_campaign_reopen_permissions(client):
     """Test that only the owner can reopen a campaign."""
     owner = User.objects.create_user(username="owner", password="password")
-    other = User.objects.create_user(username="other", password="password")
+    User.objects.create_user(username="other", password="password")
 
     campaign = Campaign.objects.create_with_user(
         user=owner,
@@ -477,7 +477,10 @@ def test_campaign_state_change_actions(client):
     start_action = start_actions.first()
     assert start_action.user == user
     assert start_action.description == "Campaign Started: Test Campaign is now active"
-    assert start_action.outcome == "Campaign transitioned from pre-campaign to active status"
+    assert (
+        start_action.outcome
+        == "Campaign transitioned from pre-campaign to active status"
+    )
 
     # End the campaign
     response = client.post(reverse("core:campaign-end", args=[campaign.id]))
@@ -487,12 +490,17 @@ def test_campaign_state_change_actions(client):
     campaign.refresh_from_db()
     assert campaign.status == Campaign.POST_CAMPAIGN
 
-    end_actions = CampaignAction.objects.filter(campaign=campaign).exclude(id=start_action.id)
+    end_actions = CampaignAction.objects.filter(campaign=campaign).exclude(
+        id=start_action.id
+    )
     assert end_actions.count() == 1
     end_action = end_actions.first()
     assert end_action.user == user
     assert end_action.description == "Campaign Ended: Test Campaign has concluded"
-    assert end_action.outcome == "Campaign transitioned from active to post-campaign status"
+    assert (
+        end_action.outcome
+        == "Campaign transitioned from active to post-campaign status"
+    )
 
     # Reopen the campaign
     response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
@@ -508,8 +516,13 @@ def test_campaign_state_change_actions(client):
     assert reopen_actions.count() == 1
     reopen_action = reopen_actions.first()
     assert reopen_action.user == user
-    assert reopen_action.description == "Campaign Reopened: Test Campaign is active again"
-    assert reopen_action.outcome == "Campaign transitioned from post-campaign back to active status"
+    assert (
+        reopen_action.description == "Campaign Reopened: Test Campaign is active again"
+    )
+    assert (
+        reopen_action.outcome
+        == "Campaign transitioned from post-campaign back to active status"
+    )
 
     # Verify total actions count
     assert CampaignAction.objects.filter(campaign=campaign).count() == 3

@@ -40,21 +40,29 @@ def index(request):
         campaigns = []
     else:
         # Regular lists (not in campaigns)
-        lists = List.objects.filter(owner=request.user, status=List.LIST_BUILDING).select_related('content_house')
-        
+        lists = List.objects.filter(
+            owner=request.user, status=List.LIST_BUILDING
+        ).select_related("content_house")
+
         # Campaign gangs - user's lists that are in active campaigns
         campaign_gangs = List.objects.filter(
             owner=request.user,
             status=List.CAMPAIGN_MODE,
-            campaign__status=Campaign.IN_PROGRESS
-        ).select_related('campaign', 'content_house')
-        
+            campaign__status=Campaign.IN_PROGRESS,
+        ).select_related("campaign", "content_house")
+
         # Campaigns - where user is owner or has lists participating
-        campaigns = Campaign.objects.filter(
-            Q(owner=request.user) |  # User is campaign admin
-            Q(campaign_lists__owner=request.user)  # User has lists in the campaign
-        ).distinct().order_by('-created')
-        
+        campaigns = (
+            Campaign.objects.filter(
+                Q(owner=request.user)  # User is campaign admin
+                | Q(
+                    campaign_lists__owner=request.user
+                )  # User has lists in the campaign
+            )
+            .distinct()
+            .order_by("-created")
+        )
+
     return render(
         request,
         "core/index.html",
