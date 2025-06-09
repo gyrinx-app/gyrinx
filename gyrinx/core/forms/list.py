@@ -517,7 +517,7 @@ class EditFighterXPForm(forms.Form):
     def __init__(self, *args, **kwargs):
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
-        
+
         # Store fighter instance for use in clean method
         self.fighter = fighter
 
@@ -530,7 +530,6 @@ class EditFighterXPForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        operation = cleaned_data.get("operation")
         amount = cleaned_data.get("amount")
 
         if amount and amount <= 0:
