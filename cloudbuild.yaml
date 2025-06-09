@@ -7,7 +7,7 @@ steps:
       - -c
       - |
         echo "Checking for ongoing builds..."
-        ONGOING_BUILDS=$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID=$_TRIGGER_ID AND id!=$BUILD_ID" --project=$PROJECT_ID)
+        ONGOING_BUILDS=$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
 
         if [ -z "$ONGOING_BUILDS" ]; then
           echo "No other ongoing builds found."
@@ -94,15 +94,17 @@ options:
   substitutionOption: ALLOW_LOOSE
   logging: CLOUD_LOGGING_ONLY
 # Queue builds for up to 1 hour before expiring
-queueTtl: "3600s"
+queueTtl: "${_QUEUE_TTL}"
 # Build timeout - 30 minutes should be sufficient
-timeout: "1800s"
+timeout: "${_TIMEOUT}"
 substitutions:
   _TRIGGER_ID: bd49e415-bc5c-411a-a19d-ec77599c3ddf
   _AR_HOSTNAME: europe-west2-docker.pkg.dev
   _PLATFORM: managed
   _SERVICE_NAME: gyrinx
   _DEPLOY_REGION: europe-west2
+  _QUEUE_TTL: "3600s"
+  _TIMEOUT: "1800s"
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/gyrinx-app-boostrap-discord-webhook-url/versions/latest
