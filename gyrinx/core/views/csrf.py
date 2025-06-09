@@ -1,5 +1,7 @@
 from django.contrib import messages
 from django.http import HttpResponseRedirect
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 
 
@@ -18,9 +20,10 @@ def csrf_failure(request, reason=""):
     # Get the referer URL to redirect back to the form
     referer = request.META.get("HTTP_REFERER")
 
-    if referer:
+    # Validate the referer URL
+    if referer and url_has_allowed_host_and_scheme(referer, allowed_hosts={request.get_host()}):
         # Redirect back to the form page
         return HttpResponseRedirect(referer)
 
-    # If no referer, redirect to home page
-    return HttpResponseRedirect("/")
+    # If no valid referer, redirect to home page
+    return HttpResponseRedirect(reverse('core:index'))

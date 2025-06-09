@@ -71,17 +71,41 @@ def test_csrf_failure_redirects_to_home_without_referer(client: Client):
     
     # Should redirect to home
     assert response.status_code == 302
-    assert response.url == "/"
+    # Use reverse to get the actual home URL
+    from django.urls import reverse
+    assert response.url == reverse('core:index')
 
 
 @pytest.mark.django_db
 def test_csrf_failure_view_is_csrf_exempt():
     """Test that the CSRF failure view itself is CSRF exempt."""
     from gyrinx.core.views import csrf_failure
+    from django.views.decorators.csrf import csrf_exempt
     
-    # Check that the view has the csrf_exempt decorator
-    assert hasattr(csrf_failure, "csrf_exempt")
-    assert csrf_failure.csrf_exempt is True
+    # Check that the view has been wrapped by csrf_exempt
+    # The csrf_exempt decorator adds the attribute 'csrf_exempt' to the function
+    assert getattr(csrf_failure, 'csrf_exempt', False) is True
+
+
+@pytest.mark.django_db
+def test_csrf_failure_with_malicious_referer(client: Client):
+    """Test that CSRF failure rejects malicious referer URLs."""
+    from django.test import RequestFactory
+    from gyrinx.core.views import csrf_failure
+    from django.urls import reverse
+    
+    factory = RequestFactory()
+    request = factory.post("/some-url/", data={})
+    # Set a malicious referer from external domain
+    request.META["HTTP_REFERER"] = "https://evil.com/steal-data"
+    request.session = client.session
+    request._messages = client._messages
+    
+    response = csrf_failure(request, reason="CSRF token missing")
+    
+    # Should redirect to home, not the malicious URL
+    assert response.status_code == 302
+    assert response.url == reverse('core:index')
 
 
 def test_csrf_failure_view_setting():
