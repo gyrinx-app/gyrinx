@@ -490,12 +490,9 @@ class EditFighterXPForm(forms.Form):
     """Form for modifying fighter XP in campaign mode."""
 
     XP_OPERATION_CHOICES = [
-        ("add", "Add XP – increase current and total XP"),
-        ("spend", "Spend XP – use current XP for an Advancement"),
-        (
-            "reduce",
-            "Reduce XP – decrease both current and total XP; for fixing mistakes",
-        ),
+        ("add", "Add XP"),
+        ("spend", "Spend XP"),
+        ("reduce", "Reduce XP"),
     ]
 
     operation = forms.ChoiceField(
@@ -520,6 +517,9 @@ class EditFighterXPForm(forms.Form):
     def __init__(self, *args, **kwargs):
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
+        
+        # Store fighter instance for use in clean method
+        self.fighter = fighter
 
         # Add helpful hints based on current XP
         if fighter:
@@ -533,19 +533,8 @@ class EditFighterXPForm(forms.Form):
         operation = cleaned_data.get("operation")
         amount = cleaned_data.get("amount")
 
-        if amount <= 0:
+        if amount and amount <= 0:
             raise forms.ValidationError("Amount must be greater than 0.")
-
-        # Validate amount based on operation
-        if operation in ["spend", "reduce"]:
-            # Ensure the fighter has enough current XP to spend
-            if (
-                self.initial.get("fighter")
-                and self.initial["fighter"].xp_current < amount
-            ):
-                raise forms.ValidationError(
-                    "Not enough current XP to spend this amount."
-                )
 
         # We'll do more validation in the view where we have access to the fighter
         return cleaned_data

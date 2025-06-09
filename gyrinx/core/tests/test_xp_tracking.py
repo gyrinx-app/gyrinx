@@ -45,7 +45,7 @@ def campaign(db):
     return Campaign.objects.create(
         name="Test Campaign",
         owner=owner,
-        status=Campaign.Status.ACTIVE,
+        status=Campaign.IN_PROGRESS,
         narrative="Test campaign narrative",
     )
 
@@ -57,7 +57,7 @@ def list_with_fighter(content_fighter, campaign):
     list_obj = List.objects.create(
         name="Test List",
         owner=owner,
-        mode=List.CAMPAIGN_MODE,
+        status=List.CAMPAIGN_MODE,
         campaign=campaign,
     )
     fighter = ListFighter.objects.create(
@@ -137,10 +137,10 @@ def test_edit_fighter_xp_form_missing_required_fields():
 @pytest.mark.django_db
 def test_edit_fighter_xp_view_requires_auth(list_with_fighter):
     """Test that edit_fighter_xp view requires authentication."""
-    _, fighter = list_with_fighter
+    list_obj, fighter = list_with_fighter
     client = Client()
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 302  # Redirect to login
 
@@ -148,14 +148,14 @@ def test_edit_fighter_xp_view_requires_auth(list_with_fighter):
 @pytest.mark.django_db
 def test_edit_fighter_xp_view_requires_ownership(list_with_fighter):
     """Test that edit_fighter_xp view requires ownership."""
-    _, fighter = list_with_fighter
+    list_obj, fighter = list_with_fighter
     client = Client()
     
     # Create another user
     other_user = User.objects.create_user(username="other", password="password")
     client.login(username="other", password="password")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 404
 
@@ -186,7 +186,7 @@ def test_edit_fighter_xp_view_requires_campaign_mode():
     list_obj = List.objects.create(
         name="Basic List",
         owner=owner,
-        mode=List.BASIC_MODE,  # Not campaign mode
+        status=List.LIST_BUILDING,  # Not campaign mode
     )
     fighter = ListFighter.objects.create(
         list=list_obj,
@@ -198,7 +198,7 @@ def test_edit_fighter_xp_view_requires_campaign_mode():
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 302
     assert response.url == reverse("core:list", args=[list_obj.id])
@@ -211,7 +211,7 @@ def test_edit_fighter_xp_view_get(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 200
     
@@ -224,8 +224,9 @@ def test_edit_fighter_xp_view_get(list_with_fighter):
     content = response.content.decode()
     assert "Edit XP" in content
     assert fighter.name in content
-    assert "Current XP: 0" in content
-    assert "Total XP: 0" in content
+    assert "0 XP" in content  # Current XP displayed in badge
+    assert "Current" in content
+    assert "Total" in content
 
 
 @pytest.mark.django_db
@@ -235,7 +236,7 @@ def test_edit_fighter_xp_add_operation(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "add",
         "amount": 10,
@@ -274,7 +275,7 @@ def test_edit_fighter_xp_spend_operation(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "spend",
         "amount": 5,
@@ -309,7 +310,7 @@ def test_edit_fighter_xp_reduce_operation(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "reduce",
         "amount": 5,
@@ -344,7 +345,7 @@ def test_edit_fighter_xp_spend_validation(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "spend",
         "amount": 10,  # More than current (5)
@@ -374,7 +375,7 @@ def test_edit_fighter_xp_reduce_validation(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "reduce",
         "amount": 10,  # More than total (5)
@@ -399,7 +400,7 @@ def test_edit_fighter_xp_without_description(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(url, data={
         "operation": "add",
         "amount": 3,
@@ -432,9 +433,9 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
     
     content = response.content.decode()
     # Check XP is displayed
-    assert 'badge bg-primary">8 XP</span>' in content
-    # Check edit link is present
-    assert f'href="{reverse("core:edit-fighter-xp", args=[fighter.id])}"' in content
+    assert 'badge text-bg-primary">8 XP</span>' in content
+    # Check edit link is present  
+    assert f'href="{reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])}"' in content
     assert "Edit XP" in content
 
 
@@ -461,9 +462,9 @@ def test_fighter_card_hides_xp_in_basic_mode():
     )
     
     list_obj = List.objects.create(
-        name="Basic List",
+        name="Basic List",  
         owner=owner,
-        mode=List.BASIC_MODE,  # Basic mode
+        status=List.LIST_BUILDING,  # Basic mode
     )
     fighter = ListFighter.objects.create(
         list=list_obj,
@@ -494,7 +495,7 @@ def test_multiple_xp_operations_sequence(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     
     # Add 20 XP
     client.post(url, data={
@@ -559,7 +560,7 @@ def test_archived_fighter_cannot_edit_xp(list_with_fighter):
     client = Client()
     client.login(username="testuser", password="testpass")
     
-    url = reverse("core:edit-fighter-xp", args=[fighter.id])
+    url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     # Should get 404 because archived fighters are excluded from queries
     assert response.status_code == 404

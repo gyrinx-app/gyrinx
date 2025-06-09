@@ -1716,14 +1716,14 @@ def edit_list_fighter_xp(request, id, fighter_id):
                 if operation == "add":
                     fighter.xp_current += amount
                     fighter.xp_total += amount
-                    action_desc = f"XP Gained: {fighter.name} gained {amount} XP"
+                    action_desc = f"Added {amount} XP for {fighter.name}"
                 elif operation == "spend":
                     fighter.xp_current -= amount
-                    action_desc = f"XP Spent: {fighter.name} spent {amount} XP"
+                    action_desc = f"Spent {amount} XP for {fighter.name}"
                 elif operation == "reduce":
                     fighter.xp_current -= amount
                     fighter.xp_total -= amount
-                    action_desc = f"XP Reduced: {fighter.name} lost {amount} XP"
+                    action_desc = f"Reduced {amount} XP for {fighter.name}"
 
                 fighter.save_with_user(user=request.user)
 
@@ -1733,7 +1733,7 @@ def edit_list_fighter_xp(request, id, fighter_id):
 
                 # Log to campaign action
                 if lst.campaign:
-                    outcome = f"Current XP: {fighter.xp_current}, Total earned: {fighter.xp_total}"
+                    outcome = f"Current: {fighter.xp_current} XP, Total: {fighter.xp_total} XP"
                     CampaignAction.objects.create(
                         user=request.user,
                         owner=request.user,
