@@ -7,18 +7,18 @@ steps:
       - -c
       - |
         echo "Checking for ongoing builds..."
-        ONGOING_BUILDS=$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
+        ONGOING_BUILDS=$$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
 
-        if [ -z "$ONGOING_BUILDS" ]; then
+        if [ -z "$$ONGOING_BUILDS" ]; then
           echo "No other ongoing builds found."
         else
           echo "Found ongoing builds, canceling them to ensure sequential deployment..."
           while IFS= read -r build_id; do
-            if [ ! -z "$build_id" ] && [ "$build_id" != "$BUILD_ID" ]; then
-              echo "Canceling build: $build_id"
-              gcloud builds cancel "$build_id" --project=$PROJECT_ID || echo "Failed to cancel build: $build_id"
+            if [ ! -z "$$build_id" ] && [ "$$build_id" != "$BUILD_ID" ]; then
+              echo "Canceling build: $$build_id"
+              gcloud builds cancel "$$build_id" --project=$PROJECT_ID || echo "Failed to cancel build: $$build_id"
             fi
-          done <<< "$ONGOING_BUILDS"
+          done <<< "$$ONGOING_BUILDS"
         fi
 
   - name: "curlimages/curl:latest"
@@ -94,17 +94,15 @@ options:
   substitutionOption: ALLOW_LOOSE
   logging: CLOUD_LOGGING_ONLY
 # Queue builds for up to 1 hour before expiring
-queueTtl: "${_QUEUE_TTL}"
+queueTtl: 3600s
 # Build timeout - 30 minutes should be sufficient
-timeout: "${_TIMEOUT}"
+timeout: 1800s
 substitutions:
   _TRIGGER_ID: bd49e415-bc5c-411a-a19d-ec77599c3ddf
   _AR_HOSTNAME: europe-west2-docker.pkg.dev
   _PLATFORM: managed
   _SERVICE_NAME: gyrinx
   _DEPLOY_REGION: europe-west2
-  _QUEUE_TTL: "3600s"
-  _TIMEOUT: "1800s"
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/gyrinx-app-boostrap-discord-webhook-url/versions/latest
