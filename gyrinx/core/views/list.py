@@ -49,14 +49,65 @@ from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
 
 
+def make_list_queryset(request: HttpRequest, *, exclude_archived: bool = True):
+    """
+    Create a queryset for Lists based on the current request.
+
+    This applies various filters including search queries and visibility rules.
+    """
+    qs: QuerySetOf[List] = List.objects.all()
+
+    if exclude_archived:
+        qs = qs.exclude(archived_at__isnull=False)
+
+    # Annotate with custom house's existence
+    user = request.user
+    if user.is_authenticated:
+        qs = qs.annotate(
+            has_custom_house=Exists(
+                ContentHouse.objects.filter(name=OuterRef("pk"), owner=user)
+            )
+        )
+
+    # Apply search filters
+    if query := request.GET.get("query"):
+        sv = SearchVector("name", "owner__username", "content_house__name")
+        sq = SearchQuery(query, search_type="plain")
+        qs = qs.annotate(search=sv).filter(search=sq)
+
+    # Apply house filter
+    house_id = request.GET.get("house")
+    if house_id and is_valid_uuid(house_id):
+        qs = qs.filter(content_house=house_id)
+    elif house_id == "custom" and user.is_authenticated:
+        qs = qs.filter(has_custom_house=True)
+
+    # Apply visibility filter
+    visibility = request.GET.get("visibility", "all")
+    user = request.user
+    if visibility == "mine" and user.is_authenticated:
+        qs = qs.filter(owner=user)
+    elif visibility == "others" and user.is_authenticated:
+        qs = qs.exclude(owner=user).filter(public=True)
+    elif visibility == "public":
+        qs = qs.filter(public=True)
+    else:  # all
+        if user.is_authenticated:
+            qs = qs.filter(Q(public=True) | Q(owner=user))
+        else:
+            qs = qs.filter(public=True)
+
+    return qs
+
+
 class ListsListView(generic.ListView):
     """
-    Display a list of public :model:`core.List` objects.
+    Display a list of :model:`core.List`.
 
     **Context**
 
-    ``lists``
-        A list of :model:`core.List` objects where `public=True`.
+    ``object_list``
+        Filtered queryset of :model:`core.List` instances.
 
     **Template**
 
@@ -64,801 +115,1051 @@ class ListsListView(generic.ListView):
     """
 
     template_name = "core/lists.html"
+    paginate_by = 20
     context_object_name = "lists"
 
     def get_queryset(self):
-        """
-        Return :model:`core.List` objects that are public and in list building mode.
-        Campaign mode lists are only visible within their campaigns.
-        """
-        return List.objects.filter(public=True, status=List.LIST_BUILDING)
+        return make_list_queryset(self.request)
+
+    def get_ordering(self):
+        ordering = self.request.GET.get("ordering", "-created")
+        # Basic validation to prevent SQL injection
+        allowed_fields = ["name", "-name", "created", "-created", "owner", "-owner"]
+        if ordering in allowed_fields:
+            return ordering
+        return "-created"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pass visibility to maintain state
+        context["current_visibility"] = self.request.GET.get("visibility", "all")
+        context["current_house"] = self.request.GET.get("house", "")
+        context["current_query"] = self.request.GET.get("query", "")
+        context["current_ordering"] = self.request.GET.get("ordering", "-created")
+        context["query_params"] = make_query_params_str(self.request)
+
+        # Get list of houses for filter
+        context["houses"] = ContentHouse.objects.all().order_by("name")
+
+        return context
 
 
 class ListDetailView(generic.DetailView):
     """
-    Display a single :model:`core.List` object.
+    Display a single :model:`core.List`.
 
     **Context**
 
     ``list``
-        The requested :model:`core.List` object.
+        An instance of :model:`core.List`.
 
     **Template**
 
     :template:`core/list.html`
     """
 
+    model = List
     template_name = "core/list.html"
     context_object_name = "list"
+    pk_url_kwarg = "id"
 
-    def get_object(self):
-        """
-        Retrieve the :model:`core.List` by its `id`.
-        """
-        return get_object_or_404(List, id=self.kwargs["id"])
+    def get_queryset(self):
+        # Allow viewing of public lists or lists owned by the current user
+        if self.request.user.is_authenticated:
+            return List.objects.filter(
+                Q(public=True) | Q(owner=self.request.user)
+            ).prefetch_related("fighters")
+        else:
+            return List.objects.filter(public=True).prefetch_related("fighters")
 
 
 class ListAboutDetailView(generic.DetailView):
     """
-    Display a narrative view of a single :model:`core.List` object.
+    Display the narrative/about page for a :model:`core.List`.
 
     **Context**
 
     ``list``
-        The requested :model:`core.List` object.
+        An instance of :model:`core.List`.
 
     **Template**
 
     :template:`core/list_about.html`
     """
 
+    model = List
     template_name = "core/list_about.html"
     context_object_name = "list"
+    pk_url_kwarg = "id"
 
-    def get_object(self):
-        """
-        Retrieve the :model:`core.List` by its `id`.
-        """
-        return get_object_or_404(List, id=self.kwargs["id"])
+    def get_queryset(self):
+        # Allow viewing of public lists or lists owned by the current user
+        if self.request.user.is_authenticated:
+            return List.objects.filter(Q(public=True) | Q(owner=self.request.user))
+        else:
+            return List.objects.filter(public=True)
 
 
 class ListPrintView(generic.DetailView):
     """
-    Display a printable view of a single :model:`core.List` object.
+    Display a print-friendly version of :model:`core.List`.
 
     **Context**
 
     ``list``
-        The requested :model:`core.List` object.
+        An instance of :model:`core.List`.
 
     **Template**
 
     :template:`core/list_print.html`
     """
 
+    model = List
     template_name = "core/list_print.html"
     context_object_name = "list"
+    pk_url_kwarg = "id"
 
-    def get_object(self):
-        """
-        Retrieve the :model:`core.List` by its `id`.
-        """
-        return get_object_or_404(List, id=self.kwargs["id"])
+    def get_queryset(self):
+        # Allow viewing of public lists or lists owned by the current user
+        if self.request.user.is_authenticated:
+            return List.objects.filter(
+                Q(public=True) | Q(owner=self.request.user)
+            ).prefetch_related("fighters")
+        else:
+            return List.objects.filter(public=True).prefetch_related("fighters")
+
+
+class ListArchivedFightersView(generic.DetailView):
+    """
+    Display archived fighters for a :model:`core.List`.
+
+    **Context**
+
+    ``list``
+        An instance of :model:`core.List`.
+    ``fighters``
+        Archived fighters in the list.
+
+    **Template**
+
+    :template:`core/list_archived_fighters.html`
+    """
+
+    model = List
+    template_name = "core/list_archived_fighters.html"
+    context_object_name = "list"
+    pk_url_kwarg = "id"
+
+    def get_queryset(self):
+        # Only owners can view archived fighters
+        return List.objects.filter(owner=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["fighters"] = self.object.fighters.filter(
+            archived_at__isnull=False
+        ).order_by("-archived_at")
+        return context
 
 
 @login_required
 def new_list(request):
     """
-    Create a new :model:`core.List` owned by the current user.
+    Create a new :model:`core.List`.
 
     **Context**
 
     ``form``
-        A NewListForm for entering the name and details of the new list.
-    ``houses``
-        A queryset of :model:`content.ContentHouse` objects, possibly used in the form display.
-    ``error_message``
-        None or a string describing a form error.
+        An instance of :form:`core.NewListForm`.
 
     **Template**
 
     :template:`core/list_new.html`
     """
-    houses = ContentHouse.objects.all()
-
-    error_message = None
     if request.method == "POST":
         form = NewListForm(request.POST)
         if form.is_valid():
-            list_ = form.save(commit=False)
-            list_.owner = request.user
-            list_.save()
-            return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
+            lst = form.save(commit=False)
+            lst.owner = request.user
+            lst.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
-        form = NewListForm(
-            initial={
-                "name": request.GET.get("name", ""),
-            }
-        )
+        form = NewListForm()
 
-    return render(
-        request,
-        "core/list_new.html",
-        {"form": form, "houses": houses, "error_message": error_message},
-    )
+    return render(request, "core/list_new.html", {"form": form})
 
 
 @login_required
 def edit_list(request, id):
     """
-    Edit an existing :model:`core.List` owned by the current user.
+    Edit an existing :model:`core.List`.
 
     **Context**
 
+    ``list``
+        The :model:`core.List` being edited.
     ``form``
-        A EditListForm for editing the list's details.
-    ``error_message``
-        None or a string describing a form error.
+        An instance of :form:`core.EditListForm`.
 
     **Template**
 
     :template:`core/list_edit.html`
     """
-    list_ = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_object_or_404(List, id=id, owner=request.user)
 
-    error_message = None
     if request.method == "POST":
-        form = EditListForm(request.POST, instance=list_)
+        form = EditListForm(request.POST, instance=lst)
         if form.is_valid():
-            updated_list = form.save(commit=False)
-            updated_list.save()
-            return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
+            form.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
-        form = EditListForm(instance=list_)
+        form = EditListForm(instance=lst)
 
-    return render(
-        request,
-        "core/list_edit.html",
-        {"form": form, "error_message": error_message},
-    )
+    return render(request, "core/list_edit.html", {"list": lst, "form": form})
 
 
 @login_required
 def clone_list(request, id):
     """
-    Clone an existing :model:`core.List` owned by any user.
+    Clone an existing :model:`core.List`.
 
     **Context**
 
+    ``original_list``
+        The :model:`core.List` being cloned.
     ``form``
-        A CloneListForm for entering the name and details of the new list.
-    ``list``
-        The :model:`core.List` to be cloned.
-    ``error_message``
-        None or a string describing a form error.
+        An instance of :form:`core.CloneListForm`.
 
     **Template**
 
     :template:`core/list_clone.html`
     """
-    # You can clone a list owned by another user
-    list_ = get_object_or_404(List, id=id)
+    original_list = get_object_or_404(List, id=id)
 
-    error_message = None
+    # Check if user can view this list
+    if not original_list.public and original_list.owner != request.user:
+        return HttpResponseRedirect(reverse("core:lists"))
+
     if request.method == "POST":
-        form = CloneListForm(request.POST, instance=list_)
+        form = CloneListForm(request.POST)
         if form.is_valid():
-            new_list = list_.clone(
-                name=form.cleaned_data["name"],
-                owner=request.user,
-                public=form.cleaned_data["public"],
-            )
+            new_list = original_list.clone()
+            new_list.name = form.cleaned_data["name"]
+            new_list.owner = request.user
+            new_list.public = form.cleaned_data["public"]
             new_list.save()
             return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
     else:
-        form = CloneListForm(
-            instance=list_,
-            initial={
-                "name": f"{list_.name} (Clone)",
-            },
-        )
+        form = CloneListForm(initial={"name": f"{original_list.name} (Clone)"})
 
     return render(
-        request,
-        "core/list_clone.html",
-        {"form": form, "list": list_, "error_message": error_message},
+        request, "core/list_clone.html", {"original_list": original_list, "form": form}
     )
 
 
 @login_required
 def new_list_fighter(request, id):
     """
-    Add a new :model:`core.ListFighter` to an existing :model:`core.List`.
+    Create a new :model:`core.ListFighter` for a list.
 
     **Context**
 
-    ``form``
-        A NewListFighterForm for adding a new fighter.
     ``list``
-        The :model:`core.List` to which this fighter will be added.
-    ``error_message``
-        None or a string describing a form error.
+        The :model:`core.List` that will own this fighter.
+    ``form``
+        An instance of :form:`core.NewListFighterForm`.
 
     **Template**
 
     :template:`core/list_fighter_new.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = ListFighter(list=lst, owner=lst.owner)
 
-    error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = NewListFighterForm(lst.content_house, request.POST)
         if form.is_valid():
             fighter = form.save(commit=False)
             fighter.list = lst
-            fighter.owner = lst.owner
+            fighter.owner = request.user
             fighter.save()
-            query_params = urlencode(dict(flash=fighter.id))
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,))
-                + f"?{query_params}"
-                + f"#{str(fighter.id)}"
-            )
-    else:
-        form = NewListFighterForm(instance=fighter)
 
-    return render(
-        request,
-        "core/list_fighter_new.html",
-        {"form": form, "list": lst, "error_message": error_message},
-    )
+            # Apply default assignments if it's a content fighter
+            if fighter.content_fighter:
+                fighter.apply_defaults()
+
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = NewListFighterForm(lst.content_house)
+
+    return render(request, "core/list_fighter_new.html", {"list": lst, "form": form})
 
 
 @login_required
 def edit_list_fighter(request, id, fighter_id):
     """
-    Edit an existing :model:`core.ListFighter` within a :model:`core.List`.
+    Edit a :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A NewListFighterForm for editing fighter details.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
+    ``fighter``
+        The :model:`core.ListFighter` being edited.
+    ``form``
+        An instance of Django's ModelForm for ListFighter.
+    ``xp_form``
+        An instance of :form:`core.EditFighterXPForm`.
 
     **Template**
 
     :template:`core/list_fighter_edit.html`
     """
-    print(f"Editing fighter {fighter_id} in list {id}")
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
-            fighter = form.save(commit=False)
-            fighter.list = lst
-            fighter.owner = lst.owner
-            fighter.save()
-            query_params = urlencode(dict(flash=fighter.id))
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,))
-                + f"?{query_params}"
-                + f"#{str(fighter.id)}"
-            )
+            updated_fighter = form.save(commit=False)
+            # Handle cost override
+            cost_override = form.cleaned_data.get("cost_override")
+            if cost_override is not None and cost_override >= 0:
+                updated_fighter.cost_override = cost_override
+            else:
+                updated_fighter.cost_override = None
+            
+            # Handle stat overrides
+            for stat in ["movement", "weapon_skill", "ballistic_skill", "strength", 
+                        "toughness", "wounds", "initiative", "attacks", "leadership", 
+                        "cool", "willpower", "intelligence"]:
+                override_field = f"{stat}_override"
+                value = form.cleaned_data.get(override_field)
+                if value is not None and value >= 0:
+                    setattr(updated_fighter, override_field, value)
+                else:
+                    setattr(updated_fighter, override_field, None)
+            
+            updated_fighter.save()
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
-        form = NewListFighterForm(instance=fighter)
+        # Create form with initial data including overrides
+        initial_data = {}
+        if fighter.cost_override is not None:
+            initial_data["cost_override"] = fighter.cost_override
+        
+        for stat in ["movement", "weapon_skill", "ballistic_skill", "strength", 
+                    "toughness", "wounds", "initiative", "attacks", "leadership", 
+                    "cool", "willpower", "intelligence"]:
+            override_field = f"{stat}_override"
+            value = getattr(fighter, override_field, None)
+            if value is not None:
+                initial_data[override_field] = value
+                
+        form = ListFighterForm(instance=fighter, initial=initial_data)
+
+    xp_form = EditFighterXPForm(fighter=fighter)
 
     return render(
         request,
         "core/list_fighter_edit.html",
-        {"form": form, "list": lst, "error_message": error_message},
+        {
+            "list": lst,
+            "fighter": fighter,
+            "form": form,
+            "xp_form": xp_form,
+        },
     )
 
 
 @login_required
-def clone_list_fighter(request: HttpRequest, id, fighter_id):
+def clone_list_fighter(request, id, fighter_id):
     """
-    Clone an existing :model:`core.ListFighter` to the same or another :model:`core.List`.
+    Clone a :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A CloneListFighterForm for entering the name and details of the new fighter.
     ``list``
-        The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` to be cloned.
-    ``error_message``
-        None or a string describing a form error.
+        The :model:`core.List` that owns the fighter.
+    ``original_fighter``
+        The :model:`core.ListFighter` being cloned.
+    ``form``
+        An instance of :form:`core.CloneListFighterForm`.
 
     **Template**
 
     :template:`core/list_fighter_clone.html`
     """
-    lst = get_object_or_404(List, id=id)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    original_fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    error_message = None
     if request.method == "POST":
-        form = CloneListFighterForm(request.POST, instance=fighter)
+        form = CloneListFighterForm(request.POST)
         if form.is_valid():
-            new_fighter = fighter.clone(
-                name=form.cleaned_data["name"],
-                content_fighter=form.cleaned_data["content_fighter"],
-                list=form.cleaned_data["list"],
-            )
+            new_fighter = original_fighter.clone()
+            new_fighter.name = form.cleaned_data["name"]
             new_fighter.save()
-            query_params = urlencode(dict(flash=new_fighter.id))
-            return HttpResponseRedirect(
-                reverse("core:list", args=(new_fighter.list.id,))
-                + f"?{query_params}"
-                + f"#{str(new_fighter.id)}"
-            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
         form = CloneListFighterForm(
-            instance=fighter,
-            initial={"name": f"{fighter.name} (Clone)"},
-            user=request.user,
+            initial={"name": f"{original_fighter.name} (Clone)"}
         )
 
     return render(
         request,
         "core/list_fighter_clone.html",
-        {"form": form, "list": lst, "fighter": fighter, "error_message": error_message},
+        {"list": lst, "original_fighter": original_fighter, "form": form},
+    )
+
+
+@login_required
+def archive_list_fighter(request, id, fighter_id):
+    """
+    Archive a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to be archived.
+
+    **Template**
+
+    :template:`core/list_fighter_archive.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
+    )
+
+    if request.method == "POST":
+        fighter.archive()
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_archive.html",
+        {"list": lst, "fighter": fighter},
+    )
+
+
+@login_required
+def delete_list_fighter(request, id, fighter_id):
+    """
+    Delete a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to be deleted.
+
+    **Template**
+
+    :template:`core/list_fighter_delete.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+
+    if request.method == "POST":
+        fighter.delete()
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request, "core/list_fighter_delete.html", {"list": lst, "fighter": fighter}
     )
 
 
 @login_required
 def edit_list_fighter_skills(request, id, fighter_id):
     """
-    Edit the skills of an existing :model:`core.ListFighter`.
+    Edit skills for a :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A ListFighterSkillsForm for selecting fighter skills.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
+    ``fighter``
+        The :model:`core.ListFighter` whose skills are being edited.
+    ``form``
+        An instance of :form:`core.ListFighterSkillsForm`.
 
     **Template**
 
     :template:`core/list_fighter_skills_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    error_message = None
     if request.method == "POST":
-        form = ListFighterSkillsForm(request.POST, instance=fighter)
+        form = ListFighterSkillsForm(request.POST, instance=fighter, house=lst.content_house)
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
-            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
-        form = ListFighterSkillsForm(instance=fighter)
-
-    skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
-        primary=Exists(
-            ContentSkillCategory.primary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
-        ),
-        secondary=Exists(
-            ContentSkillCategory.secondary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
-        ),
-    )
-    special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
-        primary=Exists(
-            ContentSkillCategory.primary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
-        ),
-        secondary=Exists(
-            ContentSkillCategory.secondary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
-        ),
-    )
-    n_cats = skill_cats.count() + special_cats.count()
+        form = ListFighterSkillsForm(instance=fighter, house=lst.content_house)
 
     return render(
         request,
         "core/list_fighter_skills_edit.html",
-        {
-            "form": form,
-            "list": lst,
-            "error_message": error_message,
-            "n_cats": n_cats,
-            "skill_cats": list(skill_cats),
-            "special_cats": list(special_cats),
-        },
+        {"list": lst, "fighter": fighter, "form": form},
     )
+
+
+from gyrinx.core.forms.list import ListFighterPsykerPowersForm
 
 
 @login_required
 def edit_list_fighter_powers(request, id, fighter_id):
     """
-    Edit the psyker powers of an existing :model:`core.ListFighter`.
+    Edit pskyer powers for a :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A ListFighterPowersForm for selecting fighter powers.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
+    ``fighter``
+        The :model:`core.ListFighter` whose psyker powers are being edited.
+    ``form``
+        An instance of :form:`core.ListFighterPsykerPowersForm`.
 
     **Template**
 
     :template:`core/list_fighter_psyker_powers_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    error_message = None
+    # Check if the fighter is actually a psyker
+    if not fighter.is_psyker_cached:
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     if request.method == "POST":
-        power_id = request.POST.get("psyker_power_id", None)
-        if not power_id:
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
-            )
+        form = ListFighterPsykerPowersForm(request.POST, instance=fighter)
+        if form.is_valid():
+            # Remove existing powers
+            fighter.psyker_powers.all().delete()
 
-        if request.POST.get("action") == "remove":
-            kind = request.POST.get("assign_kind")
-            if kind == "default":
-                default_assign = get_object_or_404(
-                    ContentFighterPsykerPowerDefaultAssignment,
-                    psyker_power=power_id,
-                    fighter=fighter.content_fighter_cached,
-                )
-                fighter.disabled_pskyer_default_powers.add(default_assign)
-                fighter.save()
-                return HttpResponseRedirect(
-                    reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
-                )
-            elif kind == "assigned":
-                assign = get_object_or_404(
-                    ListFighterPsykerPowerAssignment,
-                    psyker_power=power_id,
+            # Add selected powers
+            for power in form.cleaned_data["powers"]:
+                ListFighterPsykerPowerAssignment.objects.create(
                     list_fighter=fighter,
+                    psyker_power=power,
+                    owner=request.user,
                 )
-                assign.delete()
-                return HttpResponseRedirect(
-                    reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
-                )
-            else:
-                error_message = "Invalid action."
-        elif request.POST.get("action") == "add":
-            power = get_object_or_404(
-                ContentPsykerPower,
-                id=power_id,
-            )
-            assign = ListFighterPsykerPowerAssignment(
-                list_fighter=fighter,
-                psyker_power=power,
-            )
-            assign.save()
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
-            )
 
-    # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
-    disabled_defaults = fighter.disabled_pskyer_default_powers.values("id")
-    powers: QuerySetOf[ContentPsykerPower] = (
-        ContentPsykerPower.objects.filter(
-            # Get powers via disciplines that are are assigned, or are generic...
-            Q(
-                discipline__in=ContentPsykerDiscipline.objects.filter(
-                    Q(fighter_assignments__fighter=fighter.content_fighter_cached)
-                    | Q(generic=True)
-                ).distinct()
+            # Save the disabled default powers
+            fighter.disabled_pskyer_default_powers = form.cleaned_data.get(
+                "disabled_default_powers", []
             )
-            # ...and get powers that are assigned to this fighter by default
-            | Q(
-                fighter_assignments__fighter=fighter.content_fighter_cached,
-            )
-        )
-        .distinct()
-        .prefetch_related("discipline")
-        .annotate(
-            assigned_direct=Exists(
-                ListFighterPsykerPowerAssignment.objects.filter(
-                    list_fighter=fighter,
-                    psyker_power=OuterRef("pk"),
-                ).values("psyker_power_id")
-            ),
-            assigned_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.filter(
-                    fighter=fighter.content_fighter_cached,
-                    psyker_power=OuterRef("pk"),
-                )
-                .exclude(id__in=disabled_defaults)
-                .values("psyker_power_id")
-            ),
-        )
-    )
+            fighter.save()
 
-    # TODO: Re-querying this is inefficient, but it's ok for now.
-    assigns = []
-    for power in powers:
-        if power.assigned_direct:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment.from_assignment(
-                    ListFighterPsykerPowerAssignment(
-                        list_fighter=fighter,
-                        psyker_power=power,
-                    ),
-                )
-            )
-        elif power.assigned_default:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment.from_default_assignment(
-                    ContentFighterPsykerPowerDefaultAssignment(
-                        fighter=fighter.content_fighter_cached,
-                        psyker_power=power,
-                    ),
-                    fighter=fighter,
-                )
-            )
-        else:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment(
-                    fighter=fighter, psyker_power=power
-                )
-            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = ListFighterPsykerPowersForm(instance=fighter)
 
     return render(
         request,
         "core/list_fighter_psyker_powers_edit.html",
-        {
-            "list": lst,
-            "fighter": fighter,
-            "powers": powers,
-            "assigns": assigns,
-            "error_message": error_message,
-        },
+        {"list": lst, "fighter": fighter, "form": form},
     )
 
 
 @login_required
 def edit_list_fighter_narrative(request, id, fighter_id):
     """
-    Edit the narrative of an existing :model:`core.ListFighter`.
+    Edit narrative for a :model:`core.ListFighter`.
 
     **Context**
 
-    ``form``
-        A EditListFighterNarrativeForm for editing fighter narrative.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
+    ``fighter``
+        The :model:`core.ListFighter` whose narrative is being edited.
+    ``form``
+        An instance of :form:`core.EditListFighterNarrativeForm`.
 
     **Template**
 
     :template:`core/list_fighter_narrative_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    error_message = None
     if request.method == "POST":
         form = EditListFighterNarrativeForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(
-                reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
-            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
 
     return render(
         request,
         "core/list_fighter_narrative_edit.html",
+        {"list": lst, "fighter": fighter, "form": form},
+    )
+
+
+def embed_list_fighter(request, id, fighter_id):
+    """
+    Display an embeddable version of a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to embed.
+
+    **Template**
+
+    :template:`core/list_fighter_embed.html`
+    """
+    lst = get_object_or_404(List, id=id, public=True)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+
+    return render(
+        request,
+        "core/list_fighter_embed.html",
+        {"list": lst, "fighter": fighter, "print": True},
+    )
+
+
+from django import forms
+from django.contrib import messages
+
+from gyrinx.content.models import ContentFighter
+from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.core.models.list import ListFighterState
+
+
+class ListFighterForm(forms.ModelForm):
+    """Form for editing ListFighter model"""
+
+    cost_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the calculated cost for this fighter",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    
+    # Stat override fields
+    movement_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the movement value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    weapon_skill_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the weapon skill value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    ballistic_skill_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the ballistic skill value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    strength_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the strength value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    toughness_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the toughness value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    wounds_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the wounds value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    initiative_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the initiative value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    attacks_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the attacks value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    leadership_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the leadership value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    cool_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the cool value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    willpower_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the willpower value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    intelligence_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Override the intelligence value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+
+    class Meta:
+        model = ListFighter
+        fields = ["name", "narrative"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "narrative": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+
+@login_required
+def edit_list_fighter_equipment(request, id, fighter_id, is_weapon):
+    """
+    Edit equipment for a :model:`core.ListFighter`.
+
+    Handles both weapons and gear based on the is_weapon parameter.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` whose equipment is being edited.
+    ``assignments``
+        Current equipment assignments for the fighter.
+    ``form``
+        An instance of :form:`core.ListFighterEquipmentAssignmentForm`.
+    ``is_weapon``
+        Boolean indicating if editing weapons (True) or gear (False).
+
+    **Template**
+
+    :template:`core/list_fighter_weapons_edit.html` or
+    :template:`core/list_fighter_gear_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+
+    # Get categories based on type
+    if is_weapon:
+        categories = ContentEquipmentCategory.WEAPON_CATEGORIES
+        template = "core/list_fighter_weapons_edit.html"
+    else:
+        categories = ContentEquipmentCategory.GEAR_CATEGORIES
+        template = "core/list_fighter_gear_edit.html"
+
+    # Get virtual equipment assignments for this fighter
+    assignments = fighter.virtual_equipment_assignments(
+        categories=categories, include_linked_equipment=False
+    )
+
+    if request.method == "POST":
+        form = ListFighterEquipmentAssignmentForm(
+            request.POST,
+            categories=categories,
+            content_house=lst.content_house,
+            list_fighter=fighter,
+        )
+        if form.is_valid():
+            equipment = form.cleaned_data["equipment"]
+
+            # Check if this equipment is already assigned (not from defaults)
+            existing = ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=fighter,
+                content_equipment=equipment,
+                from_default_assignment=False,
+            ).first()
+
+            if not existing:
+                assignment = ListFighterEquipmentAssignment.objects.create(
+                    list_fighter=fighter,
+                    content_equipment=equipment,
+                    owner=request.user,
+                )
+                # Handle weapon profiles for weapons
+                if equipment.weapon_profiles.exists():
+                    # Add all weapon profiles
+                    assignment.weapon_profiles.set(equipment.weapon_profiles.all())
+
+            return HttpResponseRedirect(
+                reverse("core:list", args=(lst.id,)) + f"#fighter-{fighter.id}"
+            )
+    else:
+        form = ListFighterEquipmentAssignmentForm(
+            categories=categories,
+            content_house=lst.content_house,
+            list_fighter=fighter,
+        )
+
+    return render(
+        request,
+        template,
         {
-            "form": form,
             "list": lst,
-            "error_message": error_message,
+            "fighter": fighter,
+            "assignments": assignments,
+            "form": form,
+            "is_weapon": is_weapon,
         },
     )
 
 
 @login_required
-def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
+def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     """
-    Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
+    Edit weapon accessories for a :model:`core.ListFighterEquipmentAssignment`.
 
     **Context**
 
-    ``fighter``
-        The :model:`core.ListFighter` being edited.
-    ``equipment``
-        A filtered list of :model:`content.ContentEquipment` items.
-    ``categories``
-        Available equipment categories.
-    ``assigns``
-        A list of :class:`.VirtualListFighterEquipmentAssignment` objects.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
-    ``is_weapon``
-        Boolean indicating if we're editing weapons or gear.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assignment``
+        The :model:`core.ListFighterEquipmentAssignment` being edited.
+    ``form``
+        An instance of :form:`core.ListFighterEquipmentAssignmentAccessoriesForm`.
 
     **Template**
 
-    :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
+    :template:`core/list_fighter_weapons_accessories_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    view_name = (
-        "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
-    )
-    template_name = (
-        "core/list_fighter_weapons_edit.html"
-        if is_weapon
-        else "core/list_fighter_gear_edit.html"
-    )
 
-    error_message = None
+    # Get the assignment - could be real or virtual
+    virtual_assignments = fighter.virtual_equipment_assignments(include_linked_equipment=False)
+    assignment = None
+
+    for va in virtual_assignments:
+        if str(va.pk) == str(assign_id):
+            assignment = va
+            break
+
+    if not assignment:
+        # TODO: Handle error
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        )
+
     if request.method == "POST":
-        instance = ListFighterEquipmentAssignment(list_fighter=fighter)
-        form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
+        form = ListFighterEquipmentAssignmentAccessoriesForm(
+            request.POST, equipment=assignment.content_equipment
+        )
         if form.is_valid():
-            form.save()
-            query_params = make_query_params_str(
-                flash=instance.id,
-                filter=request.POST.get("filter"),
-                q=request.POST.get("q"),
-            )
+            # If this is a virtual assignment from defaults, we need to create a real one
+            if isinstance(assignment, VirtualListFighterEquipmentAssignment):
+                real_assignment = ListFighterEquipmentAssignment.objects.create(
+                    list_fighter=fighter,
+                    content_equipment=assignment.content_equipment,
+                    from_default_assignment=True,
+                    owner=request.user,
+                )
+                # Copy over weapon profiles
+                real_assignment.weapon_profiles.set(assignment.weapon_profiles.all())
+                assignment = real_assignment
+
+            # Update accessories
+            assignment.weapon_accessories.set(form.cleaned_data["accessories"])
+
             return HttpResponseRedirect(
-                reverse(view_name, args=(lst.id, fighter.id))
-                + f"?{query_params}"
-                + f"#{str(fighter.id)}"
+                reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
             )
-
-    # Get the appropriate equipment
-    if is_weapon:
-        equipment = (
-            ContentEquipment.objects.weapons()
-            .with_cost_for_fighter(fighter.equipment_list_fighter)
-            .with_profiles_for_fighter(fighter.equipment_list_fighter)
-        )
-        search_vector = SearchVector(
-            "name", "category__name", "contentweaponprofile__name"
-        )
     else:
-        equipment = ContentEquipment.objects.non_weapons().with_cost_for_fighter(
-            fighter.equipment_list_fighter
-        )
-        search_vector = SearchVector("name", "category__name")
+        # Get current accessories
+        current_accessories = []
+        if hasattr(assignment, "weapon_accessories"):
+            current_accessories = assignment.weapon_accessories.all()
 
-    # Get categories for this equipment type
-    categories = (
-        ContentEquipmentCategory.objects.filter(id__in=equipment.values("category_id"))
-        .distinct()
-        .order_by("name")
-    )
-
-    # Filter by category if specified
-    cats = (
-        [
-            cat
-            for cat in request.GET.getlist("cat", list())
-            if cat and is_valid_uuid(cat)
-        ]
-        if not is_weapon
-        else request.GET.getlist("cat", list())
-    )
-
-    if cats and "all" not in cats:
-        equipment = equipment.filter(category_id__in=cats)
-
-    # Apply search filter if provided
-    if request.GET.get("q"):
-        search_query = SearchQuery(request.GET.get("q", ""))
-        equipment = (
-            equipment.annotate(search=search_vector)
-            .filter(search=search_query)
-            .distinct("category__name", "name", "id")
+        form = ListFighterEquipmentAssignmentAccessoriesForm(
+            equipment=assignment.content_equipment,
+            initial={"accessories": current_accessories},
         )
 
-    # Filter by availability level
-    als = request.GET.getlist("al", ["C", "R"])
-    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
-        # Always show Exclusive in equipment lists
-        als += ["E"]
-        equipment = equipment.exclude(
-            ~Q(
-                id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.equipment_list_fighter
-                ).values("equipment_id")
-            )
+    return render(
+        request,
+        "core/list_fighter_weapons_accessories_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assignment": assignment,
+            "form": form,
+        },
+    )
+
+
+@login_required
+def delete_list_fighter_weapon_accessory(
+    request, id, fighter_id, assign_id, accessory_id
+):
+    """
+    Remove a weapon accessory from a :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assignment``
+        The :model:`core.ListFighterEquipmentAssignment` being modified.
+    ``accessory``
+        The :model:`content.ContentWeaponAccessory` to be removed.
+
+    **Template**
+
+    :template:`core/list_fighter_weapon_accessory_delete.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Get the real assignment
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment, pk=assign_id, list_fighter=fighter
+    )
+    accessory = get_object_or_404(ContentWeaponAccessory, pk=accessory_id)
+
+    if request.method == "POST":
+        assignment.weapon_accessories.remove(accessory)
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
         )
 
-    equipment = equipment.filter(rarity__in=set(als))
-
-    # Apply maximum availability level filter if provided
-    mal = (
-        int(request.GET.get("mal"))
-        if request.GET.get("mal") and is_int(request.GET.get("mal"))
-        else None
+    return render(
+        request,
+        "core/list_fighter_weapon_accessory_delete.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assignment": assignment,
+            "accessory": accessory,
+        },
     )
-    if mal:
-        # Only filter by rarity_roll for items that aren't Common
-        # Common items should always be visible
-        equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
 
-    # Create assignment objects
-    assigns = []
-    for item in equipment:
-        if is_weapon:
-            profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
-            profiles = [
-                profile
-                for profile in profiles
-                # Keep standard profiles
-                if profile.cost == 0
-                # They have an Al that matches the filter, and no roll value
-                or (not profile.rarity_roll and profile.rarity in als)
-                # They have an Al that matches the filter, and a roll
-                or (
-                    profile.rarity_roll
-                    and profile.rarity in als
-                    and (
-                        # If mal is set, check if profile passes the threshold
-                        (mal and profile.rarity_roll <= mal)
-                        # If mal is not set, show all profiles with matching rarity
-                        or not mal
-                    )
-                )
-            ]
-            assigns.append(
-                VirtualListFighterEquipmentAssignment(
-                    fighter=fighter,
-                    equipment=item,
-                    profiles=profiles,
-                )
-            )
-        else:
-            assigns.append(
-                VirtualListFighterEquipmentAssignment(
-                    fighter=fighter,
-                    equipment=item,
-                )
-            )
 
-    context = {
-        "fighter": fighter,
-        "equipment": equipment,
-        "categories": categories,
-        "assigns": assigns,
-        "list": lst,
-        "error_message": error_message,
-        "is_weapon": is_weapon,
-    }
+@login_required
+def disable_list_fighter_default_assign(
+    request, id, fighter_id, assign_id, back_name, action_name
+):
+    """
+    Disable a default equipment assignment for a fighter.
 
-    # Add weapons-specific context if needed
-    if is_weapon:
-        context["weapons"] = equipment
+    **Context**
 
-    return render(request, template_name, context)
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``default_assignment``
+        The :model:`content.ContentFighterDefaultAssignment` to be disabled.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_disable.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Find the default assignment
+    default_assignment = get_object_or_404(
+        ContentFighterDefaultAssignment,
+        pk=assign_id,
+        content_fighter=fighter.content_fighter,
+    )
+
+    if request.method == "POST":
+        # Add to disabled defaults
+        fighter.disabled_default_assignments.add(default_assignment)
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    return render(
+        request,
+        "core/list_fighter_assign_disable.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "default_assignment": default_assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
+    )
+
+
+@login_required
+def convert_list_fighter_default_assign(
+    request, id, fighter_id, assign_id, back_name, action_name
+):
+    """
+    Convert a default equipment assignment to a regular assignment.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``default_assignment``
+        The :model:`content.ContentFighterDefaultAssignment` to be converted.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_convert.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Find the default assignment
+    default_assignment = get_object_or_404(
+        ContentFighterDefaultAssignment,
+        pk=assign_id,
+        content_fighter=fighter.content_fighter,
+    )
+
+    if request.method == "POST":
+        # Create a real assignment from the default
+        assignment = ListFighterEquipmentAssignment.objects.create(
+            list_fighter=fighter,
+            content_equipment=default_assignment.content_equipment,
+            from_default_assignment=True,
+            owner=request.user,
+        )
+        # Copy weapon profiles
+        assignment.weapon_profiles.set(default_assignment.weapon_profiles.all())
+        # Copy weapon accessories
+        assignment.weapon_accessories.set(default_assignment.weapon_accessories.all())
+
+        # Disable the default
+        fighter.disabled_default_assignments.add(default_assignment)
+
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    return render(
+        request,
+        "core/list_fighter_assign_convert.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "default_assignment": default_assignment,
+            "action_url": action_name,
+            "back_url": back_name,
+        },
+    )
 
 
 @login_required
@@ -866,7 +1167,7 @@ def edit_list_fighter_assign_cost(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
     """
-    Edit the cost of an existing :model:`core.ListFighterEquipmentAssignment`.
+    Edit the cost override for a :model:`core.ListFighterEquipmentAssignment`.
 
     **Context**
 
@@ -875,9 +1176,9 @@ def edit_list_fighter_assign_cost(
     ``fighter``
         The :model:`core.ListFighter` owning this equipment assignment.
     ``assign``
-        The :model:`core.ListFighterEquipmentAssignment` to be edited.
-    ``error_message``
-        None or a string describing a form error.
+        The equipment assignment (real or virtual).
+    ``form``
+        An instance of :form:`core.ListFighterEquipmentAssignmentCostForm`.
 
     **Template**
 
@@ -885,22 +1186,59 @@ def edit_list_fighter_assign_cost(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
-        pk=assign_id,
-        list_fighter=fighter,
-    )
+
+    # Get the assignment - could be real or virtual
+    virtual_assignments = fighter.virtual_equipment_assignments(include_linked_equipment=False)
+    assignment = None
+
+    for va in virtual_assignments:
+        if str(va.pk) == str(assign_id):
+            assignment = va
+            break
+
+    if not assignment:
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     error_message = None
-    if request.method == "POST":
-        form = ListFighterEquipmentAssignmentCostForm(request.POST, instance=assignment)
-        if form.is_valid():
-            form.save()
-            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
-    form = ListFighterEquipmentAssignmentCostForm(
-        instance=assignment,
-    )
+    if request.method == "POST":
+        form = ListFighterEquipmentAssignmentCostForm(request.POST)
+        if form.is_valid():
+            cost_override = form.cleaned_data["cost_override"]
+
+            # If this is a virtual assignment, we need to create a real one
+            if isinstance(assignment, VirtualListFighterEquipmentAssignment):
+                real_assignment = ListFighterEquipmentAssignment.objects.create(
+                    list_fighter=fighter,
+                    content_equipment=assignment.content_equipment,
+                    from_default_assignment=True,
+                    cost_override=cost_override if cost_override >= 0 else None,
+                    owner=request.user,
+                )
+                # Copy over weapon profiles and accessories
+                real_assignment.weapon_profiles.set(assignment.weapon_profiles.all())
+                if hasattr(assignment, "weapon_accessories"):
+                    real_assignment.weapon_accessories.set(
+                        assignment.weapon_accessories.all()
+                    )
+            else:
+                # Update existing assignment
+                if cost_override >= 0:
+                    assignment.cost_override = cost_override
+                else:
+                    assignment.cost_override = None
+                assignment.save()
+
+            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+    else:
+        # Initialize form with current cost override
+        initial_cost = None
+        if hasattr(assignment, "cost_override") and assignment.cost_override is not None:
+            initial_cost = assignment.cost_override
+
+        form = ListFighterEquipmentAssignmentCostForm(
+            initial={"cost_override": initial_cost}
+        )
 
     return render(
         request,
@@ -997,9 +1335,7 @@ def delete_list_fighter_gear_upgrade(
     )
 
     if request.method == "POST":
-        assignment.upgrade = None
-        assignment.upgrades_field.remove(upgrade)
-        assignment.save()
+        assignment.upgrades.remove(upgrade)
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     return render(
@@ -1017,118 +1353,11 @@ def delete_list_fighter_gear_upgrade(
 
 
 @login_required
-def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
-    """
-    Managed weapon accessories for a :model:`core.ListFighterEquipmentAssignment`.
-
-    **Context**
-
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` owning this equipment assignment.
-    ``assign``
-        The :model:`core.ListFighterEquipmentAssignment` to be edited.
-    ``accessories``
-        A list of :model:`content.ContentWeaponAccessory` objects.
-    ``error_message``
-        None or a string describing a form error.
-
-    **Template**
-
-    :template:`core/list_fighter_weapons_accessories_edit.html`
-
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
-        pk=assign_id,
-        list_fighter=fighter,
-    )
-
-    error_message = None
-    if request.method == "POST":
-        form = ListFighterEquipmentAssignmentAccessoriesForm(
-            request.POST, instance=assignment
-        )
-        if form.is_valid():
-            form.save()
-
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-        )
-
-    # TODO: Exclude accessories that cannot be added to this weapon
-    form = ListFighterEquipmentAssignmentAccessoriesForm(
-        instance=assignment,
-    )
-
-    return render(
-        request,
-        "core/list_fighter_weapons_accessories_edit.html",
-        {
-            "list": lst,
-            "fighter": fighter,
-            "form": form,
-            "error_message": error_message,
-        },
-    )
-
-
-@login_required
-def delete_list_fighter_weapon_accessory(
-    request, id, fighter_id, assign_id, accessory_id
-):
-    """
-    Remove a :model:`content.ContentWeaponAccessory` from a fighter :model:`core.ListFighterEquipmentAssignment`.
-
-    **Context**
-
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` owning this equipment assignment.
-    ``assign``
-        The :model:`core.ListFighterEquipmentAssignment` to be deleted.
-    ``accessory``
-        The :model:`content.ContentWeaponAccessory` to be removed.
-
-    **Template**
-
-    :template:`core/list_fighter_weapons_accessory_delete.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
-        pk=assign_id,
-        list_fighter=fighter,
-    )
-    accessory = get_object_or_404(
-        ContentWeaponAccessory,
-        pk=accessory_id,
-    )
-
-    if request.method == "POST":
-        assignment.weapon_accessories_field.remove(accessory)
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-        )
-
-    return render(
-        request,
-        "core/list_fighter_weapons_accessory_delete.html",
-        {"list": lst, "fighter": fighter, "assign": assignment, "accessory": accessory},
-    )
-
-
-@login_required
 def edit_list_fighter_weapon_upgrade(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
     """
-    Edit the weapon upgrade of an existing :model:`core.ListFighterEquipmentAssignment`.
+    Edit equipment upgrades for a :model:`core.ListFighterEquipmentAssignment`.
 
     **Context**
 
@@ -1136,10 +1365,12 @@ def edit_list_fighter_weapon_upgrade(
         The :model:`core.List` that owns this fighter.
     ``fighter``
         The :model:`core.ListFighter` owning this equipment assignment.
-    ``assign``
-        The :model:`core.ListFighterEquipmentAssignment` to be edited.
-    ``upgrade``
-        The :model:`content.ContentEquipmentUpgrade` upgrade to be added.
+    ``assignment``
+        The equipment assignment (real or virtual).
+    ``form``
+        An instance of :form:`core.ListFighterEquipmentAssignmentUpgradeForm`.
+    ``error_message``
+        Optional error message to display.
 
     **Template**
 
@@ -1147,23 +1378,67 @@ def edit_list_fighter_weapon_upgrade(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
-        pk=assign_id,
-        list_fighter=fighter,
-    )
+
+    # Get the assignment - could be real or virtual
+    virtual_assignments = fighter.virtual_equipment_assignments(include_linked_equipment=False)
+    assignment = None
+
+    for va in virtual_assignments:
+        if str(va.pk) == str(assign_id):
+            assignment = va
+            break
+
+    if not assignment:
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    error_message = None
 
     if request.method == "POST":
         form = ListFighterEquipmentAssignmentUpgradeForm(
-            request.POST, instance=assignment
+            request.POST, equipment=assignment.content_equipment
         )
         if form.is_valid():
-            form.save()
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-            )
+            selected_upgrades = form.cleaned_data["upgrades"]
+
+            # If this is a virtual assignment, we need to create a real one
+            if isinstance(assignment, VirtualListFighterEquipmentAssignment):
+                real_assignment = ListFighterEquipmentAssignment.objects.create(
+                    list_fighter=fighter,
+                    content_equipment=assignment.content_equipment,
+                    from_default_assignment=True,
+                    owner=request.user,
+                )
+                # Copy over weapon profiles and accessories
+                real_assignment.weapon_profiles.set(assignment.weapon_profiles.all())
+                if hasattr(assignment, "weapon_accessories"):
+                    real_assignment.weapon_accessories.set(
+                        assignment.weapon_accessories.all()
+                    )
+                assignment = real_assignment
+
+            # Check for conflicting upgrades
+            upgrade_names = set()
+            for upgrade in selected_upgrades:
+                if upgrade.name in upgrade_names:
+                    error_message = f"Cannot select multiple upgrades with the same name: {upgrade.name}"
+                    break
+                upgrade_names.add(upgrade.name)
+
+            if not error_message:
+                # Update upgrades
+                assignment.upgrades.set(selected_upgrades)
+                return HttpResponseRedirect(
+                    reverse(back_name, args=(lst.id, fighter.id))
+                )
     else:
-        form = ListFighterEquipmentAssignmentUpgradeForm(instance=assignment)
+        # Get current upgrades
+        current_upgrades = []
+        if hasattr(assignment, "upgrades"):
+            current_upgrades = assignment.upgrades.all()
+
+        form = ListFighterEquipmentAssignmentUpgradeForm(
+            equipment=assignment.content_equipment, initial={"upgrades": current_upgrades}
+        )
 
     return render(
         request,
@@ -1171,247 +1446,43 @@ def edit_list_fighter_weapon_upgrade(
         {
             "list": lst,
             "fighter": fighter,
-            "assign": assignment,
-            "action_url": action_name,
-            "back_url": back_name,
+            "assignment": assignment,
             "form": form,
-        },
-    )
-
-
-@login_required
-def disable_list_fighter_default_assign(
-    request, id, fighter_id, assign_id, action_name, back_name
-):
-    """
-    Disable a default assignment from :model:`content.ContentFighterDefaultAssignment`.
-
-    **Context**
-
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` owning this equipment assignment.
-    ``assign``
-        The :model:`content.ContentFighterDefaultAssignment` to be disabled.
-
-    **Template**
-
-    :template:`core/list_fighter_assign_disable.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ContentFighterDefaultAssignment,
-        pk=assign_id,
-    )
-
-    if request.method == "POST":
-        fighter.disabled_default_assignments.add(assignment)
-        fighter.save()
-        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
-
-    return render(
-        request,
-        "core/list_fighter_assign_disable.html",
-        {
-            "list": lst,
-            "fighter": fighter,
-            "assign": assignment,
+            "error_message": error_message,
             "action_url": action_name,
             "back_url": back_name,
         },
     )
 
 
-@login_required
-def convert_list_fighter_default_assign(
-    request, id, fighter_id, assign_id, action_name, back_name
-):
-    """
-    Convert a default assignment from :model:`content.ContentFighterDefaultAssignment` to a
-    :model:`core.ListFighterEquipmentAssignment`.
-    **Context**
-
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` owning this equipment assignment.
-    ``assign``
-        The :model:`content.ContentFighterDefaultAssignment` to be converted.
-    ``action_url``
-        The URL to redirect to after the conversion.
-    ``back_url``
-        The URL to redirect back to the list fighter.
-
-    **Template**
-    :template:`core/list_fighter_assign_convert.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ContentFighterDefaultAssignment,
-        pk=assign_id,
-    )
-
-    if request.method == "POST":
-        fighter.convert_default_assignment(assignment)
-        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
-
-    return render(
-        request,
-        "core/list_fighter_assign_convert.html",
-        {
-            "list": lst,
-            "fighter": fighter,
-            "assign": assignment,
-            "action_url": action_name,
-            "back_url": back_name,
-        },
-    )
-
-
-@login_required
-def archive_list_fighter(request, id, fighter_id):
-    """
-    Archive or unarchive a :model:`core.ListFighter`.
-
-    **Context**
-
-    ``fighter``
-        The :model:`core.ListFighter` to be archived or unarchived.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-
-    **Template**
-
-    :template:`core/list_fighter_archive.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    if request.method == "POST":
-        if request.POST.get("archive") == "1":
-            fighter.archive()
-        elif fighter.archived:
-            fighter.unarchive()
-        return HttpResponseRedirect(
-            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
-        )
-
-    return render(
-        request,
-        "core/list_fighter_archive.html",
-        {"fighter": fighter, "list": lst},
-    )
-
-
-@login_required
-def delete_list_fighter(request, id, fighter_id):
-    """
-    Delete a :model:`core.ListFighter`.
-
-    **Context**
-
-    ``fighter``
-        The :model:`core.ListFighter` to be deleted.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-
-    **Template**
-
-    :template:`core/list_fighter_delete.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    if request.method == "POST":
-        fighter.delete()
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
-    return render(
-        request,
-        "core/list_fighter_delete.html",
-        {"fighter": fighter, "list": lst},
-    )
-
-
-def embed_list_fighter(request, id, fighter_id):
-    """
-    Display a single :model:`core.ListFighter` object in an embedded view.
-
-    **Context**
-
-    ``fighter``
-        The requested :model:`core.ListFighter` object.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-
-    **Template**
-
-    :template:`core/list_fighter_embed.html`
-    """
-    lst = get_object_or_404(List, id=id)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    return render(
-        request,
-        "core/list_fighter_embed.html",
-        {"fighter": fighter, "list": lst},
-    )
-
-
-class ListArchivedFightersView(generic.ListView):
-    """
-    Display a page with archived :model:`core.ListFighter` objects within a given :model:`core.List`.
-
-    **Context**
-
-    ``list``
-        The requested :model:`core.List` object (retrieved by ID).
-
-    **Template**
-
-    :template:`core/list_archived_fighters.html`
-    """
-
-    template_name = "core/list_archived_fighters.html"
-    context_object_name = "list"
-
-    def get_queryset(self):
-        """
-        Retrieve the :model:`core.List` by its `id`, ensuring it's owned by the current user.
-        """
-        return get_object_or_404(List, id=self.kwargs["id"], owner=self.request.user)
+from gyrinx.content.models import ContentInjury
 
 
 @login_required
 def list_fighter_injuries_edit(request, id, fighter_id):
     """
-    Edit injuries for a :model:`core.ListFighter` in campaign mode.
+    View and manage injuries for a fighter.
 
     **Context**
 
-    ``fighter``
-        The :model:`core.ListFighter` whose injuries are being managed.
     ``list``
         The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` whose injuries are being managed.
+    ``injuries``
+        The fighter's current injuries.
+    ``available_injuries``
+        All available injuries that can be applied.
 
     **Template**
 
     :template:`core/list_fighter_injuries_edit.html`
     """
-    from django.contrib import messages
-
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(
-            request, "Injuries can only be managed for fighters in campaign mode."
-        )
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    injuries = fighter.injuries.filter(archived=False).select_related("injury")
+    available_injuries = ContentInjury.objects.all().order_by("name")
 
     return render(
         request,
@@ -1419,87 +1490,8 @@ def list_fighter_injuries_edit(request, id, fighter_id):
         {
             "list": lst,
             "fighter": fighter,
-        },
-    )
-
-
-@login_required
-def list_fighter_state_edit(request, id, fighter_id):
-    """
-    Edit the injury state of a :model:`core.ListFighter` in campaign mode.
-
-    **Context**
-
-    ``form``
-        An EditFighterStateForm for changing the fighter's state.
-    ``fighter``
-        The :model:`core.ListFighter` whose state is being changed.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-
-    **Template**
-
-    :template:`core/list_fighter_state_edit.html`
-    """
-    from django.contrib import messages
-
-    from gyrinx.core.models.campaign import CampaignAction
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(request, "Fighter state can only be managed in campaign mode.")
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
-    if request.method == "POST":
-        form = EditFighterStateForm(request.POST, current_state=fighter.injury_state)
-        if form.is_valid():
-            old_state = fighter.get_injury_state_display()
-            new_state = form.cleaned_data["fighter_state"]
-
-            # Only update if state actually changed
-            if fighter.injury_state != new_state:
-                fighter.injury_state = new_state
-                fighter.save()
-
-                new_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[new_state]
-
-                # Log to campaign action
-                if lst.campaign:
-                    description = f"State Change: {fighter.name} changed from {old_state} to {new_state_display}"
-                    if form.cleaned_data.get("reason"):
-                        description += f" - {form.cleaned_data['reason']}"
-
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=f"{fighter.name} is now {new_state_display}",
-                    )
-
-                messages.success(
-                    request, f"Updated {fighter.name}'s state to {new_state_display}"
-                )
-            else:
-                messages.info(request, "Fighter state was not changed.")
-
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
-            )
-    else:
-        form = EditFighterStateForm(current_state=fighter.injury_state)
-
-    return render(
-        request,
-        "core/list_fighter_state_edit.html",
-        {
-            "form": form,
-            "list": lst,
-            "fighter": fighter,
+            "injuries": injuries,
+            "available_injuries": available_injuries,
         },
     )
 
@@ -1507,87 +1499,64 @@ def list_fighter_state_edit(request, id, fighter_id):
 @login_required
 def list_fighter_add_injury(request, id, fighter_id):
     """
-    Add an injury to a :model:`core.ListFighter` in campaign mode.
+    Add an injury to a fighter.
 
     **Context**
 
-    ``form``
-        An AddInjuryForm for selecting the injury to add.
-    ``fighter``
-        The :model:`core.ListFighter` being injured.
     ``list``
         The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to add the injury to.
+    ``form``
+        An instance of :form:`core.AddInjuryForm`.
 
     **Template**
 
     :template:`core/list_fighter_add_injury.html`
     """
-    from django.contrib import messages
-
-    from gyrinx.core.models.campaign import CampaignAction
-
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(
-            request, "Injuries can only be added to fighters in campaign mode."
-        )
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
     if request.method == "POST":
-        form = AddInjuryForm(request.POST, fighter=fighter)
+        form = AddInjuryForm(request.POST)
         if form.is_valid():
-            injury = ListFighterInjury.objects.create_with_user(
-                user=request.user,
-                fighter=fighter,
-                injury=form.cleaned_data["injury"],
-                notes=form.cleaned_data.get("notes", ""),
+            injury = form.cleaned_data["injury"]
+
+            # Create the injury assignment
+            ListFighterInjury.objects.create(
+                list_fighter=fighter,
+                injury=injury,
                 owner=request.user,
             )
 
-            # Update fighter state
-            fighter.injury_state = form.cleaned_data["fighter_state"]
-            fighter.save()
-
-            # Log to campaign action
+            # If this is a campaign list, log the action
             if lst.campaign:
-                description = f"Injury: {fighter.name} suffered {injury.injury.name}"
-                if form.cleaned_data.get("notes"):
-                    description += f" - {form.cleaned_data['notes']}"
-
-                # Update outcome to show fighter state
-                fighter_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[
-                    fighter.injury_state
-                ]
-                outcome = f"{fighter.name} was put into {fighter_state_display}"
+                action_desc = f"{fighter.name} suffered {injury.name}"
+                outcome = injury.description if injury.description else ""
 
                 CampaignAction.objects.create(
                     user=request.user,
                     owner=request.user,
                     campaign=lst.campaign,
                     list=lst,
-                    description=description,
+                    description=action_desc,
                     outcome=outcome,
                 )
 
-            messages.success(
-                request, f"Added injury '{injury.injury.name}' to {fighter.name}"
-            )
+            messages.success(request, f"Added {injury.name} to {fighter.name}")
             return HttpResponseRedirect(
                 reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )
     else:
-        form = AddInjuryForm(fighter=fighter)
+        form = AddInjuryForm()
 
     return render(
         request,
         "core/list_fighter_add_injury.html",
         {
-            "form": form,
             "list": lst,
             "fighter": fighter,
+            "form": form,
         },
     )
 
@@ -1595,53 +1564,48 @@ def list_fighter_add_injury(request, id, fighter_id):
 @login_required
 def list_fighter_remove_injury(request, id, fighter_id, injury_id):
     """
-    Remove an injury from a :model:`core.ListFighter` in campaign mode.
+    Remove an injury from a fighter.
 
     **Context**
 
-    ``injury``
-        The :model:`core.ListFighterInjury` to be removed.
-    ``fighter``
-        The :model:`core.ListFighter` being healed.
     ``list``
         The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` to remove the injury from.
+    ``injury_assignment``
+        The :model:`core.ListFighterInjury` to remove.
 
     **Template**
 
     :template:`core/list_fighter_remove_injury.html`
     """
-    from django.contrib import messages
-
-    from gyrinx.core.models.campaign import CampaignAction
-
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+    injury_assignment = get_object_or_404(
+        ListFighterInjury, id=injury_id, list_fighter=fighter
+    )
 
     if request.method == "POST":
-        injury_name = injury.injury.name
-        injury.delete()
+        injury_name = injury_assignment.injury.name
 
-        # If fighter has no more injuries, reset state to active
-        if fighter.injuries.count() == 0:
-            fighter.injury_state = ListFighter.ACTIVE
-            fighter.save()
-            outcome = "Fighter became available"
-        else:
-            outcome = "Injury removed"
+        # Archive the injury instead of deleting
+        injury_assignment.archived = True
+        injury_assignment.save()
 
-        # Log to campaign action
+        # If this is a campaign list, log the action
         if lst.campaign:
+            action_desc = f"{fighter.name} recovered from {injury_name}"
+
             CampaignAction.objects.create(
                 user=request.user,
                 owner=request.user,
                 campaign=lst.campaign,
                 list=lst,
-                description=f"Recovery: {fighter.name} recovered from {injury_name}",
-                outcome=outcome,
+                description=action_desc,
+                outcome="",
             )
 
-        messages.success(request, f"Removed injury '{injury_name}' from {fighter.name}")
+        messages.success(request, f"Removed {injury_name} from {fighter.name}")
         return HttpResponseRedirect(
             reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
         )
@@ -1650,45 +1614,107 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
         request,
         "core/list_fighter_remove_injury.html",
         {
-            "injury": injury,
-            "fighter": fighter,
             "list": lst,
+            "fighter": fighter,
+            "injury_assignment": injury_assignment,
         },
     )
 
 
 @login_required
-def edit_list_fighter_xp(request, id, fighter_id):
+def list_fighter_state_edit(request, id, fighter_id):
     """
-    Modify XP for a :model:`core.ListFighter` in campaign mode.
+    Edit the state of a fighter.
 
     **Context**
 
-    ``form``
-        An EditFighterXPForm for modifying fighter XP.
-    ``fighter``
-        The :model:`core.ListFighter` whose XP is being modified.
     ``list``
         The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` whose state is being edited.
+    ``form``
+        An instance of :form:`core.EditFighterStateForm`.
+
+    **Template**
+
+    :template:`core/list_fighter_state_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+
+    if request.method == "POST":
+        form = EditFighterStateForm(request.POST)
+        if form.is_valid():
+            new_state = form.cleaned_data["state"]
+            old_state = fighter.state
+
+            # Update the fighter's state
+            fighter.state = new_state
+            fighter.save_with_user(user=request.user)
+
+            # If this is a campaign list, log the action
+            if lst.campaign and old_state != new_state:
+                # Get human-readable state names
+                old_state_display = dict(ListFighterState.choices).get(
+                    old_state, old_state
+                )
+                new_state_display = dict(ListFighterState.choices).get(
+                    new_state, new_state
+                )
+
+                action_desc = (
+                    f"{fighter.name} state changed from {old_state_display} "
+                    f"to {new_state_display}"
+                )
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=action_desc,
+                    outcome="",
+                )
+
+            messages.success(request, f"Updated state for {fighter.name}")
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = EditFighterStateForm(initial={"state": fighter.state})
+
+    return render(
+        request,
+        "core/list_fighter_state_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "form": form,
+        },
+    )
+
+
+from gyrinx.core.forms.list import EditFighterXPForm
+
+
+@login_required
+def edit_list_fighter_xp(request, id, fighter_id):
+    """
+    Edit XP for a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` whose XP is being edited.
+    ``form``
+        An instance of :form:`core.EditFighterXPForm`.
 
     **Template**
 
     :template:`core/list_fighter_xp_edit.html`
     """
-    from django.contrib import messages
-
-    from gyrinx.core.forms.list import EditFighterXPForm
-    from gyrinx.core.models.campaign import CampaignAction
-
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
-    )
-
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(request, "XP can only be tracked for fighters in campaign mode.")
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
     if request.method == "POST":
         form = EditFighterXPForm(request.POST, fighter=fighter)
@@ -1759,3 +1785,23 @@ def edit_list_fighter_xp(request, id, fighter_id):
             "fighter": fighter,
         },
     )
+
+
+class ListCampaignClonesView(generic.DetailView):
+    """
+    Display all campaign clones of a list.
+    
+    Shows a table of all campaign versions of this list with their campaign status.
+    """
+    model = List
+    template_name = "core/list_campaign_clones.html"
+    context_object_name = "list"
+    pk_url_kwarg = "id"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get all campaign clones of this list
+        context["clones"] = self.object.active_campaign_clones.select_related(
+            "campaign", "campaign__owner"
+        ).order_by("-created")
+        return context

@@ -199,6 +199,7 @@ urlpatterns = [
         name="list-fighter-embed",
     ),
     path("list/<id>/print", list.ListPrintView.as_view(), name="list-print"),
+    path("list/<id>/clones", list.ListCampaignClonesView.as_view(), name="list-campaign-clones"),
     # Users
     path("user/<slug_or_id>", gyrinx.core.views.user, name="user"),
     # Campaigns
