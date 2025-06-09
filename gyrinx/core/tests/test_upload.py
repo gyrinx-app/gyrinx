@@ -221,7 +221,9 @@ class TestTinyMCEUpload:
 
         # Post without CSRF token
         response = client.post(url, {"file": "dummy"})
-        assert response.status_code == 403  # CSRF failure
+        # With the new CSRF failure handler, it redirects instead of returning 403
+        assert response.status_code == 302  # Redirects to home page (no referer)
+        assert response.url == reverse("core:index")
 
 
 @pytest.mark.django_db
