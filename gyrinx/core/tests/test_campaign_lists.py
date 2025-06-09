@@ -266,6 +266,9 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
     initial_list = List.objects.create(name="Initial List", owner=user, content_house=house)
     campaign.lists.add(initial_list)
     assert campaign.start_campaign()  # This starts the campaign
+    
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
 
     # Create a new list to add
     new_list = List.objects.create(name="New List", owner=user, content_house=house)
@@ -401,6 +404,9 @@ def test_cannot_add_list_to_post_campaign():
     assert campaign.start_campaign()
     assert campaign.end_campaign()
     
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
+    
     client.login(username="testuser", password="testpass")
     
     # Try to access the add lists page
@@ -424,6 +430,9 @@ def test_campaign_detail_shows_add_lists_for_in_progress():
     initial_list = List.objects.create(name="Initial List", owner=user, content_house=house)
     campaign.lists.add(initial_list)
     assert campaign.start_campaign()
+    
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
     
     client.login(username="testuser", password="testpass")
     
