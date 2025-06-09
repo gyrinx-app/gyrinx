@@ -1,10 +1,33 @@
 steps:
+  # Cancel any ongoing builds for this trigger to ensure deployments happen in order
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    id: Cancel Previous Builds
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "Checking for ongoing builds..."
+        ONGOING_BUILDS=$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
+
+        if [ -z "$ONGOING_BUILDS" ]; then
+          echo "No other ongoing builds found."
+        else
+          echo "Found ongoing builds, canceling them to ensure sequential deployment..."
+          while IFS= read -r build_id; do
+            if [ ! -z "$build_id" ] && [ "$build_id" != "$BUILD_ID" ]; then
+              echo "Canceling build: $build_id"
+              gcloud builds cancel "$build_id" --project=$PROJECT_ID || echo "Failed to cancel build: $build_id"
+            fi
+          done <<< "$ONGOING_BUILDS"
+        fi
+
   - name: "curlimages/curl:latest"
     id: Notify Start
     allowFailure: true
     entrypoint: sh
     secretEnv:
       - _WEBHOOK_URL
+    waitFor: ["Cancel Previous Builds"]
     args:
       - -c
       - |
@@ -12,7 +35,7 @@ steps:
             -H "Content-Type: application/json" \
             -d '{
                 "username": "Google Cloud Build",
-                "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
+                "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n⚠️ Any previous ongoing builds have been cancelled to ensure sequential deployment.\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
                 }'
 
   - name: gcr.io/cloud-builders/docker
@@ -70,12 +93,18 @@ images:
 options:
   substitutionOption: ALLOW_LOOSE
   logging: CLOUD_LOGGING_ONLY
+# Queue builds for up to 1 hour before expiring
+queueTtl: "${_QUEUE_TTL}"
+# Build timeout - 30 minutes should be sufficient
+timeout: "${_TIMEOUT}"
 substitutions:
   _TRIGGER_ID: bd49e415-bc5c-411a-a19d-ec77599c3ddf
   _AR_HOSTNAME: europe-west2-docker.pkg.dev
   _PLATFORM: managed
   _SERVICE_NAME: gyrinx
   _DEPLOY_REGION: europe-west2
+  _QUEUE_TTL: "3600s"
+  _TIMEOUT: "1800s"
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/gyrinx-app-boostrap-discord-webhook-url/versions/latest
