@@ -302,3 +302,25 @@ Screenshots are organized as:
 - `ui_archive/<url_name>_comparison.md` for before/after pairs
 
 The `ui_archive/` directory is gitignored to keep the repository clean.
+
+### Changelog Management
+
+The project uses an automated changelog update script that leverages the `llm` CLI tool to analyze commits and maintain the CHANGELOG.md file.
+
+```bash
+# Update the changelog with recent commits
+./scripts/update_changelog.sh
+
+# Update a specific changelog file
+./scripts/update_changelog.sh path/to/changelog.md
+```
+
+The script will:
+
+1. Detect the last date in the existing changelog
+2. Find all commits since that date
+3. Use LLM to analyze commits and generate properly formatted entries
+4. Group commits by date and category (Features, Fixes, Documentation, etc.)
+5. Create a backup of the original file before updating
+
+**Important for Claude Code**: When working on this repository, check the last date in CHANGELOG.md. If it's more than 2 days old, proactively offer to run the changelog update script to ensure the changelog stays current with recent development activity.

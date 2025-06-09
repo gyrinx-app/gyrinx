@@ -16,6 +16,7 @@
 * [History Tracking](developing-gyrinx/history-tracking.md)
 * [Group-Based Features](developing-gyrinx/group-based-features.md)
 * [Testing](developing-gyrinx/testing.md)
+* [Changelog Management](developing-gyrinx/changelog-management.md)
 
 ## Technical Reference
 
