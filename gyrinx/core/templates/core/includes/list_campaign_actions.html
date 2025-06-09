@@ -1,13 +1,13 @@
 {% load allauth custom_tags humanize %}
 {% if list.is_campaign_mode and list.campaign %}
-    <div class="card g-col-12 g-col-md-12 g-col-xl-8">
+    <div class="card g-col-12 g-col-md-12 g-col-xl-6">
         <div class="card-header p-2">
             <div class="hstack">
                 <h3 class="h5 mb-0">Actions</h3>
                 <div class="ms-auto">
                     <a href="{% url 'core:campaign' list.campaign.id %}"
                        class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                        <i class="bi-award"></i> {{ list.campaign.name }}
+                        <i class="bi-award" aria-hidden="true"></i> {{ list.campaign.name }}
                     </a>
                 </div>
             </div>
@@ -25,7 +25,7 @@
                     <tbody>
                         {% for action in recent_actions %}
                             <tr>
-                                <td class="text-nowrap">{{ action.created|timesince|truncatewords:1 }} ago</td>
+                                <td class="text-nowrap">{{ action.created|timesince }} ago</td>
                                 <td>
                                     {{ action.description|truncatechars:50 }}
                                     {% if action.dice_count > 0 %}
@@ -48,7 +48,7 @@
                 <div class="text-center">
                     <a href="{% url 'core:campaign-actions' list.campaign.id %}?gang={{ list.id }}"
                        class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                        <i class="bi-list-ul"></i> View all actions
+                        <i class="bi-list-ul" aria-hidden="true"></i> View all actions
                     </a>
                 </div>
             {% else %}
