@@ -274,8 +274,8 @@ def test_regular_clone_preserves_public_flag():
 
 
 @pytest.mark.django_db
-def test_cannot_add_lists_after_campaign_starts(client):
-    """Test that lists cannot be added to a campaign after it starts."""
+def test_can_add_lists_to_in_progress_campaign(client):
+    """Test that lists can be added to a campaign after it starts with confirmation."""
     owner = User.objects.create_user(username="owner", password="password")
     house = ContentHouse.objects.create(name="Test House")
     client.login(username="owner", password="password")
@@ -309,24 +309,31 @@ def test_cannot_add_lists_after_campaign_starts(client):
         content_house=house,
     )
 
-    # Try to access add lists page - should redirect
+    # Try to access add lists page - should be accessible
     response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
-    assert response.status_code == 302
-    assert response.url == reverse("core:campaign", args=[campaign.id])
+    assert response.status_code == 200
 
-    # Try to POST a new list - should also redirect
+    # Try to POST a new list without confirmation - should show confirmation
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]), {"list_id": list2.id}
     )
-    assert response.status_code == 302
+    assert response.status_code == 200  # Stays on page to show confirmation
 
-    # Verify list was not added
-    assert list2 not in campaign.lists.all()
+    # Post with confirmation - should work
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]), 
+        {"list_id": list2.id, "confirm": "true"}
+    )
+    assert response.status_code == 302  # Redirects after success
 
-    # Check campaign view doesn't show "Add Lists" button
+    # Verify list was cloned and added
+    campaign.refresh_from_db()
+    assert campaign.lists.count() == 2  # Original cloned list1 + new cloned list2
+    
+    # Check campaign view shows "Add Lists" button
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200
-    assert b"Add Lists" not in response.content
+    assert b"Add Lists" in response.content
 
 
 @pytest.mark.django_db
