@@ -2,9 +2,9 @@ name: Tests
 
 on:
   pull_request:
-    branches: ["**"]
+    types: [opened, synchronize, reopened]
   push:
-    branches: ["**"]
+    branches: ["main"]
 
 permissions:
   id-token: write

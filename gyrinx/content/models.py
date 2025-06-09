@@ -2281,3 +2281,50 @@ class VirtualWeaponProfile:
 
     def __eq__(self, value):
         return self.profile == value
+
+
+class ContentInjuryDefaultOutcome(models.TextChoices):
+    """Default fighter state outcomes when injuries are applied"""
+
+    NO_CHANGE = "no_change", "No Change"
+    ACTIVE = "active", "Active"
+    RECOVERY = "recovery", "Recovery"
+    CONVALESCENCE = "convalescence", "Convalescence"
+    DEAD = "dead", "Dead"
+
+
+class ContentInjury(Content):
+    """
+    Named injuries that can be applied to fighters during campaigns.
+    """
+
+    help_text = "Represents a lasting injury that can be suffered by a fighter during campaign play."
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    phase = models.CharField(
+        max_length=20,
+        choices=ContentInjuryDefaultOutcome.choices,
+        default=ContentInjuryDefaultOutcome.NO_CHANGE,
+        help_text="The default fighter state outcome when this injury is applied.",
+        verbose_name="Default Outcome",
+    )
+    group = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional grouping for organizing injuries in selection dropdowns.",
+    )
+    modifiers = models.ManyToManyField(
+        ContentMod,
+        blank=True,
+        help_text="Modifiers applied when this injury is active.",
+        related_name="injuries",
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Injury"
+        verbose_name_plural = "Injuries"
+        ordering = ["group", "name"]

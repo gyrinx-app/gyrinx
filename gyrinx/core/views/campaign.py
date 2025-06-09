@@ -1,10 +1,13 @@
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchVector
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db import models
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views import generic
 
 from gyrinx.core.forms.campaign import (
@@ -99,6 +102,16 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Prefetch recent actions with related list data
+        context["campaign"] = Campaign.objects.prefetch_related(
+            models.Prefetch(
+                "actions",
+                queryset=CampaignAction.objects.select_related("user", "list").order_by(
+                    "-created"
+                ),
+            )
+        ).get(id=campaign.id)
+
         context["is_owner"] = user == campaign.owner
         return context
 
@@ -129,33 +142,42 @@ def campaign_add_lists(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     # Check if campaign is in a state where lists can be added
-    if not campaign.is_pre_campaign:
-        messages.error(request, "Lists can only be added before a campaign starts.")
+    if campaign.is_post_campaign:
+        messages.error(request, "Lists cannot be added to a completed campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
     added_list = None
     error_message = None
+    show_confirmation = False
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
+        confirm = request.POST.get("confirm") == "true"
+
         if list_id:
             try:
                 list_to_add = List.objects.get(id=list_id)
                 # Check if user can add this list (either owner or public)
                 if list_to_add.owner == request.user or list_to_add.public:
-                    campaign.lists.add(list_to_add)
-                    added_list = list_to_add
-                    # Redirect to the same page with the search params preserved
-                    query_params = []
-                    if request.GET.get("q"):
-                        query_params.append(f"q={request.GET.get('q')}")
-                    if request.GET.get("owner"):
-                        query_params.append(f"owner={request.GET.get('owner')}")
-                    query_str = "&".join(query_params)
-                    return HttpResponseRedirect(
-                        reverse("core:campaign-add-lists", args=(campaign.id,))
-                        + (f"?{query_str}" if query_str else "")
-                        + "#added"
-                    )
+                    # For in-progress campaigns, require confirmation
+                    if campaign.is_in_progress and not confirm:
+                        show_confirmation = True
+                        # Don't redirect, show confirmation instead
+                    else:
+                        # Use the new method to add the list
+                        added_list = campaign.add_list_to_campaign(list_to_add)
+                        # Redirect to the same page with the search params preserved
+                        query_params = []
+                        if request.GET.get("q"):
+                            query_params.append(f"q={request.GET.get('q')}")
+                        if request.GET.get("owner"):
+                            query_params.append(f"owner={request.GET.get('owner')}")
+                        query_str = "&".join(query_params)
+                        return HttpResponseRedirect(
+                            reverse("core:campaign-add-lists", args=(campaign.id,))
+                            + (f"?{query_str}" if query_str else "")
+                            + "#added"
+                        )
                 else:
                     error_message = "You can only add your own lists or public lists."
             except List.DoesNotExist:
@@ -179,9 +201,10 @@ def campaign_add_lists(request, id):
 
     # Apply search filter if provided
     if request.GET.get("q"):
+        search_query = SearchQuery(request.GET.get("q"))
         lists = lists.annotate(
             search=SearchVector("name", "content_house__name", "owner__username")
-        ).filter(search=request.GET.get("q"))
+        ).filter(search=search_query)
 
     # Filter by owner type
     owner_filter = request.GET.get("owner", "all")
@@ -201,6 +224,14 @@ def campaign_add_lists(request, id):
         if latest_list:
             added_list = latest_list
 
+    # If showing confirmation, get the list to confirm
+    list_to_confirm = None
+    if show_confirmation and list_id:
+        try:
+            list_to_confirm = List.objects.get(id=list_id)
+        except List.DoesNotExist:
+            pass
+
     return render(
         request,
         "core/campaign/campaign_add_lists.html",
@@ -209,6 +240,8 @@ def campaign_add_lists(request, id):
             "lists": lists,
             "added_list": added_list,
             "error_message": error_message,
+            "show_confirmation": show_confirmation,
+            "list_to_confirm": list_to_confirm,
         },
     )
 
@@ -318,7 +351,7 @@ def campaign_log_action(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = CampaignActionForm(request.POST)
+        form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
         if form.is_valid():
             action = form.save(commit=False)
             action.campaign = campaign
@@ -330,7 +363,7 @@ def campaign_log_action(request, id):
                 reverse("core:campaign-action-outcome", args=(campaign.id, action.id))
             )
     else:
-        form = CampaignActionForm()
+        form = CampaignActionForm(campaign=campaign, user=request.user)
 
     return render(
         request,
@@ -420,11 +453,63 @@ class CampaignActionList(generic.ListView):
 
     def get_queryset(self):
         self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
-        return self.campaign.actions.select_related("user").order_by("-created")
+
+        # Start with all campaign actions with list relationship
+        actions = self.campaign.actions.select_related("user", "list").order_by(
+            "-created"
+        )
+
+        # Apply text search filter if provided
+        search_query = self.request.GET.get("q", "").strip()
+        if search_query:
+            actions = actions.annotate(
+                search=SearchVector("description", "outcome", "user__username")
+            ).filter(search=SearchQuery(search_query))
+
+        # Apply gang filter if provided
+        gang_id = self.request.GET.get("gang")
+        if gang_id:
+            # Filter actions by users who own the specified list/gang
+            actions = actions.filter(
+                user__in=List.objects.filter(
+                    id=gang_id, campaign=self.campaign
+                ).values_list("owner", flat=True)
+            )
+
+        # Apply author filter if provided
+        author_id = self.request.GET.get("author")
+        if author_id:
+            actions = actions.filter(user__id=author_id)
+
+        # Apply timeframe filter if provided
+        timeframe = self.request.GET.get("timeframe", "all")
+        if timeframe != "all":
+            now = timezone.now()
+            if timeframe == "24h":
+                actions = actions.filter(created__gte=now - timedelta(hours=24))
+            elif timeframe == "7d":
+                actions = actions.filter(created__gte=now - timedelta(days=7))
+            elif timeframe == "30d":
+                actions = actions.filter(created__gte=now - timedelta(days=30))
+
+        return actions
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["campaign"] = self.campaign
+
+        # Get all lists/gangs in the campaign for the gang filter
+        context["campaign_lists"] = self.campaign.lists.select_related(
+            "owner", "content_house"
+        ).order_by("name")
+
+        # Get all users who have performed actions for the author filter
+        context["action_authors"] = (
+            self.campaign.actions.values_list("user__id", "user__username")
+            .distinct()
+            .order_by("user__username")
+        )
+
         # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
         user = self.request.user
         if user.is_authenticated:
@@ -457,6 +542,14 @@ def start_campaign(request, id):
 
     if request.method == "POST":
         if campaign.start_campaign():
+            # Log the campaign start action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Started: {campaign.name} is now active",
+                outcome="Campaign transitioned from pre-campaign to active status",
+            )
             messages.success(request, "Campaign has been started!")
         else:
             if not campaign.lists.exists():
@@ -497,6 +590,14 @@ def end_campaign(request, id):
 
     if request.method == "POST":
         if campaign.end_campaign():
+            # Log the campaign end action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Ended: {campaign.name} has concluded",
+                outcome="Campaign transitioned from active to post-campaign status",
+            )
             messages.success(request, "Campaign has been ended!")
         else:
             messages.error(request, "Campaign cannot be ended.")
@@ -510,6 +611,51 @@ def end_campaign(request, id):
     return render(
         request,
         "core/campaign/campaign_end.html",
+        {"campaign": campaign},
+    )
+
+
+@login_required
+def reopen_campaign(request, id):
+    """
+    Reopen a campaign (transition from post-campaign back to in-progress).
+
+    Only the campaign owner can reopen a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be reopened.
+
+    **Template**
+
+    :template:`core/campaign/campaign_reopen.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        if campaign.reopen_campaign():
+            # Log the campaign reopen action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                description=f"Campaign Reopened: {campaign.name} is active again",
+                outcome="Campaign transitioned from post-campaign back to active status",
+            )
+            messages.success(request, "Campaign has been reopened!")
+        else:
+            messages.error(request, "Campaign cannot be reopened.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # For GET request, show confirmation page
+    if not campaign.can_reopen_campaign():
+        messages.error(request, "This campaign cannot be reopened.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_reopen.html",
         {"campaign": campaign},
     )
 

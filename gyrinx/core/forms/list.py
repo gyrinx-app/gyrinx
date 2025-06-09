@@ -3,7 +3,7 @@ from django import forms
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
-from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS, ColorRadioSelect
+from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
 
@@ -412,3 +412,75 @@ class EditListFighterNarrativeForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
+
+
+class AddInjuryForm(forms.Form):
+    injury = forms.ModelChoiceField(
+        queryset=None,  # Will be set in __init__
+        label="Select Injury",
+        help_text="Choose the lasting injury to apply to this fighter.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    fighter_state = forms.ChoiceField(
+        choices=[],  # Will be set in __init__
+        label="Fighter State",
+        help_text="Select the state to put the fighter into. Defaults to the injury's phase.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    notes = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        required=False,
+        label="Notes",
+        help_text="Optional notes about how this injury was received (will be included in campaign log).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        # Extract fighter from kwargs if provided
+        fighter = kwargs.pop("fighter", None)
+        super().__init__(*args, **kwargs)
+        # Import here to avoid circular imports
+        from gyrinx.content.models import ContentInjury
+        from gyrinx.forms import group_select
+
+        self.fields["injury"].queryset = ContentInjury.objects.select_related()
+
+        # Group injuries by their group field if it exists
+        group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
+
+        # Set fighter state choices including Active for injuries that don't affect availability
+        self.fields["fighter_state"].choices = [
+            (ListFighter.ACTIVE, "Active"),
+            (ListFighter.RECOVERY, "Recovery"),
+            (ListFighter.CONVALESCENCE, "Convalescence"),
+            (ListFighter.DEAD, "Dead"),
+        ]
+
+        # Set initial fighter state to the fighter's current state if provided
+        if fighter and not self.is_bound:
+            self.fields["fighter_state"].initial = fighter.injury_state
+
+
+class EditFighterStateForm(forms.Form):
+    fighter_state = forms.ChoiceField(
+        choices=[],  # Will be set in __init__
+        label="Fighter State",
+        help_text="Select the new state for this fighter.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        required=False,
+        label="Reason",
+        help_text="Optional reason for the state change (will be included in campaign log).",
+    )
+
+    def __init__(self, *args, **kwargs):
+        current_state = kwargs.pop("current_state", None)
+        super().__init__(*args, **kwargs)
+
+        # Set all state choices
+        self.fields["fighter_state"].choices = ListFighter.INJURY_STATE_CHOICES
+
+        # Set initial value to current state
+        if current_state:
+            self.fields["fighter_state"].initial = current_state

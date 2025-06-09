@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 
 from .upload import tinymce_upload as tinymce_upload
@@ -18,12 +19,16 @@ def make_query_params_str(**kwargs) -> str:
 
 def index(request):
     """
-    Display a list of the user's :model:`core.List` objects, or an empty list if the user is anonymous.
+    Display a list of the user's :model:`core.List` objects, campaign gangs, and campaigns.
 
     **Context**
 
     ``lists``
-        A list of :model:`core.List` objects owned by the current user.
+        A list of :model:`core.List` objects owned by the current user (list building mode).
+    ``campaign_gangs``
+        A list of :model:`core.List` objects owned by the current user that are in active campaigns.
+    ``campaigns``
+        A list of :model:`core.Campaign` objects where the user is either the owner or has lists participating.
 
     **Template**
 
@@ -31,13 +36,40 @@ def index(request):
     """
     if request.user.is_anonymous:
         lists = []
+        campaign_gangs = []
+        campaigns = []
     else:
-        lists = List.objects.filter(owner=request.user, status=List.LIST_BUILDING)
+        # Regular lists (not in campaigns)
+        lists = List.objects.filter(
+            owner=request.user, status=List.LIST_BUILDING
+        ).select_related("content_house")
+
+        # Campaign gangs - user's lists that are in active campaigns
+        campaign_gangs = List.objects.filter(
+            owner=request.user,
+            status=List.CAMPAIGN_MODE,
+            campaign__status=Campaign.IN_PROGRESS,
+        ).select_related("campaign", "content_house")
+
+        # Campaigns - where user is owner or has lists participating
+        campaigns = (
+            Campaign.objects.filter(
+                Q(owner=request.user)  # User is campaign admin
+                | Q(
+                    campaign_lists__owner=request.user
+                )  # User has lists in the campaign
+            )
+            .distinct()
+            .order_by("-created")
+        )
+
     return render(
         request,
         "core/index.html",
         {
             "lists": lists,
+            "campaign_gangs": campaign_gangs,
+            "campaigns": campaigns,
         },
     )
 

@@ -400,6 +400,26 @@ class ListFighter(AppBase):
         help_text="Narrative description of the Fighter: their history and how to play them.",
     )
 
+    # Injury state choices
+    ACTIVE = "active"
+    RECOVERY = "recovery"
+    CONVALESCENCE = "convalescence"
+    DEAD = "dead"
+
+    INJURY_STATE_CHOICES = [
+        (ACTIVE, "Active"),
+        (RECOVERY, "Recovery"),
+        (CONVALESCENCE, "Convalescence"),
+        (DEAD, "Dead"),
+    ]
+
+    injury_state = models.CharField(
+        max_length=20,
+        choices=INJURY_STATE_CHOICES,
+        default=ACTIVE,
+        help_text="The current injury state of the fighter in campaign mode.",
+    )
+
     history = HistoricalRecords()
 
     @cached_property
@@ -468,7 +488,19 @@ class ListFighter(AppBase):
     @cached_property
     def _mods(self):
         # Remember: virtual and needs flattening!
-        return [mod for assign in self.assignments_cached for mod in assign.mods]
+        equipment_mods = [
+            mod for assign in self.assignments_cached for mod in assign.mods
+        ]
+
+        # Add injury mods if in campaign mode
+        injury_mods = []
+        if self.list.is_campaign_mode:
+            for injury in self.injuries.select_related("injury").prefetch_related(
+                "injury__modifiers"
+            ):
+                injury_mods.extend(injury.injury.modifiers.all())
+
+        return equipment_mods + injury_mods
 
     def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
         for mod in mods:
@@ -771,9 +803,22 @@ class ListFighter(AppBase):
         values = {
             "name": self.name,
             "content_fighter": self.content_fighter,
+            "legacy_content_fighter": self.legacy_content_fighter,
             "narrative": self.narrative,
             "list": self.list,
             "cost_override": self.cost_override,
+            "movement_override": self.movement_override,
+            "weapon_skill_override": self.weapon_skill_override,
+            "ballistic_skill_override": self.ballistic_skill_override,
+            "strength_override": self.strength_override,
+            "toughness_override": self.toughness_override,
+            "wounds_override": self.wounds_override,
+            "initiative_override": self.initiative_override,
+            "attacks_override": self.attacks_override,
+            "leadership_override": self.leadership_override,
+            "cool_override": self.cool_override,
+            "willpower_override": self.willpower_override,
+            "intelligence_override": self.intelligence_override,
             **kwargs,
         }
 
@@ -782,16 +827,44 @@ class ListFighter(AppBase):
             **values,
         )
 
+        # Clone ManyToMany relationships
         clone.skills.set(self.skills.all())
+        clone.additional_rules.set(self.additional_rules.all())
 
+        # Don't clone disabled default assignments if they've been converted to direct assignments
+        disabled_defaults_to_clone = []
+        for disabled_default in self.disabled_default_assignments.all():
+            # Check if this disabled default has been converted to a direct assignment
+            has_direct_assignment = (
+                self._direct_assignments()
+                .filter(
+                    content_equipment=disabled_default.equipment,
+                    from_default_assignment=disabled_default,
+                )
+                .exists()
+            )
+            if not has_direct_assignment:
+                disabled_defaults_to_clone.append(disabled_default)
+
+        clone.disabled_default_assignments.set(disabled_defaults_to_clone)
+        clone.disabled_pskyer_default_powers.set(
+            self.disabled_pskyer_default_powers.all()
+        )
+
+        # Don't clone equipment assignments that were converted from default assignments
         for assignment in self._direct_assignments():
             if assignment.from_default_assignment is not None:
-                # We don't want to clone stuff that was created from a default assignment
-                # TODO: This is "safe" behaviour but not strictly correct. We should be able to
-                #       to clone an assignment that was created from a default assignment correctly.
-                #       Gotchas are there around linked fighters and the like.
+                # Skip assignments that were converted from default assignments
+                # The clone will get these as default assignments instead
                 continue
             assignment.clone(list_fighter=clone)
+
+        # Clone psyker power assignments
+        for power_assignment in self.psyker_powers.all():
+            ListFighterPsykerPowerAssignment.objects.create(
+                list_fighter=clone,
+                psyker_power=power_assignment.psyker_power,
+            )
 
         return clone
 
@@ -2000,3 +2073,46 @@ class VirtualListFighterPsykerPowerAssignment:
     @cached_property
     def disc(self):
         return f"{self.psyker_power.discipline.name}"
+
+
+class ListFighterInjury(AppBase):
+    """Track injuries for fighters in campaign mode."""
+
+    help_text = "Tracks lasting injuries sustained by a fighter during campaign play."
+
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="injuries",
+        help_text="The fighter who has sustained this injury.",
+    )
+    injury = models.ForeignKey(
+        "content.ContentInjury",
+        on_delete=models.CASCADE,
+        help_text="The specific injury sustained.",
+    )
+    date_received = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this injury was sustained.",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about how this injury was received.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-date_received"]
+        verbose_name = "Fighter Injury"
+        verbose_name_plural = "Fighter Injuries"
+
+    def __str__(self):
+        return f"{self.fighter.name} - {self.injury.name}"
+
+    def clean(self):
+        # Only allow injuries on campaign mode fighters
+        if self.fighter.list.status != List.CAMPAIGN_MODE:
+            raise ValidationError(
+                "Injuries can only be added to fighters in campaign mode."
+            )

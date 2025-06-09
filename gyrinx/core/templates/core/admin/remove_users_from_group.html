@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load static i18n %}
+{% block content %}
+    <div class="module">
+        <h2>{{ title }}</h2>
+        {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-row">
+                <label for="id_group" class="required">Select group:</label>
+                <select name="group" id="id_group" required>
+                    <option value="">---------</option>
+                    {% for group in groups %}<option value="{{ group.pk }}">{{ group.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="module">
+                <h3>Users to be removed ({{ queryset.count }})</h3>
+                <ul>
+                    {% for user in queryset %}
+                        <li>
+                            {{ user.username }}
+                            {% if user.email %}({{ user.email }}){% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% for pk in selected %}<input type="hidden" name="_selected_action" value="{{ pk }}" />{% endfor %}
+            <input type="hidden" name="action" value="{{ action_name }}" />
+            <input type="hidden" name="post" value="yes" />
+            <div class="submit-row">
+                <input type="submit" value="{% trans "Remove from group" %}" class="default" />
+                <a href="#"
+                   onclick="window.history.back(); return false;"
+                   class="button cancel-link">{% trans "Cancel" %}</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

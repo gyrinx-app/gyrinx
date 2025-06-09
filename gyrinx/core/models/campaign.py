@@ -11,6 +11,8 @@ from gyrinx.core.models.base import AppBase
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+pylist = list  # Alias for type hinting JSONField to use list type
+
 
 class Campaign(AppBase):
     # Status choices
@@ -87,6 +89,10 @@ class Campaign(AppBase):
         """Check if the campaign can be ended."""
         return self.status == self.IN_PROGRESS
 
+    def can_reopen_campaign(self):
+        """Check if the campaign can be reopened."""
+        return self.status == self.POST_CAMPAIGN
+
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
@@ -128,6 +134,46 @@ class Campaign(AppBase):
             return True
         return False
 
+    def reopen_campaign(self):
+        """Reopen the campaign (transition from post-campaign back to in-progress)."""
+        if self.can_reopen_campaign():
+            self.status = self.IN_PROGRESS
+            self.save()
+            return True
+        return False
+
+    def add_list_to_campaign(self, list_to_add):
+        """Add a list to the campaign, cloning if necessary.
+
+        For pre-campaign: adds the list directly.
+        For in-progress: clones the list and allocates resources.
+
+        Returns the added list (original for pre-campaign, clone for in-progress).
+        """
+        if self.is_pre_campaign:
+            # Pre-campaign: just add the list directly
+            self.lists.add(list_to_add)
+            return list_to_add
+        elif self.is_in_progress:
+            # In-progress: clone the list and allocate resources
+            campaign_clone = list_to_add.clone(for_campaign=self)
+            self.lists.add(campaign_clone)
+
+            # Allocate default resources to the new list
+            for resource_type in self.resource_types.all():
+                CampaignListResource.objects.create(
+                    campaign=self,
+                    resource_type=resource_type,
+                    list=campaign_clone,
+                    amount=resource_type.default_amount,
+                    owner=self.owner,  # Campaign owner owns the resource tracking
+                )
+
+            return campaign_clone
+        else:
+            # Post-campaign: cannot add lists
+            raise ValueError("Cannot add lists to a completed campaign")
+
 
 class CampaignAction(AppBase):
     """An action taken during a campaign with optional dice rolls"""
@@ -144,6 +190,14 @@ class CampaignAction(AppBase):
         related_name="campaign_actions",
         help_text="The user who performed this action",
     )
+    list = models.ForeignKey(
+        "List",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campaign_actions",
+        help_text="The list this action is related to",
+    )
     description = models.TextField(
         help_text="Description of the action taken",
         validators=[validators.MinLengthValidator(1)],
@@ -157,7 +211,7 @@ class CampaignAction(AppBase):
         default=0, help_text="Number of D6 dice rolled (0 if no roll)"
     )
     dice_results = models.JSONField(
-        default=list, blank=True, help_text="Results of each die rolled"
+        default=pylist, blank=True, help_text="Results of each die rolled"
     )
     dice_total = models.PositiveIntegerField(
         default=0, help_text="Total sum of all dice rolled"
@@ -285,6 +339,7 @@ class CampaignAsset(AppBase):
             CampaignAction.objects.create(
                 campaign=self.asset_type.campaign,
                 user=user,
+                list=new_holder,
                 description=description,
                 dice_count=0,
                 owner=user,
@@ -396,6 +451,7 @@ class CampaignListResource(AppBase):
         CampaignAction.objects.create(
             campaign=self.campaign,
             user=user,
+            list=self.list,
             description=description,
             dice_count=0,
             owner=user,

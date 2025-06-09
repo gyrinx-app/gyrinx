@@ -44,16 +44,19 @@ class CampaignActionForm(forms.ModelForm):
 
     class Meta:
         model = CampaignAction
-        fields = ["description", "dice_count"]
+        fields = ["list", "description", "dice_count"]
         labels = {
+            "list": "Related List (Optional)",
             "description": "Action Description",
             "dice_count": "Number of D6 Dice",
         }
         help_texts = {
+            "list": "Select the list this action is related to (if applicable)",
             "description": "Describe the action being taken",
             "dice_count": "How many D6 dice to roll. Leave at 0 for no roll.",
         }
         widgets = {
+            "list": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(
                 attrs={
                     "class": "form-control",
@@ -65,6 +68,21 @@ class CampaignActionForm(forms.ModelForm):
                 attrs={"class": "form-control", "min": 0, "max": 20, "value": 0}
             ),
         }
+
+    def __init__(self, *args, **kwargs):
+        campaign = kwargs.pop("campaign", None)
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
+        if campaign:
+            # Filter lists to only show those in the campaign that the user owns
+            if user:
+                self.fields["list"].queryset = campaign.lists.filter(owner=user)
+            else:
+                self.fields["list"].queryset = campaign.lists.all()
+
+            # Make the field not required
+            self.fields["list"].required = False
 
 
 class CampaignActionOutcomeForm(forms.ModelForm):

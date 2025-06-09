@@ -14,6 +14,14 @@
               class="vstack gap-3">
             {% csrf_token %}
             <div>
+                {{ form.list.label_tag }}
+                {{ form.list }}
+                {% if form.list.help_text %}
+                    <small class="form-text text-muted">{{ form.list.help_text }}</small>
+                {% endif %}
+                {% if form.list.errors %}<div class="invalid-feedback d-block">{{ form.list.errors }}</div>{% endif %}
+            </div>
+            <div>
                 {{ form.description.label_tag }}
                 {{ form.description }}
                 {% if form.description.help_text %}

@@ -4,7 +4,7 @@ from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import ContentHouse
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.campaign import Campaign, CampaignResourceType
 from gyrinx.core.models.list import List
 
 
@@ -251,3 +251,200 @@ def test_campaign_detail_shows_add_lists_button_for_owner():
         reverse("core:campaign-add-lists", args=[campaign.id]).encode()
         in response.content
     )
+
+
+@pytest.mark.django_db
+def test_add_list_to_in_progress_campaign_shows_confirmation():
+    """Test that adding a list to an in-progress campaign shows a confirmation."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Add an initial list and start the campaign
+    initial_list = List.objects.create(
+        name="Initial List", owner=user, content_house=house
+    )
+    campaign.lists.add(initial_list)
+    assert campaign.start_campaign()  # This starts the campaign
+
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
+
+    # Create a new list to add
+    new_list = List.objects.create(name="New List", owner=user, content_house=house)
+
+    client.login(username="testuser", password="testpass")
+
+    # Try to add the list - should show confirmation
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(new_list.id)},
+    )
+
+    # Should show the confirmation page, not redirect
+    assert response.status_code == 200
+    assert b"Confirm Add List to Active Campaign" in response.content
+    assert b"will immediately clone it for campaign use" in response.content
+    assert new_list.name.encode() in response.content
+
+    # List should NOT be added yet
+    assert new_list not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_confirm_add_list_to_in_progress_campaign():
+    """Test confirming the addition of a list to an in-progress campaign."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Add resources to the campaign
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Credits",
+        default_amount=100,
+        owner=user,
+    )
+
+    # Add an initial list and start the campaign
+    initial_list = List.objects.create(
+        name="Initial List", owner=user, content_house=house
+    )
+    campaign.lists.add(initial_list)
+    assert campaign.start_campaign()
+
+    # After starting, the initial list is cloned, so get the cloned version
+    campaign.refresh_from_db()
+    initial_clone = campaign.lists.get(original_list=initial_list)
+
+    # Create a new list to add
+    new_list = List.objects.create(name="New List", owner=user, content_house=house)
+
+    client.login(username="testuser", password="testpass")
+
+    # Confirm adding the list
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {
+            "list_id": str(new_list.id),
+            "confirm": "true",
+        },
+    )
+
+    # Should redirect after successful addition
+    assert response.status_code == 302
+
+    # Refresh the campaign
+    campaign.refresh_from_db()
+
+    # The new list should be cloned and added
+    assert campaign.lists.count() == 2  # Initial + new
+
+    # Find the newly cloned list (not the initial clone)
+    cloned_list = campaign.lists.exclude(id=initial_clone.id).first()
+    assert cloned_list is not None
+    assert cloned_list.name == new_list.name
+    assert cloned_list.original_list == new_list
+    assert cloned_list.status == List.CAMPAIGN_MODE
+    assert cloned_list.campaign == campaign
+
+    # Check that resources were allocated
+    from gyrinx.core.models.campaign import CampaignListResource
+
+    resource = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=resource_type, list=cloned_list
+    )
+    assert resource.amount == 100  # Default amount
+
+
+@pytest.mark.django_db
+def test_add_list_to_pre_campaign_no_cloning():
+    """Test that adding a list to a pre-campaign doesn't clone it."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    list_to_add = List.objects.create(name="Test List", owner=user, content_house=house)
+
+    client.login(username="testuser", password="testpass")
+
+    # Add the list (no confirmation needed for pre-campaign)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(list_to_add.id)},
+    )
+
+    # Should redirect immediately
+    assert response.status_code == 302
+
+    # List should be added directly (not cloned)
+    assert list_to_add in campaign.lists.all()
+    assert campaign.lists.count() == 1
+
+    # Verify it's the original list, not a clone
+    added_list = campaign.lists.first()
+    assert added_list.id == list_to_add.id
+    assert added_list.status == List.LIST_BUILDING  # Not in campaign mode
+
+
+@pytest.mark.django_db
+def test_cannot_add_list_to_post_campaign():
+    """Test that lists cannot be added to a completed campaign."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Start and end the campaign
+    initial_list = List.objects.create(
+        name="Initial List", owner=user, content_house=house
+    )
+    campaign.lists.add(initial_list)
+    assert campaign.start_campaign()
+    assert campaign.end_campaign()
+
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
+
+    client.login(username="testuser", password="testpass")
+
+    # Try to access the add lists page
+    response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
+
+    # Should redirect with error message
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaign", args=[campaign.id])
+
+
+@pytest.mark.django_db
+def test_campaign_detail_shows_add_lists_for_in_progress():
+    """Test that the add lists button is shown for in-progress campaigns."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Start the campaign
+    initial_list = List.objects.create(
+        name="Initial List", owner=user, content_house=house
+    )
+    campaign.lists.add(initial_list)
+    assert campaign.start_campaign()
+
+    # Refresh the campaign to get updated status
+    campaign.refresh_from_db()
+
+    client.login(username="testuser", password="testpass")
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+
+    # Should still show the Add Lists button for in-progress campaigns
+    assert b"Add Lists" in response.content
