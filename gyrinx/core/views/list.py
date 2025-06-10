@@ -1897,3 +1897,267 @@ class ListCampaignClonesView(generic.DetailView):
             "campaign", "campaign__owner"
         )
         return context
+
+
+@login_required
+def list_fighter_advancements_list(request, id, fighter_id):
+    """
+    List all advancements for a :model:`core.ListFighter` in campaign mode.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` whose advancements are being managed.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``advancements``
+        All :model:`core.ListFighterAdvancement` for this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_advancements_list.html`
+    """
+    from django.contrib import messages
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Advancements can only be managed for fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_advancements_list.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "advancements": fighter.advancements.all().select_related(
+                "stat_mod", "skill"
+            ),
+        },
+    )
+
+
+@login_required
+def list_fighter_advancement_add(request, id, fighter_id):
+    """
+    Add an advancement to a :model:`core.ListFighter` in campaign mode.
+
+    URL parameters can pre-fill the form:
+    - type: "custom", "stat", or "skill"
+    - dice: number of dice to roll
+
+    **Context**
+
+    ``form``
+        An AddAdvancementForm for the advancement.
+    ``fighter``
+        The :model:`core.ListFighter` receiving the advancement.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``advancement_type``
+        The type of advancement being added.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_add.html`
+    """
+    from django.contrib import messages
+    from gyrinx.core.forms import AddAdvancementForm
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Advancements can only be added to fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Get URL parameters
+    advancement_type = request.GET.get("type", "custom")
+    dice_count = request.GET.get("dice", 0)
+
+    if request.method == "POST":
+        form = AddAdvancementForm(
+            request.POST, fighter=fighter, advancement_type=advancement_type
+        )
+        if form.is_valid():
+            advancement = form.save(commit=False)
+            advancement.fighter = fighter
+            advancement.owner = request.user
+
+            # Roll dice if specified
+            if advancement.dice_count > 0:
+                advancement.roll_dice()
+
+            advancement.save()
+
+            # Log to campaign action
+            if lst.campaign:
+                description = (
+                    f"Advancement: {fighter.name} - {advancement.get_summary()}"
+                )
+                description += f" (Cost: {advancement.xp_spent} XP, +{advancement.cost_increase} credits)"
+                if advancement.dice_count > 0:
+                    description += f" [Rolled {advancement.dice_count}d6: {advancement.dice_results} = {advancement.dice_total}]"
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=description,
+                    dice_count=advancement.dice_count,
+                    dice_results=advancement.dice_results,
+                    dice_total=advancement.dice_total,
+                )
+
+            messages.success(request, f"Added advancement to {fighter.name}")
+            return HttpResponseRedirect(
+                reverse(
+                    "core:list-fighter-advancements-list", args=(lst.id, fighter.id)
+                )
+            )
+    else:
+        initial = {
+            "dice_count": dice_count,
+        }
+        form = AddAdvancementForm(
+            initial=initial, fighter=fighter, advancement_type=advancement_type
+        )
+
+    return render(
+        request,
+        "core/list_fighter_advancement_add.html",
+        {
+            "form": form,
+            "list": lst,
+            "fighter": fighter,
+            "advancement_type": advancement_type,
+        },
+    )
+
+
+@login_required
+def list_fighter_advancement_edit(request, id, fighter_id, advancement_id):
+    """
+    Edit an advancement for a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``form``
+        An EditAdvancementForm for the advancement.
+    ``advancement``
+        The :model:`core.ListFighterAdvancement` being edited.
+    ``fighter``
+        The :model:`core.ListFighter` who has this advancement.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_edit.html`
+    """
+    from django.contrib import messages
+    from gyrinx.core.forms import EditAdvancementForm
+    from gyrinx.core.models import ListFighterAdvancement
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    advancement = get_object_or_404(
+        ListFighterAdvancement, id=advancement_id, fighter=fighter, owner=request.user
+    )
+
+    if request.method == "POST":
+        form = EditAdvancementForm(request.POST, instance=advancement)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Updated advancement")
+            return HttpResponseRedirect(
+                reverse(
+                    "core:list-fighter-advancements-list", args=(lst.id, fighter.id)
+                )
+            )
+    else:
+        form = EditAdvancementForm(instance=advancement)
+
+    return render(
+        request,
+        "core/list_fighter_advancement_edit.html",
+        {
+            "form": form,
+            "advancement": advancement,
+            "list": lst,
+            "fighter": fighter,
+        },
+    )
+
+
+@login_required
+def list_fighter_advancement_delete(request, id, fighter_id, advancement_id):
+    """
+    Delete an advancement from a :model:`core.ListFighter`.
+
+    **Context**
+
+    ``advancement``
+        The :model:`core.ListFighterAdvancement` being deleted.
+    ``fighter``
+        The :model:`core.ListFighter` who has this advancement.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_delete_confirm.html`
+    """
+    from django.contrib import messages
+    from gyrinx.core.models import ListFighterAdvancement
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    advancement = get_object_or_404(
+        ListFighterAdvancement, id=advancement_id, fighter=fighter, owner=request.user
+    )
+
+    if request.method == "POST":
+        # Refund XP
+        fighter.xp_current += advancement.xp_spent
+        fighter.save()
+
+        # Log deletion
+        if lst.campaign:
+            description = f"Advancement Removed: {fighter.name} - {advancement.get_summary()} (Refunded {advancement.xp_spent} XP)"
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=description,
+            )
+
+        advancement.delete()
+        messages.success(
+            request, f"Removed advancement and refunded {advancement.xp_spent} XP"
+        )
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancements-list", args=(lst.id, fighter.id))
+        )
+
+    return render(
+        request,
+        "core/list_fighter_advancement_delete_confirm.html",
+        {
+            "advancement": advancement,
+            "list": lst,
+            "fighter": fighter,
+        },
+    )

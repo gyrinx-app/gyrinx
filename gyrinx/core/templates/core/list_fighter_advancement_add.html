@@ -1,0 +1,106 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add Advancement - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="core:list-fighter-advancements-list" id=list.id fighter_id=fighter.id text="Back to advancements" %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">
+            Add Advancement: {{ fighter.name }}
+            {% if advancement_type == "custom" %}
+                - Custom
+            {% elif advancement_type == "stat" %}
+                - Improve Stat
+            {% elif advancement_type == "skill" %}
+                - Learn Skill
+            {% endif %}
+        </h1>
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>Available XP:</strong>
+                        <span class="badge bg-primary ms-2">{{ fighter.xp_current }} XP</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Advancement Details</h5>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                    <div class="row">
+                        {% if advancement_type == "custom" %}
+                            <div class="col-12 mb-3">
+                                <label for="{{ form.custom_description.id_for_label }}" class="form-label">{{ form.custom_description.label }}</label>
+                                {{ form.custom_description }}
+                                {% if form.custom_description.help_text %}
+                                    <div class="form-text">{{ form.custom_description.help_text }}</div>
+                                {% endif %}
+                                {% if form.custom_description.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.custom_description.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% elif advancement_type == "stat" %}
+                            <div class="col-md-8 mb-3">
+                                <label for="{{ form.stat_to_improve.id_for_label }}" class="form-label">{{ form.stat_to_improve.label }}</label>
+                                {{ form.stat_to_improve }}
+                                {% if form.stat_to_improve.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.stat_to_improve.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.stat_modifier.id_for_label }}" class="form-label">{{ form.stat_modifier.label }}</label>
+                                {{ form.stat_modifier }}
+                                {% if form.stat_modifier.help_text %}<div class="form-text">{{ form.stat_modifier.help_text }}</div>{% endif %}
+                                {% if form.stat_modifier.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.stat_modifier.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% elif advancement_type == "skill" %}
+                            <div class="col-12 mb-3">
+                                <label for="{{ form.skill.id_for_label }}" class="form-label">{{ form.skill.label }}</label>
+                                {{ form.skill }}
+                                {% if form.skill.errors %}<div class="invalid-feedback d-block">{{ form.skill.errors }}</div>{% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.xp_spent.id_for_label }}" class="form-label">{{ form.xp_spent.label }}</label>
+                            {{ form.xp_spent }}
+                            {% if form.xp_spent.errors %}<div class="invalid-feedback d-block">{{ form.xp_spent.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.cost_increase.id_for_label }}" class="form-label">{{ form.cost_increase.label }}</label>
+                            {{ form.cost_increase }}
+                            {% if form.cost_increase.errors %}
+                                <div class="invalid-feedback d-block">{{ form.cost_increase.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.dice_count.id_for_label }}" class="form-label">{{ form.dice_count.label }}</label>
+                            {{ form.dice_count }}
+                            {% if form.dice_count.errors %}<div class="invalid-feedback d-block">{{ form.dice_count.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Add Advancement
+                </button>
+                <a href="{% url 'core:list-fighter-advancements-list' list.id fighter.id %}"
+                   class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

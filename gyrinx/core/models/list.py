@@ -1,4 +1,5 @@
 import logging
+import random
 import uuid
 from dataclasses import dataclass, field
 from typing import Union
@@ -450,13 +451,29 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        return self._base_cost_int + sum([e.cost_int() for e in self.assignments()])
+        base_and_equipment = self._base_cost_int + sum(
+            [e.cost_int() for e in self.assignments()]
+        )
+        # Add advancement costs if in campaign mode
+        if self.list.is_campaign_mode:
+            advancement_cost = sum(
+                self.advancements.values_list("cost_increase", flat=True)
+            )
+            return base_and_equipment + advancement_cost
+        return base_and_equipment
 
     @cached_property
     def cost_int_cached(self):
-        return self._base_cost_int + sum(
+        base_and_equipment = self._base_cost_int + sum(
             [e.cost_int() for e in self.assignments_cached]
         )
+        # Add advancement costs if in campaign mode
+        if self.list.is_campaign_mode:
+            advancement_cost = sum(
+                self.advancements.values_list("cost_increase", flat=True)
+            )
+            return base_and_equipment + advancement_cost
+        return base_and_equipment
 
     @cached_property
     def _base_cost_int(self):
@@ -510,7 +527,15 @@ class ListFighter(AppBase):
             ):
                 injury_mods.extend(injury.injury.modifiers.all())
 
-        return equipment_mods + injury_mods
+        # Add advancement stat mods if in campaign mode
+        advancement_mods = []
+        if self.list.is_campaign_mode:
+            for advancement in self.advancements.filter(
+                stat_mod__isnull=False
+            ).select_related("stat_mod"):
+                advancement_mods.append(advancement.stat_mod)
+
+        return equipment_mods + injury_mods + advancement_mods
 
     def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
         for mod in mods:
@@ -881,6 +906,25 @@ class ListFighter(AppBase):
     @property
     def archive_with(self):
         return ListFighter.objects.filter(linked_fighter__list_fighter=self)
+
+    def all_skills(self):
+        """Get all skills including those from advancements."""
+        # Start with regular skills
+        skill_ids = set(self.skills.values_list("id", flat=True))
+
+        # Add skills from advancements if in campaign mode
+        if self.list.is_campaign_mode:
+            advancement_skill_ids = self.advancements.filter(
+                skill__isnull=False
+            ).values_list("skill_id", flat=True)
+            skill_ids.update(advancement_skill_ids)
+
+        # Return ContentSkill queryset
+        return ContentSkill.objects.filter(id__in=skill_ids)
+
+    @cached_property
+    def all_skills_cached(self):
+        return self.all_skills()
 
     class Meta:
         verbose_name = "List Fighter"
@@ -2134,3 +2178,152 @@ class ListFighterInjury(AppBase):
             raise ValidationError(
                 "Injuries can only be added to fighters in campaign mode."
             )
+
+
+class ListFighterAdvancement(AppBase):
+    """Track advancements purchased by fighters using XP."""
+
+    help_text = "Tracks advancements purchased by a fighter using experience points."
+
+    # Core fields
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="advancements",
+        help_text="The fighter who purchased this advancement.",
+    )
+    xp_spent = models.PositiveIntegerField(
+        help_text="Amount of XP spent on this advancement."
+    )
+    cost_increase = models.PositiveIntegerField(
+        default=0, help_text="How much this advancement increases the fighter's cost."
+    )
+
+    # Advancement types (only one should be set)
+    # Type 1: Free text
+    description = models.TextField(
+        blank=True,
+        help_text="Free text description of advancement (for custom advancements).",
+    )
+
+    # Type 2: Stat mod
+    stat_mod = models.ForeignKey(
+        ContentModFighterStat,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        help_text="Stat modification applied by this advancement.",
+    )
+
+    # Type 3: Skill
+    skill = models.ForeignKey(
+        ContentSkill,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        help_text="Skill gained from this advancement.",
+    )
+
+    # Metadata
+    dice_count = models.PositiveIntegerField(
+        default=0, help_text="Number of D6 dice rolled (0 if no roll)"
+    )
+    dice_results = models.JSONField(
+        default=pylist, blank=True, help_text="Results of each die rolled"
+    )
+    dice_total = models.PositiveIntegerField(
+        default=0, help_text="Total sum of all dice rolled"
+    )
+    notes = models.TextField(
+        blank=True, help_text="Optional notes about this advancement."
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["-created"]  # Most recent first
+        verbose_name = "Fighter Advancement"
+        verbose_name_plural = "Fighter Advancements"
+
+    def __str__(self):
+        if self.description:
+            return f"{self.fighter.name} - {self.description[:50]}..."
+        elif self.stat_mod:
+            return f"{self.fighter.name} - {self.stat_mod}"
+        elif self.skill:
+            return f"{self.fighter.name} - {self.skill.name}"
+        return f"{self.fighter.name} - Advancement"
+
+    def clean(self):
+        # Only allow advancements on campaign mode fighters
+        if self.fighter.list.status != List.CAMPAIGN_MODE:
+            raise ValidationError(
+                "Advancements can only be added to fighters in campaign mode."
+            )
+
+        # Ensure at least one advancement type is set
+        advancement_types = [
+            bool(self.description),
+            bool(self.stat_mod_id),
+            bool(self.skill_id),
+        ]
+        if sum(advancement_types) == 0:
+            raise ValidationError(
+                "An advancement must have either a description, stat modification, or skill."
+            )
+        if sum(advancement_types) > 1:
+            raise ValidationError(
+                "An advancement can only have one type: description, stat modification, or skill."
+            )
+
+        # Validate XP spending
+        if self.pk is None:  # Only check on creation
+            if self.xp_spent > self.fighter.xp_current:
+                raise ValidationError(
+                    f"Fighter only has {self.fighter.xp_current} XP available, cannot spend {self.xp_spent} XP."
+                )
+
+        # Validate skill selection for primary/secondary categories
+        if self.skill:
+            valid_categories = list(
+                self.fighter.content_fighter.primary_skill_categories.all()
+            ) + list(self.fighter.content_fighter.secondary_skill_categories.all())
+            if self.skill.category not in valid_categories:
+                raise ValidationError(
+                    "Skills must be from the fighter's primary or secondary skill categories."
+                )
+
+    def roll_dice(self):
+        """Roll the specified number of D6 dice and store results"""
+        if self.dice_count > 0:
+            self.dice_results = [random.randint(1, 6) for _ in range(self.dice_count)]
+            self.dice_total = sum(self.dice_results)
+        else:
+            self.dice_results = []
+            self.dice_total = 0
+
+    def save(self, *args, **kwargs):
+        # If dice_count is set but no results yet, roll the dice
+        if self.dice_count > 0 and not self.dice_results:
+            self.roll_dice()
+
+        # If this is a new advancement, deduct XP from fighter
+        is_new = self.pk is None
+        if is_new:
+            self.fighter.xp_current -= self.xp_spent
+            self.fighter.save()
+
+        super().save(*args, **kwargs)
+
+    def get_summary(self):
+        """Get a human-readable summary of the advancement"""
+        if self.description:
+            return self.description
+        elif self.stat_mod:
+            stat_display = dict(
+                ContentModFighterStat._meta.get_field("stat").choices
+            ).get(self.stat_mod.stat, self.stat_mod.stat)
+            return f"Improved {stat_display} by {self.stat_mod.value}"
+        elif self.skill:
+            return f"Gained {self.skill.name} skill"
+        return "Unknown advancement"

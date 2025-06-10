@@ -160,11 +160,11 @@
                                 </td>
                             </tr>
                         {% endif %}
-                        {% if fighter.skilline_cached|length > 0 %}
+                        {% if fighter.all_skills_cached|length > 0 %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Skills</th>
                                 <td colspan="12">
-                                    {% for skill in fighter.skilline_cached %}
+                                    {% for skill in fighter.all_skills_cached %}
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
                                         {% if not print %}
                                             {% spaceless %}
@@ -299,6 +299,22 @@
                                 <th scope="row" colspan="3">Injuries</th>
                                 <td colspan="12">
                                     <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% comment %} Advancements (only in campaign mode) {% endcomment %}
+                        {% if list.is_campaign_mode %}
+                            <tr class="fs-7">
+                                <th scope="row" colspan="3">Advancements</th>
+                                <td colspan="12">
+                                    {% if fighter.advancements.exists %}
+                                        <span class="badge bg-info">{{ fighter.advancements.count }}</span>
+                                    {% else %}
+                                        <span class="text-muted">No advancements</span>
+                                    {% endif %}
+                                    {% if not print and can_edit %}
+                                        <a href="{% url 'core:list-fighter-advancements-list' list.id fighter.id %}">Edit advancements</a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endif %}
@@ -480,11 +496,11 @@
                                 </td>
                             </tr>
                         {% endif %}
-                        {% if fighter.skilline_cached|length > 0 %}
+                        {% if fighter.all_skills_cached|length > 0 %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Skills</th>
                                 <td colspan="12">
-                                    {% for skill in fighter.skilline_cached %}
+                                    {% for skill in fighter.all_skills_cached %}
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
                                         {% if not print %}
                                             {% spaceless %}
@@ -619,6 +635,22 @@
                                 <th scope="row" colspan="3">Injuries</th>
                                 <td colspan="12">
                                     <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% comment %} Advancements (only in campaign mode) {% endcomment %}
+                        {% if list.is_campaign_mode %}
+                            <tr class="fs-7">
+                                <th scope="row" colspan="3">Advancements</th>
+                                <td colspan="12">
+                                    {% if fighter.advancements.exists %}
+                                        <span class="badge bg-info">{{ fighter.advancements.count }}</span>
+                                    {% else %}
+                                        <span class="text-muted">No advancements</span>
+                                    {% endif %}
+                                    {% if not print and can_edit %}
+                                        <a href="{% url 'core:list-fighter-advancements-list' list.id fighter.id %}">Edit advancements</a>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endif %}

@@ -2,6 +2,8 @@ from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
+from .list import AddAdvancementForm, EditAdvancementForm  # noqa: F401
+
 
 class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     template_name = "pages/forms/widgets/bs_checkbox_select.html"

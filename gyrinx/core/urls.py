@@ -195,6 +195,26 @@ urlpatterns = [
         name="list-fighter-injury-remove",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/advancements/",
+        list.list_fighter_advancements_list,
+        name="list-fighter-advancements-list",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancement/add/",
+        list.list_fighter_advancement_add,
+        name="list-fighter-advancement-add",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancement/<advancement_id>/edit/",
+        list.list_fighter_advancement_edit,
+        name="list-fighter-advancement-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancement/<advancement_id>/delete/",
+        list.list_fighter_advancement_delete,
+        name="list-fighter-advancement-delete",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/embed",
         list.embed_list_fighter,
         name="list-fighter-embed",

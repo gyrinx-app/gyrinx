@@ -1,8 +1,19 @@
 from django import forms
 
-from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
+from gyrinx.content.models import (
+    ContentFighter,
+    ContentHouse,
+    ContentModFighterStat,
+    ContentSkill,
+    ContentWeaponAccessory,
+)
 from gyrinx.core.forms import BsCheckboxSelectMultiple
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterAdvancement,
+    ListFighterEquipmentAssignment,
+)
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
@@ -537,3 +548,137 @@ class EditFighterXPForm(forms.Form):
 
         # We'll do more validation in the view where we have access to the fighter
         return cleaned_data
+
+
+class AddAdvancementForm(forms.ModelForm):
+    """Form for adding an advancement to a fighter."""
+
+    # Fields for different advancement types
+    # Custom advancement
+    custom_description = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3}),
+        label="Description",
+        required=False,
+        help_text="Describe the custom advancement",
+    )
+
+    # Stat advancement
+    stat_to_improve = forms.ChoiceField(
+        choices=[],  # Will be populated in __init__
+        required=False,
+        label="Stat to improve",
+    )
+    stat_modifier = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        required=False,
+        label="Improvement amount",
+        help_text="How much to improve the stat by",
+    )
+
+    # Skill advancement
+    skill = forms.ModelChoiceField(
+        queryset=ContentSkill.objects.none(),  # Will be populated in __init__
+        required=False,
+        label="Skill to gain",
+    )
+
+    class Meta:
+        model = ListFighterAdvancement
+        fields = ["xp_spent", "cost_increase", "dice_count", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.fighter = kwargs.pop("fighter")
+        self.advancement_type = kwargs.pop("advancement_type", "custom")
+        super().__init__(*args, **kwargs)
+
+        # Set up stat choices
+        stat_choices = [
+            ("movement", "Movement (M)"),
+            ("weapon_skill", "Weapon Skill (WS)"),
+            ("ballistic_skill", "Ballistic Skill (BS)"),
+            ("strength", "Strength (S)"),
+            ("toughness", "Toughness (T)"),
+            ("wounds", "Wounds (W)"),
+            ("initiative", "Initiative (I)"),
+            ("attacks", "Attacks (A)"),
+            ("leadership", "Leadership (Ld)"),
+            ("cool", "Cool (Cl)"),
+            ("willpower", "Willpower (Wil)"),
+            ("intelligence", "Intelligence (Int)"),
+        ]
+        self.fields["stat_to_improve"].choices = [("", "---")] + stat_choices
+
+        # Set up skill choices from fighter's primary/secondary categories
+        valid_categories = list(
+            self.fighter.content_fighter.primary_skill_categories.all()
+        ) + list(self.fighter.content_fighter.secondary_skill_categories.all())
+        self.fields["skill"].queryset = ContentSkill.objects.filter(
+            category__in=valid_categories
+        ).select_related("category")
+
+        # Make the appropriate fields required based on advancement type
+        if self.advancement_type == "custom":
+            self.fields["custom_description"].required = True
+        elif self.advancement_type == "stat":
+            self.fields["stat_to_improve"].required = True
+            self.fields["stat_modifier"].required = True
+        elif self.advancement_type == "skill":
+            self.fields["skill"].required = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        # Validate XP spending
+        xp_spent = cleaned_data.get("xp_spent", 0)
+        if xp_spent > self.fighter.xp_current:
+            raise forms.ValidationError(
+                f"Fighter only has {self.fighter.xp_current} XP available, cannot spend {xp_spent} XP."
+            )
+
+        # Validate skill isn't already taken
+        if self.advancement_type == "skill":
+            skill = cleaned_data.get("skill")
+            if skill and self.fighter.all_skills().filter(id=skill.id).exists():
+                raise forms.ValidationError(
+                    f"Fighter already has the {skill.name} skill."
+                )
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        advancement = super().save(commit=False)
+
+        if self.advancement_type == "custom":
+            advancement.description = self.cleaned_data["custom_description"]
+        elif self.advancement_type == "stat":
+            # Create or get the stat mod
+            stat = self.cleaned_data["stat_to_improve"]
+            modifier = self.cleaned_data["stat_modifier"]
+            stat_mod, created = ContentModFighterStat.objects.get_or_create(
+                stat=stat,
+                modifier=f"+{modifier}",
+                defaults={"owner": self.fighter.owner},
+            )
+            advancement.stat_mod = stat_mod
+        elif self.advancement_type == "skill":
+            advancement.skill = self.cleaned_data["skill"]
+
+        if commit:
+            advancement.save()
+
+        return advancement
+
+
+class EditAdvancementForm(forms.ModelForm):
+    """Form for editing an advancement's metadata."""
+
+    class Meta:
+        model = ListFighterAdvancement
+        fields = ["cost_increase", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }

@@ -1,0 +1,56 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Remove Advancement - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="core:list-fighter-advancements-list" id=list.id fighter_id=fighter.id text="Back to advancements" %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">Remove Advancement: {{ fighter.name }}</h1>
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Are you sure you want to remove this advancement?
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Advancement Details</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">
+                    <strong>Type:</strong> {{ advancement.get_summary }}
+                </p>
+                <p class="mb-2">
+                    <strong>XP Spent:</strong> {{ advancement.xp_spent }} XP
+                </p>
+                <p class="mb-2">
+                    <strong>Cost Increase:</strong> +{{ advancement.cost_increase|cost_display }}
+                </p>
+                {% if advancement.dice_count > 0 %}
+                    <p class="mb-2">
+                        <strong>Dice Rolled:</strong>
+                        {{ advancement.dice_count }}d6: {{ advancement.dice_results }} = {{ advancement.dice_total }}
+                    </p>
+                {% endif %}
+                {% if advancement.notes %}
+                    <p class="mb-0">
+                        <strong>Notes:</strong> {{ advancement.notes }}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="border rounded p-2 text-secondary">
+            <i class="bi bi-info-circle me-1"></i>
+            Removing this advancement will refund {{ advancement.xp_spent }} XP to the fighter.
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Remove Advancement
+                </button>
+                <a href="{% url 'core:list-fighter-advancements-list' list.id fighter.id %}"
+                   class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

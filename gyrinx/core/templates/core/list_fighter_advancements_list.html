@@ -1,0 +1,107 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Advancements - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">Advancements: {{ fighter.name }}</h1>
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>Available XP:</strong>
+                        <span class="badge bg-primary ms-2">{{ fighter.xp_current }} XP</span>
+                        <span class="text-muted ms-2">({{ fighter.xp_total }} total earned)</span>
+                    </div>
+                    <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}"
+                       class="btn btn-secondary btn-sm">
+                        <i class="bi bi-pencil"></i>
+                        Edit XP
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% if fighter.advancements.exists %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Advancements</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <thead>
+                            <tr>
+                                <th>Advancement</th>
+                                <th>XP Spent</th>
+                                <th>Cost Increase</th>
+                                <th>
+                                    <span class="visually-hidden">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for advancement in advancements %}
+                                <tr>
+                                    <td {% if advancement.notes or advancement.dice_count > 0 %}rowspan="2"{% endif %}>{{ advancement.get_summary }}</td>
+                                    <td>{{ advancement.xp_spent }} XP</td>
+                                    <td>+{{ advancement.cost_increase|cost_display }}</td>
+                                    <td>
+                                        <a href="{% url 'core:list-fighter-advancement-edit' list.id fighter.id advancement.id %}"
+                                           class="link-secondary me-2">Edit</a>
+                                        <a href="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"
+                                           class="link-danger">Remove</a>
+                                    </td>
+                                </tr>
+                                {% if advancement.notes or advancement.dice_count > 0 %}
+                                    <tr>
+                                        <td colspan="3" class="ps-4 fs-7 text-muted">
+                                            {% if advancement.dice_count > 0 %}
+                                                <span class="me-3">
+                                                    <i class="bi bi-dice-3"></i>
+                                                    Rolled {{ advancement.dice_count }}d6: {{ advancement.dice_results }} = {{ advancement.dice_total }}
+                                                </span>
+                                            {% endif %}
+                                            {% if advancement.notes %}<em>{{ advancement.notes }}</em>{% endif %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="border rounded p-2 text-secondary">
+                <i class="bi bi-info-circle me-1"></i>
+                This fighter has no advancements.
+            </div>
+        {% endif %}
+        <div>
+            <div class="btn-group">
+                <button type="button"
+                        class="btn btn-primary dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi bi-plus-lg"></i> Add Advancement
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a class="dropdown-item"
+                           href="{% url 'core:list-fighter-advancement-add' list.id fighter.id %}?type=custom">Custom Advancement</a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           href="{% url 'core:list-fighter-advancement-add' list.id fighter.id %}?type=stat">Improve Stat</a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           href="{% url 'core:list-fighter-advancement-add' list.id fighter.id %}?type=skill">Learn Skill</a>
+                    </li>
+                </ul>
+            </div>
+            <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+               class="btn btn-link">Back to list</a>
+        </div>
+    </div>
+{% endblock content %}

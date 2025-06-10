@@ -1,0 +1,60 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit Advancement - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="core:list-fighter-advancements-list" id=list.id fighter_id=fighter.id text="Back to advancements" %}
+    <div class="col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3">Edit Advancement: {{ fighter.name }}</h1>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Advancement Details</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">
+                    <strong>Type:</strong> {{ advancement.get_summary }}
+                </p>
+                <p class="mb-2">
+                    <strong>XP Spent:</strong> {{ advancement.xp_spent }} XP
+                </p>
+                {% if advancement.dice_count > 0 %}
+                    <p class="mb-0">
+                        <strong>Dice Rolled:</strong>
+                        {{ advancement.dice_count }}d6: {{ advancement.dice_results }} = {{ advancement.dice_total }}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Edit Metadata</h5>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                    <div class="mb-3">
+                        <label for="{{ form.cost_increase.id_for_label }}" class="form-label">{{ form.cost_increase.label }}</label>
+                        {{ form.cost_increase }}
+                        {% if form.cost_increase.errors %}
+                            <div class="invalid-feedback d-block">{{ form.cost_increase.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save Changes
+                </button>
+                <a href="{% url 'core:list-fighter-advancements-list' list.id fighter.id %}"
+                   class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
