@@ -147,3 +147,17 @@ img {
     transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg)
         translateY(2px);
 }
+
+// Color Forms
+
+.color-radio-label:hover {
+    transform: scale(1.1);
+    z-index: 1;
+}
+.color-radio-input:checked + .color-radio-label {
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.5);
+    transform: scale(1.05);
+}
+.color-radio-input:focus + .color-radio-label {
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+}

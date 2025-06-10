@@ -1,8 +1,10 @@
 {% with id=widget.attrs.id %}
     <div {% if id %}id="{{ id }}"{% endif %}
          {% if widget.attrs.class %}class="{{ widget.attrs.class }}"{% endif %}>
+        {# djlint:off #}
         <div class="d-grid gap-2"
-             style="grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr)); max-width: 24rem;"
+             style="grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
+                    max-width: 24rem"
              role="radiogroup"
              aria-label="Theme color selection">
             {% for group, options, index in widget.optgroups %}
@@ -11,18 +13,6 @@
                 {% endfor %}
             {% endfor %}
         </div>
+        {# djlint:on #}
     </div>
-    <style>
-        .color-radio-label:hover {
-            transform: scale(1.1);
-            z-index: 1;
-        }
-        .color-radio-input:checked + .color-radio-label {
-            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.5);
-            transform: scale(1.05);
-        }
-        .color-radio-input:focus + .color-radio-label {
-            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
-        }
-    </style>
 {% endwith %}

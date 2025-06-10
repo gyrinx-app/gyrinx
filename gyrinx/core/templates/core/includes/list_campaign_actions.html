@@ -29,9 +29,7 @@
                                 <td>
                                     {{ action.description|truncatechars:50 }}
                                     {% if action.dice_count > 0 %}
-                                        <small class="text-muted">
-                                            ({{ action.dice_count }}D6: {{ action.dice_total }})
-                                        </small>
+                                        <small class="text-muted">({{ action.dice_count }}D6: {{ action.dice_total }})</small>
                                     {% endif %}
                                 </td>
                                 <td>

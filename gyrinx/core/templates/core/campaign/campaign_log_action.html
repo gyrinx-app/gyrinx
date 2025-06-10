@@ -16,9 +16,7 @@
             <div>
                 {{ form.list.label_tag }}
                 {{ form.list }}
-                {% if form.list.help_text %}
-                    <small class="form-text text-muted">{{ form.list.help_text }}</small>
-                {% endif %}
+                {% if form.list.help_text %}<small class="form-text text-muted">{{ form.list.help_text }}</small>{% endif %}
                 {% if form.list.errors %}<div class="invalid-feedback d-block">{{ form.list.errors }}</div>{% endif %}
             </div>
             <div>

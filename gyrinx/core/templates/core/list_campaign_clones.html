@@ -6,13 +6,12 @@
 {% block content %}
     {% url 'core:list' list.id as list_url %}
     {% include "core/includes/back.html" with url=list_url text="Back to List" %}
-    
     <div class="col-lg-8 px-0">
         <h1>Campaign Versions</h1>
         <p class="text-secondary">
-            All campaign versions of <a href="{{ list_url }}" class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.name }}</a>
+            All campaign versions of <a href="{{ list_url }}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.name }}</a>
         </p>
-        
         {% if campaign_clones %}
             <div class="table-responsive">
                 <table class="table">
@@ -32,14 +31,16 @@
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
-                                        <a href="{% url 'core:campaign' clone.campaign.id %}" class="link-primary">{{ clone.campaign.name }}</a>
+                                        <a href="{% url 'core:campaign' clone.campaign.id %}"
+                                           class="link-primary">{{ clone.campaign.name }}</a>
                                     {% else %}
                                         <span class="text-muted">No campaign</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
-                                        <a href="{% url 'core:user' clone.campaign.owner.username %}" class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.owner.username }}</a>
+                                        <a href="{% url 'core:user' clone.campaign.owner.username %}"
+                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ clone.campaign.owner.username }}</a>
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}

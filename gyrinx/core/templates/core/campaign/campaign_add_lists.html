@@ -27,17 +27,18 @@
             <div class="alert alert-warning">
                 <h4 class="alert-heading">Confirm Add List to Active Campaign</h4>
                 <p>
-                    This campaign is currently in progress. Adding 
+                    This campaign is currently in progress. Adding
                     <strong>{% list_with_theme list_to_confirm %}</strong>
                     will immediately clone it for campaign use.
                 </p>
                 <p class="mb-0">
-                    <strong>Important:</strong> The list will be cloned to preserve its current state, 
+                    <strong>Important:</strong> The list will be cloned to preserve its current state,
                     and default campaign resources will be allocated to it.
                 </p>
                 <hr>
                 <div class="d-flex gap-2">
-                    <form method="post" action="{% url 'core:campaign-add-lists' campaign.id %}">
+                    <form method="post"
+                          action="{% url 'core:campaign-add-lists' campaign.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="list_id" value="{{ list_to_confirm.id }}">
                         <input type="hidden" name="confirm" value="true">
@@ -45,7 +46,8 @@
                             <i class="bi-check-lg"></i> Yes, Add List
                         </button>
                     </form>
-                    <a href="{% url 'core:campaign-add-lists' campaign.id %}" class="btn btn-secondary">
+                    <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                       class="btn btn-secondary">
                         <i class="bi-x-lg"></i> Cancel
                     </a>
                 </div>
