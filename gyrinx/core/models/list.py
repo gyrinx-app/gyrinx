@@ -1798,7 +1798,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "profile": profile,
                 "cost_int": self._weapon_profile_cost(profile),
-                "cost_display": format_cost_display(self._weapon_profile_cost(profile), show_sign=True),
+                "cost_display": format_cost_display(
+                    self._weapon_profile_cost(profile), show_sign=True
+                ),
             }
             for profile in self.weapon_profiles()
         ]
@@ -1844,7 +1846,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "accessory": accessory,
                 "cost_int": self._weapon_accessory_cost(accessory),
-                "cost_display": format_cost_display(self._weapon_accessory_cost(accessory), show_sign=True),
+                "cost_display": format_cost_display(
+                    self._weapon_accessory_cost(accessory), show_sign=True
+                ),
             }
             for accessory in self.weapon_accessories_cached
         ]
@@ -1911,7 +1915,9 @@ class VirtualListFighterEquipmentAssignment:
                 "upgrade": upgrade,
                 "name": upgrade.name,
                 "cost_int": upgrade.cost_int_cached,
-                "cost_display": format_cost_display(upgrade.cost_int_cached, show_sign=True),
+                "cost_display": format_cost_display(
+                    upgrade.cost_int_cached, show_sign=True
+                ),
             }
             for upgrade in self.active_upgrades_cached
         ]
@@ -1933,7 +1939,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "upgrade": upgrade,
                 "cost_int": upgrade.cost_int_cached,
-                "cost_display": format_cost_display(upgrade.cost_int_cached, show_sign=True),
+                "cost_display": format_cost_display(
+                    upgrade.cost_int_cached, show_sign=True
+                ),
             }
             for upgrade in self.upgrades_cached
         ]

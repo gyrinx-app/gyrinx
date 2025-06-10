@@ -19,19 +19,19 @@ def is_int(value):
 def format_cost_display(cost_value, show_sign=False):
     """
     Format a cost value for display with proper sign handling.
-    
+
     Parameters
     ----------
     cost_value : int or str
         The cost value to format
     show_sign : bool
         Whether to show '+' for positive values (default: False)
-    
+
     Returns
     -------
     str
         Formatted cost string with '¢' suffix
-        
+
     Examples
     --------
     >>> format_cost_display(5)
@@ -44,17 +44,19 @@ def format_cost_display(cost_value, show_sign=False):
     '-5¢'
     >>> format_cost_display(0)
     '0¢'
+    >>> format_cost_display(0, show_sign=True)
+    '+0¢'
     """
     # Convert to int if it's a string
     if isinstance(cost_value, str):
         if not is_int(cost_value):
             return cost_value  # Return as-is if not a number
         cost_value = int(cost_value)
-    
-    # Format with sign if requested and positive
-    if show_sign and cost_value > 0:
+
+    # Format with sign if requested and positive or zero
+    if show_sign and cost_value >= 0:
         return f"+{cost_value}¢"
-    
+
     # Otherwise just return with currency symbol
     return f"{cost_value}¢"
 

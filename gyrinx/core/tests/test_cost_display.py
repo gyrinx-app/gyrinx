@@ -1,4 +1,5 @@
 """Test cost display formatting."""
+
 import pytest
 
 from gyrinx.content.models import (
@@ -40,7 +41,7 @@ class TestFormatCostDisplay:
     def test_zero_cost(self):
         """Test zero cost."""
         assert format_cost_display(0) == "0¢"
-        assert format_cost_display(0, show_sign=True) == "0¢"
+        assert format_cost_display(0, show_sign=True) == "+0¢"
 
     def test_string_input(self):
         """Test string input that can be converted to int."""
@@ -61,19 +62,12 @@ class TestModelCostDisplay:
     def test_equipment_upgrade_negative_cost_display(self):
         """Test that ContentEquipmentUpgrade with negative cost displays correctly."""
         # Note: Can't save without equipment, so just test the method
-        upgrade = ContentEquipmentUpgrade(
-            name="Discount Upgrade",
-            cost=-10,
-            position=0
-        )
+        upgrade = ContentEquipmentUpgrade(name="Discount Upgrade", cost=-10, position=0)
         assert upgrade.cost_display() == "-10¢"
 
     def test_weapon_accessory_negative_cost_display(self):
         """Test that ContentWeaponAccessory with negative cost displays correctly."""
-        accessory = ContentWeaponAccessory(
-            name="Discount Accessory",
-            cost=-5
-        )
+        accessory = ContentWeaponAccessory(name="Discount Accessory", cost=-5)
         assert accessory.cost_display() == "-5¢"
 
     def test_equipment_list_override_display(self):
@@ -86,28 +80,28 @@ class TestModelCostDisplay:
             house=house,
             base_cost=100,
         )
-        
+
         spoon = ContentEquipment.objects.create(
             name="Test Spoon",
             category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
             cost=10,
         )
-        
+
         # This fighter gets spoons on the cheap
         ContentFighterEquipmentListItem.objects.create(
             fighter=content_fighter, equipment=spoon, cost=5
         )
-        
+
         lst = List.objects.create(name="Test List", content_house=house)
         fighter = ListFighter.objects.create(
             name="Test Fighter", list=lst, content_fighter=content_fighter
         )
-        
+
         fighter.assign(spoon)
-        
+
         assignment = ListFighterEquipmentAssignment.objects.get(
             list_fighter=fighter, content_equipment=spoon
         )
-        
+
         # This is the specific assertion that's failing in the original test
         assert assignment.base_cost_display() == "5¢"

@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, render
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 
-from .csrf import csrf_failure
+from .csrf import csrf_failure as csrf_failure
 from .upload import tinymce_upload as tinymce_upload
 
 

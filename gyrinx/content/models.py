@@ -1494,6 +1494,9 @@ class ContentEquipmentUpgrade(Content):
         """
         Returns a cost display string with '¢'.
         """
+        # If equipment is not set (e.g., unsaved object), use the cost directly
+        if not hasattr(self, "equipment") or self.equipment_id is None:
+            return format_cost_display(self.cost)
         return format_cost_display(self.cost_int_cached)
 
     class Meta:
