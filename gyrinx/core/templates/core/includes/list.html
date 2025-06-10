@@ -1,11 +1,13 @@
 {% load allauth custom_tags color_tags %}
 <div>
     {% if list.archived %}
-        <div class="alert alert-secondary d-flex align-items-center mb-3" role="alert">
+        <div class="alert alert-secondary d-flex align-items-center mb-3"
+             role="alert">
             <i class="bi-archive me-2"></i>
             <strong>This gang has been archived by its owner.</strong>
             {% if list.owner_cached == user %}
-                <a href="{% url 'core:list-archive' list.id %}" class="ms-auto btn btn-sm btn-secondary">Unarchive</a>
+                <a href="{% url 'core:list-archive' list.id %}"
+                   class="ms-auto btn btn-sm btn-secondary">Unarchive</a>
             {% endif %}
         </div>
     {% endif %}
@@ -141,8 +143,14 @@
                                 </li>
                                 {% if list.owner_cached == user %}
                                     <li>
-                                        <a href="{% url 'core:list-archive' list.id %}" class="dropdown-item icon-link">
-                                            <i class="bi-archive"></i> {% if list.archived %}Unarchive{% else %}Archive{% endif %}
+                                        <a href="{% url 'core:list-archive' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-archive"></i>
+                                            {% if list.archived %}
+                                                Unarchive
+                                            {% else %}
+                                                Archive
+                                            {% endif %}
                                         </a>
                                     </li>
                                 {% endif %}
