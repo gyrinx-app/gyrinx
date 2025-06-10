@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "24"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
@@ -42,28 +42,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install ruff==0.11.13 djlint==1.36.4 nbstripout==0.8.1
+          python -m venv .venv && \
+          . .venv/bin/activate && \
+          pip install --editable .
+
+      - name: Write to .env file
+        run: |
+          echo "SECRET_KEY=test-secret" >> .env
+          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
       - name: Install Node dependencies
         run: npm ci
 
       - name: Check Python formatting with ruff
         run: |
-          ruff check .
+          source .venv/bin/activate && \
+          ruff check . && \
           ruff format --check .
 
       - name: Check Django template formatting with djlint
         run: |
+          source .venv/bin/activate && \
           djlint --profile=django --lint --check .
 
       - name: Check JavaScript/CSS/SCSS/JSON/YAML/Markdown formatting with prettier
-        run: npm run fmt-check
+        run: |
+          source .venv/bin/activate && \
+          npm run fmt-check
 
       - name: Check Jupyter notebooks are stripped
         run: |
+          source .venv/bin/activate
           # Find all Jupyter notebooks and check if they have outputs
           find . -name "*.ipynb" -type f -print0 | xargs -0 -I {} sh -c '
             if nbstripout --verify "$1"; then
