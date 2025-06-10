@@ -365,6 +365,8 @@ def test_campaign_action_list_filtering():
     action1 = CampaignAction.objects.create(
         campaign=campaign,
         user=user1,
+        owner=user1,  # Add owner field
+        list=list1,  # Associate with Gang Alpha
         description="Gang Alpha attacks the water still",
         outcome="Victory! Water still captured",
         dice_count=3,
@@ -375,6 +377,8 @@ def test_campaign_action_list_filtering():
     action2 = CampaignAction.objects.create(
         campaign=campaign,
         user=user2,
+        owner=user2,  # Add owner field
+        list=list2,  # Associate with Gang Beta
         description="Gang Beta scouts the underhive",
         outcome="Found a hidden cache",
         dice_count=2,
@@ -385,6 +389,8 @@ def test_campaign_action_list_filtering():
     CampaignAction.objects.create(
         campaign=campaign,
         user=user1,
+        owner=user1,  # Add owner field
+        list=list1,  # Associate with Gang Alpha
         description="Gang Alpha trades at the market",
         outcome="",
         dice_count=0,
