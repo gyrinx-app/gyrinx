@@ -470,12 +470,8 @@ class CampaignActionList(generic.ListView):
         # Apply gang filter if provided
         gang_id = self.request.GET.get("gang")
         if gang_id:
-            # Filter actions by users who own the specified list/gang
-            actions = actions.filter(
-                user__in=List.objects.filter(
-                    id=gang_id, campaign=self.campaign
-                ).values_list("owner", flat=True)
-            )
+            # Filter actions by the specific list/gang
+            actions = actions.filter(list_id=gang_id)
 
         # Apply author filter if provided
         author_id = self.request.GET.get("author")
