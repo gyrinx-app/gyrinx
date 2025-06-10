@@ -93,14 +93,16 @@ jobs:
 
           timeout_minutes: "60"
 
-          allowed_tools: |
-            Bash(ruff:*),
-            Bash(djlint:*),
-            Bash(nbstripout:*),
-            Bash(npm:*),
-            Bash(./scripts/test.sh:*),
-            Bash(pytest:*),
-            Bash(ruff format:*),
-            Bash(ruff check:*),
-            Bash(python scripts/manage.py makemigrations:*),
-            Bash(manage:*)
+          allowed_tools: "Bash"
+
+          custom_instructions: |
+            IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
+            pip install --editable .
+
+            This installs all project dependencies defined in pyproject.toml, including:
+            - pytest for testing
+            - ruff for linting and formatting
+            - All other development dependencies
+
+            For running the full test suite, use: ./scripts/test.sh (which includes Docker setup)
+            For quick linting, after installing dependencies, use: ruff check . && ruff format --check .
