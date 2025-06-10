@@ -114,10 +114,10 @@ class ListDetailView(generic.DetailView):
         if list_obj.is_campaign_mode and list_obj.campaign:
             from gyrinx.core.models.campaign import CampaignAction
 
-            # Get recent actions for this list (related to this list or by the list owner)
+            # Get recent actions for this specific list only
             recent_actions = (
                 CampaignAction.objects.filter(campaign=list_obj.campaign)
-                .filter(Q(list=list_obj) | Q(user=list_obj.owner))
+                .filter(list=list_obj)
                 .select_related("user", "list")
                 .order_by("-created")[:5]
             )
