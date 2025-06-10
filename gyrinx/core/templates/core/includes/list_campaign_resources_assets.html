@@ -13,9 +13,32 @@
             </div>
         </div>
         <div class="card-body p-2">
-            <div class="row g-2">
+            <div class="row g-3">
+                {% if held_assets %}
+                    <div class="col-12">
+                        <h4 class="h6 mb-2 text-muted">Assets</h4>
+                        <ul class="list-group list-group-flush">
+                            {% for asset in held_assets %}
+                                <li class="list-group-item px-0 py-1 fs-7">
+                                    <div class="vstack">
+                                        <div>
+                                            <strong>{{ asset.name }}</strong>
+                                            {% if asset.asset_type.name_singular %}
+                                                <span class="text-muted">({{ asset.asset_type.name_singular }})</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
+                                           class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-2">
+                                            <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
+                                        </a>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
                 {% if campaign_resources %}
-                    <div class="col-12 col-md-6">
+                    <div class="col-12">
                         <h4 class="h6 mb-2 text-muted">Resources</h4>
                         <table class="table table-sm mb-0 fs-7">
                             <tbody>
@@ -27,7 +50,7 @@
                                         </td>
                                         <td class="text-end">
                                             <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.resource_type.id %}"
-                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                                 <i class="bi-pencil-square" aria-hidden="true"></i> Modify
                                             </a>
                                         </td>
@@ -37,34 +60,6 @@
                         </table>
                     </div>
                 {% endif %}
-                
-                {% if held_assets %}
-                    <div class="col-12 col-md-6">
-                        <h4 class="h6 mb-2 text-muted">Assets</h4>
-                        <ul class="list-group list-group-flush">
-                            {% for asset in held_assets %}
-                                <li class="list-group-item px-0 py-1 fs-7">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <strong>{{ asset.name }}</strong>
-                                            {% if asset.asset_type.name_singular %}
-                                                <small class="text-muted">({{ asset.asset_type.name_singular }})</small>
-                                            {% endif %}
-                                        </div>
-                                        <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
-                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-2">
-                                            <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
-                                        </a>
-                                    </div>
-                                    {% if asset.description %}
-                                        <small class="text-muted">{{ asset.description|safe|truncatewords:10 }}</small>
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                {% endif %}
-                
                 {% if not campaign_resources and not held_assets %}
                     <div class="col-12">
                         <p class="text-muted fs-7 mb-0">No assets or resources held.</p>

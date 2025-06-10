@@ -84,6 +84,10 @@ class ListDetailView(generic.DetailView):
         The requested :model:`core.List` object.
     ``recent_actions``
         Recent campaign actions related to this list (if in campaign mode).
+    ``campaign_resources``
+        Resources held by this list in the campaign (if in campaign mode).
+    ``held_assets``
+        Assets held by this list in the campaign (if in campaign mode).
 
     **Template**
 
@@ -116,6 +120,16 @@ class ListDetailView(generic.DetailView):
             )
 
             context["recent_actions"] = recent_actions
+
+            # Get campaign resources held by this list
+            campaign_resources = list_obj.campaign_resources.filter(
+                amount__gt=0
+            ).select_related("resource_type")
+            context["campaign_resources"] = campaign_resources
+
+            # Get assets held by this list
+            held_assets = list_obj.held_assets.select_related("asset_type")
+            context["held_assets"] = held_assets
 
         return context
 
