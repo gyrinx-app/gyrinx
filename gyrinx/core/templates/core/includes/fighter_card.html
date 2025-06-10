@@ -302,6 +302,24 @@
                                 </td>
                             </tr>
                         {% endif %}
+                        {% comment %} Advancements (only in campaign mode) {% endcomment %}
+                        {% if list.is_campaign_mode %}
+                            <tr class="fs-7">
+                                <th scope="row" colspan="3">Advancements</th>
+                                <td colspan="12">
+                                    {% with advancement_count=fighter.advancements.count %}
+                                        {% if advancement_count == 0 %}
+                                            None
+                                        {% else %}
+                                            <span class="badge text-bg-success">{{ advancement_count }}</span>
+                                        {% endif %}
+                                        {% if not print and can_edit %}
+                                            <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 </table>
                 {% comment %} Wargear {% endcomment %}
@@ -619,6 +637,24 @@
                                 <th scope="row" colspan="3">Injuries</th>
                                 <td colspan="12">
                                     <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% comment %} Advancements (only in campaign mode) {% endcomment %}
+                        {% if list.is_campaign_mode %}
+                            <tr class="fs-7">
+                                <th scope="row" colspan="3">Advancements</th>
+                                <td colspan="12">
+                                    {% with advancement_count=fighter.advancements.count %}
+                                        {% if advancement_count == 0 %}
+                                            None
+                                        {% else %}
+                                            <span class="badge text-bg-success">{{ advancement_count }}</span>
+                                        {% endif %}
+                                        {% if not print and can_edit %}
+                                            <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                                        {% endif %}
+                                    {% endwith %}
                                 </td>
                             </tr>
                         {% endif %}

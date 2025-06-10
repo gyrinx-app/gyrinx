@@ -1,0 +1,61 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block content %}
+    <div class="vstack gap-3">
+        <div class="vstack gap-1">
+            {% include "core/includes/back.html" with url=list.get_absolute_url text="Back to list" %}
+            <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
+            <div class="text-secondary">Step 4 of 4: Confirm Advancement</div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Confirm Advancement Purchase</h3>
+            </div>
+            <div class="card-body">
+                <div class="vstack gap-3">
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi-exclamation-triangle me-2"></i>
+                        Please confirm the following advancement for {{ fighter.name }}:
+                    </div>
+
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Advancement:</dt>
+                        <dd class="col-sm-8">
+                            {% if details.type == "stat" %}
+                                <span class="badge text-bg-info">Stat Increase</span>
+                                {{ details.description }}
+                            {% else %}
+                                <span class="badge text-bg-success">New Skill</span>
+                                {{ details.description }}
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-sm-4">XP Cost:</dt>
+                        <dd class="col-sm-8">{{ details.xp_cost }} XP</dd>
+
+                        <dt class="col-sm-4">Fighter Cost Increase:</dt>
+                        <dd class="col-sm-8">+{{ details.cost_increase }} credits</dd>
+
+                        <dt class="col-sm-4">Current XP:</dt>
+                        <dd class="col-sm-8">{{ fighter.xp_current }} XP</dd>
+
+                        <dt class="col-sm-4">XP After Purchase:</dt>
+                        <dd class="col-sm-8">{{ fighter.xp_current|add:details.xp_cost|stringformat:"-d" }} XP</dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="card-footer">
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi-check-lg"></i> Confirm Purchase
+                    </button>
+                </form>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

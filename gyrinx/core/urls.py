@@ -179,6 +179,37 @@ urlpatterns = [
         list.edit_list_fighter_xp,
         name="list-fighter-xp-edit",
     ),
+    # Fighter advancements
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements",
+        list.list_fighter_advancements,
+        name="list-fighter-advancements",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements/new",
+        list.list_fighter_advancement_start,
+        name="list-fighter-advancement-start",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements/new/dice",
+        list.list_fighter_advancement_dice_choice,
+        name="list-fighter-advancement-dice-choice",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements/new/type",
+        list.list_fighter_advancement_type,
+        name="list-fighter-advancement-type",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements/new/select",
+        list.list_fighter_advancement_select,
+        name="list-fighter-advancement-select",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/advancements/new/confirm",
+        list.list_fighter_advancement_confirm,
+        name="list-fighter-advancement-confirm",
+    ),
     path(
         "list/<id>/fighter/<fighter_id>/state/edit",
         list.list_fighter_state_edit,

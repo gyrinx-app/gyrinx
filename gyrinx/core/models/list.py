@@ -2135,3 +2135,119 @@ class ListFighterInjury(AppBase):
             raise ValidationError(
                 "Injuries can only be added to fighters in campaign mode."
             )
+
+
+class ListFighterAdvancement(AppBase):
+    """Track advancements purchased by fighters using XP in campaign mode."""
+
+    # Types of advancements
+    ADVANCEMENT_STAT = "stat"
+    ADVANCEMENT_SKILL = "skill"
+
+    ADVANCEMENT_TYPE_CHOICES = [
+        (ADVANCEMENT_STAT, "Characteristic Increase"),
+        (ADVANCEMENT_SKILL, "New Skill"),
+    ]
+
+    STAT_CHOICES = [
+        ("movement", "Movement"),
+        ("weapon_skill", "Weapon Skill"),
+        ("ballistic_skill", "Ballistic Skill"),
+        ("strength", "Strength"),
+        ("toughness", "Toughness"),
+        ("wounds", "Wounds"),
+        ("initiative", "Initiative"),
+        ("attacks", "Attacks"),
+        ("leadership", "Leadership"),
+        ("cool", "Cool"),
+        ("willpower", "Willpower"),
+        ("intelligence", "Intelligence"),
+    ]
+
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="advancements",
+        help_text="The fighter who purchased this advancement.",
+    )
+
+    advancement_type = models.CharField(
+        max_length=10,
+        choices=ADVANCEMENT_TYPE_CHOICES,
+        help_text="The type of advancement purchased.",
+    )
+
+    # For stat advancements
+    stat_increased = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        choices=STAT_CHOICES,
+        help_text="For stat increases, which characteristic was improved.",
+    )
+
+    # For skill advancements
+    skill = models.ForeignKey(
+        ContentSkill,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="For skill advancements, which skill was gained.",
+    )
+
+    xp_cost = models.PositiveIntegerField(
+        help_text="The XP cost of this advancement.",
+    )
+
+    cost_increase = models.IntegerField(
+        default=0,
+        help_text="The increase in fighter cost from this advancement.",
+    )
+
+    # Link to campaign action if dice were rolled
+    campaign_action = models.OneToOneField(
+        "CampaignAction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="advancement",
+        help_text="The campaign action recording the dice roll for this advancement.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["fighter", "created"]
+        verbose_name = "Fighter Advancement"
+        verbose_name_plural = "Fighter Advancements"
+
+    def __str__(self):
+        if self.advancement_type == self.ADVANCEMENT_STAT:
+            return f"{self.fighter.name} - {self.get_stat_increased_display()}"
+        elif self.skill:
+            return f"{self.fighter.name} - {self.skill.name}"
+        return f"{self.fighter.name} - Advancement"
+
+    def apply_advancement(self):
+        """Apply this advancement to the fighter."""
+        if self.advancement_type == self.ADVANCEMENT_STAT and self.stat_increased:
+            # Apply stat increase
+            override_field = f"{self.stat_increased}_override"
+            base_value = getattr(self.fighter.content_fighter, self.stat_increased)
+            current_override = getattr(self.fighter, override_field) or base_value
+            setattr(self.fighter, override_field, current_override + 1)
+            self.fighter.save()
+        elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
+            # Add skill to fighter
+            self.fighter.skills.add(self.skill)
+
+    def clean(self):
+        """Validate the advancement."""
+        if self.advancement_type == self.ADVANCEMENT_STAT and not self.stat_increased:
+            raise ValidationError("Stat advancement requires a stat to be selected.")
+        if self.advancement_type == self.ADVANCEMENT_SKILL and not self.skill:
+            raise ValidationError("Skill advancement requires a skill to be selected.")
+        if self.advancement_type == self.ADVANCEMENT_STAT and self.skill:
+            raise ValidationError("Stat advancement should not have a skill selected.")
+        if self.advancement_type == self.ADVANCEMENT_SKILL and self.stat_increased:
+            raise ValidationError("Skill advancement should not have a stat selected.")

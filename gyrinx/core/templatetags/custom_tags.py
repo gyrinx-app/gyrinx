@@ -212,3 +212,14 @@ def fullurl(context: RequestContext, path):
 @register.simple_tag
 def settings_value(name):
     return getattr(settings, name, "")
+
+
+@register.simple_tag
+def get_skill(skill_id):
+    """Get a ContentSkill by its ID."""
+    from gyrinx.content.models import ContentSkill
+
+    try:
+        return ContentSkill.objects.get(pk=skill_id)
+    except ContentSkill.DoesNotExist:
+        return None

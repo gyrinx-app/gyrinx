@@ -1,0 +1,87 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block content %}
+    <div class="vstack gap-3">
+        <div class="vstack gap-1">
+            {% include "core/includes/back.html" with url=list.get_absolute_url text="Back to list" %}
+            <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
+            <div class="text-secondary">Step 3 of 4: Select {{ advancement_type|slice:":4"|capfirst }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="h5 mb-0">
+                    {% if advancement_type|slice:":5" == "stat_" %}
+                        Confirm Stat Increase
+                    {% elif "random" in advancement_type %}
+                        Random Skill Selection
+                    {% else %}
+                        Choose Skill
+                    {% endif %}
+                </h3>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="card-body">
+                    {% if advancement_type|slice:":5" == "stat_" %}
+                        <p>You are about to increase <strong>{{ form.stat.value|upper }}</strong> for {{ fighter.name }}.</p>
+                        {{ form.stat }}
+                        <div class="form-check">
+                            {{ form.confirm }}
+                            <label class="form-check-label" for="{{ form.confirm.id_for_label }}">
+                                {{ form.confirm.label }}
+                            </label>
+                        </div>
+                        {% if form.confirm.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.confirm.errors.0 }}
+                            </div>
+                        {% endif %}
+                    {% elif "random" in advancement_type %}
+                        {% if form.skill_id.value %}
+                            {% load custom_tags %}
+                            {% get_skill form.skill_id.value as selected_skill %}
+                            <p>A random skill has been selected:</p>
+                            <div class="alert alert-success">
+                                <strong>{{ selected_skill.name }}</strong>
+                                {% if selected_skill.description %}
+                                    <div class="mt-2 small">{{ selected_skill.description }}</div>
+                                {% endif %}
+                            </div>
+                            {{ form.skill_id }}
+                            <div class="form-check">
+                                {{ form.confirm }}
+                                <label class="form-check-label" for="{{ form.confirm.id_for_label }}">
+                                    {{ form.confirm.label }}
+                                </label>
+                            </div>
+                            {% if form.confirm.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.confirm.errors.0 }}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-danger">No available skills found for this fighter.</p>
+                        {% endif %}
+                    {% else %}
+                        <div>
+                            <label for="{{ form.skill.id_for_label }}" class="form-label">Select Skill</label>
+                            {{ form.skill }}
+                            <div class="form-text">{{ form.skill.help_text }}</div>
+                            {% if form.skill.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.skill.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary">
+                        Next <i class="bi-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

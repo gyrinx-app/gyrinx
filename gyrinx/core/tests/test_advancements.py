@@ -1,0 +1,244 @@
+"""Tests for fighter advancement system."""
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.urls import reverse
+
+from gyrinx.content.models import (
+    ContentFighter,
+    ContentHouse,
+    ContentSkill,
+    ContentSkillCategory,
+)
+from gyrinx.core.models import Campaign, List, ListFighter, ListFighterAdvancement
+
+User = get_user_model()
+
+
+@pytest.fixture
+def user():
+    return User.objects.create_user(username="testuser", password="testpass")
+
+
+@pytest.fixture
+def house():
+    return ContentHouse.objects.create(name="Test House")
+
+
+@pytest.fixture
+def content_fighter(house):
+    return ContentFighter.objects.create(
+        name="Test Fighter Type",
+        house=house,
+        movement=4,
+        weapon_skill=3,
+        ballistic_skill=4,
+        strength=3,
+        toughness=3,
+        wounds=1,
+        initiative=4,
+        attacks=1,
+        leadership=7,
+        cool=7,
+        willpower=7,
+        intelligence=7,
+        type="ganger",
+        category="troops",
+        cost=50,
+    )
+
+
+@pytest.fixture
+def skill_category():
+    return ContentSkillCategory.objects.create(name="Combat")
+
+
+@pytest.fixture
+def skill(skill_category):
+    return ContentSkill.objects.create(
+        name="Iron Jaw",
+        category=skill_category,
+        description="This fighter can withstand more punishment.",
+    )
+
+
+@pytest.fixture
+def campaign(user):
+    return Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        status=Campaign.ACTIVE,
+    )
+
+
+@pytest.fixture
+def list_with_campaign(user, house, campaign):
+    lst = List.objects.create(
+        name="Test List",
+        house=house,
+        owner=user,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    campaign.lists.add(lst)
+    return lst
+
+
+@pytest.fixture
+def fighter_with_xp(list_with_campaign, content_fighter):
+    return ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=list_with_campaign,
+        xp_current=50,
+        xp_total=50,
+    )
+
+
+@pytest.mark.django_db
+def test_advancement_model_creation(fighter_with_xp, skill):
+    """Test creating a fighter advancement."""
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        skill=skill,
+        xp_cost=10,
+        cost_increase=5,
+    )
+
+    assert advancement.fighter == fighter_with_xp
+    assert advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_SKILL
+    assert advancement.skill == skill
+    assert advancement.xp_cost == 10
+    assert advancement.cost_increase == 5
+    assert str(advancement) == f"Test Fighter - {skill.name}"
+
+
+@pytest.mark.django_db
+def test_stat_advancement_application(fighter_with_xp):
+    """Test applying a stat advancement."""
+    original_ws = fighter_with_xp.weapon_skill
+
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="weapon_skill",
+        xp_cost=10,
+        cost_increase=20,
+    )
+
+    advancement.apply_advancement()
+    fighter_with_xp.refresh_from_db()
+
+    assert fighter_with_xp.weapon_skill == original_ws + 1
+
+
+@pytest.mark.django_db
+def test_skill_advancement_application(fighter_with_xp, skill):
+    """Test applying a skill advancement."""
+    assert skill not in fighter_with_xp.skills.all()
+
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        skill=skill,
+        xp_cost=10,
+        cost_increase=5,
+    )
+
+    advancement.apply_advancement()
+
+    assert skill in fighter_with_xp.skills.all()
+
+
+@pytest.mark.django_db
+def test_advancement_list_view(client, user, fighter_with_xp):
+    """Test the advancement list view."""
+    client.login(username="testuser", password="testpass")
+
+    url = reverse(
+        "core:list-fighter-advancements",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert "Advancements for Test Fighter" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_advancement_start_requires_campaign_mode(client, user, house, content_fighter):
+    """Test that advancement requires campaign mode."""
+    client.login(username="testuser", password="testpass")
+
+    # Create a non-campaign list
+    lst = List.objects.create(
+        name="Non-Campaign List",
+        house=house,
+        owner=user,
+        status=List.DEFAULT,
+    )
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+    )
+
+    url = reverse("core:list-fighter-advancement-start", args=[lst.id, fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 302  # Redirect
+    assert response.url == reverse("core:list", args=[lst.id])
+
+
+@pytest.mark.django_db
+def test_advancement_dice_choice_flow(client, user, fighter_with_xp):
+    """Test the dice choice step of advancement flow."""
+    client.login(username="testuser", password="testpass")
+
+    url = reverse(
+        "core:list-fighter-advancement-dice-choice",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+
+    # GET request
+    response = client.get(url)
+    assert response.status_code == 200
+    assert "Roll for Advancement?" in response.content.decode()
+
+    # POST without rolling
+    response = client.post(url, {"roll_dice": ""})
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "core:list-fighter-advancement-type",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+
+
+@pytest.mark.django_db
+def test_advancement_clean_validation(fighter_with_xp):
+    """Test advancement model validation."""
+    # Test stat advancement without stat selected
+    advancement = ListFighterAdvancement(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=5,
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        advancement.clean()
+    assert "Stat advancement requires a stat to be selected" in str(excinfo.value)
+
+    # Test skill advancement without skill selected
+    advancement = ListFighterAdvancement(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=10,
+        cost_increase=5,
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        advancement.clean()
+    assert "Skill advancement requires a skill to be selected" in str(excinfo.value)
