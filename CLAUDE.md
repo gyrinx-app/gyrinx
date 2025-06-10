@@ -105,6 +105,7 @@ SQL_DEBUG=True
 
 - Always run ruff to fix formatting and lint the code after making python changes
 - Run `npm run fmt` alongside ruff
+- Run `djlint --profile=django --reformat --lint .` when making template changes
 - When building something new, create a branch for it and open a pull request at the end
 - Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
 - Always run the tests and ensure they are passing before pushing from CI/GitHub Action context
