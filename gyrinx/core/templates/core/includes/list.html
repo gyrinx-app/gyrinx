@@ -147,6 +147,7 @@
     <div class="grid {% if print %}gap-2{% endif %}">
         {% if not print %}
             {% include "core/includes/list_campaign_actions.html" with list=list %}
+            {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
         {% endif %}
         {% for fighter in list.fighters_cached %}
             {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
