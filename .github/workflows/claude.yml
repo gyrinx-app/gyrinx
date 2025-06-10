@@ -106,3 +106,5 @@ jobs:
 
             For running the full test suite, use: ./scripts/test.sh (which includes Docker setup)
             For quick linting, after installing dependencies, use: ruff check . && ruff format --check .
+
+            When completing a task, you MUST commit any changes you make before you can report success and stop.
