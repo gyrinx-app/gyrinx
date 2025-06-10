@@ -24,6 +24,7 @@ from gyrinx.models import (
     FighterCategoryChoices,
     QuerySetOf,
     equipment_category_group_choices,
+    format_cost_display,
     is_int,
 )
 
@@ -524,7 +525,7 @@ class ContentEquipment(Content):
         if not self.cost:
             return ""
 
-        return f"{self.cost}¢"
+        return format_cost_display(self.cost)
 
     def cost_for_fighter_int(self):
         if hasattr(self, "cost_for_fighter"):
@@ -1233,7 +1234,7 @@ class ContentWeaponProfile(Content):
         """
         if self.name == "" or self.cost_int() == 0:
             return ""
-        return f"+{self.cost_int()}¢"
+        return format_cost_display(self.cost_int(), show_sign=True)
 
     def cost_for_fighter_int(self):
         if hasattr(self, "cost_for_fighter"):
@@ -1418,6 +1419,12 @@ class ContentWeaponAccessory(Content):
         """
         return self.cost
 
+    def cost_display(self):
+        """
+        Returns a readable cost string with a '¢' suffix.
+        """
+        return format_cost_display(self.cost)
+
     def cost_for_fighter_int(self):
         if hasattr(self, "cost_for_fighter"):
             return self.cost_for_fighter
@@ -1487,7 +1494,10 @@ class ContentEquipmentUpgrade(Content):
         """
         Returns a cost display string with '¢'.
         """
-        return f"{self.cost_int_cached}¢"
+        # If equipment is not set (e.g., unsaved object), use the cost directly
+        if not hasattr(self, "equipment") or self.equipment_id is None:
+            return format_cost_display(self.cost)
+        return format_cost_display(self.cost_int_cached)
 
     class Meta:
         verbose_name = "Equipment Upgrade"
@@ -1537,7 +1547,7 @@ class ContentFighterDefaultAssignment(Content):
         """
         Returns a cost display string with '¢'.
         """
-        return f"{self.cost}¢"
+        return format_cost_display(self.cost)
 
     def is_weapon(self):
         return self.equipment.is_weapon()

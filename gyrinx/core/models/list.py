@@ -42,7 +42,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
-from gyrinx.models import Archived, Base, QuerySetOf
+from gyrinx.models import Archived, Base, QuerySetOf, format_cost_display
 
 logger = logging.getLogger(__name__)
 pylist = list
@@ -139,7 +139,7 @@ class List(AppBase):
         return cost
 
     def cost_display(self):
-        return f"{self.cost_int_cached}¢"
+        return format_cost_display(self.cost_int_cached)
 
     def fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.filter(archived=False)
@@ -485,13 +485,13 @@ class ListFighter(AppBase):
         return self.content_fighter_cached.cost_int()
 
     def base_cost_display(self):
-        return f"{self._base_cost_int}¢"
+        return format_cost_display(self._base_cost_int)
 
     def base_cost_before_override_display(self):
-        return f"{self._base_cost_before_override()}¢"
+        return format_cost_display(self._base_cost_before_override())
 
     def cost_display(self):
-        return f"{self.cost_int_cached}¢"
+        return format_cost_display(self.cost_int_cached)
 
     # Stats & rules
 
@@ -1186,7 +1186,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self.base_cost_int()
 
     def base_cost_display(self):
-        return f"{self.base_cost_int_cached}¢"
+        return format_cost_display(self.base_cost_int_cached)
 
     def weapon_profiles_cost_int(self):
         return self._profile_cost_with_override_cached
@@ -1196,7 +1196,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self.weapon_profiles_cost_int()
 
     def weapon_profiles_cost_display(self):
-        return f"+{self.weapon_profiles_cost_int_cached}¢"
+        return format_cost_display(self.weapon_profiles_cost_int_cached, show_sign=True)
 
     def weapon_accessories_cost_int(self):
         return self._accessories_cost_with_override()
@@ -1206,7 +1206,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self.weapon_accessories_cost_int()
 
     def weapon_accessories_cost_display(self):
-        return f"+{self.weapon_accessories_cost_int()}¢"
+        return format_cost_display(self.weapon_accessories_cost_int(), show_sign=True)
 
     @admin.display(description="Total Cost of Assignment")
     def cost_int(self):
@@ -1228,7 +1228,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self.total_cost_override is not None
 
     def cost_display(self):
-        return f"{self.cost_int_cached}¢"
+        return format_cost_display(self.cost_int_cached)
 
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
@@ -1335,7 +1335,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self._profile_cost_with_override_for_profile(profile)
 
     def profile_cost_display(self, profile):
-        return f"+{self.profile_cost_int(profile)}¢"
+        return format_cost_display(self.profile_cost_int(profile), show_sign=True)
 
     def _accessories_cost_with_override(self):
         accessories = self.weapon_accessories_cached
@@ -1373,7 +1373,7 @@ class ListFighterEquipmentAssignment(Base, Archived):
         return self._accessory_cost_with_override(accessory)
 
     def accessory_cost_display(self, accessory):
-        return f"+{self.accessory_cost_int(accessory)}¢"
+        return format_cost_display(self.accessory_cost_int(accessory), show_sign=True)
 
     def upgrade_cost_int(self):
         if not self.upgrades_field.exists():
@@ -1660,7 +1660,7 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return a formatted string of the base cost with the '¢' suffix.
         """
-        return f"{self.base_cost_int()}¢"
+        return format_cost_display(self.base_cost_int())
 
     def cost_int(self):
         """
@@ -1696,7 +1696,7 @@ class VirtualListFighterEquipmentAssignment:
         """
         Return a formatted string of the total cost with the '¢' suffix.
         """
-        return f"{self.cost_int()}¢"
+        return format_cost_display(self.cost_int())
 
     def _profiles_cost_int(self):
         """
@@ -1798,7 +1798,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "profile": profile,
                 "cost_int": self._weapon_profile_cost(profile),
-                "cost_display": f"+{self._weapon_profile_cost(profile)}¢",
+                "cost_display": format_cost_display(
+                    self._weapon_profile_cost(profile), show_sign=True
+                ),
             }
             for profile in self.weapon_profiles()
         ]
@@ -1844,7 +1846,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "accessory": accessory,
                 "cost_int": self._weapon_accessory_cost(accessory),
-                "cost_display": f"+{self._weapon_accessory_cost(accessory)}¢",
+                "cost_display": format_cost_display(
+                    self._weapon_accessory_cost(accessory), show_sign=True
+                ),
             }
             for accessory in self.weapon_accessories_cached
         ]
@@ -1911,7 +1915,9 @@ class VirtualListFighterEquipmentAssignment:
                 "upgrade": upgrade,
                 "name": upgrade.name,
                 "cost_int": upgrade.cost_int_cached,
-                "cost_display": f"+{upgrade.cost_int_cached}¢",
+                "cost_display": format_cost_display(
+                    upgrade.cost_int_cached, show_sign=True
+                ),
             }
             for upgrade in self.active_upgrades_cached
         ]
@@ -1933,7 +1939,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "upgrade": upgrade,
                 "cost_int": upgrade.cost_int_cached,
-                "cost_display": f"+{upgrade.cost_int_cached}¢",
+                "cost_display": format_cost_display(
+                    upgrade.cost_int_cached, show_sign=True
+                ),
             }
             for upgrade in self.upgrades_cached
         ]

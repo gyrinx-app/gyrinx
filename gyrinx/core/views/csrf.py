@@ -21,9 +21,11 @@ def csrf_failure(request, reason=""):
     referer = request.META.get("HTTP_REFERER")
 
     # Validate the referer URL
-    if referer and url_has_allowed_host_and_scheme(referer, allowed_hosts={request.get_host()}):
+    if referer and url_has_allowed_host_and_scheme(
+        referer, allowed_hosts={request.get_host()}
+    ):
         # Redirect back to the form page
         return HttpResponseRedirect(referer)
 
     # If no valid referer, redirect to home page
-    return HttpResponseRedirect(reverse('core:index'))
+    return HttpResponseRedirect(reverse("core:index"))

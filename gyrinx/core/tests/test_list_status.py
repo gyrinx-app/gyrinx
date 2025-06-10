@@ -207,7 +207,10 @@ def test_active_campaign_clones_display(client):
     assert response.status_code == 200
     # Check that the list shows the "Active in Campaigns" link
     assert b"Active in Campaigns" in response.content
-    assert reverse("core:list-campaign-clones", args=[original_list.id]).encode() in response.content
+    assert (
+        reverse("core:list-campaign-clones", args=[original_list.id]).encode()
+        in response.content
+    )
 
 
 @pytest.mark.django_db
@@ -236,10 +239,10 @@ def test_list_campaign_clones_view(client):
         name="Campaign 2",
         owner=user,
     )
-    
+
     campaign1.lists.add(original_list)
     campaign2.lists.add(original_list)
-    
+
     # Start both campaigns to create clones
     campaign1.start_campaign()
     campaign2.start_campaign()
@@ -247,15 +250,15 @@ def test_list_campaign_clones_view(client):
     # View the campaign clones page
     response = client.get(reverse("core:list-campaign-clones", args=[original_list.id]))
     assert response.status_code == 200
-    
+
     # Check that both campaign clones are shown
     assert b"Campaign 1" in response.content
     assert b"Campaign 2" in response.content
     assert b"Original List" in response.content
-    
+
     # Check that the table is shown (not the "no campaign versions" message)
     assert b"This list has no campaign versions" not in response.content
-    
+
     # Check for status badges
     assert b"In Progress" in response.content
 
