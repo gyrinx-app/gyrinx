@@ -112,8 +112,8 @@
                                    class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1">
-                                            {% list_with_theme list "me-1" %}
-                                            {% if list.content_house %}<span class="badge bg-secondary">{{ list.content_house.name }}</span>{% endif %}
+                                            <strong>{% list_with_theme list "me-1" %}</strong>
+                                            {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
                                         </h6>
                                         <small>{{ list.cost_display }}</small>
                                     </div>
