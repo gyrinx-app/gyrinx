@@ -246,6 +246,7 @@ The list view establishes the standard UI pattern for detail pages:
 
 - Tests use pytest with `@pytest.mark.django_db` decorator
 - Test functions at module level, not in classes
+- Do not use Django's TestCase or SimpleTestCase - use plain pytest functions
 - Use Django test client for view testing
 - Static files must be collected before running tests that render templates
 - The conftest.py configures tests to use StaticFilesStorage to avoid manifest issues
