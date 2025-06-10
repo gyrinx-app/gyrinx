@@ -72,7 +72,9 @@ class ListsListView(generic.ListView):
         Campaign mode lists are only visible within their campaigns.
         Archived lists are excluded from this view.
         """
-        return List.objects.filter(public=True, status=List.LIST_BUILDING, archived=False)
+        return List.objects.filter(
+            public=True, status=List.LIST_BUILDING, archived=False
+        )
 
 
 class ListDetailView(generic.DetailView):
@@ -279,17 +281,17 @@ def archive_list(request, id):
     :template:`core/list_archive.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    
+
     # Check if the list is in any active campaigns
     active_campaigns = lst.campaigns.filter(status="in_progress")
     is_in_active_campaign = active_campaigns.exists()
-    
+
     if request.method == "POST":
         from gyrinx.core.models.campaign import CampaignAction
-        
+
         if request.POST.get("archive") == "1":
             lst.archive()
-            
+
             # Add campaign action log entries for active campaigns
             for campaign in active_campaigns:
                 CampaignAction.objects.create(
@@ -301,7 +303,7 @@ def archive_list(request, id):
                 )
         elif lst.archived:
             lst.unarchive()
-            
+
             # Add campaign action log entries for active campaigns when unarchiving
             for campaign in active_campaigns:
                 CampaignAction.objects.create(
@@ -311,7 +313,7 @@ def archive_list(request, id):
                     description=f"Gang '{lst.name}' has been unarchived by its owner",
                     owner=request.user,
                 )
-        
+
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     return render(

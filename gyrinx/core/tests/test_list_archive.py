@@ -17,12 +17,12 @@ def test_archive_list_url_exists(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     # Test unauthenticated access
     url = reverse("core:list-archive", args=[lst.id])
     response = client.get(url)
     assert response.status_code == 302  # Redirect to login
-    
+
     # Test authenticated access
     client.force_login(user)
     response = client.get(url)
@@ -37,7 +37,7 @@ def test_archive_list_requires_ownership(client, user, other_user, content_house
         owner=other_user,
         content_house=content_house,
     )
-    
+
     client.force_login(user)
     url = reverse("core:list-archive", args=[lst.id])
     response = client.get(url)
@@ -52,13 +52,15 @@ def test_archive_list_get_request(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     client.force_login(user)
     url = reverse("core:list-archive", args=[lst.id])
     response = client.get(url)
-    
+
     assert response.status_code == 200
-    assert "Are you sure you want to archive this gang/list?" in response.content.decode()
+    assert (
+        "Are you sure you want to archive this gang/list?" in response.content.decode()
+    )
     assert "Archive" in response.content.decode()
 
 
@@ -70,17 +72,17 @@ def test_archive_list_post_request(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     assert lst.archived is False
     assert lst.archived_at is None
-    
+
     client.force_login(user)
     url = reverse("core:list-archive", args=[lst.id])
     response = client.post(url, {"archive": "1"})
-    
+
     assert response.status_code == 302  # Redirect
     assert response.url == reverse("core:list", args=[lst.id])
-    
+
     lst.refresh_from_db()
     assert lst.archived is True
     assert lst.archived_at is not None
@@ -95,17 +97,17 @@ def test_unarchive_list_post_request(client, user, content_house):
         content_house=content_house,
     )
     lst.archive()
-    
+
     assert lst.archived is True
     assert lst.archived_at is not None
-    
+
     client.force_login(user)
     url = reverse("core:list-archive", args=[lst.id])
     response = client.post(url)  # No archive=1 parameter means unarchive
-    
+
     assert response.status_code == 302  # Redirect
     assert response.url == reverse("core:list", args=[lst.id])
-    
+
     lst.refresh_from_db()
     assert lst.archived is False
     assert lst.archived_at is None
@@ -120,7 +122,7 @@ def test_archive_list_with_active_campaign(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     # Create an active campaign and add the list
     campaign = Campaign.objects.create(
         name="Test Campaign",
@@ -128,23 +130,23 @@ def test_archive_list_with_active_campaign(client, user, content_house):
         status=Campaign.IN_PROGRESS,
     )
     campaign.lists.add(lst)
-    
+
     client.force_login(user)
     url = reverse("core:list-archive", args=[lst.id])
-    
+
     # Check the warning is shown
     response = client.get(url)
     assert response.status_code == 200
     assert "Active Campaign" in response.content.decode()
     assert campaign.name in response.content.decode()
-    
+
     # Archive the list
     response = client.post(url, {"archive": "1"})
     assert response.status_code == 302
-    
+
     lst.refresh_from_db()
     assert lst.archived is True
-    
+
     # Check that a campaign action was created
     action = CampaignAction.objects.filter(campaign=campaign).first()
     assert action is not None
@@ -162,18 +164,24 @@ def test_archived_list_display(client, user, content_house):
         content_house=content_house,
     )
     lst.archive()
-    
+
     client.force_login(user)
     url = reverse("core:list", args=[lst.id])
     response = client.get(url)
-    
+
     assert response.status_code == 200
     assert "This gang has been archived by its owner" in response.content.decode()
     assert "Unarchive" in response.content.decode()
-    
+
     # Check that edit buttons are not shown
-    assert 'href="' + reverse("core:list-fighter-new", args=[lst.id]) not in response.content.decode()
-    assert 'href="' + reverse("core:list-edit", args=[lst.id]) not in response.content.decode()
+    assert (
+        'href="' + reverse("core:list-fighter-new", args=[lst.id])
+        not in response.content.decode()
+    )
+    assert (
+        'href="' + reverse("core:list-edit", args=[lst.id])
+        not in response.content.decode()
+    )
 
 
 @pytest.mark.django_db
@@ -186,7 +194,7 @@ def test_archived_lists_hidden_from_lists_page(client, user, content_house):
         content_house=content_house,
         public=True,
     )
-    
+
     archived_list = List.objects.create(
         name="Archived List",
         owner=user,
@@ -194,11 +202,11 @@ def test_archived_lists_hidden_from_lists_page(client, user, content_house):
         public=True,
     )
     archived_list.archive()
-    
+
     # Check public lists page
     url = reverse("core:lists")
     response = client.get(url)
-    
+
     assert response.status_code == 200
     assert active_list.name in response.content.decode()
     assert archived_list.name not in response.content.decode()
@@ -213,18 +221,18 @@ def test_archived_lists_hidden_from_home_page(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     archived_list = List.objects.create(
         name="Archived List",
         owner=user,
         content_house=content_house,
     )
     archived_list.archive()
-    
+
     client.force_login(user)
     url = reverse("core:index")
     response = client.get(url)
-    
+
     assert response.status_code == 200
     assert active_list.name in response.content.decode()
     assert archived_list.name not in response.content.decode()
@@ -240,7 +248,7 @@ def test_archived_lists_hidden_from_user_profile(client, user, content_house):
         content_house=content_house,
         public=True,
     )
-    
+
     archived_list = List.objects.create(
         name="Archived List",
         owner=user,
@@ -248,10 +256,10 @@ def test_archived_lists_hidden_from_user_profile(client, user, content_house):
         public=True,
     )
     archived_list.archive()
-    
+
     url = reverse("core:user", args=[user.username])
     response = client.get(url)
-    
+
     assert response.status_code == 200
     assert active_list.name in response.content.decode()
     assert archived_list.name not in response.content.decode()
@@ -266,25 +274,25 @@ def test_archived_lists_hidden_from_campaign_add_lists(client, user, content_hou
         owner=user,
         content_house=content_house,
     )
-    
+
     archived_list = List.objects.create(
         name="Archived List",
         owner=user,
         content_house=content_house,
     )
     archived_list.archive()
-    
+
     # Create a campaign
     campaign = Campaign.objects.create(
         name="Test Campaign",
         owner=user,
         status=Campaign.PRE_CAMPAIGN,
     )
-    
+
     client.force_login(user)
     url = reverse("core:campaign-add-lists", args=[campaign.id])
     response = client.get(url)
-    
+
     assert response.status_code == 200
     assert active_list.name in response.content.decode()
     assert archived_list.name not in response.content.decode()
@@ -298,21 +306,27 @@ def test_archive_button_in_dropdown_menu(client, user, content_house):
         owner=user,
         content_house=content_house,
     )
-    
+
     client.force_login(user)
     url = reverse("core:list", args=[lst.id])
     response = client.get(url)
-    
+
     assert response.status_code == 200
-    assert 'href="' + reverse("core:list-archive", args=[lst.id]) in response.content.decode()
+    assert (
+        'href="' + reverse("core:list-archive", args=[lst.id])
+        in response.content.decode()
+    )
     assert "Archive" in response.content.decode()
-    
+
     # Archive the list and check again
     lst.archive()
     response = client.get(url)
-    
+
     assert response.status_code == 200
-    assert 'href="' + reverse("core:list-archive", args=[lst.id]) in response.content.decode()
+    assert (
+        'href="' + reverse("core:list-archive", args=[lst.id])
+        in response.content.decode()
+    )
     assert "Unarchive" in response.content.decode()
 
 
