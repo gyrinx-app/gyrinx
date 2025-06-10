@@ -19,12 +19,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
@@ -57,7 +57,7 @@ jobs:
 
       - name: Check Django template formatting with djlint
         run: |
-          djlint . --check
+          djlint --profile=django --check .
 
       - name: Check JavaScript/CSS/SCSS/JSON/YAML/Markdown formatting with prettier
         run: npm run fmt-check
