@@ -57,3 +57,15 @@ jobs:
           claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
 
           timeout_minutes: "60"
+
+          allowed_tools: |
+            Bash(ruff:*),
+            Bash(djlint:*),
+            Bash(nbstripout:*),
+            Bash(npm:*),
+            Bash(./scripts/test.sh:*),
+            Bash(pytest:*),
+            Bash(ruff format:*),
+            Bash(ruff check:*),
+            Bash(python scripts/manage.py makemigrations:*),
+            Bash(manage:*)
