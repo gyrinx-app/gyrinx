@@ -42,7 +42,7 @@ def index(request):
     else:
         # Regular lists (not in campaigns)
         lists = List.objects.filter(
-            owner=request.user, status=List.LIST_BUILDING
+            owner=request.user, status=List.LIST_BUILDING, archived=False
         ).select_related("content_house")
 
         # Campaign gangs - user's lists that are in active campaigns
@@ -168,7 +168,7 @@ def user(request, slug_or_id):
         query = Q(username__iexact=slug_or_id)
     user = get_object_or_404(User, query)
     public_lists = List.objects.filter(
-        owner=user, public=True, status=List.LIST_BUILDING
+        owner=user, public=True, status=List.LIST_BUILDING, archived=False
     )
     return render(
         request,

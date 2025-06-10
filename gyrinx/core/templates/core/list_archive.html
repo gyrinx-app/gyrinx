@@ -1,0 +1,83 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {% if list.archived %}
+        Unarchive
+    {% else %}
+        Archive
+    {% endif %}
+    - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="core:list" url_param=list.id text=list.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            {% if list.archived %}
+                Unarchive
+            {% else %}
+                Archive
+            {% endif %}
+            : {{ list.name }}
+        </h1>
+        {% if not list.archived %}
+            <p>Are you sure you want to archive this gang/list?</p>
+            <div class="border rounded p-3 bg-light">
+                <p class="mb-2">
+                    <strong>What happens when you archive:</strong>
+                </p>
+                <ul class="mb-0">
+                    <li>The list will be hidden from your main lists page</li>
+                    <li>You won't be able to edit the list or its fighters</li>
+                    <li>You can unarchive it at any time to restore full functionality</li>
+                </ul>
+            </div>
+            {% if is_in_active_campaign %}
+                <div class="border border-warning rounded p-3 bg-warning bg-opacity-10">
+                    <p class="mb-2">
+                        <strong class="text-warning">⚠️ Warning: Active Campaign</strong>
+                    </p>
+                    <p class="mb-2">
+                        This gang is currently participating in the following active campaign{{ active_campaigns|length|pluralize }}:
+                    </p>
+                    <ul class="mb-2">
+                        {% for campaign in active_campaigns %}<li>{{ campaign.name }}</li>{% endfor %}
+                    </ul>
+                    <p class="mb-0">
+                        The gang will remain visible in the campaign{{ active_campaigns|length|pluralize }}, but an action log entry will be added noting that it has been archived.
+                    </p>
+                </div>
+            {% endif %}
+        {% else %}
+            <p>Are you sure you want to unarchive this gang/list?</p>
+            <div class="border rounded p-3 bg-light">
+                <p class="mb-2">
+                    <strong>What happens when you unarchive:</strong>
+                </p>
+                <ul class="mb-0">
+                    <li>The list will be visible on your main lists page again</li>
+                    <li>You'll be able to edit the list and its fighters</li>
+                    <li>All functionality will be restored</li>
+                </ul>
+            </div>
+            {% if is_in_active_campaign %}
+                <div class="border border-info rounded p-3 bg-info bg-opacity-10">
+                    <p class="mb-0">
+                        <strong>Note:</strong> An action log entry will be added to the campaign{{ active_campaigns|length|pluralize }} noting that the gang has been unarchived.
+                    </p>
+                </div>
+            {% endif %}
+        {% endif %}
+        <form action="{% url 'core:list-archive' list.id %}" method="post">
+            {% csrf_token %}
+            <div class="mt-3">
+                {% if not list.archived %}
+                    <input type="hidden" name="archive" value="1">
+                    <input type="submit" class="btn btn-danger" value="Archive">
+                {% else %}
+                    <input type="submit" class="btn btn-primary" value="Unarchive">
+                {% endif %}
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

@@ -70,8 +70,11 @@ class ListsListView(generic.ListView):
         """
         Return :model:`core.List` objects that are public and in list building mode.
         Campaign mode lists are only visible within their campaigns.
+        Archived lists are excluded from this view.
         """
-        return List.objects.filter(public=True, status=List.LIST_BUILDING)
+        return List.objects.filter(
+            public=True, status=List.LIST_BUILDING, archived=False
+        )
 
 
 class ListDetailView(generic.DetailView):
@@ -256,6 +259,71 @@ def edit_list(request, id):
         request,
         "core/list_edit.html",
         {"form": form, "error_message": error_message},
+    )
+
+
+@login_required
+def archive_list(request, id):
+    """
+    Archive or unarchive a :model:`core.List`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` to be archived or unarchived.
+    ``is_in_active_campaign``
+        Boolean indicating if the list is in an active campaign.
+    ``active_campaigns``
+        List of active campaigns this list is participating in.
+
+    **Template**
+
+    :template:`core/list_archive.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    # Check if the list is in any active campaigns
+    active_campaigns = lst.campaigns.filter(status="in_progress")
+    is_in_active_campaign = active_campaigns.exists()
+
+    if request.method == "POST":
+        from gyrinx.core.models.campaign import CampaignAction
+
+        if request.POST.get("archive") == "1":
+            lst.archive()
+
+            # Add campaign action log entries for active campaigns
+            for campaign in active_campaigns:
+                CampaignAction.objects.create(
+                    campaign=campaign,
+                    user=request.user,
+                    list=lst,
+                    description=f"Gang '{lst.name}' has been archived by its owner",
+                    owner=request.user,
+                )
+        elif lst.archived:
+            lst.unarchive()
+
+            # Add campaign action log entries for active campaigns when unarchiving
+            for campaign in active_campaigns:
+                CampaignAction.objects.create(
+                    campaign=campaign,
+                    user=request.user,
+                    list=lst,
+                    description=f"Gang '{lst.name}' has been unarchived by its owner",
+                    owner=request.user,
+                )
+
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_archive.html",
+        {
+            "list": lst,
+            "is_in_active_campaign": is_in_active_campaign,
+            "active_campaigns": active_campaigns,
+        },
     )
 
 

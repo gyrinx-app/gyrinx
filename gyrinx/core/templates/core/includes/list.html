@@ -1,5 +1,16 @@
 {% load allauth custom_tags color_tags %}
 <div>
+    {% if list.archived %}
+        <div class="alert alert-secondary d-flex align-items-center mb-3"
+             role="alert">
+            <i class="bi-archive me-2"></i>
+            <strong>This gang has been archived by its owner.</strong>
+            {% if list.owner_cached == user %}
+                <a href="{% url 'core:list-archive' list.id %}"
+                   class="ms-auto btn btn-sm btn-secondary">Unarchive</a>
+            {% endif %}
+        </div>
+    {% endif %}
     <div class="vstack gap-0 mb-2">
         <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
             <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
@@ -92,7 +103,7 @@
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
                     <nav class="nav btn-group flex-nowrap">
-                        {% if list.owner_cached == user %}
+                        {% if list.owner_cached == user and not list.archived %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm">
                                 <i class="bi-person-add"></i> Add fighter</a>
@@ -132,8 +143,14 @@
                                 </li>
                                 {% if list.owner_cached == user %}
                                     <li>
-                                        <a href="#" class="dropdown-item icon-link disabled">
-                                            <i class="bi-archive"></i> Archive
+                                        <a href="{% url 'core:list-archive' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-archive"></i>
+                                            {% if list.archived %}
+                                                Unarchive
+                                            {% else %}
+                                                Archive
+                                            {% endif %}
                                         </a>
                                     </li>
                                 {% endif %}

@@ -184,10 +184,11 @@ def campaign_add_lists(request, id):
                 error_message = "List not found."
 
     # Get lists that can be added (user's own lists or public lists)
-    # Only show lists in list building mode
+    # Only show lists in list building mode and not archived
     lists = List.objects.filter(
         (models.Q(owner=request.user) | models.Q(public=True))
         & models.Q(status=List.LIST_BUILDING)
+        & models.Q(archived=False)
     )
 
     # If the campaign has started, exclude lists that have been cloned into it
