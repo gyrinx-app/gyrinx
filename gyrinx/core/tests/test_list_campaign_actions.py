@@ -27,14 +27,14 @@ def test_list_campaign_actions_filter_by_gang(client):
         owner=user1,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     gang2 = List.objects.create(
         name="Gang 2",
         owner=user1,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     
     # Create a gang owned by a different user
@@ -43,25 +43,28 @@ def test_list_campaign_actions_filter_by_gang(client):
         owner=user2,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     
     # Create actions for each gang
     action1 = CampaignAction.objects.create(
         campaign=campaign,
         user=user1,
+        owner=user1,
         list=gang1,
         description="Action for Gang 1",
     )
     action2 = CampaignAction.objects.create(
         campaign=campaign,
         user=user1,
+        owner=user1,
         list=gang2,
         description="Action for Gang 2",
     )
     action3 = CampaignAction.objects.create(
         campaign=campaign,
         user=user2,
+        owner=user2,
         list=gang3,
         description="Action for Gang 3",
     )
@@ -116,26 +119,28 @@ def test_list_view_shows_only_gang_actions(client):
         owner=user,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     gang2 = List.objects.create(
         name="Gang 2",
         owner=user,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     
     # Create actions for each gang
     action1 = CampaignAction.objects.create(
         campaign=campaign,
         user=user,
+        owner=user,
         list=gang1,
         description="Action for Gang 1",
     )
     action2 = CampaignAction.objects.create(
         campaign=campaign,
         user=user,
+        owner=user,
         list=gang2,
         description="Action for Gang 2",
     )
@@ -184,7 +189,7 @@ def test_gang_with_no_actions_shows_no_actions(client):
         owner=user,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     
     # Create another gang with actions (to ensure filtering works)
@@ -193,11 +198,12 @@ def test_gang_with_no_actions_shows_no_actions(client):
         owner=user,
         content_house=house,
         campaign=campaign,
-        is_campaign_mode=True,
+        status=List.CAMPAIGN_MODE,
     )
     CampaignAction.objects.create(
         campaign=campaign,
         user=user,
+        owner=user,
         list=other_gang,
         description="Action for Other Gang",
     )
