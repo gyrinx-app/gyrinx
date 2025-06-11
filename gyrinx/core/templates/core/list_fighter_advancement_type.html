@@ -1,8 +1,8 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
-{% block title %}
+{% block head_title %}
     New Advancement - {{ fighter.name }}
-{% endblock title %}
+{% endblock head_title %}
 {% block content %}
     <div class="vstack gap-3">
         <div class="vstack gap-1">
@@ -34,6 +34,7 @@
                 {% csrf_token %}
                 {{ form.campaign_action_id }}
                 <div class="card-body">
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
                     <div class="vstack gap-3">
                         <div>
                             <label class="form-label">Advancement Type</label>
