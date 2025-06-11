@@ -255,6 +255,8 @@ The list view establishes the standard UI pattern for detail pages:
 - Run `ruff format` to format Python code
 - Run `ruff check --fix` to fix linting issues
 - Always run ruff after making Python changes
+- Run `npm run fmt` when making changes to Markdown, YAML, JSON, SCSS or JavaScript
+- Run `djlint --profile=django --lint --reformat .` when making changes to HTML files
 
 ### Git Workflow
 
