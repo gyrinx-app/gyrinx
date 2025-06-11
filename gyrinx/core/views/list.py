@@ -1,5 +1,6 @@
 from urllib.parse import urlencode
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Exists, OuterRef, Q
@@ -47,6 +48,48 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
+
+
+def sanitize_advancement_params(params):
+    """
+    Sanitize URL parameters for advancement redirects to prevent URL injection.
+    Only allows specific advancement-related parameters with validated values.
+    """
+    # Define allowed parameters and their validators
+    allowed_params = {
+        "type": lambda v: v in ["stat", "skill"],
+        "stat": lambda v: v
+        in [
+            "movement",
+            "weapon_skill",
+            "ballistic_skill",
+            "strength",
+            "toughness",
+            "wounds",
+            "initiative",
+            "attacks",
+            "leadership",
+            "cool",
+            "willpower",
+            "intelligence",
+        ],
+        "skill": lambda v: is_int(v) and int(v) > 0,
+        "xp_cost": lambda v: is_int(v) and 0 <= int(v) <= 100,
+        "cost_increase": lambda v: is_int(v) and int(v) >= 0,
+        "campaign_action": lambda v: is_int(v) and int(v) > 0,
+        "category_id": lambda v: is_int(v) and int(v) > 0,
+        "dice_1": lambda v: is_int(v) and 1 <= int(v) <= 6,
+        "dice_2": lambda v: is_int(v) and 1 <= int(v) <= 6,
+        "chosen": lambda v: v in ["true", "false"],
+    }
+
+    # Filter and validate parameters
+    sanitized = {}
+    for key, value in params.items():
+        if key in allowed_params and allowed_params[key](str(value)):
+            sanitized[key] = value
+
+    return sanitized
 
 
 class ListsListView(generic.ListView):
@@ -2122,7 +2165,8 @@ def list_fighter_advancement_type(request, id, fighter_id):
                 url = reverse(
                     "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
                 )
-                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                sanitized_params = sanitize_advancement_params(params)
+                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
             else:
                 # For skills, still need selection step
                 params = {
@@ -2136,7 +2180,8 @@ def list_fighter_advancement_type(request, id, fighter_id):
                 url = reverse(
                     "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
                 )
-                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                sanitized_params = sanitize_advancement_params(params)
+                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
     else:
         initial = {}
         if campaign_action:
@@ -2187,11 +2232,25 @@ def list_fighter_advancement_select(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Get parameters from query string
-    advancement_type = request.GET.get("type")
-    xp_cost = int(request.GET.get("xp_cost", 0))
-    cost_increase = int(request.GET.get("cost_increase", 0))
-    campaign_action_id = request.GET.get("campaign_action")
+    # Get and sanitize parameters from query string
+    params = {
+        "type": request.GET.get("type"),
+        "xp_cost": request.GET.get("xp_cost", 0),
+        "cost_increase": request.GET.get("cost_increase", 0),
+        "campaign_action": request.GET.get("campaign_action"),
+    }
+    sanitized = sanitize_advancement_params(params)
+
+    advancement_type = sanitized.get("type")
+    if not advancement_type:
+        messages.error(request, "Invalid advancement type.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
+        )
+
+    xp_cost = int(sanitized.get("xp_cost", 0))
+    cost_increase = int(sanitized.get("cost_increase", 0))
+    campaign_action_id = sanitized.get("campaign_action")
 
     # Determine form type based on advancement choice
     if advancement_type.startswith("stat_"):
@@ -2213,7 +2272,8 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 url = reverse(
                     "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
                 )
-                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                sanitized_params = sanitize_advancement_params(params)
+                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
         else:
             form = StatSelectionForm(initial={"stat": stat})
     elif "chosen" in advancement_type:
@@ -2236,7 +2296,8 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 url = reverse(
                     "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
                 )
-                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                sanitized_params = sanitize_advancement_params(params)
+                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
         else:
             form = SkillSelectionForm(fighter=fighter, skill_type=advancement_type)
     else:
@@ -2277,7 +2338,10 @@ def list_fighter_advancement_select(request, id, fighter_id):
                             "core:list-fighter-advancement-confirm",
                             args=(lst.id, fighter.id),
                         )
-                        return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                        sanitized_params = sanitize_advancement_params(params)
+                        return HttpResponseRedirect(
+                            f"{url}?{urlencode(sanitized_params)}"
+                        )
                     else:
                         # No available skills - show error
                         form.add_error(None, "No available skills in this category.")
@@ -2334,11 +2398,28 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Get parameters
-    advancement_type = request.GET.get("type")
-    xp_cost = int(request.GET.get("xp_cost", 0))
-    cost_increase = int(request.GET.get("cost_increase", 0))
-    campaign_action_id = request.GET.get("campaign_action")
+    # Get and sanitize parameters
+    params = {
+        "type": request.GET.get("type"),
+        "xp_cost": request.GET.get("xp_cost", 0),
+        "cost_increase": request.GET.get("cost_increase", 0),
+        "campaign_action": request.GET.get("campaign_action"),
+        "stat": request.GET.get("stat"),
+        "skill": request.GET.get("skill"),
+    }
+    sanitized = sanitize_advancement_params(params)
+
+    # Extract validated parameters
+    advancement_type = sanitized.get("type")
+    if not advancement_type:
+        messages.error(request, "Invalid advancement type.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
+        )
+
+    xp_cost = int(sanitized.get("xp_cost", 0))
+    cost_increase = int(sanitized.get("cost_increase", 0))
+    campaign_action_id = sanitized.get("campaign_action")
 
     # Build advancement details
     details = {
@@ -2348,13 +2429,23 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
     }
 
     if advancement_type == "stat":
-        stat = request.GET.get("stat")
+        stat = sanitized.get("stat")
+        if not stat:
+            messages.error(request, "Invalid stat selection.")
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
+            )
         details["stat"] = stat
         details["description"] = dict(ListFighterAdvancement.STAT_CHOICES).get(
             stat, stat
         )
     else:
-        skill_id = request.GET.get("skill")
+        skill_id = sanitized.get("skill")
+        if not skill_id:
+            messages.error(request, "Invalid skill selection.")
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
+            )
         skill = get_object_or_404(ContentSkill, id=skill_id)
         details["skill"] = skill
         details["description"] = skill.name
