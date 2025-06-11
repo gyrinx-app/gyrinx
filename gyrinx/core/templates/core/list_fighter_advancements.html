@@ -1,5 +1,8 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
+{% block title %}
+    Advancements - {{ fighter.name }}
+{% endblock title %}
 {% block content %}
     <div class="vstack gap-3">
         <div class="vstack gap-1">
@@ -59,10 +62,10 @@
                                             {% endif %}
                                         </td>
                                         <td>{{ advancement.xp_cost }} XP</td>
-                                        <td>+{{ advancement.cost_increase }} credits</td>
+                                        <td>+{{ advancement.cost_increase }}¢</td>
                                         <td>
                                             {% if advancement.campaign_action %}
-                                                <a href="{% url 'core:campaign-actions' advancement.campaign_action.campaign.id %}"
+                                                <a href="{% url 'core:campaign-actions' advancement.campaign_action.campaign.id %}?gang={{ fighter.list.id }}&q=advance"
                                                    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
                                                     View Action
                                                 </a>

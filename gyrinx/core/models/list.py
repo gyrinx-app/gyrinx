@@ -451,12 +451,26 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        return self._base_cost_int + sum([e.cost_int() for e in self.assignments()])
+        # Include advancement cost increases
+        advancement_cost = (
+            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+        )
+        return (
+            self._base_cost_int
+            + advancement_cost
+            + sum([e.cost_int() for e in self.assignments()])
+        )
 
     @cached_property
     def cost_int_cached(self):
-        return self._base_cost_int + sum(
-            [e.cost_int() for e in self.assignments_cached]
+        # Include advancement cost increases
+        advancement_cost = (
+            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+        )
+        return (
+            self._base_cost_int
+            + advancement_cost
+            + sum([e.cost_int() for e in self.assignments_cached])
         )
 
     @cached_property

@@ -2108,19 +2108,36 @@ def list_fighter_advancement_type(request, id, fighter_id):
             xp_cost = form.cleaned_data["xp_cost"]
             cost_increase = form.cleaned_data["cost_increase"]
 
-            # Build query params for next step
-            params = {
-                "type": advancement_choice,
-                "xp_cost": xp_cost,
-                "cost_increase": cost_increase,
-            }
-            if campaign_action:
-                params["campaign_action"] = campaign_action.id
+            # Check if this is a stat advancement - go directly to confirm
+            if advancement_choice.startswith("stat_"):
+                stat = advancement_choice[5:]  # Remove "stat_" prefix
+                params = {
+                    "type": "stat",
+                    "stat": stat,
+                    "xp_cost": xp_cost,
+                    "cost_increase": cost_increase,
+                }
+                if campaign_action:
+                    params["campaign_action"] = campaign_action.id
 
-            url = reverse(
-                "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
-            )
-            return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                url = reverse(
+                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+                )
+                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+            else:
+                # For skills, still need selection step
+                params = {
+                    "type": advancement_choice,
+                    "xp_cost": xp_cost,
+                    "cost_increase": cost_increase,
+                }
+                if campaign_action:
+                    params["campaign_action"] = campaign_action.id
+
+                url = reverse(
+                    "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
+                )
+                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
     else:
         initial = {}
         if campaign_action:
@@ -2235,48 +2252,39 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 )
                 if form.is_valid():
                     category = form.cleaned_data["category"]
-                    # Redirect to same view with category_id
-                    params = request.GET.copy()
-                    params["category_id"] = category.id
-                    url = reverse(
-                        "core:list-fighter-advancement-select",
-                        args=(lst.id, fighter.id),
-                    )
-                    return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+
+                    # Auto-select a random skill from the category
+                    existing_skills = fighter.skills.all()
+                    available_skills = ContentSkill.objects.filter(
+                        category=category
+                    ).exclude(id__in=existing_skills.values_list("id", flat=True))
+
+                    if available_skills.exists():
+                        import random
+
+                        random_skill = random.choice(available_skills)
+
+                        # Go directly to confirmation
+                        params = {
+                            "type": "skill",
+                            "skill": random_skill.id,
+                            "xp_cost": xp_cost,
+                            "cost_increase": cost_increase,
+                        }
+                        if campaign_action_id:
+                            params["campaign_action"] = campaign_action_id
+
+                        url = reverse(
+                            "core:list-fighter-advancement-confirm",
+                            args=(lst.id, fighter.id),
+                        )
+                        return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                    else:
+                        # No available skills - show error
+                        form.add_error(None, "No available skills in this category.")
             else:
                 form = SkillCategorySelectionForm(
                     fighter=fighter, skill_type=advancement_type
-                )
-        else:
-            # Step 2: Confirm random skill from category
-            if request.method == "POST":
-                form = RandomSkillForm(
-                    request.POST,
-                    fighter=fighter,
-                    skill_type=advancement_type,
-                    category_id=category_id,
-                )
-                if form.is_valid() and form.cleaned_data["confirm"]:
-                    skill_id = form.cleaned_data["skill_id"]
-                    params = {
-                        "type": "skill",
-                        "skill": skill_id,
-                        "xp_cost": xp_cost,
-                        "cost_increase": cost_increase,
-                    }
-                    if campaign_action_id:
-                        params["campaign_action"] = campaign_action_id
-
-                    url = reverse(
-                        "core:list-fighter-advancement-confirm",
-                        args=(lst.id, fighter.id),
-                    )
-                    return HttpResponseRedirect(f"{url}?{urlencode(params)}")
-            else:
-                form = RandomSkillForm(
-                    fighter=fighter,
-                    skill_type=advancement_type,
-                    category_id=category_id,
                 )
 
     # Pass the skill object if available (for random skills)
@@ -2405,15 +2413,11 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         # Apply the advancement (this also deducts XP)
         advancement.apply_advancement()
 
-        # Update fighter cost
-        fighter.cost_override = (
-            fighter.cost_override or fighter.base_cost()
-        ) + cost_increase
-        fighter.save()
+        # Don't update cost_override - the cost will be computed from advancements
 
         messages.success(
             request,
-            f"Advancement purchased successfully! {fighter.name} has gained: {details['description']}",
+            f"Advancement confirmed! {fighter.name} has gained: {details['description']}",
         )
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))

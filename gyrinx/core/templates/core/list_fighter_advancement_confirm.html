@@ -1,15 +1,18 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
+{% block title %}
+    Confirm Advancement - {{ fighter.name }}
+{% endblock title %}
 {% block content %}
     <div class="vstack gap-3">
         <div class="vstack gap-1">
-            {% include "core/includes/back.html" with url=list.get_absolute_url text="Back to list" %}
+            {% include "core/includes/back_to_list.html" with list=list %}
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
             <div class="text-secondary">Step 4 of 4: Confirm Advancement</div>
         </div>
         <div class="card">
             <div class="card-header">
-                <h3 class="h5 mb-0">Confirm Advancement Purchase</h3>
+                <h3 class="h5 mb-0">Confirm Advancement</h3>
             </div>
             <div class="card-body">
                 <div class="vstack gap-3">
@@ -34,13 +37,13 @@
                         </dd>
                         <dt class="col-sm-4">Fighter Cost Increase:</dt>
                         <dd class="col-sm-8">
-                            +{{ details.cost_increase }} credits
+                            +{{ details.cost_increase }}¢
                         </dd>
                         <dt class="col-sm-4">Current XP:</dt>
                         <dd class="col-sm-8">
                             {{ fighter.xp_current }} XP
                         </dd>
-                        <dt class="col-sm-4">XP After Purchase:</dt>
+                        <dt class="col-sm-4">XP After Advancement:</dt>
                         <dd class="col-sm-8">
                             {{ fighter.xp_current|subtract:details.xp_cost }} XP
                         </dd>
@@ -51,7 +54,7 @@
                 <form method="post" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-success">
-                        <i class="bi-check-lg"></i> Confirm Purchase
+                        <i class="bi-check-lg"></i> Confirm Advancement
                     </button>
                 </form>
                 <a href="{% url 'core:list' list.id %}" class="btn btn-secondary">Cancel</a>
