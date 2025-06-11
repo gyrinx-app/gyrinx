@@ -914,25 +914,48 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     for item in equipment:
         if is_weapon:
             profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
-            profiles = [
-                profile
-                for profile in profiles
-                # Keep standard profiles
-                if profile.cost == 0
-                # They have an Al that matches the filter, and no roll value
-                or (not profile.rarity_roll and profile.rarity in als)
-                # They have an Al that matches the filter, and a roll
-                or (
-                    profile.rarity_roll
-                    and profile.rarity in als
-                    and (
-                        # If mal is set, check if profile passes the threshold
-                        (mal and profile.rarity_roll <= mal)
-                        # If mal is not set, show all profiles with matching rarity
-                        or not mal
-                    )
+
+            # If equipment list filter is active, only show profiles that are on the equipment list
+            if request.GET.get("filter", None) in [None, "", "equipment-list"]:
+                # Get weapon profiles that are specifically on the equipment list
+                equipment_list_profiles = (
+                    ContentFighterEquipmentListItem.objects.filter(
+                        fighter=fighter.equipment_list_fighter,
+                        equipment=item,
+                        weapon_profile__isnull=False,
+                    ).values_list("weapon_profile_id", flat=True)
                 )
-            ]
+
+                profiles = [
+                    profile
+                    for profile in profiles
+                    # Keep standard profiles (cost = 0)
+                    if profile.cost == 0
+                    # Or keep profiles that are specifically on the equipment list
+                    or profile.id in equipment_list_profiles
+                ]
+            else:
+                # Standard filtering when equipment list filter is not active
+                profiles = [
+                    profile
+                    for profile in profiles
+                    # Keep standard profiles
+                    if profile.cost == 0
+                    # They have an Al that matches the filter, and no roll value
+                    or (not profile.rarity_roll and profile.rarity in als)
+                    # They have an Al that matches the filter, and a roll
+                    or (
+                        profile.rarity_roll
+                        and profile.rarity in als
+                        and (
+                            # If mal is set, check if profile passes the threshold
+                            (mal and profile.rarity_roll <= mal)
+                            # If mal is not set, show all profiles with matching rarity
+                            or not mal
+                        )
+                    )
+                ]
+
             assigns.append(
                 VirtualListFighterEquipmentAssignment(
                     fighter=fighter,

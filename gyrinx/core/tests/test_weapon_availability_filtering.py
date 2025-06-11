@@ -178,7 +178,7 @@ def test_common_items_visible_with_rarity_threshold(setup_test_data):
 
 @pytest.mark.django_db
 def test_rare_profiles_visible_without_filter(setup_test_data):
-    """Test that rare weapon profiles are visible when no mal filter is set."""
+    """Test that rare weapon profiles are visible when no mal filter is set and not using equipment list filter."""
     client = Client()
     client.force_login(setup_test_data["user"])
 
@@ -191,7 +191,8 @@ def test_rare_profiles_visible_without_filter(setup_test_data):
     )
 
     # No mal parameter - should show all profiles
-    response = client.get(url, {"al": ["C", "R"]})
+    # Use trading-post filter to see all profiles regardless of equipment list
+    response = client.get(url, {"al": ["C", "R"], "filter": "trading-post"})
 
     assert response.status_code == 200
     content = response.content.decode()
@@ -218,7 +219,10 @@ def test_mal_filter_works_for_profiles(setup_test_data):
     )
 
     # Set mal=10 - should show profiles with rarity_roll <= 10
-    response = client.get(url, {"mal": "10", "al": ["C", "R"]})
+    # Use trading-post filter to see all profiles regardless of equipment list
+    response = client.get(
+        url, {"mal": "10", "al": ["C", "R"], "filter": "trading-post"}
+    )
 
     assert response.status_code == 200
     content = response.content.decode()
