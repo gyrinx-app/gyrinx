@@ -25,10 +25,14 @@ def add_bootstrap_class(field):
         ),
     ):
         css_classes = f"{css_classes} form-control".strip()
-    elif isinstance(widget, widgets.Select):
+    elif isinstance(widget, (widgets.Select, widgets.SelectMultiple)):
         css_classes = f"{css_classes} form-select".strip()
     elif isinstance(widget, (widgets.CheckboxInput, widgets.RadioSelect)):
         css_classes = f"{css_classes} form-check-input".strip()
+
+    # Add is-invalid class if field has errors
+    if field.errors:
+        css_classes = f"{css_classes} is-invalid".strip()
 
     widget.attrs["class"] = css_classes
     return field
@@ -38,11 +42,3 @@ def add_bootstrap_class(field):
 def is_checkbox(field):
     """Check if field is a checkbox."""
     return isinstance(field.field.widget, widgets.CheckboxInput)
-
-
-@register.filter
-def add_label_class(field):
-    """Add Bootstrap label classes based on widget type."""
-    if isinstance(field.field.widget, widgets.CheckboxInput):
-        return "form-check-label"
-    return "form-label"
