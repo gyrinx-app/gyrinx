@@ -2028,7 +2028,9 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
                 # Create campaign action for the roll
                 campaign_action = CampaignAction.objects.create(
                     user=request.user,
+                    owner=request.user,
                     campaign=lst.campaign,
+                    list=lst,
                     description=f"Rolling for advancement to {fighter.name}",
                     dice_results={
                         "dice": [
@@ -2107,6 +2109,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
             advancement_choice = form.cleaned_data["advancement_choice"]
             xp_cost = form.cleaned_data["xp_cost"]
             cost_increase = form.cleaned_data["cost_increase"]
+            campaign_action_id = form.cleaned_data.get("campaign_action_id")
 
             # Check if this is a stat advancement - go directly to confirm
             if advancement_choice.startswith("stat_"):
@@ -2117,8 +2120,8 @@ def list_fighter_advancement_type(request, id, fighter_id):
                     "xp_cost": xp_cost,
                     "cost_increase": cost_increase,
                 }
-                if campaign_action:
-                    params["campaign_action"] = campaign_action.id
+                if campaign_action_id:
+                    params["campaign_action"] = campaign_action_id
 
                 url = reverse(
                     "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
@@ -2131,8 +2134,8 @@ def list_fighter_advancement_type(request, id, fighter_id):
                     "xp_cost": xp_cost,
                     "cost_increase": cost_increase,
                 }
-                if campaign_action:
-                    params["campaign_action"] = campaign_action.id
+                if campaign_action_id:
+                    params["campaign_action"] = campaign_action_id
 
                 url = reverse(
                     "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
@@ -2176,8 +2179,8 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_select.html`
     """
+    from gyrinx.content.models import ContentSkill
     from gyrinx.core.forms.advancement import (
-        RandomSkillForm,
         SkillCategorySelectionForm,
         SkillSelectionForm,
         StatSelectionForm,
@@ -2401,7 +2404,9 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
                 campaign_action = CampaignAction.objects.create(
                     user=request.user,
+                    owner=request.user,
                     campaign=lst.campaign,
+                    list=lst,
                     description=description,
                     outcome=outcome,
                 )

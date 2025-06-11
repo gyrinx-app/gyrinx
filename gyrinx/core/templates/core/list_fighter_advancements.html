@@ -1,8 +1,8 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
-{% block title %}
+{% block head_title %}
     Advancements - {{ fighter.name }}
-{% endblock title %}
+{% endblock head_title %}
 {% block content %}
     <div class="vstack gap-3">
         <div class="vstack gap-1">
@@ -13,14 +13,11 @@
                 <span>Total XP Earned: {{ fighter.xp_total }}</span>
             </div>
         </div>
-
         <div class="card">
             <div class="card-header">
                 <div class="d-flex align-items-center">
                     <h3 class="h5 mb-0">Fighter Advancements</h3>
-                    {% if advancements.count > 0 %}
-                        <span class="badge text-bg-secondary ms-2">{{ advancements.count }}</span>
-                    {% endif %}
+                    {% if advancements.count > 0 %}<span class="badge text-bg-secondary ms-2">{{ advancements.count }}</span>{% endif %}
                     <div class="ms-auto">
                         <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
                            class="btn btn-primary btn-sm">
@@ -85,3 +82,4 @@
         </div>
     </div>
 {% endblock content %}
+
