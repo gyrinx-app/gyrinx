@@ -16,11 +16,11 @@
                     <i class="bi-dice-6 fs-3 me-2"></i>
                     <div>
                         <strong>Dice Roll:</strong>
-                        {% for die in campaign_action.dice_results.dice %}
-                            {% if not forloop.first %}+{% endif %}
-                            {{ die.result }}
+                        {% for result in campaign_action.dice_results %}
+                            {{ result }}
+                            {% if not forloop.last %}+{% endif %}
                         {% endfor %}
-                        = <strong>{{ campaign_action.dice_results.total }}</strong>
+                        = <strong>{{ campaign_action.dice_total }}</strong>
                     </div>
                 </div>
             </div>

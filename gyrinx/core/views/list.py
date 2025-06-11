@@ -2032,13 +2032,9 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
                     campaign=lst.campaign,
                     list=lst,
                     description=f"Rolling for advancement to {fighter.name}",
-                    dice_results={
-                        "dice": [
-                            {"sides": 6, "result": dice1},
-                            {"sides": 6, "result": dice2},
-                        ],
-                        "total": total,
-                    },
+                    dice_count=2,
+                    dice_results=[dice1, dice2],
+                    dice_total=total,
                 )
 
                 # Redirect to type selection with campaign action
