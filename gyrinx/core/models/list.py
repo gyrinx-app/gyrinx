@@ -451,12 +451,26 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        return self._base_cost_int + sum([e.cost_int() for e in self.assignments()])
+        # Include advancement cost increases
+        advancement_cost = (
+            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+        )
+        return (
+            self._base_cost_int
+            + advancement_cost
+            + sum([e.cost_int() for e in self.assignments()])
+        )
 
     @cached_property
     def cost_int_cached(self):
-        return self._base_cost_int + sum(
-            [e.cost_int() for e in self.assignments_cached]
+        # Include advancement cost increases
+        advancement_cost = (
+            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+        )
+        return (
+            self._base_cost_int
+            + advancement_cost
+            + sum([e.cost_int() for e in self.assignments_cached])
         )
 
     @cached_property
@@ -2135,3 +2149,152 @@ class ListFighterInjury(AppBase):
             raise ValidationError(
                 "Injuries can only be added to fighters in campaign mode."
             )
+
+
+class ListFighterAdvancement(AppBase):
+    """Track advancements purchased by fighters using XP in campaign mode."""
+
+    # Types of advancements
+    ADVANCEMENT_STAT = "stat"
+    ADVANCEMENT_SKILL = "skill"
+
+    ADVANCEMENT_TYPE_CHOICES = [
+        (ADVANCEMENT_STAT, "Characteristic Increase"),
+        (ADVANCEMENT_SKILL, "New Skill"),
+    ]
+
+    STAT_CHOICES = [
+        ("movement", "Movement"),
+        ("weapon_skill", "Weapon Skill"),
+        ("ballistic_skill", "Ballistic Skill"),
+        ("strength", "Strength"),
+        ("toughness", "Toughness"),
+        ("wounds", "Wounds"),
+        ("initiative", "Initiative"),
+        ("attacks", "Attacks"),
+        ("leadership", "Leadership"),
+        ("cool", "Cool"),
+        ("willpower", "Willpower"),
+        ("intelligence", "Intelligence"),
+    ]
+
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="advancements",
+        help_text="The fighter who purchased this advancement.",
+    )
+
+    advancement_type = models.CharField(
+        max_length=10,
+        choices=ADVANCEMENT_TYPE_CHOICES,
+        help_text="The type of advancement purchased.",
+    )
+
+    # For stat advancements
+    stat_increased = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        choices=STAT_CHOICES,
+        help_text="For stat increases, which characteristic was improved.",
+    )
+
+    # For skill advancements
+    skill = models.ForeignKey(
+        ContentSkill,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="For skill advancements, which skill was gained.",
+    )
+
+    xp_cost = models.PositiveIntegerField(
+        help_text="The XP cost of this advancement.",
+    )
+
+    cost_increase = models.IntegerField(
+        default=0,
+        help_text="The increase in fighter cost from this advancement.",
+    )
+
+    # Link to campaign action if dice were rolled
+    campaign_action = models.OneToOneField(
+        "CampaignAction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="advancement",
+        help_text="The campaign action recording the dice roll for this advancement.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["fighter", "created"]
+        verbose_name = "Fighter Advancement"
+        verbose_name_plural = "Fighter Advancements"
+
+    def __str__(self):
+        if self.advancement_type == self.ADVANCEMENT_STAT:
+            return f"{self.fighter.name} - {self.get_stat_increased_display()}"
+        elif self.skill:
+            return f"{self.fighter.name} - {self.skill.name}"
+        return f"{self.fighter.name} - Advancement"
+
+    def apply_advancement(self):
+        """Apply this advancement to the fighter."""
+        if self.advancement_type == self.ADVANCEMENT_STAT and self.stat_increased:
+            # Apply stat increase
+            override_field = f"{self.stat_increased}_override"
+
+            # Get the base value from content_fighter
+            base_value = getattr(self.fighter.content_fighter, self.stat_increased)
+
+            # Get current override value, defaulting to None if not set
+            current_override = getattr(self.fighter, override_field)
+
+            # Stats are stored as strings like "3+" or "4", we need to handle numeric increases
+            # For stats like WS/BS/Initiative with "+", extract the numeric part
+            if base_value and "+" in base_value:
+                base_numeric = int(base_value.replace("+", ""))
+                if current_override is None:
+                    # First advancement: improve by 1 (e.g., "4+" becomes "3+")
+                    new_value = f"{base_numeric - 1}+"
+                else:
+                    # Further advancements: extract numeric from override and improve
+                    current_numeric = int(current_override.replace("+", ""))
+                    new_value = f"{current_numeric - 1}+"
+            else:
+                # For stats without "+" (like S, T, W), just add 1
+                try:
+                    base_numeric = int(base_value) if base_value else 0
+                    if current_override is None:
+                        new_value = str(base_numeric + 1)
+                    else:
+                        current_numeric = int(current_override)
+                        new_value = str(current_numeric + 1)
+                except (ValueError, TypeError):
+                    # If we can't parse it as a number, just use the base value
+                    new_value = base_value
+
+            setattr(self.fighter, override_field, new_value)
+            self.fighter.save()
+        elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
+            # Add skill to fighter
+            self.fighter.skills.add(self.skill)
+
+        # Deduct XP cost from fighter
+        self.fighter.xp_current -= self.xp_cost
+        self.fighter.save()
+
+    def clean(self):
+        """Validate the advancement."""
+        if self.advancement_type == self.ADVANCEMENT_STAT and not self.stat_increased:
+            raise ValidationError("Stat advancement requires a stat to be selected.")
+        if self.advancement_type == self.ADVANCEMENT_SKILL and not self.skill:
+            raise ValidationError("Skill advancement requires a skill to be selected.")
+        if self.advancement_type == self.ADVANCEMENT_STAT and self.skill:
+            raise ValidationError("Stat advancement should not have a skill selected.")
+        if self.advancement_type == self.ADVANCEMENT_SKILL and self.stat_increased:
+            raise ValidationError("Skill advancement should not have a stat selected.")

@@ -1,0 +1,36 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Advancement Roll - {{ fighter.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="vstack gap-3">
+        <div class="vstack gap-1">
+            {% include "core/includes/back_to_list.html" with list=list %}
+            <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
+            <div class="text-secondary">Step 1 of 4: Choose Dice Roll</div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Roll for Advancement?</h3>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="card-body">
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                    <p>You can choose to roll 2d6 for your advancement. The dice roll will be recorded in the campaign log.</p>
+                    <div class="form-check">
+                        {{ form.roll_dice }}
+                        <label class="form-check-label" for="{{ form.roll_dice.id_for_label }}">Roll 2d6 for advancement</label>
+                    </div>
+                    {% if form.roll_dice.help_text %}<div class="form-text">{{ form.roll_dice.help_text }}</div>{% endif %}
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary">
+                        Next <i class="bi-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

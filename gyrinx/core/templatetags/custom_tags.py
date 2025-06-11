@@ -212,3 +212,23 @@ def fullurl(context: RequestContext, path):
 @register.simple_tag
 def settings_value(name):
     return getattr(settings, name, "")
+
+
+@register.simple_tag
+def get_skill(skill_id):
+    """Get a ContentSkill by its ID."""
+    from gyrinx.content.models import ContentSkill
+
+    try:
+        return ContentSkill.objects.get(pk=skill_id)
+    except ContentSkill.DoesNotExist:
+        return None
+
+
+@register.filter
+def subtract(value, arg):
+    """Subtract arg from value."""
+    try:
+        return int(value) - int(arg)
+    except (ValueError, TypeError):
+        return 0
