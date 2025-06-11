@@ -24,18 +24,18 @@ class AdvancementTypeForm(forms.Form):
 
     ADVANCEMENT_CHOICES = [
         # Stat improvements
-        ("stat_movement", 'Movement (+2" / +3" / +5 credits)'),
-        ("stat_weapon_skill", "Weapon Skill (+2+ / +20 credits)"),
-        ("stat_ballistic_skill", "Ballistic Skill (+2+ / +20 credits)"),
-        ("stat_strength", "Strength (+1 / +15 credits)"),
-        ("stat_toughness", "Toughness (+1 / +15 credits)"),
-        ("stat_wounds", "Wounds (+1 / +15 credits)"),
-        ("stat_attacks", "Attacks (+1 / +20 credits)"),
-        ("stat_initiative", "Initiative (+1 / +10 credits)"),
-        ("stat_leadership", "Leadership (+1 / +5 credits)"),
-        ("stat_cool", "Cool (+1 / +5 credits)"),
-        ("stat_willpower", "Willpower (+1 / +5 credits)"),
-        ("stat_intelligence", "Intelligence (+1 / +5 credits)"),
+        ("stat_movement", "Movement"),
+        ("stat_weapon_skill", "Weapon Skill"),
+        ("stat_ballistic_skill", "Ballistic Skill"),
+        ("stat_strength", "Strength"),
+        ("stat_toughness", "Toughness"),
+        ("stat_wounds", "Wounds"),
+        ("stat_attacks", "Attacks"),
+        ("stat_initiative", "Initiative"),
+        ("stat_leadership", "Leadership"),
+        ("stat_cool", "Cool"),
+        ("stat_willpower", "Willpower"),
+        ("stat_intelligence", "Intelligence"),
         # Skill options
         ("skill_primary_random", "Random Primary Skill"),
         ("skill_primary_chosen", "Chosen Primary Skill"),
@@ -47,7 +47,7 @@ class AdvancementTypeForm(forms.Form):
 
     advancement_choice = forms.ChoiceField(
         choices=ADVANCEMENT_CHOICES,
-        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+        widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Select the type of advancement for this fighter.",
     )
 
@@ -63,7 +63,7 @@ class AdvancementTypeForm(forms.Form):
         help_text="Fighter cost increase from this advancement.",
     )
 
-    campaign_action_id = forms.IntegerField(
+    campaign_action_id = forms.UUIDField(
         required=False,
         widget=forms.HiddenInput(),
     )
