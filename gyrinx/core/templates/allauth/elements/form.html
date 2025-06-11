@@ -1,7 +1,11 @@
 {% load allauth %}
-<form method="{{ attrs.method }}" action="{{ attrs.action }}">
+<form class="col-12 col-md-8 col-lg-6"
+      method="{{ attrs.method }}"
+      action="{{ attrs.action }}">
     {% slot body %}
     {% endslot %}
-    {% slot actions %}
-    {% endslot %}
+    <div class="hstack gap-3 mt-4">
+        {% slot actions %}
+        {% endslot %}
+    </div>
 </form>

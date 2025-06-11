@@ -3,7 +3,7 @@
 {% block body %}
     <div class="container my-3 my-md-5">
         {% if user.is_authenticated %}
-            <div class="dropdown d-md-none mb-3 order-1">
+            <div class="dropdown d-lg-none mb-3 order-1">
                 <button class="btn btn-outline-secondary dropdown-toggle"
                         type="button"
                         data-bs-toggle="dropdown"
@@ -12,7 +12,7 @@
                     {% include "account/snippets/menu.html" with list_a_class="dropdown-item" %}
                 </ul>
             </div>
-            <ul class="d-none d-md-flex nav nav-tabs order-2">
+            <ul class="d-none d-lg-flex nav nav-tabs order-2">
                 {% include "account/snippets/menu.html" with list_item_class="nav-item" list_a_class="nav-link" %}
             </ul>
         {% endif %}
