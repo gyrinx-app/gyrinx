@@ -6,6 +6,7 @@ ARGS=""
 
 # Function to check if requirements changed
 check_requirements_changed() {
+    echo "Checking if requirements.txt has changed..."
     # Try to find the merge base with main branch
     if git rev-parse --verify origin/main >/dev/null 2>&1; then
         BASE_REF="origin/main"
@@ -21,11 +22,20 @@ check_requirements_changed() {
         return 1
     fi
 
+    echo "Base reference for comparison: $BASE_REF"
+
     # Find merge base if possible
     if MERGE_BASE=$(git merge-base $BASE_REF HEAD 2>/dev/null); then
+        echo "Found merge base: $MERGE_BASE"
         # Check if requirements.txt changed since merge base
         if git diff --name-only $MERGE_BASE...HEAD | grep -q 'requirements.txt'; then
             echo "requirements.txt has changed since merge base $MERGE_BASE"
+            return 0
+        fi
+
+        # Check if requirements.txt in staged changes
+        if git diff --cached --name-only | grep -q 'requirements.txt'; then
+            echo "requirements.txt has changes staged for commit"
             return 0
         fi
     else
@@ -36,8 +46,12 @@ check_requirements_changed() {
         fi
     fi
 
+    echo "No changes detected in requirements.txt since $BASE_REF"
+
     return 1
 }
+
+echo "Checking if requirements have changed..."
 
 # Check if we need to rebuild
 if check_requirements_changed; then

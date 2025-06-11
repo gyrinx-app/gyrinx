@@ -1,11 +1,14 @@
 """Forms for fighter advancement system."""
 
 import random
+from typing import Optional
 
 from django import forms
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import ContentSkill, ContentSkillCategory
+from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.forms import group_select
 
 
 class AdvancementDiceChoiceForm(forms.Form):
@@ -13,9 +16,8 @@ class AdvancementDiceChoiceForm(forms.Form):
 
     roll_dice = forms.BooleanField(
         required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        help_text="Check this box to roll 2d6 for your advancement.",
+        initial=True,
+        widget=forms.HiddenInput(),
     )
 
 
@@ -44,6 +46,34 @@ class AdvancementTypeForm(forms.Form):
         ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
         ("skill_any_random", "Random Skill (Any Set)"),
     ]
+
+    ROLL_TO_COST = {
+        2: 20,
+        3: 20,
+        4: 20,
+        5: 30,
+        6: 30,
+        7: 10,
+        8: 5,
+        9: 5,
+        10: 10,
+        11: 10,
+        12: 20,
+    }
+
+    ROLL_TO_ADVANCEMENT_CHOICE = {
+        2: "skill_promote_specialist",
+        3: "stat_weapon_skill",
+        4: "stat_ballistic_skill",
+        5: "stat_strength",
+        6: "stat_toughness",
+        7: "stat_movement",
+        8: "stat_willpower",
+        9: "stat_intelligence",
+        10: "stat_leadership",
+        11: "stat_cool",
+        12: "skill_promote_specialist",
+    }
 
     advancement_choice = forms.ChoiceField(
         choices=ADVANCEMENT_CHOICES,
@@ -83,6 +113,31 @@ class AdvancementTypeForm(forms.Form):
             )
 
         return cleaned_data
+
+    @classmethod
+    def get_initial_for_action(
+        self, campaign_action: Optional[CampaignAction] = None
+    ) -> dict:
+        """
+        Extract initial parameters from a CampaignAction.
+        """
+        if not campaign_action:
+            return {
+                "xp_cost": 3,
+                "cost_increase": 5,
+                "advancement_choice": "stat_willpower",
+            }
+
+        return {
+            "xp_cost": 6,
+            "cost_increase": AdvancementTypeForm.ROLL_TO_COST.get(
+                campaign_action.dice_total, 5
+            ),
+            "advancement_choice": AdvancementTypeForm.ROLL_TO_ADVANCEMENT_CHOICE.get(
+                campaign_action.dice_total, "stat_willpower"
+            ),
+            "campaign_action_id": str(campaign_action.id),
+        }
 
 
 class StatSelectionForm(forms.Form):
@@ -145,6 +200,8 @@ class SkillSelectionForm(forms.Form):
                     .order_by("category__name", "name")
                 )
 
+        group_select(self, "skill", lambda x: x.category.name)
+
 
 class SkillCategorySelectionForm(forms.Form):
     """Form for selecting a skill category for random skills."""
@@ -152,7 +209,7 @@ class SkillCategorySelectionForm(forms.Form):
     category = forms.ModelChoiceField(
         queryset=ContentSkillCategory.objects.none(),
         widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Select a skill category to roll from.",
+        help_text="Select a skill set from which a skill will be randomly picked.",
     )
 
     def __init__(self, *args, fighter=None, skill_type=None, **kwargs):

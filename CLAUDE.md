@@ -328,3 +328,35 @@ The script will:
 5. Create a backup of the original file before updating
 
 **Important for Claude Code**: When working on this repository, check the last date in CHANGELOG.md. If it's more than 2 days old, proactively offer to run the changelog update script to ensure the changelog stays current with recent development activity.
+
+### Fighter Advancement System
+
+The advancement system allows fighters to spend XP in campaign mode. Key implementation details:
+
+1. **Model Structure**: The `ListFighterAdvancement` model tracks advancements with fields for:
+
+    - `advancement_type` - Either "stat" or "skill"
+    - `stat_increased` - Which stat was improved (for stat advancements)
+    - `skill` - Which skill was gained (for skill advancements)
+    - `xp_cost` - How much XP was spent
+    - `cost_increase` - How much the fighter's credit cost increased
+
+2. **Multi-Step Form Flow**: Uses a wizard-style flow with forms in `core/forms/advancement.py`:
+
+    - Step 1: Choose dice rolling vs manual selection
+    - Step 2: Select advancement type (stat/skill)
+    - Step 3: Choose specific stat or skill
+    - Step 4: Confirmation
+
+3. **Important Notes**:
+
+    - Advancements only work in campaign mode (`List.CAMPAIGN_MODE`)
+    - XP is tracked with `xp_current` (available) and `xp_total` (lifetime)
+    - Stat improvements with "+" values (like WS 4+) improve by reducing the number
+    - Skills are restricted to fighter's primary/secondary categories
+    - Uses HTMX for dynamic form updates without page reloads
+
+4. **Common Issues**:
+    - If you see advancement models with `description`, `stat_mod`, `dice_count` fields, that's from an older version before the rebuild
+    - The current system uses `advancement_type` with separate `stat_increased` and `skill` fields
+    - Form validation happens in the form's `clean()` method, not just the model's `clean()`
