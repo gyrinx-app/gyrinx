@@ -72,9 +72,9 @@
             <div class="mt-3">
                 {% if not list.archived %}
                     <input type="hidden" name="archive" value="1">
-                    <input type="submit" class="btn btn-danger" value="Archive">
+                    <button type="submit" class="btn btn-danger">Archive</button>
                 {% else %}
-                    <input type="submit" class="btn btn-primary" value="Unarchive">
+                    <button type="submit" class="btn btn-primary">Unarchive</button>
                 {% endif %}
                 <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
             </div>

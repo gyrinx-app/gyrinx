@@ -35,9 +35,7 @@
                 {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
             </div>
             <div class="mt-3">
-                <input type="submit"
-                       class="btn btn-primary"
-                       value="Update {{ asset.asset_type.name_singular }}">
+                <button type="submit" class="btn btn-primary">Update {{ asset.asset_type.name_singular }}</button>
                 <a href="{% url 'core:campaign-assets' campaign.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

@@ -41,7 +41,7 @@
                 {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
             </div>
             <div class="mt-3">
-                <input type="submit" class="btn btn-primary" value="Create Asset Type">
+                <button type="submit" class="btn btn-primary">Create Asset Type</button>
                 <a href="{% url 'core:campaign-assets' campaign.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

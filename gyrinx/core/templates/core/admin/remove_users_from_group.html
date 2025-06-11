@@ -28,7 +28,7 @@
             <input type="hidden" name="action" value="{{ action_name }}" />
             <input type="hidden" name="post" value="yes" />
             <div class="submit-row">
-                <input type="submit" value="{% trans "Remove from group" %}" class="default" />
+                <button type="submit" class="default">{% trans "Remove from group" %}</button>
                 <a href="#"
                    onclick="window.history.back(); return false;"
                    class="button cancel-link">{% trans "Cancel" %}</a>
