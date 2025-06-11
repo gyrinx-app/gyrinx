@@ -9,6 +9,8 @@ venv/
 *.egg-info/
 *.sqlite3
 css/
+gyrinx/core/static/core/css/styles.css
+gyrinx/core/static/core/css/styles.css.map
 dist/
 /node_modules/
 ui_archive/
