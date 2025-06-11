@@ -20,15 +20,19 @@ User = get_user_model()
 def test_weapon_profiles_filtered_with_equipment_list():
     """Test that weapon profiles are filtered when equipment list filter is active"""
     # Create test data
-    user = User.objects.create_user(username="testuser", password="testpass")
-    house = ContentHouse.objects.create(name="Test House", generic=True)
+    user = User.objects.create_user(
+        username="test_profile_filter_user", password="testpass"
+    )
+    house = ContentHouse.objects.create(name="Test Profile Filter House", generic=True)
 
     # Create equipment category for weapons
-    weapon_category = ContentEquipmentCategory.objects.create(name="Basic Weapons")
+    weapon_category = ContentEquipmentCategory.objects.create(
+        name="Test Profile Filter Weapons"
+    )
 
     # Create a weapon
     weapon = ContentEquipment.objects.create(
-        name="Test Gun", category=weapon_category, cost=10, rarity="C"
+        name="Test Profile Filter Gun", category=weapon_category, cost=10, rarity="C"
     )
 
     # Create weapon profiles (ammo types)
@@ -50,21 +54,21 @@ def test_weapon_profiles_filtered_with_equipment_list():
     # Create a fighter type
     fighter_type = ContentFighter.objects.create(
         house=house,
-        type="Test Fighter",
+        type="Test Profile Filter Fighter",
         category="GANGER",
-        cost=50,
-        movement=4,
-        weapon_skill=4,
-        ballistic_skill=4,
-        strength=3,
-        toughness=3,
-        wounds=1,
-        initiative=4,
-        attacks=1,
-        leadership=7,
-        cool=7,
-        willpower=7,
-        intelligence=7,
+        base_cost=50,
+        movement="4",
+        weapon_skill="4+",
+        ballistic_skill="4+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="7+",
+        cool="7+",
+        willpower="7+",
+        intelligence="7+",
     )
 
     # Add weapon to fighter's equipment list
@@ -82,15 +86,20 @@ def test_weapon_profiles_filtered_with_equipment_list():
     # Note: special_profile_not_on_list is NOT added to the equipment list
 
     # Create list and fighter
-    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst = List.objects.create(
+        name="Test Profile Filter List", content_house=house, owner=user
+    )
 
     list_fighter = ListFighter.objects.create(
-        name="Test Fighter", content_fighter=fighter_type, list=lst, owner=user
+        name="Test Profile Filter Fighter",
+        content_fighter=fighter_type,
+        list=lst,
+        owner=user,
     )
 
     # Login
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="test_profile_filter_user", password="testpass")
 
     # Test with equipment list filter active (default)
     response = client.get(
@@ -144,4 +153,3 @@ def test_weapon_profiles_filtered_with_equipment_list():
     assert "Standard Ammo" in profile_names
     assert "Special Ammo On List" in profile_names
     assert "Special Ammo Not On List" in profile_names
-
