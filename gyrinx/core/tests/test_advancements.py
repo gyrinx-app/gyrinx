@@ -120,7 +120,6 @@ def test_advancement_model_creation(fighter_with_xp, skill):
 def test_stat_advancement_application(fighter_with_xp):
     """Test applying a stat advancement."""
     # ListFighter gets base stats from content_fighter
-    original_ws = fighter_with_xp.content_fighter.weapon_skill
 
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
