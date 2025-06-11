@@ -2,11 +2,11 @@
 {% load i18n %}
 {% load allauth %}
 {% block head_title %}
-    {% trans "Email Address" %}
+    {% trans "Change Email Address" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Email Address" %}
+        {% trans "Change Email Address" %}
     {% endelement %}
     {% if not emailaddresses %}
         {% include "account/snippets/warn_no_email.html" %}

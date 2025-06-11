@@ -1,1 +1,18 @@
-{{ attrs.form.as_p }}
+{% load allauth allauth_bootstrap %}
+{% for field in attrs.form %}
+    <div class="mb-3">
+        {% if field|is_checkbox %}
+            <div class="form-check">
+                {{ field|add_bootstrap_class }}
+                <label for="{{ field.id_for_label }}" class="form-check-label">{{ field.label }}</label>
+            </div>
+        {% else %}
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field|add_bootstrap_class }}
+        {% endif %}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
+        {% if field.errors %}
+            {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        {% endif %}
+    </div>
+{% endfor %}
