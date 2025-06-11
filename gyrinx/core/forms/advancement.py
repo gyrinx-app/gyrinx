@@ -5,7 +5,7 @@ import random
 from django import forms
 from django.core.exceptions import ValidationError
 
-from gyrinx.content.models import ContentSkill
+from gyrinx.content.models import ContentSkill, ContentSkillCategory
 
 
 class AdvancementDiceChoiceForm(forms.Form):
@@ -118,22 +118,58 @@ class SkillSelectionForm(forms.Form):
             existing_skills = fighter.skills.all()
 
             if "primary" in skill_type:
-                # Primary skills
+                # Primary skills - show all skills from primary categories
                 categories = fighter.content_fighter.primary_skill_categories.all()
-                self.fields["skill"].queryset = ContentSkill.objects.filter(
-                    category__in=categories
-                ).exclude(id__in=existing_skills.values_list("id", flat=True))
-            elif "secondary" in skill_type:
-                # Secondary skills
-                categories = fighter.content_fighter.secondary_skill_categories.all()
-                self.fields["skill"].queryset = ContentSkill.objects.filter(
-                    category__in=categories
-                ).exclude(id__in=existing_skills.values_list("id", flat=True))
-            elif "any" in skill_type:
-                # Any skill
-                self.fields["skill"].queryset = ContentSkill.objects.exclude(
-                    id__in=existing_skills.values_list("id", flat=True)
+                self.fields["skill"].queryset = (
+                    ContentSkill.objects.filter(category__in=categories)
+                    .exclude(id__in=existing_skills.values_list("id", flat=True))
+                    .select_related("category")
+                    .order_by("category__name", "name")
                 )
+            elif "secondary" in skill_type:
+                # Secondary skills - show all skills from secondary categories
+                categories = fighter.content_fighter.secondary_skill_categories.all()
+                self.fields["skill"].queryset = (
+                    ContentSkill.objects.filter(category__in=categories)
+                    .exclude(id__in=existing_skills.values_list("id", flat=True))
+                    .select_related("category")
+                    .order_by("category__name", "name")
+                )
+            elif "any" in skill_type:
+                # Any skill - show all skills
+                self.fields["skill"].queryset = (
+                    ContentSkill.objects.exclude(
+                        id__in=existing_skills.values_list("id", flat=True)
+                    )
+                    .select_related("category")
+                    .order_by("category__name", "name")
+                )
+
+
+class SkillCategorySelectionForm(forms.Form):
+    """Form for selecting a skill category for random skills."""
+
+    category = forms.ModelChoiceField(
+        queryset=ContentSkillCategory.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Select a skill category to roll from.",
+    )
+
+    def __init__(self, *args, fighter=None, skill_type=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fighter = fighter
+        self.skill_type = skill_type
+
+        if fighter and skill_type:
+            if "primary" in skill_type:
+                categories = fighter.content_fighter.primary_skill_categories.all()
+            elif "secondary" in skill_type:
+                categories = fighter.content_fighter.secondary_skill_categories.all()
+            else:
+                # For "any" skill type, show all categories
+                categories = ContentSkillCategory.objects.all()
+
+            self.fields["category"].queryset = categories
 
 
 class RandomSkillForm(forms.Form):
@@ -149,31 +185,25 @@ class RandomSkillForm(forms.Form):
         label="Accept this skill",
     )
 
-    def __init__(self, *args, fighter=None, skill_type=None, **kwargs):
+    # Store the skill object for display
+    _skill = None
+
+    def __init__(
+        self, *args, fighter=None, skill_type=None, category_id=None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
 
-        if not self.is_bound and fighter and skill_type:
-            # Select a random skill
+        if not self.is_bound and fighter and category_id:
+            # Select a random skill from the specified category
             existing_skills = fighter.skills.all()
 
-            if "primary" in skill_type:
-                categories = fighter.content_fighter.primary_skill_categories.all()
-                available_skills = ContentSkill.objects.filter(
-                    category__in=categories
-                ).exclude(id__in=existing_skills.values_list("id", flat=True))
-            elif "secondary" in skill_type:
-                categories = fighter.content_fighter.secondary_skill_categories.all()
-                available_skills = ContentSkill.objects.filter(
-                    category__in=categories
-                ).exclude(id__in=existing_skills.values_list("id", flat=True))
-            elif "any" in skill_type:
-                available_skills = ContentSkill.objects.exclude(
-                    id__in=existing_skills.values_list("id", flat=True)
-                )
-            else:
-                available_skills = ContentSkill.objects.none()
+            category = ContentSkillCategory.objects.get(id=category_id)
+            available_skills = ContentSkill.objects.filter(category=category).exclude(
+                id__in=existing_skills.values_list("id", flat=True)
+            )
 
             if available_skills.exists():
                 random_skill = random.choice(available_skills)
                 self.initial["skill_id"] = random_skill.id
+                self._skill = random_skill

@@ -29,38 +29,38 @@ def house():
 @pytest.fixture
 def content_fighter(house):
     return ContentFighter.objects.create(
-        name="Test Fighter Type",
+        type="Test Fighter Type",
         house=house,
-        movement=4,
-        weapon_skill=3,
-        ballistic_skill=4,
-        strength=3,
-        toughness=3,
-        wounds=1,
-        initiative=4,
-        attacks=1,
-        leadership=7,
-        cool=7,
-        willpower=7,
-        intelligence=7,
-        type="ganger",
-        category="troops",
-        cost=50,
+        movement="4",
+        weapon_skill="3+",
+        ballistic_skill="4+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="7",
+        cool="7",
+        willpower="7",
+        intelligence="7",
+        category="ganger",
+        base_cost=50,
     )
 
 
 @pytest.fixture
 def skill_category():
-    return ContentSkillCategory.objects.create(name="Combat")
+    category, _ = ContentSkillCategory.objects.get_or_create(name="Combat")
+    return category
 
 
 @pytest.fixture
 def skill(skill_category):
-    return ContentSkill.objects.create(
+    skill, _ = ContentSkill.objects.get_or_create(
         name="Iron Jaw",
         category=skill_category,
-        description="This fighter can withstand more punishment.",
     )
+    return skill
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def campaign(user):
     return Campaign.objects.create(
         name="Test Campaign",
         owner=user,
-        status=Campaign.ACTIVE,
+        status=Campaign.IN_PROGRESS,
     )
 
 
@@ -76,11 +76,12 @@ def campaign(user):
 def list_with_campaign(user, house, campaign):
     lst = List.objects.create(
         name="Test List",
-        house=house,
+        content_house=house,
         owner=user,
         status=List.CAMPAIGN_MODE,
-        campaign=campaign,
     )
+    lst.campaign = campaign
+    lst.save()
     campaign.lists.add(lst)
     return lst
 
@@ -118,7 +119,8 @@ def test_advancement_model_creation(fighter_with_xp, skill):
 @pytest.mark.django_db
 def test_stat_advancement_application(fighter_with_xp):
     """Test applying a stat advancement."""
-    original_ws = fighter_with_xp.weapon_skill
+    # ListFighter gets base stats from content_fighter
+    original_ws = fighter_with_xp.content_fighter.weapon_skill
 
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
@@ -131,7 +133,9 @@ def test_stat_advancement_application(fighter_with_xp):
     advancement.apply_advancement()
     fighter_with_xp.refresh_from_db()
 
-    assert fighter_with_xp.weapon_skill == original_ws + 1
+    # Since original_ws is "3+", the override should be "2+" (improved by 1)
+    assert fighter_with_xp.weapon_skill_override == "2+"
+    assert fighter_with_xp.xp_current == 40  # 50 - 10
 
 
 @pytest.mark.django_db
@@ -148,8 +152,10 @@ def test_skill_advancement_application(fighter_with_xp, skill):
     )
 
     advancement.apply_advancement()
+    fighter_with_xp.refresh_from_db()
 
     assert skill in fighter_with_xp.skills.all()
+    assert fighter_with_xp.xp_current == 40  # 50 - 10
 
 
 @pytest.mark.django_db
@@ -175,9 +181,9 @@ def test_advancement_start_requires_campaign_mode(client, user, house, content_f
     # Create a non-campaign list
     lst = List.objects.create(
         name="Non-Campaign List",
-        house=house,
+        content_house=house,
         owner=user,
-        status=List.DEFAULT,
+        status=List.LIST_BUILDING,
     )
     fighter = ListFighter.objects.create(
         name="Test Fighter",

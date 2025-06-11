@@ -223,3 +223,12 @@ def get_skill(skill_id):
         return ContentSkill.objects.get(pk=skill_id)
     except ContentSkill.DoesNotExist:
         return None
+
+
+@register.filter
+def subtract(value, arg):
+    """Subtract arg from value."""
+    try:
+        return int(value) - int(arg)
+    except (ValueError, TypeError):
+        return 0

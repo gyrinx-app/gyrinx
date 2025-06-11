@@ -2233,13 +2233,46 @@ class ListFighterAdvancement(AppBase):
         if self.advancement_type == self.ADVANCEMENT_STAT and self.stat_increased:
             # Apply stat increase
             override_field = f"{self.stat_increased}_override"
+
+            # Get the base value from content_fighter
             base_value = getattr(self.fighter.content_fighter, self.stat_increased)
-            current_override = getattr(self.fighter, override_field) or base_value
-            setattr(self.fighter, override_field, current_override + 1)
+
+            # Get current override value, defaulting to None if not set
+            current_override = getattr(self.fighter, override_field)
+
+            # Stats are stored as strings like "3+" or "4", we need to handle numeric increases
+            # For stats like WS/BS/Initiative with "+", extract the numeric part
+            if base_value and "+" in base_value:
+                base_numeric = int(base_value.replace("+", ""))
+                if current_override is None:
+                    # First advancement: improve by 1 (e.g., "4+" becomes "3+")
+                    new_value = f"{base_numeric - 1}+"
+                else:
+                    # Further advancements: extract numeric from override and improve
+                    current_numeric = int(current_override.replace("+", ""))
+                    new_value = f"{current_numeric - 1}+"
+            else:
+                # For stats without "+" (like S, T, W), just add 1
+                try:
+                    base_numeric = int(base_value) if base_value else 0
+                    if current_override is None:
+                        new_value = str(base_numeric + 1)
+                    else:
+                        current_numeric = int(current_override)
+                        new_value = str(current_numeric + 1)
+                except (ValueError, TypeError):
+                    # If we can't parse it as a number, just use the base value
+                    new_value = base_value
+
+            setattr(self.fighter, override_field, new_value)
             self.fighter.save()
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             # Add skill to fighter
             self.fighter.skills.add(self.skill)
+
+        # Deduct XP cost from fighter
+        self.fighter.xp_current -= self.xp_cost
+        self.fighter.save()
 
     def clean(self):
         """Validate the advancement."""

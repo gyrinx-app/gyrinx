@@ -1809,7 +1809,7 @@ def edit_list_fighter_xp(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     # Check campaign mode
@@ -1970,7 +1970,7 @@ def list_fighter_advancement_start(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     # Check campaign mode
@@ -2009,7 +2009,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     if request.method == "POST":
@@ -2092,7 +2092,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     # Get campaign action if provided
@@ -2161,13 +2161,14 @@ def list_fighter_advancement_select(request, id, fighter_id):
     """
     from gyrinx.core.forms.advancement import (
         RandomSkillForm,
+        SkillCategorySelectionForm,
         SkillSelectionForm,
         StatSelectionForm,
     )
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     # Get parameters from query string
@@ -2223,38 +2224,77 @@ def list_fighter_advancement_select(request, id, fighter_id):
         else:
             form = SkillSelectionForm(fighter=fighter, skill_type=advancement_type)
     else:
-        # Random skill
-        if request.method == "POST":
-            form = RandomSkillForm(
-                request.POST, fighter=fighter, skill_type=advancement_type
-            )
-            if form.is_valid() and form.cleaned_data["confirm"]:
-                skill_id = form.cleaned_data["skill_id"]
-                params = {
-                    "type": "skill",
-                    "skill": skill_id,
-                    "xp_cost": xp_cost,
-                    "cost_increase": cost_increase,
-                }
-                if campaign_action_id:
-                    params["campaign_action"] = campaign_action_id
+        # Random skill - handle category selection first
+        category_id = request.GET.get("category_id")
 
-                url = reverse(
-                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+        if not category_id:
+            # Step 1: Select category
+            if request.method == "POST":
+                form = SkillCategorySelectionForm(
+                    request.POST, fighter=fighter, skill_type=advancement_type
                 )
-                return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+                if form.is_valid():
+                    category = form.cleaned_data["category"]
+                    # Redirect to same view with category_id
+                    params = request.GET.copy()
+                    params["category_id"] = category.id
+                    url = reverse(
+                        "core:list-fighter-advancement-select",
+                        args=(lst.id, fighter.id),
+                    )
+                    return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+            else:
+                form = SkillCategorySelectionForm(
+                    fighter=fighter, skill_type=advancement_type
+                )
         else:
-            form = RandomSkillForm(fighter=fighter, skill_type=advancement_type)
+            # Step 2: Confirm random skill from category
+            if request.method == "POST":
+                form = RandomSkillForm(
+                    request.POST,
+                    fighter=fighter,
+                    skill_type=advancement_type,
+                    category_id=category_id,
+                )
+                if form.is_valid() and form.cleaned_data["confirm"]:
+                    skill_id = form.cleaned_data["skill_id"]
+                    params = {
+                        "type": "skill",
+                        "skill": skill_id,
+                        "xp_cost": xp_cost,
+                        "cost_increase": cost_increase,
+                    }
+                    if campaign_action_id:
+                        params["campaign_action"] = campaign_action_id
+
+                    url = reverse(
+                        "core:list-fighter-advancement-confirm",
+                        args=(lst.id, fighter.id),
+                    )
+                    return HttpResponseRedirect(f"{url}?{urlencode(params)}")
+            else:
+                form = RandomSkillForm(
+                    fighter=fighter,
+                    skill_type=advancement_type,
+                    category_id=category_id,
+                )
+
+    # Pass the skill object if available (for random skills)
+    context = {
+        "form": form,
+        "fighter": fighter,
+        "list": lst,
+        "advancement_type": advancement_type,
+    }
+
+    # Add skill object to avoid N+1 query in template
+    if hasattr(form, "_skill") and form._skill:
+        context["selected_skill"] = form._skill
 
     return render(
         request,
         "core/list_fighter_advancement_select.html",
-        {
-            "form": form,
-            "fighter": fighter,
-            "list": lst,
-            "advancement_type": advancement_type,
-        },
+        context,
     )
 
 
@@ -2284,7 +2324,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, owner=lst.owner, archived_at__isnull=True
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
     # Get parameters
@@ -2362,11 +2402,10 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         # Save advancement
         advancement.save()
 
-        # Apply the advancement
+        # Apply the advancement (this also deducts XP)
         advancement.apply_advancement()
 
-        # Spend XP
-        fighter.xp_current -= xp_cost
+        # Update fighter cost
         fighter.cost_override = (
             fighter.cost_override or fighter.base_cost()
         ) + cost_increase
