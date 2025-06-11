@@ -213,6 +213,7 @@ class List(AppBase):
         values = {
             "public": self.public if for_campaign is None else False,
             "narrative": self.narrative,
+            "theme_color": self.theme_color,
             **kwargs,
         }
 
