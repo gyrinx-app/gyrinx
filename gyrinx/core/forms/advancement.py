@@ -45,6 +45,8 @@ class AdvancementTypeForm(forms.Form):
         ("skill_secondary_chosen", "Chosen Secondary Skill"),
         ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
         ("skill_any_random", "Random Skill (Any Set)"),
+        # Other
+        ("other", "Other"),
     ]
 
     ROLL_TO_COST = {
@@ -264,3 +266,20 @@ class RandomSkillForm(forms.Form):
                 random_skill = random.choice(available_skills)
                 self.initial["skill_id"] = random_skill.id
                 self._skill = random_skill
+
+
+class OtherAdvancementForm(forms.Form):
+    """Form for entering a free text advancement description."""
+
+    description = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        help_text="Enter a short description of the advancement (e.g., 'Wyrd Powers').",
+        label="Advancement Description",
+    )
+
+    def clean_description(self):
+        description = self.cleaned_data.get("description", "").strip()
+        if not description:
+            raise ValidationError("Please enter a description for the advancement.")
+        return description

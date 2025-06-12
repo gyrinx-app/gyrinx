@@ -206,6 +206,11 @@ urlpatterns = [
         name="list-fighter-advancement-select",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/advancements/new/other",
+        list.list_fighter_advancement_other,
+        name="list-fighter-advancement-other",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/advancements/new/confirm",
         list.list_fighter_advancement_confirm,
         name="list-fighter-advancement-confirm",
