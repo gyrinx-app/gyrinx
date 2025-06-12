@@ -6,7 +6,7 @@
 {% block content %}
     <div class="col-12 col-md-8 col-lg-6 vstack gap-3">
         <div class="vstack gap-1">
-            {% include "core/includes/back_to_list.html" with list=list %}
+            {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
             <h3 class="h5 mb-0">Select Advancement</h3>
         </div>
