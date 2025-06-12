@@ -4,11 +4,11 @@
     New Advancement - {{ fighter.name }}
 {% endblock head_title %}
 {% block content %}
-    <div class="vstack gap-3">
+    <div class="col-12 col-md-8 col-lg-6 vstack gap-3">
         <div class="vstack gap-1">
-            {% include "core/includes/back_to_list.html" with list=list %}
+            {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
-            <div class="text-secondary">Step 2 of 4: Choose Advancement Type</div>
+            <h3 class="h5 mb-0">Select Advancement</h3>
         </div>
         {% if campaign_action %}
             <div class="alert alert-info">
@@ -25,48 +25,49 @@
                 </div>
             </div>
         {% endif %}
-        <div class="card">
-            <div class="card-header">
-                <h3 class="h5 mb-0">Select Advancement</h3>
-                <div class="text-muted">Available XP: {{ fighter.xp_current }}</div>
-            </div>
-            <form method="post">
-                {% csrf_token %}
-                {{ form.campaign_action_id }}
-                <div class="card-body">
-                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-                    <div class="vstack gap-3">
-                        <div>
-                            <label class="form-label">Advancement Type</label>
-                            <div class="vstack gap-2">{{ form.advancement_choice }}</div>
-                            {% if form.advancement_choice.errors %}
-                                <div class="invalid-feedback d-block">{{ form.advancement_choice.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="{{ form.xp_cost.id_for_label }}" class="form-label">XP Cost</label>
-                                {{ form.xp_cost }}
-                                <div class="form-text">{{ form.xp_cost.help_text }}</div>
-                                {% if form.xp_cost.errors %}<div class="invalid-feedback d-block">{{ form.xp_cost.errors.0 }}</div>{% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <label for="{{ form.cost_increase.id_for_label }}" class="form-label">Fighter Cost Increase</label>
-                                {{ form.cost_increase }}
-                                <div class="form-text">{{ form.cost_increase.help_text }}</div>
-                                {% if form.cost_increase.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.cost_increase.errors.0 }}</div>
-                                {% endif %}
-                            </div>
-                        </div>
+        <div class="alert alert-secondary">
+            Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
+        </div>
+        <form method="post" class="vstack gap-4">
+            {% csrf_token %}
+            {{ form.campaign_action_id }}
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="vstack gap-3">
+                <div>
+                    <label class="form-label">Advancement</label>
+                    <div class="vstack gap-2">{{ form.advancement_choice }}</div>
+                    {% if form.advancement_choice.errors %}
+                        <div class="invalid-feedback d-block">{{ form.advancement_choice.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="{{ form.xp_cost.id_for_label }}" class="form-label">XP Spend</label>
+                        {{ form.xp_cost }}
+                        <div class="form-text">{{ form.xp_cost.help_text }}</div>
+                        {% if form.xp_cost.errors %}<div class="invalid-feedback d-block">{{ form.xp_cost.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.cost_increase.id_for_label }}" class="form-label">Fighter Cost Increase</label>
+                        {{ form.cost_increase }}
+                        <div class="form-text">{{ form.cost_increase.help_text }}</div>
+                        {% if form.cost_increase.errors %}
+                            <div class="invalid-feedback d-block">{{ form.cost_increase.errors.0 }}</div>
+                        {% endif %}
                     </div>
                 </div>
-                <div class="card-footer">
+            </div>
+            <div class="vstack gap-3">
+                <div class="hstack gap-3">
+                    <a href="{% url 'core:list-fighter-advancement-dice-choice' list.id fighter.id %}"
+                       class="icon-link">
+                        <i class="bi-arrow-left"></i> Back
+                    </a>
                     <button type="submit" class="btn btn-primary">
                         Next <i class="bi-arrow-right"></i>
                     </button>
                 </div>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 {% endblock content %}

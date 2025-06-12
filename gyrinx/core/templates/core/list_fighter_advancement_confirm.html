@@ -4,61 +4,28 @@
     Confirm Advancement - {{ fighter.name }}
 {% endblock head_title %}
 {% block content %}
-    <div class="vstack gap-3">
+    <div class="vstack gap-4">
         <div class="vstack gap-1">
-            {% include "core/includes/back_to_list.html" with list=list %}
+            {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
-            <div class="text-secondary">Step 4 of 4: Confirm Advancement</div>
+            <h3 class="h5 mb-0">Confirm Advancement</h3>
         </div>
-        <div class="card">
-            <div class="card-header">
-                <h3 class="h5 mb-0">Confirm Advancement</h3>
-            </div>
-            <div class="card-body">
-                <div class="vstack gap-3">
-                    <div class="alert alert-warning mb-0">
-                        <i class="bi-exclamation-triangle me-2"></i>
-                        Please confirm the following advancement for {{ fighter.name }}:
-                    </div>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4">Advancement:</dt>
-                        <dd class="col-sm-8">
-                            {% if details.type == "stat" %}
-                                <span class="badge text-bg-info">Stat Increase</span>
-                                {{ details.description }}
-                            {% else %}
-                                <span class="badge text-bg-success">New Skill</span>
-                                {{ details.description }}
-                            {% endif %}
-                        </dd>
-                        <dt class="col-sm-4">XP Cost:</dt>
-                        <dd class="col-sm-8">
-                            {{ details.xp_cost }} XP
-                        </dd>
-                        <dt class="col-sm-4">Fighter Cost Increase:</dt>
-                        <dd class="col-sm-8">
-                            +{{ details.cost_increase }}¢
-                        </dd>
-                        <dt class="col-sm-4">Current XP:</dt>
-                        <dd class="col-sm-8">
-                            {{ fighter.xp_current }} XP
-                        </dd>
-                        <dt class="col-sm-4">XP After Advancement:</dt>
-                        <dd class="col-sm-8">
-                            {{ fighter.xp_current|subtract:details.xp_cost }} XP
-                        </dd>
-                    </dl>
-                </div>
-            </div>
-            <div class="card-footer">
-                <form method="post" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success">
-                        <i class="bi-check-lg"></i> Confirm Advancement
-                    </button>
-                </form>
-                <a href="{% url 'core:list' list.id %}" class="btn btn-secondary">Cancel</a>
-            </div>
+        <div>
+            Advance {{ details.description }} for
+            <span class="badge text-bg-primary">{{ details.xp_cost }} XP</span>
+            (+{{ details.cost_increase|default:"0" }}¢)?
+        </div>
+        <div class="hstack gap-3">
+            <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}?campaign_action_id={{ details.campaign_action_id }}"
+               class="icon-link">
+                <i class="bi-arrow-left"></i> Back
+            </a>
+            <form method="post" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-check-lg"></i> Confirm Advancement
+                </button>
+            </form>
         </div>
     </div>
 {% endblock content %}

@@ -1,3 +1,6 @@
+import random
+import uuid
+from typing import Literal, Optional
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -8,6 +11,7 @@ from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
+from pydantic import BaseModel, field_validator
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -19,8 +23,15 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentPsykerDiscipline,
     ContentPsykerPower,
+    ContentSkill,
     ContentSkillCategory,
     ContentWeaponAccessory,
+)
+from gyrinx.core.forms.advancement import (
+    AdvancementDiceChoiceForm,
+    AdvancementTypeForm,
+    SkillCategorySelectionForm,
+    SkillSelectionForm,
 )
 from gyrinx.core.forms.list import (
     AddInjuryForm,
@@ -37,9 +48,11 @@ from gyrinx.core.forms.list import (
     NewListFighterForm,
     NewListForm,
 )
+from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
     List,
     ListFighter,
+    ListFighterAdvancement,
     ListFighterEquipmentAssignment,
     ListFighterInjury,
     ListFighterPsykerPowerAssignment,
@@ -48,48 +61,6 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
-
-
-def sanitize_advancement_params(params):
-    """
-    Sanitize URL parameters for advancement redirects to prevent URL injection.
-    Only allows specific advancement-related parameters with validated values.
-    """
-    # Define allowed parameters and their validators
-    allowed_params = {
-        "type": lambda v: v in ["stat", "skill"],
-        "stat": lambda v: v
-        in [
-            "movement",
-            "weapon_skill",
-            "ballistic_skill",
-            "strength",
-            "toughness",
-            "wounds",
-            "initiative",
-            "attacks",
-            "leadership",
-            "cool",
-            "willpower",
-            "intelligence",
-        ],
-        "skill": lambda v: is_int(v) and int(v) > 0,
-        "xp_cost": lambda v: is_int(v) and 0 <= int(v) <= 100,
-        "cost_increase": lambda v: is_int(v) and int(v) >= 0,
-        "campaign_action": lambda v: is_int(v) and int(v) > 0,
-        "category_id": lambda v: is_int(v) and int(v) > 0,
-        "dice_1": lambda v: is_int(v) and 1 <= int(v) <= 6,
-        "dice_2": lambda v: is_int(v) and 1 <= int(v) <= 6,
-        "chosen": lambda v: v in ["true", "false"],
-    }
-
-    # Filter and validate parameters
-    sanitized = {}
-    for key, value in params.items():
-        if key in allowed_params and allowed_params[key](str(value)):
-            sanitized[key] = value
-
-    return sanitized
 
 
 class ListsListView(generic.ListView):
@@ -2047,8 +2018,6 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_dice_choice.html`
     """
-    from gyrinx.core.forms.advancement import AdvancementDiceChoiceForm
-    from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -2062,8 +2031,6 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
 
             if roll_dice:
                 # Roll 2d6 and create campaign action
-                import random
-
                 dice1 = random.randint(1, 6)
                 dice2 = random.randint(1, 6)
                 total = dice1 + dice2
@@ -2085,7 +2052,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
                     "core:list-fighter-advancement-type", args=(lst.id, fighter.id)
                 )
                 return HttpResponseRedirect(
-                    f"{url}?campaign_action={campaign_action.id}"
+                    f"{url}?campaign_action_id={campaign_action.id}"
                 )
             else:
                 # Redirect to type selection without campaign action
@@ -2108,6 +2075,107 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
     )
 
 
+class AdvancementBaseParams(BaseModel):
+    # UUID of the campaign action if dice were rolled
+    campaign_action_id: Optional[uuid.UUID] = None
+
+
+class AdvancementFlowParams(AdvancementBaseParams):
+    # Type of advancement being selected (e.g., "stat_strength", "skill_primary_random")
+    advancement_choice: str
+    # Spend XP cost for this advancement
+    xp_cost: int = 0
+    # Fighter cost increase from this advancement
+    cost_increase: int = 0
+
+    @field_validator("advancement_choice")
+    @classmethod
+    def validate_advancement_choice(cls, value: str) -> str:
+        if value not in dict(AdvancementTypeForm.ADVANCEMENT_CHOICES).keys():
+            raise ValueError("Invalid advancement type choice.")
+        return value
+
+    def is_stat_advancement(self) -> bool:
+        """
+        Check if this is a stat advancement.
+        """
+        return self.advancement_choice.startswith("stat_")
+
+    def is_skill_advancement(self) -> bool:
+        """
+        Check if this is a skill advancement.
+        """
+        return self.advancement_choice in [
+            "skill_primary_chosen",
+            "skill_secondary_chosen",
+            "skill_primary_random",
+            "skill_secondary_random",
+            "skill_promote_specialist",
+            "skill_any_random",
+        ]
+
+    def is_chosen_skill_advancement(self) -> bool:
+        """
+        Check if this is a chosen skill advancement.
+        """
+        return self.advancement_choice in [
+            "skill_primary_chosen",
+            "skill_secondary_chosen",
+        ]
+
+    def is_random_skill_advancement(self) -> bool:
+        """
+        Check if this is a random skill advancement.
+        """
+        return self.advancement_choice in [
+            "skill_primary_random",
+            "skill_secondary_random",
+            "skill_promote_specialist",
+            "skill_any_random",
+        ]
+
+    def skill_category_from_choice(self) -> Literal["primary", "secondary", "any"]:
+        """
+        Extract the skill category from the advancement choice.
+        """
+        if self.is_skill_advancement():
+            if self.advancement_choice in [
+                "skill_primary_chosen",
+                "skill_primary_random",
+                "skill_promote_specialist",
+            ]:
+                return "primary"
+            elif self.advancement_choice in [
+                "skill_secondary_chosen",
+                "skill_secondary_random",
+            ]:
+                return "secondary"
+            elif self.advancement_choice == "skill_any_random":
+                return "any"
+
+        raise ValueError("Not a skill advancement choice.")
+
+    def stat_from_choice(self) -> str:
+        """
+        Extract the stat from the advancement choice.
+        """
+        if self.is_stat_advancement():
+            return self.advancement_choice.split("_", 1)[1]
+
+        raise ValueError("Not a stat advancement choice.")
+
+    def description_from_choice(self) -> str:
+        """
+        Get the description for the advancement based on the choice.
+        """
+        if self.is_stat_advancement():
+            return dict(AdvancementTypeForm.ADVANCEMENT_CHOICES).get(
+                self.advancement_choice, ""
+            )
+
+        raise ValueError("Invalid advancement type for description.")
+
+
 @login_required
 def list_fighter_advancement_type(request, id, fighter_id):
     """
@@ -2128,64 +2196,46 @@ def list_fighter_advancement_type(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_type.html`
     """
-    from gyrinx.core.forms.advancement import AdvancementTypeForm
-    from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    params = AdvancementBaseParams.model_validate(request.GET.dict())
     # Get campaign action if provided
     campaign_action = None
-    campaign_action_id = request.GET.get("campaign_action")
-    if campaign_action_id:
-        campaign_action = get_object_or_404(CampaignAction, id=campaign_action_id)
+    if params.campaign_action_id:
+        campaign_action = get_object_or_404(
+            CampaignAction, id=params.campaign_action_id
+        )
 
     if request.method == "POST":
         form = AdvancementTypeForm(request.POST, fighter=fighter)
         if form.is_valid():
-            advancement_choice = form.cleaned_data["advancement_choice"]
-            xp_cost = form.cleaned_data["xp_cost"]
-            cost_increase = form.cleaned_data["cost_increase"]
-            campaign_action_id = form.cleaned_data.get("campaign_action_id")
+            next_params = AdvancementFlowParams.model_validate(form.cleaned_data)
 
             # Check if this is a stat advancement - go directly to confirm
-            if advancement_choice.startswith("stat_"):
-                stat = advancement_choice[5:]  # Remove "stat_" prefix
-                params = {
-                    "type": "stat",
-                    "stat": stat,
-                    "xp_cost": xp_cost,
-                    "cost_increase": cost_increase,
-                }
-                if campaign_action_id:
-                    params["campaign_action"] = campaign_action_id
-
+            if next_params.is_stat_advancement():
                 url = reverse(
                     "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
                 )
-                sanitized_params = sanitize_advancement_params(params)
-                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
+                )
             else:
                 # For skills, still need selection step
-                params = {
-                    "type": advancement_choice,
-                    "xp_cost": xp_cost,
-                    "cost_increase": cost_increase,
-                }
-                if campaign_action_id:
-                    params["campaign_action"] = campaign_action_id
-
                 url = reverse(
                     "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
                 )
-                sanitized_params = sanitize_advancement_params(params)
-                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
+                )
     else:
-        initial = {}
-        if campaign_action:
-            initial["campaign_action_id"] = campaign_action.id
+        initial = {
+            **params.model_dump(mode="json", exclude_none=True),
+            **AdvancementTypeForm.get_initial_for_action(campaign_action),
+        }
         form = AdvancementTypeForm(initial=initial, fighter=fighter)
 
     return render(
@@ -2198,6 +2248,158 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "campaign_action": campaign_action,
         },
     )
+
+
+@login_required
+def list_fighter_advancement_confirm(request, id, fighter_id):
+    """
+    Confirm and create the advancement.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` purchasing the advancement.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``advancement_details``
+        Dictionary containing details about the advancement to be created.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_confirm.html`
+    """
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
+    )
+
+    # Get and sanitize parameters from query string, and make sure only stat advancements
+    # reach this stage. Then build the details object.
+    try:
+        params = AdvancementFlowParams.model_validate(request.GET.dict())
+        if not params.is_stat_advancement():
+            raise ValueError("Only stat advancements allowed at the confirm stage")
+
+        stat = params.stat_from_choice()
+        stat_desc = params.description_from_choice()
+    except ValueError as e:
+        messages.error(request, f"Invalid advancement: {e}.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        )
+
+    if request.method == "POST":
+        # Create the advancement
+        advancement = ListFighterAdvancement(
+            fighter=fighter,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+            xp_cost=params.xp_cost,
+            cost_increase=params.cost_increase,
+            stat_increased=stat,
+        )
+
+        outcome = f"Improved {stat_desc}"
+
+        if params.campaign_action_id:
+            # Add outcome to campaign action if exists
+            campaign_action = get_object_or_404(
+                CampaignAction, id=params.campaign_action_id
+            )
+            advancement.campaign_action = campaign_action
+            campaign_action.outcome = outcome
+            campaign_action.save()
+        else:
+            # Create new campaign action if not exists
+            if lst.campaign:
+                description = f"{fighter.name} spent {params.xp_cost} XP to advance"
+
+                campaign_action = CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=description,
+                    outcome=outcome,
+                )
+                advancement.campaign_action = campaign_action
+
+        advancement.save()
+
+        # Apply the advancement (this deducts XP)
+        # Don't update cost_override - the cost will be computed from advancements
+        advancement.apply_advancement()
+
+        messages.success(
+            request,
+            f"Advanced: {fighter.name} has improved {stat_desc}",
+        )
+
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_advancement_confirm.html",  # TODO: Check and update this template
+        {
+            "fighter": fighter,
+            "list": lst,
+            "details": {
+                **params.model_dump(),
+                "stat": stat,
+                "description": stat_desc,
+            },
+        },
+    )
+
+
+def apply_skill_advancement(
+    request: HttpRequest,
+    lst: List,
+    fighter: ListFighter,
+    skill: ContentSkill,
+    params: AdvancementFlowParams,
+) -> ListFighterAdvancement:
+    # Create the advancement
+    advancement = ListFighterAdvancement(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=params.xp_cost,
+        cost_increase=params.cost_increase,
+        skill=skill,
+    )
+
+    outcome = f"Gained {skill.name} skill"
+
+    if params.campaign_action_id:
+        # Add outcome to campaign action if exists
+        campaign_action = get_object_or_404(
+            CampaignAction, id=params.campaign_action_id
+        )
+        advancement.campaign_action = campaign_action
+        campaign_action.outcome = outcome
+        campaign_action.save()
+    else:
+        # Create new campaign action if not exists
+        if lst.campaign:
+            description = f"{fighter.name} spent {params.xp_cost} XP to advance"
+
+            campaign_action = CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=description,
+                outcome=outcome,
+            )
+            advancement.campaign_action = campaign_action
+
+    advancement.save()
+
+    # Apply the advancement (this deducts XP)
+    # Don't update cost_override - the cost will be computed from advancements
+    advancement.apply_advancement()
+
+    return advancement
 
 
 @login_required
@@ -2220,306 +2422,107 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_select.html`
     """
-    from gyrinx.content.models import ContentSkill
-    from gyrinx.core.forms.advancement import (
-        SkillCategorySelectionForm,
-        SkillSelectionForm,
-        StatSelectionForm,
-    )
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Get and sanitize parameters from query string
-    params = {
-        "type": request.GET.get("type"),
-        "xp_cost": request.GET.get("xp_cost", 0),
-        "cost_increase": request.GET.get("cost_increase", 0),
-        "campaign_action": request.GET.get("campaign_action"),
-    }
-    sanitized = sanitize_advancement_params(params)
+    # Get and sanitize parameters from query string, and make sure only stat advancements
+    # reach this stage. Then build the details object.
+    try:
+        params = AdvancementFlowParams.model_validate(request.GET.dict())
+        if not params.is_skill_advancement():
+            raise ValueError("Only skill advancements allowed at the target stage")
 
-    advancement_type = sanitized.get("type")
-    if not advancement_type:
-        messages.error(request, "Invalid advancement type.")
+        skill_type = params.skill_category_from_choice()
+    except ValueError as e:
+        messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
-            reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
 
-    xp_cost = int(sanitized.get("xp_cost", 0))
-    cost_increase = int(sanitized.get("cost_increase", 0))
-    campaign_action_id = sanitized.get("campaign_action")
-
-    # Determine form type based on advancement choice
-    if advancement_type.startswith("stat_"):
-        # Stat advancement
-        stat = advancement_type[5:]  # Remove "stat_" prefix
-        if request.method == "POST":
-            form = StatSelectionForm(request.POST)
-            if form.is_valid() and form.cleaned_data["confirm"]:
-                # Proceed to confirmation
-                params = {
-                    "type": "stat",
-                    "stat": stat,
-                    "xp_cost": xp_cost,
-                    "cost_increase": cost_increase,
-                }
-                if campaign_action_id:
-                    params["campaign_action"] = campaign_action_id
-
-                url = reverse(
-                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
-                )
-                sanitized_params = sanitize_advancement_params(params)
-                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
-        else:
-            form = StatSelectionForm(initial={"stat": stat})
-    elif "chosen" in advancement_type:
+    if params.is_chosen_skill_advancement():
         # Chosen skill
         if request.method == "POST":
             form = SkillSelectionForm(
-                request.POST, fighter=fighter, skill_type=advancement_type
+                request.POST, fighter=fighter, skill_type=skill_type
             )
             if form.is_valid():
                 skill = form.cleaned_data["skill"]
-                params = {
-                    "type": "skill",
-                    "skill": skill.id,
-                    "xp_cost": xp_cost,
-                    "cost_increase": cost_increase,
-                }
-                if campaign_action_id:
-                    params["campaign_action"] = campaign_action_id
 
-                url = reverse(
-                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+                apply_skill_advancement(
+                    request,
+                    lst,
+                    fighter,
+                    skill,
+                    params,
                 )
-                sanitized_params = sanitize_advancement_params(params)
-                return HttpResponseRedirect(f"{url}?{urlencode(sanitized_params)}")
+
+                messages.success(
+                    request,
+                    f"Advanced: {fighter.name} has gained {skill.name} skill",
+                )
+
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
         else:
-            form = SkillSelectionForm(fighter=fighter, skill_type=advancement_type)
+            form = SkillSelectionForm(fighter=fighter, skill_type=skill_type)
+
+    elif params.is_random_skill_advancement():
+        if request.method == "POST":
+            form = SkillCategorySelectionForm(
+                request.POST, fighter=fighter, skill_type=skill_type
+            )
+            if form.is_valid():
+                category = form.cleaned_data["category"]
+
+                # Auto-select a random skill from the category
+                existing_skills = fighter.skills.all()
+                available_skills = ContentSkill.objects.filter(
+                    category=category
+                ).exclude(id__in=existing_skills.values_list("id", flat=True))
+
+                if available_skills.exists():
+                    # Pick a random skill from the available ones
+                    random_skill = random.choice(available_skills)
+
+                    apply_skill_advancement(
+                        request,
+                        lst,
+                        fighter,
+                        random_skill,
+                        params,
+                    )
+
+                    messages.success(
+                        request,
+                        f"Advanced: {fighter.name} has gained {random_skill.name} skill",
+                    )
+
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+                else:
+                    # No available skills - show error
+                    form.add_error(None, "No available skills in this category.")
+        else:
+            form = SkillCategorySelectionForm(fighter=fighter, skill_type=skill_type)
+
     else:
-        # Random skill - handle category selection first
-        category_id = request.GET.get("category_id")
-
-        if not category_id:
-            # Step 1: Select category
-            if request.method == "POST":
-                form = SkillCategorySelectionForm(
-                    request.POST, fighter=fighter, skill_type=advancement_type
-                )
-                if form.is_valid():
-                    category = form.cleaned_data["category"]
-
-                    # Auto-select a random skill from the category
-                    existing_skills = fighter.skills.all()
-                    available_skills = ContentSkill.objects.filter(
-                        category=category
-                    ).exclude(id__in=existing_skills.values_list("id", flat=True))
-
-                    if available_skills.exists():
-                        import random
-
-                        random_skill = random.choice(available_skills)
-
-                        # Go directly to confirmation
-                        params = {
-                            "type": "skill",
-                            "skill": random_skill.id,
-                            "xp_cost": xp_cost,
-                            "cost_increase": cost_increase,
-                        }
-                        if campaign_action_id:
-                            params["campaign_action"] = campaign_action_id
-
-                        url = reverse(
-                            "core:list-fighter-advancement-confirm",
-                            args=(lst.id, fighter.id),
-                        )
-                        sanitized_params = sanitize_advancement_params(params)
-                        return HttpResponseRedirect(
-                            f"{url}?{urlencode(sanitized_params)}"
-                        )
-                    else:
-                        # No available skills - show error
-                        form.add_error(None, "No available skills in this category.")
-            else:
-                form = SkillCategorySelectionForm(
-                    fighter=fighter, skill_type=advancement_type
-                )
-
-    # Pass the skill object if available (for random skills)
-    context = {
-        "form": form,
-        "fighter": fighter,
-        "list": lst,
-        "advancement_type": advancement_type,
-    }
-
-    # Add skill object to avoid N+1 query in template
-    if hasattr(form, "_skill") and form._skill:
-        context["selected_skill"] = form._skill
+        messages.error(
+            request,
+            "Sorry, something went really wrong with the advancement. Try again.",
+        )
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        )
 
     return render(
         request,
         "core/list_fighter_advancement_select.html",
-        context,
-    )
-
-
-@login_required
-def list_fighter_advancement_confirm(request, id, fighter_id):
-    """
-    Confirm and create the advancement.
-
-    **Context**
-
-    ``fighter``
-        The :model:`core.ListFighter` purchasing the advancement.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``advancement_details``
-        Dictionary containing details about the advancement to be created.
-
-    **Template**
-
-    :template:`core/list_fighter_advancement_confirm.html`
-    """
-    from django.contrib import messages
-
-    from gyrinx.content.models import ContentSkill
-    from gyrinx.core.models import ListFighterAdvancement
-    from gyrinx.core.models.campaign import CampaignAction
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(
-        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
-    )
-
-    # Get and sanitize parameters
-    params = {
-        "type": request.GET.get("type"),
-        "xp_cost": request.GET.get("xp_cost", 0),
-        "cost_increase": request.GET.get("cost_increase", 0),
-        "campaign_action": request.GET.get("campaign_action"),
-        "stat": request.GET.get("stat"),
-        "skill": request.GET.get("skill"),
-    }
-    sanitized = sanitize_advancement_params(params)
-
-    # Extract validated parameters
-    advancement_type = sanitized.get("type")
-    if not advancement_type:
-        messages.error(request, "Invalid advancement type.")
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
-        )
-
-    xp_cost = int(sanitized.get("xp_cost", 0))
-    cost_increase = int(sanitized.get("cost_increase", 0))
-    campaign_action_id = sanitized.get("campaign_action")
-
-    # Build advancement details
-    details = {
-        "type": advancement_type,
-        "xp_cost": xp_cost,
-        "cost_increase": cost_increase,
-    }
-
-    if advancement_type == "stat":
-        stat = sanitized.get("stat")
-        if not stat:
-            messages.error(request, "Invalid stat selection.")
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
-            )
-        details["stat"] = stat
-        details["description"] = dict(ListFighterAdvancement.STAT_CHOICES).get(
-            stat, stat
-        )
-    else:
-        skill_id = sanitized.get("skill")
-        if not skill_id:
-            messages.error(request, "Invalid skill selection.")
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-detail", args=(lst.id, fighter.id))
-            )
-        skill = get_object_or_404(ContentSkill, id=skill_id)
-        details["skill"] = skill
-        details["description"] = skill.name
-
-    if request.method == "POST":
-        # Create the advancement
-        advancement = ListFighterAdvancement(
-            fighter=fighter,
-            advancement_type=(
-                ListFighterAdvancement.ADVANCEMENT_STAT
-                if advancement_type == "stat"
-                else ListFighterAdvancement.ADVANCEMENT_SKILL
-            ),
-            xp_cost=xp_cost,
-            cost_increase=cost_increase,
-        )
-
-        if advancement_type == "stat":
-            advancement.stat_increased = details["stat"]
-        else:
-            advancement.skill = details["skill"]
-
-        # Link campaign action if exists
-        if campaign_action_id:
-            campaign_action = get_object_or_404(CampaignAction, id=campaign_action_id)
-            advancement.campaign_action = campaign_action
-
-            # Update campaign action outcome
-            if advancement_type == "stat":
-                outcome = f"Improved {details['description']}"
-            else:
-                outcome = f"Gained skill: {details['description']}"
-            campaign_action.outcome = outcome
-            campaign_action.save()
-        else:
-            # Create new campaign action if not exists
-            if lst.campaign:
-                description = f"{fighter.name} spent {xp_cost} XP to advance"
-                if advancement_type == "stat":
-                    outcome = f"Improved {details['description']}"
-                else:
-                    outcome = f"Gained skill: {details['description']}"
-
-                campaign_action = CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=description,
-                    outcome=outcome,
-                )
-                advancement.campaign_action = campaign_action
-
-        # Save advancement
-        advancement.save()
-
-        # Apply the advancement (this also deducts XP)
-        advancement.apply_advancement()
-
-        # Don't update cost_override - the cost will be computed from advancements
-
-        messages.success(
-            request,
-            f"Advancement confirmed! {fighter.name} has gained: {details['description']}",
-        )
-
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
-    return render(
-        request,
-        "core/list_fighter_advancement_confirm.html",
         {
+            "form": form,
             "fighter": fighter,
             "list": lst,
-            "details": details,
+            "skill_type": skill_type,
+            "is_random": params.is_random_skill_advancement(),
         },
     )
