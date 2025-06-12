@@ -4,30 +4,55 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0062_add_listfighteradvancement_model'),
+        ("core", "0062_add_listfighteradvancement_model"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='historicallistfighteradvancement',
-            name='description',
-            field=models.CharField(blank=True, help_text="For 'other' advancements, a free text description.", max_length=100, null=True),
+            model_name="historicallistfighteradvancement",
+            name="description",
+            field=models.CharField(
+                blank=True,
+                help_text="For 'other' advancements, a free text description.",
+                max_length=100,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='listfighteradvancement',
-            name='description',
-            field=models.CharField(blank=True, help_text="For 'other' advancements, a free text description.", max_length=100, null=True),
+            model_name="listfighteradvancement",
+            name="description",
+            field=models.CharField(
+                blank=True,
+                help_text="For 'other' advancements, a free text description.",
+                max_length=100,
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='historicallistfighteradvancement',
-            name='advancement_type',
-            field=models.CharField(choices=[('stat', 'Characteristic Increase'), ('skill', 'New Skill'), ('other', 'Other')], help_text='The type of advancement purchased.', max_length=10),
+            model_name="historicallistfighteradvancement",
+            name="advancement_type",
+            field=models.CharField(
+                choices=[
+                    ("stat", "Characteristic Increase"),
+                    ("skill", "New Skill"),
+                    ("other", "Other"),
+                ],
+                help_text="The type of advancement purchased.",
+                max_length=10,
+            ),
         ),
         migrations.AlterField(
-            model_name='listfighteradvancement',
-            name='advancement_type',
-            field=models.CharField(choices=[('stat', 'Characteristic Increase'), ('skill', 'New Skill'), ('other', 'Other')], help_text='The type of advancement purchased.', max_length=10),
+            model_name="listfighteradvancement",
+            name="advancement_type",
+            field=models.CharField(
+                choices=[
+                    ("stat", "Characteristic Increase"),
+                    ("skill", "New Skill"),
+                    ("other", "Other"),
+                ],
+                help_text="The type of advancement purchased.",
+                max_length=10,
+            ),
         ),
     ]
