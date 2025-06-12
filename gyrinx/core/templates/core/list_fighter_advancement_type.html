@@ -4,9 +4,20 @@
     New Advancement - {{ fighter.name }}
 {% endblock head_title %}
 {% block content %}
-    <div class="col-12 col-md-8 col-lg-6 vstack gap-3">
+    <div class="col-12 col-md-8 col-lg-6 vstack gap-4">
         <div class="vstack gap-1">
+            {% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
             {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
+            <div class="progress mb-1"
+                 role="progressbar"
+                 aria-label="Basic example"
+                 aria-valuenow="0"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+                {# djlint:off #}
+                <div class="progress-bar" style="width: 66%">Step 2</div>
+                {# djlint:on #}
+            </div>
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
             <h3 class="h5 mb-0">Select Advancement</h3>
         </div>
@@ -25,14 +36,16 @@
                 </div>
             </div>
         {% endif %}
-        <div class="alert alert-secondary">
-            Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
-        </div>
         <form method="post" class="vstack gap-4">
             {% csrf_token %}
             {{ form.campaign_action_id }}
-            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger mb-last-0 mb-0">{{ form.non_field_errors }}</div>
+            {% endif %}
             <div class="vstack gap-3">
+                <div class="alert alert-secondary mb-0">
+                    Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
+                </div>
                 <div>
                     <label class="form-label">Advancement</label>
                     <div class="vstack gap-2">{{ form.advancement_choice }}</div>
