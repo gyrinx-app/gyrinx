@@ -431,7 +431,7 @@ def test_campaign_post_campaign_restrictions(client):
 
     # Check that the button is shown
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
-    assert b"Add Lists" in response.content
+    assert b"Add Gangs" in response.content
 
 
 @pytest.mark.django_db

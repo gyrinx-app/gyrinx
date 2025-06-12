@@ -2,10 +2,9 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from gyrinx.content.models import ContentHouse
+from gyrinx.content.models import ContentFighter, ContentHouse
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
-from gyrinx.content.models import ContentFighter
 
 User = get_user_model()
 
@@ -387,7 +386,7 @@ def test_can_add_lists_to_in_progress_campaign(client):
     # Check campaign view shows "Add Lists" button
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200
-    assert b"Add Lists" in response.content
+    assert b"Add Gangs" in response.content
 
 
 @pytest.mark.django_db
