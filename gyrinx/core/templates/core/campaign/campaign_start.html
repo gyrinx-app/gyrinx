@@ -15,14 +15,14 @@
                 <i class="bi-exclamation-triangle"></i> This action cannot be undone. Once started, the campaign will move from <strong>Pre-Campaign</strong> to <strong>In Progress</strong> status.
             </div>
             <p>
-                <strong>Current lists in campaign:</strong>
+                <strong>Current gangs in campaign:</strong>
             </p>
             <ul>
                 {% for list in campaign.lists.all %}
                     <li>{{ list.name }} ({{ list.owner.username }})</li>
                 {% empty %}
                     <li>
-                        <em>No lists added yet</em>
+                        <em>No gangs added yet</em>
                     </li>
                 {% endfor %}
             </ul>

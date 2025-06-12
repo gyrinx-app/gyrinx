@@ -1,12 +1,12 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags color_tags %}
 {% block head_title %}
-    Add Lists - {{ campaign.name }}
+    Add Gangs - {{ campaign.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
     <div class="col-12 px-0 vstack gap-3">
-        <h1 class="h3">Add Lists to {{ campaign.name }}</h1>
+        <h1 class="h3">Add Gangs to {{ campaign.name }}</h1>
         {% if error_message %}
             <div class="alert alert-danger">
                 <h4 class="alert-heading">Error</h4>
@@ -15,7 +15,7 @@
         {% endif %}
         {% if added_list %}
             <div class="alert alert-success" id="added">
-                <h4 class="alert-heading">List Added</h4>
+                <h4 class="alert-heading">Gang Added</h4>
                 <p>
                     {% list_with_theme added_list "fw-bold" %}
                     {% if added_list.content_house %}({{ added_list.content_house.name }}){% endif %}
@@ -25,14 +25,14 @@
         {% endif %}
         {% if show_confirmation and list_to_confirm %}
             <div class="alert alert-warning">
-                <h4 class="alert-heading">Confirm Add List to Active Campaign</h4>
+                <h4 class="alert-heading">Confirm Add Gang to Active Campaign</h4>
                 <p>
                     This campaign is currently in progress. Adding
                     <strong>{% list_with_theme list_to_confirm %}</strong>
                     will immediately clone it for campaign use.
                 </p>
                 <p class="mb-0">
-                    <strong>Important:</strong> The list will be cloned to preserve its current state,
+                    <strong>Important:</strong> The gang will be cloned to preserve its current state,
                     and default campaign resources will be allocated to it.
                 </p>
                 <hr>
@@ -43,7 +43,7 @@
                         <input type="hidden" name="list_id" value="{{ list_to_confirm.id }}">
                         <input type="hidden" name="confirm" value="true">
                         <button type="submit" class="btn btn-warning">
-                            <i class="bi-check-lg"></i> Yes, Add List
+                            <i class="bi-check-lg"></i> Yes, Add Gang
                         </button>
                     </form>
                     <a href="{% url 'core:campaign-add-lists' campaign.id %}"
@@ -84,21 +84,21 @@
                                id="owner-all"
                                value="all"
                                {% if not request.GET.owner or request.GET.owner == "all" %}checked{% endif %}>
-                        <label class="btn btn-outline-primary btn-sm" for="owner-all">All Lists</label>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-all">All Gangs</label>
                         <input type="radio"
                                class="btn-check"
                                name="owner"
                                id="owner-mine"
                                value="mine"
                                {% if request.GET.owner == "mine" %}checked{% endif %}>
-                        <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Lists</label>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Gangs</label>
                         <input type="radio"
                                class="btn-check"
                                name="owner"
                                id="owner-others"
                                value="others"
                                {% if request.GET.owner == "others" %}checked{% endif %}>
-                        <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Lists</label>
+                        <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Gangs</label>
                     </div>
                     <button class="btn btn-link icon-link btn-sm" type="submit">
                         <i class="bi-arrow-clockwise"></i>
@@ -110,7 +110,7 @@
         <!-- Available Lists -->
         <div class="card {% flash "search" %}">
             <div class="card-header">
-                <h5 class="card-title mb-0">Available Lists</h5>
+                <h5 class="card-title mb-0">Available Gangs</h5>
             </div>
             <div class="card-body p-0">
                 {% if lists %}
@@ -125,7 +125,7 @@
                                         </h6>
                                         <p class="mb-0 text-muted small">
                                             {% if list.owner == request.user %}
-                                                Your list
+                                                Your gang
                                             {% else %}
                                                 By {{ list.owner.username }}
                                             {% endif %}
@@ -150,9 +150,9 @@
                 {% else %}
                     <div class="p-3 text-center text-muted">
                         {% if request.GET.q or request.GET.owner|default:"all" != "all" %}
-                            No lists found matching your search criteria.
+                            No gangs found matching your search criteria.
                         {% else %}
-                            No lists available to add.
+                            No gangs available to add.
                         {% endif %}
                     </div>
                 {% endif %}

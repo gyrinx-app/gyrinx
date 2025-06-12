@@ -47,7 +47,7 @@
                     {% if campaign.lists.count > 0 %}
                         <div class="text-secondary">
                             <i class="bi-list-ul"></i>
-                            <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} list{{ campaign.lists.count|pluralize }}</span>
+                            <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
                         </div>
                     {% endif %}
                 </div>
@@ -96,11 +96,11 @@
             <!-- Campaign Lists -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h2 class="card-title h5 mb-0">Lists</h2>
+                    <h2 class="card-title h5 mb-0">Gangs</h2>
                     {% if campaign.owner == user and not campaign.is_post_campaign %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="btn btn-primary btn-sm">
-                            <i class="bi-plus-circle"></i> Add Lists
+                            <i class="bi-plus-circle"></i> Add Gangs
                         </a>
                     {% endif %}
                 </div>
@@ -126,12 +126,12 @@
                         </div>
                     {% else %}
                         <div class="p-3 text-center text-muted">
-                            No lists have been added to this campaign yet.
+                            No gangs have been added to this campaign yet.
                             {% if campaign.owner == user and campaign.is_pre_campaign %}
                                 <br>
                                 <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                                    class="btn btn-primary btn-sm mt-2">
-                                    <i class="bi-plus-circle"></i> Add Lists
+                                    <i class="bi-plus-circle"></i> Add Gangs
                                 </a>
                             {% endif %}
                         </div>
@@ -251,7 +251,7 @@
                                         </tbody>
                                     {% else %}
                                         <tr class="px-3 pb-3 text-muted small">
-                                            <td>No lists have this resource yet.</td>
+                                            <td>No gangs have this resource yet.</td>
                                         </tr>
                                     {% endif %}
                                 {% endwith %}

@@ -46,12 +46,12 @@ class CampaignActionForm(forms.ModelForm):
         model = CampaignAction
         fields = ["list", "description", "dice_count"]
         labels = {
-            "list": "Related List (Optional)",
+            "list": "Related Gang (Optional)",
             "description": "Action Description",
             "dice_count": "Number of D6 Dice",
         }
         help_texts = {
-            "list": "Select the list this action is related to (if applicable)",
+            "list": "Select the gang this action is related to (if applicable)",
             "description": "Describe the action being taken",
             "dice_count": "How many D6 dice to roll. Leave at 0 for no roll.",
         }
@@ -206,7 +206,7 @@ class AssetTransferForm(forms.Form):
         queryset=None,
         required=False,
         label="New Holder",
-        help_text="Select the list to transfer this asset to (or leave blank to make it unowned)",
+        help_text="Select the gang to transfer this asset to (or leave blank to make it unowned)",
         widget=forms.Select(attrs={"class": "form-select"}),
         empty_label="No one (unowned)",
     )
@@ -236,7 +236,7 @@ class CampaignResourceTypeForm(forms.ModelForm):
         help_texts = {
             "name": "Name of the resource (e.g., 'Meat', 'Credits', 'Ammo')",
             "description": "Describe what this resource represents and how it's used",
-            "default_amount": "Amount given to each list when the campaign starts",
+            "default_amount": "Amount given to each gang when the campaign starts",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
