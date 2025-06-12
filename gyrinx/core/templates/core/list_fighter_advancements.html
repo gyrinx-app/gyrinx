@@ -8,76 +8,71 @@
         <div class="vstack gap-1">
             {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
             <h2 class="mb-0">Advancements for {{ fighter.name }}</h2>
-            <div class="text-secondary">
-                <span>Current XP: {{ fighter.xp_current }}</span> |
-                <span>Total XP Earned: {{ fighter.xp_total }}</span>
-            </div>
         </div>
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex align-items-center">
-                    <h3 class="h5 mb-0">Fighter Advancements</h3>
-                    {% if advancements.count > 0 %}<span class="badge text-bg-secondary ms-2">{{ advancements.count }}</span>{% endif %}
-                    <div class="ms-auto">
-                        <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-plus-lg"></i> Add Advancement
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body">
-                {% if advancements %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
+        <ul class="fs-5 list-group list-group-flush">
+            <li class="list-group-item">
+                <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current
+            </li>
+            <li class="list-group-item">
+                <span class="badge text-bg-secondary">{{ fighter.xp_total }} XP</span> Total
+            </li>
+        </ul>
+        <div>
+            {% if advancements %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Advancement</th>
+                                <th>
+                                    <span class="visually-hidden">XP Cost</span>
+                                </th>
+                                <th>
+                                    <span class="visually-hidden">Cost Increase</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for advancement in advancements %}
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Type</th>
-                                    <th>Advancement</th>
-                                    <th>XP Cost</th>
-                                    <th>Cost Increase</th>
-                                    <th>Action</th>
+                                    <td>{{ advancement.created|date:"Y-m-d" }}</td>
+                                    <td>
+                                        {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
+                                            <span class="badge text-bg-primary">Stat</span>
+                                        {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
+                                            <span class="badge text-bg-success">Skill</span>
+                                        {% else %}
+                                            <span class="badge text-bg-warning">Other</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
+                                            {{ advancement.get_stat_increased_display }}
+                                        {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
+                                            {{ advancement.skill.name }}
+                                        {% else %}
+                                            {{ advancement.description }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ advancement.xp_cost }} XP</td>
+                                    <td>+{{ advancement.cost_increase }}¢</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {% for advancement in advancements %}
-                                    <tr>
-                                        <td>{{ advancement.created|date:"Y-m-d" }}</td>
-                                        <td>
-                                            {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                                                <span class="badge text-bg-info">Stat</span>
-                                            {% else %}
-                                                <span class="badge text-bg-success">Skill</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                                                {{ advancement.get_stat_increased_display }}
-                                            {% else %}
-                                                {{ advancement.skill.name }}
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ advancement.xp_cost }} XP</td>
-                                        <td>+{{ advancement.cost_increase }}¢</td>
-                                        <td>
-                                            {% if advancement.campaign_action %}
-                                                <a href="{% url 'core:campaign-actions' advancement.campaign_action.campaign.id %}?gang={{ fighter.list.id }}&q=advance"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                    View Action
-                                                </a>
-                                            {% else %}
-                                                -
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="text-muted mb-0">No advancements yet.</p>
-                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">No advancements yet.</p>
+            {% endif %}
+            <div class="d-flex align-items-center">
+                <div class="ms-auto">
+                    <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
+                       class="btn btn-primary btn-sm">
+                        <i class="bi-plus-lg"></i> Add Advancement
+                    </a>
+                </div>
             </div>
         </div>
     </div>
