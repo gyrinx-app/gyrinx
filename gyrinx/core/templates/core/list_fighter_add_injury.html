@@ -17,7 +17,7 @@
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">
-                <input type="submit" class="btn btn-primary" value="Add Injury">
+                <button type="submit" class="btn btn-primary">Add Injury</button>
                 <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

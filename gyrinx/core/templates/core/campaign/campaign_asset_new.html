@@ -35,14 +35,8 @@
                 {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
             </div>
             <div class="mt-3">
-                <input type="submit"
-                       class="btn btn-primary"
-                       name="save"
-                       value="Create {{ asset_type.name_singular }}">
-                <input type="submit"
-                       class="btn btn-secondary"
-                       name="save_and_add_another"
-                       value="Create and Add Another">
+                <button type="submit" class="btn btn-primary" name="save">Create {{ asset_type.name_singular }}</button>
+                <button type="submit" class="btn btn-secondary" name="save_and_add_another">Create and Add Another</button>
                 <a href="{% url 'core:campaign-assets' campaign.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

@@ -36,7 +36,7 @@
                 {% if form.dice_count.errors %}<div class="invalid-feedback d-block">{{ form.dice_count.errors }}</div>{% endif %}
             </div>
             <div class="mt-3">
-                <input type="submit" class="btn btn-primary" value="Log Action">
+                <button type="submit" class="btn btn-primary">Log Action</button>
                 <a href="{{ campaign.get_absolute_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>

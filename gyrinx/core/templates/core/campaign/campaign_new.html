@@ -14,7 +14,7 @@
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">
-                <input type="submit" class="btn btn-primary" value="Create">
+                <button type="submit" class="btn btn-primary">Create</button>
                 <a href="{{ request.META.HTTP_REFERER|escape }}" class="btn btn-link">Cancel</a>
             </div>
         </form>

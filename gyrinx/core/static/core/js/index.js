@@ -218,3 +218,34 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
         });
     });
 });
+
+// Add loading spinner to form submit buttons
+document.addEventListener("DOMContentLoaded", () => {
+    const forms = document.querySelectorAll("form");
+
+    forms.forEach((form) => {
+        form.addEventListener("submit", (event) => {
+            // Find all submit buttons within this form
+            const submitButtons = form.querySelectorAll(
+                'button[type="submit"], input[type="submit"]',
+            );
+
+            submitButtons.forEach((button) => {
+                // Store original content
+                const originalContent = button.innerHTML;
+
+                // Create spinner SVG
+                const spinnerSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="16" height="16" style="display: inline-block; vertical-align: middle;"><circle fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4" r="15" cx="40" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.4"></animate></circle><circle fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4" r="15" cx="100" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.2"></animate></circle><circle fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4" r="15" cx="160" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="0"></animate></circle></svg>`;
+
+                // Replace button content with spinner
+                button.innerHTML = spinnerSVG;
+
+                // Disable the button
+                button.disabled = true;
+
+                // Add a data attribute to prevent multiple submissions
+                button.setAttribute("data-submitting", "true");
+            });
+        });
+    });
+});
