@@ -2157,10 +2157,12 @@ class ListFighterAdvancement(AppBase):
     # Types of advancements
     ADVANCEMENT_STAT = "stat"
     ADVANCEMENT_SKILL = "skill"
+    ADVANCEMENT_OTHER = "other"
 
     ADVANCEMENT_TYPE_CHOICES = [
         (ADVANCEMENT_STAT, "Characteristic Increase"),
         (ADVANCEMENT_SKILL, "New Skill"),
+        (ADVANCEMENT_OTHER, "Other"),
     ]
 
     STAT_CHOICES = [
@@ -2209,6 +2211,14 @@ class ListFighterAdvancement(AppBase):
         help_text="For skill advancements, which skill was gained.",
     )
 
+    # For other advancements
+    description = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="For 'other' advancements, a free text description.",
+    )
+
     xp_cost = models.PositiveIntegerField(
         help_text="The XP cost of this advancement.",
     )
@@ -2240,6 +2250,8 @@ class ListFighterAdvancement(AppBase):
             return f"{self.fighter.name} - {self.get_stat_increased_display()}"
         elif self.skill:
             return f"{self.fighter.name} - {self.skill.name}"
+        elif self.advancement_type == self.ADVANCEMENT_OTHER and self.description:
+            return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
 
     def apply_advancement(self):
@@ -2283,6 +2295,10 @@ class ListFighterAdvancement(AppBase):
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             # Add skill to fighter
             self.fighter.skills.add(self.skill)
+        elif self.advancement_type == self.ADVANCEMENT_OTHER:
+            # For "other" advancements, nothing specific to apply
+            # The description is just stored for display purposes
+            pass
 
         # Deduct XP cost from fighter
         self.fighter.xp_current -= self.xp_cost
@@ -2294,7 +2310,15 @@ class ListFighterAdvancement(AppBase):
             raise ValidationError("Stat advancement requires a stat to be selected.")
         if self.advancement_type == self.ADVANCEMENT_SKILL and not self.skill:
             raise ValidationError("Skill advancement requires a skill to be selected.")
+        if self.advancement_type == self.ADVANCEMENT_OTHER and not self.description:
+            raise ValidationError("Other advancement requires a description.")
         if self.advancement_type == self.ADVANCEMENT_STAT and self.skill:
             raise ValidationError("Stat advancement should not have a skill selected.")
         if self.advancement_type == self.ADVANCEMENT_SKILL and self.stat_increased:
             raise ValidationError("Skill advancement should not have a stat selected.")
+        if self.advancement_type == self.ADVANCEMENT_OTHER and (
+            self.stat_increased or self.skill
+        ):
+            raise ValidationError(
+                "Other advancement should not have a stat or skill selected."
+            )

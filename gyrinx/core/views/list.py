@@ -2087,6 +2087,8 @@ class AdvancementFlowParams(AdvancementBaseParams):
     xp_cost: int = 0
     # Fighter cost increase from this advancement
     cost_increase: int = 0
+    # Free text description for "other" advancement types
+    description: Optional[str] = None
 
     @field_validator("advancement_choice")
     @classmethod
@@ -2113,6 +2115,12 @@ class AdvancementFlowParams(AdvancementBaseParams):
             "skill_promote_specialist",
             "skill_any_random",
         ]
+
+    def is_other_advancement(self) -> bool:
+        """
+        Check if this is an 'other' free text advancement.
+        """
+        return self.advancement_choice == "other"
 
     def is_chosen_skill_advancement(self) -> bool:
         """
@@ -2223,6 +2231,14 @@ def list_fighter_advancement_type(request, id, fighter_id):
                 return HttpResponseRedirect(
                     f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
                 )
+            elif next_params.is_other_advancement():
+                # For "other" advancements, go to the other view
+                url = reverse(
+                    "core:list-fighter-advancement-other", args=(lst.id, fighter.id)
+                )
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
+                )
             else:
                 # For skills, still need selection step
                 url = reverse(
@@ -2274,15 +2290,21 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Get and sanitize parameters from query string, and make sure only stat advancements
+    # Get and sanitize parameters from query string, and make sure only stat or other advancements
     # reach this stage. Then build the details object.
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
-        if not params.is_stat_advancement():
-            raise ValueError("Only stat advancements allowed at the confirm stage")
+        if not (params.is_stat_advancement() or params.is_other_advancement()):
+            raise ValueError(
+                "Only stat or other advancements allowed at the confirm stage"
+            )
 
-        stat = params.stat_from_choice()
-        stat_desc = params.description_from_choice()
+        if params.is_stat_advancement():
+            stat = params.stat_from_choice()
+            stat_desc = params.description_from_choice()
+        elif params.is_other_advancement():
+            stat = None
+            stat_desc = params.description
     except ValueError as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
@@ -2291,15 +2313,24 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     if request.method == "POST":
         # Create the advancement
-        advancement = ListFighterAdvancement(
-            fighter=fighter,
-            advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-            xp_cost=params.xp_cost,
-            cost_increase=params.cost_increase,
-            stat_increased=stat,
-        )
-
-        outcome = f"Improved {stat_desc}"
+        if params.is_stat_advancement():
+            advancement = ListFighterAdvancement(
+                fighter=fighter,
+                advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+                xp_cost=params.xp_cost,
+                cost_increase=params.cost_increase,
+                stat_increased=stat,
+            )
+            outcome = f"Improved {stat_desc}"
+        elif params.is_other_advancement():
+            advancement = ListFighterAdvancement(
+                fighter=fighter,
+                advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
+                xp_cost=params.xp_cost,
+                cost_increase=params.cost_increase,
+                description=stat_desc,
+            )
+            outcome = f"Gained {stat_desc}"
 
         if params.campaign_action_id:
             # Add outcome to campaign action if exists
@@ -2524,5 +2555,70 @@ def list_fighter_advancement_select(request, id, fighter_id):
             "list": lst,
             "skill_type": skill_type,
             "is_random": params.is_random_skill_advancement(),
+        },
+    )
+
+
+@login_required
+def list_fighter_advancement_other(request, id, fighter_id):
+    """
+    Enter a free text description for an 'other' advancement.
+
+    **Context**
+
+    ``form``
+        An OtherAdvancementForm.
+    ``fighter``
+        The :model:`core.ListFighter` purchasing the advancement.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``params``
+        The AdvancementFlowParams from previous steps.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_other.html`
+    """
+
+    from gyrinx.core.forms.advancement import OtherAdvancementForm
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
+    )
+
+    # Get parameters from query string
+    try:
+        params = AdvancementFlowParams.model_validate(request.GET.dict())
+        if not params.is_other_advancement():
+            raise ValueError("Only 'other' advancements allowed at this stage")
+    except ValueError as e:
+        messages.error(request, f"Invalid advancement: {e}.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        )
+
+    if request.method == "POST":
+        form = OtherAdvancementForm(request.POST)
+        if form.is_valid():
+            # Add the description to params and proceed to confirmation
+            params.description = form.cleaned_data["description"]
+            url = reverse(
+                "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+            )
+            return HttpResponseRedirect(
+                f"{url}?{urlencode(params.model_dump(mode='json', exclude_none=True))}"
+            )
+    else:
+        form = OtherAdvancementForm()
+
+    return render(
+        request,
+        "core/list_fighter_advancement_other.html",
+        {
+            "form": form,
+            "fighter": fighter,
+            "list": lst,
+            "params": params,
         },
     )
