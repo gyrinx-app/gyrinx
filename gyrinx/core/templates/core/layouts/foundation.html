@@ -56,7 +56,7 @@
               href="{% static 'core/img/brand/favicon/favicon-128x128.png' %}"
               sizes="128x128" />
         {# djlint:off #}
-        <title>{% block head_title %}{% endblock head_title %} | Gyrinx</title>
+        <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
         {# djlint:on #}
         <link rel="dns-prefetch" href="https://use.typekit.net">
         <link rel="preconnect" href="https://use.typekit.net" crossorigin>
