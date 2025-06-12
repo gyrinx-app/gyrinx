@@ -246,7 +246,7 @@ def test_campaign_detail_shows_add_lists_button_for_owner():
 
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200
-    assert b"Add Lists" in response.content
+    assert b"Add Gangs" in response.content
     assert (
         reverse("core:campaign-add-lists", args=[campaign.id]).encode()
         in response.content
@@ -285,7 +285,7 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
 
     # Should show the confirmation page, not redirect
     assert response.status_code == 200
-    assert b"Confirm Add List to Active Campaign" in response.content
+    assert b"Confirm Add Gang to Active Campaign" in response.content
     assert b"will immediately clone it for campaign use" in response.content
     assert new_list.name.encode() in response.content
 
@@ -447,4 +447,4 @@ def test_campaign_detail_shows_add_lists_for_in_progress():
     assert response.status_code == 200
 
     # Should still show the Add Lists button for in-progress campaigns
-    assert b"Add Lists" in response.content
+    assert b"Add Gangs" in response.content
