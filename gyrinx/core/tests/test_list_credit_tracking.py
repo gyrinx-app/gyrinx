@@ -62,7 +62,9 @@ def test_list_has_credit_fields(campaign_list):
 
 
 @pytest.mark.django_db
-def test_edit_list_credits_view_requires_campaign_mode(client, user, list_building_list):
+def test_edit_list_credits_view_requires_campaign_mode(
+    client, user, list_building_list
+):
     """Test that credit editing requires campaign mode."""
     client.login(username="testuser", password="testpass")
 
