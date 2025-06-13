@@ -256,7 +256,7 @@ class List(AppBase):
                         is_stash=True,
                         defaults={
                             "type": "Stash",
-                            "category": "GANGER",  # Default category
+                            "category": "STASH",  # Default category
                             "base_cost": 0,
                         },
                     )
@@ -264,9 +264,10 @@ class List(AppBase):
 
                 # Create the stash ListFighter
                 ListFighter.objects.create(
-                    name="Gang Stash",
+                    name="Stash",
                     content_fighter=stash_fighter,
                     list=clone,
+                    owner=owner,
                 )
 
         return clone
@@ -315,6 +316,7 @@ class ListFighterManager(models.Manager):
                         )
                         for index, category in enumerate(
                             [
+                                "STASH",
                                 "LEADER",
                                 "CHAMPION",
                                 "PROSPECT",
@@ -499,6 +501,33 @@ class ListFighter(AppBase):
     @cached_property
     def equipment_list_fighter(self):
         return self.legacy_content_fighter or self.content_fighter
+
+    @cached_property
+    def is_stash(self):
+        """
+        Returns True if this fighter is a stash fighter.
+        """
+        return self.content_fighter_cached.is_stash
+
+    @cached_property
+    def proximal_demonstrative(self) -> str:
+        """
+        Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
+        """
+        if self.is_stash:
+            return "The stash"
+
+        return "This fighter"
+
+    @cached_property
+    def fully_qualified_name(self) -> str:
+        """
+        Returns the fully qualified name of the fighter, including type and category.
+        """
+        if self.is_stash:
+            return "Stash"
+        cf = self.content_fighter_cached
+        return f"{self.name} - {cf.name()}"
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):

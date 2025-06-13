@@ -20,7 +20,7 @@ def test_stash_fighter_is_excluded_from_default_queryset(db):
     # Create stash fighter
     stash_fighter = ContentFighter.objects.all_with_stash().create(
         type="Stash",
-        category="GANGER",
+        category="STASH",
         base_cost=0,
         is_stash=True,
     )
@@ -40,7 +40,7 @@ def test_stash_fighter_must_have_zero_base_cost(db):
     """Test that stash fighters must have base_cost of 0."""
     stash_fighter = ContentFighter(
         type="Stash",
-        category="GANGER",
+        category="STASH",
         base_cost=100,  # Invalid
         is_stash=True,
     )
@@ -64,7 +64,7 @@ def test_only_one_stash_fighter_per_list(db, user, content_house):
     # Create stash content fighter
     stash_fighter = ContentFighter.objects.all_with_stash().create(
         type="Stash",
-        category="GANGER",
+        category="STASH",
         base_cost=0,
         is_stash=True,
         house=content_house,
@@ -176,7 +176,7 @@ def test_stash_fighter_card_display(db, user, content_house):
     # Create stash content fighter
     stash_fighter = ContentFighter.objects.all_with_stash().create(
         type="Stash",
-        category="GANGER",
+        category="STASH",
         base_cost=0,
         is_stash=True,
         house=content_house,

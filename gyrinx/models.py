@@ -153,6 +153,7 @@ class FighterCategoryChoices(models.TextChoices):
     DRAMATIS_PERSONAE = "DRAMATIS_PERSONAE", "Dramatis Personae"
     PROSPECT = "PROSPECT", "Prospect"
     SPECIALIST = "SPECIALIST", "Specialist"
+    STASH = "STASH", "Stash"
 
 
 class EquipmentCategoryChoices(models.TextChoices):

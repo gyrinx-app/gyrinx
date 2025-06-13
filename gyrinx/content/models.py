@@ -612,11 +612,11 @@ class ContentFighterManager(models.Manager):
     Custom manager for :model:`content.ContentFighter` model.
     """
 
-    def get_queryset(self):
+    def without_stash(self):
         return (
             super()
             .get_queryset()
-            .exclude(is_stash=True)  # Exclude stash fighters by default
+            .exclude(is_stash=True)
             .annotate(
                 _category_order=Case(
                     *[
@@ -642,7 +642,7 @@ class ContentFighterManager(models.Manager):
             )
         )
 
-    def all_with_stash(self):
+    def get_queryset(self):
         """
         Returns all fighters including stash fighters.
         """
@@ -655,6 +655,7 @@ class ContentFighterManager(models.Manager):
                         When(category=category, then=index)
                         for index, category in enumerate(
                             [
+                                "STASH",
                                 "LEADER",
                                 "CHAMPION",
                                 "PROSPECT",
@@ -937,7 +938,9 @@ class ContentFighter(Content):
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"
 
-    objects = ContentFighterManager.from_queryset(ContentFighterQuerySet)()
+    objects: ContentFighterManager = ContentFighterManager.from_queryset(
+        ContentFighterQuerySet
+    )()
 
 
 class ContentFighterEquipmentListItem(Content):
