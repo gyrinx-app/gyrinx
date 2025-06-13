@@ -112,9 +112,9 @@ def test_campaigns_link_visible_for_all_authenticated_users(client):
 
 
 @pytest.mark.django_db
-def test_campaigns_link_hidden_for_anonymous_users(client):
-    """Test that the Campaigns link is hidden for anonymous users."""
+def test_campaigns_link_visible_for_anonymous_users(client):
+    """Test that the Campaigns link is visible for anonymous users."""
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b">Campaigns</a>" not in response.content
+    assert b">Campaigns</a>" in response.content
