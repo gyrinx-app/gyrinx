@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0064_add_credit_tracking_to_listfighter"),
+        ("core", "0063_add_other_advancement_type"),
     ]
 
     operations = [

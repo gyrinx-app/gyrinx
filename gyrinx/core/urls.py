@@ -180,11 +180,6 @@ urlpatterns = [
         list.edit_list_fighter_xp,
         name="list-fighter-xp-edit",
     ),
-    path(
-        "list/<id>/fighter/<fighter_id>/credits",
-        list.edit_list_fighter_credits,
-        name="list-fighter-credits-edit",
-    ),
     # Fighter advancements
     path(
         "list/<id>/fighter/<fighter_id>/advancements",

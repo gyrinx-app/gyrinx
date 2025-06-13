@@ -539,59 +539,6 @@ class EditFighterXPForm(forms.Form):
         return cleaned_data
 
 
-class EditFighterCreditsForm(forms.Form):
-    """Form for modifying fighter credits in campaign mode."""
-
-    CREDITS_OPERATION_CHOICES = [
-        ("add", "Add Credits"),
-        ("spend", "Spend Credits"),
-        ("reduce", "Reduce Credits"),
-    ]
-
-    operation = forms.ChoiceField(
-        choices=CREDITS_OPERATION_CHOICES,
-        label="Operation",
-        help_text="Select what you want to do with credits",
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    amount = forms.IntegerField(
-        min_value=1,
-        label="Amount",
-        help_text="How many credits to add, spend, or reduce",
-        widget=forms.NumberInput(attrs={"class": "form-control"}),
-    )
-    description = forms.CharField(
-        widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
-        required=False,
-        label="Description",
-        help_text="Optional description for this credit change (will be included in campaign log)",
-    )
-
-    def __init__(self, *args, **kwargs):
-        fighter = kwargs.pop("fighter", None)
-        super().__init__(*args, **kwargs)
-
-        # Store fighter instance for use in clean method
-        self.fighter = fighter
-
-        # Add helpful hints based on current credits
-        if fighter:
-            self.fields["amount"].help_text = (
-                f"How many credits to add, spend, or reduce. "
-                f"Current: {fighter.credits_current}¢, Total earned: {fighter.credits_total}¢"
-            )
-
-    def clean(self):
-        cleaned_data = super().clean()
-        amount = cleaned_data.get("amount")
-
-        if amount and amount <= 0:
-            raise forms.ValidationError("Amount must be greater than 0.")
-
-        # We'll do more validation in the view where we have access to the fighter
-        return cleaned_data
-
-
 class EditListCreditsForm(forms.Form):
     """Form for modifying list credits in campaign mode."""
 

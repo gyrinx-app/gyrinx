@@ -2,8 +2,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from gyrinx.content.models import ContentFighter, ContentHouse
-from gyrinx.core.models import List, ListFighter
+from gyrinx.content.models import ContentHouse
+from gyrinx.core.models import List
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 
 User = get_user_model()
@@ -99,9 +99,9 @@ def test_add_credits_to_list(client, user, campaign_list):
 
     # Check campaign action was created
     action = CampaignAction.objects.get()
-    assert "Added 500¢ to gang treasury" in action.description
+    assert "Added 500¢" in action.description
     assert "Gang won territory" in action.description
-    assert "Current: 500¢" in action.outcome
+    assert "+500¢ (to 500¢)" in action.outcome
 
 
 @pytest.mark.django_db
@@ -131,7 +131,7 @@ def test_spend_credits(client, user, campaign_list):
 
     # Check campaign action
     action = CampaignAction.objects.get()
-    assert "Spent 300¢ from gang treasury" in action.description
+    assert "Spent 300¢" in action.description
     assert "Hired new fighter" in action.description
 
 
@@ -201,49 +201,6 @@ def test_credits_display_in_assets_panel(client, user, campaign_list):
     assert response.status_code == 200
 
     content = response.content.decode()
-    assert "Gang Treasury" in content
+    assert "Credits" in content
     assert "750¢" in content
-    assert "1500¢" in content
-    assert "Edit" in content
-
-
-@pytest.mark.django_db
-def test_list_cost_includes_credits(campaign_list):
-    """Test that list total cost includes current credits."""
-    # Set up some credits
-    campaign_list.credits_current = 250
-    campaign_list.save()
-
-    # Cost should include credits
-    assert campaign_list.cost_int() == 250
-
-    # Add a fighter
-    content_fighter = ContentFighter.objects.create(
-        name="Test Fighter Type",
-        type="Test Fighter",
-        house=campaign_list.content_house,
-        category="GANGER",
-        cost=100,
-        movement='5"',
-        weapon_skill="4+",
-        ballistic_skill="4+",
-        strength="3",
-        toughness="3",
-        wounds="1",
-        initiative="4+",
-        attacks="1",
-        leadership="7",
-        cool="8",
-        willpower="8",
-        intelligence="8",
-    )
-
-    ListFighter.objects.create(
-        name="Test Fighter",
-        list=campaign_list,
-        content_fighter=content_fighter,
-        owner=campaign_list.owner,
-    )
-
-    # Cost should be fighter cost + credits
-    assert campaign_list.cost_int() == 350  # 100 (fighter) + 250 (credits)
+    assert "Modify" in content

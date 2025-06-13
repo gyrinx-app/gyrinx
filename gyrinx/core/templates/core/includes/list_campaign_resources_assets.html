@@ -8,17 +8,15 @@
             <div class="row g-3">
                 <!-- Gang Credits -->
                 <div class="col-12">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <h4 class="h6 mb-0">Stash Credits</h4>
-                            <div class="mt-1">
-                                <span class="badge bg-primary fs-6">{{ list.credits_current }}¢</span>
-                            </div>
+                    <div class="hstack gap-3 align-items-center justify-content-between">
+                        <h4 class="h6 mb-0">Stash Credits</h4>
+                        <div class="mt-1">
+                            <span class="badge bg-primary fs-7">{{ list.credits_current }}¢</span>
                         </div>
                         {% if list.owner == user %}
-                            <a href="{% url 'core:list-credits-edit' list.id %}" 
-                               class="btn btn-secondary btn-sm">
-                                <i class="bi-pencil-square" aria-hidden="true"></i> Edit
+                            <a href="{% url 'core:list-credits-edit' list.id %}"
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                <i class="bi-pencil-square" aria-hidden="true"></i> Modify
                             </a>
                         {% endif %}
                     </div>

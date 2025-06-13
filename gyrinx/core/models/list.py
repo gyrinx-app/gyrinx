@@ -252,6 +252,15 @@ class List(AppBase):
         return self.name
 
 
+@receiver(
+    [post_save, m2m_changed],
+    sender=List,
+    dispatch_uid="update_list_cost_cache_from_list_change",
+)
+def update_list_cost_cache_from_list_change(sender, instance: List, **kwargs):
+    instance.update_cost_cache()
+
+
 class ListFighterManager(models.Manager):
     """
     Custom manager for :model:`content.ListFighter` model.
@@ -443,16 +452,6 @@ class ListFighter(AppBase):
     xp_total = models.PositiveIntegerField(
         default=0,
         help_text="Total XP ever earned",
-    )
-
-    # Credit tracking
-    credits_current = models.PositiveIntegerField(
-        default=0,
-        help_text="Current credits available",
-    )
-    credits_total = models.PositiveIntegerField(
-        default=0,
-        help_text="Total credits ever earned",
     )
 
     history = HistoricalRecords()
