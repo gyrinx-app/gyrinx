@@ -98,8 +98,8 @@ def test_campaigns_link_visible_for_group_members(client):
 
 
 @pytest.mark.django_db
-def test_campaigns_link_hidden_for_non_members(client):
-    """Test that the Campaigns link is hidden for non-members."""
+def test_campaigns_link_visible_for_all_authenticated_users(client):
+    """Test that the Campaigns link is visible for all authenticated users."""
     User.objects.create_user(username="testuser", password="testpass")
     # User exists but not in the Campaigns Alpha group
 
@@ -107,13 +107,14 @@ def test_campaigns_link_hidden_for_non_members(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b">Campaigns</a>" not in response.content
+    assert b'href="/campaigns/"' in response.content
+    assert b">Campaigns</a>" in response.content
 
 
 @pytest.mark.django_db
-def test_campaigns_link_hidden_for_anonymous_users(client):
-    """Test that the Campaigns link is hidden for anonymous users."""
+def test_campaigns_link_visible_for_anonymous_users(client):
+    """Test that the Campaigns link is visible for anonymous users."""
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b">Campaigns</a>" not in response.content
+    assert b">Campaigns</a>" in response.content
