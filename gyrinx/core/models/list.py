@@ -120,11 +120,23 @@ class List(AppBase):
         ],
     )
 
+    # Credit tracking
+    credits_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Current credits available",
+    )
+    credits_earned = models.PositiveIntegerField(
+        default=0,
+        help_text="Total credits ever earned",
+    )
+
     history = HistoricalRecords()
 
     @admin.display(description="Cost")
     def cost_int(self):
-        return sum([f.cost_int() for f in self.fighters()])
+        fighters_cost = sum([f.cost_int() for f in self.fighters()])
+        # Include current credits in total cost
+        return fighters_cost + self.credits_current
 
     @cached_property
     def cost_int_cached(self):
@@ -134,7 +146,9 @@ class List(AppBase):
         if cached:
             return cached
 
-        cost = sum([f.cost_int_cached for f in self.fighters_cached])
+        fighters_cost = sum([f.cost_int_cached for f in self.fighters_cached])
+        # Include current credits in total cost
+        cost = fighters_cost + self.credits_current
         cache.set(cache_key, cost, settings.CACHE_LIST_TTL)
         return cost
 
@@ -429,6 +443,16 @@ class ListFighter(AppBase):
     xp_total = models.PositiveIntegerField(
         default=0,
         help_text="Total XP ever earned",
+    )
+
+    # Credit tracking
+    credits_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Current credits available",
+    )
+    credits_total = models.PositiveIntegerField(
+        default=0,
+        help_text="Total credits ever earned",
     )
 
     history = HistoricalRecords()

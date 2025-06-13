@@ -277,6 +277,107 @@ def edit_list(request, id):
 
 
 @login_required
+def edit_list_credits(request, id):
+    """
+    Modify credits for a :model:`core.List` in campaign mode.
+
+    **Context**
+
+    ``form``
+        An EditListCreditsForm for modifying list credits.
+    ``list``
+        The :model:`core.List` whose credits are being modified.
+
+    **Template**
+
+    :template:`core/list_credits_edit.html`
+    """
+    from django.contrib import messages
+
+    from gyrinx.core.forms.list import EditListCreditsForm
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Credits can only be tracked for lists in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        form = EditListCreditsForm(request.POST, lst=lst)
+        if form.is_valid():
+            operation = form.cleaned_data["operation"]
+            amount = form.cleaned_data["amount"]
+            description = form.cleaned_data.get("description", "")
+
+            # Validate the operation
+            if operation == "spend" and amount > lst.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot spend more credits than available ({lst.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > lst.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce credits below zero (current: {lst.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > lst.credits_earned:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce total credits below zero (total: {lst.credits_earned}¢)",
+                )
+            else:
+                # Apply the credit change
+                if operation == "add":
+                    lst.credits_current += amount
+                    lst.credits_earned += amount
+                    action_desc = f"Added {amount}¢ to gang treasury"
+                    outcome = f"+{amount}¢ (current: {lst.credits_current}¢)"
+                elif operation == "spend":
+                    lst.credits_current -= amount
+                    action_desc = f"Spent {amount}¢ from gang treasury"
+                    outcome = f"-{amount}¢ (current: {lst.credits_current}¢)"
+                else:  # reduce
+                    lst.credits_current -= amount
+                    lst.credits_earned -= amount
+                    action_desc = f"Reduced {amount}¢ from gang treasury"
+                    outcome = f"-{amount}¢ (current: {lst.credits_current}¢, total: {lst.credits_earned}¢)"
+
+                if description:
+                    action_desc += f": {description}"
+
+                lst.save()
+
+                # Log to campaign action
+                if lst.campaign:
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=action_desc,
+                        outcome=outcome,
+                    )
+
+                messages.success(request, f"Credits updated for {lst.name}")
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = EditListCreditsForm(lst=lst)
+
+    return render(
+        request,
+        "core/list_credits_edit.html",
+        {
+            "form": form,
+            "list": lst,
+        },
+    )
+
+
+@login_required
 def archive_list(request, id):
     """
     Archive or unarchive a :model:`core.List`.
@@ -1894,6 +1995,112 @@ def edit_list_fighter_xp(request, id, fighter_id):
     return render(
         request,
         "core/list_fighter_xp_edit.html",
+        {
+            "form": form,
+            "list": lst,
+            "fighter": fighter,
+        },
+    )
+
+
+@login_required
+def edit_list_fighter_credits(request, id, fighter_id):
+    """
+    Modify credits for a :model:`core.ListFighter` in campaign mode.
+
+    **Context**
+
+    ``form``
+        An EditFighterCreditsForm for modifying fighter credits.
+    ``fighter``
+        The :model:`core.ListFighter` whose credits are being modified.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_credits_edit.html`
+    """
+    from django.contrib import messages
+
+    from gyrinx.core.forms.list import EditFighterCreditsForm
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
+    )
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Credits can only be tracked for fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        form = EditFighterCreditsForm(request.POST, fighter=fighter)
+        if form.is_valid():
+            operation = form.cleaned_data["operation"]
+            amount = form.cleaned_data["amount"]
+            description = form.cleaned_data.get("description", "")
+
+            # Validate the operation
+            if operation == "spend" and amount > fighter.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot spend more credits than available ({fighter.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > fighter.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce credits below zero (current: {fighter.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > fighter.credits_total:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce total credits below zero (total: {fighter.credits_total}¢)",
+                )
+            else:
+                # Apply the credit change
+                if operation == "add":
+                    fighter.credits_current += amount
+                    fighter.credits_total += amount
+                    action_desc = f"Added {amount}¢ for {fighter.name}"
+                elif operation == "spend":
+                    fighter.credits_current -= amount
+                    action_desc = f"Spent {amount}¢ for {fighter.name}"
+                elif operation == "reduce":
+                    fighter.credits_current -= amount
+                    fighter.credits_total -= amount
+                    action_desc = f"Reduced {amount}¢ for {fighter.name}"
+
+                fighter.save_with_user(user=request.user)
+
+                # Add description if provided
+                if description:
+                    action_desc += f" - {description}"
+
+                # Log to campaign action
+                if lst.campaign:
+                    outcome = f"Current: {fighter.credits_current}¢, Total: {fighter.credits_total}¢"
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=action_desc,
+                        outcome=outcome,
+                    )
+
+                messages.success(request, f"Credits updated for {fighter.name}")
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = EditFighterCreditsForm(fighter=fighter)
+
+    return render(
+        request,
+        "core/list_fighter_credits_edit.html",
         {
             "form": form,
             "list": lst,

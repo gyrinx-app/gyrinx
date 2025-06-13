@@ -20,6 +20,7 @@ urlpatterns = [
     path("list/<id>/about", list.ListAboutDetailView.as_view(), name="list-about"),
     path("list/<id>/archive", list.archive_list, name="list-archive"),
     path("list/<id>/edit", list.edit_list, name="list-edit"),
+    path("list/<id>/credits", list.edit_list_credits, name="list-credits-edit"),
     path("list/<id>/clone", list.clone_list, name="list-clone"),
     path("list/<id>/fighters/new", list.new_list_fighter, name="list-fighter-new"),
     path(
@@ -178,6 +179,11 @@ urlpatterns = [
         "list/<id>/fighter/<fighter_id>/xp",
         list.edit_list_fighter_xp,
         name="list-fighter-xp-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/credits",
+        list.edit_list_fighter_credits,
+        name="list-fighter-credits-edit",
     ),
     # Fighter advancements
     path(

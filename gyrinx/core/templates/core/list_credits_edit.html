@@ -1,0 +1,30 @@
+{% extends "core/layouts/page.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Credits - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col-12 col-md-8 col-lg-6">
+                <h2>Edit Credits for {{ list.name }}</h2>
+                <ul class="fs-5 mb-3 list-group list-group-flush">
+                    <li class="list-group-item">
+                        <span class="badge text-bg-primary">{{ list.credits_current }}¢</span> Current
+                    </li>
+                    <li class="list-group-item">
+                        <span class="badge text-bg-secondary">{{ list.credits_earned }}¢</span> Total Earned
+                    </li>
+                </ul>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_div }}
+                    <div class="hstack gap-2 mt-3 align-items-center">
+                        <button type="submit" class="btn btn-primary">Update Credits</button>
+                        <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
