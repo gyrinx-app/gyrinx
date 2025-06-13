@@ -29,19 +29,23 @@
                                     </a>
                                 </div>
                             {% endif %}
-                            {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
-                        </div>
-                    </div>
-                    <div class="hstack gap-2">
-                        <div>
-                            {% if not print %}
-                                {% ref list.content_house.name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
-                                ({{ fighter.content_fighter_cached.cat }})
-                            {% else %}
-                                {{ fighter.content_fighter_cached.type }} ({{ fighter.content_fighter_cached.cat }})
+                            {% if not fighter.content_fighter_cached.is_stash %}
+                                {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
                             {% endif %}
                         </div>
                     </div>
+                    {% if not fighter.content_fighter_cached.is_stash %}
+                        <div class="hstack gap-2">
+                            <div>
+                                {% if not print %}
+                                    {% ref list.content_house.name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
+                                    ({{ fighter.content_fighter_cached.cat }})
+                                {% else %}
+                                    {{ fighter.content_fighter_cached.type }} ({{ fighter.content_fighter_cached.cat }})
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
                     {% if fighter.legacy_content_fighter_cached %}
                         <div class="hstack gap-2">
                             <div class="text-muted fs-7">
@@ -58,7 +62,7 @@
                             </div>
                         {% endif %}
                     {% endif %}
-                    {% if not print %}
+                    {% if not print and not fighter.content_fighter_cached.is_stash %}
                         {% if can_edit %}
                             <div class="btn-group">
                                 <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
@@ -96,28 +100,29 @@
             </div>
             <div class="card-body vstack p-0 p-sm-2">
                 {% comment %} Stats {% endcomment %}
-                <table class="table table-sm table-borderless mb-0">
-                    <thead>
-                        <tr>
-                            <th class="text-center border-bottom" scope="col">M</th>
-                            <th class="text-center border-bottom" scope="col">WS</th>
-                            <th class="text-center border-bottom" scope="col">BS</th>
-                            <th class="text-center border-bottom" scope="col">S</th>
-                            <th class="text-center border-bottom" scope="col">T</th>
-                            <th class="text-center border-bottom" scope="col">W</th>
-                            <th class="text-center border-bottom" scope="col">I</th>
-                            <th class="text-center border-bottom" scope="col">A</th>
-                            <th class="text-center border-bottom table-warning border-start"
-                                scope="col">Ld</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Int</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
-                    </tbody>
-                    <tbody class="table-group-divider">
+                {% if not fighter.content_fighter_cached.is_stash %}
+                    <table class="table table-sm table-borderless mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-center border-bottom" scope="col">M</th>
+                                <th class="text-center border-bottom" scope="col">WS</th>
+                                <th class="text-center border-bottom" scope="col">BS</th>
+                                <th class="text-center border-bottom" scope="col">S</th>
+                                <th class="text-center border-bottom" scope="col">T</th>
+                                <th class="text-center border-bottom" scope="col">W</th>
+                                <th class="text-center border-bottom" scope="col">I</th>
+                                <th class="text-center border-bottom" scope="col">A</th>
+                                <th class="text-center border-bottom table-warning border-start"
+                                    scope="col">Ld</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+                        </tbody>
+                        <tbody class="table-group-divider">
                         {% if fighter.ruleline|length > 0 %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Rules</th>
@@ -322,6 +327,19 @@
                         {% endif %}
                     </tbody>
                 </table>
+                {% else %}
+                    {% comment %} Stash fighter - show gear and weapons in simple list {% endcomment %}
+                    {% if fighter.wargearline_cached|length > 0 %}
+                        <div class="p-2">
+                            <h6 class="fw-bold">Gear:</h6>
+                            <ul class="list-unstyled mb-2">
+                                {% for assign in fighter.wargear %}
+                                    <li>{{ assign.name }}{% if assign.cost_int != 0 %} ({{ assign.cost_display }}){% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                {% endif %}
                 {% comment %} Wargear {% endcomment %}
                 {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
                 {% if not print %}
@@ -367,19 +385,23 @@
                                     </a>
                                 </div>
                             {% endif %}
-                            {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
-                        </div>
-                    </div>
-                    <div class="hstack gap-2">
-                        <div>
-                            {% if not print %}
-                                {% ref list.content_house.name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
-                                ({{ fighter.content_fighter_cached.cat }})
-                            {% else %}
-                                {{ fighter.content_fighter_cached.type }} ({{ fighter.content_fighter_cached.cat }})
+                            {% if not fighter.content_fighter_cached.is_stash %}
+                                {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
                             {% endif %}
                         </div>
                     </div>
+                    {% if not fighter.content_fighter_cached.is_stash %}
+                        <div class="hstack gap-2">
+                            <div>
+                                {% if not print %}
+                                    {% ref list.content_house.name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
+                                    ({{ fighter.content_fighter_cached.cat }})
+                                {% else %}
+                                    {{ fighter.content_fighter_cached.type }} ({{ fighter.content_fighter_cached.cat }})
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
                     {% if fighter.legacy_content_fighter_cached %}
                         <div class="hstack gap-2">
                             <div class="text-muted fs-7">
@@ -396,7 +418,7 @@
                             </div>
                         {% endif %}
                     {% endif %}
-                    {% if not print %}
+                    {% if not print and not fighter.content_fighter_cached.is_stash %}
                         {% if can_edit %}
                             <div class="btn-group">
                                 <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
@@ -434,28 +456,29 @@
             </div>
             <div class="card-body vstack p-0 p-sm-2">
                 {% comment %} Stats {% endcomment %}
-                <table class="table table-sm table-borderless mb-0">
-                    <thead>
-                        <tr>
-                            <th class="text-center border-bottom" scope="col">M</th>
-                            <th class="text-center border-bottom" scope="col">WS</th>
-                            <th class="text-center border-bottom" scope="col">BS</th>
-                            <th class="text-center border-bottom" scope="col">S</th>
-                            <th class="text-center border-bottom" scope="col">T</th>
-                            <th class="text-center border-bottom" scope="col">W</th>
-                            <th class="text-center border-bottom" scope="col">I</th>
-                            <th class="text-center border-bottom" scope="col">A</th>
-                            <th class="text-center border-bottom table-warning border-start"
-                                scope="col">Ld</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                            <th class="text-center border-bottom table-warning" scope="col">Int</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
-                    </tbody>
-                    <tbody class="table-group-divider">
+                {% if not fighter.content_fighter_cached.is_stash %}
+                    <table class="table table-sm table-borderless mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-center border-bottom" scope="col">M</th>
+                                <th class="text-center border-bottom" scope="col">WS</th>
+                                <th class="text-center border-bottom" scope="col">BS</th>
+                                <th class="text-center border-bottom" scope="col">S</th>
+                                <th class="text-center border-bottom" scope="col">T</th>
+                                <th class="text-center border-bottom" scope="col">W</th>
+                                <th class="text-center border-bottom" scope="col">I</th>
+                                <th class="text-center border-bottom" scope="col">A</th>
+                                <th class="text-center border-bottom table-warning border-start"
+                                    scope="col">Ld</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                                <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+                        </tbody>
+                        <tbody class="table-group-divider">
                         {% if fighter.ruleline|length > 0 %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Rules</th>
@@ -660,6 +683,19 @@
                         {% endif %}
                     </tbody>
                 </table>
+                {% else %}
+                    {% comment %} Stash fighter - show gear and weapons in simple list {% endcomment %}
+                    {% if fighter.wargearline_cached|length > 0 %}
+                        <div class="p-2">
+                            <h6 class="fw-bold">Gear:</h6>
+                            <ul class="list-unstyled mb-2">
+                                {% for assign in fighter.wargear %}
+                                    <li>{{ assign.name }}{% if assign.cost_int != 0 %} ({{ assign.cost_display }}){% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                {% endif %}
                 {% comment %} Wargear {% endcomment %}
                 {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
                 {% if not print %}

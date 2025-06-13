@@ -241,6 +241,34 @@ class List(AppBase):
         for fighter in self.fighters():
             fighter.clone(list=clone)
 
+        # Add a stash fighter if cloning for a campaign
+        if for_campaign:
+            # Check if there's already a stash fighter in the cloned list
+            has_stash = clone.listfighter_set.filter(
+                content_fighter__is_stash=True
+            ).exists()
+
+            if not has_stash:
+                # Get or create a stash ContentFighter for this house
+                stash_fighter, created = (
+                    ContentFighter.objects.all_with_stash().get_or_create(
+                        house=self.content_house,
+                        is_stash=True,
+                        defaults={
+                            "type": "Stash",
+                            "category": "GANGER",  # Default category
+                            "base_cost": 0,
+                        },
+                    )
+                )
+
+                # Create the stash ListFighter
+                ListFighter.objects.create(
+                    name="Gang Stash",
+                    content_fighter=stash_fighter,
+                    list=clone,
+                )
+
         return clone
 
     class Meta:
@@ -955,6 +983,19 @@ class ListFighter(AppBase):
                     "legacy_content_fighter": f"Fighters of type {self.legacy_content_fighter.type} cannot be used as the legacy fighter.",
                 }
             )
+
+        # Check if this is a stash fighter and if there's already one in the list
+        if self.content_fighter.is_stash:
+            existing_stash = (
+                ListFighter.objects.filter(
+                    list=self.list,
+                    content_fighter__is_stash=True,
+                )
+                .exclude(pk=self.pk)
+                .exists()
+            )
+            if existing_stash:
+                raise ValidationError("Each list can only have one stash fighter.")
 
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 

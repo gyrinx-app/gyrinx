@@ -616,6 +616,39 @@ class ContentFighterManager(models.Manager):
         return (
             super()
             .get_queryset()
+            .exclude(is_stash=True)  # Exclude stash fighters by default
+            .annotate(
+                _category_order=Case(
+                    *[
+                        When(category=category, then=index)
+                        for index, category in enumerate(
+                            [
+                                "LEADER",
+                                "CHAMPION",
+                                "PROSPECT",
+                                "SPECIALIST",
+                                "GANGER",
+                                "JUVE",
+                            ]
+                        )
+                    ],
+                    default=99,
+                )
+            )
+            .order_by(
+                "house__name",
+                "_category_order",
+                "type",
+            )
+        )
+
+    def all_with_stash(self):
+        """
+        Returns all fighters including stash fighters.
+        """
+        return (
+            super()
+            .get_queryset()
             .annotate(
                 _category_order=Case(
                     *[
@@ -727,6 +760,11 @@ class ContentFighter(Content):
     can_be_legacy = models.BooleanField(
         default=False,
         help_text="If checked, this fighter can be assigned as a legacy content fighter.",
+    )
+
+    is_stash = models.BooleanField(
+        default=False,
+        help_text="If checked, this fighter represents a gang's stash and should only show gear/weapons.",
     )
 
     # Other
@@ -885,6 +923,15 @@ class ContentFighter(Content):
 
         # self is now the new fighter
         return self
+
+    def clean(self):
+        """
+        Validation to ensure stash fighters have 0 base cost.
+        """
+        if self.is_stash and self.base_cost != 0:
+            raise ValidationError(
+                {"base_cost": "Stash fighters must have a base cost of 0."}
+            )
 
     class Meta:
         verbose_name = "Fighter"
