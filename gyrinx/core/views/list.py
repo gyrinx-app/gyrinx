@@ -277,6 +277,107 @@ def edit_list(request, id):
 
 
 @login_required
+def edit_list_credits(request, id):
+    """
+    Modify credits for a :model:`core.List` in campaign mode.
+
+    **Context**
+
+    ``form``
+        An EditListCreditsForm for modifying list credits.
+    ``list``
+        The :model:`core.List` whose credits are being modified.
+
+    **Template**
+
+    :template:`core/list_credits_edit.html`
+    """
+    from django.contrib import messages
+
+    from gyrinx.core.forms.list import EditListCreditsForm
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Credits can only be tracked for lists in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        form = EditListCreditsForm(request.POST, lst=lst)
+        if form.is_valid():
+            operation = form.cleaned_data["operation"]
+            amount = form.cleaned_data["amount"]
+            description = form.cleaned_data.get("description", "")
+
+            # Validate the operation
+            if operation == "spend" and amount > lst.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot spend more credits than available ({lst.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > lst.credits_current:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce credits below zero (current: {lst.credits_current}¢)",
+                )
+            elif operation == "reduce" and amount > lst.credits_earned:
+                form.add_error(
+                    "amount",
+                    f"Cannot reduce all time credits below zero (all time: {lst.credits_earned}¢)",
+                )
+            else:
+                # Apply the credit change
+                if operation == "add":
+                    lst.credits_current += amount
+                    lst.credits_earned += amount
+                    action_desc = f"Added {amount}¢"
+                    outcome = f"+{amount}¢ (to {lst.credits_current}¢)"
+                elif operation == "spend":
+                    lst.credits_current -= amount
+                    action_desc = f"Spent {amount}¢"
+                    outcome = f"-{amount}¢ (to {lst.credits_current}¢)"
+                else:  # reduce
+                    lst.credits_current -= amount
+                    lst.credits_earned -= amount
+                    action_desc = f"Reduced {amount}¢"
+                    outcome = f"-{amount}¢ (to {lst.credits_current}¢, all time: {lst.credits_earned}¢)"
+
+                if description:
+                    action_desc += f": {description}"
+
+                lst.save()
+
+                # Log to campaign action
+                if lst.campaign:
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=action_desc,
+                        outcome=outcome,
+                    )
+
+                messages.success(request, f"Credits updated for {lst.name}")
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = EditListCreditsForm(lst=lst)
+
+    return render(
+        request,
+        "core/list_credits_edit.html",
+        {
+            "form": form,
+            "list": lst,
+        },
+    )
+
+
+@login_required
 def archive_list(request, id):
     """
     Archive or unarchive a :model:`core.List`.
