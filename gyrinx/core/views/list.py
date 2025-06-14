@@ -44,8 +44,8 @@ from gyrinx.core.forms.list import (
     ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
     ListFighterEquipmentAssignmentUpgradeForm,
+    ListFighterForm,
     ListFighterSkillsForm,
-    NewListFighterForm,
     NewListForm,
 )
 from gyrinx.core.models.campaign import CampaignAction
@@ -497,7 +497,7 @@ def new_list_fighter(request, id):
     **Context**
 
     ``form``
-        A NewListFighterForm for adding a new fighter.
+        A ListFighterForm for adding a new fighter.
     ``list``
         The :model:`core.List` to which this fighter will be added.
     ``error_message``
@@ -512,7 +512,7 @@ def new_list_fighter(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
             fighter = form.save(commit=False)
             fighter.list = lst
@@ -525,7 +525,7 @@ def new_list_fighter(request, id):
                 + f"#{str(fighter.id)}"
             )
     else:
-        form = NewListFighterForm(instance=fighter)
+        form = ListFighterForm(instance=fighter)
 
     return render(
         request,
@@ -542,7 +542,7 @@ def edit_list_fighter(request, id, fighter_id):
     **Context**
 
     ``form``
-        A NewListFighterForm for editing fighter details.
+        A ListFighterForm for editing fighter details.
     ``list``
         The :model:`core.List` that owns this fighter.
     ``error_message``
@@ -558,7 +558,7 @@ def edit_list_fighter(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
             fighter = form.save(commit=False)
             fighter.list = lst
@@ -571,7 +571,7 @@ def edit_list_fighter(request, id, fighter_id):
                 + f"#{str(fighter.id)}"
             )
     else:
-        form = NewListFighterForm(instance=fighter)
+        form = ListFighterForm(instance=fighter)
 
     return render(
         request,
@@ -941,10 +941,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
-            print(assign)
-            print(f"stash? {fighter.is_stash}")
-            print(f"assign cost: {assign.cost_int()}")
-            print(f"list credits: {lst.credits_current}")
 
             # If this is in campaign, we need to take credits from the list
             if lst.campaign and assign.cost_int() > lst.credits_current:

@@ -18,19 +18,20 @@ def test_stash_fighter_is_excluded_from_default_queryset(db):
     )
 
     # Create stash fighter
-    stash_fighter = ContentFighter.objects.all_with_stash().create(
+    stash_fighter = ContentFighter.objects.create(
         type="Stash",
         category="STASH",
         base_cost=0,
         is_stash=True,
     )
 
-    # Default queryset should not include stash fighter
-    assert regular_fighter in ContentFighter.objects.all()
-    assert stash_fighter not in ContentFighter.objects.all()
+    # without_stash() should not include stash fighter
+    without_stash = ContentFighter.objects.without_stash()
+    assert regular_fighter in without_stash
+    assert stash_fighter not in without_stash
 
-    # all_with_stash should include both
-    all_fighters = ContentFighter.objects.all_with_stash()
+    # Default queryset (all()) should include both
+    all_fighters = ContentFighter.objects.all()
     assert regular_fighter in all_fighters
     assert stash_fighter in all_fighters
 
@@ -62,7 +63,7 @@ def test_only_one_stash_fighter_per_list(db, user, content_house):
     )
 
     # Create stash content fighter
-    stash_fighter = ContentFighter.objects.all_with_stash().create(
+    stash_fighter = ContentFighter.objects.create(
         type="Stash",
         category="STASH",
         base_cost=0,
@@ -82,10 +83,11 @@ def test_only_one_stash_fighter_per_list(db, user, content_house):
         name="Another Stash",
         content_fighter=stash_fighter,
         list=gang_list,
+        owner=user,
     )
 
     with pytest.raises(ValidationError) as exc_info:
-        second_stash.clean_fields()
+        second_stash.clean_fields(exclude=[])
 
     assert "Each list can only have one stash fighter" in str(exc_info.value)
 
@@ -129,7 +131,7 @@ def test_stash_fighter_created_when_cloning_to_campaign(db, user, content_house)
     assert stash_fighters.count() == 1
 
     stash_fighter = stash_fighters.first()
-    assert stash_fighter.name == "Gang Stash"
+    assert stash_fighter.name == "Stash"
     assert stash_fighter.content_fighter.base_cost == 0
     assert stash_fighter.content_fighter.house == content_house
 
@@ -174,7 +176,7 @@ def test_stash_fighter_card_display(db, user, content_house):
     # For now, we'll just verify the is_stash flag is accessible in the template context
 
     # Create stash content fighter
-    stash_fighter = ContentFighter.objects.all_with_stash().create(
+    stash_fighter = ContentFighter.objects.create(
         type="Stash",
         category="STASH",
         base_cost=0,

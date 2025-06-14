@@ -97,7 +97,7 @@ class ContentFighterChoiceField(forms.ModelChoiceField):
         return f"{obj.name()} ({cost_for_house}¢)"
 
 
-class NewListFighterForm(forms.ModelForm):
+class ListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         inst = kwargs.get("instance", {})

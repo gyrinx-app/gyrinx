@@ -250,16 +250,14 @@ class List(AppBase):
 
             if not has_stash:
                 # Get or create a stash ContentFighter for this house
-                stash_fighter, created = (
-                    ContentFighter.objects.all_with_stash().get_or_create(
-                        house=self.content_house,
-                        is_stash=True,
-                        defaults={
-                            "type": "Stash",
-                            "category": "STASH",  # Default category
-                            "base_cost": 0,
-                        },
-                    )
+                stash_fighter, created = ContentFighter.objects.get_or_create(
+                    house=self.content_house,
+                    is_stash=True,
+                    defaults={
+                        "type": "Stash",
+                        "category": "STASH",  # Default category
+                        "base_cost": 0,
+                    },
                 )
 
                 # Create the stash ListFighter
