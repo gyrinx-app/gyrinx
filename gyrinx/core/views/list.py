@@ -2803,6 +2803,24 @@ def reassign_list_fighter_equipment(
             assignment.list_fighter = target_fighter
             assignment.save_with_user(user=request.user)
 
+            # Create campaign action if in campaign mode
+            if lst.mode == List.CAMPAIGN_MODE and lst.campaign:
+                equipment_name = assignment.content_equipment.name
+                from_fighter_name = fighter.name
+                to_fighter_name = target_fighter.name
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
+                    outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
+                    dice_count=0,
+                    dice_results=[],
+                    dice_total=0,
+                )
+
             messages.success(
                 request,
                 f"{assignment.content_equipment.name} reassigned to {target_fighter.name}.",
