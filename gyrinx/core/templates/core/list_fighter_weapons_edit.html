@@ -9,6 +9,11 @@
         <h1 class="h3">Weapons: {{ fighter.fully_qualified_name }}</h1>
         <div class="grid">
             {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter %}
+            {% if error_message %}
+                <div class="alert alert-danger g-col-12">
+                    <i class="bi-exclamation-triangle"></i> {{ error_message }}
+                </div>
+            {% endif %}
             {% url 'core:list-fighter-weapons-edit' list.id fighter.id as filter_action %}
             {% include "core/includes/fighter_gear_filter.html" with action=filter_action %}
             {% regroup assigns|dictsort:"category" by cat as categories %}

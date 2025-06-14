@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Enable default assignment modification - {{ assign.equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    Enable default assignment modification - {{ assign.equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% url back_url list.id fighter.id as full_back_url %}

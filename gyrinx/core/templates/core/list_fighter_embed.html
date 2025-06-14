@@ -1,7 +1,7 @@
 {% extends "core/layouts/base_print.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     <div id="content" class="p-2">

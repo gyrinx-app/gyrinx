@@ -2,15 +2,26 @@
 <div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
     <div class="card-header border-dark p-2">
         <div class="vstack gap-1">
-            <div class="hstack">
+            <div class="hstack align-items-center">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 <div class="ms-auto">{% include "core/includes/fighter_card_cost.html" with fighter=fighter %}</div>
             </div>
         </div>
     </div>
     <div class="card-body vstack p-0 p-sm-2">
+        {% if fighter.is_stash %}
+            <!-- Gang Credits -->
+            <div class="col-12 mb-2">
+                <div class="hstack gap-3 align-items-center justify-content-between">
+                    <h4 class="h6 mb-0">Stash Credits</h4>
+                    <div>
+                        <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
         <table class="table table-sm table-borderless mb-0">
-            {% if not fighter.content_fighter_cached.is_stash %}
+            {% if not fighter.is_stash %}
                 <thead>
                     <tr>
                         <th class="text-center border-bottom" scope="col">M</th>
@@ -34,7 +45,7 @@
             {% endif %}
             <tbody class="table-group-divider">
                 {% firstof gear_mode "link" as gear_mode_default %}
-                {% if not fighter.content_fighter_cached.is_stash %}
+                {% if not fighter.is_stash %}
                     {% if fighter.has_house_additional_gear %}
                         {% if gear_mode == "edit" %}
                             {% for line in fighter.house_additional_gearline_display %}

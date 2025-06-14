@@ -1,9 +1,10 @@
 {% load allauth custom_tags %}
-<div class="g-col-12 g-col-md-6"></div>
+{% comment %}This row is used to just make sure the next row starts on a new line.{% endcomment %}
+<div class="g-col-12"></div>
 <div class="g-col-12 g-col-xl-6">
     <form id="search"
           method="get"
-          action="{{ action }}#search"
+          action="{{ action }}{{ querystring }}#search"
           class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
         <input type="hidden" name="flash" value="search">
         <div class="input-group">

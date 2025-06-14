@@ -1,7 +1,7 @@
 {% extends "core/layouts/page.html" %}
 {% load custom_tags %}
 {% block head_title %}
-    XP - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    XP - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     <div class="container">

@@ -1,12 +1,12 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Gear - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    Gear - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-12 px-0 vstack gap-3">
-        <h1 class="h3">Gear: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
+        <h1 class="h3">Gear: {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
             <div class="alert alert-danger">
                 <h4 class="alert-heading">Error</h4>
