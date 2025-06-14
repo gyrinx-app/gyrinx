@@ -53,6 +53,10 @@ class Campaign(AppBase):
         default=PRE_CAMPAIGN,
         help_text="Current status of the campaign.",
     )
+    budget = models.PositiveIntegerField(
+        default=0,
+        help_text="Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+    )
 
     history = HistoricalRecords()
 
@@ -110,6 +114,29 @@ class Campaign(AppBase):
                 self.lists.add(campaign_clone)
                 cloned_lists.append(campaign_clone)
 
+                # Distribute budget credits to each gang
+                if self.budget > 0:
+                    # Calculate credits to give: max(0, budget - list cost)
+                    list_cost = (
+                        campaign_clone.cost_int() - campaign_clone.credits_current
+                    )
+                    credits_to_add = max(0, self.budget - list_cost)
+
+                    if credits_to_add > 0:
+                        campaign_clone.credits_current += credits_to_add
+                        campaign_clone.credits_earned += credits_to_add
+                        campaign_clone.save()
+
+                        # Log the credit distribution as a campaign action
+                        CampaignAction.objects.create(
+                            campaign=self,
+                            user=self.owner,
+                            list=campaign_clone,
+                            description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang cost)",
+                            outcome=f"+{credits_to_add}¢ (to {campaign_clone.credits_current}¢)",
+                            owner=self.owner,
+                        )
+
             # Allocate default resources to each list
             for resource_type in self.resource_types.all():
                 for cloned_list in cloned_lists:
@@ -158,6 +185,27 @@ class Campaign(AppBase):
             # In-progress: clone the list and allocate resources
             campaign_clone = list_to_add.clone(for_campaign=self)
             self.lists.add(campaign_clone)
+
+            # Distribute budget credits to the new gang
+            if self.budget > 0:
+                # Calculate credits to give: max(0, budget - list cost)
+                list_cost = campaign_clone.cost_int() - campaign_clone.credits_current
+                credits_to_add = max(0, self.budget - list_cost)
+
+                if credits_to_add > 0:
+                    campaign_clone.credits_current += credits_to_add
+                    campaign_clone.credits_earned += credits_to_add
+                    campaign_clone.save()
+
+                    # Log the credit distribution as a campaign action
+                    CampaignAction.objects.create(
+                        campaign=self,
+                        user=self.owner,
+                        list=campaign_clone,
+                        description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang cost)",
+                        outcome=f"+{credits_to_add}¢ (to {campaign_clone.credits_current}¢)",
+                        owner=self.owner,
+                    )
 
             # Allocate default resources to the new list
             for resource_type in self.resource_types.all():

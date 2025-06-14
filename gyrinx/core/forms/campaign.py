@@ -13,18 +13,20 @@ from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS
 class NewCampaignForm(forms.ModelForm):
     class Meta:
         model = Campaign
-        fields = ["name", "summary", "narrative", "public"]
+        fields = ["name", "summary", "narrative", "public", "budget"]
         labels = {
             "name": "Name",
             "summary": "Summary",
             "narrative": "Narrative",
             "public": "Public",
+            "budget": "Starting Budget",
         }
         help_texts = {
             "name": "The name you use to identify this Campaign. This may be public.",
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users of Gyrinx. You can edit this later.",
+            "budget": "Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -36,6 +38,7 @@ class NewCampaignForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "budget": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
         }
 
 
@@ -111,18 +114,20 @@ class CampaignActionOutcomeForm(forms.ModelForm):
 class EditCampaignForm(forms.ModelForm):
     class Meta:
         model = Campaign
-        fields = ["name", "summary", "narrative", "public"]
+        fields = ["name", "summary", "narrative", "public", "budget"]
         labels = {
             "name": "Name",
             "summary": "Summary",
             "narrative": "Narrative",
             "public": "Public",
+            "budget": "Starting Budget",
         }
         help_texts = {
             "name": "The name you use to identify this campaign. This may be public.",
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users.",
+            "budget": "Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -134,6 +139,7 @@ class EditCampaignForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "budget": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
         }
 
 

@@ -297,7 +297,16 @@ def edit_list_credits(request, id):
     from gyrinx.core.forms.list import EditListCreditsForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    # Allow both list owner and campaign owner to modify credits
+    lst = get_object_or_404(List, id=id)
+
+    # Check permissions - must be list owner or campaign owner
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request, "You don't have permission to modify credits for this list."
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:

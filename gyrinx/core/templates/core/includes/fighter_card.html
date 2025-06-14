@@ -105,7 +105,7 @@
                             <div>
                                 <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
                             </div>
-                            {% if list.owner == user %}
+                            {% if list.owner == user or list.campaign and list.campaign.owner == user %}
                                 <a href="{% url 'core:list-credits-edit' list.id %}"
                                    class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                     <i class="bi-pencil-square" aria-hidden="true"></i> Modify
