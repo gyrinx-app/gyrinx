@@ -298,7 +298,13 @@ def edit_list_credits(request, id):
     from gyrinx.core.models.campaign import CampaignAction
 
     # Allow both list owner and campaign owner to modify credits
-    lst = get_object_or_404(List, id=id)
+    # Filter the queryset to include only lists owned by the user or by campaigns they own
+    from django.db.models import Q
+
+    lst = get_object_or_404(
+        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        id=id,
+    )
 
     # Check permissions - must be list owner or campaign owner
     if lst.owner != request.user:
