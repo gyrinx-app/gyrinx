@@ -1,27 +1,11 @@
 {% load allauth custom_tags humanize %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="card g-col-12 g-col-md-12 g-col-xl-6">
-        <div class="card-header p-2">
+        <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
             <h3 class="h5 mb-0">Assets & Resources</h3>
         </div>
         <div class="card-body p-2">
             <div class="row g-3">
-                <!-- Gang Credits -->
-                <div class="col-12">
-                    <div class="hstack gap-3 align-items-center justify-content-between">
-                        <h4 class="h6 mb-0">Stash Credits</h4>
-                        <div class="mt-1">
-                            <span class="badge bg-primary fs-7">{{ list.credits_current }}¢</span>
-                        </div>
-                        {% if list.owner == user %}
-                            <a href="{% url 'core:list-credits-edit' list.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                                <i class="bi-pencil-square" aria-hidden="true"></i> Modify
-                            </a>
-                        {% endif %}
-                    </div>
-                    <hr class="my-2">
-                </div>
                 {% if held_assets %}
                     <div class="col-12">
                         <h4 class="h6 mb-2 text-muted">Assets</h4>

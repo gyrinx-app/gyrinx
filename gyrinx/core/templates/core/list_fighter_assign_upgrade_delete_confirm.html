@@ -1,14 +1,14 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Remove - {{ upgrade.name }} - {{ assign.content_equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    Remove - {{ upgrade.name }} - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% url back_url list.id fighter.id as full_back_url %}
     {% include "core/includes/back.html" with url=full_back_url %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
-            Remove {{ upgrade.name }} {{ assign.content_equipment.upgrade_stack_name }} from {{ assign.content_equipment.name }} for {{ fighter.name }} - {{ fighter.content_fighter.name }}
+            Remove {{ upgrade.name }} {{ assign.content_equipment.upgrade_stack_name }} from {{ assign.content_equipment.name }} for {{ fighter.fully_qualified_name }}
         </h1>
         <form action="{% url action_url list.id fighter.id assign.id upgrade.id %}"
               method="post">

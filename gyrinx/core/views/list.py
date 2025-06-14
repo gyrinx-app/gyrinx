@@ -44,8 +44,8 @@ from gyrinx.core.forms.list import (
     ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
     ListFighterEquipmentAssignmentUpgradeForm,
+    ListFighterForm,
     ListFighterSkillsForm,
-    NewListFighterForm,
     NewListForm,
 )
 from gyrinx.core.models.campaign import CampaignAction
@@ -497,7 +497,7 @@ def new_list_fighter(request, id):
     **Context**
 
     ``form``
-        A NewListFighterForm for adding a new fighter.
+        A ListFighterForm for adding a new fighter.
     ``list``
         The :model:`core.List` to which this fighter will be added.
     ``error_message``
@@ -512,7 +512,7 @@ def new_list_fighter(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
             fighter = form.save(commit=False)
             fighter.list = lst
@@ -525,7 +525,7 @@ def new_list_fighter(request, id):
                 + f"#{str(fighter.id)}"
             )
     else:
-        form = NewListFighterForm(instance=fighter)
+        form = ListFighterForm(instance=fighter)
 
     return render(
         request,
@@ -542,7 +542,7 @@ def edit_list_fighter(request, id, fighter_id):
     **Context**
 
     ``form``
-        A NewListFighterForm for editing fighter details.
+        A ListFighterForm for editing fighter details.
     ``list``
         The :model:`core.List` that owns this fighter.
     ``error_message``
@@ -558,7 +558,7 @@ def edit_list_fighter(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = NewListFighterForm(request.POST, instance=fighter)
+        form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
             fighter = form.save(commit=False)
             fighter.list = lst
@@ -571,7 +571,7 @@ def edit_list_fighter(request, id, fighter_id):
                 + f"#{str(fighter.id)}"
             )
     else:
-        form = NewListFighterForm(instance=fighter)
+        form = ListFighterForm(instance=fighter)
 
     return render(
         request,
@@ -940,17 +940,44 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         instance = ListFighterEquipmentAssignment(list_fighter=fighter)
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         if form.is_valid():
-            form.save()
-            query_params = make_query_params_str(
-                flash=instance.id,
-                filter=request.POST.get("filter"),
-                q=request.POST.get("q"),
-            )
-            return HttpResponseRedirect(
-                reverse(view_name, args=(lst.id, fighter.id))
-                + f"?{query_params}"
-                + f"#{str(fighter.id)}"
-            )
+            assign: ListFighterEquipmentAssignment = form.save(commit=False)
+
+            # If this is in campaign, we need to take credits from the list
+            if lst.campaign and assign.cost_int() > lst.credits_current:
+                error_message = "Insufficient funds."
+            else:
+                assign.save()
+                form.save_m2m()
+
+                if lst.campaign:
+                    # If this is a stash, we need to take credits from the list
+                    lst.credits_current -= assign.cost_int()
+                    lst.save()
+
+                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({assign.cost_int()}¢)"
+
+                    # Spend credits and create campaign action
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=description,
+                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                    )
+
+                messages.success(request, description)
+
+                query_params = make_query_params_str(
+                    flash=instance.id,
+                    filter=request.POST.get("filter"),
+                    q=request.POST.get("q"),
+                )
+                return HttpResponseRedirect(
+                    reverse(view_name, args=(lst.id, fighter.id))
+                    + f"?{query_params}"
+                    + f"#{str(fighter.id)}"
+                )
 
     # Get the appropriate equipment
     if is_weapon:

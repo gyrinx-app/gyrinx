@@ -186,21 +186,3 @@ def test_cannot_spend_more_than_available(client, user, campaign_list):
     campaign_list.refresh_from_db()
     assert campaign_list.credits_current == 100
     assert campaign_list.credits_earned == 100
-
-
-@pytest.mark.django_db
-def test_credits_display_in_assets_panel(client, user, campaign_list):
-    """Test that credits are displayed in the assets panel."""
-    campaign_list.credits_current = 750
-    campaign_list.credits_earned = 1500
-    campaign_list.save()
-
-    client.login(username="testuser", password="testpass")
-
-    response = client.get(reverse("core:list", args=(campaign_list.id,)))
-    assert response.status_code == 200
-
-    content = response.content.decode()
-    assert "Credits" in content
-    assert "750¢" in content
-    assert "Modify" in content

@@ -612,7 +612,40 @@ class ContentFighterManager(models.Manager):
     Custom manager for :model:`content.ContentFighter` model.
     """
 
+    def without_stash(self):
+        return (
+            super()
+            .get_queryset()
+            .exclude(is_stash=True)
+            .annotate(
+                _category_order=Case(
+                    *[
+                        When(category=category, then=index)
+                        for index, category in enumerate(
+                            [
+                                "LEADER",
+                                "CHAMPION",
+                                "PROSPECT",
+                                "SPECIALIST",
+                                "GANGER",
+                                "JUVE",
+                            ]
+                        )
+                    ],
+                    default=99,
+                )
+            )
+            .order_by(
+                "house__name",
+                "_category_order",
+                "type",
+            )
+        )
+
     def get_queryset(self):
+        """
+        Returns all fighters including stash fighters.
+        """
         return (
             super()
             .get_queryset()
@@ -622,6 +655,7 @@ class ContentFighterManager(models.Manager):
                         When(category=category, then=index)
                         for index, category in enumerate(
                             [
+                                "STASH",
                                 "LEADER",
                                 "CHAMPION",
                                 "PROSPECT",
@@ -727,6 +761,11 @@ class ContentFighter(Content):
     can_be_legacy = models.BooleanField(
         default=False,
         help_text="If checked, this fighter can be assigned as a legacy content fighter.",
+    )
+
+    is_stash = models.BooleanField(
+        default=False,
+        help_text="If checked, this fighter represents a gang's stash and should only show gear/weapons.",
     )
 
     # Other
@@ -886,11 +925,22 @@ class ContentFighter(Content):
         # self is now the new fighter
         return self
 
+    def clean(self):
+        """
+        Validation to ensure stash fighters have 0 base cost.
+        """
+        if self.is_stash and self.base_cost != 0:
+            raise ValidationError(
+                {"base_cost": "Stash fighters must have a base cost of 0."}
+            )
+
     class Meta:
         verbose_name = "Fighter"
         verbose_name_plural = "Fighters"
 
-    objects = ContentFighterManager.from_queryset(ContentFighterQuerySet)()
+    objects: ContentFighterManager = ContentFighterManager.from_queryset(
+        ContentFighterQuerySet
+    )()
 
 
 class ContentFighterEquipmentListItem(Content):

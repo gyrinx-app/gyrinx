@@ -74,7 +74,7 @@ def test_campaign_start_clones_lists():
 
     # Check that a clone was created
     assert campaign.lists.count() == 1
-    cloned_list = campaign.lists.first()
+    cloned_list: List = campaign.lists.first()
 
     # Verify clone properties
     assert cloned_list.name == original_list.name
@@ -85,9 +85,16 @@ def test_campaign_start_clones_lists():
     assert cloned_list.campaign == campaign
     assert not cloned_list.public  # Campaign lists are private
 
-    # Verify fighters were cloned
-    assert cloned_list.fighters().count() == 1
-    cloned_fighter = cloned_list.fighters().first()
+    # Verify fighters were cloned, including stash
+    list_fighters = cloned_list.fighters()
+    assert list_fighters.count() == 2
+    stash_fighter: ListFighter = list_fighters.first()
+    assert stash_fighter.name == "Stash"
+    assert stash_fighter.is_stash
+
+    cloned_fighter = (
+        cloned_list.fighters().exclude(content_fighter__is_stash=True).first()
+    )
     assert cloned_fighter.name == "Fighter 1"
     assert cloned_fighter.content_fighter == content_fighter
 

@@ -1,7 +1,7 @@
 {% load allauth custom_tags %}
 {% if mode == 'add' %}
     {% for assign in weapons %}
-        <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+        <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring flash=None %}"
               method="post"
               id="weapon-{{ assign.equipment.id }}"
               class="d-none">
@@ -230,7 +230,7 @@
         <tbody>
             <tr>
                 <td colspan="9">
-                    <span class="text-secondary">This fighter has no weapons.</span>
+                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no weapons.</span>
                 </td>
             </tr>
         </tbody>

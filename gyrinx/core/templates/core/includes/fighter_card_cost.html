@@ -6,6 +6,10 @@
     <div data-bs-toggle="tooltip"
          title="The base cost is zero because the Fighter is linked to {{ fighter.linked_list_fighter.name }} as Gear (was {{ fighter.base_cost_before_override_display }})"
          class="badge text-bg-warning bg-warning">{{ fighter.cost_display }}</div>
+{% elif fighter.is_stash %}
+    <div class="badge text-bg-secondary bg-secondary">{{ fighter.list.credits_current }}¢</div>
+    <i class="bi-plus"></i>
+    <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
 {% else %}
     <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
 {% endif %}

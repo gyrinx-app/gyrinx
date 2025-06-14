@@ -2,128 +2,143 @@
 <div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
     <div class="card-header border-dark p-2">
         <div class="vstack gap-1">
-            <div class="hstack">
+            <div class="hstack align-items-center">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 <div class="ms-auto">{% include "core/includes/fighter_card_cost.html" with fighter=fighter %}</div>
             </div>
         </div>
     </div>
     <div class="card-body vstack p-0 p-sm-2">
+        {% if fighter.is_stash %}
+            <!-- Gang Credits -->
+            <div class="col-12 mb-2">
+                <div class="hstack gap-3 align-items-center justify-content-between">
+                    <h4 class="h6 mb-0">Stash Credits</h4>
+                    <div>
+                        <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
         <table class="table table-sm table-borderless mb-0">
-            <thead>
-                <tr>
-                    <th class="text-center border-bottom" scope="col">M</th>
-                    <th class="text-center border-bottom" scope="col">WS</th>
-                    <th class="text-center border-bottom" scope="col">BS</th>
-                    <th class="text-center border-bottom" scope="col">S</th>
-                    <th class="text-center border-bottom" scope="col">T</th>
-                    <th class="text-center border-bottom" scope="col">W</th>
-                    <th class="text-center border-bottom" scope="col">I</th>
-                    <th class="text-center border-bottom" scope="col">A</th>
-                    <th class="text-center border-bottom table-warning border-start"
-                        scope="col">Ld</th>
-                    <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                    <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                    <th class="text-center border-bottom table-warning" scope="col">Int</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
-            </tbody>
+            {% if not fighter.is_stash %}
+                <thead>
+                    <tr>
+                        <th class="text-center border-bottom" scope="col">M</th>
+                        <th class="text-center border-bottom" scope="col">WS</th>
+                        <th class="text-center border-bottom" scope="col">BS</th>
+                        <th class="text-center border-bottom" scope="col">S</th>
+                        <th class="text-center border-bottom" scope="col">T</th>
+                        <th class="text-center border-bottom" scope="col">W</th>
+                        <th class="text-center border-bottom" scope="col">I</th>
+                        <th class="text-center border-bottom" scope="col">A</th>
+                        <th class="text-center border-bottom table-warning border-start"
+                            scope="col">Ld</th>
+                        <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                        <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                        <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+                </tbody>
+            {% endif %}
             <tbody class="table-group-divider">
                 {% firstof gear_mode "link" as gear_mode_default %}
-                {% if fighter.has_house_additional_gear %}
-                    {% if gear_mode == "edit" %}
-                        {% for line in fighter.house_additional_gearline_display %}
-                            {% for assign in line.assignments %}
-                                <tr class="fs-7">
-                                    {% if forloop.first %}
-                                        <th scope="row" colspan="3">{{ line.category }}</th>
-                                    {% else %}
-                                        <th scope="row" colspan="3"></th>
-                                    {% endif %}
-                                    <td colspan="12" class="{% flash assign.id %}">
-                                        {% if assign.is_from_default_assignment or assign.kind == "default" %}
-                                            <span bs-tooltip
-                                                  data-bs-toggle="tooltip"
-                                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                                  title="This is assigned to the fighter by default.">
-                                            {% endif %}
-                                            {{ assign.name }}
-                                            {% if assign.active_upgrades_display|length > 0 %}
-                                                {% spaceless %}
-                                                    <span>(</span>
-                                                    {% for up in assign.active_upgrades_display %}
-                                                        <span>{{ up.name }}</span>
-                                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                                                    {% endfor %}
-                                                    <span>)</span>
-                                                {% endspaceless %}
-                                            {% endif %}
-                                            {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
-                                        {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
-                                        {% if list.owner_cached == user and not print %}
-                                            {% if assign.kind == 'assigned' and not assign.is_linked %}
-                                                <br>
-                                                {% if not assign.is_from_default_assignment %}
-                                                    <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
-                                                       class="link-secondary">Edit</a>
-                                                    <span class="text-muted">·</span>
+                {% if not fighter.is_stash %}
+                    {% if fighter.has_house_additional_gear %}
+                        {% if gear_mode == "edit" %}
+                            {% for line in fighter.house_additional_gearline_display %}
+                                {% for assign in line.assignments %}
+                                    <tr class="fs-7">
+                                        {% if forloop.first %}
+                                            <th scope="row" colspan="3">{{ line.category }}</th>
+                                        {% else %}
+                                            <th scope="row" colspan="3"></th>
+                                        {% endif %}
+                                        <td colspan="12" class="{% flash assign.id %}">
+                                            {% if assign.is_from_default_assignment or assign.kind == "default" %}
+                                                <span bs-tooltip
+                                                      data-bs-toggle="tooltip"
+                                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                      title="This is assigned to the fighter by default.">
                                                 {% endif %}
-                                                <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                                   class="link-danger">Remove</a>
-                                            {% elif assign.kind == 'default' %}
-                                                <br>
-                                                <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                                   class="link-danger">Remove</a>
+                                                {{ assign.name }}
+                                                {% if assign.active_upgrades_display|length > 0 %}
+                                                    {% spaceless %}
+                                                        <span>(</span>
+                                                        {% for up in assign.active_upgrades_display %}
+                                                            <span>{{ up.name }}</span>
+                                                            {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                        {% endfor %}
+                                                        <span>)</span>
+                                                    {% endspaceless %}
+                                                {% endif %}
+                                                {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
+                                            {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
+                                            {% if list.owner_cached == user and not print %}
+                                                {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                                    <br>
+                                                    {% if not assign.is_from_default_assignment %}
+                                                        <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
+                                                           class="link-secondary">Edit</a>
+                                                        <span class="text-muted">·</span>
+                                                    {% endif %}
+                                                    <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
+                                                       class="link-danger">Remove</a>
+                                                {% elif assign.kind == 'default' %}
+                                                    <br>
+                                                    <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
+                                                       class="link-danger">Remove</a>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    {% if list.owner_cached == user and not print %}
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">{{ line.category }}</th>
+                                            <td colspan="12">
+                                                {% if gear_mode_default == "link" %}
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                {% else %}
+                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        {% else %}
+                            {% for line in fighter.house_additional_gearline_display %}
+                                <tr class="fs-7">
+                                    <th scope="row" colspan="3">{{ line.category }}</th>
+                                    <td colspan="12">
+                                        {% for assign in line.assignments %}
+                                            {% comment %} All this faff to avoid spaces {% endcomment %}
+                                            {% spaceless %}
+                                                <span>{{ assign.name }}</span>
+                                                {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                {% if not forloop.last %}<span>,</span>{% endif %}
+                                            {% endspaceless %}
+                                        {% endfor %}
+                                        {% if list.owner_cached == user and not print %}
+                                            {% if line.assignments|length > 0 %}
+                                                {% if gear_mode_default == "link" %}
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
+                                                {% endif %}
+                                            {% else %}
+                                                {% if gear_mode_default == "link" %}
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                {% else %}
+                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                {% endif %}
                                             {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
-                            {% empty %}
-                                {% if list.owner_cached == user and not print %}
-                                    <tr class="fs-7">
-                                        <th scope="row" colspan="3">{{ line.category }}</th>
-                                        <td colspan="12">
-                                            {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
-                                            {% else %}
-                                                <span class="text-secondary">This fighter has no {{ line.category }}.</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endif %}
                             {% endfor %}
-                        {% endfor %}
-                    {% else %}
-                        {% for line in fighter.house_additional_gearline_display %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">{{ line.category }}</th>
-                                <td colspan="12">
-                                    {% for assign in line.assignments %}
-                                        {% comment %} All this faff to avoid spaces {% endcomment %}
-                                        {% spaceless %}
-                                            <span>{{ assign.name }}</span>
-                                            {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                            {% if not forloop.last %}<span>,</span>{% endif %}
-                                        {% endspaceless %}
-                                    {% endfor %}
-                                    {% if list.owner_cached == user and not print %}
-                                        {% if line.assignments|length > 0 %}
-                                            {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
-                                            {% endif %}
-                                        {% else %}
-                                            {% if gear_mode_default == "link" %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
-                                            {% else %}
-                                                <span class="text-secondary">This fighter has no {{ line.category }}.</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
+                        {% endif %}
                     {% endif %}
                 {% endif %}
                 {% if fighter.wargearline_cached|length > 0 %}
@@ -201,7 +216,7 @@
                                 {% if gear_mode_default == "link" %}
                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
                                 {% else %}
-                                    <span class="text-secondary">This fighter has no gear.</span>
+                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no gear.</span>
                                 {% endif %}
                             </td>
                         </tr>

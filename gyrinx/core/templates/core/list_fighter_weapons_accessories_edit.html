@@ -1,15 +1,13 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Accessories - {{ form.instance.content_equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    Accessories - {{ form.instance.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% url 'core:list-fighter-weapons-edit' list.id fighter.id as back_url %}
     {% include "core/includes/back.html" with url=back_url %}
     <div class="col-lg-12 px-0 vstack gap-3">
-        <h1 class="h3">
-            Accessories: {{ form.instance.content_equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }}
-        </h1>
+        <h1 class="h3">Accessories: {{ form.instance.content_equipment.name }} - {{ fighter.fully_qualified_name }}</h1>
         <form action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id form.instance.id %}"
               method="post">
             {% csrf_token %}

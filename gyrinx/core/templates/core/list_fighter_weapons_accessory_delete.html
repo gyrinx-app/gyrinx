@@ -1,13 +1,13 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Remove - {{ accessory.name }} from {{ assign.content_equipment.name }} - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
+    Remove - {{ accessory.name }} from {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with text="Weapons: "|add:fighter.name %}
     <div class="col-lg-12 px-0 vstack gap-3">
         <h1 class="h3">
-            Remove: {{ accessory.name }} from the {{ assign.content_equipment.name }} assigned to {{ fighter.name }} - {{ fighter.content_fighter.name }}
+            Remove: {{ accessory.name }} from the {{ assign.content_equipment.name }} assigned to {{ fighter.fully_qualified_name }}
         </h1>
         <form action="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id accessory.id %}"
               method="post">

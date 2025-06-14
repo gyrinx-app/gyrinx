@@ -241,6 +241,33 @@ class List(AppBase):
         for fighter in self.fighters():
             fighter.clone(list=clone)
 
+        # Add a stash fighter if cloning for a campaign
+        if for_campaign:
+            # Check if there's already a stash fighter in the cloned list
+            has_stash = clone.listfighter_set.filter(
+                content_fighter__is_stash=True
+            ).exists()
+
+            if not has_stash:
+                # Get or create a stash ContentFighter for this house
+                stash_fighter, created = ContentFighter.objects.get_or_create(
+                    house=self.content_house,
+                    is_stash=True,
+                    defaults={
+                        "type": "Stash",
+                        "category": "STASH",  # Default category
+                        "base_cost": 0,
+                    },
+                )
+
+                # Create the stash ListFighter
+                ListFighter.objects.create(
+                    name="Stash",
+                    content_fighter=stash_fighter,
+                    list=clone,
+                    owner=owner,
+                )
+
         return clone
 
     class Meta:
@@ -281,12 +308,15 @@ class ListFighterManager(models.Manager):
                             # Put linked fighters in the same category as their parent
                             Q(content_fighter__category=category)
                             | Q(
-                                linked_fighter__list_fighter__content_fighter__category=category
+                                linked_fighter__list_fighter__content_fighter__category=category,
+                                # Only consider linked fighters that are not stash fighters
+                                linked_fighter__list_fighter__content_fighter__is_stash=False,
                             ),
                             then=index,
                         )
                         for index, category in enumerate(
                             [
+                                "STASH",
                                 "LEADER",
                                 "CHAMPION",
                                 "PROSPECT",
@@ -471,6 +501,33 @@ class ListFighter(AppBase):
     @cached_property
     def equipment_list_fighter(self):
         return self.legacy_content_fighter or self.content_fighter
+
+    @cached_property
+    def is_stash(self):
+        """
+        Returns True if this fighter is a stash fighter.
+        """
+        return self.content_fighter_cached.is_stash
+
+    @cached_property
+    def proximal_demonstrative(self) -> str:
+        """
+        Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
+        """
+        if self.is_stash:
+            return "The stash"
+
+        return "This fighter"
+
+    @cached_property
+    def fully_qualified_name(self) -> str:
+        """
+        Returns the fully qualified name of the fighter, including type and category.
+        """
+        if self.is_stash:
+            return "Stash"
+        cf = self.content_fighter_cached
+        return f"{self.name} - {cf.name()}"
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
@@ -955,6 +1012,19 @@ class ListFighter(AppBase):
                     "legacy_content_fighter": f"Fighters of type {self.legacy_content_fighter.type} cannot be used as the legacy fighter.",
                 }
             )
+
+        # Check if this is a stash fighter and if there's already one in the list
+        if self.content_fighter.is_stash:
+            existing_stash = (
+                ListFighter.objects.filter(
+                    list=self.list,
+                    content_fighter__is_stash=True,
+                )
+                .exclude(pk=self.pk)
+                .exists()
+            )
+            if existing_stash:
+                raise ValidationError("Each list can only have one stash fighter.")
 
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
