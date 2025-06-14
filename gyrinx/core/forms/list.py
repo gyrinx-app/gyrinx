@@ -590,3 +590,19 @@ class EditListCreditsForm(forms.Form):
 
         # We'll do more validation in the view where we have access to the list
         return cleaned_data
+
+
+class EquipmentReassignForm(forms.Form):
+    """Form for reassigning equipment from one fighter to another."""
+
+    target_fighter = forms.ModelChoiceField(
+        queryset=ListFighter.objects.none(),
+        label="Reassign to",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Select the fighter to receive this equipment.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        fighters = kwargs.pop("fighters", ListFighter.objects.none())
+        super().__init__(*args, **kwargs)
+        self.fields["target_fighter"].queryset = fighters
