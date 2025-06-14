@@ -310,7 +310,9 @@ class ListFighterManager(models.Manager):
                             # Put linked fighters in the same category as their parent
                             Q(content_fighter__category=category)
                             | Q(
-                                linked_fighter__list_fighter__content_fighter__category=category
+                                linked_fighter__list_fighter__content_fighter__category=category,
+                                # Only consider linked fighters that are not stash fighters
+                                linked_fighter__list_fighter__content_fighter__is_stash=False,
                             ),
                             then=index,
                         )

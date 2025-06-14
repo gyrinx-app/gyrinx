@@ -317,13 +317,6 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     ]
     actions = [copy_selected_to_house]
 
-    def get_queryset(self, request):
-        # Override the queryset to include all fighters with stash
-        # This allows us to manage stash fighters in the admin.
-        return ContentFighter.objects.all_with_stash().select_related(
-            "house",
-        )
-
 
 @admin.register(ContentFighterHouseOverride)
 class ContentFighterHouseOverrideAdmin(ContentAdmin):
