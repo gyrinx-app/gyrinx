@@ -606,3 +606,6 @@ class EquipmentReassignForm(forms.Form):
         fighters = kwargs.pop("fighters", ListFighter.objects.none())
         super().__init__(*args, **kwargs)
         self.fields["target_fighter"].queryset = fighters
+        self.fields["target_fighter"].label_from_instance = (
+            lambda obj: obj.fully_qualified_name
+        )

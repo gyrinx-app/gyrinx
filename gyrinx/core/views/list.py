@@ -2792,11 +2792,7 @@ def reassign_list_fighter_equipment(
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     # Get available fighters (exclude current fighter, include stash)
-    target_fighters = (
-        lst.listfighter_set.filter(archived=False)
-        .exclude(id=fighter.id)
-        .order_by("-is_stash", "name")
-    )
+    target_fighters = lst.listfighter_set.filter(archived=False).exclude(id=fighter.id)
 
     if request.method == "POST":
         form = EquipmentReassignForm(request.POST, fighters=target_fighters)
