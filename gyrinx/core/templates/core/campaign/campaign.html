@@ -50,6 +50,14 @@
                             <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
                         </div>
                     {% endif %}
+                    {% if campaign.budget > 0 %}
+                        <div class="text-secondary">
+                            <i class="bi-cash-coin"></i>
+                            <span class="link-secondary link-underline-opacity-25"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-title="Each gang receives max(0, {{ campaign.budget }}¢ - their cost) when the campaign starts">Budget: {{ campaign.budget }}¢</span>
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="ms-sm-auto mt-2 mt-sm-0">
                     {% if campaign.owner == user %}
