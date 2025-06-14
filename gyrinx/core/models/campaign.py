@@ -55,7 +55,7 @@ class Campaign(AppBase):
     )
     budget = models.PositiveIntegerField(
         default=1500,
-        help_text="Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+        help_text="Starting budget for each gang in credits.",
     )
 
     history = HistoricalRecords()

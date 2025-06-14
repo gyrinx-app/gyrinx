@@ -7,7 +7,7 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
     CampaignResourceType,
 )
-from gyrinx.core.widgets import TinyMCEWithUpload, TINYMCE_EXTRA_ATTRS
+from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 class NewCampaignForm(forms.ModelForm):
@@ -26,7 +26,7 @@ class NewCampaignForm(forms.ModelForm):
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users of Gyrinx. You can edit this later.",
-            "budget": "Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+            "budget": "Starting budget for each gang in credits.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -127,7 +127,7 @@ class EditCampaignForm(forms.ModelForm):
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users.",
-            "budget": "Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+            "budget": "Starting budget for each gang in credits.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),

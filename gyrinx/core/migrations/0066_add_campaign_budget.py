@@ -4,20 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0065_add_credit_tracking_to_list'),
+        ("core", "0065_add_credit_tracking_to_list"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='campaign',
-            name='budget',
-            field=models.PositiveIntegerField(default=0, help_text='Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.'),
+            model_name="campaign",
+            name="budget",
+            field=models.PositiveIntegerField(
+                default=0,
+                help_text="Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+            ),
         ),
         migrations.AddField(
-            model_name='historicalcampaign',
-            name='budget',
-            field=models.PositiveIntegerField(default=0, help_text='Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.'),
+            model_name="historicalcampaign",
+            name="budget",
+            field=models.PositiveIntegerField(
+                default=0,
+                help_text="Starting budget for each gang in credits. When the campaign starts, gangs receive max(0, budget - list cost) credits.",
+            ),
         ),
     ]

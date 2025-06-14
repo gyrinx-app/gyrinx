@@ -52,10 +52,7 @@
                     {% endif %}
                     {% if campaign.budget > 0 %}
                         <div class="text-secondary">
-                            <i class="bi-cash-coin"></i>
-                            <span class="link-secondary link-underline-opacity-25"
-                                  data-bs-toggle="tooltip"
-                                  data-bs-title="Each gang receives max(0, {{ campaign.budget }}¢ - their cost) when the campaign starts">Budget: {{ campaign.budget }}¢</span>
+                            <i class="bi-coin"></i> {{ campaign.budget }}¢
                         </div>
                     {% endif %}
                 </div>
