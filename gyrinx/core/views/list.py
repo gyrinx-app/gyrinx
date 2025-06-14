@@ -2804,7 +2804,7 @@ def reassign_list_fighter_equipment(
             assignment.save_with_user(user=request.user)
 
             # Create campaign action if in campaign mode
-            if lst.mode == List.CAMPAIGN_MODE and lst.campaign:
+            if lst.status == List.CAMPAIGN_MODE and lst.campaign:
                 equipment_name = assignment.content_equipment.name
                 from_fighter_name = fighter.name
                 to_fighter_name = target_fighter.name
