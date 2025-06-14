@@ -1,0 +1,30 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Reassign - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url back_url list.id fighter.id as full_back_url %}
+    {% include "core/includes/back.html" with url=full_back_url %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Reassign {{ assign.content_equipment.name }}</h1>
+        <p>
+            Currently assigned to: <strong>{{ fighter.name }}</strong>
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                {{ form.target_fighter.label_tag }}
+                {{ form.target_fighter }}
+                {% if form.target_fighter.help_text %}<div class="form-text">{{ form.target_fighter.help_text }}</div>{% endif %}
+                {% if form.target_fighter.errors %}
+                    <div class="invalid-feedback d-block">{{ form.target_fighter.errors|first }}</div>
+                {% endif %}
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Reassign</button>
+                <a href="{{ full_back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

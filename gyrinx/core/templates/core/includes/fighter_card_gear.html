@@ -84,6 +84,9 @@
                                                            class="link-secondary">Edit</a>
                                                         <span class="text-muted">·</span>
                                                     {% endif %}
+                                                    <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
+                                                       class="link-secondary">Reassign</a>
+                                                    <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                        class="link-danger">Remove</a>
                                                 {% elif assign.kind == 'default' %}
@@ -176,6 +179,9 @@
                                                    class="link-secondary">Edit</a>
                                                 <span class="text-muted">·</span>
                                             {% endif %}
+                                            <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
+                                               class="link-secondary">Reassign</a>
+                                            <span class="text-muted">·</span>
                                             <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                class="link-danger">Remove</a>
                                         {% elif assign.kind == 'default' %}
