@@ -53,6 +53,10 @@ class Campaign(AppBase):
         default=PRE_CAMPAIGN,
         help_text="Current status of the campaign.",
     )
+    budget = models.PositiveIntegerField(
+        default=1500,
+        help_text="Starting budget for each gang in credits.",
+    )
 
     history = HistoricalRecords()
 
@@ -93,6 +97,32 @@ class Campaign(AppBase):
         """Check if the campaign can be reopened."""
         return self.status == self.POST_CAMPAIGN
 
+    def _distribute_budget_to_list(self, campaign_list):
+        """Distribute budget credits to a list based on campaign budget and list cost.
+
+        Args:
+            campaign_list: The List to distribute budget credits to
+        """
+        if self.budget > 0:
+            # Calculate credits to give: max(0, budget - list cost)
+            list_cost = campaign_list.cost_int() - campaign_list.credits_current
+            credits_to_add = max(0, self.budget - list_cost)
+
+            if credits_to_add > 0:
+                campaign_list.credits_current += credits_to_add
+                campaign_list.credits_earned += credits_to_add
+                campaign_list.save()
+
+                # Log the credit distribution as a campaign action
+                CampaignAction.objects.create(
+                    campaign=self,
+                    user=self.owner,
+                    list=campaign_list,
+                    description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang cost)",
+                    outcome=f"+{credits_to_add}¢ (to {campaign_list.credits_current}¢)",
+                    owner=self.owner,
+                )
+
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
@@ -109,6 +139,9 @@ class Campaign(AppBase):
                 campaign_clone = original_list.clone(for_campaign=self)
                 self.lists.add(campaign_clone)
                 cloned_lists.append(campaign_clone)
+
+                # Distribute budget credits to each gang
+                self._distribute_budget_to_list(campaign_clone)
 
             # Allocate default resources to each list
             for resource_type in self.resource_types.all():
@@ -158,6 +191,9 @@ class Campaign(AppBase):
             # In-progress: clone the list and allocate resources
             campaign_clone = list_to_add.clone(for_campaign=self)
             self.lists.add(campaign_clone)
+
+            # Distribute budget credits to the new gang
+            self._distribute_budget_to_list(campaign_clone)
 
             # Allocate default resources to the new list
             for resource_type in self.resource_types.all():

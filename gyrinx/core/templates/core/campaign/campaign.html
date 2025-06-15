@@ -50,6 +50,11 @@
                             <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
                         </div>
                     {% endif %}
+                    {% if campaign.budget > 0 %}
+                        <div class="text-secondary">
+                            <i class="bi-coin"></i> {{ campaign.budget }}¢
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="ms-sm-auto mt-2 mt-sm-0">
                     {% if campaign.owner == user %}

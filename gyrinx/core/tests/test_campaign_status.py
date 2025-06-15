@@ -22,6 +22,7 @@ def test_campaign_default_status(client):
             "summary": "Test summary",
             "narrative": "Test narrative",
             "public": True,
+            "budget": 1500,
         },
     )
 
@@ -472,15 +473,26 @@ def test_campaign_state_change_actions(client):
     campaign.refresh_from_db()
     assert campaign.status == Campaign.IN_PROGRESS
 
-    start_actions = CampaignAction.objects.filter(campaign=campaign)
-    assert start_actions.count() == 1
-    start_action = start_actions.first()
+    # Get all actions and find the campaign start action
+    all_actions = CampaignAction.objects.filter(campaign=campaign).order_by("created")
+    # Should have 2 actions: budget distribution and campaign start
+    assert all_actions.count() == 2
+
+    # First action should be budget distribution (created in start_campaign method)
+    budget_action = all_actions[0]
+    assert "Campaign starting budget" in budget_action.description
+
+    # Second action should be the campaign start action
+    start_action = all_actions[1]
     assert start_action.user == user
     assert start_action.description == "Campaign Started: Test Campaign is now active"
     assert (
         start_action.outcome
         == "Campaign transitioned from pre-campaign to active status"
     )
+
+    # Store the IDs of the initial actions
+    initial_action_ids = list(all_actions.values_list("id", flat=True))
 
     # End the campaign
     response = client.post(reverse("core:campaign-end", args=[campaign.id]))
@@ -490,8 +502,9 @@ def test_campaign_state_change_actions(client):
     campaign.refresh_from_db()
     assert campaign.status == Campaign.POST_CAMPAIGN
 
+    # Get the new action (excluding the initial actions)
     end_actions = CampaignAction.objects.filter(campaign=campaign).exclude(
-        id=start_action.id
+        id__in=initial_action_ids
     )
     assert end_actions.count() == 1
     end_action = end_actions.first()
@@ -502,6 +515,9 @@ def test_campaign_state_change_actions(client):
         == "Campaign transitioned from active to post-campaign status"
     )
 
+    # Update the list of known action IDs
+    initial_action_ids.append(end_action.id)
+
     # Reopen the campaign
     response = client.post(reverse("core:campaign-reopen", args=[campaign.id]))
     assert response.status_code == 302
@@ -511,7 +527,7 @@ def test_campaign_state_change_actions(client):
     assert campaign.status == Campaign.IN_PROGRESS
 
     reopen_actions = CampaignAction.objects.filter(campaign=campaign).exclude(
-        id__in=[start_action.id, end_action.id]
+        id__in=initial_action_ids
     )
     assert reopen_actions.count() == 1
     reopen_action = reopen_actions.first()
@@ -524,5 +540,5 @@ def test_campaign_state_change_actions(client):
         == "Campaign transitioned from post-campaign back to active status"
     )
 
-    # Verify total actions count
-    assert CampaignAction.objects.filter(campaign=campaign).count() == 3
+    # Verify total actions count (2 from start + 1 end + 1 reopen)
+    assert CampaignAction.objects.filter(campaign=campaign).count() == 4

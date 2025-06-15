@@ -6,9 +6,9 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
-from gyrinx.content.models import ContentHouse
 
 
 @pytest.mark.django_db
@@ -222,6 +222,7 @@ def test_campaign_create_edit_forms():
             "summary": "This is a test summary",
             "narrative": "<p>This is a <strong>test</strong> narrative</p>",
             "public": True,
+            "budget": 1500,
         },
     )
 
@@ -241,6 +242,7 @@ def test_campaign_create_edit_forms():
             "summary": "Updated summary",
             "narrative": "<p>Updated <em>narrative</em></p>",
             "public": False,
+            "budget": 2000,  # Budget can be updated
         },
     )
 
@@ -253,6 +255,7 @@ def test_campaign_create_edit_forms():
     assert campaign.summary == "Updated summary"
     assert campaign.narrative == "<p>Updated <em>narrative</em></p>"
     assert campaign.public is False
+    assert campaign.budget == 2000
 
 
 @pytest.mark.django_db
