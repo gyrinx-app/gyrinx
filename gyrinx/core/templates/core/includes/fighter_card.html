@@ -1,4 +1,5 @@
 {% load allauth custom_tags %}
+{% if not print or not fighter.is_stash %}
 {% if list.owner_cached == user and not list.archived %}
     {% with can_edit=True %}
         {% if print %}
@@ -788,4 +789,5 @@
             </div>
         </div>
     {% endwith %}
+{% endif %}
 {% endif %}
