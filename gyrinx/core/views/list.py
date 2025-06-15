@@ -957,19 +957,28 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
-            # If this is in campaign, we need to take credits from the list
-            if lst.campaign and assign.cost_int() > lst.credits_current:
+            # Save the assignment and m2m relationships first
+            assign.save()
+            form.save_m2m()
+
+            # Refetch to get the full cost including profiles, accessories, and upgrades
+            assign.refresh_from_db()
+            total_cost = assign.cost_int()
+
+            # If this is in campaign, check if we have enough credits
+            if lst.campaign and total_cost > lst.credits_current:
+                # Not enough credits - delete the assignment
+                assign.delete()
                 error_message = "Insufficient funds."
             else:
-                assign.save()
-                form.save_m2m()
+                description = f"Added {assign.content_equipment.name} to {fighter.name}"
 
                 if lst.campaign:
                     # If this is a stash, we need to take credits from the list
-                    lst.credits_current -= assign.cost_int()
+                    lst.credits_current -= total_cost
                     lst.save()
 
-                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({assign.cost_int()}¢)"
+                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
 
                     # Spend credits and create campaign action
                     CampaignAction.objects.create(
@@ -984,7 +993,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 messages.success(request, description)
 
                 query_params = make_query_params_str(
-                    flash=instance.id,
+                    flash=assign.id,
                     filter=request.POST.get("filter"),
                     q=request.POST.get("q"),
                 )
