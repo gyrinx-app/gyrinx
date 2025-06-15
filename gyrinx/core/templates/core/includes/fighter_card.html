@@ -6,7 +6,7 @@
         {% else %}
             {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
         {% endif %}
-        <div class="card {{ card_classes }} {% flash fighter.id %}"
+        <div class="card {{ card_classes }} {% flash fighter.id %} {% if fighter.is_stash %}stash-card{% endif %}"
              id="{{ fighter.id }}">
             <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% endif %}">
                 <div class="vstack gap-1">
@@ -401,7 +401,7 @@
         {% else %}
             {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
         {% endif %}
-        <div class="card {{ card_classes }} {% flash fighter.id %}"
+        <div class="card {{ card_classes }} {% flash fighter.id %} {% if fighter.is_stash %}stash-card{% endif %}"
              id="{{ fighter.id }}">
             <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% endif %}">
                 <div class="vstack gap-1">

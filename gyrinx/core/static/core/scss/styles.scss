@@ -198,3 +198,10 @@ img {
 .color-radio-input:focus + .color-radio-label {
     box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
 }
+
+// Print styles
+@media print {
+    .stash-card {
+        display: none !important;
+    }
+}
