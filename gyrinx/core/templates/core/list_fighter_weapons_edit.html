@@ -10,7 +10,7 @@
         <div class="grid">
             {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter %}
             {% if error_message %}
-                <div class="alert alert-danger g-col-12">
+                <div class="alert alert-danger g-col-12 mb-0">
                     <i class="bi-exclamation-triangle"></i> {{ error_message }}
                 </div>
             {% endif %}
