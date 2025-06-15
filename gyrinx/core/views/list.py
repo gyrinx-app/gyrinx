@@ -2750,3 +2750,94 @@ def list_fighter_advancement_other(request, id, fighter_id):
             "params": params,
         },
     )
+
+
+@login_required
+def reassign_list_fighter_equipment(
+    request, id, fighter_id, assign_id, is_weapon, back_name
+):
+    """
+    Reassign a :model:`core.ListFighterEquipmentAssignment` to another fighter.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` currently owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be reassigned.
+    ``target_fighters``
+        Available fighters to reassign to, including stash fighter.
+    ``is_weapon``
+        Whether this is a weapon assignment.
+
+    **Template**
+
+    :template:`core/list_fighter_assign_reassign.html`
+    """
+    from gyrinx.core.forms.list import EquipmentReassignForm
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment,
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    # Prevent reassigning default assignments
+    if assignment.from_default_assignment:
+        messages.error(request, "Default equipment cannot be reassigned.")
+        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+
+    # Get available fighters (exclude current fighter, include stash)
+    target_fighters = lst.listfighter_set.filter(archived=False).exclude(id=fighter.id)
+
+    if request.method == "POST":
+        form = EquipmentReassignForm(request.POST, fighters=target_fighters)
+        if form.is_valid():
+            target_fighter = form.cleaned_data["target_fighter"]
+
+            # Update the assignment
+            assignment.list_fighter = target_fighter
+            assignment.save_with_user(user=request.user)
+
+            # Create campaign action if in campaign mode
+            if lst.status == List.CAMPAIGN_MODE and lst.campaign:
+                equipment_name = assignment.content_equipment.name
+                from_fighter_name = fighter.name
+                to_fighter_name = target_fighter.name
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
+                    outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
+                    dice_count=0,
+                    dice_results=[],
+                    dice_total=0,
+                )
+
+            messages.success(
+                request,
+                f"{assignment.content_equipment.name} reassigned to {target_fighter.name}.",
+            )
+            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+    else:
+        form = EquipmentReassignForm(fighters=target_fighters)
+
+    return render(
+        request,
+        "core/list_fighter_assign_reassign.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "form": form,
+            "is_weapon": is_weapon,
+            "back_url": back_name,
+        },
+    )

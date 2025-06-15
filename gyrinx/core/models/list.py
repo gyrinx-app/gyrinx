@@ -42,6 +42,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.models import Archived, Base, QuerySetOf, format_cost_display
 
 logger = logging.getLogger(__name__)
@@ -1070,7 +1071,7 @@ def update_list_cost_cache(sender, instance: ListFighter, **kwargs):
     instance.list.update_cost_cache()
 
 
-class ListFighterEquipmentAssignment(Base, Archived):
+class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
 
     help_text = "A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."
