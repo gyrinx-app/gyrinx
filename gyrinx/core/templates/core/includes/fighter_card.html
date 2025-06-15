@@ -1,4 +1,5 @@
 {% load allauth custom_tags %}
+{% if not print or not fighter.is_stash %}
 {% if list.owner_cached == user and not list.archived %}
     {% with can_edit=True %}
         {% if print %}
@@ -6,7 +7,7 @@
         {% else %}
             {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
         {% endif %}
-        <div class="card {{ card_classes }} {% flash fighter.id %} {% if fighter.is_stash %}stash-card{% endif %}"
+        <div class="card {{ card_classes }} {% flash fighter.id %}"
              id="{{ fighter.id }}">
             <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% endif %}">
                 <div class="vstack gap-1">
@@ -401,7 +402,7 @@
         {% else %}
             {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
         {% endif %}
-        <div class="card {{ card_classes }} {% flash fighter.id %} {% if fighter.is_stash %}stash-card{% endif %}"
+        <div class="card {{ card_classes }} {% flash fighter.id %}"
              id="{{ fighter.id }}">
             <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% endif %}">
                 <div class="vstack gap-1">
@@ -788,4 +789,5 @@
             </div>
         </div>
     {% endwith %}
+{% endif %}
 {% endif %}
