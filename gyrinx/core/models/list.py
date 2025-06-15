@@ -772,7 +772,10 @@ class ListFighter(AppBase):
         return self.skilline()
 
     def weapons(self):
-        return [e for e in self.assignments_cached if e.is_weapon_cached]
+        return sorted(
+            [e for e in self.assignments_cached if e.is_weapon_cached],
+            key=lambda e: e.name(),
+        )
 
     @cached_property
     def weapons_cached(self):
