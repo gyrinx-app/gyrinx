@@ -167,7 +167,11 @@
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
         {% endif %}
         {% for fighter in list.fighters_cached %}
-            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
+            {% if fighter.is_stash %}
+                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+            {% else %}
+                {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
+            {% endif %}
         {% empty %}
             <div class="g-col-12 py-2">This List is empty.</div>
         {% endfor %}
