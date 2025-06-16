@@ -27,6 +27,7 @@ from gyrinx.models import (
     format_cost_display,
     is_int,
 )
+from gyrinx.core.models.base import AppBase
 
 ##
 ## Content Models
@@ -1800,6 +1801,58 @@ class ContentBook(Content):
     class Meta:
         verbose_name = "Book"
         verbose_name_plural = "Books"
+        ordering = ["name"]
+
+
+class ContentPack(AppBase):
+    """
+    Represents a collection of custom content that can be shared between
+    players and campaign arbitrators. Content packs allow users to create
+    and organize their own houses, fighters, weapons, and other game entities.
+    """
+
+    help_text = "A user-created collection of game content."
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    color = models.CharField(
+        max_length=7, default="#000000", help_text="Hex color code for UI theming"
+    )
+    is_public = models.BooleanField(
+        default=False, help_text="Whether this content pack is publicly visible"
+    )
+
+    # ManyToMany relationships to content models
+    houses = models.ManyToManyField(
+        ContentHouse, blank=True, related_name="content_packs"
+    )
+    skill_categories = models.ManyToManyField(
+        ContentSkillCategory, blank=True, related_name="content_packs"
+    )
+    rules = models.ManyToManyField(
+        ContentRule, blank=True, related_name="content_packs"
+    )
+    fighters = models.ManyToManyField(
+        ContentFighter, blank=True, related_name="content_packs"
+    )
+    weapon_traits = models.ManyToManyField(
+        ContentWeaponTrait, blank=True, related_name="content_packs"
+    )
+    equipment = models.ManyToManyField(
+        ContentEquipment, blank=True, related_name="content_packs"
+    )
+    weapon_profiles = models.ManyToManyField(
+        ContentWeaponProfile, blank=True, related_name="content_packs"
+    )
+    weapon_accessories = models.ManyToManyField(
+        ContentWeaponAccessory, blank=True, related_name="content_packs"
+    )
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Content Pack"
+        verbose_name_plural = "Content Packs"
         ordering = ["name"]
 
 
