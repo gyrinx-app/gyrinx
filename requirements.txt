@@ -2,7 +2,7 @@ asgiref==3.8.1
 beautifulsoup4==4.13.4
 click==8.2.1
 daphne==4.2.0
-Django==5.2.2
+Django==5.2.3
 django-allauth==65.9.0
 django-csp==4.0
 django-debug-toolbar==5.2.0
@@ -23,7 +23,7 @@ nodeenv==1.9.1
 playwright==1.52.0
 pre-commit==4.2.0
 psycopg2-binary==2.9.10
-pydantic==2.11.5
+pydantic==2.11.7
 pydot==4.0.0
 pyparsing==3.2.3
 pytest==8.4.0
