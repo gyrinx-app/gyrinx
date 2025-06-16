@@ -1,5 +1,5 @@
 {% load allauth custom_tags %}
-<div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
+<div class="card border-dark g-col-12 g-col-md-4" id="{{ fighter.id }}">
     <div class="card-header border-dark p-2">
         <div class="vstack gap-1">
             <div class="hstack align-items-center">
@@ -8,25 +8,25 @@
             </div>
         </div>
     </div>
-    <div class="card-body vstack p-0 p-sm-2">
+    <div class="card-body vstack gap-2 p-0 p-sm-2">
         <!-- Stash Credits -->
-        <div class="col-12 mb-2">
+        <div class="col-12">
             <div class="hstack gap-3 align-items-center justify-content-between">
                 <h4 class="h6 mb-0">Stash Credits</h4>
-                <div>
-                    <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
+                <div class="hstack gap-2 align-items-center">
                     {% if list.owner_cached == user and not print %}
                         <a href="{% url 'core:list-credits-edit' list.id %}"
-                           class="btn btn-secondary btn-sm ms-2">Modify</a>
+                           class="fs-7 link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
                     {% endif %}
+                    <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
                 </div>
             </div>
         </div>
         <!-- Trading Post Buttons -->
         {% if list.owner_cached == user and not print %}
-            <div class="col-12 mb-2">
-                <div class="hstack gap-2">
-                    <span class="text-secondary">Trading Post:</span>
+            <div class="col-12">
+                <div class="hstack gap-2 align-items-center justify-content-between">
+                    <h4 class="h6 mb-0">Trading Post</h4>
                     <div class="btn-group" role="group">
                         <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
                            class="btn btn-outline-primary btn-sm">Weapons</a>
@@ -106,112 +106,110 @@
                     <tbody class="table-group-divider {% flash assign.id %}">
                         <tr>
                             <td>
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
-                                        {% comment %} Show weapon profile names {% endcomment %}
-                                        {% if assign.all_profiles_cached|length > 1 %}
-                                            {% for profile in assign.all_profiles_cached %}
-                                                {% if profile.name %}
-                                                    <br>
-                                                    <i class="bi-dash"></i> {{ profile.name }}
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
-                                        {% comment %} Show accessories {% endcomment %}
-                                        {% if assign.weapon_accessories_display_cached|length > 0 %}
-                                            {% for ad in assign.weapon_accessories_display_cached %}
-                                                <br>
-                                                <i class="bi-dash"></i> <i class="bi-crosshair"></i> {{ ad.accessory.name }}
-                                                {% if not assign.has_total_cost_override %}
-                                                    {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
-                                        {% comment %} Show upgrades {% endcomment %}
-                                        {% if assign.active_upgrade_cached %}
+                                {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
+                                {% comment %} Show weapon profile names {% endcomment %}
+                                {% if assign.weapon_profiles_cached|length > 1 %}
+                                    {% for profile in assign.weapon_profiles_cached %}
+                                        {% if profile.name %}
                                             <br>
-                                            <i class="bi-dash"></i> <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}: {{ assign.active_upgrade_cached.name }}
-                                            {% if not assign.has_total_cost_override %}
-                                                {% if assign.active_upgrade_cached.cost_int_cached != 0 %}({{ assign.active_upgrade_cached.cost_display }}){% endif %}
-                                            {% endif %}
+                                            <i class="bi-dash"></i> {{ profile.name }} (+{{ profile.cost_display }})
                                         {% endif %}
-                                    </div>
-                                    {% if list.owner_cached == user and not print %}
-                                        <div>
-                                            {% if assign.kind == 'assigned' %}
-                                                <div class="btn-group">
-                                                    <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                                                       class="btn btn-outline-secondary btn-sm">
-                                                        <i class="bi-crosshair"></i>
-                                                    </a>
-                                                    {% if assign.upgrades_display|length > 0 %}
-                                                        <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
-                                                           class="btn btn-outline-secondary btn-sm">
-                                                            <i class="bi-arrow-up-circle"></i>
-                                                        </a>
-                                                    {% endif %}
-                                                    <div class="btn-group">
-                                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
-                                                                type="button"
-                                                                data-bs-toggle="dropdown"
-                                                                aria-expanded="false">
-                                                            <i class="bi-three-dots"></i>
-                                                        </button>
-                                                        <ul class="dropdown-menu dropdown-menu-end">
-                                                            <li>
-                                                                <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
-                                                                   class="dropdown-item">
-                                                                    <i class="bi-pencil"></i> Cost
-                                                                </a>
-                                                            </li>
-                                                            <li>
-                                                                <a href="{% url 'core:list-fighter-weapon-reassign' list.id fighter.id assign.id %}"
-                                                                   class="dropdown-item">
-                                                                    <i class="bi-arrow-left-right"></i> Reassign
-                                                                </a>
-                                                            </li>
-                                                            <li>
-                                                                <hr class="dropdown-divider">
-                                                            </li>
-                                                            <li>
-                                                                <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
-                                                                   class="dropdown-item text-danger">
-                                                                    <i class="bi-trash"></i> Remove
-                                                                </a>
-                                                            </li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            {% elif assign.kind == 'default' %}
-                                                <div class="btn-group">
-                                                    <a href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}"
-                                                       class="btn btn-outline-secondary btn-sm">
-                                                        <i class="bi-pencil"></i>
-                                                    </a>
-                                                    <div class="btn-group">
-                                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
-                                                                type="button"
-                                                                data-bs-toggle="dropdown"
-                                                                aria-expanded="false">
-                                                            <i class="bi-three-dots"></i>
-                                                        </button>
-                                                        <ul class="dropdown-menu dropdown-menu-end">
-                                                            <li>
-                                                                <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
-                                                                   class="dropdown-item text-danger">
-                                                                    <i class="bi-trash"></i> Remove
-                                                                </a>
-                                                            </li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            {% endif %}
-                                        </div>
+                                    {% endfor %}
+                                {% endif %}
+                                {% comment %} Show accessories {% endcomment %}
+                                {% if assign.weapon_accessories_display_cached|length > 0 %}
+                                    {% for ad in assign.weapon_accessories_display_cached %}
+                                        <br>
+                                        <i class="bi-dash"></i> <i class="bi-crosshair"></i> {{ ad.accessory.name }}
+                                        {% if not assign.has_total_cost_override %}
+                                            {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                {% comment %} Show upgrades {% endcomment %}
+                                {% if assign.active_upgrade_cached %}
+                                    <br>
+                                    <i class="bi-dash"></i> <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}: {{ assign.active_upgrade_cached.name }}
+                                    {% if not assign.has_total_cost_override %}
+                                        {% if assign.active_upgrade_cached.cost_int_cached != 0 %}({{ assign.active_upgrade_cached.cost_display }}){% endif %}
                                     {% endif %}
-                                </div>
+                                {% endif %}
                             </td>
                         </tr>
+                        {% if list.owner_cached == user and not print %}
+                            <tr>
+                                <td>
+                                    {% if assign.kind == 'assigned' %}
+                                        <div class="btn-group">
+                                            <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
+                                               class="btn btn-outline-secondary btn-sm">
+                                                <i class="bi-crosshair"></i> Accessories
+                                            </a>
+                                            {% if assign.upgrades_display|length > 0 %}
+                                                <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
+                                                   class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi-arrow-up-circle"></i> Upgrades
+                                                </a>
+                                            {% endif %}
+                                            <div class="btn-group">
+                                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                    <i class="bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
+                                                           class="dropdown-item">
+                                                            <i class="bi-pencil"></i> Cost
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="{% url 'core:list-fighter-weapon-reassign' list.id fighter.id assign.id %}"
+                                                           class="dropdown-item">
+                                                            <i class="bi-arrow-left-right"></i> Reassign
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+                                                    <li>
+                                                        <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
+                                                           class="dropdown-item text-danger">
+                                                            <i class="bi-trash"></i> Remove
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    {% elif assign.kind == 'default' %}
+                                        <div class="btn-group">
+                                            <a href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}"
+                                               class="btn btn-outline-secondary btn-sm">
+                                                <i class="bi-pencil"></i>
+                                            </a>
+                                            <div class="btn-group">
+                                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                    <i class="bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
+                                                           class="dropdown-item text-danger">
+                                                            <i class="bi-trash"></i> Remove
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 {% empty %}
                     <tbody>
