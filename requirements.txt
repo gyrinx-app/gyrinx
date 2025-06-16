@@ -14,7 +14,7 @@ django-storages[google]==1.14.6
 django-tinymce==4.1.0
 djlint==1.36.4
 docutils==0.21.2
-fido2==1.2.0
+fido2==2.0.0
 google-cloud-logging==3.12.1
 jsonschema==4.24.0
 jupyter==1.1.1
