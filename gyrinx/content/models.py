@@ -1847,6 +1847,8 @@ class ContentPack(AppBase):
         ContentWeaponAccessory, blank=True, related_name="content_packs"
     )
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return self.name
 
