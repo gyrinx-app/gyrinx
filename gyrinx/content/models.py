@@ -1547,7 +1547,7 @@ class ContentEquipmentUpgrade(Content):
         # If equipment is not set (e.g., unsaved object), use the cost directly
         if not hasattr(self, "equipment") or self.equipment_id is None:
             return format_cost_display(self.cost)
-        return format_cost_display(self.cost_int_cached)
+        return format_cost_display(self.cost_int_cached, show_sign=True)
 
     class Meta:
         verbose_name = "Equipment Upgrade"
