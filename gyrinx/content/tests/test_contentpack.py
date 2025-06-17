@@ -179,7 +179,7 @@ def test_contentpack_query_with_content(user, content_house):
 @pytest.mark.django_db
 def test_contentpack_ownership_and_visibility(user, make_user):
     """Test ContentPack ownership and public/private visibility."""
-    user2 = make_user()
+    user2 = make_user("testuser2", "password123")
 
     # Create packs with different owners and visibility
     public_pack = ContentPack.objects.create(

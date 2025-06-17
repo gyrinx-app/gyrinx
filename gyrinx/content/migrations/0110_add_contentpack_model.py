@@ -7,39 +7,122 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0109_alter_contentfighter_category_and_more'),
+        ("content", "0109_alter_contentfighter_category_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ContentPack',
+            name="ContentPack",
             fields=[
-                ('archived', models.BooleanField(default=False)),
-                ('archived_at', models.DateTimeField(blank=True, null=True)),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('created', models.DateTimeField(auto_now_add=True)),
-                ('modified', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=255)),
-                ('description', models.TextField(blank=True, default='')),
-                ('color', models.CharField(default='#000000', help_text='Hex color code for UI theming', max_length=7)),
-                ('is_public', models.BooleanField(default=False, help_text='Whether this content pack is publicly visible')),
-                ('equipment', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentequipment')),
-                ('fighters', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentfighter')),
-                ('houses', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contenthouse')),
-                ('owner', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
-                ('rules', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentrule')),
-                ('skill_categories', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentskillcategory')),
-                ('weapon_accessories', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentweaponaccessory')),
-                ('weapon_profiles', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentweaponprofile')),
-                ('weapon_traits', models.ManyToManyField(blank=True, related_name='content_packs', to='content.contentweapontrait')),
+                ("archived", models.BooleanField(default=False)),
+                ("archived_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("created", models.DateTimeField(auto_now_add=True)),
+                ("modified", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=255)),
+                ("description", models.TextField(blank=True, default="")),
+                (
+                    "color",
+                    models.CharField(
+                        default="#000000",
+                        help_text="Hex color code for UI theming",
+                        max_length=7,
+                    ),
+                ),
+                (
+                    "is_public",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Whether this content pack is publicly visible",
+                    ),
+                ),
+                (
+                    "equipment",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentequipment",
+                    ),
+                ),
+                (
+                    "fighters",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentfighter",
+                    ),
+                ),
+                (
+                    "houses",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contenthouse",
+                    ),
+                ),
+                (
+                    "owner",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "rules",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentrule",
+                    ),
+                ),
+                (
+                    "skill_categories",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentskillcategory",
+                    ),
+                ),
+                (
+                    "weapon_accessories",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentweaponaccessory",
+                    ),
+                ),
+                (
+                    "weapon_profiles",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentweaponprofile",
+                    ),
+                ),
+                (
+                    "weapon_traits",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="content_packs",
+                        to="content.contentweapontrait",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Content Pack',
-                'verbose_name_plural': 'Content Packs',
-                'ordering': ['name'],
+                "verbose_name": "Content Pack",
+                "verbose_name_plural": "Content Packs",
+                "ordering": ["name"],
             },
         ),
     ]
