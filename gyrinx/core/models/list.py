@@ -239,8 +239,14 @@ class List(AppBase):
             **values,
         )
 
+        # Clone fighters, but skip linked fighters as they'll be created by equipment assignments
         for fighter in self.fighters():
-            fighter.clone(list=clone)
+            # Check if this fighter is linked to an equipment assignment using the related name
+            if (
+                not hasattr(fighter, "linked_fighter")
+                or not fighter.linked_fighter.exists()
+            ):
+                fighter.clone(list=clone)
 
         # Add a stash fighter if cloning for a campaign
         if for_campaign:
