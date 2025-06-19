@@ -25,6 +25,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListUpgrade,
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentFighterPsykerPowerDefaultAssignment,
@@ -1493,11 +1494,30 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def accessory_cost_display(self, accessory):
         return format_cost_display(self.accessory_cost_int(accessory), show_sign=True)
 
+    def _upgrade_cost_with_override(self, upgrade):
+        """Calculate upgrade cost with fighter-specific overrides."""
+        if hasattr(upgrade, "cost_for_fighter"):
+            return upgrade.cost_for_fighter
+
+        try:
+            override = ContentFighterEquipmentListUpgrade.objects.get(
+                fighter=self._equipment_list_fighter,
+                upgrade=upgrade,
+            )
+            return override.cost_int()
+        except ContentFighterEquipmentListUpgrade.DoesNotExist:
+            return upgrade.cost_int()
+
     def upgrade_cost_int(self):
         if not self.upgrades_field.exists():
             return 0
 
-        return sum([upgrade.cost_int() for upgrade in self.upgrades_field.all()])
+        return sum(
+            [
+                self._upgrade_cost_with_override(upgrade)
+                for upgrade in self.upgrades_field.all()
+            ]
+        )
 
     @cached_property
     def upgrade_cost_int_cached(self):
@@ -2046,7 +2066,9 @@ class VirtualListFighterEquipmentAssignment:
         if not self.equipment.upgrades:
             return []
 
-        return self.equipment.upgrades.all()
+        # Use equipment list fighter for overrides (handles legacy fighters)
+        equipment_list_fighter = self.fighter.equipment_list_fighter
+        return self.equipment.upgrades.with_cost_for_fighter(equipment_list_fighter)
 
     @cached_property
     def upgrades_cached(self):

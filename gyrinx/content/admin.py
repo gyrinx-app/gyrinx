@@ -25,6 +25,7 @@ from .models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListUpgrade,
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterHouseOverride,
     ContentFighterPsykerDisciplineAssignment,
@@ -237,6 +238,27 @@ class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
     form = ContentFighterEquipmentListWeaponAccessoryAdminForm
+
+    actions = [copy_selected_to_fighter]
+
+
+class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        group_select(self, "fighter", key=lambda x: x.house.name)
+
+
+@admin.register(ContentFighterEquipmentListUpgrade)
+class ContentFighterEquipmentListUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["fighter__type", "upgrade__name", "upgrade__equipment__name"]
+    list_filter = ["upgrade__equipment__upgrade_mode"]
+    form = ContentFighterEquipmentListUpgradeAdminForm
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     actions = [copy_selected_to_fighter]
 
