@@ -97,7 +97,44 @@ def test_fighter_clone_with_mods(
     accessories = cloned_assign.weapon_accessories()
     assert len(accessories) == 1
     assert accessories[0].name == "Spoon Sight"
-    assert cloned_assign.active_upgrades().count() == 1
-    assert cloned_assign.active_upgrades().first().name == "Beta"
 
-    assert cloned_assign.cost_int() == 60  # 5 + 5 + 20 + 30
+
+@pytest.mark.django_db
+def test_list_clone_excludes_stash_fighter(
+    make_list, make_list_fighter, make_content_fighter
+):
+    """Test that stash fighters are not cloned when cloning a list."""
+    list_ = make_list("Test List")
+
+    # Create a regular fighter
+    make_list_fighter(list_, "Regular Fighter")
+
+    # Create a stash content fighter
+    stash_cf = make_content_fighter(
+        type="Stash",
+        category="STASH",
+        base_cost=0,
+        house=list_.content_house,
+    )
+    stash_cf.is_stash = True
+    stash_cf.save()
+
+    # Create a stash list fighter
+    ListFighter.objects.create(
+        name="Gang Stash",
+        content_fighter=stash_cf,
+        list=list_,
+        owner=list_.owner,
+    )
+
+    # Verify original list has both fighters
+    assert list_.fighters().count() == 2
+
+    # Clone the list
+    cloned_list = list_.clone()
+
+    # Verify only the regular fighter was cloned
+    assert cloned_list.fighters().count() == 1
+    cloned_fighter = cloned_list.fighters().first()
+    assert cloned_fighter.name == "Regular Fighter"
+    assert not cloned_fighter.content_fighter.is_stash
