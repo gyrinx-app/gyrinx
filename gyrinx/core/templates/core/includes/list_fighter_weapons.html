@@ -220,6 +220,14 @@
                                                     <i class="bi-arrow-left-right"></i> Reassign
                                                 </a>
                                             </li>
+                                            {% if fighter.is_stash and list.status == 'campaign' %}
+                                                <li>
+                                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
+                                                       class="dropdown-item text-warning">
+                                                        <i class="bi-cash-coin"></i> Sell
+                                                    </a>
+                                                </li>
+                                            {% endif %}
                                             <li>
                                                 <hr class="dropdown-divider">
                                             </li>
