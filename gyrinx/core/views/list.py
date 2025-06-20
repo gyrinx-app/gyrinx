@@ -294,12 +294,12 @@ def edit_list_credits(request, id):
     """
     from django.contrib import messages
 
-    from gyrinx.core.forms.list import EditListCreditsForm
-    from gyrinx.core.models.campaign import CampaignAction
-
     # Allow both list owner and campaign owner to modify credits
     # Filter the queryset to include only lists owned by the user or by campaigns they own
     from django.db.models import Q
+
+    from gyrinx.core.forms.list import EditListCreditsForm
+    from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(
         List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
@@ -2924,7 +2924,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
     if sell_assign:
         # Selling entire assignment (equipment + upgrades)
-        base_cost = assignment.content_equipment.cost
+        base_cost = assignment.content_equipment.cost_int()
         if assignment.upgrade:
             base_cost += assignment.upgrade.cost
         for upgrade in assignment.upgrades_field.all():

@@ -184,7 +184,7 @@
                                             <span class="text-muted">·</span>
                                             <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                class="link-danger">Remove</a>
-                                            {% if fighter.is_stash and list.status == 'campaign' %}
+                                            {% if fighter.is_stash %}
                                                 <span class="text-muted">·</span>
                                                 <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
                                                    class="link-warning">Sell</a>

@@ -4,11 +4,11 @@
     Sell Equipment - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
+    {% url "core:list-figher-gear-edit" list.id fighter.id as gear_edit_url %}
     <div class="col-12 px-0 vstack gap-3">
         {% if step == "selection" %}
-            {% include "core/includes/back.html" with url="core:list-fighter-gear-edit" text="Back to Equipment" args=list.id,fighter.id %}
+            {% include "core/includes/back.html" with url=gear_edit_url text="Back to Equipment" %}
             <h1 class="h3">Sell Equipment</h1>
-            
             <div class="card">
                 <div class="card-header">
                     <h2 class="h5 mb-0">Select Sale Price Method</h2>
@@ -17,7 +17,6 @@
                     <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="step" value="selection">
-                        
                         <div class="table-responsive">
                             <table class="table">
                                 <thead>
@@ -34,9 +33,7 @@
                                                 {{ item.name }}
                                                 {% if item.upgrades %}
                                                     <div class="text-muted small">
-                                                        {% for upgrade in item.upgrades %}
-                                                            + {{ upgrade.name }}
-                                                        {% endfor %}
+                                                        {% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}
                                                     </div>
                                                 {% endif %}
                                             </td>
@@ -46,20 +43,14 @@
                                                     {% for radio in form.price_method %}
                                                         <div class="form-check">
                                                             {{ radio.tag }}
-                                                            <label class="form-check-label" for="{{ radio.id_for_label }}">
-                                                                {{ radio.choice_label }}
-                                                            </label>
+                                                            <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
                                                         </div>
                                                     {% endfor %}
-                                                    <div class="manual-price-input" style="display: none;">
+                                                    <div class="manual-price-input">
                                                         {{ form.manual_price }}
-                                                        {% if form.manual_price.help_text %}
-                                                            <div class="form-text">{{ form.manual_price.help_text }}</div>
-                                                        {% endif %}
+                                                        {% if form.manual_price.help_text %}<div class="form-text">{{ form.manual_price.help_text }}</div>{% endif %}
                                                         {% if form.manual_price.errors %}
-                                                            <div class="invalid-feedback d-block">
-                                                                {{ form.manual_price.errors.0 }}
-                                                            </div>
+                                                            <div class="invalid-feedback d-block">{{ form.manual_price.errors.0 }}</div>
                                                         {% endif %}
                                                     </div>
                                                 </div>
@@ -69,18 +60,16 @@
                                 </tbody>
                             </table>
                         </div>
-                        
                         <div class="d-flex justify-content-end gap-2">
-                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}" class="btn btn-secondary">Cancel</a>
+                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                               class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">Continue</button>
                         </div>
                     </form>
                 </div>
             </div>
-            
         {% elif step == "confirm" %}
             <h1 class="h3">Confirm Equipment Sale</h1>
-            
             <div class="card">
                 <div class="card-header">
                     <h2 class="h5 mb-0">Sale Summary</h2>
@@ -120,28 +109,25 @@
                             </tbody>
                         </table>
                     </div>
-                    
                     <div class="alert alert-info mt-3">
-                        <i class="bi bi-info-circle"></i> 
-                        Dice will be rolled automatically when you confirm the sale. Items sold with dice 
+                        <i class="bi bi-info-circle"></i>
+                        Dice will be rolled automatically when you confirm the sale. Items sold with dice
                         will receive their base cost minus the dice roll × 10 credits (minimum 5¢).
                     </div>
-                    
                     <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="step" value="confirm">
                         <div class="d-flex justify-content-end gap-2">
-                            <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?{{ request.GET.urlencode }}" class="btn btn-secondary">Back</a>
+                            <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?{{ request.GET.urlencode }}"
+                               class="btn btn-secondary">Back</a>
                             <button type="submit" class="btn btn-danger">Confirm Sale</button>
                         </div>
                     </form>
                 </div>
             </div>
-            
         {% elif step == "summary" %}
-            {% include "core/includes/back.html" with url="core:list-fighter-gear-edit" text="Back to Equipment" args=list.id,fighter.id %}
+            {% include "core/includes/back.html" with url=gear_edit_url text="Back to Equipment" %}
             <h1 class="h3">Sale Complete</h1>
-            
             <div class="card">
                 <div class="card-header">
                     <h2 class="h5 mb-0">Sale Results</h2>
@@ -181,55 +167,22 @@
                             </tfoot>
                         </table>
                     </div>
-                    
                     {% if sale_results.dice_rolls %}
                         <div class="mt-3">
                             <strong>Dice Rolls:</strong>
-                            {% for roll in sale_results.dice_rolls %}
-                                <i class="bi bi-dice-{{ roll }} fs-4"></i>
-                            {% endfor %}
+                            {% for roll in sale_results.dice_rolls %}<i class="bi bi-dice-{{ roll }} fs-4"></i>{% endfor %}
                         </div>
                     {% endif %}
-                    
                     <div class="alert alert-success mt-3">
-                        <i class="bi bi-check-circle"></i> 
+                        <i class="bi bi-check-circle"></i>
                         Equipment sold successfully! {{ sale_results.total_credits }}¢ has been added to your gang's credits.
                     </div>
-                    
                     <div class="d-flex justify-content-end">
-                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}" class="btn btn-primary">Back to Equipment</a>
+                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                           class="btn btn-primary">Back to Equipment</a>
                     </div>
                 </div>
             </div>
         {% endif %}
     </div>
-    
-    <script>
-        // Toggle manual price input visibility based on radio selection
-        document.addEventListener('DOMContentLoaded', function() {
-            const radioButtons = document.querySelectorAll('input[type="radio"][name*="price_method"]');
-            
-            radioButtons.forEach(radio => {
-                radio.addEventListener('change', function() {
-                    const formGroup = this.closest('td');
-                    const manualInput = formGroup.querySelector('.manual-price-input');
-                    
-                    if (this.value === 'manual' && this.checked) {
-                        manualInput.style.display = 'block';
-                    } else if (this.value === 'dice' && this.checked) {
-                        manualInput.style.display = 'none';
-                    }
-                });
-                
-                // Check initial state
-                if (radio.checked) {
-                    const formGroup = radio.closest('td');
-                    const manualInput = formGroup.querySelector('.manual-price-input');
-                    if (radio.value === 'manual') {
-                        manualInput.style.display = 'block';
-                    }
-                }
-            });
-        });
-    </script>
 {% endblock content %}
