@@ -20,10 +20,16 @@ from gyrinx.models import FighterCategoryChoices
 @pytest.mark.django_db
 def test_content_fighter_equipment_list_upgrade_creation():
     """Test basic creation of ContentFighterEquipmentListUpgrade."""
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
     # Create equipment with upgrade
     equipment = ContentEquipment.objects.create(
         name="Servo-arm",
-        category=ContentEquipmentCategory.objects.get(name="Wargear"),
+        category=wargear_category,
         cost=35,
         upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         upgrade_stack_name="Upgrades",
@@ -57,10 +63,16 @@ def test_content_fighter_equipment_list_upgrade_creation():
 @pytest.mark.django_db
 def test_upgrade_with_cost_for_fighter_queryset():
     """Test the with_cost_for_fighter queryset method."""
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
     # Create equipment with upgrades
     equipment = ContentEquipment.objects.create(
         name="Servo-arm",
-        category=ContentEquipmentCategory.objects.get(name="Wargear"),
+        category=wargear_category,
         cost=35,
         upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         upgrade_stack_name="Upgrades",
@@ -123,9 +135,15 @@ def test_list_fighter_equipment_assignment_upgrade_override():
     # Create house and equipment
     house = ContentHouse.objects.create(name="Test House")
 
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
     equipment = ContentEquipment.objects.create(
         name="Servo-arm",
-        category=ContentEquipmentCategory.objects.get(name="Wargear"),
+        category=wargear_category,
         cost=35,
         upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         upgrade_stack_name="Upgrades",
@@ -154,7 +172,7 @@ def test_list_fighter_equipment_assignment_upgrade_override():
     # Create list and list fighter
     list_obj = List.objects.create(
         name="Test Gang",
-        house=house,
+        content_house=house,
     )
 
     list_fighter = ListFighter.objects.create(
@@ -201,9 +219,15 @@ def test_virtual_equipment_assignment_upgrade_override():
     # Create house and equipment
     house = ContentHouse.objects.create(name="Test House")
 
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
     equipment = ContentEquipment.objects.create(
         name="Servo-arm",
-        category=ContentEquipmentCategory.objects.get(name="Wargear"),
+        category=wargear_category,
         cost=35,
         upgrade_mode=ContentEquipment.UpgradeMode.MULTI,
         upgrade_stack_name="Upgrades",
@@ -239,7 +263,7 @@ def test_virtual_equipment_assignment_upgrade_override():
     # Create list and list fighter
     list_obj = List.objects.create(
         name="Test Gang",
-        house=house,
+        content_house=house,
     )
 
     list_fighter = ListFighter.objects.create(
@@ -282,10 +306,16 @@ def test_copy_to_house_includes_upgrade_overrides():
     original_house = ContentHouse.objects.create(name="Original House")
     new_house = ContentHouse.objects.create(name="New House")
 
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
     # Create equipment with upgrade
     equipment = ContentEquipment.objects.create(
         name="Servo-arm",
-        category=ContentEquipmentCategory.objects.get(name="Wargear"),
+        category=wargear_category,
         cost=35,
         upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         upgrade_stack_name="Upgrades",
@@ -304,14 +334,16 @@ def test_copy_to_house_includes_upgrade_overrides():
         category=FighterCategoryChoices.LEADER,
         house=original_house,
     )
+    original_fighter_id = original_fighter.pk
 
-    ContentFighterEquipmentListUpgrade.objects.create(
+    original_override = ContentFighterEquipmentListUpgrade.objects.create(
         fighter=original_fighter,
         upgrade=upgrade,
         cost=30,
     )
+    original_override_id = original_override.pk
 
-    # Copy fighter to new house
+    # Copy fighter to new house (modifies original_fighter in-place)
     new_fighter = original_fighter.copy_to_house(new_house)
 
     # Verify upgrade override was copied
@@ -322,11 +354,9 @@ def test_copy_to_house_includes_upgrade_overrides():
     ).exists()
 
     # Verify it's a new instance, not the same one
-    original_override = ContentFighterEquipmentListUpgrade.objects.get(
-        fighter=original_fighter
-    )
     new_override = ContentFighterEquipmentListUpgrade.objects.get(fighter=new_fighter)
-    assert original_override.pk != new_override.pk
+    assert new_override.pk != original_override_id
     assert new_override.fighter == new_fighter
+    assert new_fighter.pk != original_fighter_id
     assert new_override.upgrade == upgrade
     assert new_override.cost == 30

@@ -1083,7 +1083,7 @@ class ContentFighterEquipmentListUpgrade(Content):
         return f"{self.cost}¢"
 
     def __str__(self):
-        return f"{self.fighter} {self.upgrade} ({self.cost})"
+        return f"{self.fighter.type} {self.upgrade} ({self.cost})"
 
     class Meta:
         verbose_name = "Equipment List Upgrade"

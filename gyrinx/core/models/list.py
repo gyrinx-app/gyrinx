@@ -2078,9 +2078,12 @@ class VirtualListFighterEquipmentAssignment:
         return [
             {
                 "upgrade": upgrade,
-                "cost_int": upgrade.cost_int_cached,
+                "cost_int": getattr(
+                    upgrade, "cost_for_fighter", upgrade.cost_int_cached
+                ),
                 "cost_display": format_cost_display(
-                    upgrade.cost_int_cached, show_sign=True
+                    getattr(upgrade, "cost_for_fighter", upgrade.cost_int_cached),
+                    show_sign=True,
                 ),
             }
             for upgrade in self.upgrades_cached
