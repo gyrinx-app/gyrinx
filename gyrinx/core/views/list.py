@@ -2895,11 +2895,17 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
-        pk=assign_id,
-        list_fighter=fighter,
-    )
+    
+    # For summary step, assignment might not exist (already deleted)
+    step = request.GET.get("step", "selection")
+    if step == "summary":
+        assignment = None
+    else:
+        assignment = get_object_or_404(
+            ListFighterEquipmentAssignment,
+            pk=assign_id,
+            list_fighter=fighter,
+        )
 
     # Only allow selling from stash fighters in campaign mode
     if not fighter.content_fighter.is_stash:
@@ -2914,15 +2920,16 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
             reverse("core:list-fighter-gear-edit", args=(lst.id, fighter.id))
         )
 
-    # Parse URL parameters to determine what's being sold
-    sell_assign = request.GET.get("sell_assign") == str(assignment.id)
-    sell_profiles = request.GET.getlist("sell_profile", [])
-    sell_accessories = request.GET.getlist("sell_accessory", [])
+    # Parse URL parameters to determine what's being sold (skip for summary)
+    if step != "summary":
+        sell_assign = request.GET.get("sell_assign") == str(assignment.id)
+        sell_profiles = request.GET.getlist("sell_profile", [])
+        sell_accessories = request.GET.getlist("sell_accessory", [])
 
-    # Calculate what's being sold
+    # Calculate what's being sold (skip for summary)
     items_to_sell = []
 
-    if sell_assign:
+    if step != "summary" and sell_assign:
         # Selling entire assignment (equipment + upgrades)
         base_cost = assignment.content_equipment.cost_int()
         if assignment.upgrade:
@@ -2962,7 +2969,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     "accessory": accessory,
                 }
             )
-    else:
+    elif step != "summary":
         # Selling individual components
         for profile_id in sell_profiles:
             profile = assignment.weapon_profiles_field.filter(id=profile_id).first()
@@ -3074,6 +3081,9 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 lst.credits_earned += total_credits
                 lst.save()
 
+                # Store assignment ID before potential deletion
+                assignment_id = assignment.id
+                
                 # Remove sold items
                 if request.session.get("sell_assign"):
                     # Delete entire assignment
@@ -3141,7 +3151,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 return HttpResponseRedirect(
                     reverse(
                         "core:list-fighter-equipment-sell",
-                        args=(lst.id, fighter.id, assignment.id),
+                        args=(lst.id, fighter.id, assignment_id),
                     )
                     + "?step=summary"
                 )

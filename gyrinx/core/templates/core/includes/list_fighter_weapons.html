@@ -178,6 +178,13 @@
                                 <i class="bi-plus"></i>
                                 Add {{ assign.base_name }}
                             </button>
+                            {% if fighter.is_stash and list.status == 'campaign' %}
+                                <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                   class="btn btn-outline-warning btn-sm">
+                                    <i class="bi-cash-coin"></i>
+                                    Sell
+                                </a>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

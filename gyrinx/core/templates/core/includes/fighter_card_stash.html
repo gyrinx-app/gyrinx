@@ -75,6 +75,11 @@
                                                 {% endif %}
                                                 <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
                                                    class="link-secondary">Reassign</a>
+                                                {% if list.status == 'campaign' %}
+                                                    <span class="text-muted">·</span>
+                                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                                       class="link-warning">Sell</a>
+                                                {% endif %}
                                                 <span class="text-muted">·</span>
                                                 <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                    class="link-danger">Remove</a>
@@ -171,6 +176,14 @@
                                                             <i class="bi-arrow-left-right"></i> Reassign
                                                         </a>
                                                     </li>
+                                                    {% if list.status == 'campaign' %}
+                                                        <li>
+                                                            <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                                               class="dropdown-item text-warning">
+                                                                <i class="bi-cash-coin"></i> Sell
+                                                            </a>
+                                                        </li>
+                                                    {% endif %}
                                                     <li>
                                                         <hr class="dropdown-divider">
                                                     </li>
