@@ -352,6 +352,10 @@ class ListFighterManager(models.Manager):
             )
             .order_by(
                 "list",
+                Case(
+                    When(injury_state="dead", then=1),
+                    default=0,
+                ),
                 "_category_order",
                 "_sort_key",
             )
