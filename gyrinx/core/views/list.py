@@ -2944,6 +2944,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 "upgrades": list(assignment.upgrades_field.all())
                 + ([assignment.upgrade] if assignment.upgrade else []),
                 "base_cost": base_cost,
+                "total_cost": base_cost,  # Total cost including upgrades
                 "assignment": assignment,
             }
         )
@@ -2955,6 +2956,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     "type": "profile",
                     "name": profile.name,
                     "base_cost": profile.cost,
+                    "total_cost": profile.cost,  # No upgrades for profiles
                     "profile": profile,
                 }
             )
@@ -2966,6 +2968,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     "type": "accessory",
                     "name": accessory.name,
                     "base_cost": accessory.cost,
+                    "total_cost": accessory.cost,  # No upgrades for accessories
                     "accessory": accessory,
                 }
             )
@@ -2979,6 +2982,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         "type": "profile",
                         "name": profile.name,
                         "base_cost": profile.cost,
+                        "total_cost": profile.cost,  # No upgrades for profiles
                         "profile": profile,
                     }
                 )
@@ -2993,6 +2997,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         "type": "accessory",
                         "name": accessory.name,
                         "base_cost": accessory.cost,
+                        "total_cost": accessory.cost,  # No upgrades for accessories
                         "accessory": accessory,
                     }
                 )
@@ -3020,6 +3025,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             "name": item["name"],
                             "type": item["type"],
                             "base_cost": item["base_cost"],
+                            "total_cost": item.get("total_cost", item["base_cost"]),
                             "price_method": price_method,
                             "manual_price": manual_price,
                         }
@@ -3058,8 +3064,12 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         dice_rolls.append(roll)
                         total_dice += 1
 
-                        # Calculate sale price: base cost - (roll × 10), minimum 5¢
-                        sale_price = max(5, item_data["base_cost"] - (roll * 10))
+                        # Calculate sale price: total cost - (roll × 10), minimum 5¢
+                        sale_price = max(
+                            5,
+                            item_data.get("total_cost", item_data["base_cost"])
+                            - (roll * 10),
+                        )
                     else:
                         # Use manual price
                         sale_price = item_data["manual_price"]
@@ -3069,6 +3079,9 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         {
                             "name": item_data["name"],
                             "base_cost": item_data["base_cost"],
+                            "total_cost": item_data.get(
+                                "total_cost", item_data["base_cost"]
+                            ),
                             "sale_price": sale_price,
                             "dice_roll": roll
                             if item_data["price_method"] == "dice"
@@ -3109,7 +3122,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 for detail in sale_details:
                     if detail["dice_roll"]:
                         description_parts.append(
-                            f"{detail['name']} ({detail['base_cost']}¢ - {detail['dice_roll']}×10 = {detail['sale_price']}¢)"
+                            f"{detail['name']} ({detail['total_cost']}¢ - {detail['dice_roll']}×10 = {detail['sale_price']}¢)"
                         )
                     else:
                         description_parts.append(

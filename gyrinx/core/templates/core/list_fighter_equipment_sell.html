@@ -37,7 +37,7 @@
                         <thead>
                             <tr>
                                 <th>Item</th>
-                                <th>Base Cost</th>
+                                <th>Cost</th>
                                 <th>Sale Price Method</th>
                             </tr>
                         </thead>
@@ -52,7 +52,7 @@
                                             </div>
                                         {% endif %}
                                     </td>
-                                    <td>{{ item.base_cost }}¢</td>
+                                    <td>{{ item.total_cost }}¢</td>
                                     <td>
                                         <div class="vstack gap-2">
                                             {% for radio in form.price_method %}
@@ -108,7 +108,7 @@
                     <thead>
                         <tr>
                             <th>Item</th>
-                            <th>Base Cost</th>
+                            <th>Cost</th>
                             <th>Sale Method</th>
                             <th>Sale Price</th>
                         </tr>
@@ -185,7 +185,7 @@
                     <thead>
                         <tr>
                             <th>Item</th>
-                            <th>Base Cost</th>
+                            <th>Cost</th>
                             <th>Dice Roll</th>
                             <th>Sale Price</th>
                         </tr>
@@ -194,7 +194,7 @@
                         {% for detail in sale_results.sale_details %}
                             <tr>
                                 <td>{{ detail.name }}</td>
-                                <td>{{ detail.base_cost }}¢</td>
+                                <td>{{ detail.total_cost }}¢</td>
                                 <td>
                                     {% if detail.dice_roll %}
                                         <i class="bi bi-dice-{{ detail.dice_roll }}"></i> {{ detail.dice_roll }}
