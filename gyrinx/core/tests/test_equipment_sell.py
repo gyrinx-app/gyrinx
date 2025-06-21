@@ -61,7 +61,7 @@ def make_stash_fighter(user, content_house):
             name="Gang Stash",
             content_fighter=stash_content,
             list=list_,
-            )
+        )
 
     return _make_stash_fighter
 
@@ -127,9 +127,7 @@ def test_sell_equipment_selection_form(
     url = reverse(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
-    response = client.get(
-        url + "?sell_assign=" + str(assignment.id)
-    )
+    response = client.get(url + "?sell_assign=" + str(assignment.id))
 
     assert response.status_code == 200
     assert "Select Sale Price Method" in response.content.decode()
@@ -328,12 +326,8 @@ def test_sell_accessories_individually(
 
     # Add weapon with accessories
     weapon = make_equipment("Test Weapon", cost=30)
-    accessory1 = ContentWeaponAccessory.objects.create(
-        name="Scope", cost=15
-    )
-    accessory2 = ContentWeaponAccessory.objects.create(
-        name="Laser", cost=10
-    )
+    accessory1 = ContentWeaponAccessory.objects.create(name="Scope", cost=15)
+    accessory2 = ContentWeaponAccessory.objects.create(name="Laser", cost=10)
 
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
