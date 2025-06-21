@@ -200,7 +200,7 @@ urlpatterns = [
     ),
     # Fighter advancements
     path(
-        "list/<id>/fighter/<fighter_id>/advancements",
+        "list/<id>/fighter/<fighter_id>/advancements/",
         list.list_fighter_advancements,
         name="list-fighter-advancements",
     ),
