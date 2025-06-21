@@ -28,9 +28,9 @@
                 <div class="hstack gap-2 align-items-center justify-content-between">
                     <h4 class="h6 mb-0">Trading Post</h4>
                     <div class="btn-group" role="group">
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}?filter=all"
                            class="btn btn-outline-primary btn-sm">Weapons</a>
-                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all"
                            class="btn btn-outline-primary btn-sm">Gear</a>
                     </div>
                 </div>
@@ -113,7 +113,7 @@
                             <td>
                                 {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                                 {% comment %} Show weapon profile names {% endcomment %}
-                                {% if assign.weapon_profiles_cached|length > 1 %}
+                                {% if assign.weapon_profiles_cached|length > 0 %}
                                     {% for profile in assign.weapon_profiles_cached %}
                                         {% if profile.name %}
                                             <br>
@@ -160,6 +160,12 @@
                                                     <i class="bi-arrow-up-circle"></i> Upgrades
                                                 </a>
                                             {% endif %}
+                                            {% if list.status == 'campaign_mode' %}
+                                                <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                                   class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi-coin"></i> Sell All
+                                                </a>
+                                            {% endif %}
                                             <div class="btn-group">
                                                 <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
                                                         type="button"
@@ -180,14 +186,6 @@
                                                             <i class="bi-arrow-left-right"></i> Reassign
                                                         </a>
                                                     </li>
-                                                    {% if list.status == 'campaign_mode' %}
-                                                        <li>
-                                                            <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
-                                                               class="dropdown-item text-warning">
-                                                                <i class="bi-cash-coin"></i> Sell
-                                                            </a>
-                                                        </li>
-                                                    {% endif %}
                                                     <li>
                                                         <hr class="dropdown-divider">
                                                     </li>
