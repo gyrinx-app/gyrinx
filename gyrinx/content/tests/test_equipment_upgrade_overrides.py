@@ -289,6 +289,7 @@ def test_virtual_equipment_assignment_upgrade_override():
     assert upgrade2_result.cost_for_fighter == 20  # No override
 
     # Test upgrades_display() uses overridden costs
+    # Note: This test uses MULTI mode, so costs are NOT cumulative
     display = virtual.upgrades_display()
     upgrade1_display = next(d for d in display if d["upgrade"].id == upgrade1.id)
     upgrade2_display = next(d for d in display if d["upgrade"].id == upgrade2.id)
@@ -360,3 +361,197 @@ def test_copy_to_house_includes_upgrade_overrides():
     assert new_fighter.pk != original_fighter_id
     assert new_override.upgrade == upgrade
     assert new_override.cost == 30
+
+
+@pytest.mark.django_db
+def test_cumulative_upgrade_costs_with_fighter_overrides():
+    """Test that fighter-specific cost overrides work correctly with cumulative costs."""
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
+    # Create equipment with SINGLE upgrade mode (cumulative costs)
+    equipment = ContentEquipment.objects.create(
+        name="Servo-arm",
+        category=wargear_category,
+        cost=35,
+        upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
+        upgrade_stack_name="Upgrades",
+    )
+
+    # Create three upgrades with individual costs
+    upgrade1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Suspensor",
+        cost=20,  # Cumulative cost: 20
+        position=1,
+    )
+
+    upgrade2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Extra Grip",
+        cost=30,  # Cumulative cost: 20 + 30 = 50
+        position=2,
+    )
+
+    upgrade3 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Power Feed",
+        cost=40,  # Cumulative cost: 20 + 30 + 40 = 90
+        position=3,
+    )
+
+    # Verify base cumulative costs
+    assert upgrade1.cost_int() == 20
+    assert upgrade2.cost_int() == 50
+    assert upgrade3.cost_int() == 90
+
+    # Create fighter with overrides for some upgrades
+    fighter = ContentFighter.objects.create(
+        type="Archaeotek",
+        category=FighterCategoryChoices.LEADER,
+    )
+
+    # Override costs for upgrades 1 and 3
+    # For Archaeotek: upgrade1 costs 10 instead of 20
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=fighter,
+        upgrade=upgrade1,
+        cost=10,  # Overridden individual cost
+    )
+
+    # For Archaeotek: upgrade3 costs 20 instead of 40
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=fighter,
+        upgrade=upgrade3,
+        cost=20,  # Overridden individual cost
+    )
+
+    # Get upgrades with fighter-specific costs
+    upgrades = (
+        ContentEquipmentUpgrade.objects.filter(equipment=equipment)
+        .with_cost_for_fighter(fighter)
+        .order_by("position")
+    )
+
+    # The issue is: cost_for_fighter should give cumulative costs, not just individual costs
+    # Expected cumulative costs for Archaeotek:
+    # - upgrade1: 10 (overridden)
+    # - upgrade2: 10 + 30 = 40 (upgrade1 overridden + upgrade2 base)
+    # - upgrade3: 10 + 30 + 20 = 60 (upgrade1 overridden + upgrade2 base + upgrade3 overridden)
+
+    # But currently, cost_for_fighter only gives individual costs:
+    assert upgrades[0].cost_for_fighter == 10  # This is correct (individual)
+    assert upgrades[1].cost_for_fighter == 30  # This is individual, not cumulative
+    assert upgrades[2].cost_for_fighter == 20  # This is individual, not cumulative
+
+    # Test actual cumulative costs in ListFighterEquipmentAssignment
+    house = ContentHouse.objects.create(name="Test House")
+    fighter.house = house
+    fighter.save()
+
+    list_obj = List.objects.create(
+        name="Test Gang",
+        content_house=house,
+    )
+
+    list_fighter = ListFighter.objects.create(
+        list=list_obj,
+        content_fighter=fighter,
+    )
+
+    # Create equipment assignment with all upgrades
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=list_fighter,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade3)  # Adding the highest upgrade
+
+    # The cost should be cumulative: 10 (override) + 30 (base) + 20 (override) = 60
+    # Currently it might just return 20 (the individual override)
+    assert assignment._upgrade_cost_with_override(upgrade3) == 60
+
+
+@pytest.mark.django_db
+def test_virtual_equipment_assignment_cumulative_upgrade_costs():
+    """Test cumulative upgrade costs with fighter-specific overrides in VirtualListFighterEquipmentAssignment."""
+    # Create house and equipment
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
+    # Create equipment with SINGLE upgrade mode (cumulative costs)
+    equipment = ContentEquipment.objects.create(
+        name="Power Armor",
+        category=wargear_category,
+        cost=50,
+        upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
+        upgrade_stack_name="Enhancements",
+    )
+
+    # Create upgrades
+    upgrade1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Reinforced Plating",
+        cost=20,
+        position=1,
+    )
+
+    upgrade2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Servo Motors",
+        cost=30,
+        position=2,
+    )
+
+    # Create content fighter with override
+    content_fighter = ContentFighter.objects.create(
+        type="Tech Specialist",
+        category=FighterCategoryChoices.SPECIALIST,
+        house=house,
+    )
+
+    # Override upgrade1 cost for Tech Specialist
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=content_fighter,
+        upgrade=upgrade1,
+        cost=10,  # Half price
+    )
+
+    # Create list and list fighter
+    list_obj = List.objects.create(
+        name="Test Gang",
+        content_house=house,
+    )
+
+    list_fighter = ListFighter.objects.create(
+        list=list_obj,
+        content_fighter=content_fighter,
+    )
+
+    # Create virtual assignment
+    virtual = VirtualListFighterEquipmentAssignment(
+        fighter=list_fighter,
+        equipment=equipment,
+    )
+
+    # Test upgrades_display() with cumulative costs
+    display = virtual.upgrades_display()
+
+    # Find upgrades by ID
+    upgrade1_display = next(d for d in display if d["upgrade"].id == upgrade1.id)
+    upgrade2_display = next(d for d in display if d["upgrade"].id == upgrade2.id)
+
+    # For SINGLE mode with overrides:
+    # upgrade1: 10 (overridden)
+    # upgrade2: 10 (override) + 30 (base) = 40 (cumulative)
+    assert upgrade1_display["cost_int"] == 10
+    assert upgrade1_display["cost_display"] == "+10¢"
+    assert upgrade2_display["cost_int"] == 40
+    assert upgrade2_display["cost_display"] == "+40¢"

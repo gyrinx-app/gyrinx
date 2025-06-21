@@ -1498,18 +1498,40 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return format_cost_display(self.accessory_cost_int(accessory), show_sign=True)
 
     def _upgrade_cost_with_override(self, upgrade):
-        """Calculate upgrade cost with fighter-specific overrides."""
-        if hasattr(upgrade, "cost_for_fighter"):
-            return upgrade.cost_for_fighter
+        """Calculate upgrade cost with fighter-specific overrides, respecting cumulative costs."""
+        # For MULTI mode, just return the individual cost (with override if present)
+        if upgrade.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
+            if hasattr(upgrade, "cost_for_fighter"):
+                return upgrade.cost_for_fighter
 
-        try:
-            override = ContentFighterEquipmentListUpgrade.objects.get(
-                fighter=self._equipment_list_fighter,
-                upgrade=upgrade,
-            )
-            return override.cost_int()
-        except ContentFighterEquipmentListUpgrade.DoesNotExist:
-            return upgrade.cost_int()
+            try:
+                override = ContentFighterEquipmentListUpgrade.objects.get(
+                    fighter=self._equipment_list_fighter,
+                    upgrade=upgrade,
+                )
+                return override.cost_int()
+            except ContentFighterEquipmentListUpgrade.DoesNotExist:
+                return upgrade.cost
+
+        # For SINGLE mode, calculate cumulative cost with overrides
+        # Get all upgrades up to this position
+        upgrades = upgrade.equipment.upgrades.filter(
+            position__lte=upgrade.position
+        ).order_by("position")
+
+        cumulative_cost = 0
+        for u in upgrades:
+            # Check for fighter-specific override
+            try:
+                override = ContentFighterEquipmentListUpgrade.objects.get(
+                    fighter=self._equipment_list_fighter,
+                    upgrade=u,
+                )
+                cumulative_cost += override.cost_int()
+            except ContentFighterEquipmentListUpgrade.DoesNotExist:
+                cumulative_cost += u.cost
+
+        return cumulative_cost
 
     def upgrade_cost_int(self):
         if not self.upgrades_field.exists():
@@ -2077,15 +2099,31 @@ class VirtualListFighterEquipmentAssignment:
     def upgrades_cached(self):
         return self.upgrades()
 
+    def _calculate_cumulative_upgrade_cost(self, upgrade):
+        """Calculate cumulative cost for an upgrade with fighter-specific overrides."""
+        # For MULTI mode, just return the individual cost
+        if upgrade.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
+            return getattr(upgrade, "cost_for_fighter", upgrade.cost)
+
+        # For SINGLE mode, calculate cumulative cost with overrides
+        cumulative_cost = 0
+
+        # Get all upgrades up to this position
+        for u in self.upgrades_cached:
+            if u.position > upgrade.position:
+                break
+            # Use cost_for_fighter if available (already annotated by with_cost_for_fighter)
+            cumulative_cost += getattr(u, "cost_for_fighter", u.cost)
+
+        return cumulative_cost
+
     def upgrades_display(self):
         return [
             {
                 "upgrade": upgrade,
-                "cost_int": getattr(
-                    upgrade, "cost_for_fighter", upgrade.cost_int_cached
-                ),
+                "cost_int": self._calculate_cumulative_upgrade_cost(upgrade),
                 "cost_display": format_cost_display(
-                    getattr(upgrade, "cost_for_fighter", upgrade.cost_int_cached),
+                    self._calculate_cumulative_upgrade_cost(upgrade),
                     show_sign=True,
                 ),
             }
