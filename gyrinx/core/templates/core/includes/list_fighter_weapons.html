@@ -112,8 +112,8 @@
                                 {% if not assign.has_total_cost_override %}
                                     {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
                                 {% endif %}
-                                {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign' and list.owner_cached == user and assign.kind == 'assigned' %}
-                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}&sell_profile={{ pd.profile.id }}"
+                                {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign_mode' and list.owner_cached == user and assign.kind == 'assigned' %}
+                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ pd.profile.id }}"
                                        class="link-warning">Sell</a>
                                 {% endif %}
                             {% endif %}
@@ -182,7 +182,7 @@
                                 <i class="bi-plus"></i>
                                 Add {{ assign.base_name }}
                             </button>
-                            {% if fighter.is_stash and list.status == 'campaign' %}
+                            {% if fighter.is_stash and list.status == 'campaign_mode' %}
                                 <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
                                    class="btn btn-outline-warning btn-sm">
                                     <i class="bi-cash-coin"></i>
@@ -231,7 +231,7 @@
                                                     <i class="bi-arrow-left-right"></i> Reassign
                                                 </a>
                                             </li>
-                                            {% if fighter.is_stash and list.status == 'campaign' %}
+                                            {% if fighter.is_stash and list.status == 'campaign_mode' %}
                                                 <li>
                                                     <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
                                                        class="dropdown-item text-warning">

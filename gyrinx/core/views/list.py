@@ -2895,7 +2895,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
-    
+
     # For summary step, assignment might not exist (already deleted)
     step = request.GET.get("step", "selection")
     if step == "summary":
@@ -3083,7 +3083,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
                 # Store assignment ID before potential deletion
                 assignment_id = assignment.id
-                
+
                 # Remove sold items
                 if request.session.get("sell_assign"):
                     # Delete entire assignment

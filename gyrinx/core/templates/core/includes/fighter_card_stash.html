@@ -75,7 +75,7 @@
                                                 {% endif %}
                                                 <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
                                                    class="link-secondary">Reassign</a>
-                                                {% if list.status == 'campaign' %}
+                                                {% if list.status == 'campaign_mode' %}
                                                     <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
                                                        class="link-warning">Sell</a>
@@ -118,7 +118,7 @@
                                         {% if profile.name %}
                                             <br>
                                             <i class="bi-dash"></i> {{ profile.name }} (+{{ profile.cost_display }})
-                                            {% if list.status == 'campaign' and list.owner_cached == user and not print %}
+                                            {% if list.status == 'campaign_mode' and list.owner_cached == user and not print %}
                                                 <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}&sell_profile={{ profile.id }}"
                                                    class="link-warning">Sell</a>
                                             {% endif %}
@@ -180,7 +180,7 @@
                                                             <i class="bi-arrow-left-right"></i> Reassign
                                                         </a>
                                                     </li>
-                                                    {% if list.status == 'campaign' %}
+                                                    {% if list.status == 'campaign_mode' %}
                                                         <li>
                                                             <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
                                                                class="dropdown-item text-warning">
