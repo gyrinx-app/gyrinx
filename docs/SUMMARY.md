@@ -23,6 +23,8 @@
 * [Technology Choices](technology-choices.md)
 * [Content](content.md)
 * [Lists](lists.md)
+* [Fighter Cost System Reference](fighter-cost-system-reference.md)
+* [Fighter Cost System Design](fighter-cost-system-design.md)
 * [Campaigns](campaigns.md)
 * [Psykers](psykers.md)
 * [API](api.md)
