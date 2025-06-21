@@ -112,6 +112,10 @@
                                 {% if not assign.has_total_cost_override %}
                                     {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
                                 {% endif %}
+                                {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign_mode' and list.owner_cached == user and assign.kind == 'assigned' %}
+                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ pd.profile.id }}"
+                                       class="link-warning">Sell</a>
+                                {% endif %}
                             {% endif %}
                         </td>
                         {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
@@ -198,6 +202,12 @@
                                            class="btn btn-outline-secondary btn-sm">
                                             <i class="bi-arrow-up-circle"></i>
                                             <span class="d-none d-sm-inline">{{ assign.equipment.upgrade_stack_name }}</span>
+                                        </a>
+                                    {% endif %}
+                                    {% if fighter.is_stash and list.status == 'campaign_mode' %}
+                                        <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                           class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi-coin"></i> Sell All
                                         </a>
                                     {% endif %}
                                     <div class="btn-group">

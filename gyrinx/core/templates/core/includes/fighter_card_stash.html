@@ -28,9 +28,9 @@
                 <div class="hstack gap-2 align-items-center justify-content-between">
                     <h4 class="h6 mb-0">Trading Post</h4>
                     <div class="btn-group" role="group">
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}?filter=all"
                            class="btn btn-outline-primary btn-sm">Weapons</a>
-                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?filter=all"
                            class="btn btn-outline-primary btn-sm">Gear</a>
                     </div>
                 </div>
@@ -75,6 +75,11 @@
                                                 {% endif %}
                                                 <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
                                                    class="link-secondary">Reassign</a>
+                                                {% if list.status == 'campaign_mode' %}
+                                                    <span class="text-muted">·</span>
+                                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                                       class="link-warning">Sell</a>
+                                                {% endif %}
                                                 <span class="text-muted">·</span>
                                                 <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
                                                    class="link-danger">Remove</a>
@@ -108,11 +113,15 @@
                             <td>
                                 {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
                                 {% comment %} Show weapon profile names {% endcomment %}
-                                {% if assign.weapon_profiles_cached|length > 1 %}
+                                {% if assign.weapon_profiles_cached|length > 0 %}
                                     {% for profile in assign.weapon_profiles_cached %}
                                         {% if profile.name %}
                                             <br>
                                             <i class="bi-dash"></i> {{ profile.name }} (+{{ profile.cost_display }})
+                                            {% if list.status == 'campaign_mode' and list.owner_cached == user and not print %}
+                                                <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}&sell_profile={{ profile.id }}"
+                                                   class="link-warning">Sell</a>
+                                            {% endif %}
                                         {% endif %}
                                     {% endfor %}
                                 {% endif %}
@@ -149,6 +158,12 @@
                                                 <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
                                                    class="btn btn-outline-secondary btn-sm">
                                                     <i class="bi-arrow-up-circle"></i> Upgrades
+                                                </a>
+                                            {% endif %}
+                                            {% if list.status == 'campaign_mode' %}
+                                                <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                                                   class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi-coin"></i> Sell All
                                                 </a>
                                             {% endif %}
                                             <div class="btn-group">
