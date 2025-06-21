@@ -53,3 +53,30 @@ class Command(BaseCommand):
                     "DJANGO_SUPERUSER_PASSWORD",
                     get_random_string(8),
                 )
+
+        # Set reCAPTCHA test keys for local development
+        if get_key(env_file, "RECAPTCHA_PUBLIC_KEY"):
+            click.echo("RECAPTCHA_PUBLIC_KEY already set")
+        else:
+            if options["dry_run"]:
+                click.echo("Would set RECAPTCHA_PUBLIC_KEY (Google test key)")
+            else:
+                click.echo("Setting RECAPTCHA_PUBLIC_KEY (Google test key)")
+                set_key(
+                    str(env_file),
+                    "RECAPTCHA_PUBLIC_KEY",
+                    "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI",
+                )
+
+        if get_key(env_file, "RECAPTCHA_PRIVATE_KEY"):
+            click.echo("RECAPTCHA_PRIVATE_KEY already set")
+        else:
+            if options["dry_run"]:
+                click.echo("Would set RECAPTCHA_PRIVATE_KEY (Google test key)")
+            else:
+                click.echo("Setting RECAPTCHA_PRIVATE_KEY (Google test key)")
+                set_key(
+                    str(env_file),
+                    "RECAPTCHA_PRIVATE_KEY",
+                    "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe",
+                )

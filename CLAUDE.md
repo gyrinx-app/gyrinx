@@ -19,6 +19,10 @@ pip install --editable .
 # Setup environment file
 manage setupenv
 
+# Note: setupenv automatically configures Google's test reCAPTCHA keys for local development
+# These test keys always pass validation and display a warning banner
+# Production environments should use real reCAPTCHA keys
+
 # Install frontend dependencies and setup node in venv
 nodeenv -p
 npm install
