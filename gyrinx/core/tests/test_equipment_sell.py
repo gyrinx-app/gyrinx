@@ -27,7 +27,6 @@ def test_sell_equipment_requires_stash_fighter(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=equipment,
-        owner=user,
     )
 
     # Try to access sell page
@@ -62,8 +61,7 @@ def make_stash_fighter(user, content_house):
             name="Gang Stash",
             content_fighter=stash_content,
             list=list_,
-            owner=user,
-        )
+            )
 
     return _make_stash_fighter
 
@@ -76,7 +74,7 @@ def test_sell_equipment_requires_campaign_mode(
     client.force_login(user)
 
     # Create non-campaign list with stash fighter
-    lst = make_list("Test List", status=List.GANG_MODE)
+    lst = make_list("Test List", status=List.LIST_BUILDING)
     stash = make_stash_fighter(lst)
 
     # Add equipment
@@ -84,7 +82,6 @@ def test_sell_equipment_requires_campaign_mode(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=equipment,
-        owner=user,
     )
 
     # Try to access sell page
@@ -118,13 +115,11 @@ def test_sell_equipment_selection_form(
         name="Extended Mag",
         equipment=equipment,
         cost=10,
-        owner=user,
     )
 
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=equipment,
-        owner=user,
     )
     assignment.upgrades_field.add(upgrade)
 
@@ -133,7 +128,7 @@ def test_sell_equipment_selection_form(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
     response = client.get(
-        url + "?assign=" + str(assignment.id) + "&sell_assign=" + str(assignment.id)
+        url + "?sell_assign=" + str(assignment.id)
     )
 
     assert response.status_code == 200
@@ -159,7 +154,6 @@ def test_sell_equipment_with_dice_roll(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=equipment,
-        owner=user,
     )
 
     # Initial credits
@@ -170,7 +164,7 @@ def test_sell_equipment_with_dice_roll(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
     response = client.post(
-        url + "?assign=" + str(assignment.id) + "&sell_assign=" + str(assignment.id),
+        url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
             "0-price_method": "dice",
@@ -223,7 +217,6 @@ def test_sell_equipment_with_manual_price(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=equipment,
-        owner=user,
     )
 
     # Initial credits
@@ -234,7 +227,7 @@ def test_sell_equipment_with_manual_price(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
     response = client.post(
-        url + "?assign=" + str(assignment.id) + "&sell_assign=" + str(assignment.id),
+        url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
             "0-price_method": "manual",
@@ -284,7 +277,6 @@ def test_sell_weapon_profiles_individually(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=weapon,
-        owner=user,
     )
     assignment.weapon_profiles_field.add(profile1, profile2)
 
@@ -293,7 +285,7 @@ def test_sell_weapon_profiles_individually(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
     response = client.post(
-        url + f"?assign={assignment.id}&sell_profile={profile2.id}",
+        url + f"?sell_profile={profile2.id}",
         {
             "step": "selection",
             "0-price_method": "manual",
@@ -337,16 +329,15 @@ def test_sell_accessories_individually(
     # Add weapon with accessories
     weapon = make_equipment("Test Weapon", cost=30)
     accessory1 = ContentWeaponAccessory.objects.create(
-        name="Scope", cost=15, owner=user
+        name="Scope", cost=15
     )
     accessory2 = ContentWeaponAccessory.objects.create(
-        name="Laser", cost=10, owner=user
+        name="Laser", cost=10
     )
 
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=weapon,
-        owner=user,
     )
     assignment.weapon_accessories_field.add(accessory1, accessory2)
 
@@ -355,7 +346,7 @@ def test_sell_accessories_individually(
         "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
     )
     response = client.post(
-        url + f"?assign={assignment.id}&sell_accessory={accessory1.id}",
+        url + f"?sell_accessory={accessory1.id}",
         {
             "step": "selection",
             "0-price_method": "dice",
@@ -394,7 +385,6 @@ def test_sell_summary_page(client, user, make_list, make_stash_fighter, make_equ
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
         content_equipment=equipment,
-        owner=user,
     )
 
     # Complete the sale flow
@@ -404,7 +394,7 @@ def test_sell_summary_page(client, user, make_list, make_stash_fighter, make_equ
 
     # Step 1: Selection
     response = client.post(
-        url + "?assign=" + str(assignment.id) + "&sell_assign=" + str(assignment.id),
+        url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
             "0-price_method": "manual",

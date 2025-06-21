@@ -2894,7 +2894,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
     # For summary step, assignment might not exist (already deleted)
     step = request.GET.get("step", "selection")
