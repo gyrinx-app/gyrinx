@@ -2043,7 +2043,11 @@ class VirtualListFighterEquipmentAssignment:
         if self.equipment.upgrade_mode != ContentEquipment.UpgradeMode.SINGLE:
             return None
 
-        return self._assignment.upgrades_field.first()
+        # Get the first upgrade with fighter-specific cost override
+        equipment_list_fighter = self.fighter.equipment_list_fighter
+        return self._assignment.upgrades_field.with_cost_for_fighter(
+            equipment_list_fighter
+        ).first()
 
     @cached_property
     def active_upgrade_cached(self):
@@ -2059,7 +2063,11 @@ class VirtualListFighterEquipmentAssignment:
         if not hasattr(self._assignment, "upgrades_field"):
             return None
 
-        return self._assignment.upgrades_field.all()
+        # Get upgrades with fighter-specific cost overrides
+        equipment_list_fighter = self.fighter.equipment_list_fighter
+        return self._assignment.upgrades_field.with_cost_for_fighter(
+            equipment_list_fighter
+        ).all()
 
     @cached_property
     def active_upgrades_cached(self):
@@ -2077,9 +2085,9 @@ class VirtualListFighterEquipmentAssignment:
             {
                 "upgrade": upgrade,
                 "name": upgrade.name,
-                "cost_int": upgrade.cost_int_cached,
+                "cost_int": self._calculate_cumulative_upgrade_cost(upgrade),
                 "cost_display": format_cost_display(
-                    upgrade.cost_int_cached, show_sign=True
+                    self._calculate_cumulative_upgrade_cost(upgrade), show_sign=True
                 ),
             }
             for upgrade in self.active_upgrades_cached

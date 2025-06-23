@@ -555,3 +555,236 @@ def test_virtual_equipment_assignment_cumulative_upgrade_costs():
     assert upgrade1_display["cost_display"] == "+10¢"
     assert upgrade2_display["cost_int"] == 40
     assert upgrade2_display["cost_display"] == "+40¢"
+
+
+@pytest.mark.django_db
+def test_virtual_equipment_assignment_active_methods_with_overrides():
+    """Test that active_upgrade, active_upgrades, and active_upgrades_display respect fighter-specific overrides."""
+    # Create house and equipment
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
+    # Create equipment with SINGLE upgrade mode
+    equipment = ContentEquipment.objects.create(
+        name="Advanced Targeter",
+        category=wargear_category,
+        cost=40,
+        upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
+        upgrade_stack_name="Targeting Enhancements",
+    )
+
+    # Create upgrades
+    upgrade1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Infrared Scope",
+        cost=25,
+        position=1,
+    )
+
+    upgrade2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Motion Tracker",
+        cost=35,
+        position=2,
+    )
+
+    # Create content fighter with overrides
+    content_fighter = ContentFighter.objects.create(
+        type="Sniper",
+        category=FighterCategoryChoices.SPECIALIST,
+        house=house,
+    )
+
+    # Override costs for Sniper
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=content_fighter,
+        upgrade=upgrade1,
+        cost=15,  # Reduced cost for Sniper
+    )
+
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=content_fighter,
+        upgrade=upgrade2,
+        cost=20,  # Reduced cost for Sniper
+    )
+
+    # Create list and list fighter
+    list_obj = List.objects.create(
+        name="Test Gang",
+        content_house=house,
+    )
+
+    list_fighter = ListFighter.objects.create(
+        list=list_obj,
+        content_fighter=content_fighter,
+    )
+
+    # Create equipment assignment with first upgrade
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=list_fighter,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade1)
+
+    # Create virtual assignment from the real assignment
+    virtual = VirtualListFighterEquipmentAssignment.from_assignment(assignment)
+
+    # Test active_upgrade returns upgrade with fighter-specific cost
+    active_upgrade = virtual.active_upgrade()
+    assert active_upgrade is not None
+    assert active_upgrade.id == upgrade1.id
+    assert hasattr(active_upgrade, "cost_for_fighter")
+    assert active_upgrade.cost_for_fighter == 15  # Overridden cost
+
+    # Test active_upgrade_cached
+    assert virtual.active_upgrade_cached == active_upgrade
+
+    # Test active_upgrades returns all upgrades with fighter-specific costs
+    active_upgrades = virtual.active_upgrades()
+    assert len(active_upgrades) == 1
+    assert active_upgrades[0].cost_for_fighter == 15
+
+    # Test active_upgrades_cached
+    assert list(virtual.active_upgrades_cached) == list(active_upgrades)
+
+    # Test active_upgrades_display uses cumulative costs with overrides
+    display = virtual.active_upgrades_display
+    assert len(display) == 1
+    assert display[0]["upgrade"].id == upgrade1.id
+    assert display[0]["cost_int"] == 15  # Overridden cost (cumulative)
+    assert display[0]["cost_display"] == "+15¢"
+
+    # Now add the second upgrade and test cumulative costs
+    assignment.upgrades_field.add(upgrade2)
+
+    # Create new virtual assignment to refresh cached values
+    virtual2 = VirtualListFighterEquipmentAssignment.from_assignment(assignment)
+
+    # Test active_upgrades with multiple upgrades
+    active_upgrades2 = virtual2.active_upgrades()
+    assert len(active_upgrades2) == 2
+
+    # Find upgrades by ID
+    upgrade1_active = next(u for u in active_upgrades2 if u.id == upgrade1.id)
+    upgrade2_active = next(u for u in active_upgrades2 if u.id == upgrade2.id)
+
+    assert upgrade1_active.cost_for_fighter == 15  # Override
+    assert upgrade2_active.cost_for_fighter == 20  # Override
+
+    # Test active_upgrades_display with cumulative costs
+    display2 = virtual2.active_upgrades_display
+    assert len(display2) == 2
+
+    # Find displays by upgrade ID
+    upgrade1_display = next(d for d in display2 if d["upgrade"].id == upgrade1.id)
+    upgrade2_display = next(d for d in display2 if d["upgrade"].id == upgrade2.id)
+
+    # For SINGLE mode:
+    # upgrade1: 15 (overridden)
+    # upgrade2: 15 + 20 = 35 (cumulative with overrides)
+    assert upgrade1_display["cost_int"] == 15
+    assert upgrade2_display["cost_int"] == 35
+
+
+@pytest.mark.django_db
+def test_virtual_equipment_assignment_active_methods_multi_mode():
+    """Test active methods with MULTI mode equipment (non-cumulative costs)."""
+    # Create house and equipment
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create equipment category
+    wargear_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Wargear",
+        defaults={"group": "Gear"},
+    )
+
+    # Create equipment with MULTI upgrade mode
+    equipment = ContentEquipment.objects.create(
+        name="Weapon Mods",
+        category=wargear_category,
+        cost=0,
+        upgrade_mode=ContentEquipment.UpgradeMode.MULTI,
+        upgrade_stack_name="Modifications",
+    )
+
+    # Create upgrades
+    upgrade1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Extended Magazine",
+        cost=20,
+        position=1,
+    )
+
+    upgrade2 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment,
+        name="Laser Sight",
+        cost=30,
+        position=2,
+    )
+
+    # Create content fighter with override for one upgrade
+    content_fighter = ContentFighter.objects.create(
+        type="Gunslinger",
+        category=FighterCategoryChoices.CHAMPION,
+        house=house,
+    )
+
+    # Override only upgrade2 cost
+    ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=content_fighter,
+        upgrade=upgrade2,
+        cost=15,  # Half price for Gunslinger
+    )
+
+    # Create list and list fighter
+    list_obj = List.objects.create(
+        name="Test Gang",
+        content_house=house,
+    )
+
+    list_fighter = ListFighter.objects.create(
+        list=list_obj,
+        content_fighter=content_fighter,
+    )
+
+    # Create equipment assignment with both upgrades
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=list_fighter,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade1, upgrade2)
+
+    # Create virtual assignment
+    virtual = VirtualListFighterEquipmentAssignment.from_assignment(assignment)
+
+    # Test active_upgrade returns None for MULTI mode
+    assert virtual.active_upgrade() is None
+    assert virtual.active_upgrade_cached is None
+
+    # Test active_upgrades returns all with overrides
+    active_upgrades = virtual.active_upgrades()
+    assert len(active_upgrades) == 2
+
+    # Find upgrades by ID
+    upgrade1_active = next(u for u in active_upgrades if u.id == upgrade1.id)
+    upgrade2_active = next(u for u in active_upgrades if u.id == upgrade2.id)
+
+    assert upgrade1_active.cost_for_fighter == 20  # No override
+    assert upgrade2_active.cost_for_fighter == 15  # Override
+
+    # Test active_upgrades_display with non-cumulative costs
+    display = virtual.active_upgrades_display
+    assert len(display) == 2
+
+    # Find displays by upgrade ID
+    upgrade1_display = next(d for d in display if d["upgrade"].id == upgrade1.id)
+    upgrade2_display = next(d for d in display if d["upgrade"].id == upgrade2.id)
+
+    # For MULTI mode, costs are individual (not cumulative)
+    assert upgrade1_display["cost_int"] == 20
+    assert upgrade2_display["cost_int"] == 15  # Overridden cost
