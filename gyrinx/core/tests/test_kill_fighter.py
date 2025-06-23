@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from gyrinx.content.models import ContentEquipment, ContentFighter
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter
 
 User = get_user_model()
 
@@ -168,12 +168,7 @@ def test_kill_fighter_transfers_equipment_to_stash(client, user, content_house):
     )
 
     # Assign equipment to fighter
-    ListFighterEquipmentAssignment.objects.create(
-        list_fighter=fighter,
-        content_equipment=equipment,
-        cost=15,
-        owner=user,
-    )
+    fighter.assign(equipment)
 
     # Kill the fighter
     client.force_login(user)
@@ -193,7 +188,7 @@ def test_kill_fighter_transfers_equipment_to_stash(client, user, content_house):
 
     stash_assignment = stash.listfighterequipmentassignment_set.first()
     assert stash_assignment.content_equipment == equipment
-    assert stash_assignment.cost == 15
+    assert stash_assignment.cost_int() == 15
 
 
 @pytest.mark.django_db
@@ -283,5 +278,5 @@ def test_kill_fighter_confirmation_page(client, user, content_house):
 
     assert response.status_code == 200
     assert b"Kill Fighter: Doomed Fighter" in response.content
-    assert b"transfer all their equipment to the stash" in response.content
+    assert b"Transfer all their equipment to the stash" in response.content
     assert b"Set their cost to 0 credits" in response.content

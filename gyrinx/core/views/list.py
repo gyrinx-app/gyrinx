@@ -1643,21 +1643,24 @@ def kill_list_fighter(request, id, fighter_id):
                 new_assignment = ListFighterEquipmentAssignment(
                     list_fighter=stash_fighter,
                     content_equipment=assignment.content_equipment,
-                    cost=assignment.cost,
-                    is_upgrade=assignment.is_upgrade,
+                    cost_override=assignment.cost_override,
+                    total_cost_override=assignment.total_cost_override,
                     upgrade=assignment.upgrade,
-                    owner=stash_fighter.owner,
+                    from_default_assignment=assignment.from_default_assignment,
                 )
                 new_assignment.save()
 
-                # Copy over any accessories or profile overrides
-                if assignment.accessories.exists():
-                    new_assignment.accessories.set(assignment.accessories.all())
-                if assignment.weapon_profile_override:
-                    new_assignment.weapon_profile_override = (
-                        assignment.weapon_profile_override
+                # Copy over any weapon profiles and accessories
+                if assignment.weapon_profiles_field.exists():
+                    new_assignment.weapon_profiles_field.set(
+                        assignment.weapon_profiles_field.all()
                     )
-                    new_assignment.save()
+                if assignment.weapon_accessories_field.exists():
+                    new_assignment.weapon_accessories_field.set(
+                        assignment.weapon_accessories_field.all()
+                    )
+                if assignment.upgrades_field.exists():
+                    new_assignment.upgrades_field.set(assignment.upgrades_field.all())
 
             # Delete all equipment assignments from the dead fighter
             equipment_assignments.delete()
