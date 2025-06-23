@@ -2932,10 +2932,12 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     if step != "summary" and sell_assign:
         # Selling entire assignment (equipment + upgrades)
         base_cost = assignment.content_equipment.cost_int()
+        print(f"Base cost for {assignment.content_equipment.name}: {base_cost}")
         if assignment.upgrade:
-            base_cost += assignment.upgrade.cost
+            base_cost += assignment.upgrade.cost_int_cached
         for upgrade in assignment.upgrades_field.all():
-            base_cost += upgrade.cost
+            print(f"Adding upgrade cost: {upgrade.cost_int_cached} for {upgrade.name}")
+            base_cost += upgrade.cost_int_cached
 
         items_to_sell.append(
             {
@@ -2954,7 +2956,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
             items_to_sell.append(
                 {
                     "type": "profile",
-                    "name": profile.name,
+                    "name": f"- {profile.name}",
                     "base_cost": profile.cost,
                     "total_cost": profile.cost,  # No upgrades for profiles
                     "profile": profile,

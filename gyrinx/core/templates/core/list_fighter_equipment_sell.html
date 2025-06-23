@@ -180,6 +180,12 @@
                     <h3 class="h5 mb-0">Sale Results</h3>
                 </div>
             </div>
+            {% if sale_results.dice_rolls %}
+                <div class="alert alert-info hstack gap-3">
+                    <strong>Dice Rolls:</strong>
+                    {% for roll in sale_results.dice_rolls %}<i class="bi bi-dice-{{ roll }} fs-4"></i>{% endfor %}
+                </div>
+            {% endif %}
             <div class="table-responsive">
                 <table class="table">
                     <thead>
@@ -216,12 +222,6 @@
                     </tfoot>
                 </table>
             </div>
-            {% if sale_results.dice_rolls %}
-                <div class="hstack gap-3">
-                    <strong>Dice Rolls:</strong>
-                    {% for roll in sale_results.dice_rolls %}<i class="bi bi-dice-{{ roll }} fs-4"></i>{% endfor %}
-                </div>
-            {% endif %}
             <div class="alert alert-success">
                 <i class="bi bi-check-circle"></i>
                 {{ sale_results.total_credits }}¢ has been added to your gang's credits.
