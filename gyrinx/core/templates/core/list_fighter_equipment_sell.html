@@ -1,0 +1,234 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Sell Equipment - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url "core:list-fighter-gear-edit" list.id fighter.id as gear_edit_url %}
+    {% url "core:list-fighter-weapons-edit" list.id fighter.id as weapons_edit_url %}
+    <div class="col-12 col-md-8 col-lg-6 vstack gap-4">
+        {% if step == "selection" %}
+            <div class="vstack gap-3">
+                <div class="vstack gap-1">
+                    {% if assign.is_weapon %}
+                        {% include "core/includes/back.html" with url=weapons_edit_url text="Back to Weapons" %}
+                    {% else %}
+                        {% include "core/includes/back.html" with url=gear_edit_url text="Back to Gear" %}
+                    {% endif %}
+                    <div class="progress mb-1"
+                         role="progressbar"
+                         aria-label="Step 1 of 3"
+                         aria-valuenow="33"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                        {# djlint:off #}
+                        <div class="progress-bar" style="width: 33%">Step 1 of 3</div>
+                        {# djlint:on #}
+                    </div>
+                    <h2 class="mb-0">Sell Equipment</h2>
+                    <h3 class="h5 mb-0">Select Sale Price Method</h3>
+                </div>
+            </div>
+            <form method="post" class="vstack gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="selection">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Cost</th>
+                                <th>Sale Price Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item, form in forms %}
+                                <tr>
+                                    <td>
+                                        {{ item.name }}
+                                        {% if item.upgrades %}
+                                            <div class="text-muted small">
+                                                {% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.total_cost }}¢</td>
+                                    <td>
+                                        <div class="vstack gap-2">
+                                            {% for radio in form.price_method %}
+                                                <div class="form-check">
+                                                    {{ radio.tag }}
+                                                    <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                                </div>
+                                            {% endfor %}
+                                            <div class="manual-price-input">
+                                                {{ form.manual_price }}
+                                                {% if form.manual_price.help_text %}<div class="form-text">{{ form.manual_price.help_text }}</div>{% endif %}
+                                                {% if form.manual_price.errors %}
+                                                    <div class="invalid-feedback d-block">{{ form.manual_price.errors.0 }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="hstack gap-3">
+                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                       class="icon-link">
+                        <i class="bi-arrow-left"></i> Back
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        Continue <i class="bi-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        {% elif step == "confirm" %}
+            <div class="vstack gap-3">
+                <div class="vstack gap-1">
+                    {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
+                    <div class="progress mb-1"
+                         role="progressbar"
+                         aria-label="Step 2 of 3"
+                         aria-valuenow="66"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                        {# djlint:off #}
+                        <div class="progress-bar" style="width: 66%">Step 2 of 3</div>
+                        {# djlint:on #}
+                    </div>
+                    <h2 class="mb-0">Confirm Equipment Sale</h2>
+                    <h3 class="h5 mb-0">Sale Summary</h3>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Cost</th>
+                            <th>Sale Method</th>
+                            <th>Sale Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in sell_data %}
+                            <tr>
+                                <td>
+                                    {{ item.name }}
+                                    {% if item.upgrades %}
+                                        <div class="text-muted small">
+                                            {% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.base_cost }}¢</td>
+                                <td>
+                                    {% if item.price_method == "dice" %}
+                                        Cost minus D6×10
+                                    {% else %}
+                                        Manual: {{ item.manual_price }}¢
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.price_method == "dice" %}
+                                        <span class="text-muted">To be rolled...</span>
+                                    {% else %}
+                                        {{ item.manual_price }}¢
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="border rounded p-2 text-secondary">
+                <i class="bi bi-info-circle"></i>
+                Dice will be rolled automatically when you confirm the sale. Items sold with dice
+                will receive their base cost minus the dice roll × 10 credits (minimum 5¢).
+            </div>
+            <form method="post" class="vstack gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="confirm">
+                <div class="hstack gap-3">
+                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}{% querystring sell_assign=assign.id step=None %}"
+                       class="icon-link">
+                        <i class="bi-arrow-left"></i> Back
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi-check-lg"></i> Confirm Sale
+                    </button>
+                </div>
+            </form>
+        {% elif step == "summary" %}
+            <div class="vstack gap-3">
+                <div class="vstack gap-1">
+                    {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
+                    <div class="progress mb-1"
+                         role="progressbar"
+                         aria-label="Step 3 of 3"
+                         aria-valuenow="100"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                        {# djlint:off #}
+                        <div class="progress-bar" style="width: 100%">Step 3 of 3</div>
+                        {# djlint:on #}
+                    </div>
+                    <h2 class="mb-0">Sale Complete</h2>
+                    <h3 class="h5 mb-0">Sale Results</h3>
+                </div>
+            </div>
+            {% if sale_results.dice_rolls %}
+                <div class="alert alert-info hstack gap-3">
+                    <strong>Dice Rolls:</strong>
+                    {% for roll in sale_results.dice_rolls %}<i class="bi bi-dice-{{ roll }} fs-4"></i>{% endfor %}
+                </div>
+            {% endif %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Cost</th>
+                            <th>Dice Roll</th>
+                            <th>Sale Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detail in sale_results.sale_details %}
+                            <tr>
+                                <td>{{ detail.name }}</td>
+                                <td>{{ detail.total_cost }}¢</td>
+                                <td>
+                                    {% if detail.dice_roll %}
+                                        <i class="bi bi-dice-{{ detail.dice_roll }}"></i> {{ detail.dice_roll }}
+                                    {% else %}
+                                        Manual
+                                    {% endif %}
+                                </td>
+                                <td>{{ detail.sale_price }}¢</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="3">
+                                <strong>Total</strong>
+                            </th>
+                            <th>{{ sale_results.total_credits }}¢</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                {{ sale_results.total_credits }}¢ has been added to your gang's credits.
+            </div>
+            <div class="hstack gap-3">
+                {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

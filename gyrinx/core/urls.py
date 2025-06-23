@@ -89,6 +89,11 @@ urlpatterns = [
         ),
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/gear/<assign_id>/sell",
+        list.sell_list_fighter_equipment,
+        name="list-fighter-equipment-sell",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade/<upgrade_id>/delete",
         list.delete_list_fighter_gear_upgrade,
         name="list-fighter-gear-upgrade-delete",

@@ -609,3 +609,48 @@ class EquipmentReassignForm(forms.Form):
         self.fields["target_fighter"].label_from_instance = (
             lambda obj: obj.fully_qualified_name
         )
+
+
+class EquipmentSellSelectionForm(forms.Form):
+    """Form for selecting equipment sale options (manual price vs dice roll)."""
+
+    PRICE_CHOICES = [
+        ("dice", "Cost minus D6×10"),
+        ("manual", "Manual"),
+    ]
+
+    price_method = forms.ChoiceField(
+        choices=PRICE_CHOICES,
+        initial="dice",
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+        label="Sale Price",
+    )
+    manual_price = forms.IntegerField(
+        required=False,
+        min_value=5,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+        label="Manual Price",
+        help_text="Enter price in credits (minimum 5¢)",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        price_method = cleaned_data.get("price_method")
+        manual_price = cleaned_data.get("manual_price")
+
+        if price_method == "manual" and not manual_price:
+            raise forms.ValidationError(
+                "Manual price is required when manual pricing is selected."
+            )
+
+        return cleaned_data
+
+
+class EquipmentSellForm(forms.Form):
+    """Form for confirming equipment sale with calculated prices."""
+
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.HiddenInput(),
+        initial=True,
+    )
