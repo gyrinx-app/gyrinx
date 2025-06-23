@@ -1,5 +1,6 @@
 from django import template
 from django.forms import widgets
+from django_recaptcha.widgets import ReCaptchaBase
 
 register = template.Library()
 
@@ -42,3 +43,9 @@ def add_bootstrap_class(field):
 def is_checkbox(field):
     """Check if field is a checkbox."""
     return isinstance(field.field.widget, widgets.CheckboxInput)
+
+
+@register.filter
+def is_recaptcha(field):
+    # Check if field widget inherits from ReCaptchaBase
+    return isinstance(field.field.widget, ReCaptchaBase)
