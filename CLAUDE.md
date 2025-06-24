@@ -115,19 +115,16 @@ SQL_DEBUG=True
 ### Django Apps Structure
 
 - **`content`** - Game data models (fighters, equipment, weapons, skills, houses)
-
     - Contains official Necromunda rulebook content
     - Uses django-simple-history for change tracking
     - Complex relationships between game entities
 
 - **`core`** - User lists and gang management
-
     - List/ListFighter models for user-created gangs
     - Equipment assignment system with costs and modifications
     - Campaign functionality
 
 - **`pages`** - Static content and waiting list system
-
     - Flat pages with visibility controls
     - User registration waiting list
 
@@ -202,28 +199,24 @@ SQL_DEBUG=True
 The list view establishes the standard UI pattern for detail pages:
 
 1. **Header Structure**:
-
     - Title uses `<h2 class="mb-0">` (or h1 for main pages)
     - Metadata in a horizontal stack (`hstack`) with `text-secondary` styling
     - Cost/status badges aligned to the right using `ms-md-auto`
     - Status badges use contextual colors (e.g., `bg-success` for active states)
 
 2. **Metadata Row**:
-
     - Uses `d-flex flex-column flex-sm-row` for responsive stacking
     - Each metadata item in `<div class="text-secondary">` with icon + text
     - Links use `link-secondary link-underline-opacity-25 link-underline-opacity-100-hover`
     - Items separated by `column-gap-2`
 
 3. **Action Buttons**:
-
     - Positioned right with `ms-sm-auto`
     - Primary actions use `btn btn-primary btn-sm`
     - Secondary actions use `btn btn-secondary btn-sm`
     - More options in a dropdown with `btn-group` and three-dots icon
 
 4. **Information Callouts**:
-
     - Avoid `alert` classes
     - Use simple text with `text-secondary` or `text-muted`
     - For separated content, use `border rounded p-2` instead of alerts
@@ -334,7 +327,6 @@ The script will:
 The advancement system allows fighters to spend XP in campaign mode. Key implementation details:
 
 1. **Model Structure**: The `ListFighterAdvancement` model tracks advancements with fields for:
-
     - `advancement_type` - Either "stat" or "skill"
     - `stat_increased` - Which stat was improved (for stat advancements)
     - `skill` - Which skill was gained (for skill advancements)
@@ -342,14 +334,12 @@ The advancement system allows fighters to spend XP in campaign mode. Key impleme
     - `cost_increase` - How much the fighter's credit cost increased
 
 2. **Multi-Step Form Flow**: Uses a wizard-style flow with forms in `core/forms/advancement.py`:
-
     - Step 1: Choose dice rolling vs manual selection
     - Step 2: Select advancement type (stat/skill)
     - Step 3: Choose specific stat or skill
     - Step 4: Confirmation
 
 3. **Important Notes**:
-
     - Advancements only work in campaign mode (`List.CAMPAIGN_MODE`)
     - XP is tracked with `xp_current` (available) and `xp_total` (lifetime)
     - Stat improvements with "+" values (like WS 4+) improve by reducing the number
