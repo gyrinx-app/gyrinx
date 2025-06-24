@@ -280,3 +280,91 @@ def test_kill_fighter_confirmation_page(client, user, content_house):
     assert b"Kill Fighter: Doomed Fighter" in response.content
     assert b"Transfer all their equipment to the stash" in response.content
     assert b"Set their cost to 0 credits" in response.content
+
+
+@pytest.mark.django_db
+def test_kill_fighter_creates_campaign_action(client, user, content_house):
+    """Test that killing a fighter creates a campaign action."""
+    from gyrinx.core.models.campaign import Campaign, CampaignAction
+
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    # Create a campaign mode list associated with the campaign
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    # Create a stash fighter
+    stash_content = ContentFighter.objects.create(
+        house=content_house,
+        type="Stash",
+        category="STASH",
+        base_cost=0,
+        is_stash=True,
+    )
+    ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_content,
+        list=lst,
+        owner=user,
+    )
+
+    # Create a fighter to kill
+    content_fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=50,
+    )
+    fighter = ListFighter.objects.create(
+        name="Doomed Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create some equipment
+    equipment = ContentEquipment.objects.create(
+        name="Test Gun",
+        cost=25,
+    )
+
+    # Assign equipment to fighter
+    fighter.assign(
+        content_equipment=equipment,
+        from_default_assignment=False,
+    )
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+
+    # Check no campaign actions exist yet
+    assert CampaignAction.objects.count() == 0
+
+    # Kill the fighter
+    response = client.post(url)
+    assert response.status_code == 302
+
+    # Check fighter is marked as dead
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD
+    assert fighter.cost_override == 0
+
+    # Check campaign action was created
+    assert CampaignAction.objects.count() == 1
+    action = CampaignAction.objects.first()
+    assert action.campaign == campaign
+    assert action.list == lst
+    assert action.user == user
+    assert "Death: Doomed Fighter was killed" in action.description
+    assert "permanently dead" in action.outcome
+    assert "equipment transferred to stash" in action.outcome

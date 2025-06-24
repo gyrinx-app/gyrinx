@@ -1616,6 +1616,8 @@ def kill_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_kill.html`
     """
+    from gyrinx.core.models.campaign import CampaignAction
+
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
@@ -1669,6 +1671,17 @@ def kill_list_fighter(request, id, fighter_id):
         fighter.injury_state = ListFighter.DEAD
         fighter.cost_override = 0
         fighter.save()
+
+        # Log the kill in campaign action if this list is part of a campaign
+        if lst.campaign:
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=f"Death: {fighter.name} was killed",
+                outcome=f"{fighter.name} is permanently dead. All equipment transferred to stash.",
+            )
 
         messages.success(
             request,
@@ -1840,6 +1853,13 @@ def list_fighter_state_edit(request, id, fighter_id):
 
             # Only update if state actually changed
             if fighter.injury_state != new_state:
+                # If changing to dead state, redirect to kill confirmation instead
+                if new_state == ListFighter.DEAD:
+                    # Don't save the state change here - let the kill view handle it
+                    return HttpResponseRedirect(
+                        reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                    )
+
                 fighter.injury_state = new_state
                 fighter.save()
 
