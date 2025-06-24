@@ -2058,6 +2058,22 @@ class VirtualListFighterEquipmentAssignment:
     def active_upgrade_cached(self):
         return self.active_upgrade()
 
+    @cached_property
+    def active_upgrade_cost_int(self):
+        """
+        Return the cumulative cost for the active upgrade, respecting fighter-specific overrides.
+        """
+        if not self.active_upgrade_cached:
+            return 0
+        return self._calculate_cumulative_upgrade_cost(self.active_upgrade_cached)
+
+    @cached_property
+    def active_upgrade_cost_display(self):
+        """
+        Return the formatted cost display for the active upgrade.
+        """
+        return format_cost_display(self.active_upgrade_cost_int, show_sign=True)
+
     def active_upgrades(self):
         """
         Return the active upgrades for this equipment assignment.
