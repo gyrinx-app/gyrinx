@@ -247,6 +247,7 @@ class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(self, "upgrade", key=lambda x: x.equipment.name)
 
 
 @admin.register(ContentFighterEquipmentListUpgrade)

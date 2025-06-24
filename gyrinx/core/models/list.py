@@ -1548,6 +1548,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def upgrade_cost_int_cached(self):
         return self.upgrade_cost_int()
 
+    def upgrade_cost_display(self, upgrade: ContentEquipmentUpgrade):
+        return format_cost_display(
+            self._upgrade_cost_with_override(upgrade), show_sign=True
+        )
+
     @cached_property
     def _content_fighter(self):
         return self.list_fighter.content_fighter
