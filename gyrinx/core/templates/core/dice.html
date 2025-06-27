@@ -19,7 +19,7 @@
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 h1">
             {% for group in groups %}
                 <div class="col vstack gap-2 py-3">
-                    <div class="d-flex justify-content-start btn-group">
+                    <div class="btn-group">
                         {% if group.dice_n > 1 %}
                             <a rel="nofollow"
                                class="btn btn-outline-secondary"
@@ -48,8 +48,8 @@
                             </a>
                         {% endif %}
                     </div>
-                    <div class="d-flex align-items-start gap-2">
-                        <div class="d-flex gap-2 flex-wrap">
+                    <div class="hstack gap-2 align-items-start">
+                        <div class="hstack gap-2 flex-wrap">
                             {% for i in group.dice %}<i class="bi-dice-{{ i }}" aria-label="Dice showing {{ i }}"></i>{% endfor %}
                         </div>
                     </div>

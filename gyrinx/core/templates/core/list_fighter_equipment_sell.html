@@ -15,7 +15,7 @@
                     {% else %}
                         {% include "core/includes/back.html" with url=gear_edit_url text="Back to Gear" %}
                     {% endif %}
-                    <div class="progress mb-1"
+                    <div class="progress"
                          role="progressbar"
                          aria-label="Step 1 of 3"
                          aria-valuenow="33"
@@ -25,8 +25,8 @@
                         <div class="progress-bar" style="width: 33%">Step 1 of 3</div>
                         {# djlint:on #}
                     </div>
-                    <h2 class="mb-0">Sell Equipment</h2>
-                    <h3 class="h5 mb-0">Select Sale Price Method</h3>
+                    <h2>Sell Equipment</h2>
+                    <h3 class="h5">Select Sale Price Method</h3>
                 </div>
             </div>
             <form method="post" class="vstack gap-3">
@@ -89,7 +89,7 @@
             <div class="vstack gap-3">
                 <div class="vstack gap-1">
                     {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
-                    <div class="progress mb-1"
+                    <div class="progress"
                          role="progressbar"
                          aria-label="Step 2 of 3"
                          aria-valuenow="66"
@@ -99,8 +99,8 @@
                         <div class="progress-bar" style="width: 66%">Step 2 of 3</div>
                         {# djlint:on #}
                     </div>
-                    <h2 class="mb-0">Confirm Equipment Sale</h2>
-                    <h3 class="h5 mb-0">Sale Summary</h3>
+                    <h2>Confirm Equipment Sale</h2>
+                    <h3 class="h5">Sale Summary</h3>
                 </div>
             </div>
             <div class="table-responsive">
@@ -166,7 +166,7 @@
             <div class="vstack gap-3">
                 <div class="vstack gap-1">
                     {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
-                    <div class="progress mb-1"
+                    <div class="progress"
                          role="progressbar"
                          aria-label="Step 3 of 3"
                          aria-valuenow="100"
@@ -176,12 +176,12 @@
                         <div class="progress-bar" style="width: 100%">Step 3 of 3</div>
                         {# djlint:on #}
                     </div>
-                    <h2 class="mb-0">Sale Complete</h2>
-                    <h3 class="h5 mb-0">Sale Results</h3>
+                    <h2>Sale Complete</h2>
+                    <h3 class="h5">Sale Results</h3>
                 </div>
             </div>
             {% if sale_results.dice_rolls %}
-                <div class="alert alert-info hstack gap-3">
+                <div class="border rounded p-2 hstack gap-3">
                     <strong>Dice Rolls:</strong>
                     {% for roll in sale_results.dice_rolls %}<i class="bi bi-dice-{{ roll }} fs-4"></i>{% endfor %}
                 </div>
@@ -222,7 +222,7 @@
                     </tfoot>
                 </table>
             </div>
-            <div class="alert alert-success">
+            <div class="border border-success rounded p-2 text-success">
                 <i class="bi bi-check-circle"></i>
                 {{ sale_results.total_credits }}¢ has been added to your gang's credits.
             </div>

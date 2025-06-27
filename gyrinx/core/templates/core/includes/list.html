@@ -1,9 +1,8 @@
 {% load allauth custom_tags color_tags %}
 <div>
     {% if list.archived %}
-        <div class="alert alert-secondary d-flex align-items-center mb-3"
-             role="alert">
-            <i class="bi-archive me-2"></i>
+        <div class="border rounded p-2 mb-3 hstack gap-2 align-items-center text-secondary">
+            <i class="bi-archive"></i>
             <strong>This gang has been archived by its owner.</strong>
             {% if list.owner_cached == user %}
                 <a href="{% url 'core:list-archive' list.id %}"
@@ -19,7 +18,7 @@
                     {{ list.content_house.name }}
                     {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}
                 </div>
-                <div class="h5 mb-0">
+                <div class="h5">
                     <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
                 </div>
             </div>
@@ -198,7 +197,7 @@
                 </p>
                 {% for fighter in list.fighters_cached %}
                     <li class="list-group-item vstack gap-2">
-                        <h3 class="h6 mb-0">{{ fighter.name }}</h3>
+                        <h3 class="h6">{{ fighter.name }}</h3>
                         {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}
                         {% fullurl embed_url as full_embed_url %}
                         <div>
