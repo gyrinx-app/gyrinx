@@ -339,10 +339,7 @@ def test_kill_fighter_creates_campaign_action(client, user, content_house):
     )
 
     # Assign equipment to fighter
-    fighter.assign(
-        content_equipment=equipment,
-        from_default_assignment=False,
-    )
+    fighter.assign(equipment)
 
     client.force_login(user)
     url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])

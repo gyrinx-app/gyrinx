@@ -1974,6 +1974,13 @@ def list_fighter_add_injury(request, id, fighter_id):
             messages.success(
                 request, f"Added injury '{injury.injury.name}' to {fighter.name}"
             )
+
+            # If fighter state is dead, redirect to kill confirmation
+            if form.cleaned_data["fighter_state"] == ListFighter.DEAD:
+                return HttpResponseRedirect(
+                    reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                )
+
             return HttpResponseRedirect(
                 reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )

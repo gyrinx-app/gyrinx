@@ -411,3 +411,44 @@ def test_remove_injury_wrong_user():
 
     # Injury should still exist
     assert ListFighterInjury.objects.filter(id=fighter_injury.id).exists()
+
+
+@pytest.mark.django_db
+def test_add_injury_with_dead_state_redirects_to_kill():
+    """Test that adding injury with dead state redirects to kill confirmation."""
+    client = Client()
+    user, campaign, lst, fighter, injuries = create_test_data(client)
+
+    url = reverse("core:list-fighter-injury-add", args=[lst.id, fighter.id])
+    injury = injuries[0]  # Eye Injury
+
+    # Add injury with dead state
+    response = client.post(
+        url,
+        {
+            "injury": injury.id,
+            "fighter_state": ListFighter.DEAD,
+            "notes": "Mortal wound",
+        },
+    )
+
+    # Should redirect to kill confirmation
+    assert response.status_code == 302
+    assert response.url == reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+
+    # Check injury was created
+    assert fighter.injuries.count() == 1
+    fighter_injury = fighter.injuries.first()
+    assert fighter_injury.injury == injury
+    assert fighter_injury.notes == "Mortal wound"
+
+    # Check fighter state was updated to dead
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD
+
+    # Check campaign action was logged
+    action = CampaignAction.objects.last()
+    assert action.campaign == campaign
+    assert f"{fighter.name} suffered {injury.name}" in action.description
+    assert "Mortal wound" in action.description
+    assert "was put into Dead" in action.outcome
