@@ -94,7 +94,7 @@ def test_rename_fighter(client, user, make_list, make_list_fighter):
     # Verify the rename
     fighter.refresh_from_db()
     assert fighter.name == "New Fighter Name"
-    
+
     # Update narrative separately
     response = client.post(
         reverse("core:list-fighter-narrative-edit", args=[lst.id, fighter.id]),
@@ -103,7 +103,7 @@ def test_rename_fighter(client, user, make_list, make_list_fighter):
         },
     )
     assert response.status_code == 302
-    
+
     fighter.refresh_from_db()
     assert fighter.narrative == "A tough fighter with a new identity"
 
@@ -121,7 +121,7 @@ def test_add_skills_to_fighter(
     # Get or create skill categories
     ferocity_category, _ = ContentSkillCategory.objects.get_or_create(name="Ferocity")
     cool_category, _ = ContentSkillCategory.objects.get_or_create(name="Cool")
-    
+
     # Get or create skills
     skill1, _ = ContentSkill.objects.get_or_create(
         name="Berserker",
@@ -143,7 +143,9 @@ def test_add_skills_to_fighter(
     client.force_login(user)
 
     # Navigate to fighter skills page
-    response = client.get(reverse("core:list-fighter-skills-edit", args=[lst.id, fighter.id]))
+    response = client.get(
+        reverse("core:list-fighter-skills-edit", args=[lst.id, fighter.id])
+    )
     assert response.status_code == 200
 
     # Add skills
@@ -176,7 +178,7 @@ def test_add_weapon_with_ammo(client, user, make_list, make_list_fighter):
     # Get or create equipment categories
     pistols_category, _ = ContentEquipmentCategory.objects.get_or_create(name="Pistols")
     ammo_category, _ = ContentEquipmentCategory.objects.get_or_create(name="Ammunition")
-    
+
     # Get or create weapon and ammo
     weapon, _ = ContentEquipment.objects.get_or_create(
         name="Bolt Pistol",
@@ -193,7 +195,7 @@ def test_add_weapon_with_ammo(client, user, make_list, make_list_fighter):
             "armour_piercing": "-1",
             "damage": "2",
             "ammo": "6+",
-        }
+        },
     )
 
     ammo, _ = ContentEquipment.objects.get_or_create(
@@ -202,27 +204,45 @@ def test_add_weapon_with_ammo(client, user, make_list, make_list_fighter):
         defaults={"cost": 5},
     )
 
+    # Add weapon to the fighter's equipment list
+    from gyrinx.content.models import ContentFighterEquipmentListItem
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=weapon,
+    )
+
     client.force_login(user)
 
     # Test from equipment list view (weapons)
-    response = client.get(reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]))
+    response = client.get(
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+    )
     assert response.status_code == 200
-    
+    # Check that the weapon we created is displayed
+    assert "Bolt Pistol" in response.content.decode()
+
     # Add weapon - submit form with equipment selection
     response = client.post(
         reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]),
         {
-            "equipment": weapon.id,
+            "content_equipment": weapon.id,
+            "weapon_profiles_field": [],  # No specific profiles selected
+            "upgrades_field": [],  # No upgrades selected
         },
     )
     assert response.status_code == 302
 
     # Add ammo to gear
-    response = client.get(reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id]))
+    response = client.get(
+        reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
+    )
     response = client.post(
         reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id]),
         {
-            "equipment": ammo.id,
+            "content_equipment": ammo.id,
+            "weapon_profiles_field": [],  # No specific profiles for gear
+            "upgrades_field": [],  # No upgrades selected
         },
     )
     assert response.status_code == 302
@@ -235,7 +255,8 @@ def test_add_weapon_with_ammo(client, user, make_list, make_list_fighter):
 
     # Test from unfiltered view
     response = client.get(
-        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?category=all"
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+        + "?category=all"
     )
     assert response.status_code == 200
 
@@ -251,51 +272,110 @@ def test_filter_weapons_by_category_and_availability(
     # Get or create equipment categories
     pistols_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Pistols")
     basic_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Basic Weapons")
-    special_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Special Weapons")
-    
+    special_cat, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Special Weapons"
+    )
+
     # Get or create equipment in different categories
-    ContentEquipment.objects.get_or_create(
+    laspistol, _ = ContentEquipment.objects.get_or_create(
         name="Laspistol",
         category=pistols_cat,
         defaults={"cost": 10},
     )
 
-    ContentEquipment.objects.get_or_create(
+    lasgun, _ = ContentEquipment.objects.get_or_create(
         name="Lasgun",
         category=basic_cat,
         defaults={"cost": 15},
     )
 
-    ContentEquipment.objects.get_or_create(
+    plasma_gun, _ = ContentEquipment.objects.get_or_create(
         name="Plasma Gun",
         category=special_cat,
         defaults={"cost": 100, "rarity": "R"},  # R for Rare
     )
 
+    # Create weapon profiles (required for equipment to be considered weapons)
+    from gyrinx.content.models import ContentWeaponProfile
+
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=laspistol,
+        name="Laspistol",
+        defaults={
+            "range_short": '8"',
+            "range_long": '16"',
+            "strength": "3",
+            "armour_piercing": "0",
+            "damage": "1",
+            "ammo": "2+",
+        },
+    )
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=lasgun,
+        name="Lasgun",
+        defaults={
+            "range_short": '18"',
+            "range_long": '24"',
+            "strength": "3",
+            "armour_piercing": "0",
+            "damage": "1",
+            "ammo": "2+",
+        },
+    )
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=plasma_gun,
+        name="Plasma Gun",
+        defaults={
+            "range_short": '12"',
+            "range_long": '24"',
+            "strength": "5",
+            "armour_piercing": "-1",
+            "damage": "2",
+            "ammo": "5+",
+        },
+    )
+
+    # Add weapons to the fighter's equipment list
+    from gyrinx.content.models import ContentFighterEquipmentListItem
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=laspistol,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=lasgun,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=plasma_gun,
+    )
+
     client.force_login(user)
 
-    # Test category filter
+    # Test category filter - need to use cat parameter with category ID
     response = client.get(
-        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?category=Pistols"
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+        + f"?cat={pistols_cat.id}"
     )
     assert response.status_code == 200
     assert "Laspistol" in response.content.decode()
     assert "Lasgun" not in response.content.decode()
     assert "Plasma Gun" not in response.content.decode()
 
-    # Test availability filter (common items only)
+    # Test availability filter (common items only) - use al parameter
     response = client.get(
-        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?availability=common"
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?al=C"
     )
     assert response.status_code == 200
     assert "Laspistol" in response.content.decode()
     assert "Lasgun" in response.content.decode()
     assert "Plasma Gun" not in response.content.decode()
 
-    # Test combined filters
+    # Test combined filters - use correct parameter names
     response = client.get(
         reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
-        + "?category=Special+Weapons&availability=rare"
+        + f"?cat={special_cat.id}&al=R"
     )
     assert response.status_code == 200
     assert "Plasma Gun" in response.content.decode()
@@ -311,28 +391,89 @@ def test_search_weapons_by_name(client, user, make_list, make_list_fighter):
     # Get or create equipment categories
     pistols_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Pistols")
     basic_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Basic Weapons")
-    
+
     # Get or create equipment
-    ContentEquipment.objects.get_or_create(name="Bolt Pistol", category=pistols_cat, defaults={"cost": 25})
-    ContentEquipment.objects.get_or_create(
+    bolt_pistol, _ = ContentEquipment.objects.get_or_create(
+        name="Bolt Pistol", category=pistols_cat, defaults={"cost": 25}
+    )
+    bolt_rifle, _ = ContentEquipment.objects.get_or_create(
         name="Bolt Rifle", category=basic_cat, defaults={"cost": 35}
     )
-    ContentEquipment.objects.get_or_create(name="Plasma Pistol", category=pistols_cat, defaults={"cost": 50})
+    plasma_pistol, _ = ContentEquipment.objects.get_or_create(
+        name="Plasma Pistol", category=pistols_cat, defaults={"cost": 50}
+    )
+
+    # Create weapon profiles (required for equipment to be considered weapons)
+    from gyrinx.content.models import ContentWeaponProfile
+
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=bolt_pistol,
+        name="Bolt Pistol",
+        defaults={
+            "range_short": '6"',
+            "range_long": '12"',
+            "strength": "4",
+            "armour_piercing": "-1",
+            "damage": "2",
+            "ammo": "6+",
+        },
+    )
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=bolt_rifle,
+        name="Bolt Rifle",
+        defaults={
+            "range_short": '24"',
+            "range_long": '48"',
+            "strength": "4",
+            "armour_piercing": "-1",
+            "damage": "1",
+            "ammo": "4+",
+        },
+    )
+    ContentWeaponProfile.objects.get_or_create(
+        equipment=plasma_pistol,
+        name="Plasma Pistol",
+        defaults={
+            "range_short": '6"',
+            "range_long": '12"',
+            "strength": "5",
+            "armour_piercing": "-1",
+            "damage": "2",
+            "ammo": "5+",
+        },
+    )
+
+    # Add weapons to the fighter's equipment list
+    from gyrinx.content.models import ContentFighterEquipmentListItem
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=bolt_pistol,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=bolt_rifle,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter.content_fighter_cached,
+        equipment=plasma_pistol,
+    )
 
     client.force_login(user)
 
-    # Search for "bolt"
+    # Search for "bolt" - use q parameter
     response = client.get(
-        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?search=bolt"
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?q=bolt"
     )
     assert response.status_code == 200
     assert "Bolt Pistol" in response.content.decode()
     assert "Bolt Rifle" in response.content.decode()
     assert "Plasma Pistol" not in response.content.decode()
 
-    # Search for "pistol"
+    # Search for "pistol" - use q parameter
     response = client.get(
-        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id]) + "?search=pistol"
+        reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+        + "?q=pistol"
     )
     assert response.status_code == 200
     assert "Bolt Pistol" in response.content.decode()
@@ -345,7 +486,7 @@ def test_remove_weapon(client, user, make_list, make_list_fighter, make_equipmen
     """Test removing a weapon from a fighter."""
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Fighter")
-    
+
     # Get or create equipment category
     basic_cat, _ = ContentEquipmentCategory.objects.get_or_create(name="Basic Weapons")
     weapon, _ = ContentEquipment.objects.get_or_create(
@@ -364,7 +505,9 @@ def test_remove_weapon(client, user, make_list, make_list_fighter, make_equipmen
 
     # Remove weapon
     response = client.post(
-        reverse("core:list-fighter-weapon-delete", args=[lst.id, fighter.id, assignment.id])
+        reverse(
+            "core:list-fighter-weapon-delete", args=[lst.id, fighter.id, assignment.id]
+        )
     )
     assert response.status_code == 302
 
@@ -450,6 +593,11 @@ def test_rename_list_and_change_properties(client, user, make_list):
     # Check changes appear on list page
     response = client.get(reverse("core:list", args=[lst.id]))
     assert "Renamed Gang" in response.content.decode()
+    # The narrative is not displayed on the list page, only a link to the About page
+    assert "About" in response.content.decode()  # Link to About page should be present
+
+    # Check narrative appears on the About page
+    response = client.get(reverse("core:list-about", args=[lst.id]))
     assert "This gang has been completely rebranded!" in response.content.decode()
 
 
