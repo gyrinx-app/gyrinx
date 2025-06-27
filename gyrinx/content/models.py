@@ -885,6 +885,9 @@ class ContentFighter(Content):
         equipment_list_weapon_accessories = (
             ContentFighterEquipmentListWeaponAccessory.objects.filter(fighter=self)
         )
+        equipment_list_upgrades = ContentFighterEquipmentListUpgrade.objects.filter(
+            fighter=self
+        )
         default_assignments = ContentFighterDefaultAssignment.objects.filter(
             fighter=self
         )
@@ -909,6 +912,11 @@ class ContentFighter(Content):
             accessory.pk = None
             accessory.fighter_id = fighter_id
             accessory.save()
+
+        for upgrade in equipment_list_upgrades:
+            upgrade.pk = None
+            upgrade.fighter_id = fighter_id
+            upgrade.save()
 
         for assignment in default_assignments:
             weapon_profiles = assignment.weapon_profiles_field.all()
@@ -1037,6 +1045,51 @@ class ContentFighterEquipmentListWeaponAccessory(Content):
         verbose_name_plural = "Equipment List Weapon Accessories"
         unique_together = ["fighter", "weapon_accessory"]
         ordering = ["fighter__type", "weapon_accessory__name"]
+
+    def clean(self):
+        """
+        Validation to ensure cost is not negative.
+        """
+        if self.cost_int() < 0:
+            raise ValidationError("Cost cannot be negative.")
+
+
+class ContentFighterEquipmentListUpgrade(Content):
+    """
+    Associates ContentEquipmentUpgrade with a given fighter in the rulebook,
+    specifying a cost override.
+    """
+
+    help_text = (
+        "Captures the equipment upgrades available to a fighter with cost overrides."
+    )
+    fighter = models.ForeignKey(ContentFighter, on_delete=models.CASCADE, db_index=True)
+    upgrade = models.ForeignKey(
+        "ContentEquipmentUpgrade", on_delete=models.CASCADE, db_index=True
+    )
+    cost = models.IntegerField(default=0)
+    history = HistoricalRecords()
+
+    def cost_int(self):
+        """
+        Returns the integer cost of this item.
+        """
+        return self.cost
+
+    def cost_display(self):
+        """
+        Returns a cost display string with '¢'.
+        """
+        return f"{self.cost}¢"
+
+    def __str__(self):
+        return f"{self.fighter.type} {self.upgrade} ({self.cost})"
+
+    class Meta:
+        verbose_name = "Equipment List Upgrade"
+        verbose_name_plural = "Equipment List Upgrades"
+        unique_together = ["fighter", "upgrade"]
+        ordering = ["fighter__type", "upgrade__equipment__name", "upgrade__name"]
 
     def clean(self):
         """
@@ -1497,6 +1550,38 @@ class ContentWeaponAccessory(Content):
     )()
 
 
+class ContentEquipmentUpgradeQuerySet(models.QuerySet):
+    """
+    Custom QuerySet for ContentEquipmentUpgrade. Provides fighter-specific cost overrides.
+    """
+
+    def with_cost_for_fighter(
+        self, content_fighter: "ContentFighter"
+    ) -> "ContentEquipmentUpgradeQuerySet":
+        """
+        Annotates the queryset with cost overrides for a given fighter, if present.
+        """
+        overrides = ContentFighterEquipmentListUpgrade.objects.filter(
+            fighter=content_fighter,
+            upgrade=OuterRef("pk"),
+        )
+        return self.annotate(
+            cost_override=Subquery(
+                overrides.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            cost_for_fighter=Coalesce("cost_override", "cost"),
+        )
+
+
+class ContentEquipmentUpgradeManager(models.Manager):
+    """
+    Custom manager for ContentEquipmentUpgrade model.
+    """
+
+    pass
+
+
 class ContentEquipmentUpgrade(Content):
     """
     Represents an upgrade that can be associated with a piece of equipment.
@@ -1558,6 +1643,10 @@ class ContentEquipmentUpgrade(Content):
 
     def __str__(self):
         return f"{self.equipment.upgrade_stack_name or 'Upgrade'} – {self.name}"
+
+    objects = ContentEquipmentUpgradeManager.from_queryset(
+        ContentEquipmentUpgradeQuerySet
+    )()
 
 
 class ContentFighterDefaultAssignment(Content):

@@ -1,6 +1,11 @@
 from django import forms
 
-from gyrinx.content.models import ContentFighter, ContentHouse, ContentWeaponAccessory
+from gyrinx.content.models import (
+    ContentEquipmentUpgrade,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponAccessory,
+)
 from gyrinx.core.forms import BsCheckboxSelectMultiple
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
@@ -382,7 +387,14 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
         )
         self.fields[
             "upgrades_field"
-        ].queryset = self.instance.content_equipment.upgrades.all()
+        ].queryset = ContentEquipmentUpgrade.objects.with_cost_for_fighter(
+            self.instance.list_fighter.equipment_list_fighter
+        ).filter(
+            equipment=self.instance.content_equipment,
+        )
+        self.fields["upgrades_field"].label_from_instance = (
+            lambda obj: f"{obj.name} ({self.instance.upgrade_cost_display(obj)})"
+        )
 
     class Meta:
         model = ListFighterEquipmentAssignment

@@ -140,7 +140,7 @@
                                     <br>
                                     <i class="bi-dash"></i> <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}: {{ assign.active_upgrade_cached.name }}
                                     {% if not assign.has_total_cost_override %}
-                                        {% if assign.active_upgrade_cached.cost_int_cached != 0 %}({{ assign.active_upgrade_cached.cost_display }}){% endif %}
+                                        {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}
                                     {% endif %}
                                 {% endif %}
                             </td>

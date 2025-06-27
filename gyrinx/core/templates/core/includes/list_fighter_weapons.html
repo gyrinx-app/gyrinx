@@ -163,7 +163,7 @@
                         {{ assign.equipment.upgrade_stack_name }}:
                         {{ assign.active_upgrade_cached.name }}
                         {% if not assign.has_total_cost_override %}
-                            {% if assign.active_upgrade_cached.cost_int_cached != 0 %}({{ assign.active_upgrade_cached.cost_display }}){% endif %}
+                            {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}
                         {% endif %}
                         {% if mode == 'edit' and assign.kind == 'assigned' %}
                             <a href="{% url 'core:list-fighter-gear-upgrade-delete' list.id fighter.id assign.id assign.active_upgrade_cached.id %}"
