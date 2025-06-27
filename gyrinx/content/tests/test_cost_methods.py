@@ -1,9 +1,10 @@
 """
 Comprehensive tests for cost calculation methods across content models.
 
-This test file ensures all cost-related methods (cost_int, cost_display, 
+This test file ensures all cost-related methods (cost_int, cost_display,
 cost_for_fighter_int) work correctly before implementing the CostMixin.
 """
+
 import pytest
 
 from gyrinx.content.models import (
@@ -32,9 +33,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="100"
+            name="Test Equipment", category=category, cost="100"
         )
         assert equipment.cost_int() == 100
 
@@ -44,9 +43,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost=""
+            name="Test Equipment", category=category, cost=""
         )
         assert equipment.cost_int() == 0
 
@@ -56,9 +53,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="2D6X10"
+            name="Test Equipment", category=category, cost="2D6X10"
         )
         assert equipment.cost_int() == 0
 
@@ -68,9 +63,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="50"
+            name="Test Equipment", category=category, cost="50"
         )
         assert equipment.cost_display() == "50¢"
 
@@ -80,9 +73,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="2D6X10"
+            name="Test Equipment", category=category, cost="2D6X10"
         )
         assert equipment.cost_display() == "2D6X10"
 
@@ -92,9 +83,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost=""
+            name="Test Equipment", category=category, cost=""
         )
         assert equipment.cost_display() == ""
 
@@ -104,9 +93,7 @@ class TestContentEquipmentCostMethods:
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="100"
+            name="Test Equipment", category=category, cost="100"
         )
         with pytest.raises(AttributeError, match="cost_for_fighter not available"):
             equipment.cost_for_fighter_int()
@@ -118,26 +105,24 @@ class TestContentEquipmentCostMethods:
             type="Test Fighter",
             category=FighterCategoryChoices.GANGER,
             house=house,
-            base_cost=50
+            base_cost=50,
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category,
-            cost="100"
+            name="Test Equipment", category=category, cost="100"
         )
-        
+
         # Create override
         ContentFighterEquipmentListItem.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            cost=75
+            fighter=fighter, equipment=equipment, cost=75
         )
-        
+
         # Get equipment with annotation
-        equipment_with_cost = ContentEquipment.objects.with_cost_for_fighter(fighter).get(pk=equipment.pk)
+        equipment_with_cost = ContentEquipment.objects.with_cost_for_fighter(
+            fighter
+        ).get(pk=equipment.pk)
         assert equipment_with_cost.cost_for_fighter_int() == 75
 
 
@@ -151,13 +136,10 @@ class TestContentWeaponProfileCostMethods:
             name="Test Category", group="Weapons & Ammo"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Weapon",
-            category=category
+            name="Test Weapon", category=category
         )
         profile = ContentWeaponProfile.objects.create(
-            equipment=equipment,
-            name="Long Range",
-            cost=25
+            equipment=equipment, name="Long Range", cost=25
         )
         assert profile.cost_int() == 25
 
@@ -167,13 +149,12 @@ class TestContentWeaponProfileCostMethods:
             name="Test Category", group="Weapons & Ammo"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Weapon",
-            category=category
+            name="Test Weapon", category=category
         )
         profile = ContentWeaponProfile.objects.create(
             equipment=equipment,
             name="",  # Standard profile
-            cost=0
+            cost=0,
         )
         assert profile.cost_display() == ""
 
@@ -183,13 +164,10 @@ class TestContentWeaponProfileCostMethods:
             name="Test Category", group="Weapons & Ammo"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Weapon",
-            category=category
+            name="Test Weapon", category=category
         )
         profile = ContentWeaponProfile.objects.create(
-            equipment=equipment,
-            name="Long Range",
-            cost=25
+            equipment=equipment, name="Long Range", cost=25
         )
         assert profile.cost_display() == "+25¢"
 
@@ -199,13 +177,10 @@ class TestContentWeaponProfileCostMethods:
             name="Test Category", group="Weapons & Ammo"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Weapon",
-            category=category
+            name="Test Weapon", category=category
         )
         profile = ContentWeaponProfile.objects.create(
-            equipment=equipment,
-            name="Special",
-            cost=0
+            equipment=equipment, name="Special", cost=0
         )
         assert profile.cost_display() == ""
 
@@ -216,59 +191,48 @@ class TestContentWeaponProfileCostMethods:
             type="Test Fighter",
             category=FighterCategoryChoices.GANGER,
             house=house,
-            base_cost=50
+            base_cost=50,
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Weapons & Ammo"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Weapon",
-            category=category
+            name="Test Weapon", category=category
         )
         profile = ContentWeaponProfile.objects.create(
-            equipment=equipment,
-            name="Long Range",
-            cost=25
+            equipment=equipment, name="Long Range", cost=25
         )
-        
+
         # Create override
         ContentFighterEquipmentListItem.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            weapon_profile=profile,
-            cost=20
+            fighter=fighter, equipment=equipment, weapon_profile=profile, cost=20
         )
-        
+
         # Get profile with annotation
-        profile_with_cost = ContentWeaponProfile.objects.with_cost_for_fighter(fighter).get(pk=profile.pk)
+        profile_with_cost = ContentWeaponProfile.objects.with_cost_for_fighter(
+            fighter
+        ).get(pk=profile.pk)
         assert profile_with_cost.cost_for_fighter_int() == 20
 
 
-@pytest.mark.django_db 
+@pytest.mark.django_db
 class TestContentWeaponAccessoryCostMethods:
     """Test cost methods on ContentWeaponAccessory model."""
 
     def test_cost_int(self):
         """Test cost_int returns the integer cost."""
-        accessory = ContentWeaponAccessory.objects.create(
-            name="Test Scope",
-            cost=15
-        )
+        accessory = ContentWeaponAccessory.objects.create(name="Test Scope", cost=15)
         assert accessory.cost_int() == 15
 
     def test_cost_display(self):
         """Test cost_display formats cost with currency symbol."""
-        accessory = ContentWeaponAccessory.objects.create(
-            name="Test Scope",
-            cost=15
-        )
+        accessory = ContentWeaponAccessory.objects.create(name="Test Scope", cost=15)
         assert accessory.cost_display() == "15¢"
 
     def test_cost_display_negative(self):
         """Test cost_display with negative cost."""
         accessory = ContentWeaponAccessory.objects.create(
-            name="Discount Scope",
-            cost=-5
+            name="Discount Scope", cost=-5
         )
         assert accessory.cost_display() == "-5¢"
 
@@ -279,22 +243,19 @@ class TestContentWeaponAccessoryCostMethods:
             type="Test Fighter",
             category=FighterCategoryChoices.GANGER,
             house=house,
-            base_cost=50
+            base_cost=50,
         )
-        accessory = ContentWeaponAccessory.objects.create(
-            name="Test Scope",
-            cost=15
-        )
-        
+        accessory = ContentWeaponAccessory.objects.create(name="Test Scope", cost=15)
+
         # Create override
         ContentFighterEquipmentListWeaponAccessory.objects.create(
-            fighter=fighter,
-            weapon_accessory=accessory,
-            cost=10
+            fighter=fighter, weapon_accessory=accessory, cost=10
         )
-        
+
         # Get accessory with annotation
-        accessory_with_cost = ContentWeaponAccessory.objects.with_cost_for_fighter(fighter).get(pk=accessory.pk)
+        accessory_with_cost = ContentWeaponAccessory.objects.with_cost_for_fighter(
+            fighter
+        ).get(pk=accessory.pk)
         assert accessory_with_cost.cost_for_fighter_int() == 10
 
 
@@ -310,29 +271,20 @@ class TestContentEquipmentUpgradeCostMethods:
         equipment = ContentEquipment.objects.create(
             name="Cyberteknika",
             category=category,
-            upgrade_mode=ContentEquipment.UpgradeMode.SINGLE
+            upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         )
-        
+
         # Create upgrades with cumulative costs
         upgrade1 = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Basic",
-            position=1,
-            cost=10
+            equipment=equipment, name="Basic", position=1, cost=10
         )
         upgrade2 = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Advanced",
-            position=2,
-            cost=15
+            equipment=equipment, name="Advanced", position=2, cost=15
         )
         upgrade3 = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Master",
-            position=3,
-            cost=20
+            equipment=equipment, name="Master", position=3, cost=20
         )
-        
+
         assert upgrade1.cost_int() == 10  # Just upgrade1
         assert upgrade2.cost_int() == 25  # upgrade1 + upgrade2
         assert upgrade3.cost_int() == 45  # upgrade1 + upgrade2 + upgrade3
@@ -345,16 +297,13 @@ class TestContentEquipmentUpgradeCostMethods:
         equipment = ContentEquipment.objects.create(
             name="Gene-smithing",
             category=category,
-            upgrade_mode=ContentEquipment.UpgradeMode.MULTI
+            upgrade_mode=ContentEquipment.UpgradeMode.MULTI,
         )
-        
+
         upgrade = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Enhanced Reflexes",
-            position=1,
-            cost=30
+            equipment=equipment, name="Enhanced Reflexes", position=1, cost=30
         )
-        
+
         assert upgrade.cost_int() == 30
 
     def test_cost_display_with_sign(self):
@@ -365,23 +314,16 @@ class TestContentEquipmentUpgradeCostMethods:
         equipment = ContentEquipment.objects.create(
             name="Test Equipment",
             category=category,
-            upgrade_mode=ContentEquipment.UpgradeMode.SINGLE
+            upgrade_mode=ContentEquipment.UpgradeMode.SINGLE,
         )
         upgrade = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Upgrade",
-            position=1,
-            cost=15
+            equipment=equipment, name="Upgrade", position=1, cost=15
         )
         assert upgrade.cost_display() == "+15¢"
 
     def test_cost_display_unsaved(self):
         """Test cost_display on unsaved upgrade uses direct cost."""
-        upgrade = ContentEquipmentUpgrade(
-            name="Test Upgrade",
-            cost=25,
-            position=1
-        )
+        upgrade = ContentEquipmentUpgrade(name="Test Upgrade", cost=25, position=1)
         assert upgrade.cost_display() == "+25¢"
 
 
@@ -393,48 +335,38 @@ class TestContentFighterEquipmentListItemCostMethods:
         """Test cost_int returns the cost."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
-        
+
         list_item = ContentFighterEquipmentListItem.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            cost=45
+            fighter=fighter, equipment=equipment, cost=45
         )
-        
+
         assert list_item.cost_int() == 45
 
     def test_cost_display(self):
         """Test cost_display formats with currency symbol."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
-        
+
         list_item = ContentFighterEquipmentListItem.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            cost=45
+            fighter=fighter, equipment=equipment, cost=45
         )
-        
+
         assert list_item.cost_display() == "45¢"
 
 
@@ -446,42 +378,32 @@ class TestContentFighterEquipmentListWeaponAccessoryCostMethods:
         """Test cost_int returns the cost."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         accessory = ContentWeaponAccessory.objects.create(
-            name="Test Accessory",
-            cost=20
+            name="Test Accessory", cost=20
         )
-        
+
         list_item = ContentFighterEquipmentListWeaponAccessory.objects.create(
-            fighter=fighter,
-            weapon_accessory=accessory,
-            cost=15
+            fighter=fighter, weapon_accessory=accessory, cost=15
         )
-        
+
         assert list_item.cost_int() == 15
 
     def test_cost_display(self):
         """Test cost_display formats with currency symbol."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         accessory = ContentWeaponAccessory.objects.create(
-            name="Test Accessory",
-            cost=20
+            name="Test Accessory", cost=20
         )
-        
+
         list_item = ContentFighterEquipmentListWeaponAccessory.objects.create(
-            fighter=fighter,
-            weapon_accessory=accessory,
-            cost=15
+            fighter=fighter, weapon_accessory=accessory, cost=15
         )
-        
+
         assert list_item.cost_display() == "15¢"
 
 
@@ -493,60 +415,44 @@ class TestContentFighterEquipmentListUpgradeCostMethods:
         """Test cost_int returns the cost."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
         upgrade = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Test Upgrade",
-            position=1,
-            cost=30
+            equipment=equipment, name="Test Upgrade", position=1, cost=30
         )
-        
+
         list_item = ContentFighterEquipmentListUpgrade.objects.create(
-            fighter=fighter,
-            upgrade=upgrade,
-            cost=25
+            fighter=fighter, upgrade=upgrade, cost=25
         )
-        
+
         assert list_item.cost_int() == 25
 
     def test_cost_display(self):
         """Test cost_display formats with currency symbol."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
         upgrade = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment,
-            name="Test Upgrade",
-            position=1,
-            cost=30
+            equipment=equipment, name="Test Upgrade", position=1, cost=30
         )
-        
+
         list_item = ContentFighterEquipmentListUpgrade.objects.create(
-            fighter=fighter,
-            upgrade=upgrade,
-            cost=25
+            fighter=fighter, upgrade=upgrade, cost=25
         )
-        
+
         assert list_item.cost_display() == "25¢"
 
 
@@ -558,46 +464,36 @@ class TestContentFighterDefaultAssignmentCostMethods:
         """Test cost_int returns the cost."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
-        
+
         assignment = ContentFighterDefaultAssignment.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            cost=35
+            fighter=fighter, equipment=equipment, cost=35
         )
-        
+
         assert assignment.cost_int() == 35
 
     def test_cost_display(self):
         """Test cost_display formats with currency symbol."""
         house = ContentHouse.objects.create(name="Test House")
         fighter = ContentFighter.objects.create(
-            type="Test Fighter",
-            category=FighterCategoryChoices.GANGER,
-            house=house
+            type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
         )
         category = ContentEquipmentCategory.objects.create(
             name="Test Category", group="Gear"
         )
         equipment = ContentEquipment.objects.create(
-            name="Test Equipment",
-            category=category
+            name="Test Equipment", category=category
         )
-        
+
         assignment = ContentFighterDefaultAssignment.objects.create(
-            fighter=fighter,
-            equipment=equipment,
-            cost=0
+            fighter=fighter, equipment=equipment, cost=0
         )
-        
+
         assert assignment.cost_display() == "0¢"
