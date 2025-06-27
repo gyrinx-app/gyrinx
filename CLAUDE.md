@@ -109,6 +109,7 @@ SQL_DEBUG=True
 - When building something new, create a branch for it and open a pull request at the end
 - Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
 - Always run the tests and ensure they are passing before pushing from CI/GitHub Action context
+- **CRITICAL**: When running in CI or a GitHub action, you MUST COMMIT AND PUSH BEFORE FINISHING. This is critical: otherwise, work is lost.
 
 ## Architecture Overview
 
