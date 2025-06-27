@@ -135,6 +135,11 @@ urlpatterns = [
         name="list-fighter-archive",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/kill",
+        list.kill_list_fighter,
+        name="list-fighter-kill",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/delete",
         list.delete_list_fighter,
         name="list-fighter-delete",

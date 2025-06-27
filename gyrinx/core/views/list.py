@@ -1600,6 +1600,105 @@ def archive_list_fighter(request, id, fighter_id):
 
 
 @login_required
+def kill_list_fighter(request, id, fighter_id):
+    """
+    Mark a :model:`core.ListFighter` as dead in campaign mode.
+    This transfers all equipment to the stash and sets cost to 0.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` to be marked as dead.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_kill.html`
+    """
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Only allow killing fighters in campaign mode
+    if not lst.is_campaign_mode:
+        messages.error(request, "Fighters can only be killed in campaign mode.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Don't allow killing stash fighters
+    if fighter.is_stash:
+        messages.error(request, "Cannot kill the stash.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        # Find the stash fighter for this list
+        stash_fighter = lst.listfighter_set.filter(
+            content_fighter__is_stash=True
+        ).first()
+
+        if stash_fighter:
+            # Transfer all equipment to stash
+            equipment_assignments = fighter.listfighterequipmentassignment_set.all()
+            for assignment in equipment_assignments:
+                # Create new assignment for stash with same equipment
+                new_assignment = ListFighterEquipmentAssignment(
+                    list_fighter=stash_fighter,
+                    content_equipment=assignment.content_equipment,
+                    cost_override=assignment.cost_override,
+                    total_cost_override=assignment.total_cost_override,
+                    upgrade=assignment.upgrade,
+                    from_default_assignment=assignment.from_default_assignment,
+                )
+                new_assignment.save()
+
+                # Copy over any weapon profiles and accessories
+                if assignment.weapon_profiles_field.exists():
+                    new_assignment.weapon_profiles_field.set(
+                        assignment.weapon_profiles_field.all()
+                    )
+                if assignment.weapon_accessories_field.exists():
+                    new_assignment.weapon_accessories_field.set(
+                        assignment.weapon_accessories_field.all()
+                    )
+                if assignment.upgrades_field.exists():
+                    new_assignment.upgrades_field.set(assignment.upgrades_field.all())
+
+            # Delete all equipment assignments from the dead fighter
+            equipment_assignments.delete()
+
+        # Mark fighter as dead and set cost to 0
+        fighter.injury_state = ListFighter.DEAD
+        fighter.cost_override = 0
+        fighter.save()
+
+        # Log the kill in campaign action if this list is part of a campaign
+        if lst.campaign:
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=f"Death: {fighter.name} was killed",
+                outcome=f"{fighter.name} is permanently dead. All equipment transferred to stash.",
+            )
+
+        messages.success(
+            request,
+            f"{fighter.name} has been killed. Their equipment has been transferred to the stash.",
+        )
+        return HttpResponseRedirect(
+            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+        )
+
+    return render(
+        request,
+        "core/list_fighter_kill.html",
+        {"fighter": fighter, "list": lst},
+    )
+
+
+@login_required
 def delete_list_fighter(request, id, fighter_id):
     """
     Delete a :model:`core.ListFighter`.
@@ -1754,6 +1853,13 @@ def list_fighter_state_edit(request, id, fighter_id):
 
             # Only update if state actually changed
             if fighter.injury_state != new_state:
+                # If changing to dead state, redirect to kill confirmation instead
+                if new_state == ListFighter.DEAD:
+                    # Don't save the state change here - let the kill view handle it
+                    return HttpResponseRedirect(
+                        reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                    )
+
                 fighter.injury_state = new_state
                 fighter.save()
 
@@ -1868,6 +1974,13 @@ def list_fighter_add_injury(request, id, fighter_id):
             messages.success(
                 request, f"Added injury '{injury.injury.name}' to {fighter.name}"
             )
+
+            # If fighter state is dead, redirect to kill confirmation
+            if form.cleaned_data["fighter_state"] == ListFighter.DEAD:
+                return HttpResponseRedirect(
+                    reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                )
+
             return HttpResponseRedirect(
                 reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )
