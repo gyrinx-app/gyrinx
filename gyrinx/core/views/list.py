@@ -61,6 +61,11 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
+from gyrinx.core.permissions import (
+    requires_owner,
+    requires_list_or_campaign_owner,
+    requires_related_owner,
+)
 
 
 class ListsListView(generic.ListView):
@@ -200,6 +205,7 @@ class ListPrintView(generic.DetailView):
 
 
 @login_required
+@requires_owner(List)
 def new_list(request):
     """
     Create a new :model:`core.List` owned by the current user.
@@ -241,7 +247,7 @@ def new_list(request):
     )
 
 
-@login_required
+@requires_owner(List)
 def edit_list(request, id):
     """
     Edit an existing :model:`core.List` owned by the current user.
@@ -257,7 +263,7 @@ def edit_list(request, id):
 
     :template:`core/list_edit.html`
     """
-    list_ = get_object_or_404(List, id=id, owner=request.user)
+    list_ = request.resolved_object
 
     error_message = None
     if request.method == "POST":
@@ -276,7 +282,10 @@ def edit_list(request, id):
     )
 
 
-@login_required
+@requires_list_or_campaign_owner(
+    redirect_view="core:list",
+    message="You don't have permission to modify credits for this list.",
+)
 def edit_list_credits(request, id):
     """
     Modify credits for a :model:`core.List` in campaign mode.
@@ -293,26 +302,10 @@ def edit_list_credits(request, id):
     :template:`core/list_credits_edit.html`
     """
     from django.contrib import messages
-
-    # Allow both list owner and campaign owner to modify credits
-    # Filter the queryset to include only lists owned by the user or by campaigns they own
-    from django.db.models import Q
-
     from gyrinx.core.forms.list import EditListCreditsForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
-        id=id,
-    )
-
-    # Check permissions - must be list owner or campaign owner
-    if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
-            messages.error(
-                request, "You don't have permission to modify credits for this list."
-            )
-            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    lst = request.resolved_object
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
@@ -392,7 +385,7 @@ def edit_list_credits(request, id):
     )
 
 
-@login_required
+@requires_owner(List)
 def archive_list(request, id):
     """
     Archive or unarchive a :model:`core.List`.
@@ -410,7 +403,7 @@ def archive_list(request, id):
 
     :template:`core/list_archive.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
 
     # Check if the list is in any active campaigns
     active_campaigns = lst.campaigns.filter(status="in_progress")
@@ -458,6 +451,7 @@ def archive_list(request, id):
 
 
 @login_required
+@requires_owner(List)
 def clone_list(request, id):
     """
     Clone an existing :model:`core.List` owned by any user.
@@ -504,7 +498,7 @@ def clone_list(request, id):
     )
 
 
-@login_required
+@requires_owner(List)
 def new_list_fighter(request, id):
     """
     Add a new :model:`core.ListFighter` to an existing :model:`core.List`.
@@ -522,7 +516,7 @@ def new_list_fighter(request, id):
 
     :template:`core/list_fighter_new.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = ListFighter(list=lst, owner=lst.owner)
 
     error_message = None
@@ -549,7 +543,9 @@ def new_list_fighter(request, id):
     )
 
 
-@login_required
+@requires_related_owner(
+    List, ListFighter, parent_url_kwarg="id", child_url_kwarg="fighter_id"
+)
 def edit_list_fighter(request, id, fighter_id):
     """
     Edit an existing :model:`core.ListFighter` within a :model:`core.List`.
@@ -568,8 +564,8 @@ def edit_list_fighter(request, id, fighter_id):
     :template:`core/list_fighter_edit.html`
     """
     print(f"Editing fighter {fighter_id} in list {id}")
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    lst = request.resolved_parent
+    fighter = request.resolved_object
 
     error_message = None
     if request.method == "POST":
@@ -649,6 +645,7 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_skills(request, id, fighter_id):
     """
     Edit the skills of an existing :model:`core.ListFighter`.
@@ -666,7 +663,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     :template:`core/list_fighter_skills_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     error_message = None
@@ -725,6 +722,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_powers(request, id, fighter_id):
     """
     Edit the psyker powers of an existing :model:`core.ListFighter`.
@@ -742,7 +740,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
     :template:`core/list_fighter_psyker_powers_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     error_message = None
@@ -871,6 +869,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_narrative(request, id, fighter_id):
     """
     Edit the narrative of an existing :model:`core.ListFighter`.
@@ -888,7 +887,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
     :template:`core/list_fighter_narrative_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     error_message = None
@@ -914,6 +913,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     """
     Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
@@ -939,7 +939,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     view_name = (
         "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
@@ -1155,6 +1155,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_assign_cost(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1176,7 +1177,7 @@ def edit_list_fighter_assign_cost(
 
     :template:`core/list_fighter_assign_cost_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1211,6 +1212,7 @@ def edit_list_fighter_assign_cost(
 
 
 @login_required
+@requires_owner(List)
 def delete_list_fighter_assign(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1230,7 +1232,7 @@ def delete_list_fighter_assign(
 
     :template:`core/list_fighter_assign_delete_confirm.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1256,6 +1258,7 @@ def delete_list_fighter_assign(
 
 
 @login_required
+@requires_owner(List)
 def delete_list_fighter_gear_upgrade(
     request, id, fighter_id, assign_id, upgrade_id, back_name, action_name
 ):
@@ -1277,7 +1280,7 @@ def delete_list_fighter_gear_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_delete_confirm.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1310,6 +1313,7 @@ def delete_list_fighter_gear_upgrade(
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     """
     Managed weapon accessories for a :model:`core.ListFighterEquipmentAssignment`.
@@ -1332,7 +1336,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_weapons_accessories_edit.html`
 
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1370,6 +1374,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
 
 
 @login_required
+@requires_owner(List)
 def delete_list_fighter_weapon_accessory(
     request, id, fighter_id, assign_id, accessory_id
 ):
@@ -1391,7 +1396,7 @@ def delete_list_fighter_weapon_accessory(
 
     :template:`core/list_fighter_weapons_accessory_delete.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1417,6 +1422,7 @@ def delete_list_fighter_weapon_accessory(
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_weapon_upgrade(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1438,7 +1444,7 @@ def edit_list_fighter_weapon_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -1473,6 +1479,7 @@ def edit_list_fighter_weapon_upgrade(
 
 
 @login_required
+@requires_owner(List)
 def disable_list_fighter_default_assign(
     request, id, fighter_id, assign_id, action_name, back_name
 ):
@@ -1492,7 +1499,7 @@ def disable_list_fighter_default_assign(
 
     :template:`core/list_fighter_assign_disable.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ContentFighterDefaultAssignment,
@@ -1518,6 +1525,7 @@ def disable_list_fighter_default_assign(
 
 
 @login_required
+@requires_owner(List)
 def convert_list_fighter_default_assign(
     request, id, fighter_id, assign_id, action_name, back_name
 ):
@@ -1540,7 +1548,7 @@ def convert_list_fighter_default_assign(
     **Template**
     :template:`core/list_fighter_assign_convert.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ContentFighterDefaultAssignment,
@@ -1565,6 +1573,7 @@ def convert_list_fighter_default_assign(
 
 
 @login_required
+@requires_owner(List)
 def archive_list_fighter(request, id, fighter_id):
     """
     Archive or unarchive a :model:`core.ListFighter`.
@@ -1580,7 +1589,7 @@ def archive_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_archive.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     if request.method == "POST":
@@ -1600,6 +1609,7 @@ def archive_list_fighter(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def kill_list_fighter(request, id, fighter_id):
     """
     Mark a :model:`core.ListFighter` as dead in campaign mode.
@@ -1618,7 +1628,7 @@ def kill_list_fighter(request, id, fighter_id):
     """
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     # Only allow killing fighters in campaign mode
@@ -1699,6 +1709,7 @@ def kill_list_fighter(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def delete_list_fighter(request, id, fighter_id):
     """
     Delete a :model:`core.ListFighter`.
@@ -1714,7 +1725,7 @@ def delete_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_delete.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     if request.method == "POST":
@@ -1778,6 +1789,7 @@ class ListArchivedFightersView(generic.ListView):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_injuries_edit(request, id, fighter_id):
     """
     Edit injuries for a :model:`core.ListFighter` in campaign mode.
@@ -1795,7 +1807,7 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     """
     from django.contrib import messages
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     # Check campaign mode
@@ -1816,6 +1828,7 @@ def list_fighter_injuries_edit(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_state_edit(request, id, fighter_id):
     """
     Edit the injury state of a :model:`core.ListFighter` in campaign mode.
@@ -1837,7 +1850,7 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     # Check campaign mode
@@ -1904,6 +1917,7 @@ def list_fighter_state_edit(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_add_injury(request, id, fighter_id):
     """
     Add an injury to a :model:`core.ListFighter` in campaign mode.
@@ -1925,7 +1939,7 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     # Check campaign mode
@@ -1999,6 +2013,7 @@ def list_fighter_add_injury(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_remove_injury(request, id, fighter_id, injury_id):
     """
     Remove an injury from a :model:`core.ListFighter` in campaign mode.
@@ -2020,7 +2035,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
 
@@ -2064,6 +2079,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
 
 @login_required
+@requires_owner(List)
 def edit_list_fighter_xp(request, id, fighter_id):
     """
     Modify XP for a :model:`core.ListFighter` in campaign mode.
@@ -2086,7 +2102,7 @@ def edit_list_fighter_xp(request, id, fighter_id):
     from gyrinx.core.forms.list import EditFighterXPForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2203,6 +2219,7 @@ class ListCampaignClonesView(generic.DetailView):
 
 # Fighter Advancement Views
 @login_required
+@requires_owner(List)
 def list_fighter_advancements(request, id, fighter_id):
     """
     Display all advancements for a :model:`core.ListFighter`.
@@ -2243,11 +2260,12 @@ def list_fighter_advancements(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_start(request, id, fighter_id):
     """
     Redirect to the appropriate advancement flow entry point.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2266,6 +2284,7 @@ def list_fighter_advancement_start(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_dice_choice(request, id, fighter_id):
     """
     Choose whether to roll 2d6 for advancement.
@@ -2283,8 +2302,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_dice_choice.html`
     """
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2450,6 +2468,7 @@ class AdvancementFlowParams(AdvancementBaseParams):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_type(request, id, fighter_id):
     """
     Select the type of advancement and costs.
@@ -2469,8 +2488,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_type.html`
     """
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2532,6 +2550,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_confirm(request, id, fighter_id):
     """
     Confirm and create the advancement.
@@ -2549,8 +2568,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_confirm.html`
     """
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2699,6 +2717,7 @@ def apply_skill_advancement(
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_select(request, id, fighter_id):
     """
     Select specific stat or skill based on advancement type.
@@ -2718,8 +2737,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_select.html`
     """
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2825,6 +2843,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def list_fighter_advancement_other(request, id, fighter_id):
     """
     Enter a free text description for an 'other' advancement.
@@ -2847,7 +2866,7 @@ def list_fighter_advancement_other(request, id, fighter_id):
 
     from gyrinx.core.forms.advancement import OtherAdvancementForm
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -2890,6 +2909,7 @@ def list_fighter_advancement_other(request, id, fighter_id):
 
 
 @login_required
+@requires_owner(List)
 def reassign_list_fighter_equipment(
     request, id, fighter_id, assign_id, is_weapon, back_name
 ):
@@ -2915,7 +2935,7 @@ def reassign_list_fighter_equipment(
     """
     from gyrinx.core.forms.list import EquipmentReassignForm
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
     assignment = get_object_or_404(
         ListFighterEquipmentAssignment,
@@ -2981,6 +3001,7 @@ def reassign_list_fighter_equipment(
 
 
 @login_required
+@requires_owner(List)
 def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     """
     Sell equipment from a stash fighter with dice roll mechanics.
@@ -3006,7 +3027,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     from gyrinx.core.forms.list import EquipmentSellSelectionForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = request.resolved_object
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
 
     # For summary step, assignment might not exist (already deleted)

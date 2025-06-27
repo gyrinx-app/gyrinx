@@ -30,6 +30,7 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
 )
 from gyrinx.core.models.list import List
+from gyrinx.core.permissions import requires_owner
 
 
 def get_campaign_resource_types_with_resources(campaign):
@@ -116,7 +117,7 @@ class CampaignDetailView(generic.DetailView):
         return context
 
 
-@login_required
+@requires_owner(Campaign)
 def campaign_add_lists(request, id):
     """
     Add lists to a campaign.
@@ -139,7 +140,7 @@ def campaign_add_lists(request, id):
 
     :template:`core/campaign/campaign_add_lists.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     # Check if campaign is in a state where lists can be added
     if campaign.is_post_campaign:
@@ -285,7 +286,7 @@ def new_campaign(request):
     )
 
 
-@login_required
+@requires_owner(Campaign)
 def edit_campaign(request, id):
     """
     Edit an existing :model:`core.Campaign` owned by the current user.
@@ -303,7 +304,7 @@ def edit_campaign(request, id):
 
     :template:`core/campaign/campaign_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     error_message = None
     if request.method == "POST":
@@ -520,6 +521,7 @@ class CampaignActionList(generic.ListView):
 
 
 @login_required
+@requires_owner(Campaign)
 def start_campaign(request, id):
     """
     Start a campaign (transition from pre-campaign to in-progress).
@@ -535,7 +537,7 @@ def start_campaign(request, id):
 
     :template:`core/campaign/campaign_start.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     if request.method == "POST":
         if campaign.start_campaign():
@@ -568,6 +570,7 @@ def start_campaign(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def end_campaign(request, id):
     """
     End a campaign (transition from in-progress to post-campaign).
@@ -583,7 +586,7 @@ def end_campaign(request, id):
 
     :template:`core/campaign/campaign_end.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     if request.method == "POST":
         if campaign.end_campaign():
@@ -613,6 +616,7 @@ def end_campaign(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def reopen_campaign(request, id):
     """
     Reopen a campaign (transition from post-campaign back to in-progress).
@@ -628,7 +632,7 @@ def reopen_campaign(request, id):
 
     :template:`core/campaign/campaign_reopen.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     if request.method == "POST":
         if campaign.reopen_campaign():
@@ -694,6 +698,7 @@ def campaign_assets(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_asset_type_new(request, id):
     """
     Create a new asset type for a campaign.
@@ -709,7 +714,7 @@ def campaign_asset_type_new(request, id):
 
     :template:`core/campaign/campaign_asset_type_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     if request.method == "POST":
         form = CampaignAssetTypeForm(request.POST)
@@ -735,6 +740,7 @@ def campaign_asset_type_new(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_asset_type_edit(request, id, type_id):
     """
     Edit an existing asset type.
@@ -752,7 +758,7 @@ def campaign_asset_type_edit(request, id, type_id):
 
     :template:`core/campaign/campaign_asset_type_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
     asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
 
     if request.method == "POST":
@@ -774,6 +780,7 @@ def campaign_asset_type_edit(request, id, type_id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_asset_new(request, id, type_id):
     """
     Create a new asset for a campaign.
@@ -791,7 +798,7 @@ def campaign_asset_new(request, id, type_id):
 
     :template:`core/campaign/campaign_asset_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
     asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
 
     if request.method == "POST":
@@ -827,6 +834,7 @@ def campaign_asset_new(request, id, type_id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_asset_edit(request, id, asset_id):
     """
     Edit an existing asset.
@@ -844,7 +852,7 @@ def campaign_asset_edit(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     if request.method == "POST":
@@ -866,6 +874,7 @@ def campaign_asset_edit(request, id, asset_id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_asset_transfer(request, id, asset_id):
     """
     Transfer an asset to a new holder.
@@ -883,7 +892,7 @@ def campaign_asset_transfer(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_transfer.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     if request.method == "POST":
@@ -944,6 +953,7 @@ def campaign_resources(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_resource_type_new(request, id):
     """
     Create a new resource type for a campaign.
@@ -959,7 +969,7 @@ def campaign_resource_type_new(request, id):
 
     :template:`core/campaign/campaign_resource_type_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
 
     if request.method == "POST":
         form = CampaignResourceTypeForm(request.POST)
@@ -995,6 +1005,7 @@ def campaign_resource_type_new(request, id):
 
 
 @login_required
+@requires_owner(Campaign)
 def campaign_resource_type_edit(request, id, type_id):
     """
     Edit an existing resource type.
@@ -1012,7 +1023,7 @@ def campaign_resource_type_edit(request, id, type_id):
 
     :template:`core/campaign/campaign_resource_type_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = request.resolved_object
     resource_type = get_object_or_404(
         CampaignResourceType, id=type_id, campaign=campaign
     )
