@@ -133,8 +133,8 @@ def test_add_skills_to_fighter(
     )
 
     # Set fighter's primary and secondary skill categories
-    content_fighter.skill_primary = "Ferocity"
-    content_fighter.skill_secondary = "Cool"
+    content_fighter.primary_skill_categories = "Ferocity"
+    content_fighter.secondary_skill_categories = "Cool"
     content_fighter.save()
 
     lst = make_list("Test Gang")
