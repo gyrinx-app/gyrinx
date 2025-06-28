@@ -208,9 +208,104 @@ The system includes validation for:
 - Circular equipment links
 - Multiple fighter profiles for same equipment
 
+## Cost Mixins
+
+The cost system provides reusable mixins to standardize cost calculation behavior across models:
+
+### CostMixin
+
+`gyrinx.models.CostMixin` provides common cost methods for models with cost fields:
+
+```python
+class CostMixin(models.Model):
+    """
+    Mixin for models that have cost calculation logic.
+    
+    Attributes
+    ----------
+    cost_field_name : str
+        The name of the field that stores the cost. Defaults to 'cost'.
+        Can be overridden in subclasses if the field has a different name.
+    """
+    
+    cost_field_name = "cost"
+    
+    def cost_int(self):
+        """Returns the integer cost of this item."""
+        
+    def cost_display(self, show_sign=False):
+        """Returns a readable cost string with currency symbol."""
+```
+
+**Key Features:**
+- Handles both integer and string cost fields
+- Converts string costs to integers when possible
+- Returns 0 for empty or non-numeric values
+- Provides formatted display with ¢ symbol
+- Supports custom field names via `cost_field_name` attribute
+
+**Usage Example:**
+```python
+class MyModel(CostMixin, models.Model):
+    price = models.IntegerField()
+    cost_field_name = "price"  # Override default field name
+```
+
+### FighterCostMixin
+
+`gyrinx.models.FighterCostMixin` extends `CostMixin` for models with fighter-specific cost overrides:
+
+```python
+class FighterCostMixin(CostMixin):
+    """
+    Extended cost mixin for models that have fighter-specific cost overrides.
+    """
+    
+    def cost_for_fighter_int(self):
+        """Returns the fighter-specific cost if available."""
+```
+
+**Key Features:**
+- Inherits all functionality from `CostMixin`
+- Adds `cost_for_fighter_int()` method
+- Expects models to be annotated with `cost_for_fighter` attribute
+- Raises `AttributeError` if annotation is missing
+
+**Usage with Querysets:**
+```python
+# Annotate queryset with fighter-specific costs
+equipment = ContentEquipment.objects.with_cost_for_fighter(fighter)
+cost = equipment.first().cost_for_fighter_int()
+```
+
+### Models Using Cost Mixins
+
+The following models use these mixins:
+- `ContentEquipment` (FighterCostMixin)
+- `ContentWeaponProfile` (FighterCostMixin) - with custom `cost_display()` logic
+- `ContentWeaponAccessory` (FighterCostMixin)
+- `ContentEquipmentUpgrade` (CostMixin) - with custom `cost_int()` logic
+- `ContentFighterEquipmentListItem` (CostMixin)
+- `ContentFighterEquipmentListWeaponAccessory` (CostMixin)
+- `ContentFighterEquipmentListUpgrade` (CostMixin)
+- `ContentFighterDefaultAssignment` (CostMixin)
+
+### Special Behaviors
+
+Some models override the mixin methods for custom behavior:
+
+**ContentWeaponProfile:**
+- `cost_display()` returns empty for standard profiles (no name)
+- Shows "+" prefix for named profiles with positive costs
+
+**ContentEquipmentUpgrade:**
+- `cost_int()` implements cumulative costs in SINGLE mode
+- Sums all upgrades up to current position
+
 ## Testing
 
 Key test files for the cost system:
 - `gyrinx/core/tests/test_cost_display.py` - Cost formatting tests
 - `gyrinx/core/tests/test_models_core.py` - Core cost calculation tests
 - `gyrinx/core/tests/test_assignments.py` - Equipment assignment cost tests
+- `gyrinx/content/tests/test_cost_methods.py` - Comprehensive tests for all cost mixins
