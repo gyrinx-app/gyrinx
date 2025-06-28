@@ -25,3 +25,18 @@ find = {}
 profile = "django"
 custom_blocks = "element,slot,setvar,is_active"
 ignore = "H006"
+
+[tool.bandit]
+exclude_dirs = [
+    ".venv",
+    ".git",
+    "__pycache__",
+    "*/migrations/*",
+    "*/tests/*",
+    "scripts/test.sh",
+]
+skips = [
+    "B101",  # assert_used - we use assert in tests
+    "B601",  # paramiko_calls - we don't use paramiko
+    "B603",  # subprocess_without_shell_equals_true - reviewed case by case
+]

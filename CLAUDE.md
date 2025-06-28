@@ -256,6 +256,7 @@ The list view establishes the standard UI pattern for detail pages:
     - `npm run fmt` for Markdown, YAML, JSON, SCSS, and JavaScript formatting
     - `djlint --profile=django --reformat .` for Django template formatting
 - Always run `./scripts/fmt.sh` after making code changes
+- Run `bandit -c pyproject.toml -r .` to check for security issues in Python code
 
 ### Git Workflow
 

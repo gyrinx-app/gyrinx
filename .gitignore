@@ -19,3 +19,5 @@ screenshots/
 .claude/memory.local.json
 CLAUDE.local.md
 media/
+bandit-baseline.json
+bandit-baseline.txt
