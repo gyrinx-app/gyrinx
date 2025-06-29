@@ -20,6 +20,12 @@
                 {% if form.list.errors %}<div class="invalid-feedback d-block">{{ form.list.errors }}</div>{% endif %}
             </div>
             <div>
+                {{ form.battle.label_tag }}
+                {{ form.battle }}
+                {% if form.battle.help_text %}<small class="form-text text-muted">{{ form.battle.help_text }}</small>{% endif %}
+                {% if form.battle.errors %}<div class="invalid-feedback d-block">{{ form.battle.errors }}</div>{% endif %}
+            </div>
+            <div>
                 {{ form.description.label_tag }}
                 {{ form.description }}
                 {% if form.description.help_text %}

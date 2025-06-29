@@ -234,6 +234,14 @@ class CampaignAction(AppBase):
         related_name="campaign_actions",
         help_text="The list this action is related to",
     )
+    battle = models.ForeignKey(
+        "Battle",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="actions",
+        help_text="The battle this action is related to",
+    )
     description = models.TextField(
         help_text="Description of the action taken",
         validators=[validators.MinLengthValidator(1)],

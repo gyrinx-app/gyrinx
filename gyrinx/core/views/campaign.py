@@ -99,6 +99,13 @@ class CampaignDetailView(generic.DetailView):
             )
         )
 
+        # Get recent battles
+        context["recent_battles"] = (
+            campaign.battles.select_related("owner")
+            .prefetch_related("participants", "winners")
+            .order_by("-date", "-created")[:5]
+        )
+
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
@@ -455,10 +462,10 @@ class CampaignActionList(generic.ListView):
     def get_queryset(self):
         self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
 
-        # Start with all campaign actions with list relationship
-        actions = self.campaign.actions.select_related("user", "list").order_by(
-            "-created"
-        )
+        # Start with all campaign actions with list and battle relationships
+        actions = self.campaign.actions.select_related(
+            "user", "list", "battle"
+        ).order_by("-created")
 
         # Apply text search filter if provided
         search_query = self.request.GET.get("q", "").strip()
@@ -477,6 +484,12 @@ class CampaignActionList(generic.ListView):
         author_id = self.request.GET.get("author")
         if author_id:
             actions = actions.filter(user__id=author_id)
+
+        # Apply battle filter if provided
+        battle_id = self.request.GET.get("battle")
+        if battle_id:
+            # Filter actions by the specific battle
+            actions = actions.filter(battle_id=battle_id)
 
         # Apply timeframe filter if provided
         timeframe = self.request.GET.get("timeframe", "all")
@@ -505,6 +518,13 @@ class CampaignActionList(generic.ListView):
             self.campaign.actions.values_list("user__id", "user__username")
             .distinct()
             .order_by("user__username")
+        )
+
+        # Get all battles in the campaign for the battle filter
+        context["campaign_battles"] = (
+            self.campaign.battles.select_related("owner")
+            .prefetch_related("participants", "winners")
+            .order_by("-date", "-created")
         )
 
         # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
