@@ -1842,6 +1842,69 @@ class ContentPack(AppBase):
         ordering = ["name"]
 
 
+class ContentAttribute(Content):
+    """
+    Represents an attribute that can be associated with gangs/lists
+    (e.g., Alignment, Alliance, Affiliation).
+    """
+
+    help_text = "Defines attributes that can be associated with gangs, such as Alignment, Alliance, or Affiliation."
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="The name of the attribute (e.g., 'Alignment', 'Alliance', 'Affiliation').",
+    )
+    is_single_select = models.BooleanField(
+        default=True,
+        help_text="If True, only one value can be selected. If False, multiple values can be selected.",
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        select_type = "single-select" if self.is_single_select else "multi-select"
+        return f"{self.name} ({select_type})"
+
+    class Meta:
+        verbose_name = "Gang Attribute"
+        verbose_name_plural = "Gang Attributes"
+        ordering = ["name"]
+
+
+class ContentAttributeValue(Content):
+    """
+    Represents allowed values for a ContentAttribute.
+    """
+
+    help_text = "Defines the allowed values for a gang attribute."
+    attribute = models.ForeignKey(
+        ContentAttribute,
+        on_delete=models.CASCADE,
+        related_name="values",
+        help_text="The attribute this value belongs to.",
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="The value name (e.g., 'Law Abiding', 'Outlaw', 'Chaos Cult').",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional description of what this value represents.",
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.attribute.name}: {self.name}"
+
+    class Meta:
+        verbose_name = "Gang Attribute Value"
+        verbose_name_plural = "Gang Attribute Values"
+        ordering = ["attribute__name", "name"]
+        unique_together = [["attribute", "name"]]
+
+
 def similar(a, b):
     """
     Returns a similarity ratio between two strings, ignoring case.
