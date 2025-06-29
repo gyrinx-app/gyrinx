@@ -17,6 +17,7 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx import settings
 from gyrinx.content.models import (
+    ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentEquipmentProfile,
@@ -130,6 +131,15 @@ class List(AppBase):
     credits_earned = models.PositiveIntegerField(
         default=0,
         help_text="Total credits ever earned",
+    )
+
+    # Gang attributes (Alignment, Alliance, Affiliation, etc.)
+    attributes = models.ManyToManyField(
+        ContentAttributeValue,
+        through="ListAttributeAssignment",
+        blank=True,
+        through_fields=("list", "attribute_value"),
+        help_text="Gang attributes like Alignment, Alliance, Affiliation",
     )
 
     history = HistoricalRecords()
@@ -278,6 +288,13 @@ class List(AppBase):
                     list=clone,
                     owner=owner,
                 )
+
+        # Clone attributes
+        for attribute_assignment in self.listattributeassignment_set.all():
+            ListAttributeAssignment.objects.create(
+                list=clone,
+                attribute_value=attribute_assignment.attribute_value,
+            )
 
         return clone
 
@@ -2524,3 +2541,51 @@ class ListFighterAdvancement(AppBase):
             raise ValidationError(
                 "Other advancement should not have a stat or skill selected."
             )
+
+
+class ListAttributeAssignment(Base, Archived):
+    """
+    Through model that links a List to ContentAttributeValues.
+    """
+
+    help_text = "Associates gang attributes (like Alignment, Alliance, Affiliation) with a list."
+
+    list = models.ForeignKey(
+        List,
+        on_delete=models.CASCADE,
+        help_text="The list this attribute is assigned to.",
+    )
+    attribute_value = models.ForeignKey(
+        ContentAttributeValue,
+        on_delete=models.CASCADE,
+        help_text="The attribute value assigned to the list.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "List Attribute Assignment"
+        verbose_name_plural = "List Attribute Assignments"
+        unique_together = [["list", "attribute_value"]]
+
+    def __str__(self):
+        return f"{self.list.name} - {self.attribute_value}"
+
+    def clean(self):
+        """Validate that single-select attributes only have one value per list."""
+        if self.attribute_value and self.list:
+            attribute = self.attribute_value.attribute
+            if attribute.is_single_select:
+                # Check if there's already an assignment for this attribute
+                existing = (
+                    ListAttributeAssignment.objects.filter(
+                        list=self.list,
+                        attribute_value__attribute=attribute,
+                    )
+                    .exclude(pk=self.pk)
+                    .exists()
+                )
+                if existing:
+                    raise ValidationError(
+                        f"The attribute '{attribute.name}' is single-select and already has a value assigned to this list."
+                    )
