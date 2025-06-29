@@ -8,9 +8,8 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Gear: {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
-            <div class="alert alert-danger">
-                <h4 class="alert-heading">Error</h4>
-                <p>{{ error_message }}</p>
+            <div class="border border-danger rounded p-2 text-danger">
+                <strong>Error:</strong> {{ error_message }}
             </div>
         {% endif %}
         <div class="grid">
@@ -43,7 +42,7 @@
                                 {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
                                 <div class="vstack gap-1">
                                     <div class="hstack">
-                                        <h4 class="h6 mb-1">
+                                        <h4 class="h6 mb-0">
                                             {{ assign.base_name }}
                                             <span class="fs-7 text-muted">
                                                 {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
@@ -52,7 +51,7 @@
                                         <span class="ms-auto fs-7 text-muted">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</span>
                                     </div>
                                     {% if assign.upgrades_display|length > 0 %}
-                                        <legend class="fs-7 mb-0">
+                                        <legend class="fs-7">
                                             <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}
                                         </legend>
                                         {% if assign.equipment.upgrade_mode_single %}
@@ -66,7 +65,7 @@
                                                            class="btn-check">
                                                     <label class="btn btn-sm" for="upgrade-none">None</label>
                                                 </div>
-                                                <div class="d-flex flex-grow-1 btn-group">
+                                                <div class="flex-grow-1 btn-group">
                                                     {% for ud in assign.upgrades_display %}
                                                         <input type="radio"
                                                                name="upgrades_field"
@@ -84,14 +83,14 @@
                                             </div>
                                         {% else %}
                                             {% for ud in assign.upgrades_display %}
-                                                <div class="form-check fs-7 mb-0">
+                                                <div class="form-check fs-7">
                                                     <input type="checkbox"
                                                            name="upgrades_field"
                                                            value="{{ ud.upgrade.id }}"
                                                            id="upgrade-{{ ud.upgrade.id }}"
                                                            form="gear-{{ assign.equipment.id }}"
                                                            class="form-check-input">
-                                                    <label class="form-check-label mb-0" for="upgrade-{{ ud.upgrade.id }}">
+                                                    <label class="form-check-label" for="upgrade-{{ ud.upgrade.id }}">
                                                         {{ ud.upgrade.name }}
                                                         {% if ud.cost_int != 0 %}({{ ud.cost_display }}){% endif %}
                                                     </label>
