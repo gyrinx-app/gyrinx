@@ -27,25 +27,27 @@ def campaign_with_lists(db):
         name="Gang 1",
         owner=owner1,
         content_house=house,
-        mode=List.CAMPAIGN_MODE,
+        status=List.CAMPAIGN_MODE,
         credits_current=100,
+        campaign=campaign,
     )
-    list1.campaigns.add(campaign)
+    campaign.lists.add(list1)
 
     list2 = List.objects.create(
         name="Gang 2",
         owner=owner2,
         content_house=house,
-        mode=List.CAMPAIGN_MODE,
+        status=List.CAMPAIGN_MODE,
         credits_current=50,
+        campaign=campaign,
     )
-    list2.campaigns.add(campaign)
+    campaign.lists.add(list2)
 
     content_fighter = ContentFighter.objects.create(
         type="Test Fighter",
         house=house,
         category="GANGER",
-        cost=50,
+        base_cost=50,
     )
 
     fighter1 = ListFighter.objects.create(
@@ -140,6 +142,9 @@ def test_return_fighter_to_owner(campaign_with_lists):
 
     # Capture record should be deleted
     assert CapturedFighter.objects.filter(fighter=fighter).exists() is False
+
+    # Refresh fighter from database to clear cached relationships
+    fighter.refresh_from_db()
 
     # Fighter should be back to normal
     assert fighter.is_captured is False
@@ -324,7 +329,7 @@ def test_fighter_sorting_with_captured(campaign_with_lists):
     )
 
     # Check ordering
-    fighters = list1.fighters.all()
+    fighters = list1.fighters()
     fighter_names = [f.name for f in fighters]
 
     # Active fighter should be first
