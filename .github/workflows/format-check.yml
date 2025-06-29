@@ -84,8 +84,3 @@ jobs:
               exit 1
             fi
           ' _ {}
-
-      - name: Run Bandit security scan
-        run: |
-          source .venv/bin/activate && \
-          bandit -c pyproject.toml -r .

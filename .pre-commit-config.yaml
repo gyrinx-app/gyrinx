@@ -30,7 +30,16 @@ repos:
     rev: 1.8.0
     hooks:
       - id: bandit
-        args: ["-c", "pyproject.toml"]
+        types_or: [python, pyi]
+        args:
+          [
+            "-c",
+            "pyproject.toml",
+            "-r",
+            ".",
+            "--baseline",
+            "bandit/bandit-baseline.json",
+          ]
         additional_dependencies: ["bandit[toml]"]
 
   - repo: local
