@@ -9,55 +9,17 @@
     <div class="col-lg-8 px-0">
         <h1>New Battle</h1>
         <p class="text-muted">Create a new battle report for {{ campaign.name }}</p>
-        <form method="post">
+        <form method="post" class="vstack gap-3">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
+                </div>
+            {% endif %}
             {% csrf_token %}
-            <div class="mb-3">
-                {% element field form.date errors=form.date.errors %}
-                    {% slot label %}
-                        {{ form.date.label }}
-                    {% endslot %}
-                {% endelement %}
-            </div>
-            <div class="mb-3">
-                {% element field form.mission errors=form.mission.errors %}
-                    {% slot label %}
-                        {{ form.mission.label }}
-                    {% endslot %}
-                {% endelement %}
-            </div>
-            <div class="mb-3">
-                <label class="form-label">{{ form.participants.label }}</label>
-                <div class="text-muted small mb-2">{{ form.participants.help_text }}</div>
-                {% if form.participants.errors %}
-                    <div class="invalid-feedback d-block">{{ form.participants.errors|join:", " }}</div>
-                {% endif %}
-                <div class="vstack gap-2">
-                    {% for choice in form.participants %}
-                        <div class="form-check">
-                            {{ choice.tag }}
-                            <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">{{ form.winners.label }}</label>
-                <div class="text-muted small mb-2">If the outcome was a draw, do not select any winners.</div>
-                {% if form.winners.errors %}<div class="invalid-feedback d-block">{{ form.winners.errors|join:", " }}</div>{% endif %}
-                <div class="vstack gap-2">
-                    {% for choice in form.winners %}
-                        <div class="form-check">
-                            {{ choice.tag }}
-                            <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi-check-circle"></i> Create Battle
-                </button>
-                <a href="{{ campaign_url }}" class="btn btn-secondary">Cancel</a>
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">Create Battle</button>
+                <a href="{{ campaign_url }}">Cancel</a>
             </div>
         </form>
     </div>

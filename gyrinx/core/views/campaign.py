@@ -75,9 +75,19 @@ class CampaignDetailView(generic.DetailView):
 
     def get_object(self):
         """
-        Retrieve the :model:`core.Campaign` by its `id`.
+        Retrieve the :model:`core.Campaign` by its `id` with prefetched actions.
         """
-        return get_object_or_404(Campaign, id=self.kwargs["id"])
+        return get_object_or_404(
+            Campaign.objects.prefetch_related(
+                models.Prefetch(
+                    "actions",
+                    queryset=CampaignAction.objects.select_related(
+                        "user", "list"
+                    ).order_by("-created"),
+                )
+            ),
+            id=self.kwargs["id"],
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -108,16 +118,6 @@ class CampaignDetailView(generic.DetailView):
 
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
-
-        # Prefetch recent actions with related list data
-        context["campaign"] = Campaign.objects.prefetch_related(
-            models.Prefetch(
-                "actions",
-                queryset=CampaignAction.objects.select_related("user", "list").order_by(
-                    "-created"
-                ),
-            )
-        ).get(id=campaign.id)
 
         context["is_owner"] = user == campaign.owner
         return context

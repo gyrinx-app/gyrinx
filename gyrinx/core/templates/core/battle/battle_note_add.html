@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
+{% load allauth custom_tags %}
 {% block head_title %}
     {% if existing_note %}
         Edit Note
@@ -14,35 +14,32 @@
     <div class="col-lg-8 px-0">
         <h1>
             {% if existing_note %}
-                Edit Battle Report
+                Edit Battle Note
             {% else %}
-                Add Battle Report
+                Add Battle Note
             {% endif %}
         </h1>
         <p class="text-muted">{{ battle.name }}</p>
-        <form method="post">
-            {% csrf_token %}
-            <div class="mb-3">
-                <label class="form-label">{{ form.content.label }}</label>
-                <div class="text-muted small mb-2">
-                    Share your experience of the battle. You can include details about tactics,
-                    memorable moments, or the narrative of how the battle unfolded.
+        <form method="post"class="vstack gap-3">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
                 </div>
-                {% if form.content.errors %}<div class="invalid-feedback d-block">{{ form.content.errors|join:", " }}</div>{% endif %}
-                {{ form.content }}
-            </div>
-            <div class="d-flex gap-2">
+            {% endif %}
+            {% csrf_token %}
+            {{ form.media }}
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi-check-circle"></i>
                     {% if existing_note %}
-                        Update Report
+                        Update Note
                     {% else %}
-                        Add Report
+                        Add Note
                     {% endif %}
                 </button>
-                <a href="{{ battle_url }}" class="btn btn-secondary">Cancel</a>
+                <a href="{{ battle_url }}">Cancel</a>
             </div>
         </form>
     </div>
 {% endblock content %}
-{{ form.media }}

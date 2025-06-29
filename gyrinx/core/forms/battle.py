@@ -71,6 +71,7 @@ class BattleNoteForm(forms.ModelForm):
         }
         widgets = {
             "content": TinyMCEWithUpload(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
+                attrs={"cols": 80, "rows": 20},
+                mce_attrs={"min_height": "250px", **TINYMCE_EXTRA_ATTRS},
             ),
         }

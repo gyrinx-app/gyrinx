@@ -44,8 +44,6 @@ class BattleDetailView(generic.DetailView):
             ),
             id=self.kwargs["id"],
         )
-        # Prefetch actions using the battle instance's get_actions method
-        battle.actions = battle.get_actions().select_related("user", "list")
         return battle
 
     def get_context_data(self, **kwargs):
@@ -66,8 +64,8 @@ class BattleDetailView(generic.DetailView):
         # Get all notes ordered by creation date
         context["notes"] = battle.notes.select_related("owner").order_by("created")
 
-        # Get associated campaign actions
-        context["actions"] = battle.get_actions()
+        # Get associated campaign actions with related data
+        context["actions"] = battle.get_actions().select_related("user", "list")
 
         return context
 
