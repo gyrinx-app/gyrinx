@@ -235,3 +235,122 @@ equipment_category_group_choices = [(x, x) for x in equipment_category_choices.k
 
 T = TypeVar("T")
 QuerySetOf = Union[QuerySet, List[T]]
+
+
+class CostMixin(models.Model):
+    """
+    Mixin for models that have cost calculation logic.
+
+    This mixin provides common cost methods (cost_int, cost_display) that can be
+    used by models with cost fields. It handles both integer and string cost fields.
+
+    For models with special cost calculation logic, override the cost_int() method.
+
+    Attributes
+    ----------
+    cost_field_name : str
+        The name of the field that stores the cost. Defaults to 'cost'.
+        Can be overridden in subclasses if the field has a different name.
+    """
+
+    cost_field_name = "cost"
+
+    class Meta:
+        abstract = True
+
+    def cost_int(self):
+        """
+        Returns the integer cost of this item.
+
+        This method handles both integer and string cost fields:
+        - If the cost field is an integer, returns it directly
+        - If the cost field is a string that can be converted to int, converts and returns it
+        - If the cost field is empty or non-numeric, returns 0
+
+        Override this method in subclasses for custom cost calculation logic.
+
+        Returns
+        -------
+        int
+            The cost as an integer
+        """
+        cost_value = getattr(self, self.cost_field_name, None)
+
+        # Handle None or empty values
+        if cost_value is None or cost_value == "":
+            return 0
+
+        # If it's already an integer, return it
+        if isinstance(cost_value, int):
+            return cost_value
+
+        # If it's a string, try to convert
+        if isinstance(cost_value, str):
+            if is_int(cost_value):
+                return int(cost_value)
+            return 0
+
+        # Default case
+        return 0
+
+    def cost_display(self, show_sign=False):
+        """
+        Returns a readable cost string with currency symbol.
+
+        Parameters
+        ----------
+        show_sign : bool
+            Whether to show '+' for positive values (default: False)
+
+        Returns
+        -------
+        str
+            Formatted cost string with '¢' suffix
+        """
+        cost_value = getattr(self, self.cost_field_name, None)
+
+        # Special handling for string costs that aren't numeric
+        if isinstance(cost_value, str) and not is_int(cost_value):
+            return cost_value
+
+        # For empty string costs, return empty
+        if cost_value == "" or cost_value is None:
+            return ""
+
+        return format_cost_display(self.cost_int(), show_sign=show_sign)
+
+
+class FighterCostMixin(CostMixin):
+    """
+    Extended cost mixin for models that have fighter-specific cost overrides.
+
+    This mixin adds the cost_for_fighter_int() method that checks for the
+    presence of an annotated 'cost_for_fighter' attribute.
+    """
+
+    class Meta:
+        abstract = True
+
+    def cost_for_fighter_int(self):
+        """
+        Returns the fighter-specific cost if available.
+
+        This method expects the model to be annotated with a 'cost_for_fighter'
+        attribute using the model's with_cost_for_fighter() queryset method.
+
+        Returns
+        -------
+        int
+            The fighter-specific cost
+
+        Raises
+        ------
+        AttributeError
+            If the model hasn't been annotated with cost_for_fighter
+        """
+        if hasattr(self, "cost_for_fighter"):
+            return self.cost_for_fighter
+
+        raise AttributeError(
+            "cost_for_fighter not available. Use with_cost_for_fighter()"
+        )

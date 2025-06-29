@@ -21,11 +21,12 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.models import (
     Base,
+    CostMixin,
+    FighterCostMixin,
     FighterCategoryChoices,
     QuerySetOf,
     equipment_category_group_choices,
     format_cost_display,
-    is_int,
 )
 from gyrinx.core.models.base import AppBase
 
@@ -434,7 +435,7 @@ class ContentEquipmentQuerySet(models.QuerySet):
         )
 
 
-class ContentEquipment(Content):
+class ContentEquipment(FighterCostMixin, Content):
     """
     Represents an item of equipment that a fighter may acquire.
     Can be a weapon or other piece of gear. Cost and rarity are tracked.
@@ -503,38 +504,6 @@ class ContentEquipment(Content):
 
     def __str__(self):
         return self.name
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this equipment or zero if not specified.
-        """
-        if not self.cost:
-            return 0
-
-        if not is_int(self.cost):
-            return 0
-
-        return int(self.cost)
-
-    def cost_display(self):
-        """
-        Returns a readable cost string with a '¢' suffix.
-        """
-        if not is_int(self.cost):
-            return f"{self.cost}"
-
-        if not self.cost:
-            return ""
-
-        return format_cost_display(self.cost)
-
-    def cost_for_fighter_int(self):
-        if hasattr(self, "cost_for_fighter"):
-            return self.cost_for_fighter
-
-        raise AttributeError(
-            "cost_for_fighter not available. Use with_cost_for_fighter()"
-        )
 
     def cat(self):
         """
@@ -952,7 +921,7 @@ class ContentFighter(Content):
     )()
 
 
-class ContentFighterEquipmentListItem(Content):
+class ContentFighterEquipmentListItem(CostMixin, Content):
     """
     Associates :model:`content.ContentEquipment` with a given fighter in the rulebook, optionally
     specifying a weapon profile and cost override.
@@ -973,18 +942,6 @@ class ContentFighterEquipmentListItem(Content):
     )
     cost = models.IntegerField(default=0)
     history = HistoricalRecords()
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this item.
-        """
-        return self.cost
-
-    def cost_display(self):
-        """
-        Returns a cost display string with '¢'.
-        """
-        return f"{self.cost}¢"
 
     def __str__(self):
         profile = f" ({self.weapon_profile})" if self.weapon_profile else ""
@@ -1009,7 +966,7 @@ class ContentFighterEquipmentListItem(Content):
             )
 
 
-class ContentFighterEquipmentListWeaponAccessory(Content):
+class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
     """
     Associates :model:`content.ContentWeaponAccessory` with a given fighter in the rulebook, optionally
     specifying a cost override.
@@ -1024,18 +981,6 @@ class ContentFighterEquipmentListWeaponAccessory(Content):
     )
     cost = models.IntegerField(default=0)
     history = HistoricalRecords()
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this item.
-        """
-        return self.cost
-
-    def cost_display(self):
-        """
-        Returns a cost display string with '¢'.
-        """
-        return f"{self.cost}¢"
 
     def __str__(self):
         return f"{self.fighter} {self.weapon_accessory} ({self.cost})"
@@ -1054,7 +999,7 @@ class ContentFighterEquipmentListWeaponAccessory(Content):
             raise ValidationError("Cost cannot be negative.")
 
 
-class ContentFighterEquipmentListUpgrade(Content):
+class ContentFighterEquipmentListUpgrade(CostMixin, Content):
     """
     Associates ContentEquipmentUpgrade with a given fighter in the rulebook,
     specifying a cost override.
@@ -1069,18 +1014,6 @@ class ContentFighterEquipmentListUpgrade(Content):
     )
     cost = models.IntegerField(default=0)
     history = HistoricalRecords()
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this item.
-        """
-        return self.cost
-
-    def cost_display(self):
-        """
-        Returns a cost display string with '¢'.
-        """
-        return f"{self.cost}¢"
 
     def __str__(self):
         return f"{self.fighter.type} {self.upgrade} ({self.cost})"
@@ -1251,7 +1184,7 @@ class StatlineDisplay:
     highlight: bool = False
 
 
-class ContentWeaponProfile(Content):
+class ContentWeaponProfile(FighterCostMixin, Content):
     """
     Represents a specific profile for :model:`content.ContentEquipment`. "Standard" profiles have zero cost.
     """
@@ -1326,27 +1259,19 @@ class ContentWeaponProfile(Content):
     def __str__(self):
         return f"{self.equipment} {self.name if self.name else '(Standard)'}"
 
-    def cost_int(self):
-        """
-        Returns the integer cost of this weapon profile.
-        """
-        return self.cost
-
-    def cost_display(self) -> str:
+    def cost_display(self, show_sign=False) -> str:
         """
         Returns a readable display for the cost, including any sign and '¢'.
+
+        For weapon profiles:
+        - Standard (unnamed) profiles always return empty string
+        - Named profiles with zero cost return empty string
+        - Named profiles with positive cost always show with '+' sign
         """
         if self.name == "" or self.cost_int() == 0:
             return ""
+        # Always show sign for named profiles with non-zero cost
         return format_cost_display(self.cost_int(), show_sign=True)
-
-    def cost_for_fighter_int(self):
-        if hasattr(self, "cost_for_fighter"):
-            return self.cost_for_fighter
-
-        raise AttributeError(
-            "cost_for_fighter not available. Use with_cost_for_fighter()"
-        )
 
     def statline(self) -> list[StatlineDisplay]:
         """
@@ -1481,7 +1406,7 @@ class ContentWeaponAccessoryQuerySet(models.QuerySet):
         )
 
 
-class ContentWeaponAccessory(Content):
+class ContentWeaponAccessory(FighterCostMixin, Content):
     """
     Represents an accessory that can be associated with a weapon.
     """
@@ -1516,26 +1441,6 @@ class ContentWeaponAccessory(Content):
     )
 
     history = HistoricalRecords()
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this weapon accessory.
-        """
-        return self.cost
-
-    def cost_display(self):
-        """
-        Returns a readable cost string with a '¢' suffix.
-        """
-        return format_cost_display(self.cost)
-
-    def cost_for_fighter_int(self):
-        if hasattr(self, "cost_for_fighter"):
-            return self.cost_for_fighter
-
-        raise AttributeError(
-            "cost_for_fighter not available. Use with_cost_for_fighter()"
-        )
 
     def __str__(self):
         return self.name
@@ -1582,7 +1487,7 @@ class ContentEquipmentUpgradeManager(models.Manager):
     pass
 
 
-class ContentEquipmentUpgrade(Content):
+class ContentEquipmentUpgrade(CostMixin, Content):
     """
     Represents an upgrade that can be associated with a piece of equipment.
     """
@@ -1626,13 +1531,15 @@ class ContentEquipmentUpgrade(Content):
     def cost_int_cached(self):
         return self.cost_int()
 
-    def cost_display(self):
+    def cost_display(self, show_sign=False):
         """
         Returns a cost display string with '¢'.
+
+        Always shows with '+' sign for equipment upgrades.
         """
         # If equipment is not set (e.g., unsaved object), use the cost directly
         if not hasattr(self, "equipment") or self.equipment_id is None:
-            return format_cost_display(self.cost)
+            return format_cost_display(self.cost, show_sign=True)
         return format_cost_display(self.cost_int_cached, show_sign=True)
 
     class Meta:
@@ -1649,7 +1556,7 @@ class ContentEquipmentUpgrade(Content):
     )()
 
 
-class ContentFighterDefaultAssignment(Content):
+class ContentFighterDefaultAssignment(CostMixin, Content):
     """
     Associates a fighter with a piece of equipment by default, including weapon profiles.
     """
@@ -1676,18 +1583,6 @@ class ContentFighterDefaultAssignment(Content):
         default=0, help_text="You typically should not overwrite this."
     )
     history = HistoricalRecords()
-
-    def cost_int(self):
-        """
-        Returns the integer cost of this item.
-        """
-        return self.cost
-
-    def cost_display(self):
-        """
-        Returns a cost display string with '¢'.
-        """
-        return format_cost_display(self.cost)
 
     def is_weapon(self):
         return self.equipment.is_weapon()
