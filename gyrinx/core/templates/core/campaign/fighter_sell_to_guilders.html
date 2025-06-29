@@ -1,0 +1,68 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags color_tags %}
+{% block head_title %}
+    Sell Fighter to Guilders - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="core:campaign-captured-fighters" text="Back to Captured Fighters" url_args=campaign.id %}
+    <div class="col-lg-8 px-0">
+        <div class="vstack gap-0 mb-3">
+            <h1 class="mb-0">Sell Fighter to Guilders</h1>
+            <div class="text-secondary">{{ campaign.name }}</div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-body">
+                <h2 class="h5 card-title">Fighter Details</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Fighter</dt>
+                    <dd class="col-sm-9">
+                        {{ captured_fighter.fighter.name }}
+                    </dd>
+                    <dt class="col-sm-3">Type</dt>
+                    <dd class="col-sm-9">
+                        {{ captured_fighter.fighter.content_fighter.type }}
+                    </dd>
+                    <dt class="col-sm-3">Original Gang</dt>
+                    <dd class="col-sm-9">
+                        {{ captured_fighter.fighter.list.name }}
+                    </dd>
+                    <dt class="col-sm-3">Captured By</dt>
+                    <dd class="col-sm-9">
+                        {{ captured_fighter.capturing_list.name }} (Your Gang)
+                    </dd>
+                </dl>
+            </div>
+        </div>
+        <div class="alert alert-warning">
+            <i class="bi-exclamation-triangle"></i>
+            <strong>Warning:</strong> Selling a fighter to the guilders is permanent. The fighter will be removed from play
+            and cannot be recovered by their original gang.
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h5 card-title">Sale Details</h2>
+                    <div class="mb-3">
+                        <label for="credits" class="form-label">Sale Price (Credits)</label>
+                        <input type="number"
+                               class="form-control"
+                               id="credits"
+                               name="credits"
+                               min="0"
+                               value="0"
+                               placeholder="Enter amount of credits">
+                        <div class="form-text">The amount of credits you'll receive for selling this fighter to the guilders.</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi-coin"></i> Sell to Guilders
+                        </button>
+                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+                           class="btn btn-secondary">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
