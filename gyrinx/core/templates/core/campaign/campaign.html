@@ -299,12 +299,14 @@
                                             </h6>
                                             <p class="mb-0 text-muted small">
                                                 {% for participant in battle.participants.all %}
-                                                    {{ participant.name }}{% if participant in battle.winners.all %} <i class="bi-trophy-fill text-warning"></i>{% endif %}{% if not forloop.last %}, {% endif %}
+                                                    {{ participant.name }}
+                                                    {% if participant in battle.winners.all %}<i class="bi-trophy-fill text-warning"></i>{% endif %}
+                                                    {% if not forloop.last %},{% endif %}
                                                 {% endfor %}
                                             </p>
                                         </div>
                                         <small class="text-muted">
-                                            <i class="bi-file-text"></i> 
+                                            <i class="bi-file-text"></i>
                                             {{ battle.notes.count }} report{{ battle.notes.count|pluralize }}
                                         </small>
                                     </div>
@@ -312,9 +314,7 @@
                             {% endfor %}
                             {% if campaign.battles.count > 5 %}
                                 <div class="list-group-item text-center">
-                                    <a href="#" class="text-decoration-none">
-                                        View all {{ campaign.battles.count }} battles →
-                                    </a>
+                                    <a href="#" class="text-decoration-none">View all {{ campaign.battles.count }} battles →</a>
                                 </div>
                             {% endif %}
                         </div>

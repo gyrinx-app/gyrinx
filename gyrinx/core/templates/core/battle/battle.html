@@ -26,7 +26,7 @@
                     <div class="text-secondary">
                         <i class="bi-person"></i>
                         Created by <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                           href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a>
+    href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a>
                     </div>
                 </div>
                 <div class="ms-sm-auto mt-2 mt-sm-0">
@@ -39,7 +39,6 @@
                 </div>
             </div>
         </div>
-        
         <div class="vstack gap-3">
             <!-- Participants -->
             <div class="card">
@@ -51,11 +50,11 @@
                         {% for participant in battle.participants.all %}
                             <div class="col-md-6 col-lg-4">
                                 <div class="d-flex align-items-center gap-2">
-                                    <a href="{% url 'core:list' participant.id %}" 
+                                    <a href="{% url 'core:list' participant.id %}"
                                        class="text-decoration-none">{{ participant.name }}</a>
                                     {% if participant in battle.winners.all %}
-                                        <i class="bi-trophy-fill text-warning" 
-                                           data-bs-toggle="tooltip" 
+                                        <i class="bi-trophy-fill text-warning"
+                                           data-bs-toggle="tooltip"
                                            data-bs-title="Winner"></i>
                                     {% endif %}
                                 </div>
@@ -69,16 +68,19 @@
                     {% endif %}
                 </div>
             </div>
-
             <!-- Battle Notes -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Battle Reports</h5>
                     {% if can_add_notes %}
-                        <a href="{% url 'core:battle-note-add' battle.id %}" 
+                        <a href="{% url 'core:battle-note-add' battle.id %}"
                            class="btn btn-sm btn-primary">
-                            <i class="bi-plus-circle"></i> 
-                            {% if user_note %}Edit My Note{% else %}Add Note{% endif %}
+                            <i class="bi-plus-circle"></i>
+                            {% if user_note %}
+                                Edit My Note
+                            {% else %}
+                                Add Note
+                            {% endif %}
                         </a>
                     {% endif %}
                 </div>
@@ -96,7 +98,7 @@
                                             {{ note.created|date:"M d, Y g:i A" }}
                                         </div>
                                         {% if note.owner == user %}
-                                            <a href="{% url 'core:battle-note-add' battle.id %}" 
+                                            <a href="{% url 'core:battle-note-add' battle.id %}"
                                                class="btn btn-sm btn-outline-secondary">
                                                 <i class="bi-pencil"></i>
                                             </a>
@@ -113,7 +115,6 @@
                     {% endif %}
                 </div>
             </div>
-
             <!-- Related Actions -->
             {% if actions %}
                 <div class="card">
@@ -137,9 +138,7 @@
                                             </div>
                                         {% endif %}
                                     </div>
-                                    <div class="text-muted small">
-                                        {{ action.created|date:"M d, Y" }}
-                                    </div>
+                                    <div class="text-muted small">{{ action.created|date:"M d, Y" }}</div>
                                 </div>
                             {% endfor %}
                         </div>

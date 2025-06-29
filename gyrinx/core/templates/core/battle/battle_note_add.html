@@ -1,41 +1,48 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth %}
 {% block head_title %}
-    {% if existing_note %}Edit Note{% else %}Add Note{% endif %} - {{ battle.name }}
+    {% if existing_note %}
+        Edit Note
+    {% else %}
+        Add Note
+    {% endif %}
+    - {{ battle.name }}
 {% endblock head_title %}
 {% block content %}
     {% url 'core:battle' battle.id as battle_url %}
     {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
     <div class="col-lg-8 px-0">
-        <h1>{% if existing_note %}Edit Battle Report{% else %}Add Battle Report{% endif %}</h1>
+        <h1>
+            {% if existing_note %}
+                Edit Battle Report
+            {% else %}
+                Add Battle Report
+            {% endif %}
+        </h1>
         <p class="text-muted">{{ battle.name }}</p>
-        
         <form method="post">
             {% csrf_token %}
-            
             <div class="mb-3">
                 <label class="form-label">{{ form.content.label }}</label>
                 <div class="text-muted small mb-2">
-                    Share your experience of the battle. You can include details about tactics, 
+                    Share your experience of the battle. You can include details about tactics,
                     memorable moments, or the narrative of how the battle unfolded.
                 </div>
-                {% if form.content.errors %}
-                    <div class="invalid-feedback d-block">
-                        {{ form.content.errors|join:", " }}
-                    </div>
-                {% endif %}
+                {% if form.content.errors %}<div class="invalid-feedback d-block">{{ form.content.errors|join:", " }}</div>{% endif %}
                 {{ form.content }}
             </div>
-            
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi-check-circle"></i> 
-                    {% if existing_note %}Update Report{% else %}Add Report{% endif %}
+                    <i class="bi-check-circle"></i>
+                    {% if existing_note %}
+                        Update Report
+                    {% else %}
+                        Add Report
+                    {% endif %}
                 </button>
                 <a href="{{ battle_url }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>
 {% endblock content %}
-
 {{ form.media }}
