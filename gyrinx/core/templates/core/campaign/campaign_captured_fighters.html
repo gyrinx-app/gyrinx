@@ -14,7 +14,6 @@
             </div>
             <div class="text-secondary">{{ campaign.name }}</div>
         </div>
-        
         {% if captured_fighters %}
             <div class="table-responsive">
                 <table class="table table-hover">
@@ -42,7 +41,8 @@
                                     {% if captured.sold_to_guilders %}
                                         <span class="badge bg-secondary">Sold to Guilders</span>
                                         {% if captured.ransom_amount %}
-                                            <br><small>{{ captured.ransom_amount|cost_display }}</small>
+                                            <br>
+                                            <small>{{ captured.ransom_amount|cost_display }}</small>
                                         {% endif %}
                                     {% else %}
                                         <span class="badge bg-warning text-dark">Captured</span>
@@ -53,13 +53,9 @@
                                     {% if not captured.sold_to_guilders and captured.capturing_list.owner == request.user %}
                                         <div class="btn-group btn-group-sm" role="group">
                                             <a href="{% url 'core:fighter-sell-to-guilders' campaign.id captured.fighter.id %}"
-                                               class="btn btn-outline-secondary">
-                                                Sell to Guilders
-                                            </a>
+                                               class="btn btn-outline-secondary">Sell to Guilders</a>
                                             <a href="{% url 'core:fighter-return-to-owner' campaign.id captured.fighter.id %}"
-                                               class="btn btn-outline-secondary">
-                                                Return to Owner
-                                            </a>
+                                               class="btn btn-outline-secondary">Return to Owner</a>
                                         </div>
                                     {% elif captured.sold_to_guilders %}
                                         <span class="text-secondary">—</span>

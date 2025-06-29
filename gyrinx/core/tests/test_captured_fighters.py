@@ -108,7 +108,6 @@ def test_sell_fighter_to_guilders(campaign_with_lists):
         capturing_list=capturing_list,
     )
 
-
     # Sell to guilders
     captured.sell_to_guilders(credits=25)
 
