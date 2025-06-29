@@ -8,7 +8,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("content", "0113_contentattribute_historicalcontentattribute_and_more"),
         ("core", "0070_add_battle_model_and_link_to_campaign_action"),

@@ -193,11 +193,7 @@ def test_list_clone_with_attributes(make_list):
 def test_campaign_clone_with_attributes(make_list, user):
     """Test that attributes are cloned when creating a campaign list."""
     list_ = make_list("Original Gang")
-    campaign = Campaign.objects.create(
-        name="Test Campaign",
-        owner=user,
-        public=True
-    )
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
 
     # Create and assign attributes
     alignment = ContentAttribute.objects.create(
@@ -217,4 +213,3 @@ def test_campaign_clone_with_attributes(make_list, user):
     assert campaign_list.attributes.count() == 1
     assert campaign_list.attributes.first() == law_abiding
     assert campaign_list.status == List.CAMPAIGN_MODE
-

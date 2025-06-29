@@ -8,7 +8,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("content", "0112_add_content_fighter_equipment_list_upgrade"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
