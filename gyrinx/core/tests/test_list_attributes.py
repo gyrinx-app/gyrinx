@@ -2,6 +2,7 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import ContentAttribute, ContentAttributeValue
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListAttributeAssignment
 
 
@@ -189,10 +190,14 @@ def test_list_clone_with_attributes(make_list):
 
 
 @pytest.mark.django_db
-def test_campaign_clone_with_attributes(make_list, make_campaign):
+def test_campaign_clone_with_attributes(make_list, user):
     """Test that attributes are cloned when creating a campaign list."""
     list_ = make_list("Original Gang")
-    campaign = make_campaign("Test Campaign")
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True
+    )
 
     # Create and assign attributes
     alignment = ContentAttribute.objects.create(
