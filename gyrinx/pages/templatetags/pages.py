@@ -5,6 +5,7 @@ from django import template
 from django.conf import settings
 from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
+from django.core.cache import cache
 from django.db.models import Q
 from django.utils.safestring import mark_safe
 
@@ -32,33 +33,76 @@ class FlatpageNode(template.Node):
             site_pk = get_current_site(context["request"]).pk
         else:
             site_pk = settings.SITE_ID
-        flatpages = FlatPage.objects.filter(sites__id=site_pk)
-        # If a prefix was specified, add a filter
-        if self.starts_with:
-            flatpages = flatpages.filter(
-                url__startswith=self.starts_with.resolve(context)
-            )
 
-        # If the provided user is not authenticated, or no user
-        # was provided, filter the list to only public flatpages.
+        # Build cache key based on all filter parameters
+        cache_key_parts = [
+            "flatpages",
+            f"site_{site_pk}",
+            f"depth_{self.depth}",
+        ]
+
+        # Add prefix to cache key if specified
+        starts_with = None
+        if self.starts_with:
+            starts_with = self.starts_with.resolve(context)
+            cache_key_parts.append(f"prefix_{starts_with}")
+
+        # Add user info to cache key
+        user = None
         if self.user:
             user = self.user.resolve(context)
-            if not user.is_authenticated:
-                flatpages = flatpages.filter(registration_required=False)
+            if user.is_authenticated:
+                # Include user ID and group IDs for authenticated users
+                group_ids = "_".join(
+                    str(g.id) for g in user.groups.all().order_by("id")
+                )
+                cache_key_parts.append(f"user_{user.id}_groups_{group_ids}")
             else:
-                # This is the addition: filter flatpages for visibility to the user
-                flatpages = flatpages.filter(
-                    Q(flatpagevisibility__isnull=True)
-                    | Q(flatpagevisibility__groups__in=user.groups.all())
-                ).distinct()
+                cache_key_parts.append("anon")
         else:
-            flatpages = flatpages.filter(registration_required=False)
+            cache_key_parts.append("anon")
 
-        if self.depth:
-            # Another addition: filter flatpages by depth
-            flatpages = flatpages.filter(
-                url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
-            )
+        cache_key = ":".join(cache_key_parts)
+
+        # Try to get from cache
+        flatpages = cache.get(cache_key)
+
+        if flatpages is None:
+            # Build the queryset
+            flatpages = FlatPage.objects.filter(sites__id=site_pk)
+
+            # If a prefix was specified, add a filter
+            if starts_with:
+                flatpages = flatpages.filter(url__startswith=starts_with)
+
+            # If the provided user is not authenticated, or no user
+            # was provided, filter the list to only public flatpages.
+            if user:
+                if not user.is_authenticated:
+                    flatpages = flatpages.filter(registration_required=False)
+                else:
+                    # This is the addition: filter flatpages for visibility to the user
+                    flatpages = flatpages.filter(
+                        Q(flatpagevisibility__isnull=True)
+                        | Q(flatpagevisibility__groups__in=user.groups.all())
+                    ).distinct()
+            else:
+                flatpages = flatpages.filter(registration_required=False)
+
+            if self.depth:
+                # Optimized regex for depth=1 case
+                if self.depth == 1:
+                    flatpages = flatpages.filter(url__regex=r"^/[^/]+/?$")
+                else:
+                    flatpages = flatpages.filter(
+                        url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
+                    )
+
+            # Convert to list to cache the results
+            flatpages = list(flatpages)
+
+            # Cache for 1 hour
+            cache.set(cache_key, flatpages, 3600)
 
         context[self.context_name] = flatpages
         return ""
