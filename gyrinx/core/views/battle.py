@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import models
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -37,22 +36,17 @@ class BattleDetailView(generic.DetailView):
 
     def get_object(self):
         """Retrieve the Battle by its id."""
-        return get_object_or_404(
+        battle = get_object_or_404(
             Battle.objects.select_related("campaign", "owner").prefetch_related(
                 "participants",
                 "winners",
                 "notes__owner",
-                models.Prefetch(
-                    "actions",
-                    queryset=self.get_object()
-                    .get_actions()
-                    .select_related("user", "list")
-                    if hasattr(self, "object")
-                    else Battle.objects.none(),
-                ),
             ),
             id=self.kwargs["id"],
         )
+        # Prefetch actions using the battle instance's get_actions method
+        battle.actions = battle.get_actions().select_related("user", "list")
+        return battle
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
