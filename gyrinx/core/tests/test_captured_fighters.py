@@ -1,0 +1,334 @@
+import pytest
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+
+from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.list import List, ListFighter, CapturedFighter
+
+User = get_user_model()
+
+
+@pytest.fixture
+def campaign_with_lists(db):
+    """Create a campaign with two lists owned by different users."""
+    owner1 = User.objects.create_user(username="owner1", email="owner1@test.com")
+    owner2 = User.objects.create_user(username="owner2", email="owner2@test.com")
+
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=owner1,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    list1 = List.objects.create(
+        name="Gang 1",
+        owner=owner1,
+        content_house=house,
+        mode=List.CAMPAIGN_MODE,
+        credits_current=100,
+    )
+    list1.campaigns.add(campaign)
+
+    list2 = List.objects.create(
+        name="Gang 2",
+        owner=owner2,
+        content_house=house,
+        mode=List.CAMPAIGN_MODE,
+        credits_current=50,
+    )
+    list2.campaigns.add(campaign)
+
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+        cost=50,
+    )
+
+    fighter1 = ListFighter.objects.create(
+        name="Fighter 1",
+        list=list1,
+        content_fighter=content_fighter,
+        owner=owner1,
+    )
+
+    fighter2 = ListFighter.objects.create(
+        name="Fighter 2",
+        list=list2,
+        content_fighter=content_fighter,
+        owner=owner2,
+    )
+
+    return {
+        "campaign": campaign,
+        "list1": list1,
+        "list2": list2,
+        "fighter1": fighter1,
+        "fighter2": fighter2,
+        "owner1": owner1,
+        "owner2": owner2,
+    }
+
+
+@pytest.mark.django_db
+def test_capture_fighter(campaign_with_lists):
+    """Test capturing a fighter."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+
+    # Create capture
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+    # Test fighter properties
+    assert fighter.is_captured is True
+    assert fighter.is_sold_to_guilders is False
+    assert fighter.captured_state == "captured"
+    assert fighter.can_participate() is False
+
+    # Test capture relationship
+    assert captured.fighter == fighter
+    assert captured.capturing_list == capturing_list
+    assert captured.sold_to_guilders is False
+
+
+@pytest.mark.django_db
+def test_sell_fighter_to_guilders(campaign_with_lists):
+    """Test selling a captured fighter to guilders."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+
+    # Sell to guilders
+    captured.sell_to_guilders(credits=25)
+
+    # Test state
+    assert captured.sold_to_guilders is True
+    assert captured.sold_at is not None
+    assert captured.ransom_amount == 25
+
+    # Test fighter properties
+    assert fighter.is_captured is False
+    assert fighter.is_sold_to_guilders is True
+    assert fighter.captured_state == "sold"
+    assert fighter.can_participate() is False
+
+
+@pytest.mark.django_db
+def test_return_fighter_to_owner(campaign_with_lists):
+    """Test returning a captured fighter to their original gang."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+    campaign_with_lists["list1"]
+
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+    # Return with ransom
+    captured.return_to_owner(credits=30)
+
+    # Capture record should be deleted
+    assert CapturedFighter.objects.filter(fighter=fighter).exists() is False
+
+    # Fighter should be back to normal
+    assert fighter.is_captured is False
+    assert fighter.is_sold_to_guilders is False
+    assert fighter.captured_state is None
+    assert fighter.can_participate() is True
+
+
+@pytest.mark.django_db
+def test_captured_fighters_view(client, campaign_with_lists):
+    """Test the captured fighters view."""
+    campaign = campaign_with_lists["campaign"]
+    owner1 = campaign_with_lists["owner1"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    # Create a captured fighter
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    client.force_login(owner1)
+
+    url = reverse("core:campaign-captured-fighters", args=[campaign.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert b"Fighter 1" in response.content
+    assert b"Gang 2" in response.content
+    assert b"Captured" in response.content
+
+
+@pytest.mark.django_db
+def test_sell_to_guilders_view(client, campaign_with_lists):
+    """Test the sell to guilders view."""
+    campaign = campaign_with_lists["campaign"]
+    owner2 = campaign_with_lists["owner2"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    captured = CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    client.force_login(owner2)
+
+    url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
+
+    # Test GET
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test POST
+    initial_credits = list2.credits_current
+    response = client.post(url, {"credits": "50"})
+
+    assert response.status_code == 302
+
+    # Check fighter was sold
+    captured.refresh_from_db()
+    assert captured.sold_to_guilders is True
+    assert captured.ransom_amount == 50
+
+    # Check credits were added
+    list2.refresh_from_db()
+    assert list2.credits_current == initial_credits + 50
+
+    # Check campaign action was logged
+    action = CampaignAction.objects.filter(
+        campaign=campaign, description__contains="Sold Fighter 1"
+    ).first()
+    assert action is not None
+
+
+@pytest.mark.django_db
+def test_return_to_owner_view(client, campaign_with_lists):
+    """Test the return to owner view."""
+    campaign = campaign_with_lists["campaign"]
+    owner2 = campaign_with_lists["owner2"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list1 = campaign_with_lists["list1"]
+    list2 = campaign_with_lists["list2"]
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    client.force_login(owner2)
+
+    url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
+
+    # Test GET
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test POST with ransom
+    initial_credits_list1 = list1.credits_current
+    initial_credits_list2 = list2.credits_current
+
+    response = client.post(url, {"ransom": "25"})
+    assert response.status_code == 302
+
+    # Check fighter was returned
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists() is False
+
+    # Check credits were transferred
+    list1.refresh_from_db()
+    list2.refresh_from_db()
+    assert list1.credits_current == initial_credits_list1 - 25
+    assert list2.credits_current == initial_credits_list2 + 25
+
+    # Check campaign actions were logged
+    actions = CampaignAction.objects.filter(campaign=campaign).order_by("created")
+    assert any("Paid 25 credit ransom" in action.description for action in actions)
+    assert any("Returned Fighter 1" in action.description for action in actions)
+
+
+@pytest.mark.django_db
+def test_capture_permissions(client, campaign_with_lists):
+    """Test that only the capturing gang owner can sell/return fighters."""
+    campaign = campaign_with_lists["campaign"]
+    owner1 = campaign_with_lists["owner1"]
+    campaign_with_lists["owner2"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    # Login as wrong user
+    client.force_login(owner1)
+
+    # Try to sell - should get 404
+    url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
+    response = client.post(url, {"credits": "50"})
+    assert response.status_code == 404
+
+    # Try to return - should get 404
+    url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
+    response = client.post(url, {"ransom": "25"})
+    assert response.status_code == 404
+
+    # Captured fighter should still exist
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists()
+
+
+@pytest.mark.django_db
+def test_fighter_sorting_with_captured(campaign_with_lists):
+    """Test that captured fighters are sorted to the end of the list."""
+    list1 = campaign_with_lists["list1"]
+    fighter1 = campaign_with_lists["fighter1"]
+
+    # Create additional fighters
+    content_fighter = fighter1.content_fighter
+    owner = fighter1.owner
+
+    ListFighter.objects.create(
+        name="Active Fighter",
+        list=list1,
+        content_fighter=content_fighter,
+        owner=owner,
+        injury_state=ListFighter.ACTIVE,
+    )
+
+    ListFighter.objects.create(
+        name="Dead Fighter",
+        list=list1,
+        content_fighter=content_fighter,
+        owner=owner,
+        injury_state=ListFighter.DEAD,
+    )
+
+    # Capture fighter1
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=campaign_with_lists["list2"],
+    )
+
+    # Check ordering
+    fighters = list1.fighters.all()
+    fighter_names = [f.name for f in fighters]
+
+    # Active fighter should be first
+    assert fighter_names[0] == "Active Fighter"
+    # Dead fighter should be before captured
+    assert fighter_names.index("Dead Fighter") < fighter_names.index("Fighter 1")

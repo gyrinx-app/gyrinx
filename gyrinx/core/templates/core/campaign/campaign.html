@@ -332,6 +332,23 @@
                     {% endif %}
                 </div>
             </div>
+            <!-- Captured Fighters -->
+            {% if campaign.is_in_progress %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h2 class="card-title h5 mb-0">Captured Fighters</h2>
+                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+                           class="btn btn-secondary btn-sm">
+                            <i class="bi-person-lock"></i> View Captured
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-0">
+                            Track fighters captured during the campaign. Captured fighters can be sold to guilders or returned to their original gang.
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
             <!-- Campaign Actions -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">

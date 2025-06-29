@@ -385,6 +385,22 @@ urlpatterns = [
         battle.add_battle_note,
         name="battle-note-add",
     ),
+    # Captured fighters
+    path(
+        "campaign/<id>/captured-fighters",
+        campaign.campaign_captured_fighters,
+        name="campaign-captured-fighters",
+    ),
+    path(
+        "campaign/<id>/fighter/<fighter_id>/sell-to-guilders",
+        campaign.fighter_sell_to_guilders,
+        name="fighter-sell-to-guilders",
+    ),
+    path(
+        "campaign/<id>/fighter/<fighter_id>/return-to-owner",
+        campaign.fighter_return_to_owner,
+        name="fighter-return-to-owner",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",
