@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0069_add_missing_database_indexes"),
+        ("core", "0070_add_battle_model_and_link_to_campaign_action"),
     ]
 
     operations = [
