@@ -16,6 +16,8 @@ from gyrinx.forms import group_select
 from gyrinx.models import equipment_category_choices
 
 from .models import (
+    ContentAttribute,
+    ContentAttributeValue,
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -612,3 +614,32 @@ class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
         return obj.modifiers.count()
 
     get_modifier_count.short_description = "Modifiers"
+
+
+class ContentAttributeValueInline(ContentTabularInline):
+    model = ContentAttributeValue
+    extra = 0
+    fields = ["name", "description"]
+
+
+@admin.register(ContentAttribute)
+class ContentAttributeAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "is_single_select", "get_value_count"]
+    list_filter = ["is_single_select"]
+    list_display_links = ["name"]
+
+    inlines = [ContentAttributeValueInline]
+
+    def get_value_count(self, obj):
+        return obj.values.count()
+
+    get_value_count.short_description = "Values"
+
+
+@admin.register(ContentAttributeValue)
+class ContentAttributeValueAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "attribute__name", "description"]
+    list_display = ["name", "attribute", "description"]
+    list_filter = ["attribute"]
+    list_display_links = ["name"]
