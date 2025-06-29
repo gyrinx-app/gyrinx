@@ -25,13 +25,9 @@
                     </span>
                 {% endif %}
                 {% if fighter.is_captured %}
-                    <span class="badge ms-2 bg-warning text-dark">
-                        Captured by {{ fighter.capture_info.capturing_list.name }}
-                    </span>
+                    <span class="badge ms-2 bg-warning text-dark">Captured by {{ fighter.capture_info.capturing_list.name }}</span>
                 {% elif fighter.is_sold_to_guilders %}
-                    <span class="badge ms-2 bg-secondary">
-                        Sold to Guilders
-                    </span>
+                    <span class="badge ms-2 bg-secondary">Sold to Guilders</span>
                 {% endif %}
                 <div class="ms-auto hstack gap-2">
                     {% if fighter.has_linked_fighter %}
