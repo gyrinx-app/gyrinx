@@ -32,15 +32,19 @@ class FlatpageNode(template.Node):
             site_pk = get_current_site(context["request"]).pk
         else:
             site_pk = settings.SITE_ID
+
+        # Build the queryset
         flatpages = FlatPage.objects.filter(sites__id=site_pk)
+
         # If a prefix was specified, add a filter
+        starts_with = None
         if self.starts_with:
-            flatpages = flatpages.filter(
-                url__startswith=self.starts_with.resolve(context)
-            )
+            starts_with = self.starts_with.resolve(context)
+            flatpages = flatpages.filter(url__startswith=starts_with)
 
         # If the provided user is not authenticated, or no user
         # was provided, filter the list to only public flatpages.
+        user = None
         if self.user:
             user = self.user.resolve(context)
             if not user.is_authenticated:
@@ -55,10 +59,13 @@ class FlatpageNode(template.Node):
             flatpages = flatpages.filter(registration_required=False)
 
         if self.depth:
-            # Another addition: filter flatpages by depth
-            flatpages = flatpages.filter(
-                url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
-            )
+            # Optimized regex for depth=1 case
+            if self.depth == 1:
+                flatpages = flatpages.filter(url__regex=r"^/[^/]+/?$")
+            else:
+                flatpages = flatpages.filter(
+                    url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
+                )
 
         context[self.context_name] = flatpages
         return ""
