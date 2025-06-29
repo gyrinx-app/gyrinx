@@ -15,13 +15,22 @@
 {% endif %}
 <div class="card {{ card_classes }} {% flash fighter.id %}"
      id="{{ fighter.id }}">
-    <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% elif fighter.injury_state == 'dead' %}bg-danger-subtle{% endif %}">
+    <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% elif fighter.injury_state == 'dead' %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
         <div class="vstack gap-1">
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
                     <span class="badge ms-2 {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% endif %}">
                         {{ fighter.get_injury_state_display }}
+                    </span>
+                {% endif %}
+                {% if fighter.is_captured %}
+                    <span class="badge ms-2 bg-warning text-dark">
+                        Captured by {{ fighter.capture_info.capturing_list.name }}
+                    </span>
+                {% elif fighter.is_sold_to_guilders %}
+                    <span class="badge ms-2 bg-secondary">
+                        Sold to Guilders
                     </span>
                 {% endif %}
                 <div class="ms-auto hstack gap-2">
