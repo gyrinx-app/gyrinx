@@ -197,7 +197,7 @@
                 </p>
                 {% for fighter in list.fighters_cached %}
                     <li class="list-group-item vstack gap-2">
-                        <h3 class="h6">{{ fighter.name }}</h3>
+                        <h3 class="h6 mb-0">{{ fighter.name }}</h3>
                         {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}
                         {% fullurl embed_url as full_embed_url %}
                         <div>
