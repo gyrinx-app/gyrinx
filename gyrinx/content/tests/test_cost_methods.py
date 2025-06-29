@@ -134,9 +134,9 @@ def test_content_equipment_cost_for_fighter_int_with_annotation():
     )
 
     # Get equipment with annotation
-    equipment_with_cost = ContentEquipment.objects.with_cost_for_fighter(
-        fighter
-    ).get(pk=equipment.pk)
+    equipment_with_cost = ContentEquipment.objects.with_cost_for_fighter(fighter).get(
+        pk=equipment.pk
+    )
     assert equipment_with_cost.cost_for_fighter_int() == 75
 
 
@@ -149,9 +149,7 @@ def test_content_weapon_profile_cost_int():
     category = ContentEquipmentCategory.objects.create(
         name="Test Category", group="Weapons & Ammo"
     )
-    equipment = ContentEquipment.objects.create(
-        name="Test Weapon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Test Weapon", category=category)
     profile = ContentWeaponProfile.objects.create(
         equipment=equipment, name="Long Range", cost=25
     )
@@ -164,9 +162,7 @@ def test_content_weapon_profile_cost_display_for_standard_profile():
     category = ContentEquipmentCategory.objects.create(
         name="Test Category", group="Weapons & Ammo"
     )
-    equipment = ContentEquipment.objects.create(
-        name="Test Weapon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Test Weapon", category=category)
     profile = ContentWeaponProfile.objects.create(
         equipment=equipment,
         name="",  # Standard profile
@@ -181,9 +177,7 @@ def test_content_weapon_profile_cost_display_for_named_profile_with_positive_cos
     category = ContentEquipmentCategory.objects.create(
         name="Test Category", group="Weapons & Ammo"
     )
-    equipment = ContentEquipment.objects.create(
-        name="Test Weapon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Test Weapon", category=category)
     profile = ContentWeaponProfile.objects.create(
         equipment=equipment, name="Long Range", cost=25
     )
@@ -196,9 +190,7 @@ def test_content_weapon_profile_cost_display_for_named_profile_with_zero_cost():
     category = ContentEquipmentCategory.objects.create(
         name="Test Category", group="Weapons & Ammo"
     )
-    equipment = ContentEquipment.objects.create(
-        name="Test Weapon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Test Weapon", category=category)
     profile = ContentWeaponProfile.objects.create(
         equipment=equipment, name="Special", cost=0
     )
@@ -218,9 +210,7 @@ def test_content_weapon_profile_cost_for_fighter_int_with_override():
     category = ContentEquipmentCategory.objects.create(
         name="Test Category", group="Weapons & Ammo"
     )
-    equipment = ContentEquipment.objects.create(
-        name="Test Weapon", category=category
-    )
+    equipment = ContentEquipment.objects.create(name="Test Weapon", category=category)
     profile = ContentWeaponProfile.objects.create(
         equipment=equipment, name="Long Range", cost=25
     )
@@ -231,9 +221,9 @@ def test_content_weapon_profile_cost_for_fighter_int_with_override():
     )
 
     # Get profile with annotation
-    profile_with_cost = ContentWeaponProfile.objects.with_cost_for_fighter(
-        fighter
-    ).get(pk=profile.pk)
+    profile_with_cost = ContentWeaponProfile.objects.with_cost_for_fighter(fighter).get(
+        pk=profile.pk
+    )
     assert profile_with_cost.cost_for_fighter_int() == 20
 
 
@@ -257,9 +247,7 @@ def test_content_weapon_accessory_cost_display():
 @pytest.mark.django_db
 def test_content_weapon_accessory_cost_display_negative():
     """Test cost_display with negative cost."""
-    accessory = ContentWeaponAccessory.objects.create(
-        name="Discount Scope", cost=-5
-    )
+    accessory = ContentWeaponAccessory.objects.create(name="Discount Scope", cost=-5)
     assert accessory.cost_display() == "-5¢"
 
 
@@ -416,9 +404,7 @@ def test_content_fighter_equipment_list_weapon_accessory_cost_int():
     fighter = ContentFighter.objects.create(
         type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
     )
-    accessory = ContentWeaponAccessory.objects.create(
-        name="Test Accessory", cost=20
-    )
+    accessory = ContentWeaponAccessory.objects.create(name="Test Accessory", cost=20)
 
     list_item = ContentFighterEquipmentListWeaponAccessory.objects.create(
         fighter=fighter, weapon_accessory=accessory, cost=15
@@ -434,9 +420,7 @@ def test_content_fighter_equipment_list_weapon_accessory_cost_display():
     fighter = ContentFighter.objects.create(
         type="Test Fighter", category=FighterCategoryChoices.GANGER, house=house
     )
-    accessory = ContentWeaponAccessory.objects.create(
-        name="Test Accessory", cost=20
-    )
+    accessory = ContentWeaponAccessory.objects.create(name="Test Accessory", cost=20)
 
     list_item = ContentFighterEquipmentListWeaponAccessory.objects.create(
         fighter=fighter, weapon_accessory=accessory, cost=15

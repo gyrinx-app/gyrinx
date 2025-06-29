@@ -103,9 +103,12 @@ SQL_DEBUG=True
 
 ## Development Workflow
 
-- Always run ruff to fix formatting and lint the code after making python changes
-- Run `npm run fmt` alongside ruff
-- Run `djlint --profile=django --reformat --lint .` when making template changes
+- Always run `./scripts/fmt.sh` after making code changes to format everything (Python, JS, SCSS, templates, etc.)
+- **IMPORTANT**: This includes running `./scripts/fmt.sh` after editing CLAUDE.md itself to ensure consistent formatting
+- Alternatively, you can run formatters individually:
+    - `ruff format` and `ruff check --fix` for Python
+    - `npm run fmt` for JS, SCSS, JSON, YAML, Markdown
+    - `djlint --profile=django --reformat .` for Django templates
 - When building something new, create a branch for it and open a pull request at the end
 - Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
 - Always run the tests and ensure they are passing before pushing from CI/GitHub Action context
@@ -247,11 +250,12 @@ The list view establishes the standard UI pattern for detail pages:
 
 ### Code Quality
 
-- Run `ruff format` to format Python code
-- Run `ruff check --fix` to fix linting issues
-- Always run ruff after making Python changes
-- Run `npm run fmt` when making changes to Markdown, YAML, JSON, SCSS or JavaScript
-- Run `djlint --profile=django --lint --reformat .` when making changes to HTML files
+- Run `./scripts/fmt.sh` to format all code (Python, JS, SCSS, templates, etc.) in one go
+- This script runs:
+    - `ruff format` and `ruff check --fix` for Python formatting and linting
+    - `npm run fmt` for Markdown, YAML, JSON, SCSS, and JavaScript formatting
+    - `djlint --profile=django --reformat .` for Django template formatting
+- Always run `./scripts/fmt.sh` after making code changes
 
 ### Git Workflow
 
