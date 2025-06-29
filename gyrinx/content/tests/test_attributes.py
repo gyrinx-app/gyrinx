@@ -1,4 +1,5 @@
 import pytest
+from django.db import IntegrityError
 
 from gyrinx.content.models import ContentAttribute, ContentAttributeValue
 
@@ -74,7 +75,7 @@ def test_attribute_value_unique_constraint():
     )
 
     # Try to create duplicate value
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(IntegrityError):
         ContentAttributeValue.objects.create(
             attribute=attribute,
             name="Law Abiding",
@@ -122,4 +123,3 @@ def test_multiple_attributes():
     assert ContentAttributeValue.objects.count() == 5
     assert alignment.values.count() == 2
     assert alliance.values.count() == 3
-
