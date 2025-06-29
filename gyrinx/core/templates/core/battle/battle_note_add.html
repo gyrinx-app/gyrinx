@@ -1,0 +1,45 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {% if existing_note %}
+        Edit Note
+    {% else %}
+        Add Note
+    {% endif %}
+    - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    <div class="col-lg-8 px-0">
+        <h1>
+            {% if existing_note %}
+                Edit Battle Note
+            {% else %}
+                Add Battle Note
+            {% endif %}
+        </h1>
+        <p class="text-muted">{{ battle.name }}</p>
+        <form method="post"class="vstack gap-3">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            {% csrf_token %}
+            {{ form.media }}
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi-check-circle"></i>
+                    {% if existing_note %}
+                        Update Note
+                    {% else %}
+                        Add Note
+                    {% endif %}
+                </button>
+                <a href="{{ battle_url }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

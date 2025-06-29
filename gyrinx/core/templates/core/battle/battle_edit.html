@@ -1,0 +1,26 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Edit Battle - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    <div class="col-lg-8 px-0">
+        <h1>Edit Battle</h1>
+        <p class="text-muted">{{ battle.name }}</p>
+        <form method="post" class="vstack gap-3">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            {% csrf_token %}
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{{ battle_url }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

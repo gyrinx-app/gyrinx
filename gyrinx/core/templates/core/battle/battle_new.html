@@ -1,0 +1,26 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    New Battle - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign' campaign.id as campaign_url %}
+    {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
+    <div class="col-lg-8 px-0">
+        <h1>New Battle</h1>
+        <p class="text-muted">Create a new battle report for {{ campaign.name }}</p>
+        <form method="post" class="vstack gap-3">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            {% csrf_token %}
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">Create Battle</button>
+                <a href="{{ campaign_url }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

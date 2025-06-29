@@ -47,19 +47,22 @@ class CampaignActionForm(forms.ModelForm):
 
     class Meta:
         model = CampaignAction
-        fields = ["list", "description", "dice_count"]
+        fields = ["list", "battle", "description", "dice_count"]
         labels = {
             "list": "Related Gang (Optional)",
+            "battle": "Related Battle (Optional)",
             "description": "Action Description",
             "dice_count": "Number of D6 Dice",
         }
         help_texts = {
             "list": "Select the gang this action is related to (if applicable)",
+            "battle": "Select the battle this action is related to (if applicable)",
             "description": "Describe the action being taken",
             "dice_count": "How many D6 dice to roll. Leave at 0 for no roll.",
         }
         widgets = {
             "list": forms.Select(attrs={"class": "form-select"}),
+            "battle": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(
                 attrs={
                     "class": "form-control",
@@ -84,8 +87,14 @@ class CampaignActionForm(forms.ModelForm):
             else:
                 self.fields["list"].queryset = campaign.lists.all()
 
-            # Make the field not required
+            # Filter battles to only show those in the campaign
+            self.fields["battle"].queryset = campaign.battles.order_by(
+                "-date", "-created"
+            )
+
+            # Make the fields not required
             self.fields["list"].required = False
+            self.fields["battle"].required = False
 
 
 class CampaignActionOutcomeForm(forms.ModelForm):

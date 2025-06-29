@@ -2,7 +2,7 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import campaign, list
+from .views import battle, campaign, list
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -363,6 +363,27 @@ urlpatterns = [
         "campaign/<id>/resources/<resource_id>/modify",
         campaign.campaign_resource_modify,
         name="campaign-resource-modify",
+    ),
+    # Battles
+    path(
+        "battle/<id>",
+        battle.BattleDetailView.as_view(),
+        name="battle",
+    ),
+    path(
+        "campaign/<campaign_id>/battles/new",
+        battle.new_battle,
+        name="battle-new",
+    ),
+    path(
+        "battle/<id>/edit",
+        battle.edit_battle,
+        name="battle-edit",
+    ),
+    path(
+        "battle/<battle_id>/notes/add",
+        battle.add_battle_note,
+        name="battle-note-add",
     ),
     # TinyMCE upload
     path(

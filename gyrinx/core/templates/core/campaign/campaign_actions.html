@@ -71,6 +71,20 @@
                             </select>
                         </div>
                         <div class="col-md-4">
+                            <label for="battle" class="form-label">Battle</label>
+                            <select class="form-select" id="battle" name="battle">
+                                <option value="">All battles</option>
+                                {% for battle in campaign_battles %}
+                                    <option value="{{ battle.id }}"
+                                            {% if request.GET.battle == battle.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ battle.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-4">
                             <label for="timeframe" class="form-label">Timeframe</label>
                             <select class="form-select" id="timeframe" name="timeframe">
                                 <option value="all"
@@ -94,7 +108,7 @@
                         <button class="btn btn-primary btn-sm" type="submit">
                             <i class="bi bi-funnel"></i> Apply Filters
                         </button>
-                        {% if request.GET.q or request.GET.gang or request.GET.author or request.GET.timeframe %}
+                        {% if request.GET.q or request.GET.gang or request.GET.author or request.GET.timeframe or request.GET.battle %}
                             <a href="{% url 'core:campaign-actions' campaign.id %}"
                                class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-x-circle"></i> Clear Filters
@@ -114,6 +128,13 @@
                                 {% if action.list %}
                                     •
                                     {% list_with_theme action.list %}
+                                {% endif %}
+                                {% if action.battle %}
+                                    •
+                                    <a href="{% url 'core:battle' action.battle.id %}"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                        <i class="bi-flag"></i> {{ action.battle.mission }}
+                                    </a>
                                 {% endif %}
                                 • {{ action.created|timesince }} ago
                             </small>
@@ -148,7 +169,7 @@
                         {% if page_obj.has_previous %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Previous</a>
+                                   href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}{% if request.GET.battle %}&battle={{ request.GET.battle }}{% endif %}">Previous</a>
                             </li>
                         {% endif %}
                         <li class="page-item active">
@@ -157,7 +178,7 @@
                         {% if page_obj.has_next %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}">Next</a>
+                                   href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}{% if request.GET.battle %}&battle={{ request.GET.battle }}{% endif %}">Next</a>
                             </li>
                         {% endif %}
                     </ul>
