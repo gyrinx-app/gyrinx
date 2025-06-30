@@ -157,6 +157,27 @@ To run the test suite, we also use Docker (so there is a database to talk to):
 ./scripts/test.sh
 ```
 
+For faster test execution using parallel workers:
+
+```bash
+./scripts/test.sh --parallel
+# or
+./scripts/test.sh -p
+```
+
+You can also run tests directly with pytest for more control:
+
+```bash
+# Run tests in parallel (requires pytest-xdist)
+pytest -n auto
+
+# Run tests with database reuse (faster for repeated runs)
+pytest --reuse-db
+
+# Combine both for maximum speed
+pytest -n auto --reuse-db
+```
+
 You can also use the `pytest-watcher`:
 
 ```bash
