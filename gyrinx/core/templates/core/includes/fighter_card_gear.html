@@ -48,6 +48,7 @@
                 {% if not fighter.is_stash %}
                     {% if fighter.has_house_additional_gear %}
                         {% if gear_mode == "edit" %}
+                            <!-- House Additional Gearline -->
                             {% for line in fighter.house_additional_gearline_display %}
                                 {% for assign in line.assignments %}
                                     <tr class="fs-7">
@@ -63,17 +64,7 @@
                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
                                                       title="This is assigned to the fighter by default.">
                                                 {% endif %}
-                                                {{ assign.name }}
-                                                {% if assign.active_upgrades_display|length > 0 %}
-                                                    {% spaceless %}
-                                                        <span>(</span>
-                                                        {% for up in assign.active_upgrades_display %}
-                                                            <span>{{ up.name }}</span>
-                                                            {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                                                        {% endfor %}
-                                                        <span>)</span>
-                                                    {% endspaceless %}
-                                                {% endif %}
+                                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                             {% if list.owner_cached == user and not print %}
@@ -113,6 +104,7 @@
                                 {% endfor %}
                             {% endfor %}
                         {% else %}
+                            <!-- House Additional Gearline -->
                             {% for line in fighter.house_additional_gearline_display %}
                                 <tr class="fs-7">
                                     <th scope="row" colspan="3">{{ line.category }}</th>
@@ -120,7 +112,7 @@
                                         {% for assign in line.assignments %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
-                                                <span>{{ assign.name }}</span>
+                                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
@@ -146,6 +138,7 @@
                 {% endif %}
                 {% if fighter.wargearline_cached|length > 0 %}
                     {% if gear_mode == "edit" %}
+                        <!-- Wargear -->
                         {% for assign in fighter.wargear %}
                             <tr class="fs-7">
                                 {% if forloop.first %}
@@ -199,6 +192,7 @@
                             </tr>
                         {% endfor %}
                     {% else %}
+                        <!-- Wargear -->
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Gear</th>
                             <td colspan="12">
