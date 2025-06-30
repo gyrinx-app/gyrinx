@@ -137,7 +137,9 @@ def test_list_view_no_resources_or_assets_shows_message(django_user_model):
     assert response.status_code == 200
 
     # Check that the empty message is shown
-    assert "No assets or resources held." in response.content.decode()
+    assert (
+        "No assets, resources, or captured fighters held." in response.content.decode()
+    )
 
 
 @pytest.mark.django_db
