@@ -145,6 +145,11 @@ def add_battle_note(request, battle_id):
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
+    # Get the return URL from query params, with fallback to default
+    return_url = request.GET.get("return_url")
+    if not return_url:
+        return_url = reverse("core:battle", args=[battle.id])
+
     # Check if user already has a note
     existing_note = battle.notes.filter(owner=request.user).first()
 
@@ -160,7 +165,9 @@ def add_battle_note(request, battle_id):
             note.owner = request.user
             note.save()
             messages.success(request, "Note saved successfully!")
-            return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+            # Get return URL from POST data (in case it was in the form)
+            post_return_url = request.POST.get("return_url", return_url)
+            return HttpResponseRedirect(post_return_url)
     else:
         if existing_note:
             form = BattleNoteForm(instance=existing_note)
@@ -170,5 +177,10 @@ def add_battle_note(request, battle_id):
     return render(
         request,
         "core/battle/battle_note_add.html",
-        {"form": form, "battle": battle, "existing_note": existing_note},
+        {
+            "form": form,
+            "battle": battle,
+            "existing_note": existing_note,
+            "return_url": return_url,
+        },
     )

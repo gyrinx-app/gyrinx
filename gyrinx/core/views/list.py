@@ -891,14 +891,21 @@ def edit_list_fighter_narrative(request, id, fighter_id):
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
+    # Get the return URL from query params, with fallback to default
+    return_url = request.GET.get("return_url")
+    if not return_url:
+        return_url = (
+            reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
+        )
+
     error_message = None
     if request.method == "POST":
         form = EditListFighterNarrativeForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(
-                reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
-            )
+            # Get return URL from POST data (in case it was in the form)
+            post_return_url = request.POST.get("return_url", return_url)
+            return HttpResponseRedirect(post_return_url)
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
 
@@ -909,6 +916,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
             "form": form,
             "list": lst,
             "error_message": error_message,
+            "return_url": return_url,
         },
     )
 

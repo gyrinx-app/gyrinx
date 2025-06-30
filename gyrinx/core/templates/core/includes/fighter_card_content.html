@@ -77,115 +77,119 @@
                 {% endif %}
             {% endif %}
             {% if not print and not fighter.is_stash %}
-                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                    <div class="btn-group">
-                        <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false">
-                            <i class="bi-three-dots-vertical"></i>
-                            <span class="visually-hidden">Toggle Dropdown</span>
-                        </button>
-                        <ul class="dropdown-menu">
-                            {% if fighter.has_linked_fighter %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                <div class="hstack align-items-center gap-2">
+                    <!-- Tab navigation -->
+                    <ul class="nav nav-tabs flex-grow-1 px-1"
+                        id="fighterTabs-{{ fighter.id }}"
+                        role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fs-7 px-2 py-1 active"
+                                    id="card-tab-{{ fighter.id }}"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#card-{{ fighter.id }}"
+                                    type="button"
+                                    role="tab"
+                                    aria-controls="card-{{ fighter.id }}"
+                                    aria-selected="true">Card</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fs-7 px-2 py-1"
+                                    id="notes-tab-{{ fighter.id }}"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#notes-{{ fighter.id }}"
+                                    type="button"
+                                    role="tab"
+                                    aria-controls="notes-{{ fighter.id }}"
+                                    aria-selected="false">Notes</button>
+                        </li>
+                    </ul>
+                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                        <div class="btn-group ms-auto">
+                            <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                <i class="bi-three-dots-vertical"></i>
+                                <span class="visually-hidden">Toggle Dropdown</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% if fighter.has_linked_fighter %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-copy"></i> Clone</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-archive"></i> Archive</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-trash"></i> Delete</a>
+                                    </li>
+                                {% else %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        </li>
+                                    {% endif %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
                                     <li>
                                         <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                           href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
                                     </li>
-                                {% endif %}
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-copy"></i> Clone</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-archive"></i> Archive</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-trash"></i> Delete</a>
-                                </li>
-                            {% else %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                     <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
                                     </li>
-                                {% endif %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
                                     <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
                                     </li>
                                 {% endif %}
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li>
-                                    <a class="dropdown-item"
-                                       href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item text-danger"
-                                       href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item text-danger"
-                                       href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
-                                </li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                {% endif %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
     </div>
     <div class="card-body p-0">
         {% if not print and not fighter.is_stash %}
-            <!-- Tab navigation -->
-            <ul class="nav nav-tabs" id="fighterTabs-{{ fighter.id }}" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active"
-                            id="details-tab-{{ fighter.id }}"
-                            data-bs-toggle="tab"
-                            data-bs-target="#details-{{ fighter.id }}"
-                            type="button"
-                            role="tab"
-                            aria-controls="details-{{ fighter.id }}"
-                            aria-selected="true">Details</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link"
-                            id="notes-tab-{{ fighter.id }}"
-                            data-bs-toggle="tab"
-                            data-bs-target="#notes-{{ fighter.id }}"
-                            type="button"
-                            role="tab"
-                            aria-controls="notes-{{ fighter.id }}"
-                            aria-selected="false">Notes</button>
-                </li>
-            </ul>
             <!-- Tab content -->
             <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
                 <!-- Details tab -->
                 <div class="tab-pane fade show active vstack p-0 p-sm-2"
-                     id="details-{{ fighter.id }}"
+                     id="card-{{ fighter.id }}"
                      role="tabpanel"
-                     aria-labelledby="details-tab-{{ fighter.id }}"
+                     aria-labelledby="card-tab-{{ fighter.id }}"
                      tabindex="0">
                 {% else %}
                     <!-- No tabs in print mode -->
@@ -506,19 +510,21 @@
                             {{ fighter.narrative|safe }}
                             {% if can_edit %}
                                 <div class="mt-2">
-                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
+                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="bi-pencil"></i> Edit Notes
                                     </a>
                                 </div>
                             {% endif %}
                         {% elif can_edit %}
-                            <div class="text-muted fst-italic">
+                            <div class="text-muted">
                                 No notes added yet.
-                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-plus"></i> Add Notes
-                                </a>
+                                <div class="mt-2">
+                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-plus"></i> Add Notes
+                                    </a>
+                                </div>
                             </div>
                         {% else %}
                             <div class="text-muted fst-italic">No notes added yet.</div>
