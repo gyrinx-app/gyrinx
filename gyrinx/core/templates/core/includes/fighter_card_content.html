@@ -92,6 +92,15 @@
                         </button>
                         <ul class="dropdown-menu">
                             {% if fighter.has_linked_fighter %}
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                    </li>
+                                {% endif %}
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
                                 <li>
                                     <a class="dropdown-item disabled"
                                        href="#"

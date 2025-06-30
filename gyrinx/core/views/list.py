@@ -1954,7 +1954,7 @@ def mark_fighter_captured(request, id, fighter_id):
 
     # Get other lists in the campaign that could capture this fighter
     capturing_lists = (
-        campaign.lists.filter(status=List.CAMPAIGN_MODE)
+        campaign.campaign_lists.filter(status=List.CAMPAIGN_MODE)
         .exclude(id=lst.id)
         .order_by("name")
     )
@@ -1972,20 +1972,44 @@ def mark_fighter_captured(request, id, fighter_id):
                 List, id=capturing_list_id, campaign=campaign
             )
 
-            # Create the capture record
+            # Check if this fighter is linked to equipment assignments and unlink them
+            linked_assignments = ListFighterEquipmentAssignment.objects.filter(
+                linked_fighter=fighter
+            )
+
+            # Create the capture record first
             CapturedFighter.objects.create(
                 fighter=fighter,
                 capturing_list=capturing_list,
                 owner=request.user,
             )
 
+            # Now delete the linked assignments
+            # This won't cascade delete the fighter because we need to unlink the foreign key first
+            if linked_assignments.exists():
+                for assignment in linked_assignments:
+                    # Log what equipment is being removed
+                    messages.info(
+                        request,
+                        f"Removed {assignment.content_equipment.name} from {assignment.list_fighter.name} as {fighter.name} was captured.",
+                    )
+                    # Unlink the fighter first to prevent cascade delete
+                    assignment.linked_fighter = None
+                    assignment.save()
+                    # Now delete the assignment
+                    assignment.delete()
+
             # Log campaign action
+            description = f"{fighter.name} was captured by {capturing_list.name}"
+            if linked_assignments.exists():
+                description += " (linked equipment removed)"
+
             CampaignAction.objects.create(
                 user=request.user,
                 owner=request.user,
                 campaign=campaign,
                 list=lst,
-                description=f"{fighter.name} was captured by {capturing_list.name}",
+                description=description,
                 outcome=f"{fighter.name} is now held captive",
             )
 
