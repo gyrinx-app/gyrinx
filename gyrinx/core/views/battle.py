@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm
@@ -146,9 +147,16 @@ def add_battle_note(request, battle_id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     # Get the return URL from query params, with fallback to default
-    return_url = request.GET.get("return_url")
-    if not return_url:
-        return_url = reverse("core:battle", args=[battle.id])
+    default_url = reverse("core:battle", args=[battle.id])
+    return_url = request.GET.get("return_url", default_url)
+
+    # Validate the return URL for security
+    if not url_has_allowed_host_and_scheme(
+        url=return_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return_url = default_url
 
     # Check if user already has a note
     existing_note = battle.notes.filter(owner=request.user).first()
@@ -167,6 +175,13 @@ def add_battle_note(request, battle_id):
             messages.success(request, "Note saved successfully!")
             # Get return URL from POST data (in case it was in the form)
             post_return_url = request.POST.get("return_url", return_url)
+            # Validate the POST return URL as well
+            if not url_has_allowed_host_and_scheme(
+                url=post_return_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                post_return_url = default_url
             return HttpResponseRedirect(post_return_url)
     else:
         if existing_note:

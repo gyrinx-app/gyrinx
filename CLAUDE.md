@@ -171,6 +171,7 @@ SQL_DEBUG=True
 - **Not an SPA**: Server-rendered HTML with form submissions, not React/API
 - **Mobile-first**: Design for mobile, scale up to desktop
 - **Make it work; make it right; make it fast**: Ship functionality first, optimize later
+- **Security**: Always validate return URLs using `url_has_allowed_host_and_scheme` when accepting redirect URLs from user input to prevent open redirect vulnerabilities
 
 ### Settings Configuration
 
