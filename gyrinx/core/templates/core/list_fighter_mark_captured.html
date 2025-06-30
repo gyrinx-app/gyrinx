@@ -1,0 +1,45 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Mark as Captured - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with text=list.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Mark Fighter as Captured: {{ fighter.fully_qualified_name }}</h1>
+        <form action="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="alert alert-warning">
+                <p class="mb-0">
+                    <strong>Important:</strong> Once captured, this fighter will not be able to participate in battles for {{ list.name }} until they are returned or sold to guilders.
+                </p>
+            </div>
+            <p>
+                You are marking <strong>{{ fighter.name }}</strong> as captured. This will:
+            </p>
+            <ul>
+                <li>Remove them from active duty in your gang</li>
+                <li>Allow the capturing gang to decide their fate</li>
+                <li>Prevent them from participating in battles</li>
+            </ul>
+            <div class="mb-3">
+                <label for="capturing_list" class="form-label">Select the capturing gang:</label>
+                <select class="form-select"
+                        id="capturing_list"
+                        name="capturing_list"
+                        required>
+                    <option value="">Choose a gang...</option>
+                    {% for gang in capturing_lists %}<option value="{{ gang.id }}">{{ gang.name }}</option>{% endfor %}
+                </select>
+                <div class="form-text">The selected gang will be able to sell this fighter to guilders or return them for ransom.</div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi-person-lock"></i> Mark as Captured
+                </button>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

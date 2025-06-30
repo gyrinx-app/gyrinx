@@ -15,7 +15,7 @@
 {% endif %}
 <div class="card {{ card_classes }} {% flash fighter.id %}"
      id="{{ fighter.id }}">
-    <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% elif fighter.injury_state == 'dead' %}bg-danger-subtle{% endif %}">
+    <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% elif fighter.injury_state == 'dead' %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
         <div class="vstack gap-1">
             <div class="hstack">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
@@ -23,6 +23,13 @@
                     <span class="badge ms-2 {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% endif %}">
                         {{ fighter.get_injury_state_display }}
                     </span>
+                {% endif %}
+                {% if fighter.is_captured %}
+                    <span class="badge ms-2 bg-warning text-dark"
+                          data-bs-toggle="tooltip"
+                          data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
+                {% elif fighter.is_sold_to_guilders %}
+                    <span class="badge ms-2 bg-secondary">Sold to Guilders</span>
                 {% endif %}
                 <div class="ms-auto hstack gap-2">
                     {% if fighter.has_linked_fighter %}
@@ -61,7 +68,7 @@
                     </div>
                 </div>
             {% elif fighter.can_take_legacy %}
-                {% if can_edit and not print %}
+                {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                     <div class="hstack text-muted fs-7">
                         Legacy:&nbsp;
                         <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
@@ -70,42 +77,78 @@
                 {% endif %}
             {% endif %}
             {% if not print and not fighter.is_stash %}
-                {% if can_edit %}
+                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                     <div class="btn-group">
                         <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-pencil"></i> Edit
                         </a>
-                        {% if fighter.has_linked_fighter %}
-                            <button class="btn btn-outline-secondary btn-sm disabled" disabled>
-                                <i class="bi-copy"></i> Clone
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
-                                <i class="bi-archive"></i> Archive
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
-                                <i class="bi-trash"></i> Delete
-                            </button>
-                        {% else %}
-                            <a href="{% url 'core:list-fighter-clone' list.id fighter.id %}"
-                               class="btn btn-outline-secondary btn-sm">
-                                <i class="bi-copy"></i> Clone
-                            </a>
-                            <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
-                               class="btn btn-outline-danger btn-sm">
-                                <i class="bi-archive"></i> Archive
-                            </a>
-                            {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
-                                <a href="{% url 'core:list-fighter-kill' list.id fighter.id %}"
-                                   class="btn btn-outline-danger btn-sm">
-                                    <i class="bi-heartbreak"></i> Kill
-                                </a>
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <i class="bi-three-dots-vertical"></i>
+                            <span class="visually-hidden">Toggle Dropdown</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            {% if fighter.has_linked_fighter %}
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                    </li>
+                                {% endif %}
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-copy"></i> Clone</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-archive"></i> Archive</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-trash"></i> Delete</a>
+                                </li>
+                            {% else %}
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                    </li>
+                                {% endif %}
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                    </li>
+                                {% endif %}
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item text-danger"
+                                       href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item text-danger"
+                                       href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
+                                </li>
                             {% endif %}
-                            <a href="{% url 'core:list-fighter-delete' list.id fighter.id %}"
-                               class="btn btn-outline-danger btn-sm">
-                                <i class="bi-trash"></i> Delete
-                            </a>
-                        {% endif %}
+                        </ul>
                     </div>
                 {% endif %}
             {% endif %}
@@ -189,7 +232,7 @@
                             <th scope="row" colspan="3">XP</th>
                             <td colspan="12">
                                 <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
-                                {% if not print and can_edit %}
+                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                     <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
                                 {% endif %}
                             </td>
@@ -214,14 +257,14 @@
                                     {% endif %}
                                 {% endfor %}
                                 {% if not print %}
-                                    {% if can_edit %}
+                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
                                     {% endif %}
                                 {% endif %}
                             </td>
                         </tr>
                     {% else %}
-                        {% if can_edit and not print %}
+                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Skills</th>
                                 <td colspan="12">
@@ -241,10 +284,12 @@
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endspaceless %}
                                 {% empty %}
-                                    <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                                    {% endif %}
                                 {% endfor %}
                                 {% if fighter.powers_cached|length > 0 and not print %}
-                                    {% if can_edit %}
+                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
                                     {% endif %}
                                 {% endif %}
@@ -273,7 +318,7 @@
                                         {% endspaceless %}
                                     {% endfor %}
                                     {% if not print %}
-                                        {% if can_edit %}
+                                        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                             {% if line.assignments|length > 0 %}
                                                 <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
                                             {% else %}
@@ -298,7 +343,7 @@
                                     {% endspaceless %}
                                 {% endfor %}
                                 {% if not print %}
-                                    {% if can_edit %}
+                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
                                            class="d-inline-block">Edit gear</a>
                                     {% endif %}
@@ -306,7 +351,7 @@
                             </td>
                         </tr>
                     {% else %}
-                        {% if can_edit and not print %}
+                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Gear</th>
                                 <td colspan="12">
@@ -324,12 +369,12 @@
                                     {% if not forloop.first %},{% endif %}
                                     {{ injury.injury.name }}
                                 {% endfor %}
-                                {% if not print and can_edit %}
+                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                     <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
                                 {% endif %}
                             </td>
                         </tr>
-                    {% elif list.is_campaign_mode and can_edit and not print %}
+                    {% elif list.is_campaign_mode and can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Injuries</th>
                             <td colspan="12">
@@ -348,7 +393,7 @@
                                     {% else %}
                                         <span class="badge text-bg-success">{{ advancement_count }}</span>
                                     {% endif %}
-                                    {% if not print and can_edit %}
+                                    {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
                                     {% endif %}
                                 {% endwith %}
@@ -374,7 +419,7 @@
                                     {% endspaceless %}
                                 {% endfor %}
                                 {% if not print %}
-                                    {% if can_edit %}
+                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
                                            class="d-inline-block">Edit gear</a>
                                     {% endif %}
@@ -382,7 +427,7 @@
                             </td>
                         </tr>
                     {% else %}
-                        {% if can_edit and not print %}
+                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <tr class="fs-7">
                                 <th scope="row" colspan="3">Gear</th>
                                 <td colspan="12">
@@ -403,7 +448,7 @@
         {% if fighter.injury_state != 'dead' %}
             {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
             {% if not print %}
-                {% if can_edit %}
+                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                     <div class="btn-group p-1">
                         <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
                            class="btn btn-outline-primary btn-sm">

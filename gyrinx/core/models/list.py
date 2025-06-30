@@ -371,6 +371,15 @@ class ListFighterManager(models.Manager):
             .order_by(
                 "list",
                 Case(
+                    # First sort: captured/sold fighters (2), then dead fighters (1), then active (0)
+                    When(
+                        Q(capture_info__isnull=False)
+                        & (
+                            Q(capture_info__sold_to_guilders=True)
+                            | Q(capture_info__sold_to_guilders=False)
+                        ),
+                        then=2,
+                    ),
                     When(injury_state="dead", then=1),
                     default=0,
                 ),
@@ -563,6 +572,10 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            return 0
+
         # Include advancement cost increases
         advancement_cost = (
             self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
@@ -575,6 +588,10 @@ class ListFighter(AppBase):
 
     @cached_property
     def cost_int_cached(self):
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            return 0
+
         # Include advancement cost increases
         advancement_cost = (
             self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
@@ -587,6 +604,10 @@ class ListFighter(AppBase):
 
     @cached_property
     def _base_cost_int(self):
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            return 0
+
         # Our cost can be overridden by the user...
         if self.cost_override is not None:
             return self.cost_override
@@ -890,8 +911,13 @@ class ListFighter(AppBase):
     def psyker_assigned_powers_cached(self):
         return self.psyker_assigned_powers()
 
+    @property
+    def should_have_zero_cost(self):
+        """Check if this fighter should contribute 0 to gang total cost."""
+        return self.is_captured or self.is_sold_to_guilders
+
     def has_overriden_cost(self):
-        return self.cost_override is not None
+        return self.cost_override is not None or self.should_have_zero_cost
 
     @cached_property
     def linked_list_fighter(self):
@@ -1011,6 +1037,39 @@ class ListFighter(AppBase):
     @property
     def archive_with(self):
         return ListFighter.objects.filter(linked_fighter__list_fighter=self)
+
+    @property
+    def is_captured(self):
+        """Check if this fighter is currently captured."""
+        return hasattr(self, "capture_info") and not self.capture_info.sold_to_guilders
+
+    @property
+    def is_sold_to_guilders(self):
+        """Check if this fighter has been sold to guilders."""
+        return hasattr(self, "capture_info") and self.capture_info.sold_to_guilders
+
+    @property
+    def captured_state(self):
+        """Return the capture state of the fighter."""
+        if not hasattr(self, "capture_info"):
+            return None
+        elif self.capture_info.sold_to_guilders:
+            return "sold"
+        else:
+            return "captured"
+
+    def can_participate(self):
+        """Check if the fighter can participate in battles."""
+        # Dead fighters can't participate
+        if self.injury_state == self.DEAD:
+            return False
+        # Captured or sold fighters can't participate for their original gang
+        if self.is_captured or self.is_sold_to_guilders:
+            return False
+        # Recovery and convalescence fighters can't participate
+        if self.injury_state in [self.RECOVERY, self.CONVALESCENCE]:
+            return False
+        return True
 
     class Meta:
         verbose_name = "List Fighter"
@@ -2594,3 +2653,77 @@ class ListAttributeAssignment(Base, Archived):
         """Override save to call full_clean() for validation."""
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class CapturedFighter(AppBase):
+    """Tracks a fighter being held captive by another gang."""
+
+    # The captured fighter
+    fighter = models.OneToOneField(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="capture_info",
+        help_text="The fighter who has been captured",
+    )
+
+    # The gang holding the fighter captive
+    capturing_list = models.ForeignKey(
+        List,
+        on_delete=models.CASCADE,
+        related_name="captured_fighters",
+        help_text="The gang currently holding this fighter captive",
+    )
+
+    # When they were captured
+    captured_at = models.DateTimeField(
+        auto_now_add=True, help_text="When the fighter was captured"
+    )
+
+    # Track if sold to guilders
+    sold_to_guilders = models.BooleanField(
+        default=False, help_text="Whether the fighter has been sold to guilders"
+    )
+    sold_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the fighter was sold to guilders"
+    )
+
+    # Credits exchanged (if any)
+    ransom_amount = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Credits paid as ransom or received for selling",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Captured Fighter"
+        verbose_name_plural = "Captured Fighters"
+        ordering = ["-captured_at"]
+
+    def __str__(self):
+        status = "sold to guilders" if self.sold_to_guilders else "captured"
+        return f"{self.fighter.name} ({status} by {self.capturing_list.name})"
+
+    def sell_to_guilders(self, credits=None):
+        """Mark the fighter as sold to guilders."""
+        from django.utils import timezone
+
+        self.sold_to_guilders = True
+        self.sold_at = timezone.now()
+        if credits is not None:
+            self.ransom_amount = credits
+        self.save()
+
+    def return_to_owner(self, credits=None):
+        """Return the fighter to their original gang and delete the capture record."""
+        if credits is not None:
+            self.ransom_amount = credits
+            self.save()
+
+        # Delete the capture record, which returns the fighter to their original gang
+        self.delete()
+
+    def get_original_list(self):
+        """Get the original gang this fighter belongs to."""
+        return self.fighter.list

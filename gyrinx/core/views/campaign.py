@@ -8,6 +8,7 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 
 from gyrinx.core.forms.campaign import (
@@ -29,7 +30,7 @@ from gyrinx.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
-from gyrinx.core.models.list import List
+from gyrinx.core.models.list import List, CapturedFighter
 
 
 def get_campaign_resource_types_with_resources(campaign):
@@ -1108,5 +1109,244 @@ def campaign_resource_modify(request, id, resource_id):
             "campaign": campaign,
             "resource": resource,
             "new_amount_preview": resource.amount,  # Will be updated via JS
+        },
+    )
+
+
+@login_required
+def campaign_captured_fighters(request, id):
+    """
+    View all fighters captured by lists in this campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` whose captured fighters are being viewed.
+    ``captured_fighters``
+        QuerySet of :model:`core.CapturedFighter` objects.
+
+    **Template**
+
+    :template:`core/campaign/campaign_captured_fighters.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    # Check if user owns the campaign or any list in it
+    if (
+        campaign.owner != request.user
+        and not campaign.lists.filter(owner=request.user).exists()
+    ):
+        messages.error(
+            request,
+            "You don't have permission to view this campaign's captured fighters.",
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Get all captured fighters for lists in this campaign
+    captured_fighters = (
+        CapturedFighter.objects.filter(
+            models.Q(capturing_list__campaigns=campaign)
+            | models.Q(fighter__list__campaigns=campaign)
+        )
+        .select_related(
+            "fighter", "fighter__list", "fighter__content_fighter", "capturing_list"
+        )
+        .order_by("-captured_at")
+    )
+
+    return render(
+        request,
+        "core/campaign/campaign_captured_fighters.html",
+        {
+            "campaign": campaign,
+            "captured_fighters": captured_fighters,
+        },
+    )
+
+
+@login_required
+def fighter_sell_to_guilders(request, id, fighter_id):
+    """
+    Sell a captured fighter to the guilders.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the fighter belongs to.
+    ``captured_fighter``
+        The :model:`core.CapturedFighter` being sold.
+
+    **Template**
+
+    :template:`core/campaign/fighter_sell_to_guilders.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    captured_fighter = get_object_or_404(
+        CapturedFighter,
+        fighter_id=fighter_id,
+        capturing_list__owner=request.user,
+        sold_to_guilders=False,
+    )
+
+    if request.method == "POST":
+        credits = request.POST.get("credits", 0)
+        try:
+            credits = int(credits) if credits else 0
+            if credits < 0:
+                raise ValueError("Credits cannot be negative")
+        except ValueError:
+            messages.error(request, "Invalid credit amount.")
+            # Validate the redirect URL for security
+            redirect_url = request.path
+            if not url_has_allowed_host_and_scheme(
+                url=redirect_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                redirect_url = reverse(
+                    "core:campaign_captured_fighters", args=[campaign.id]
+                )
+            return HttpResponseRedirect(redirect_url)
+
+        # Sell the fighter
+        captured_fighter.sell_to_guilders(credits=credits)
+
+        # Add credits to capturing gang
+        if credits > 0:
+            captured_fighter.capturing_list.credits_current += credits
+            captured_fighter.capturing_list.save()
+
+        # Log campaign action
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=captured_fighter.capturing_list,
+            description=f"Sold {captured_fighter.fighter.name} from {captured_fighter.fighter.list.name} to the guilders"
+            + (f" for {credits} credits" if credits > 0 else ""),
+        )
+
+        messages.success(
+            request, f"{captured_fighter.fighter.name} has been sold to the guilders."
+        )
+        return HttpResponseRedirect(
+            reverse("core:campaign-captured-fighters", args=(campaign.id,))
+        )
+
+    return render(
+        request,
+        "core/campaign/fighter_sell_to_guilders.html",
+        {
+            "campaign": campaign,
+            "captured_fighter": captured_fighter,
+        },
+    )
+
+
+@login_required
+def fighter_return_to_owner(request, id, fighter_id):
+    """
+    Return a captured fighter to their original gang.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the fighter belongs to.
+    ``captured_fighter``
+        The :model:`core.CapturedFighter` being returned.
+
+    **Template**
+
+    :template:`core/campaign/fighter_return_to_owner.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    captured_fighter = get_object_or_404(
+        CapturedFighter,
+        fighter_id=fighter_id,
+        capturing_list__owner=request.user,
+        sold_to_guilders=False,
+    )
+
+    if request.method == "POST":
+        ransom = request.POST.get("ransom", 0)
+        try:
+            ransom = int(ransom) if ransom else 0
+            if ransom < 0:
+                raise ValueError("Ransom cannot be negative")
+        except ValueError:
+            messages.error(request, "Invalid ransom amount.")
+            # Validate the redirect URL for security
+            redirect_url = request.path
+            if not url_has_allowed_host_and_scheme(
+                url=redirect_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                redirect_url = reverse(
+                    "core:campaign_captured_fighters", args=[campaign.id]
+                )
+            return HttpResponseRedirect(redirect_url)
+
+        original_list = captured_fighter.fighter.list
+        capturing_list = captured_fighter.capturing_list
+        fighter_name = captured_fighter.fighter.name
+
+        # Process ransom payment
+        if ransom > 0:
+            if original_list.credits_current < ransom:
+                messages.error(
+                    request,
+                    f"{original_list.name} doesn't have enough credits to pay the ransom.",
+                )
+                # Validate the redirect URL for security
+                redirect_url = request.path
+                if not url_has_allowed_host_and_scheme(
+                    url=redirect_url,
+                    allowed_hosts={request.get_host()},
+                    require_https=request.is_secure(),
+                ):
+                    redirect_url = reverse(
+                        "core:campaign_captured_fighters", args=[campaign.id]
+                    )
+                return HttpResponseRedirect(redirect_url)
+
+            # Transfer credits
+            original_list.credits_current -= ransom
+            original_list.save()
+            capturing_list.credits_current += ransom
+            capturing_list.save()
+
+            # Log ransom payment
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                list=original_list,
+                description=f"Paid {ransom} credit ransom to {capturing_list.name} for {fighter_name}",
+            )
+
+        # Return the fighter
+        captured_fighter.return_to_owner(credits=ransom)
+
+        # Log return action
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=capturing_list,
+            description=f"Returned {fighter_name} to {original_list.name}"
+            + (f" for {ransom} credits" if ransom > 0 else ""),
+        )
+
+        messages.success(
+            request, f"{fighter_name} has been returned to {original_list.name}."
+        )
+        return HttpResponseRedirect(
+            reverse("core:campaign-captured-fighters", args=(campaign.id,))
+        )
+
+    return render(
+        request,
+        "core/campaign/fighter_return_to_owner.html",
+        {
+            "campaign": campaign,
+            "captured_fighter": captured_fighter,
         },
     )
