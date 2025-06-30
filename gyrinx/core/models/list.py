@@ -573,7 +573,7 @@ class ListFighter(AppBase):
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
         # Captured or sold fighters contribute 0 to gang total cost
-        if self.is_captured or self.is_sold_to_guilders:
+        if self.should_have_zero_cost:
             return 0
 
         # Include advancement cost increases
@@ -589,7 +589,7 @@ class ListFighter(AppBase):
     @cached_property
     def cost_int_cached(self):
         # Captured or sold fighters contribute 0 to gang total cost
-        if self.is_captured or self.is_sold_to_guilders:
+        if self.should_have_zero_cost:
             return 0
 
         # Include advancement cost increases
@@ -605,7 +605,7 @@ class ListFighter(AppBase):
     @cached_property
     def _base_cost_int(self):
         # Captured or sold fighters contribute 0 to gang total cost
-        if self.is_captured or self.is_sold_to_guilders:
+        if self.should_have_zero_cost:
             return 0
 
         # Our cost can be overridden by the user...
@@ -911,8 +911,13 @@ class ListFighter(AppBase):
     def psyker_assigned_powers_cached(self):
         return self.psyker_assigned_powers()
 
+    @property
+    def should_have_zero_cost(self):
+        """Check if this fighter should contribute 0 to gang total cost."""
+        return self.is_captured or self.is_sold_to_guilders
+
     def has_overriden_cost(self):
-        return self.cost_override is not None
+        return self.cost_override is not None or self.should_have_zero_cost
 
     @cached_property
     def linked_list_fighter(self):
