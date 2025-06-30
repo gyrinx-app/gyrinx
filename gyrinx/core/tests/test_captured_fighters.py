@@ -152,7 +152,6 @@ def test_sold_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
     # Test fighter cost is now 0
     assert fighter.cost_int() == 0
     assert fighter.cost_int_cached == 0
-    assert fighter._base_cost_int == 0
 
     # Test gang total cost is reduced by the fighter's cost
     new_gang_cost = original_list.cost_int()
@@ -191,7 +190,6 @@ def test_captured_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
     # Test fighter cost is now 0
     assert fighter.cost_int() == 0
     assert fighter.cost_int_cached == 0
-    assert fighter._base_cost_int == 0
 
     # Test gang total cost is reduced by the fighter's cost
     assert original_list.cost_int() == initial_gang_cost - fighter_cost

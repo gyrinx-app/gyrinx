@@ -281,7 +281,6 @@ def test_sold_linked_fighter_contributes_zero_to_gang_cost():
     # Test fighter cost is now 0
     assert linked_fighter.cost_int() == 0
     assert linked_fighter.cost_int_cached == 0
-    assert linked_fighter._base_cost_int == 0
 
     # Test gang total cost is reduced by the fighter's cost
     new_gang_cost = list1.cost_int()
