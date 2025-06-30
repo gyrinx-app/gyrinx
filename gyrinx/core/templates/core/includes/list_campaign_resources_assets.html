@@ -52,9 +52,38 @@
                         </table>
                     </div>
                 {% endif %}
-                {% if not campaign_resources and not held_assets %}
+                {% if captured_fighters %}
                     <div class="col-12">
-                        <p class="text-muted fs-7 mb-0">No assets or resources held.</p>
+                        <h4 class="h6 mb-2 text-muted">Captured Fighters</h4>
+                        <table class="table table-sm mb-0 fs-7">
+                            <tbody>
+                                {% for capture in captured_fighters %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ capture.fighter.name }}</strong>
+                                            <span class="text-muted">({{ capture.fighter.list.name }})</span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="btn-group" role="group">
+                                                <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}"
+                                                   class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi-cash-coin" aria-hidden="true"></i> Sell
+                                                </a>
+                                                <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}"
+                                                   class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi-arrow-return-left" aria-hidden="true"></i> Ransom
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+                {% if not campaign_resources and not held_assets and not captured_fighters %}
+                    <div class="col-12">
+                        <p class="text-muted fs-7 mb-0">No assets, resources, or captured fighters held.</p>
                     </div>
                 {% endif %}
             </div>
