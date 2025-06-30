@@ -73,7 +73,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Battle Reports</h5>
                     {% if can_add_notes %}
-                        <a href="{% url 'core:battle-note-add' battle.id %}"
+                        <a href="{% url 'core:battle-note-add' battle.id %}?return_url={{ request.get_full_path|urlencode }}"
                            class="btn btn-sm btn-primary">
                             <i class="bi-plus-circle"></i>
                             {% if user_note %}

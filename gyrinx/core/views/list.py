@@ -10,6 +10,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 from pydantic import BaseModel, field_validator
 
@@ -891,14 +892,35 @@ def edit_list_fighter_narrative(request, id, fighter_id):
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
+    # Get the return URL from query params, with fallback to default
+    default_url = (
+        reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
+    )
+    return_url = request.GET.get("return_url", default_url)
+
+    # Validate the return URL for security
+    if not url_has_allowed_host_and_scheme(
+        url=return_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return_url = default_url
+
     error_message = None
     if request.method == "POST":
         form = EditListFighterNarrativeForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(
-                reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
-            )
+            # Get return URL from POST data (in case it was in the form)
+            post_return_url = request.POST.get("return_url", return_url)
+            # Validate the POST return URL as well
+            if not url_has_allowed_host_and_scheme(
+                url=post_return_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                post_return_url = default_url
+            return HttpResponseRedirect(post_return_url)
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
 
@@ -909,6 +931,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
             "form": form,
             "list": lst,
             "error_message": error_message,
+            "return_url": return_url,
         },
     )
 

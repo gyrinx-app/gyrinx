@@ -9,8 +9,7 @@
     - {{ battle.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:battle' battle.id as battle_url %}
-    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    {% include "core/includes/back.html" with url=return_url text="Back" %}
     <div class="col-lg-8 px-0">
         <h1>
             {% if existing_note %}
@@ -27,6 +26,7 @@
                 </div>
             {% endif %}
             {% csrf_token %}
+            <input type="hidden" name="return_url" value="{{ return_url }}">
             {{ form.media }}
             {{ form }}
             <div class="hstack gap-3 align-items-center">
@@ -38,7 +38,7 @@
                         Add Note
                     {% endif %}
                 </button>
-                <a href="{{ battle_url }}">Cancel</a>
+                <a href="{{ return_url }}">Cancel</a>
             </div>
         </form>
     </div>

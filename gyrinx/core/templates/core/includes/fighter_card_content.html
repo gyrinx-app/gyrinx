@@ -77,386 +77,462 @@
                 {% endif %}
             {% endif %}
             {% if not print and not fighter.is_stash %}
-                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                    <div class="btn-group">
-                        <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false">
-                            <i class="bi-three-dots-vertical"></i>
-                            <span class="visually-hidden">Toggle Dropdown</span>
-                        </button>
-                        <ul class="dropdown-menu">
-                            {% if fighter.has_linked_fighter %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                <div class="hstack align-items-center gap-2">
+                    <!-- Tab navigation -->
+                    <ul class="nav nav-tabs flex-grow-1 px-1"
+                        id="fighterTabs-{{ fighter.id }}"
+                        role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fs-7 px-2 py-1 active"
+                                    id="card-tab-{{ fighter.id }}"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#card-{{ fighter.id }}"
+                                    type="button"
+                                    role="tab"
+                                    aria-controls="card-{{ fighter.id }}"
+                                    aria-selected="true">Card</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fs-7 px-2 py-1"
+                                    id="notes-tab-{{ fighter.id }}"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#notes-{{ fighter.id }}"
+                                    type="button"
+                                    role="tab"
+                                    aria-controls="notes-{{ fighter.id }}"
+                                    aria-selected="false">Notes</button>
+                        </li>
+                    </ul>
+                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                        <div class="btn-group ms-auto">
+                            <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                <i class="bi-three-dots-vertical"></i>
+                                <span class="visually-hidden">Toggle Dropdown</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% if fighter.has_linked_fighter %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-copy"></i> Clone</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-archive"></i> Archive</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item disabled"
+                                           href="#"
+                                           tabindex="-1"
+                                           aria-disabled="true"><i class="bi-trash"></i> Delete</a>
+                                    </li>
+                                {% else %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        </li>
+                                    {% endif %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
                                     <li>
                                         <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                           href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
                                     </li>
-                                {% endif %}
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-copy"></i> Clone</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-archive"></i> Archive</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item disabled"
-                                       href="#"
-                                       tabindex="-1"
-                                       aria-disabled="true"><i class="bi-trash"></i> Delete</a>
-                                </li>
-                            {% else %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                     <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
                                     </li>
-                                {% endif %}
-                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
                                     <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
                                     </li>
                                 {% endif %}
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                                <li>
-                                    <a class="dropdown-item"
-                                       href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item text-danger"
-                                       href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item text-danger"
-                                       href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
-                                </li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                {% endif %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
     </div>
-    <div class="card-body vstack p-0 p-sm-2">
-        {% if fighter.is_stash %}
-            <!-- Gang Credits -->
-            <div class="col-12 mb-2">
-                <div class="hstack gap-3 align-items-center justify-content-between">
-                    <h4 class="h6 mb-0">Stash Credits</h4>
-                    <div>
-                        <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
-                    </div>
-                    {% if can_edit and list.owner == user or not can_edit and list.campaign and list.campaign.owner == user %}
-                        <a href="{% url 'core:list-credits-edit' list.id %}"
-                           class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                            <i class="bi-pencil-square" aria-hidden="true"></i> Modify
-                        </a>
+    <div class="card-body p-0">
+        {% if not print and not fighter.is_stash %}
+            <!-- Tab content -->
+            <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
+                <!-- Details tab -->
+                <div class="tab-pane fade show active vstack p-0 p-sm-2"
+                     id="card-{{ fighter.id }}"
+                     role="tabpanel"
+                     aria-labelledby="card-tab-{{ fighter.id }}"
+                     tabindex="0">
+                {% else %}
+                    <!-- No tabs in print mode -->
+                    <div class="vstack p-0 p-sm-2">
                     {% endif %}
-                </div>
-            </div>
-        {% endif %}
-        {% comment %} Stats {% endcomment %}
-        {% if not fighter.is_stash %}
-            <table class="table table-sm table-borderless mb-0">
-                <thead>
-                    <tr>
-                        <th class="text-center border-bottom" scope="col">M</th>
-                        <th class="text-center border-bottom" scope="col">WS</th>
-                        <th class="text-center border-bottom" scope="col">BS</th>
-                        <th class="text-center border-bottom" scope="col">S</th>
-                        <th class="text-center border-bottom" scope="col">T</th>
-                        <th class="text-center border-bottom" scope="col">W</th>
-                        <th class="text-center border-bottom" scope="col">I</th>
-                        <th class="text-center border-bottom" scope="col">A</th>
-                        <th class="text-center border-bottom table-warning border-start"
-                            scope="col">Ld</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Int</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
-                </tbody>
-                <tbody class="table-group-divider">
-                    {% if fighter.ruleline|length > 0 %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Rules</th>
-                            <td colspan="12">
-                                {% for rule in fighter.ruleline %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% spaceless %}
-                                        <span>
-                                            {% if not print %}
-                                                {% if rule.modded %}
-                                                    <a href="#"
-                                                       bs-tooltip
-                                                       data-bs-toggle="tooltip"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                                       title="Added by equipment, accessories or upgrades">
-                                                        {{ rule.value }}
-                                                    </a>
+                    {% if fighter.is_stash %}
+                        <!-- Gang Credits -->
+                        <div class="col-12 mb-2">
+                            <div class="hstack gap-3 align-items-center justify-content-between">
+                                <h4 class="h6 mb-0">Stash Credits</h4>
+                                <div>
+                                    <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
+                                </div>
+                                {% if can_edit and list.owner == user or not can_edit and list.campaign and list.campaign.owner == user %}
+                                    <a href="{% url 'core:list-credits-edit' list.id %}"
+                                       class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                        <i class="bi-pencil-square" aria-hidden="true"></i> Modify
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% comment %} Stats {% endcomment %}
+                    {% if not fighter.is_stash %}
+                        <table class="table table-sm table-borderless mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center border-bottom" scope="col">M</th>
+                                    <th class="text-center border-bottom" scope="col">WS</th>
+                                    <th class="text-center border-bottom" scope="col">BS</th>
+                                    <th class="text-center border-bottom" scope="col">S</th>
+                                    <th class="text-center border-bottom" scope="col">T</th>
+                                    <th class="text-center border-bottom" scope="col">W</th>
+                                    <th class="text-center border-bottom" scope="col">I</th>
+                                    <th class="text-center border-bottom" scope="col">A</th>
+                                    <th class="text-center border-bottom table-warning border-start"
+                                        scope="col">Ld</th>
+                                    <th class="text-center border-bottom table-warning" scope="col">Cl</th>
+                                    <th class="text-center border-bottom table-warning" scope="col">Wil</th>
+                                    <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+                            </tbody>
+                            <tbody class="table-group-divider">
+                                {% if fighter.ruleline|length > 0 %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Rules</th>
+                                        <td colspan="12">
+                                            {% for rule in fighter.ruleline %}
+                                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                {% spaceless %}
+                                                    <span>
+                                                        {% if not print %}
+                                                            {% if rule.modded %}
+                                                                <a href="#"
+                                                                   bs-tooltip
+                                                                   data-bs-toggle="tooltip"
+                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                                   title="Added by equipment, accessories or upgrades">
+                                                                    {{ rule.value }}
+                                                                </a>
+                                                            {% else %}
+                                                                {% ref rule.value value=rule.value %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            {{ rule.value }}
+                                                        {% endif %}
+                                                    </span>
+                                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                                {% endspaceless %}
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% comment %} XP (only in campaign mode) {% endcomment %}
+                                {% if list.is_campaign_mode %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">XP</th>
+                                        <td colspan="12">
+                                            <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
+                                            {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% if fighter.skilline_cached|length > 0 %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Skills</th>
+                                        <td colspan="12">
+                                            {% for skill in fighter.skilline_cached %}
+                                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                {% if not print %}
+                                                    {% spaceless %}
+                                                        <span>{% ref skill value=skill %}</span>
+                                                        {% if not forloop.last %}<span>,</span>{% endif %}
+                                                    {% endspaceless %}
                                                 {% else %}
-                                                    {% ref rule.value value=rule.value %}
+                                                    {% spaceless %}
+                                                        <span>{{ skill }}</span>
+                                                        {% if not forloop.last %}<span>,</span>{% endif %}
+                                                    {% endspaceless %}
                                                 {% endif %}
-                                            {% else %}
-                                                {{ rule.value }}
+                                            {% endfor %}
+                                            {% if not print %}
+                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
+                                                {% endif %}
                                             {% endif %}
-                                        </span>
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% endfor %}
-                            </td>
-                        </tr>
-                    {% endif %}
-                    {% comment %} XP (only in campaign mode) {% endcomment %}
-                    {% if list.is_campaign_mode %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">XP</th>
-                            <td colspan="12">
-                                <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
-                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                    <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endif %}
-                    {% if fighter.skilline_cached|length > 0 %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Skills</th>
-                            <td colspan="12">
-                                {% for skill in fighter.skilline_cached %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% if not print %}
-                                        {% spaceless %}
-                                            <span>{% ref skill value=skill %}</span>
-                                            {% if not forloop.last %}<span>,</span>{% endif %}
-                                        {% endspaceless %}
-                                    {% else %}
-                                        {% spaceless %}
-                                            <span>{{ skill }}</span>
-                                            {% if not forloop.last %}<span>,</span>{% endif %}
-                                        {% endspaceless %}
-                                    {% endif %}
-                                {% endfor %}
-                                {% if not print %}
-                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Skills</th>
+                                            <td colspan="12">
+                                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
+                                            </td>
+                                        </tr>
                                     {% endif %}
                                 {% endif %}
-                            </td>
-                        </tr>
-                    {% else %}
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">Skills</th>
-                                <td colspan="12">
-                                    <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
-                                </td>
-                            </tr>
-                        {% endif %}
-                    {% endif %}
-                    {% if fighter.content_fighter_cached.is_psyker %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Powers</th>
-                            <td colspan="12">
-                                {% for assign in fighter.powers_cached %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% spaceless %}
-                                        <span>{{ assign.name }}</span>
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% empty %}
-                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
-                                    {% endif %}
-                                {% endfor %}
-                                {% if fighter.powers_cached|length > 0 and not print %}
-                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
-                                    {% endif %}
+                                {% if fighter.content_fighter_cached.is_psyker %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Powers</th>
+                                        <td colspan="12">
+                                            {% for assign in fighter.powers_cached %}
+                                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                {% spaceless %}
+                                                    <span>{{ assign.name }}</span>
+                                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                                {% endspaceless %}
+                                            {% empty %}
+                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                                                {% endif %}
+                                            {% endfor %}
+                                            {% if fighter.powers_cached|length > 0 and not print %}
+                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
                                 {% endif %}
-                            </td>
-                        </tr>
-                    {% endif %}
-                    {% if fighter.has_house_additional_gear %}
-                        {% for line in fighter.house_additional_gearline_display %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">{{ line.category }}</th>
-                                <td colspan="12">
-                                    {% for assign in line.assignments %}
-                                        {% comment %} All this faff to avoid spaces {% endcomment %}
-                                        {% spaceless %}
-                                            <span>{{ assign.name }}</span>
-                                            {% if assign.active_upgrades_display|length > 0 %}
-                                                <span>&nbsp;(</span>
-                                                {% for up in assign.active_upgrades_display %}
-                                                    <span>{{ up.name }}</span>
-                                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% if fighter.has_house_additional_gear %}
+                                    {% for line in fighter.house_additional_gearline_display %}
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">{{ line.category }}</th>
+                                            <td colspan="12">
+                                                {% for assign in line.assignments %}
+                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                    {% spaceless %}
+                                                        <span>{{ assign.name }}</span>
+                                                        {% if assign.active_upgrades_display|length > 0 %}
+                                                            <span>&nbsp;(</span>
+                                                            {% for up in assign.active_upgrades_display %}
+                                                                <span>{{ up.name }}</span>
+                                                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                            {% endfor %}
+                                                            <span>)</span>
+                                                        {% endif %}
+                                                        {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                        {% if not forloop.last %}<span>,</span>{% endif %}
+                                                    {% endspaceless %}
                                                 {% endfor %}
-                                                <span>)</span>
-                                            {% endif %}
-                                            {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                            {% if not forloop.last %}<span>,</span>{% endif %}
-                                        {% endspaceless %}
+                                                {% if not print %}
+                                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                        {% if line.assignments|length > 0 %}
+                                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
+                                                        {% else %}
+                                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
                                     {% endfor %}
-                                    {% if not print %}
-                                        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                            {% if line.assignments|length > 0 %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
-                                            {% else %}
-                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                {% endif %}
+                                {% if fighter.wargearline_cached|length > 0 %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Gear</th>
+                                        <td colspan="12">
+                                            {% for assign in fighter.wargear %}
+                                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                {% spaceless %}
+                                                    <span>{{ assign.name }}</span>
+                                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                                {% endspaceless %}
+                                            {% endfor %}
+                                            {% if not print %}
+                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                                                       class="d-inline-block">Edit gear</a>
+                                                {% endif %}
                                             {% endif %}
-                                        {% endif %}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    {% endif %}
-                    {% if fighter.wargearline_cached|length > 0 %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Gear</th>
-                            <td colspan="12">
-                                {% for assign in fighter.wargear %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% spaceless %}
-                                        <span>{{ assign.name }}</span>
-                                        {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% endfor %}
-                                {% if not print %}
-                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
-                                           class="d-inline-block">Edit gear</a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Gear</th>
+                                            <td colspan="12">
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
+                                            </td>
+                                        </tr>
                                     {% endif %}
                                 {% endif %}
-                            </td>
-                        </tr>
+                                {% comment %} Injuries (only in campaign mode) {% endcomment %}
+                                {% if list.is_campaign_mode and fighter.injuries.exists %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Injuries</th>
+                                        <td colspan="12">
+                                            {% for injury in fighter.injuries.all %}
+                                                {% if not forloop.first %},{% endif %}
+                                                {{ injury.injury.name }}
+                                            {% endfor %}
+                                            {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% elif list.is_campaign_mode and can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Injuries</th>
+                                        <td colspan="12">
+                                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% comment %} Advancements (only in campaign mode) {% endcomment %}
+                                {% if list.is_campaign_mode %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Advancements</th>
+                                        <td colspan="12">
+                                            {% with advancement_count=fighter.advancements.count %}
+                                                {% if advancement_count == 0 %}
+                                                    None
+                                                {% else %}
+                                                    <span class="badge text-bg-success">{{ advancement_count }}</span>
+                                                {% endif %}
+                                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     {% else %}
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">Gear</th>
-                                <td colspan="12">
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
-                                </td>
-                            </tr>
-                        {% endif %}
-                    {% endif %}
-                    {% comment %} Injuries (only in campaign mode) {% endcomment %}
-                    {% if list.is_campaign_mode and fighter.injuries.exists %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Injuries</th>
-                            <td colspan="12">
-                                {% for injury in fighter.injuries.all %}
-                                    {% if not forloop.first %},{% endif %}
-                                    {{ injury.injury.name }}
-                                {% endfor %}
-                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                    <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% elif list.is_campaign_mode and can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Injuries</th>
-                            <td colspan="12">
-                                <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
-                            </td>
-                        </tr>
-                    {% endif %}
-                    {% comment %} Advancements (only in campaign mode) {% endcomment %}
-                    {% if list.is_campaign_mode %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Advancements</th>
-                            <td colspan="12">
-                                {% with advancement_count=fighter.advancements.count %}
-                                    {% if advancement_count == 0 %}
-                                        None
+                        {% comment %} Stash fighter - show gear and weapons in simple list {% endcomment %}
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody class="table-group-divider">
+                                {% if fighter.wargearline_cached|length > 0 %}
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Gear</th>
+                                        <td colspan="12">
+                                            {% for assign in fighter.wargear %}
+                                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                {% spaceless %}
+                                                    <span>{{ assign.name }}</span>
+                                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                    {% if not forloop.last %}<span>,</span>{% endif %}
+                                                {% endspaceless %}
+                                            {% endfor %}
+                                            {% if not print %}
+                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                                                       class="d-inline-block">Edit gear</a>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Gear</th>
+                                            <td colspan="12">
+                                                <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
+                                            </td>
+                                        </tr>
                                     {% else %}
-                                        <span class="badge text-bg-success">{{ advancement_count }}</span>
-                                    {% endif %}
-                                    {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
-                                    {% endif %}
-                                {% endwith %}
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        {% else %}
-            {% comment %} Stash fighter - show gear and weapons in simple list {% endcomment %}
-            <table class="table table-sm table-borderless mb-0">
-                <tbody class="table-group-divider">
-                    {% if fighter.wargearline_cached|length > 0 %}
-                        <tr class="fs-7">
-                            <th scope="row" colspan="3">Gear</th>
-                            <td colspan="12">
-                                {% for assign in fighter.wargear %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% spaceless %}
-                                        <span>{{ assign.name }}</span>
-                                        {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% endfor %}
-                                {% if not print %}
-                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
-                                           class="d-inline-block">Edit gear</a>
+                                        <tr class="fs-7">
+                                            <th scope="row" colspan="3">Gear</th>
+                                            <td colspan="12">No gear assigned.</td>
+                                        </tr>
                                     {% endif %}
                                 {% endif %}
-                            </td>
-                        </tr>
-                    {% else %}
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">Gear</th>
-                                <td colspan="12">
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr class="fs-7">
-                                <th scope="row" colspan="3">Gear</th>
-                                <td colspan="12">No gear assigned.</td>
-                            </tr>
+                            </tbody>
+                        </table>
+                    {% endif %}
+                    {% comment %} Wargear {% endcomment %}
+                    {% if fighter.injury_state != 'dead' %}
+                        {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
+                        {% if not print %}
+                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <div class="btn-group p-1">
+                                    <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi-plus-lg"></i> Add or edit weapons
+                                    </a>
+                                </div>
+                            {% endif %}
                         {% endif %}
                     {% endif %}
-                </tbody>
-            </table>
-        {% endif %}
-        {% comment %} Wargear {% endcomment %}
-        {% if fighter.injury_state != 'dead' %}
-            {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
-            {% if not print %}
-                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                    <div class="btn-group p-1">
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
-                           class="btn btn-outline-primary btn-sm">
-                            <i class="bi-plus-lg"></i> Add or edit weapons
-                        </a>
+                    {% if not print and not fighter.is_stash %}
                     </div>
-                {% endif %}
-            {% endif %}
+                    <!-- Notes tab -->
+                    <div class="tab-pane fade p-2"
+                         id="notes-{{ fighter.id }}"
+                         role="tabpanel"
+                         aria-labelledby="notes-tab-{{ fighter.id }}"
+                         tabindex="0">
+                        {% if fighter.narrative %}
+                            {{ fighter.narrative|safe }}
+                            {% if can_edit %}
+                                <div class="mt-2">
+                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-pencil"></i> Edit Notes
+                                    </a>
+                                </div>
+                            {% endif %}
+                        {% elif can_edit %}
+                            <div class="text-muted">
+                                No notes added yet.
+                                <div class="mt-2">
+                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-plus"></i> Add Notes
+                                    </a>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="text-muted fst-italic">No notes added yet.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% else %}
+            </div>
         {% endif %}
     </div>
 </div>
