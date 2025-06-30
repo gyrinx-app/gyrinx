@@ -97,6 +97,7 @@ repos:
       - id: pytest
         name: pytest
         entry: ./scripts/test.sh
+        args: ["--parallel", "--durations=20", "-v"]
         language: script
         pass_filenames: false
         always_run: true

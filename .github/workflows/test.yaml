@@ -41,8 +41,9 @@ jobs:
           echo "SECRET_KEY=test-secret" >> .env
           echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
-      - name: Run tests
-        run: ./scripts/test.sh
+      - name: Run tests in parallel
+        timeout-minutes: 10
+        run: ./scripts/test.sh --parallel --durations=20 -v
 
       - name: Run Bandit security scan
         run: |
