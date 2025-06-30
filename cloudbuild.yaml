@@ -7,16 +7,26 @@ steps:
       - -c
       - |
         echo "Checking for ongoing builds..."
-        ONGOING_BUILDS=$$(gcloud builds list --ongoing --format='value(id)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
+        # Get the current build's start time
+        CURRENT_BUILD_START=$$(gcloud builds describe $BUILD_ID --project=$PROJECT_ID --format='value(createTime)')
+        echo "Current build ($BUILD_ID) started at: $$CURRENT_BUILD_START"
+
+        # Get all ongoing builds for this trigger with their start times
+        ONGOING_BUILDS=$$(gcloud builds list --ongoing --format='csv[no-heading](id,createTime)' --filter="substitutions._TRIGGER_ID='$_TRIGGER_ID' AND id!='$BUILD_ID'" --project=$PROJECT_ID)
 
         if [ -z "$$ONGOING_BUILDS" ]; then
           echo "No other ongoing builds found."
         else
-          echo "Found ongoing builds, canceling them to ensure sequential deployment..."
-          while IFS= read -r build_id; do
+          echo "Found ongoing builds, checking which ones started before this build..."
+          while IFS=',' read -r build_id build_start_time; do
             if [ ! -z "$$build_id" ] && [ "$$build_id" != "$BUILD_ID" ]; then
-              echo "Canceling build: $$build_id"
-              gcloud builds cancel "$$build_id" --project=$PROJECT_ID || echo "Failed to cancel build: $$build_id"
+              # Compare timestamps - only cancel builds that started before the current build
+              if [[ "$$build_start_time" < "$$CURRENT_BUILD_START" ]]; then
+                echo "Canceling older build: $$build_id (started at $$build_start_time)"
+                gcloud builds cancel "$$build_id" --project=$PROJECT_ID || echo "Failed to cancel build: $$build_id"
+              else
+                echo "Keeping newer build: $$build_id (started at $$build_start_time)"
+              fi
             fi
           done <<< "$$ONGOING_BUILDS"
         fi
@@ -35,7 +45,7 @@ steps:
             -H "Content-Type: application/json" \
             -d '{
                 "username": "Google Cloud Build",
-                "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n⚠️ Any previous ongoing builds have been cancelled to ensure sequential deployment.\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
+                "content": "Cloud Run service $_SERVICE_NAME starting deploy:\n- Commit: `'"$COMMIT_SHA"'`\n- Build ID: `'"$BUILD_ID"'`\n- Trigger ID: `'"$_TRIGGER_ID"'`\n\n⚠️ Any older ongoing builds have been cancelled to ensure sequential deployment.\n\n[View commit on GitHub](https://github.com/gyrinx-app/gyrinx/commit/$COMMIT_SHA)\n[View logs on Google Cloud](https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID) — you must have an account with access to the project"
                 }'
 
   - name: gcr.io/cloud-builders/docker
