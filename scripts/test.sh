@@ -58,4 +58,16 @@ if check_requirements_changed; then
     ARGS="--build"
 fi
 
-docker compose run $ARGS --remove-orphans -T app pytest
+# Check for parallel flag
+PYTEST_ARGS=""
+if [ "$1" = "--parallel" ] || [ "$1" = "-p" ]; then
+    PYTEST_ARGS="-n auto"
+    shift
+fi
+
+# Check for additional pytest arguments
+if [ $# -gt 0 ]; then
+    PYTEST_ARGS="$PYTEST_ARGS $@"
+fi
+
+docker compose run $ARGS --remove-orphans -T app pytest $PYTEST_ARGS

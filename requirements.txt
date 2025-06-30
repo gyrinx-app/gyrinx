@@ -30,6 +30,7 @@ pyparsing==3.2.3
 pytest==8.4.1
 pytest-django==4.11.1
 pytest-watcher==0.4.3
+pytest-xdist==3.6.1
 python-dotenv==1.1.0
 qrcode==8.2
 referencing==0.36.2

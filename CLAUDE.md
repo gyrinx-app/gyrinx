@@ -61,6 +61,16 @@ pytest gyrinx/core/tests/test_models_core.py::TestListModel::test_list_creation
 # Run tests with pytest directly (faster, uses existing database)
 pytest
 
+# Run tests in parallel using pytest-xdist (significant performance improvement)
+pytest -n auto  # Uses all CPU cores
+pytest -n 4     # Uses 4 workers
+
+# Run tests with database reuse for faster execution
+pytest --reuse-db
+
+# Combine parallel execution with database reuse
+pytest -n auto --reuse-db
+
 # Collect static files before running tests (required for templates with static assets)
 manage collectstatic --noinput
 ```
