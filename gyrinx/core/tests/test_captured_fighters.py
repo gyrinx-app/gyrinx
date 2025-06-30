@@ -126,6 +126,71 @@ def test_sell_fighter_to_guilders(campaign_with_lists):
 
 
 @pytest.mark.django_db
+def test_sold_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
+    """Test that fighters sold to guilders contribute 0 to gang cost."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+    original_list = campaign_with_lists["list1"]
+
+    # Record the initial costs
+    fighter_cost = fighter.cost_int()
+    assert fighter_cost > 0  # Fighter should have a cost initially
+    initial_gang_cost = original_list.cost_int()
+
+    # Create capture
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+    # Sell to guilders
+    captured.sell_to_guilders(credits=25)
+
+    # Test fighter cost is now 0
+    assert fighter.cost_int() == 0
+    assert fighter.cost_int_cached == 0
+    assert fighter._base_cost_int == 0
+
+    # Test gang total cost is reduced by the fighter's cost
+    new_gang_cost = original_list.cost_int()
+    assert new_gang_cost == initial_gang_cost - fighter_cost
+
+    # Clear cache and verify cached value is also correct
+    original_list.update_cost_cache()
+    assert original_list.cost_int_cached == new_gang_cost
+
+
+@pytest.mark.django_db
+def test_captured_fighter_still_contributes_to_gang_cost(campaign_with_lists):
+    """Test that captured (but not sold) fighters still contribute to gang cost."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+    original_list = campaign_with_lists["list1"]
+
+    # Record the initial costs
+    fighter_cost = fighter.cost_int()
+    assert fighter_cost > 0
+    initial_gang_cost = original_list.cost_int()
+
+    # Create capture
+    CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+    # Test fighter is captured but not sold
+    assert fighter.is_captured is True
+    assert fighter.is_sold_to_guilders is False
+
+    # Test fighter cost is unchanged
+    assert fighter.cost_int() == fighter_cost
+    assert fighter.cost_int_cached == fighter_cost
+
+    # Test gang total cost is unchanged
+    assert original_list.cost_int() == initial_gang_cost
+
+
+@pytest.mark.django_db
 def test_return_fighter_to_owner(campaign_with_lists):
     """Test returning a captured fighter to their original gang."""
     fighter = campaign_with_lists["fighter1"]

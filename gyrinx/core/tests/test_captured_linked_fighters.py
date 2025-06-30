@@ -217,3 +217,72 @@ def test_captured_linked_fighter_shows_correct_status():
     assert response.status_code == 200
     assert "Captured" in response.content.decode()
     assert f"Captured by {list2.name}" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_sold_linked_fighter_contributes_zero_to_gang_cost():
+    """Test that linked fighters sold to guilders contribute 0 to gang cost."""
+    # Create test data
+    user = User.objects.create_user(username="testuser3", password="testpass")
+    house = ContentHouse.objects.create(name="Test House 3")
+
+    fighter_type = ContentFighter.objects.create(
+        type="Linked Beast",
+        category="SPECIALIST",
+        house=house,
+        base_cost=75,
+    )
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign 3",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    list1 = List.objects.create(
+        name="Gang X",
+        content_house=house,
+        owner=user,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    list2 = List.objects.create(
+        name="Gang Y",
+        content_house=house,
+        owner=user,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    # Create a linked fighter
+    linked_fighter = ListFighter.objects.create(
+        name="Pet Cyber-Mastiff",
+        content_fighter=fighter_type,
+        list=list1,
+        owner=user,
+    )
+
+    # Record initial costs
+    fighter_cost = linked_fighter.cost_int()
+    assert fighter_cost > 0
+    initial_gang_cost = list1.cost_int()
+
+    # Capture the linked fighter
+    capture = CapturedFighter.objects.create(
+        fighter=linked_fighter,
+        capturing_list=list2,
+        owner=user,
+    )
+
+    # Sell to guilders
+    capture.sell_to_guilders(credits=30)
+
+    # Test fighter cost is now 0
+    assert linked_fighter.cost_int() == 0
+    assert linked_fighter.cost_int_cached == 0
+    assert linked_fighter._base_cost_int == 0
+
+    # Test gang total cost is reduced by the fighter's cost
+    new_gang_cost = list1.cost_int()
+    assert new_gang_cost == initial_gang_cost - fighter_cost
