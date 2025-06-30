@@ -8,7 +8,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("core", "0072_add_missing_database_indexes"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
