@@ -146,6 +146,9 @@ def test_sold_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
     # Sell to guilders
     captured.sell_to_guilders(credits=25)
 
+    # Refresh fighter from database to clear cached properties
+    fighter.refresh_from_db()
+
     # Test fighter cost is now 0
     assert fighter.cost_int() == 0
     assert fighter.cost_int_cached == 0
@@ -161,8 +164,8 @@ def test_sold_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
 
 
 @pytest.mark.django_db
-def test_captured_fighter_still_contributes_to_gang_cost(campaign_with_lists):
-    """Test that captured (but not sold) fighters still contribute to gang cost."""
+def test_captured_fighter_contributes_zero_to_gang_cost(campaign_with_lists):
+    """Test that captured (but not sold) fighters contribute 0 to gang cost."""
     fighter = campaign_with_lists["fighter1"]
     capturing_list = campaign_with_lists["list2"]
     original_list = campaign_with_lists["list1"]
@@ -178,16 +181,20 @@ def test_captured_fighter_still_contributes_to_gang_cost(campaign_with_lists):
         capturing_list=capturing_list,
     )
 
+    # Refresh fighter from database to clear cached properties
+    fighter.refresh_from_db()
+
     # Test fighter is captured but not sold
     assert fighter.is_captured is True
     assert fighter.is_sold_to_guilders is False
 
-    # Test fighter cost is unchanged
-    assert fighter.cost_int() == fighter_cost
-    assert fighter.cost_int_cached == fighter_cost
+    # Test fighter cost is now 0
+    assert fighter.cost_int() == 0
+    assert fighter.cost_int_cached == 0
+    assert fighter._base_cost_int == 0
 
-    # Test gang total cost is unchanged
-    assert original_list.cost_int() == initial_gang_cost
+    # Test gang total cost is reduced by the fighter's cost
+    assert original_list.cost_int() == initial_gang_cost - fighter_cost
 
 
 @pytest.mark.django_db

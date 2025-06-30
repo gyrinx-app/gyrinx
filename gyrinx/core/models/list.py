@@ -572,8 +572,8 @@ class ListFighter(AppBase):
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):
-        # Sold fighters contribute 0 to gang total cost
-        if self.is_sold_to_guilders:
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.is_captured or self.is_sold_to_guilders:
             return 0
 
         # Include advancement cost increases
@@ -588,8 +588,8 @@ class ListFighter(AppBase):
 
     @cached_property
     def cost_int_cached(self):
-        # Sold fighters contribute 0 to gang total cost
-        if self.is_sold_to_guilders:
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.is_captured or self.is_sold_to_guilders:
             return 0
 
         # Include advancement cost increases
@@ -604,8 +604,8 @@ class ListFighter(AppBase):
 
     @cached_property
     def _base_cost_int(self):
-        # Sold fighters contribute 0 to gang total cost
-        if self.is_sold_to_guilders:
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.is_captured or self.is_sold_to_guilders:
             return 0
 
         # Our cost can be overridden by the user...
