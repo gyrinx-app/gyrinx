@@ -1,0 +1,50 @@
+{% extends "core/layouts/base.html" %}
+{% block content %}
+    <div class="container py-3">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h4 mb-0">Mark Fighter as Captured</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <p class="text-secondary">
+                                You are marking <strong>{{ fighter.name }}</strong> from <strong>{{ list.name }}</strong> as captured.
+                            </p>
+                            <p class="text-secondary">Select which gang has captured this fighter:</p>
+                        </div>
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="capturing_list" class="form-label">Capturing Gang</label>
+                                <select class="form-select"
+                                        id="capturing_list"
+                                        name="capturing_list"
+                                        required>
+                                    <option value="">Choose a gang...</option>
+                                    {% for gang in capturing_lists %}<option value="{{ gang.id }}">{{ gang.name }}</option>{% endfor %}
+                                </select>
+                                <div class="form-text">The selected gang will be able to sell this fighter to guilders or return them for ransom.</div>
+                            </div>
+                            <div class="alert alert-warning" role="alert">
+                                <h5 class="alert-heading">
+                                    <i class="bi-exclamation-triangle"></i> Important
+                                </h5>
+                                <p class="mb-0">
+                                    Once captured, this fighter will not be able to participate in battles for {{ list.name }} until they are returned or sold to guilders.
+                                </p>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                {% include "core/includes/back.html" with url="core:list" id=list.id text="Cancel" %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi-exclamation-triangle"></i> Mark as Captured
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

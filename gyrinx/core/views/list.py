@@ -1904,6 +1904,110 @@ def list_fighter_state_edit(request, id, fighter_id):
 
 
 @login_required
+def mark_fighter_captured(request, id, fighter_id):
+    """
+    Mark a fighter as captured by another gang in the campaign.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` being captured.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``capturing_lists``
+        Other gangs in the campaign that can capture this fighter.
+    ``campaign``
+        The :model:`core.Campaign` the lists belong to.
+
+    **Template**
+
+    :template:`core/list_fighter_mark_captured.html`
+    """
+    from django.contrib import messages
+
+    from gyrinx.core.models.campaign import CampaignAction
+    from gyrinx.core.models.list import CapturedFighter
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Check campaign mode
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(request, "Fighters can only be captured in campaign mode.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Check if fighter is already captured or sold
+    if fighter.is_captured or fighter.is_sold_to_guilders:
+        messages.error(request, "This fighter is already captured or sold.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Check if fighter is dead
+    if fighter.injury_state == ListFighter.DEAD:
+        messages.error(request, "Dead fighters cannot be captured.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Get the campaign
+    campaign = lst.campaign
+    if not campaign:
+        messages.error(request, "This list is not part of a campaign.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Get other lists in the campaign that could capture this fighter
+    capturing_lists = (
+        campaign.lists.filter(status=List.CAMPAIGN_MODE)
+        .exclude(id=lst.id)
+        .order_by("name")
+    )
+
+    if not capturing_lists.exists():
+        messages.error(
+            request, "No other gangs in the campaign to capture this fighter."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        capturing_list_id = request.POST.get("capturing_list")
+        if capturing_list_id:
+            capturing_list = get_object_or_404(
+                List, id=capturing_list_id, campaign=campaign
+            )
+
+            # Create the capture record
+            CapturedFighter.objects.create(
+                fighter=fighter,
+                capturing_list=capturing_list,
+                owner=request.user,
+            )
+
+            # Log campaign action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=campaign,
+                list=lst,
+                description=f"{fighter.name} was captured by {capturing_list.name}",
+                outcome=f"{fighter.name} is now held captive",
+            )
+
+            messages.success(
+                request,
+                f"{fighter.name} has been marked as captured by {capturing_list.name}.",
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_fighter_mark_captured.html",
+        {
+            "fighter": fighter,
+            "list": lst,
+            "capturing_lists": capturing_lists,
+            "campaign": campaign,
+        },
+    )
+
+
+@login_required
 def list_fighter_add_injury(request, id, fighter_id):
     """
     Add an injury to a :model:`core.ListFighter` in campaign mode.

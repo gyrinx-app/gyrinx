@@ -81,36 +81,62 @@
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi-pencil"></i> Edit
                         </a>
-                        {% if fighter.has_linked_fighter %}
-                            <button class="btn btn-outline-secondary btn-sm disabled" disabled>
-                                <i class="bi-copy"></i> Clone
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
-                                <i class="bi-archive"></i> Archive
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm disabled" disabled>
-                                <i class="bi-trash"></i> Delete
-                            </button>
-                        {% else %}
-                            <a href="{% url 'core:list-fighter-clone' list.id fighter.id %}"
-                               class="btn btn-outline-secondary btn-sm">
-                                <i class="bi-copy"></i> Clone
-                            </a>
-                            <a href="{% url 'core:list-fighter-archive' list.id fighter.id %}"
-                               class="btn btn-outline-danger btn-sm">
-                                <i class="bi-archive"></i> Archive
-                            </a>
-                            {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
-                                <a href="{% url 'core:list-fighter-kill' list.id fighter.id %}"
-                                   class="btn btn-outline-danger btn-sm">
-                                    <i class="bi-heartbreak"></i> Kill
-                                </a>
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <span class="visually-hidden">Toggle Dropdown</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            {% if fighter.has_linked_fighter %}
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-copy"></i> Clone</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-archive"></i> Archive</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item disabled"
+                                       href="#"
+                                       tabindex="-1"
+                                       aria-disabled="true"><i class="bi-trash"></i> Delete</a>
+                                </li>
+                            {% else %}
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                    </li>
+                                {% endif %}
+                                <li>
+                                    <a class="dropdown-item text-danger"
+                                       href="{% url 'core:list-fighter-archive' list.id fighter.id %}"><i class="bi-archive"></i> Archive</a>
+                                </li>
+                                {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
+                                    <li>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                    </li>
+                                {% endif %}
+                                <li>
+                                    <a class="dropdown-item text-danger"
+                                       href="{% url 'core:list-fighter-delete' list.id fighter.id %}"><i class="bi-trash"></i> Delete</a>
+                                </li>
                             {% endif %}
-                            <a href="{% url 'core:list-fighter-delete' list.id fighter.id %}"
-                               class="btn btn-outline-danger btn-sm">
-                                <i class="bi-trash"></i> Delete
-                            </a>
-                        {% endif %}
+                        </ul>
                     </div>
                 {% endif %}
             {% endif %}
