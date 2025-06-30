@@ -38,11 +38,15 @@ class BattleForm(forms.ModelForm):
             self.instance.campaign = campaign
             campaign_lists = campaign.lists.filter(archived_at__isnull=True)
             self.fields["participants"].queryset = campaign_lists
-            self.fields["winners"].queryset = campaign_lists
 
-        # If editing existing battle, limit winners to current participants
-        if self.instance.pk:
-            self.fields["winners"].queryset = self.instance.participants.all()
+            # For new battles, show all campaign lists as potential winners
+            # For existing battles, limit to current participants
+            if self.instance.pk:
+                # Editing existing battle - limit winners to current participants
+                self.fields["winners"].queryset = self.instance.participants.all()
+            else:
+                # New battle - show all campaign lists as potential winners
+                self.fields["winners"].queryset = campaign_lists
 
     def clean(self):
         cleaned_data = super().clean()
