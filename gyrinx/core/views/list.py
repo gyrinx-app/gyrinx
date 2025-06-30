@@ -149,6 +149,12 @@ class ListDetailView(generic.DetailView):
             held_assets = list_obj.held_assets.select_related("asset_type")
             context["held_assets"] = held_assets
 
+            # Get captured fighters held by this list
+            captured_fighters = list_obj.captured_fighters.filter(
+                sold_to_guilders=False
+            ).select_related("fighter", "fighter__list")
+            context["captured_fighters"] = captured_fighters
+
         return context
 
 

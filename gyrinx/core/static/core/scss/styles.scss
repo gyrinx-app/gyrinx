@@ -104,9 +104,19 @@ body {
     position: relative;
 }
 
+// Links
+
 a[href="#"][data-bs-toggle="tooltip"] {
     cursor: help;
 }
+
+.link-sm {
+    @extend .link-underline-opacity-25;
+    @extend .link-underline-opacity-100-hover;
+    @extend .fs-7;
+}
+
+// Tables
 
 .table-group-divider {
     // This is a custom class to add a border between table groups. The !important
@@ -126,6 +136,8 @@ a[href="#"][data-bs-toggle="tooltip"] {
     }
 }
 
+// Forms
+
 fieldset legend {
     font-size: $font-size-base;
 }
@@ -134,20 +146,28 @@ label {
     margin-bottom: 0.25rem;
 }
 
+// Menu
+
 .dropdown-menu-mw {
     min-width: 25em;
     width: 100%;
     max-width: 35em;
 }
 
+// Spacing
+
 .mb-last-0 > :last-child {
     margin-bottom: 0 !important;
 }
+
+// Custom
 
 .errorlist {
     @extend .list-unstyled;
     color: var(--bs-danger);
 }
+
+// Flash
 
 @keyframes flash-warn {
     from {
@@ -162,6 +182,8 @@ label {
 .flash-warn td {
     animation: flash-warn 2s ease-in;
 }
+
+// Images
 
 img {
     max-width: 100%;
