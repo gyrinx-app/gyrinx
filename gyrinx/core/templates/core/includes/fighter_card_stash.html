@@ -120,7 +120,7 @@
                                                 <br>
                                                 <i class="bi-dash"></i> {{ profile.name }} (+{{ profile.cost_display }})
                                                 {% if list.status == 'campaign_mode' and list.owner_cached == user and not print %}
-                                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}&sell_profile={{ profile.id }}"
+                                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ profile.id }}"
                                                        class="link-warning">Sell</a>
                                                 {% endif %}
                                             {% endif %}
