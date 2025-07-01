@@ -11,7 +11,7 @@
                         {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False %}
                     {% endfor %}
                 </div>
-                <div class="text-center p-2">
+                <div class="text-center">
                     <a href="{% url 'core:campaign-actions' list.campaign.id %}?gang={{ list.id }}"
                        class="btn btn-sm btn-link">View all actions →</a>
                 </div>
