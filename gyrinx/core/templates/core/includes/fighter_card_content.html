@@ -206,7 +206,7 @@
                                 {% if can_edit and list.owner == user or not can_edit and list.campaign and list.campaign.owner == user %}
                                     <a href="{% url 'core:list-credits-edit' list.id %}"
                                        class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                                        <i class="bi-pencil-square" aria-hidden="true"></i> Modify
+                                        <i class="bi-pencil" aria-hidden="true"></i> Modify
                                     </a>
                                 {% endif %}
                             </div>
