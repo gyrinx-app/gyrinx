@@ -47,7 +47,7 @@
                             </span>
                         {% endif %}
                     </div>
-                    {% if list.owner_cached == user and list.archived_fighters_cached > 0 %}
+                    {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
                         <div class="text-secondary">
                             <i class="bi-archive"></i>
                             <a href="{% url 'core:list-archived-fighters' list.id %}"

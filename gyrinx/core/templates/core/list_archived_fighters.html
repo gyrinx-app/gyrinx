@@ -12,15 +12,13 @@
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Type</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for fighter in list.archived_fighters %}
                         <tr class="align-middle">
-                            <td>{{ fighter.name }}</td>
-                            <td>{{ fighter.content_fighter.name }}</td>
+                            <td>{{ fighter.fully_qualified_name }}</td>
                             {% if not fighter.linked_fighter.exists %}
                                 <td>
                                     <form action="{% url 'core:list-fighter-archive' list.id fighter.id %}"
