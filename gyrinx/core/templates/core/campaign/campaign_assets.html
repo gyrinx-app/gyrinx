@@ -40,7 +40,9 @@
                             </div>
                         {% endif %}
                     </div>
-                    {% if asset_type.description %}<div class="card-body border-bottom">{{ asset_type.description|safe }}</div>{% endif %}
+                    {% if asset_type.description %}
+                        <div class="card-body border-bottom mb-last-0">{{ asset_type.description|safe }}</div>
+                    {% endif %}
                     <div class="card-body p-0">
                         {% with assets=asset_type.assets.all %}
                             {% if assets %}

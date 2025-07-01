@@ -194,8 +194,8 @@
                                             {% endfor %}
                                         </tbody>
                                     {% else %}
-                                        <tr class="px-2 px-sm-3 pb-3 text-muted small">
-                                            <td>No {{ asset_type.name_plural|lower }} created yet.</td>
+                                        <tr>
+                                            <td class="px-2 px-sm-3 pb-3 text-muted small">No {{ asset_type.name_plural|lower }} created yet.</td>
                                         </tr>
                                     {% endif %}
                                 {% endwith %}

@@ -35,7 +35,7 @@
                         {% endif %}
                     </div>
                     {% if resource_type.description %}
-                        <div class="card-body border-bottom">{{ resource_type.description|safe }}</div>
+                        <div class="card-body border-bottom mb-last-0">{{ resource_type.description|safe }}</div>
                     {% endif %}
                     <div class="card-body p-0">
                         {% with resources=resource_type.list_resources.all %}
