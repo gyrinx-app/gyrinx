@@ -23,22 +23,31 @@
             <div class="card-body">
                 <form method="get"
                       action="{% url 'core:campaign-actions' campaign.id %}"
-                      class="vstack gap-3">
+                      class="vstack gap-3"
+                      id="filter-form">
                     <!-- Search Input -->
                     <div class="row g-2">
                         <div class="col-12">
                             <label for="search" class="form-label">Search</label>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="bi-search"></i>
-                                </span>
-                                <input class="form-control"
-                                       id="search"
-                                       type="search"
-                                       placeholder="Search actions by description, outcome, or author"
-                                       aria-label="Search"
-                                       name="q"
-                                       value="{{ request.GET.q }}">
+                            <div class="hstack gap-2">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi-search"></i>
+                                    </span>
+                                    <input class="form-control"
+                                           id="search"
+                                           type="search"
+                                           placeholder="Search actions by description, outcome, or author"
+                                           aria-label="Search"
+                                           name="q"
+                                           value="{{ request.GET.q }}">
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-primary" type="submit">Search</button>
+                                    {% if request.GET.q %}
+                                        <a href="?{% qt_rm request "q" %}" class="btn btn-outline-secondary">Clear</a>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -83,14 +92,11 @@
                             </select>
                         </div>
                     </div>
-                    <div class="row g-2 mt-2">
+                    <div class="row g-2">
                         <div class="col-md-4">
                             <label for="timeframe" class="form-label">Timeframe</label>
                             <select class="form-select" id="timeframe" name="timeframe">
-                                <option value="all"
-                                        {% if request.GET.timeframe == "all" or not request.GET.timeframe %}selected{% endif %}>
-                                    Any time
-                                </option>
+                                <option value="" {% if not request.GET.timeframe %}selected{% endif %}>Any time</option>
                                 <option value="24h"
                                         {% if request.GET.timeframe == "24h" %}selected{% endif %}>
                                     Last 24 hours
@@ -104,16 +110,13 @@
                         </div>
                     </div>
                     <!-- Filter Buttons -->
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-primary btn-sm" type="submit">
-                            <i class="bi bi-funnel"></i> Apply Filters
+                    <div class="d-flex gap-2 align-items-center">
+                        <button class="btn btn-link icon-link btn-sm" type="submit">
+                            <i class="bi-arrow-clockwise"></i> Update Filters
                         </button>
-                        {% if request.GET.q or request.GET.gang or request.GET.author or request.GET.timeframe or request.GET.battle %}
-                            <a href="{% url 'core:campaign-actions' campaign.id %}"
-                               class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-x-circle"></i> Clear Filters
-                            </a>
-                        {% endif %}
+                        •
+                        <a href="{% url 'core:campaign-actions' campaign.id %}"
+                           class="btn btn-link text-secondary icon-link btn-sm">Reset All</a>
                     </div>
                 </form>
             </div>
@@ -121,46 +124,7 @@
         {% if actions %}
             <div class="list-group list-group-flush">
                 {% for action in actions %}
-                    <div class="list-group-item px-0">
-                        <div class="d-flex w-100 justify-content-between">
-                            <small class="text-muted">
-                                <strong>{{ action.user.username }}</strong>
-                                {% if action.list %}
-                                    •
-                                    {% list_with_theme action.list %}
-                                {% endif %}
-                                {% if action.battle %}
-                                    •
-                                    <a href="{% url 'core:battle' action.battle.id %}"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                        <i class="bi-flag"></i> {{ action.battle.mission }}
-                                    </a>
-                                {% endif %}
-                                • {{ action.created|timesince }} ago
-                            </small>
-                        </div>
-                        <p class="mb-1">{{ action.description }}</p>
-                        {% if action.dice_count > 0 %}
-                            <small class="text-muted">
-                                <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
-                                {% for result in action.dice_results %}
-                                    {{ result }}
-                                    {% if not forloop.last %},{% endif %}
-                                {% endfor %}
-                                = <strong>{{ action.dice_total }}</strong>
-                            </small>
-                        {% endif %}
-                        {% if action.outcome %}
-                            <small class="text-muted d-block">
-                                <strong>Outcome:</strong> {{ action.outcome }}
-                            </small>
-                        {% elif action.user == user %}
-                            <small>
-                                <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
-                                   class="link-primary">Add outcome</a>
-                            </small>
-                        {% endif %}
-                    </div>
+                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=False %}
                 {% endfor %}
             </div>
             {% if is_paginated %}
@@ -169,7 +133,7 @@
                         {% if page_obj.has_previous %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}{% if request.GET.battle %}&battle={{ request.GET.battle }}{% endif %}">Previous</a>
+                                   href="?{% qt request page=page_obj.previous_page_number %}">Previous</a>
                             </li>
                         {% endif %}
                         <li class="page-item active">
@@ -178,7 +142,7 @@
                         {% if page_obj.has_next %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.gang %}&gang={{ request.GET.gang }}{% endif %}{% if request.GET.author %}&author={{ request.GET.author }}{% endif %}{% if request.GET.timeframe %}&timeframe={{ request.GET.timeframe }}{% endif %}{% if request.GET.battle %}&battle={{ request.GET.battle }}{% endif %}">Next</a>
+                                   href="?{% qt request page=page_obj.next_page_number %}">Next</a>
                             </li>
                         {% endif %}
                     </ul>

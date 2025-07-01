@@ -182,6 +182,11 @@ class List(AppBase):
         return self.archived_fighters()
 
     @cached_property
+    def active_fighters(self) -> QuerySetOf["ListFighter"]:
+        """Get all fighters that could participate in a battle."""
+        return self.fighters().filter(archived=False, content_fighter__is_stash=False)
+
+    @cached_property
     def owner_cached(self):
         return self.owner
 

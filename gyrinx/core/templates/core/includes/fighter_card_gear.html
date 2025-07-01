@@ -8,11 +8,11 @@
             </div>
         </div>
     </div>
-    <div class="card-body vstack p-0 p-sm-2">
+    <div class="card-body vstack p-0 p-sm-2 pt-2">
         {% if fighter.is_stash %}
             <!-- Gang Credits -->
             <div class="col-12 mb-2">
-                <div class="hstack gap-3 align-items-center justify-content-between">
+                <div class="hstack gap-3 align-items-center justify-content-between px-1">
                     <h4 class="h6 mb-0">Stash Credits</h4>
                     <div>
                         <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>

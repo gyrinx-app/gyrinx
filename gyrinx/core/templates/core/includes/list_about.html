@@ -38,11 +38,11 @@
         {% endif %}
     </div>
     <div class="grid">
-        {% for fighter in list.fighters %}
+        {% for fighter in list.active_fighters %}
             {% if fighter.narrative %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
                     <div class="hstack">
-                        <h3 class="h4">{{ fighter.name }}</h3>
+                        <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                         {% if list.owner_cached == user %}
                             <div class="ms-auto">
                                 <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
@@ -57,7 +57,7 @@
             {% elif list.owner_cached == user %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
                     <div class="hstack">
-                        <h3 class="h4">{{ fighter.name }}</h3>
+                        <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                         <div class="ms-auto">
                             <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
                                class="btn btn-outline-secondary btn-sm">

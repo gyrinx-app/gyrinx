@@ -1,48 +1,22 @@
-{% load allauth custom_tags humanize %}
+{% load allauth custom_tags humanize color_tags %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="card g-col-12 g-col-md-12 g-col-xl-6">
         <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
             <h3 class="h5 mb-0">Actions</h3>
         </div>
-        <div class="card-body p-2">
+        <div class="card-body p-0">
             {% if recent_actions %}
-                <table class="table table-sm mb-2 fs-7">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="text-muted">When</th>
-                            <th scope="col" class="text-muted">Action</th>
-                            <th scope="col" class="text-muted">Outcome</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for action in recent_actions %}
-                            <tr>
-                                <td class="text-nowrap">{{ action.created|timesince }} ago</td>
-                                <td>
-                                    {{ action.description|truncatechars:50 }}
-                                    {% if action.dice_count > 0 %}
-                                        <small class="text-muted">({{ action.dice_count }}D6: {{ action.dice_total }})</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if action.outcome %}
-                                        {{ action.outcome|truncatechars:50 }}
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="list-group list-group-flush">
+                    {% for action in recent_actions %}
+                        {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False %}
+                    {% endfor %}
+                </div>
                 <div class="text-center">
                     <a href="{% url 'core:campaign-actions' list.campaign.id %}?gang={{ list.id }}"
-                       class="link-secondary link-sm">
-                        <i class="bi-list-ul" aria-hidden="true"></i> View all actions
-                    </a>
+                       class="btn btn-sm btn-link">View all actions →</a>
                 </div>
             {% else %}
-                <p class="text-muted fs-7 mb-0">No actions logged yet.</p>
+                <p class="text-muted fs-7 mb-0 p-2">No actions logged yet.</p>
             {% endif %}
         </div>
     </div>

@@ -10,8 +10,10 @@
 {% endcomment %}
 {% if print %}
     {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-4 g-col-xl-3' as card_classes %}
+    {% firstof body_classes 'p-0' as body_classes_ %}
 {% else %}
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
+    {% firstof body_classes 'p-0 p-sm-2' as body_classes_ %}
 {% endif %}
 <div class="card {{ card_classes }} {% flash fighter.id %}"
      id="{{ fighter.id }}">
@@ -186,14 +188,14 @@
             <!-- Tab content -->
             <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
                 <!-- Details tab -->
-                <div class="tab-pane fade show active vstack p-0 p-sm-2"
+                <div class="tab-pane fade show active vstack {{ body_classes_ }}"
                      id="card-{{ fighter.id }}"
                      role="tabpanel"
                      aria-labelledby="card-tab-{{ fighter.id }}"
                      tabindex="0">
                 {% else %}
                     <!-- No tabs in print mode -->
-                    <div class="vstack p-0 p-sm-2">
+                    <div class="vstack {{ body_classes_ }}">
                     {% endif %}
                     {% if fighter.is_stash %}
                         <!-- Gang Credits -->
@@ -206,7 +208,7 @@
                                 {% if can_edit and list.owner == user or not can_edit and list.campaign and list.campaign.owner == user %}
                                     <a href="{% url 'core:list-credits-edit' list.id %}"
                                        class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                                        <i class="bi-pencil-square" aria-hidden="true"></i> Modify
+                                        <i class="bi-pencil" aria-hidden="true"></i> Modify
                                     </a>
                                 {% endif %}
                             </div>

@@ -1,0 +1,59 @@
+{% load allauth custom_tags color_tags %}
+{% comment %}
+    Campaign action item template - accepts the following parameters:
+    - action: The campaign action object to display
+    - campaign: The campaign object
+    - user: The current user (for showing "Add outcome" link)
+    - show_truncated: Boolean to truncate outcome text (default: False)
+    - show_list_link: Boolean to show link to list (default: True)
+{% endcomment %}
+<div class="list-group-item px-2 px-sm-3">
+    <small class="text-muted hstack w-100 justify-content-between">
+        <div class="flex-grow-1">
+            <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
+            {% if action.list and show_list_link|default:True %}
+                •
+                <a href="{% url 'core:list' action.list.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                    {% list_with_theme action.list %}
+                </a>
+            {% endif %}
+            {% if action.battle %}
+                •
+                <a href="{% url 'core:battle' action.battle.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                    <i class="bi-flag"></i> {{ action.battle.mission }}
+                </a>
+            {% endif %}
+        </div>
+        <div class="ms-auto">
+            <em>{{ action.created|timesince }} ago</em>
+        </div>
+    </small>
+    <p class="mb-0 {% if show_truncated|default:False %}text-truncate{% endif %}">{{ action.description }}</p>
+    {% if action.dice_count > 0 %}
+        <small class="text-muted">
+            <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
+            {% for result in action.dice_results %}
+                {{ result }}
+                {% if not forloop.last %},{% endif %}
+            {% endfor %}
+            = <strong>{{ action.dice_total }}</strong>
+        </small>
+    {% endif %}
+    {% if action.outcome %}
+        <small class="text-muted d-block">
+            <strong>Outcome:</strong>
+            {% if show_truncated|default:False %}
+                {{ action.outcome|truncatewords:10 }}
+            {% else %}
+                {{ action.outcome }}
+            {% endif %}
+        </small>
+    {% elif action.user == user %}
+        <small>
+            <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
+               class="link-primary">Add outcome</a>
+        </small>
+    {% endif %}
+</div>

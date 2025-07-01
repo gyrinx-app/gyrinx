@@ -457,7 +457,7 @@ def test_campaign_action_list_filtering():
     assert 'name="q"' in content  # Search input
     assert 'name="gang"' in content  # Gang select
     assert 'name="author"' in content  # Author select
-    assert "Apply Filters" in content  # Filter button
+    assert "Update Filters" in content  # Filter button
 
     # Test that pagination preserves filters
     # Create more actions to trigger pagination
