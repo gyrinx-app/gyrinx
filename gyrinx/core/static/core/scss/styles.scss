@@ -125,17 +125,6 @@ a[href="#"][data-bs-toggle="tooltip"] {
         var(--bs-border-color) !important;
 }
 
-.flatpage-content img {
-    max-width: 100%;
-    height: auto;
-}
-
-@include media-breakpoint-up(xl) {
-    .flatpage-content img {
-        max-width: 133%;
-    }
-}
-
 // Forms
 
 fieldset legend {
@@ -205,6 +194,17 @@ img {
 .img-link-transform:active img {
     transform: perspective(500px) scale(1.02) rotateY(-6deg) rotateX(4deg)
         translateY(2px);
+}
+
+.flatpage-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+@include media-breakpoint-up(xl) {
+    .flatpage-content img {
+        max-width: 133%;
+    }
 }
 
 // Color Forms
