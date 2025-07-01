@@ -121,46 +121,7 @@
         {% if actions %}
             <div class="list-group list-group-flush">
                 {% for action in actions %}
-                    <div class="list-group-item px-0">
-                        <div class="d-flex w-100 justify-content-between">
-                            <small class="text-muted">
-                                <strong>{{ action.user.username }}</strong>
-                                {% if action.list %}
-                                    •
-                                    {% list_with_theme action.list %}
-                                {% endif %}
-                                {% if action.battle %}
-                                    •
-                                    <a href="{% url 'core:battle' action.battle.id %}"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                        <i class="bi-flag"></i> {{ action.battle.mission }}
-                                    </a>
-                                {% endif %}
-                                • {{ action.created|timesince }} ago
-                            </small>
-                        </div>
-                        <p class="mb-1">{{ action.description }}</p>
-                        {% if action.dice_count > 0 %}
-                            <small class="text-muted">
-                                <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
-                                {% for result in action.dice_results %}
-                                    {{ result }}
-                                    {% if not forloop.last %},{% endif %}
-                                {% endfor %}
-                                = <strong>{{ action.dice_total }}</strong>
-                            </small>
-                        {% endif %}
-                        {% if action.outcome %}
-                            <small class="text-muted d-block">
-                                <strong>Outcome:</strong> {{ action.outcome }}
-                            </small>
-                        {% elif action.user == user %}
-                            <small>
-                                <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
-                                   class="link-primary">Add outcome</a>
-                            </small>
-                        {% endif %}
-                    </div>
+                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=False %}
                 {% endfor %}
             </div>
             {% if is_paginated %}

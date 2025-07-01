@@ -376,44 +376,7 @@
                         {% if recent_actions %}
                             <div class="list-group list-group-flush">
                                 {% for action in recent_actions %}
-                                    <div class="list-group-item px-2 px-sm-3">
-                                        <small class="text-muted hstack w-100 justify-content-between">
-                                            <div class="flex-grow-1">
-                                                <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
-                                                {% if action.list %}
-                                                    •
-                                                    <a href="{% url 'core:list' action.list.id %}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                        {% list_with_theme action.list %}
-                                                    </a>
-                                                {% endif %}
-                                            </div>
-                                            <div class="ms-auto">
-                                                <em>{{ action.created|timesince }} ago</em>
-                                            </div>
-                                        </small>
-                                        <p class="mb-0 text-truncate">{{ action.description }}</p>
-                                        {% if action.dice_count > 0 %}
-                                            <small class="text-muted">
-                                                <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
-                                                {% for result in action.dice_results %}
-                                                    {{ result }}
-                                                    {% if not forloop.last %},{% endif %}
-                                                {% endfor %}
-                                                = <strong>{{ action.dice_total }}</strong>
-                                            </small>
-                                        {% endif %}
-                                        {% if action.outcome %}
-                                            <small class="text-muted d-block">
-                                                <strong>Outcome:</strong> {{ action.outcome|truncatewords:10 }}
-                                            </small>
-                                        {% elif action.user == user %}
-                                            <small>
-                                                <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
-                                                   class="link-primary">Add outcome</a>
-                                            </small>
-                                        {% endif %}
-                                    </div>
+                                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
                                 {% endfor %}
                             </div>
                             <div class="text-center mt-1">

@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     {{ battle.name }} - Battle
 {% endblock head_title %}
@@ -121,25 +121,10 @@
                     <div class="card-header">
                         <h5 class="mb-0">Related Campaign Actions</h5>
                     </div>
-                    <div class="card-body">
-                        <div class="vstack gap-2">
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
                             {% for action in actions %}
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <strong>{{ action.user }}:</strong> {{ action.description }}
-                                        {% if action.dice_count > 0 %}
-                                            <span class="badge bg-secondary ms-1">
-                                                <i class="bi-dice-{{ action.dice_total }}"></i> {{ action.dice_total }}
-                                            </span>
-                                        {% endif %}
-                                        {% if action.outcome %}
-                                            <div class="text-muted small mt-1">
-                                                <strong>Outcome:</strong> {{ action.outcome }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="text-muted small">{{ action.created|date:"M d, Y" }}</div>
-                                </div>
+                                {% include "core/includes/campaign_action_item.html" with action=action campaign=battle.campaign user=user show_truncated=False %}
                             {% endfor %}
                         </div>
                     </div>
