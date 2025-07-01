@@ -18,7 +18,7 @@
                     {{ list.content_house.name }}
                     {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}
                 </div>
-                <div class="h5">
+                <div class="h5 mb-0">
                     <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
                 </div>
             </div>
@@ -167,7 +167,9 @@
         {% endif %}
         {% for fighter in list.fighters_cached %}
             {% if fighter.is_stash %}
-                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                {% if not print %}
+                    {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                {% endif %}
             {% else %}
                 {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
             {% endif %}
