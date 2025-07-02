@@ -103,7 +103,11 @@ class ListsListView(generic.ListView):
 
         # Apply archived filter (default off)
         show_archived = self.request.GET.get("archived", "0")
-        if show_archived != "1":
+        if show_archived == "1":
+            # Show ONLY archived lists
+            queryset = queryset.filter(archived=True)
+        else:
+            # Show only non-archived lists by default
             queryset = queryset.filter(archived=False)
 
         # Apply type filter (lists vs gangs)

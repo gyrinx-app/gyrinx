@@ -30,8 +30,6 @@ def index(request):
         A list of :model:`core.List` objects owned by the current user that are in active campaigns.
     ``campaigns``
         A list of :model:`core.Campaign` objects where the user is either the owner or has lists participating.
-    ``houses``
-        A list of :model:`content.ContentHouse` objects for filtering.
 
     **Template**
 
@@ -41,10 +39,8 @@ def index(request):
         lists = []
         campaign_gangs = []
         campaigns = []
-        houses = []
     else:
         from django.contrib.postgres.search import SearchQuery, SearchVector
-        from gyrinx.content.models import ContentHouse
 
         # Regular lists (not in campaigns) - show 5 most recent
         lists_queryset = List.objects.filter(
@@ -59,11 +55,6 @@ def index(request):
             lists_queryset = lists_queryset.annotate(search=search_vector).filter(
                 search=search_q
             )
-
-        # Apply house filter for lists
-        house_ids = request.GET.getlist("house")
-        if house_ids and not ("all" in house_ids or not house_ids[0]):
-            lists_queryset = lists_queryset.filter(content_house_id__in=house_ids)
 
         # Order by modified and limit to 5
         lists = lists_queryset.order_by("-modified")[:5]
@@ -91,9 +82,6 @@ def index(request):
             .order_by("-created")
         )
 
-        # Get all houses for filter
-        houses = ContentHouse.objects.all().order_by("name")
-
     return render(
         request,
         "core/index.html",
@@ -101,7 +89,6 @@ def index(request):
             "lists": lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
-            "houses": houses,
         },
     )
 
