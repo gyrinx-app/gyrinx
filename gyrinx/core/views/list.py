@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -352,37 +353,38 @@ def edit_list_credits(request, id):
                     f"Cannot reduce all time credits below zero (all time: {lst.credits_earned}¢)",
                 )
             else:
-                # Apply the credit change
-                if operation == "add":
-                    lst.credits_current += amount
-                    lst.credits_earned += amount
-                    action_desc = f"Added {amount}¢"
-                    outcome = f"+{amount}¢ (to {lst.credits_current}¢)"
-                elif operation == "spend":
-                    lst.credits_current -= amount
-                    action_desc = f"Spent {amount}¢"
-                    outcome = f"-{amount}¢ (to {lst.credits_current}¢)"
-                else:  # reduce
-                    lst.credits_current -= amount
-                    lst.credits_earned -= amount
-                    action_desc = f"Reduced {amount}¢"
-                    outcome = f"-{amount}¢ (to {lst.credits_current}¢, all time: {lst.credits_earned}¢)"
+                with transaction.atomic():
+                    # Apply the credit change
+                    if operation == "add":
+                        lst.credits_current += amount
+                        lst.credits_earned += amount
+                        action_desc = f"Added {amount}¢"
+                        outcome = f"+{amount}¢ (to {lst.credits_current}¢)"
+                    elif operation == "spend":
+                        lst.credits_current -= amount
+                        action_desc = f"Spent {amount}¢"
+                        outcome = f"-{amount}¢ (to {lst.credits_current}¢)"
+                    else:  # reduce
+                        lst.credits_current -= amount
+                        lst.credits_earned -= amount
+                        action_desc = f"Reduced {amount}¢"
+                        outcome = f"-{amount}¢ (to {lst.credits_current}¢, all time: {lst.credits_earned}¢)"
 
-                if description:
-                    action_desc += f": {description}"
+                    if description:
+                        action_desc += f": {description}"
 
-                lst.save()
+                    lst.save()
 
-                # Log to campaign action
-                if lst.campaign:
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=action_desc,
-                        outcome=outcome,
-                    )
+                    # Log to campaign action
+                    if lst.campaign:
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=action_desc,
+                            outcome=outcome,
+                        )
 
                 messages.success(request, f"Credits updated for {lst.name}")
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
@@ -426,30 +428,31 @@ def archive_list(request, id):
     if request.method == "POST":
         from gyrinx.core.models.campaign import CampaignAction
 
-        if request.POST.get("archive") == "1":
-            lst.archive()
+        with transaction.atomic():
+            if request.POST.get("archive") == "1":
+                lst.archive()
 
-            # Add campaign action log entries for active campaigns
-            for campaign in active_campaigns:
-                CampaignAction.objects.create(
-                    campaign=campaign,
-                    user=request.user,
-                    list=lst,
-                    description=f"Gang '{lst.name}' has been archived by its owner",
-                    owner=request.user,
-                )
-        elif lst.archived:
-            lst.unarchive()
+                # Add campaign action log entries for active campaigns
+                for campaign in active_campaigns:
+                    CampaignAction.objects.create(
+                        campaign=campaign,
+                        user=request.user,
+                        list=lst,
+                        description=f"Gang '{lst.name}' has been archived by its owner",
+                        owner=request.user,
+                    )
+            elif lst.archived:
+                lst.unarchive()
 
-            # Add campaign action log entries for active campaigns when unarchiving
-            for campaign in active_campaigns:
-                CampaignAction.objects.create(
-                    campaign=campaign,
-                    user=request.user,
-                    list=lst,
-                    description=f"Gang '{lst.name}' has been unarchived by its owner",
-                    owner=request.user,
-                )
+                # Add campaign action log entries for active campaigns when unarchiving
+                for campaign in active_campaigns:
+                    CampaignAction.objects.create(
+                        campaign=campaign,
+                        user=request.user,
+                        list=lst,
+                        description=f"Gang '{lst.name}' has been unarchived by its owner",
+                        owner=request.user,
+                    )
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
@@ -1000,24 +1003,27 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 assign.delete()
                 error_message = "Insufficient funds."
             else:
-                description = f"Added {assign.content_equipment.name} to {fighter.name}"
-
-                if lst.campaign:
-                    # If this is a stash, we need to take credits from the list
-                    lst.credits_current -= total_cost
-                    lst.save()
-
-                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
-
-                    # Spend credits and create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                with transaction.atomic():
+                    description = (
+                        f"Added {assign.content_equipment.name} to {fighter.name}"
                     )
+
+                    if lst.campaign:
+                        # If this is a stash, we need to take credits from the list
+                        lst.credits_current -= total_cost
+                        lst.save()
+
+                        description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
+
+                        # Spend credits and create campaign action
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=description,
+                            outcome=f"Credits remaining: {lst.credits_current}¢",
+                        )
 
                 messages.success(request, description)
 
@@ -1661,56 +1667,59 @@ def kill_list_fighter(request, id, fighter_id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        # Find the stash fighter for this list
-        stash_fighter = lst.listfighter_set.filter(
-            content_fighter__is_stash=True
-        ).first()
+        with transaction.atomic():
+            # Find the stash fighter for this list
+            stash_fighter = lst.listfighter_set.filter(
+                content_fighter__is_stash=True
+            ).first()
 
-        if stash_fighter:
-            # Transfer all equipment to stash
-            equipment_assignments = fighter.listfighterequipmentassignment_set.all()
-            for assignment in equipment_assignments:
-                # Create new assignment for stash with same equipment
-                new_assignment = ListFighterEquipmentAssignment(
-                    list_fighter=stash_fighter,
-                    content_equipment=assignment.content_equipment,
-                    cost_override=assignment.cost_override,
-                    total_cost_override=assignment.total_cost_override,
-                    upgrade=assignment.upgrade,
-                    from_default_assignment=assignment.from_default_assignment,
+            if stash_fighter:
+                # Transfer all equipment to stash
+                equipment_assignments = fighter.listfighterequipmentassignment_set.all()
+                for assignment in equipment_assignments:
+                    # Create new assignment for stash with same equipment
+                    new_assignment = ListFighterEquipmentAssignment(
+                        list_fighter=stash_fighter,
+                        content_equipment=assignment.content_equipment,
+                        cost_override=assignment.cost_override,
+                        total_cost_override=assignment.total_cost_override,
+                        upgrade=assignment.upgrade,
+                        from_default_assignment=assignment.from_default_assignment,
+                    )
+                    new_assignment.save()
+
+                    # Copy over any weapon profiles and accessories
+                    if assignment.weapon_profiles_field.exists():
+                        new_assignment.weapon_profiles_field.set(
+                            assignment.weapon_profiles_field.all()
+                        )
+                    if assignment.weapon_accessories_field.exists():
+                        new_assignment.weapon_accessories_field.set(
+                            assignment.weapon_accessories_field.all()
+                        )
+                    if assignment.upgrades_field.exists():
+                        new_assignment.upgrades_field.set(
+                            assignment.upgrades_field.all()
+                        )
+
+                # Delete all equipment assignments from the dead fighter
+                equipment_assignments.delete()
+
+            # Mark fighter as dead and set cost to 0
+            fighter.injury_state = ListFighter.DEAD
+            fighter.cost_override = 0
+            fighter.save()
+
+            # Log the kill in campaign action if this list is part of a campaign
+            if lst.campaign:
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Death: {fighter.name} was killed",
+                    outcome=f"{fighter.name} is permanently dead. All equipment transferred to stash.",
                 )
-                new_assignment.save()
-
-                # Copy over any weapon profiles and accessories
-                if assignment.weapon_profiles_field.exists():
-                    new_assignment.weapon_profiles_field.set(
-                        assignment.weapon_profiles_field.all()
-                    )
-                if assignment.weapon_accessories_field.exists():
-                    new_assignment.weapon_accessories_field.set(
-                        assignment.weapon_accessories_field.all()
-                    )
-                if assignment.upgrades_field.exists():
-                    new_assignment.upgrades_field.set(assignment.upgrades_field.all())
-
-            # Delete all equipment assignments from the dead fighter
-            equipment_assignments.delete()
-
-        # Mark fighter as dead and set cost to 0
-        fighter.injury_state = ListFighter.DEAD
-        fighter.cost_override = 0
-        fighter.save()
-
-        # Log the kill in campaign action if this list is part of a campaign
-        if lst.campaign:
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=lst.campaign,
-                list=lst,
-                description=f"Death: {fighter.name} was killed",
-                outcome=f"{fighter.name} is permanently dead. All equipment transferred to stash.",
-            )
 
         messages.success(
             request,
@@ -1889,25 +1898,28 @@ def list_fighter_state_edit(request, id, fighter_id):
                         reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
                     )
 
-                fighter.injury_state = new_state
-                fighter.save()
+                with transaction.atomic():
+                    fighter.injury_state = new_state
+                    fighter.save()
 
-                new_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[new_state]
+                    new_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[
+                        new_state
+                    ]
 
-                # Log to campaign action
-                if lst.campaign:
-                    description = f"State Change: {fighter.name} changed from {old_state} to {new_state_display}"
-                    if form.cleaned_data.get("reason"):
-                        description += f" - {form.cleaned_data['reason']}"
+                    # Log to campaign action
+                    if lst.campaign:
+                        description = f"State Change: {fighter.name} changed from {old_state} to {new_state_display}"
+                        if form.cleaned_data.get("reason"):
+                            description += f" - {form.cleaned_data['reason']}"
 
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=f"{fighter.name} is now {new_state_display}",
-                    )
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=description,
+                            outcome=f"{fighter.name} is now {new_state_display}",
+                        )
 
                 messages.success(
                     request, f"Updated {fighter.name}'s state to {new_state_display}"
@@ -2001,46 +2013,47 @@ def mark_fighter_captured(request, id, fighter_id):
                 List, id=capturing_list_id, campaign=campaign
             )
 
-            # Check if this fighter is linked to equipment assignments and unlink them
-            linked_assignments = ListFighterEquipmentAssignment.objects.filter(
-                linked_fighter=fighter
-            )
+            with transaction.atomic():
+                # Check if this fighter is linked to equipment assignments and unlink them
+                linked_assignments = ListFighterEquipmentAssignment.objects.filter(
+                    linked_fighter=fighter
+                )
 
-            # Create the capture record first
-            CapturedFighter.objects.create(
-                fighter=fighter,
-                capturing_list=capturing_list,
-                owner=request.user,
-            )
+                # Create the capture record first
+                CapturedFighter.objects.create(
+                    fighter=fighter,
+                    capturing_list=capturing_list,
+                    owner=request.user,
+                )
 
-            # Now delete the linked assignments
-            # This won't cascade delete the fighter because we need to unlink the foreign key first
-            if linked_assignments.exists():
-                for assignment in linked_assignments:
-                    # Log what equipment is being removed
-                    messages.info(
-                        request,
-                        f"Removed {assignment.content_equipment.name} from {assignment.list_fighter.name} as {fighter.name} was captured.",
-                    )
-                    # Unlink the fighter first to prevent cascade delete
-                    assignment.linked_fighter = None
-                    assignment.save()
-                    # Now delete the assignment
-                    assignment.delete()
+                # Now delete the linked assignments
+                # This won't cascade delete the fighter because we need to unlink the foreign key first
+                if linked_assignments.exists():
+                    for assignment in linked_assignments:
+                        # Log what equipment is being removed
+                        messages.info(
+                            request,
+                            f"Removed {assignment.content_equipment.name} from {assignment.list_fighter.name} as {fighter.name} was captured.",
+                        )
+                        # Unlink the fighter first to prevent cascade delete
+                        assignment.linked_fighter = None
+                        assignment.save()
+                        # Now delete the assignment
+                        assignment.delete()
 
-            # Log campaign action
-            description = f"{fighter.name} was captured by {capturing_list.name}"
-            if linked_assignments.exists():
-                description += " (linked equipment removed)"
+                # Log campaign action
+                description = f"{fighter.name} was captured by {capturing_list.name}"
+                if linked_assignments.exists():
+                    description += " (linked equipment removed)"
 
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=campaign,
-                list=lst,
-                description=description,
-                outcome=f"{fighter.name} is now held captive",
-            )
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    list=lst,
+                    description=description,
+                    outcome=f"{fighter.name} is now held captive",
+                )
 
             messages.success(
                 request,
@@ -2095,38 +2108,41 @@ def list_fighter_add_injury(request, id, fighter_id):
     if request.method == "POST":
         form = AddInjuryForm(request.POST, fighter=fighter)
         if form.is_valid():
-            injury = ListFighterInjury.objects.create_with_user(
-                user=request.user,
-                fighter=fighter,
-                injury=form.cleaned_data["injury"],
-                notes=form.cleaned_data.get("notes", ""),
-                owner=request.user,
-            )
-
-            # Update fighter state
-            fighter.injury_state = form.cleaned_data["fighter_state"]
-            fighter.save()
-
-            # Log to campaign action
-            if lst.campaign:
-                description = f"Injury: {fighter.name} suffered {injury.injury.name}"
-                if form.cleaned_data.get("notes"):
-                    description += f" - {form.cleaned_data['notes']}"
-
-                # Update outcome to show fighter state
-                fighter_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[
-                    fighter.injury_state
-                ]
-                outcome = f"{fighter.name} was put into {fighter_state_display}"
-
-                CampaignAction.objects.create(
+            with transaction.atomic():
+                injury = ListFighterInjury.objects.create_with_user(
                     user=request.user,
+                    fighter=fighter,
+                    injury=form.cleaned_data["injury"],
+                    notes=form.cleaned_data.get("notes", ""),
                     owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=description,
-                    outcome=outcome,
                 )
+
+                # Update fighter state
+                fighter.injury_state = form.cleaned_data["fighter_state"]
+                fighter.save()
+
+                # Log to campaign action
+                if lst.campaign:
+                    description = (
+                        f"Injury: {fighter.name} suffered {injury.injury.name}"
+                    )
+                    if form.cleaned_data.get("notes"):
+                        description += f" - {form.cleaned_data['notes']}"
+
+                    # Update outcome to show fighter state
+                    fighter_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[
+                        fighter.injury_state
+                    ]
+                    outcome = f"{fighter.name} was put into {fighter_state_display}"
+
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=description,
+                        outcome=outcome,
+                    )
 
             messages.success(
                 request, f"Added injury '{injury.injury.name}' to {fighter.name}"
@@ -2182,27 +2198,28 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
     injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
 
     if request.method == "POST":
-        injury_name = injury.injury.name
-        injury.delete()
+        with transaction.atomic():
+            injury_name = injury.injury.name
+            injury.delete()
 
-        # If fighter has no more injuries, reset state to active
-        if fighter.injuries.count() == 0:
-            fighter.injury_state = ListFighter.ACTIVE
-            fighter.save()
-            outcome = "Fighter became available"
-        else:
-            outcome = "Injury removed"
+            # If fighter has no more injuries, reset state to active
+            if fighter.injuries.count() == 0:
+                fighter.injury_state = ListFighter.ACTIVE
+                fighter.save()
+                outcome = "Fighter became available"
+            else:
+                outcome = "Injury removed"
 
-        # Log to campaign action
-        if lst.campaign:
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=lst.campaign,
-                list=lst,
-                description=f"Recovery: {fighter.name} recovered from {injury_name}",
-                outcome=outcome,
-            )
+            # Log to campaign action
+            if lst.campaign:
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Recovery: {fighter.name} recovered from {injury_name}",
+                    outcome=outcome,
+                )
 
         messages.success(request, f"Removed injury '{injury_name}' from {fighter.name}")
         return HttpResponseRedirect(
@@ -2277,36 +2294,37 @@ def edit_list_fighter_xp(request, id, fighter_id):
                     f"Cannot reduce total XP below zero (total: {fighter.xp_total})",
                 )
             else:
-                # Apply the XP change
-                if operation == "add":
-                    fighter.xp_current += amount
-                    fighter.xp_total += amount
-                    action_desc = f"Added {amount} XP for {fighter.name}"
-                elif operation == "spend":
-                    fighter.xp_current -= amount
-                    action_desc = f"Spent {amount} XP for {fighter.name}"
-                elif operation == "reduce":
-                    fighter.xp_current -= amount
-                    fighter.xp_total -= amount
-                    action_desc = f"Reduced {amount} XP for {fighter.name}"
+                with transaction.atomic():
+                    # Apply the XP change
+                    if operation == "add":
+                        fighter.xp_current += amount
+                        fighter.xp_total += amount
+                        action_desc = f"Added {amount} XP for {fighter.name}"
+                    elif operation == "spend":
+                        fighter.xp_current -= amount
+                        action_desc = f"Spent {amount} XP for {fighter.name}"
+                    elif operation == "reduce":
+                        fighter.xp_current -= amount
+                        fighter.xp_total -= amount
+                        action_desc = f"Reduced {amount} XP for {fighter.name}"
 
-                fighter.save_with_user(user=request.user)
+                    fighter.save_with_user(user=request.user)
 
-                # Add description if provided
-                if description:
-                    action_desc += f" - {description}"
+                    # Add description if provided
+                    if description:
+                        action_desc += f" - {description}"
 
-                # Log to campaign action
-                if lst.campaign:
-                    outcome = f"Current: {fighter.xp_current} XP, Total: {fighter.xp_total} XP"
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=action_desc,
-                        outcome=outcome,
-                    )
+                    # Log to campaign action
+                    if lst.campaign:
+                        outcome = f"Current: {fighter.xp_current} XP, Total: {fighter.xp_total} XP"
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=action_desc,
+                            outcome=outcome,
+                        )
 
                 messages.success(request, f"XP updated for {fighter.name}")
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
@@ -2452,22 +2470,23 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             roll_dice = form.cleaned_data["roll_dice"]
 
             if roll_dice:
-                # Roll 2d6 and create campaign action
-                dice1 = random.randint(1, 6)
-                dice2 = random.randint(1, 6)
-                total = dice1 + dice2
+                with transaction.atomic():
+                    # Roll 2d6 and create campaign action
+                    dice1 = random.randint(1, 6)
+                    dice2 = random.randint(1, 6)
+                    total = dice1 + dice2
 
-                # Create campaign action for the roll
-                campaign_action = CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=f"Rolling for advancement to {fighter.name}",
-                    dice_count=2,
-                    dice_results=[dice1, dice2],
-                    dice_total=total,
-                )
+                    # Create campaign action for the roll
+                    campaign_action = CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=f"Rolling for advancement to {fighter.name}",
+                        dice_count=2,
+                        dice_results=[dice1, dice2],
+                        dice_total=total,
+                    )
 
                 # Redirect to type selection with campaign action
                 url = reverse(
@@ -2734,54 +2753,55 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         )
 
     if request.method == "POST":
-        # Create the advancement
-        if params.is_stat_advancement():
-            advancement = ListFighterAdvancement(
-                fighter=fighter,
-                advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
-                stat_increased=stat,
-            )
-            outcome = f"Improved {stat_desc}"
-        elif params.is_other_advancement():
-            advancement = ListFighterAdvancement(
-                fighter=fighter,
-                advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
-                description=stat_desc,
-            )
-            outcome = f"Gained {stat_desc}"
+        with transaction.atomic():
+            # Create the advancement
+            if params.is_stat_advancement():
+                advancement = ListFighterAdvancement(
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    stat_increased=stat,
+                )
+                outcome = f"Improved {stat_desc}"
+            elif params.is_other_advancement():
+                advancement = ListFighterAdvancement(
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    description=stat_desc,
+                )
+                outcome = f"Gained {stat_desc}"
 
-        if params.campaign_action_id:
-            # Add outcome to campaign action if exists
-            campaign_action = get_object_or_404(
-                CampaignAction, id=params.campaign_action_id
-            )
-            advancement.campaign_action = campaign_action
-            campaign_action.outcome = outcome
-            campaign_action.save()
-        else:
-            # Create new campaign action if not exists
-            if lst.campaign:
-                description = f"{fighter.name} spent {params.xp_cost} XP to advance"
-
-                campaign_action = CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=description,
-                    outcome=outcome,
+            if params.campaign_action_id:
+                # Add outcome to campaign action if exists
+                campaign_action = get_object_or_404(
+                    CampaignAction, id=params.campaign_action_id
                 )
                 advancement.campaign_action = campaign_action
+                campaign_action.outcome = outcome
+                campaign_action.save()
+            else:
+                # Create new campaign action if not exists
+                if lst.campaign:
+                    description = f"{fighter.name} spent {params.xp_cost} XP to advance"
 
-        advancement.save()
+                    campaign_action = CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=description,
+                        outcome=outcome,
+                    )
+                    advancement.campaign_action = campaign_action
 
-        # Apply the advancement (this deducts XP)
-        # Don't update cost_override - the cost will be computed from advancements
-        advancement.apply_advancement()
+            advancement.save()
+
+            # Apply the advancement (this deducts XP)
+            # Don't update cost_override - the cost will be computed from advancements
+            advancement.apply_advancement()
 
         messages.success(
             request,
@@ -2812,47 +2832,48 @@ def apply_skill_advancement(
     skill: ContentSkill,
     params: AdvancementFlowParams,
 ) -> ListFighterAdvancement:
-    # Create the advancement
-    advancement = ListFighterAdvancement(
-        fighter=fighter,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
-        xp_cost=params.xp_cost,
-        cost_increase=params.cost_increase,
-        skill=skill,
-    )
-
-    outcome = f"Gained {skill.name} skill"
-
-    if params.campaign_action_id:
-        # Add outcome to campaign action if exists
-        campaign_action = get_object_or_404(
-            CampaignAction, id=params.campaign_action_id
+    with transaction.atomic():
+        # Create the advancement
+        advancement = ListFighterAdvancement(
+            fighter=fighter,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+            xp_cost=params.xp_cost,
+            cost_increase=params.cost_increase,
+            skill=skill,
         )
-        advancement.campaign_action = campaign_action
-        campaign_action.outcome = outcome
-        campaign_action.save()
-    else:
-        # Create new campaign action if not exists
-        if lst.campaign:
-            description = f"{fighter.name} spent {params.xp_cost} XP to advance"
 
-            campaign_action = CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=lst.campaign,
-                list=lst,
-                description=description,
-                outcome=outcome,
+        outcome = f"Gained {skill.name} skill"
+
+        if params.campaign_action_id:
+            # Add outcome to campaign action if exists
+            campaign_action = get_object_or_404(
+                CampaignAction, id=params.campaign_action_id
             )
             advancement.campaign_action = campaign_action
+            campaign_action.outcome = outcome
+            campaign_action.save()
+        else:
+            # Create new campaign action if not exists
+            if lst.campaign:
+                description = f"{fighter.name} spent {params.xp_cost} XP to advance"
 
-    advancement.save()
+                campaign_action = CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=description,
+                    outcome=outcome,
+                )
+                advancement.campaign_action = campaign_action
 
-    # Apply the advancement (this deducts XP)
-    # Don't update cost_override - the cost will be computed from advancements
-    advancement.apply_advancement()
+        advancement.save()
 
-    return advancement
+        # Apply the advancement (this deducts XP)
+        # Don't update cost_override - the cost will be computed from advancements
+        advancement.apply_advancement()
+
+        return advancement
 
 
 @login_required
@@ -3093,27 +3114,28 @@ def reassign_list_fighter_equipment(
         if form.is_valid():
             target_fighter = form.cleaned_data["target_fighter"]
 
-            # Update the assignment
-            assignment.list_fighter = target_fighter
-            assignment.save_with_user(user=request.user)
+            with transaction.atomic():
+                # Update the assignment
+                assignment.list_fighter = target_fighter
+                assignment.save_with_user(user=request.user)
 
-            # Create campaign action if in campaign mode
-            if lst.status == List.CAMPAIGN_MODE and lst.campaign:
-                equipment_name = assignment.content_equipment.name
-                from_fighter_name = fighter.name
-                to_fighter_name = target_fighter.name
+                # Create campaign action if in campaign mode
+                if lst.status == List.CAMPAIGN_MODE and lst.campaign:
+                    equipment_name = assignment.content_equipment.name
+                    from_fighter_name = fighter.name
+                    to_fighter_name = target_fighter.name
 
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
-                    outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
-                    dice_count=0,
-                    dice_results=[],
-                    dice_total=0,
-                )
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
+                        outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
+                        dice_count=0,
+                        dice_results=[],
+                        dice_total=0,
+                    )
 
             messages.success(
                 request,
@@ -3361,62 +3383,63 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         }
                     )
 
-                # Update list credits
-                lst.credits_current += total_credits
-                lst.credits_earned += total_credits
-                lst.save()
+                with transaction.atomic():
+                    # Update list credits
+                    lst.credits_current += total_credits
+                    lst.credits_earned += total_credits
+                    lst.save()
 
-                # Store assignment ID before potential deletion
-                assignment_id = assignment.id
+                    # Store assignment ID before potential deletion
+                    assignment_id = assignment.id
 
-                # Remove sold items
-                if request.session.get("sell_assign"):
-                    # Delete entire assignment
-                    assignment.delete()
-                else:
-                    # Remove individual components
-                    for profile_id in request.session.get("sell_profiles", []):
-                        profile = assignment.weapon_profiles_field.filter(
-                            id=profile_id
-                        ).first()
-                        if profile:
-                            assignment.weapon_profiles_field.remove(profile)
-
-                    for accessory_id in request.session.get("sell_accessories", []):
-                        accessory = assignment.weapon_accessories_field.filter(
-                            id=accessory_id
-                        ).first()
-                        if accessory:
-                            assignment.weapon_accessories_field.remove(accessory)
-
-                # Create campaign action
-                description_parts = []
-                for detail in sale_details:
-                    if detail["dice_roll"]:
-                        description_parts.append(
-                            f"{detail['name']} ({detail['total_cost']}¢ - {detail['dice_roll']}×10 = {detail['sale_price']}¢)"
-                        )
+                    # Remove sold items
+                    if request.session.get("sell_assign"):
+                        # Delete entire assignment
+                        assignment.delete()
                     else:
-                        description_parts.append(
-                            f"{detail['name']} ({detail['sale_price']}¢)"
-                        )
+                        # Remove individual components
+                        for profile_id in request.session.get("sell_profiles", []):
+                            profile = assignment.weapon_profiles_field.filter(
+                                id=profile_id
+                            ).first()
+                            if profile:
+                                assignment.weapon_profiles_field.remove(profile)
 
-                description = (
-                    f"Sold equipment from stash: {', '.join(description_parts)}"
-                )
-                outcome = f"+{total_credits}¢ (to {lst.credits_current}¢)"
+                        for accessory_id in request.session.get("sell_accessories", []):
+                            accessory = assignment.weapon_accessories_field.filter(
+                                id=accessory_id
+                            ).first()
+                            if accessory:
+                                assignment.weapon_accessories_field.remove(accessory)
 
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=description,
-                    outcome=outcome,
-                    dice_count=total_dice,
-                    dice_results=dice_rolls,
-                    dice_total=sum(dice_rolls) if dice_rolls else 0,
-                )
+                    # Create campaign action
+                    description_parts = []
+                    for detail in sale_details:
+                        if detail["dice_roll"]:
+                            description_parts.append(
+                                f"{detail['name']} ({detail['total_cost']}¢ - {detail['dice_roll']}×10 = {detail['sale_price']}¢)"
+                            )
+                        else:
+                            description_parts.append(
+                                f"{detail['name']} ({detail['sale_price']}¢)"
+                            )
+
+                    description = (
+                        f"Sold equipment from stash: {', '.join(description_parts)}"
+                    )
+                    outcome = f"+{total_credits}¢ (to {lst.credits_current}¢)"
+
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=description,
+                        outcome=outcome,
+                        dice_count=total_dice,
+                        dice_results=dice_rolls,
+                        dice_total=sum(dice_rolls) if dice_rolls else 0,
+                    )
 
                 # Store results in session for summary
                 request.session["sale_results"] = {

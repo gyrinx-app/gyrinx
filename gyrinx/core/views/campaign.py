@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
-from django.db import models
+from django.db import models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -559,21 +559,22 @@ def start_campaign(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     if request.method == "POST":
-        if campaign.start_campaign():
-            # Log the campaign start action
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=campaign,
-                description=f"Campaign Started: {campaign.name} is now active",
-                outcome="Campaign transitioned from pre-campaign to active status",
-            )
-            messages.success(request, "Campaign has been started!")
-        else:
-            if not campaign.lists.exists():
-                messages.error(request, "Cannot start campaign without any lists.")
+        with transaction.atomic():
+            if campaign.start_campaign():
+                # Log the campaign start action
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Started: {campaign.name} is now active",
+                    outcome="Campaign transitioned from pre-campaign to active status",
+                )
+                messages.success(request, "Campaign has been started!")
             else:
-                messages.error(request, "Campaign cannot be started.")
+                if not campaign.lists.exists():
+                    messages.error(request, "Cannot start campaign without any lists.")
+                else:
+                    messages.error(request, "Campaign cannot be started.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     # For GET request, show confirmation page
@@ -607,18 +608,19 @@ def end_campaign(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     if request.method == "POST":
-        if campaign.end_campaign():
-            # Log the campaign end action
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=campaign,
-                description=f"Campaign Ended: {campaign.name} has concluded",
-                outcome="Campaign transitioned from active to post-campaign status",
-            )
-            messages.success(request, "Campaign has been ended!")
-        else:
-            messages.error(request, "Campaign cannot be ended.")
+        with transaction.atomic():
+            if campaign.end_campaign():
+                # Log the campaign end action
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Ended: {campaign.name} has concluded",
+                    outcome="Campaign transitioned from active to post-campaign status",
+                )
+                messages.success(request, "Campaign has been ended!")
+            else:
+                messages.error(request, "Campaign cannot be ended.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     # For GET request, show confirmation page
@@ -652,18 +654,19 @@ def reopen_campaign(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     if request.method == "POST":
-        if campaign.reopen_campaign():
-            # Log the campaign reopen action
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=campaign,
-                description=f"Campaign Reopened: {campaign.name} is active again",
-                outcome="Campaign transitioned from post-campaign back to active status",
-            )
-            messages.success(request, "Campaign has been reopened!")
-        else:
-            messages.error(request, "Campaign cannot be reopened.")
+        with transaction.atomic():
+            if campaign.reopen_campaign():
+                # Log the campaign reopen action
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Reopened: {campaign.name} is active again",
+                    outcome="Campaign transitioned from post-campaign back to active status",
+                )
+                messages.success(request, "Campaign has been reopened!")
+            else:
+                messages.error(request, "Campaign cannot be reopened.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     # For GET request, show confirmation page
@@ -1208,22 +1211,23 @@ def fighter_sell_to_guilders(request, id, fighter_id):
                 )
             return HttpResponseRedirect(redirect_url)
 
-        # Sell the fighter
-        captured_fighter.sell_to_guilders(credits=credits)
+        with transaction.atomic():
+            # Sell the fighter
+            captured_fighter.sell_to_guilders(credits=credits)
 
-        # Add credits to capturing gang
-        if credits > 0:
-            captured_fighter.capturing_list.credits_current += credits
-            captured_fighter.capturing_list.save()
+            # Add credits to capturing gang
+            if credits > 0:
+                captured_fighter.capturing_list.credits_current += credits
+                captured_fighter.capturing_list.save()
 
-        # Log campaign action
-        CampaignAction.objects.create(
-            campaign=campaign,
-            user=request.user,
-            list=captured_fighter.capturing_list,
-            description=f"Sold {captured_fighter.fighter.name} from {captured_fighter.fighter.list.name} to the guilders"
-            + (f" for {credits} credits" if credits > 0 else ""),
-        )
+            # Log campaign action
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                list=captured_fighter.capturing_list,
+                description=f"Sold {captured_fighter.fighter.name} from {captured_fighter.fighter.list.name} to the guilders"
+                + (f" for {credits} credits" if credits > 0 else ""),
+            )
 
         messages.success(
             request, f"{captured_fighter.fighter.name} has been sold to the guilders."
@@ -1309,31 +1313,33 @@ def fighter_return_to_owner(request, id, fighter_id):
                     )
                 return HttpResponseRedirect(redirect_url)
 
-            # Transfer credits
-            original_list.credits_current -= ransom
-            original_list.save()
-            capturing_list.credits_current += ransom
-            capturing_list.save()
+        with transaction.atomic():
+            if ransom > 0:
+                # Transfer credits
+                original_list.credits_current -= ransom
+                original_list.save()
+                capturing_list.credits_current += ransom
+                capturing_list.save()
 
-            # Log ransom payment
+                # Log ransom payment
+                CampaignAction.objects.create(
+                    campaign=campaign,
+                    user=request.user,
+                    list=original_list,
+                    description=f"Paid {ransom} credit ransom to {capturing_list.name} for {fighter_name}",
+                )
+
+            # Return the fighter
+            captured_fighter.return_to_owner(credits=ransom)
+
+            # Log return action
             CampaignAction.objects.create(
                 campaign=campaign,
                 user=request.user,
-                list=original_list,
-                description=f"Paid {ransom} credit ransom to {capturing_list.name} for {fighter_name}",
+                list=capturing_list,
+                description=f"Returned {fighter_name} to {original_list.name}"
+                + (f" for {ransom} credits" if ransom > 0 else ""),
             )
-
-        # Return the fighter
-        captured_fighter.return_to_owner(credits=ransom)
-
-        # Log return action
-        CampaignAction.objects.create(
-            campaign=campaign,
-            user=request.user,
-            list=capturing_list,
-            description=f"Returned {fighter_name} to {original_list.name}"
-            + (f" for {ransom} credits" if ransom > 0 else ""),
-        )
 
         messages.success(
             request, f"{fighter_name} has been returned to {original_list.name}."
