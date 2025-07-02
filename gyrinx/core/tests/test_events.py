@@ -5,6 +5,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models import Event, EventNoun, EventVerb, List, log_event
 
 
@@ -34,7 +35,8 @@ def test_event_model_creation():
 def test_event_with_object_reference():
     """Test Event creation with object reference."""
     user = User.objects.create_user(username="testuser")
-    list_obj = List.objects.create(owner=user, name="Test List", house="TEST_HOUSE")
+    house = ContentHouse.objects.create(name="Test House")
+    list_obj = List.objects.create(owner=user, name="Test List", content_house=house)
 
     event = Event.objects.create(
         owner=user,
@@ -53,7 +55,8 @@ def test_event_with_object_reference():
 def test_log_event_utility():
     """Test the log_event utility function."""
     user = User.objects.create_user(username="testuser")
-    list_obj = List.objects.create(owner=user, name="Test List", house="TEST_HOUSE")
+    house = ContentHouse.objects.create(name="Test House")
+    list_obj = List.objects.create(owner=user, name="Test List", content_house=house)
 
     event = log_event(
         user=user,
