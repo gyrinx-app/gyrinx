@@ -86,6 +86,13 @@ class Event(AppBase):
         help_text="IP address of the user when the action was taken",
     )
 
+    session_id = models.CharField(
+        max_length=40,
+        null=True,
+        blank=True,
+        help_text="Session ID of the user when the action was taken",
+    )
+
     # Additional unstructured context
     context = models.JSONField(
         default=dict, blank=True, help_text="Additional context data in JSON format"
@@ -120,6 +127,7 @@ class Event(AppBase):
             "object_id": str(self.object_id) if self.object_id else None,
             "object_type": self.object_type.model if self.object_type else None,
             "ip_address": self.ip_address,
+            "session_id": self.session_id,
             "context": self.context,
         }
 
@@ -129,7 +137,7 @@ class Event(AppBase):
         )
 
 
-def log_event(user, noun, verb, object=None, ip_address=None, **context):
+def log_event(user, noun, verb, object=None, request=None, ip_address=None, **context):
     """
     Utility function to easily log events throughout the application.
 
@@ -138,7 +146,8 @@ def log_event(user, noun, verb, object=None, ip_address=None, **context):
         noun: EventNoun choice representing what's being acted upon
         verb: EventVerb choice representing the action
         object: Optional Django model instance being acted upon
-        ip_address: Optional IP address of the request
+        request: Optional HttpRequest object to extract session ID and IP address
+        ip_address: Optional IP address (overrides request extraction)
         **context: Additional context data to store in the JSON field
 
     Returns:
@@ -150,16 +159,30 @@ def log_event(user, noun, verb, object=None, ip_address=None, **context):
             noun=EventNoun.LIST,
             verb=EventVerb.CREATE,
             object=list_instance,
-            ip_address=request.META.get('REMOTE_ADDR'),
+            request=request,
             list_name=list_instance.name,
             fighter_count=list_instance.fighters.count()
         )
     """
+    # Extract session ID from request if available
+    session_id = None
+    if (
+        request
+        and hasattr(request, "session")
+        and hasattr(request.session, "session_key")
+    ):
+        session_id = request.session.session_key
+
+    # Extract IP address from request if not explicitly provided
+    if not ip_address and request:
+        ip_address = request.META.get("REMOTE_ADDR")
+
     event_data = {
         "owner": user,
         "noun": noun,
         "verb": verb,
         "ip_address": ip_address,
+        "session_id": session_id,
         "context": context,
     }
 

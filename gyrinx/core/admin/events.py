@@ -16,6 +16,7 @@ class EventAdmin(BaseAdmin):
         "object_type",
         "object_id",
         "ip_address",
+        "session_id",
     ]
 
     list_filter = [
@@ -30,6 +31,7 @@ class EventAdmin(BaseAdmin):
         "owner__email",
         "ip_address",
         "object_id",
+        "session_id",
     ]
 
     readonly_fields = [
@@ -68,6 +70,7 @@ class EventAdmin(BaseAdmin):
             {
                 "fields": (
                     "ip_address",
+                    "session_id",
                     "context",
                 )
             },

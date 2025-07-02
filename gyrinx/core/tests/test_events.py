@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.auth.models import User
@@ -17,6 +17,7 @@ def test_event_model_creation():
         noun=EventNoun.LIST,
         verb=EventVerb.CREATE,
         ip_address="192.168.1.1",
+        session_id="test-session-123",
         context={"list_name": "Test List"},
     )
 
@@ -24,6 +25,7 @@ def test_event_model_creation():
     assert event.noun == EventNoun.LIST
     assert event.verb == EventVerb.CREATE
     assert event.ip_address == "192.168.1.1"
+    assert event.session_id == "test-session-123"
     assert event.context == {"list_name": "Test List"}
     assert str(event).startswith("testuser create list at")
 
@@ -94,6 +96,54 @@ def test_log_event_without_object():
 
 
 @pytest.mark.django_db
+def test_log_event_with_request_and_session():
+    """Test log_event with request object containing session."""
+    user = User.objects.create_user(username="testuser")
+
+    # Mock request object with session
+    mock_request = Mock()
+    mock_request.session.session_key = "test-session-456"
+    mock_request.META = {"REMOTE_ADDR": "192.168.1.2"}
+
+    event = log_event(
+        user=user,
+        noun=EventNoun.LIST,
+        verb=EventVerb.CREATE,
+        request=mock_request,
+        action="create_list",
+    )
+
+    assert event.owner == user
+    assert event.noun == EventNoun.LIST
+    assert event.verb == EventVerb.CREATE
+    assert event.session_id == "test-session-456"
+    assert event.ip_address == "192.168.1.2"
+    assert event.context == {"action": "create_list"}
+
+
+@pytest.mark.django_db
+def test_log_event_with_request_no_session():
+    """Test log_event with request but no session (e.g., API calls)."""
+    user = User.objects.create_user(username="testuser")
+
+    # Mock request object without session
+    mock_request = Mock()
+    mock_request.session = None
+    mock_request.META = {"REMOTE_ADDR": "192.168.1.3"}
+
+    event = log_event(
+        user=user,
+        noun=EventNoun.USER,
+        verb=EventVerb.VIEW,
+        request=mock_request,
+    )
+
+    assert event.owner == user
+    assert event.session_id is None
+    assert event.ip_address == "192.168.1.3"
+
+
+@pytest.mark.django_db
 @patch("gyrinx.core.models.events.logger")
 def test_event_logging_to_stream(mock_logger):
     """Test that events are logged to the log stream."""
@@ -104,6 +154,7 @@ def test_event_logging_to_stream(mock_logger):
         noun=EventNoun.LIST,
         verb=EventVerb.CREATE,
         ip_address="192.168.1.1",
+        session_id="test-session-789",
         context={"list_name": "Test List"},
     )
 
@@ -121,6 +172,7 @@ def test_event_logging_to_stream(mock_logger):
     assert event_data["noun"] == EventNoun.LIST
     assert event_data["verb"] == EventVerb.CREATE
     assert event_data["ip_address"] == "192.168.1.1"
+    assert event_data["session_id"] == "test-session-789"
     assert event_data["context"] == {"list_name": "Test List"}
 
 
