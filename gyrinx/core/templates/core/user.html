@@ -12,16 +12,19 @@
                 <div>
                     <i class="bi-clock"></i> Joined: {{ user.date_joined|naturaltime }}
                 </div>
-                <div class="hstack gap-2">
-                    <i class="bi-trophy-fill"></i>
-                    {% if user.is_staff %}<span class="badge text-bg-success">Staff</span>{% endif %}
-                </div>
+                {% if user.is_staff %}
+                    <div class="hstack gap-2">
+                        <i class="bi-trophy-fill"></i>
+                        <span class="badge text-bg-success">Staff</span>
+                    </div>
+                {% endif %}
                 <div>
                     <i class="bi-list"></i> {{ public_lists|length }} List{{ public_lists|length|pluralize }}
                 </div>
             </div>
         </div>
         <div class="col-lg-8 vstack gap-2">
+            <h2 class="h4">Public Lists</h2>
             {% for list in public_lists %}
                 <div class="hstack gap-3 position-relative">
                     {% comment %} {% include "core/includes/list.html" with list=list %} {% endcomment %}
