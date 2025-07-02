@@ -275,7 +275,13 @@
                                         <td colspan="12">
                                             <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
                                             {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">{% if fighter.xp_current == 0 %}Add XP{% else %}Edit XP{% endif %}</a>
+                                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
+                                                    {% if fighter.xp_current == 0 %}
+                                                        Add XP
+                                                    {% else %}
+                                                        Edit XP
+                                                    {% endif %}
+                                                </a>
                                             {% endif %}
                                         </td>
                                     </tr>
