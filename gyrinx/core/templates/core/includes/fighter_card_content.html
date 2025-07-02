@@ -275,7 +275,13 @@
                                         <td colspan="12">
                                             <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
                                             {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
+                                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
+                                                    {% if fighter.xp_current == 0 %}
+                                                        Add XP
+                                                    {% else %}
+                                                        Edit XP
+                                                    {% endif %}
+                                                </a>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -306,14 +312,16 @@
                                         </td>
                                     </tr>
                                 {% else %}
-                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <tr class="fs-7">
-                                            <th scope="row" colspan="3">Skills</th>
-                                            <td colspan="12">
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Skills</th>
+                                        <td colspan="12">
+                                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                 <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
+                                            {% else %}
+                                                <span class="text-muted fst-italic">None</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
                                 {% endif %}
                                 {% if fighter.content_fighter_cached.is_psyker %}
                                     <tr class="fs-7">
@@ -328,6 +336,8 @@
                                             {% empty %}
                                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                     <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                                                {% else %}
+                                                    <span class="text-muted fst-italic">None</span>
                                                 {% endif %}
                                             {% endfor %}
                                             {% if fighter.powers_cached|length > 0 and not print %}
@@ -385,14 +395,16 @@
                                         </td>
                                     </tr>
                                 {% else %}
-                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <tr class="fs-7">
-                                            <th scope="row" colspan="3">Gear</th>
-                                            <td colspan="12">
+                                    <tr class="fs-7">
+                                        <th scope="row" colspan="3">Gear</th>
+                                        <td colspan="12">
+                                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                 <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
+                                            {% else %}
+                                                <span class="text-muted fst-italic">None</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
                                 {% endif %}
                                 {% comment %} Injuries (only in campaign mode) {% endcomment %}
                                 {% if list.is_campaign_mode and fighter.injuries.exists %}
@@ -408,11 +420,15 @@
                                             {% endif %}
                                         </td>
                                     </tr>
-                                {% elif list.is_campaign_mode and can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                {% elif list.is_campaign_mode %}
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Injuries</th>
                                         <td colspan="12">
-                                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add injuries</a>
+                                            {% else %}
+                                                <span class="text-muted fst-italic">None</span>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                 {% endif %}
@@ -423,12 +439,16 @@
                                         <td colspan="12">
                                             {% with advancement_count=fighter.advancements.count %}
                                                 {% if advancement_count == 0 %}
-                                                    None
+                                                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                        <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Add advancements</a>
+                                                    {% else %}
+                                                        <span class="text-muted fst-italic">None</span>
+                                                    {% endif %}
                                                 {% else %}
                                                     <span class="badge text-bg-success">{{ advancement_count }}</span>
-                                                {% endif %}
-                                                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                                    <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                                                    {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                        <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                                                    {% endif %}
                                                 {% endif %}
                                             {% endwith %}
                                         </td>
