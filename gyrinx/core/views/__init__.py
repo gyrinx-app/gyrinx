@@ -4,9 +4,11 @@ from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 
@@ -40,8 +42,6 @@ def index(request):
         campaign_gangs = []
         campaigns = []
     else:
-        from django.contrib.postgres.search import SearchQuery, SearchVector
-
         # Regular lists (not in campaigns) - show 5 most recent
         lists_queryset = List.objects.filter(
             owner=request.user, status=List.LIST_BUILDING, archived=False
@@ -89,6 +89,7 @@ def index(request):
             "lists": lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
+            "houses": ContentHouse.objects.all().order_by("name"),
         },
     )
 

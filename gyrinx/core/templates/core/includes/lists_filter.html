@@ -9,7 +9,7 @@
     {# Compact version for homepage #}
     <form id="search-lists"
           method="get"
-          action="{{ action }}{{ querystring }}"
+          action="{{ action }}"
           class="vstack gap-2">
         <div class="input-group input-group-sm">
             <span class="input-group-text">
@@ -28,7 +28,7 @@
     {# Full version for lists page #}
     <form id="search"
           method="get"
-          action="{{ action }}{{ querystring }}#search"
+          action="{{ action }}#search"
           class="grid g-col-12">
         <input type="hidden" name="flash" value="search">
         {# Search and filters row #}
