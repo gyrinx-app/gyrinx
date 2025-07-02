@@ -1,0 +1,182 @@
+{% load allauth custom_tags %}
+{% comment %}Filter component for lists, used on both lists page and homepage.
+    Parameters:
+    - action: The URL to submit the form to
+    - houses: List of ContentHouse objects
+    - compact: If true, renders a compact version for homepage
+{% endcomment %}
+{% if compact %}
+    {# Compact version for homepage #}
+    <form id="search-lists"
+          method="get"
+          action="{{ action }}{{ querystring }}"
+          class="vstack gap-2">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text">
+                <i class="bi-search"></i>
+            </span>
+            <input class="form-control"
+                   type="search"
+                   placeholder="Search"
+                   aria-label="Search lists"
+                   name="q"
+                   value="{{ request.GET.q }}">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="btn-group btn-group-sm">
+            <button type="button"
+                    class="btn btn-outline-secondary dropdown-toggle w-100"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    data-bs-auto-close="outside">
+                <i class="bi-funnel"></i> Filter by House
+            </button>
+            <div class="dropdown-menu shadow-sm p-2 fs-7 w-100">
+                {% for house in houses %}
+                    {% qt_contains request "house" house.id as contains_id %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               role="switch"
+                               form="search-lists"
+                               id="house-home-{{ house.id }}"
+                               name="house"
+                               value="{{ house.id }}"
+                               {% if contains_id or request.GET.house == "" or request.GET.house == "all" or not request.GET.house %}checked{% endif %}>
+                        <label class="form-check-label" for="house-home-{{ house.id }}">{{ house.name }}</label>
+                    </div>
+                {% empty %}
+                    <span class="text-muted">No houses available.</span>
+                {% endfor %}
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-link btn-sm p-0" type="submit" form="search-lists">Update</button>
+                    <a class="btn btn-link btn-sm p-0 text-secondary" href="{{ action }}">Reset</a>
+                </div>
+            </div>
+        </div>
+    </form>
+{% else %}
+    {# Full version for lists page #}
+    <form id="search"
+          method="get"
+          action="{{ action }}{{ querystring }}#search"
+          class="grid g-col-12">
+        <input type="hidden" name="flash" value="search">
+        {# Search and filters row #}
+        <div class="g-col-12 g-col-xl-6">
+            <div class="hstack gap-2 align-items-end">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi-search"></i>
+                    </span>
+                    <input class="form-control"
+                           type="search"
+                           placeholder="Search lists"
+                           aria-label="Search lists"
+                           name="q"
+                           value="{{ request.GET.q }}">
+                </div>
+            </div>
+        </div>
+        <div class="g-col-12 g-col-xl-6 align-items-center hstack gap-3 flex-wrap">
+            {# Your Lists toggle #}
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       id="your-lists"
+                       name="my"
+                       value="1"
+                       {% if request.GET.my == "1" or not request.GET.my %}checked{% endif %}>
+                <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists</label>
+            </div>
+            {# Archived toggle #}
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       id="archived"
+                       name="archived"
+                       value="1"
+                       {% if request.GET.archived == "1" %}checked{% endif %}>
+                <label class="form-check-label fs-7 mb-0" for="archived">Archived</label>
+            </div>
+            {# Type filter dropdown #}
+            <div class="btn-group">
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        data-bs-auto-close="outside">Type</button>
+                <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    {% qt_contains request "type" "list" as type_contains_list %}
+                    {% qt_contains request "type" "gang" as type_contains_gang %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               role="switch"
+                               id="type-lists"
+                               name="type"
+                               value="list"
+                               {% if type_contains_list or not request.GET.type %}checked{% endif %}>
+                        <label class="form-check-label" for="type-lists">Lists</label>
+                    </div>
+                    <div class="form-check mb-0">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               role="switch"
+                               id="type-gangs"
+                               name="type"
+                               value="gang"
+                               {% if type_contains_gang or not request.GET.type %}checked{% endif %}>
+                        <label class="form-check-label" for="type-gangs">Gangs</label>
+                    </div>
+                </div>
+            </div>
+            {# House filter dropdown #}
+            <div class="btn-group">
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        data-bs-auto-close="outside">House</button>
+                <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    {% for house in houses %}
+                        {% qt_contains request "house" house.id as contains_id %}
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="house-{{ house.id }}"
+                                   name="house"
+                                   value="{{ house.id }}"
+                                   {% if contains_id or request.GET.house == "" or request.GET.house == "all" or not request.GET.house %}checked{% endif %}>
+                            <label class="form-check-label" for="house-{{ house.id }}">{{ house.name }}</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request house=house.id %}#search">only</a>
+                        </div>
+                    {% empty %}
+                        <span class="text-muted">No houses available.</span>
+                    {% endfor %}
+                    <div class="btn-group align-items-center">
+                        <button class="btn btn-link icon-link btn-sm" type="submit">
+                            <i class="bi-arrow-clockwise"></i>
+                            Update
+                        </button>
+                        •
+                        <a class="btn btn-link text-secondary icon-link btn-sm"
+                           href="?{% qt request house="all" %}#search">Reset</a>
+                    </div>
+                </div>
+            </div>
+            <div class="ms-auto btn-group align-items-center">
+                <button class="btn btn-primary btn-sm" type="submit" id="update-filters">Update</button>
+                <a class="btn btn-outline-secondary btn-sm" href="{{ action }}">Clear</a>
+            </div>
+        </div>
+    </form>
+{% endif %}

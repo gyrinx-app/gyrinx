@@ -32,7 +32,13 @@
                 <div class="row g-4">
                     <!-- Campaign gangs column -->
                     <div class="col-12 col-lg-4">
-                        <h2 class="h4 mb-3">Campaign Gangs</h2>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Campaign Gangs</h2>
+                            {% if campaign_gangs %}
+                                <a href="{% url 'core:lists' %}?my=1&type=gang"
+                                   class="btn btn-link btn-sm">Show all</a>
+                            {% endif %}
+                        </div>
                         <div class="vstack gap-3">
                             {% for gang in campaign_gangs %}
                                 <div class="hstack gap-3 position-relative">
@@ -47,6 +53,8 @@
                                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                                             <div class="text-secondary">{{ gang.campaign.name }}</div>
                                         </div>
+                                        {% load tz %}
+                                        <div class="text-muted small">Last edit: {{ gang.modified|timesince }} ago</div>
                                     </div>
                                     <div class="ms-auto d-md-none">
                                         <a href="{% url 'core:list' gang.id %}" class="p-3 stretched-link">
@@ -98,7 +106,13 @@
                     </div>
                     <!-- Lists column -->
                     <div class="col-12 col-lg-4">
-                        <h2 class="h4 mb-3">Lists</h2>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Lists</h2>
+                            {% if lists %}
+                                <a href="{% url 'core:lists' %}?my=1&type=list"
+                                   class="btn btn-link btn-sm">Show all</a>
+                            {% endif %}
+                        </div>
                         <div class="vstack gap-3">
                             {% if lists|length > 0 %}
                                 <div class="d-md-block">
@@ -106,6 +120,8 @@
                                         <i class="bi-plus-lg"></i>
                                     New List</a>
                                 </div>
+                                {% url 'core:index' as action %}
+                                {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}
                             {% endif %}
                             {% for list in lists %}
                                 <div class="hstack gap-3 position-relative">
@@ -117,6 +133,8 @@
                                             <div class="text-secondary">{{ list.content_house.name }}</div>
                                             <div class="badge text-bg-primary">{{ list.cost_display }}</div>
                                         </div>
+                                        {% load tz %}
+                                        <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
                                     </div>
                                     <div class="ms-auto d-md-none">
                                         <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">

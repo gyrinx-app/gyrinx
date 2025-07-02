@@ -30,6 +30,8 @@ def index(request):
         A list of :model:`core.List` objects owned by the current user that are in active campaigns.
     ``campaigns``
         A list of :model:`core.Campaign` objects where the user is either the owner or has lists participating.
+    ``houses``
+        A list of :model:`content.ContentHouse` objects for filtering.
 
     **Template**
 
@@ -39,18 +41,43 @@ def index(request):
         lists = []
         campaign_gangs = []
         campaigns = []
+        houses = []
     else:
-        # Regular lists (not in campaigns)
-        lists = List.objects.filter(
+        from django.contrib.postgres.search import SearchQuery, SearchVector
+        from gyrinx.content.models import ContentHouse
+
+        # Regular lists (not in campaigns) - show 5 most recent
+        lists_queryset = List.objects.filter(
             owner=request.user, status=List.LIST_BUILDING, archived=False
         ).select_related("content_house")
 
-        # Campaign gangs - user's lists that are in active campaigns
-        campaign_gangs = List.objects.filter(
-            owner=request.user,
-            status=List.CAMPAIGN_MODE,
-            campaign__status=Campaign.IN_PROGRESS,
-        ).select_related("campaign", "content_house")
+        # Apply search filter for lists
+        search_query = request.GET.get("q")
+        if search_query:
+            search_vector = SearchVector("name", "content_house__name")
+            search_q = SearchQuery(search_query)
+            lists_queryset = lists_queryset.annotate(search=search_vector).filter(
+                search=search_q
+            )
+
+        # Apply house filter for lists
+        house_ids = request.GET.getlist("house")
+        if house_ids and not ("all" in house_ids or not house_ids[0]):
+            lists_queryset = lists_queryset.filter(content_house_id__in=house_ids)
+
+        # Order by modified and limit to 5
+        lists = lists_queryset.order_by("-modified")[:5]
+
+        # Campaign gangs - user's lists that are in active campaigns, show 5 most recent
+        campaign_gangs = (
+            List.objects.filter(
+                owner=request.user,
+                status=List.CAMPAIGN_MODE,
+                campaign__status=Campaign.IN_PROGRESS,
+            )
+            .select_related("campaign", "content_house")
+            .order_by("-modified")[:5]
+        )
 
         # Campaigns - where user is owner or has lists participating
         campaigns = (
@@ -64,6 +91,9 @@ def index(request):
             .order_by("-created")
         )
 
+        # Get all houses for filter
+        houses = ContentHouse.objects.all().order_by("name")
+
     return render(
         request,
         "core/index.html",
@@ -71,6 +101,7 @@ def index(request):
             "lists": lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
+            "houses": houses,
         },
     )
 
