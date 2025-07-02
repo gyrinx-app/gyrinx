@@ -107,7 +107,9 @@ class ListFighterForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         inst = kwargs.get("instance", {})
         self.fields["content_fighter"] = ContentFighterChoiceField(
-            queryset=self.fields["content_fighter"].queryset
+            queryset=self.fields["content_fighter"].queryset,
+            label=self.fields["content_fighter"].label,
+            help_text=self.fields["content_fighter"].help_text,
         )
 
         overrides = [
@@ -197,7 +199,7 @@ class ListFighterForm(forms.ModelForm):
         ]
         labels = {
             "name": "Name",
-            "content_fighter": "Fighter",
+            "content_fighter": "Fighter Type",
             "legacy_content_fighter": "Gang Legacy",
             "cost_override": "Manually Set Cost",
             "movement_override": "Movement",

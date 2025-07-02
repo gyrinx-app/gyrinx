@@ -6,10 +6,10 @@
     {% else %}
         Archive
     {% endif %}
-    - {{ list.name }}
+    {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url="core:list" url_param=list.id text=list.name %}
+    {% include "core/includes/back.html" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             {% if list.archived %}
@@ -17,7 +17,7 @@
             {% else %}
                 Archive
             {% endif %}
-            : {{ list.name }}
+            {{ list.name }}
         </h1>
         {% if not list.archived %}
             <p>Are you sure you want to archive this gang/list?</p>
@@ -28,7 +28,7 @@
                 <ul class="mb-0">
                     <li>The list will be hidden from your main lists page</li>
                     <li>You won't be able to edit the list or its fighters</li>
-                    <li>You can unarchive it at any time to restore full functionality</li>
+                    <li>You can unarchive it</li>
                 </ul>
             </div>
             {% if is_in_active_campaign %}
@@ -76,7 +76,7 @@
                 {% else %}
                     <button type="submit" class="btn btn-primary">Unarchive</button>
                 {% endif %}
-                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
+                {% include "core/includes/cancel.html" %}
             </div>
         </form>
     </div>

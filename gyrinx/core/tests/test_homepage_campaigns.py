@@ -165,7 +165,7 @@ def test_homepage_no_campaigns():
     # Check empty state messages
     assert "You have no campaign gangs." in content
     assert (
-        'You are not part of any campaigns. <a href="/campaigns/">Click here to create a new campaign</a>.'
+        'You are not part of any campaigns. <a href="/campaigns/">Create a new campaign</a>.'
         in content
     )
 

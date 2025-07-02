@@ -174,7 +174,13 @@
                 {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
             {% endif %}
         {% empty %}
-            <div class="g-col-12 py-2">This List is empty.</div>
+            <div class="g-col-12 py-2 hstack gap-2 align-items-center">
+                This List is empty.
+                {% if not print %}
+                    <a href="{% url 'core:list-fighter-new' list.id %}"
+                       class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
+                {% endif %}
+            </div>
         {% endfor %}
     </div>
     <div class="offcanvas offcanvas-end"

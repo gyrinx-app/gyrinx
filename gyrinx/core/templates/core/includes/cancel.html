@@ -1,0 +1,8 @@
+<a href="{% if url %}{{ url }}{% else %}{{ request.META.HTTP_REFERER|escape }}{% endif %}"
+   class="btn btn-link">
+    {% if text %}
+        {{ text }}
+    {% else %}
+        Cancel
+    {% endif %}
+</a>
