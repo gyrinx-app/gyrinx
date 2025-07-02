@@ -121,7 +121,11 @@ SQL_DEBUG=True
     - `djlint --profile=django --reformat .` for Django templates
 - When building something new, create a branch for it and open a pull request at the end
 - Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
-- Always run the tests and ensure they are passing before pushing from CI/GitHub Action context
+- **CRITICAL FOR CI/GITHUB ACTIONS**: Before committing and pushing changes, you MUST:
+    1. Run the formatting script: `./scripts/fmt.sh`
+    2. Run the tests: `pytest` (or `./scripts/test.sh` if Docker is needed)
+    3. Check that ALL tests pass - if any tests fail, fix them before proceeding
+    4. Only after tests pass, commit and push your changes
 - **CRITICAL**: When running in CI or a GitHub action, you MUST COMMIT AND PUSH BEFORE FINISHING. This is critical: otherwise, work is lost.
 
 ## Architecture Overview
