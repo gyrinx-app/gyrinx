@@ -176,7 +176,7 @@
         {% empty %}
             <div class="g-col-12 py-2 hstack gap-2 align-items-center">
                 This List is empty.
-                {% if not print %}
+                {% if not print and list.owner_cached == user and not list.archived %}
                     <a href="{% url 'core:list-fighter-new' list.id %}"
                        class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
                 {% endif %}
