@@ -72,6 +72,8 @@ class ListsListView(generic.ListView):
 
     ``lists``
         A list of :model:`core.List` objects where `public=True`.
+    ``houses``
+        A list of :model:`content.ContentHouse` objects for filtering.
 
     **Template**
 
@@ -85,11 +87,64 @@ class ListsListView(generic.ListView):
         """
         Return :model:`core.List` objects that are public and in list building mode.
         Campaign mode lists are only visible within their campaigns.
-        Archived lists are excluded from this view.
+        Archived lists are excluded from this view unless requested.
         """
-        return List.objects.filter(
-            public=True, status=List.LIST_BUILDING, archived=False
+        queryset = List.objects.all().select_related("content_house", "owner")
+
+        # Apply "Your Lists" filter (default on if user is authenticated)
+        show_my_lists = self.request.GET.get(
+            "my", "1" if self.request.user.is_authenticated else "0"
         )
+        if show_my_lists == "1" and self.request.user.is_authenticated:
+            queryset = queryset.filter(owner=self.request.user)
+        else:
+            # Only show public lists if not filtering by user
+            queryset = queryset.filter(public=True)
+
+        # Apply archived filter (default off)
+        show_archived = self.request.GET.get("archived", "0")
+        if show_archived == "1":
+            # Show ONLY archived lists
+            queryset = queryset.filter(archived=True)
+        else:
+            # Show only non-archived lists by default
+            queryset = queryset.filter(archived=False)
+
+        # Apply type filter (lists vs gangs)
+        type_filters = self.request.GET.getlist("type")
+        if type_filters:
+            status_filters = []
+            if "list" in type_filters:
+                status_filters.append(List.LIST_BUILDING)
+            if "gang" in type_filters:
+                status_filters.append(List.CAMPAIGN_MODE)
+            if status_filters:
+                queryset = queryset.filter(status__in=status_filters)
+        else:
+            # Default to showing only list building mode
+            # Campaign mode lists are only visible within their campaigns
+            queryset = queryset.filter(status=List.LIST_BUILDING)
+
+        # Apply search filter
+        search_query = self.request.GET.get("q")
+        if search_query:
+            search_vector = SearchVector(
+                "name", "content_house__name", "owner__username"
+            )
+            search_q = SearchQuery(search_query)
+            queryset = queryset.annotate(search=search_vector).filter(search=search_q)
+
+        # Apply house filter
+        house_ids = self.request.GET.getlist("house")
+        if house_ids and not ("all" in house_ids or not house_ids[0]):
+            queryset = queryset.filter(content_house_id__in=house_ids)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["houses"] = ContentHouse.objects.all().order_by("name")
+        return context
 
 
 class ListDetailView(generic.DetailView):

@@ -4,9 +4,11 @@ from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 
@@ -40,17 +42,33 @@ def index(request):
         campaign_gangs = []
         campaigns = []
     else:
-        # Regular lists (not in campaigns)
-        lists = List.objects.filter(
+        # Regular lists (not in campaigns) - show 5 most recent
+        lists_queryset = List.objects.filter(
             owner=request.user, status=List.LIST_BUILDING, archived=False
         ).select_related("content_house")
 
-        # Campaign gangs - user's lists that are in active campaigns
-        campaign_gangs = List.objects.filter(
-            owner=request.user,
-            status=List.CAMPAIGN_MODE,
-            campaign__status=Campaign.IN_PROGRESS,
-        ).select_related("campaign", "content_house")
+        # Apply search filter for lists
+        search_query = request.GET.get("q")
+        if search_query:
+            search_vector = SearchVector("name", "content_house__name")
+            search_q = SearchQuery(search_query)
+            lists_queryset = lists_queryset.annotate(search=search_vector).filter(
+                search=search_q
+            )
+
+        # Order by modified and limit to 5
+        lists = lists_queryset.order_by("-modified")[:5]
+
+        # Campaign gangs - user's lists that are in active campaigns, show 5 most recent
+        campaign_gangs = (
+            List.objects.filter(
+                owner=request.user,
+                status=List.CAMPAIGN_MODE,
+                campaign__status=Campaign.IN_PROGRESS,
+            )
+            .select_related("campaign", "content_house")
+            .order_by("-modified")[:5]
+        )
 
         # Campaigns - where user is owner or has lists participating
         campaigns = (
@@ -71,6 +89,7 @@ def index(request):
             "lists": lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
+            "houses": ContentHouse.objects.all().order_by("name"),
         },
     )
 
