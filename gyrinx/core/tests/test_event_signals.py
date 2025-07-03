@@ -10,6 +10,7 @@ from allauth.account.models import EmailAddress
 from allauth.account.signals import email_confirmed, user_logged_in, user_signed_up
 from django.contrib.auth import get_user_model
 from django.contrib.auth.signals import user_logged_out
+from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory
 
 from gyrinx.core.models.events import Event, EventNoun, EventVerb
@@ -25,8 +26,12 @@ def test_user_login_signal_logs_event():
     # Create a mock request
     factory = RequestFactory()
     request = factory.get("/")
-    request.session = {}
+    # Create a proper session object
+    request.session = SessionStore()
+    request.session.save()  # This creates a session_key
     request.META["REMOTE_ADDR"] = "192.168.1.1"
+    # Add user to request to simulate authenticated request
+    request.user = user
 
     # Clear any existing events
     Event.objects.all().delete()
@@ -52,8 +57,12 @@ def test_user_logout_signal_logs_event():
     # Create a mock request
     factory = RequestFactory()
     request = factory.get("/")
-    request.session = {}
+    # Create a proper session object
+    request.session = SessionStore()
+    request.session.save()  # This creates a session_key
     request.META["REMOTE_ADDR"] = "192.168.1.2"
+    # Add user to request to simulate authenticated request
+    request.user = user
 
     # Clear any existing events
     Event.objects.all().delete()
@@ -79,8 +88,12 @@ def test_user_signup_signal_logs_event():
     # Create a mock request
     factory = RequestFactory()
     request = factory.get("/")
-    request.session = {}
+    # Create a proper session object
+    request.session = SessionStore()
+    request.session.save()  # This creates a session_key
     request.META["REMOTE_ADDR"] = "192.168.1.3"
+    # Add user to request to simulate authenticated request
+    request.user = user
 
     # Clear any existing events
     Event.objects.all().delete()
@@ -113,8 +126,12 @@ def test_email_confirmed_signal_logs_event():
     # Create a mock request
     factory = RequestFactory()
     request = factory.get("/")
-    request.session = {}
+    # Create a proper session object
+    request.session = SessionStore()
+    request.session.save()  # This creates a session_key
     request.META["REMOTE_ADDR"] = "192.168.1.4"
+    # Add user to request to simulate authenticated request
+    request.user = user
 
     # Clear any existing events
     Event.objects.all().delete()
