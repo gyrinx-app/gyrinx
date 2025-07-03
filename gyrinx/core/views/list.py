@@ -121,10 +121,9 @@ class ListsListView(generic.ListView):
             if status_filters:
                 queryset = queryset.filter(status__in=status_filters)
         else:
-            # Default to showing both lists and gangs
-            queryset = queryset.filter(
-                status__in=[List.LIST_BUILDING, List.CAMPAIGN_MODE]
-            )
+            # Default to showing only list building mode
+            # Campaign mode lists are only visible within their campaigns
+            queryset = queryset.filter(status=List.LIST_BUILDING)
 
         # Apply search filter
         search_query = self.request.GET.get("q")
