@@ -62,6 +62,7 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 
 
 class ListsListView(generic.ListView):
@@ -233,6 +234,19 @@ def new_list(request):
             list_ = form.save(commit=False)
             list_.owner = request.user
             list_.save()
+
+            # Log the list creation event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.CREATE,
+                object=list_,
+                request=request,
+                list_name=list_.name,
+                content_house=list_.content_house.name,
+                public=list_.public,
+            )
+
             return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
     else:
         form = NewListForm(

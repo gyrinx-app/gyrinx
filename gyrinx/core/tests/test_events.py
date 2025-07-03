@@ -217,3 +217,47 @@ def test_event_verb_choices():
     assert EventVerb.REJECT == "reject"
     assert EventVerb.IMPORT == "import"
     assert EventVerb.EXPORT == "export"
+
+
+@pytest.mark.django_db
+def test_create_list_view_logs_event(client, user, content_house):
+    """Test that creating a list via the view logs an event."""
+    from django.urls import reverse
+
+    client.force_login(user)
+
+    # Clear any existing events
+    Event.objects.all().delete()
+
+    # Create a list via the view
+    response = client.post(
+        reverse("core:lists-new"),
+        {
+            "name": "My Test Gang",
+            "content_house": content_house.id,
+            "public": True,
+        },
+    )
+
+    # Should redirect after successful creation
+    assert response.status_code == 302
+
+    # Check that the list was created
+    lst = List.objects.get(name="My Test Gang")
+    assert lst.owner == user
+    assert lst.content_house == content_house
+
+    # Check that an event was logged
+    assert Event.objects.count() == 1
+    event = Event.objects.first()
+    assert event.owner == user
+    assert event.noun == EventNoun.LIST
+    assert event.verb == EventVerb.CREATE
+    assert event.object_id == lst.id
+    assert event.object_type.model == "list"
+    assert event.context["list_name"] == "My Test Gang"
+    assert event.context["content_house"] == content_house.name
+    assert event.context["public"] is True
+
+    # Check that session ID was captured
+    assert event.session_id is not None
