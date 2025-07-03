@@ -19,3 +19,4 @@ screenshots/
 .claude/memory.local.json
 CLAUDE.local.md
 media/
+db_backups/
