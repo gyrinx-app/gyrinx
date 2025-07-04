@@ -272,3 +272,51 @@ def test_create_list_view_logs_event(client, user, content_house):
 
     # Check that session ID was captured
     assert event.session_id is not None
+
+
+@pytest.mark.django_db
+@patch("gyrinx.core.models.events.Event.objects.create")
+def test_log_event_error_handling(mock_create):
+    """Test that log_event handles errors gracefully."""
+    user = User.objects.create_user(username="testuser")
+
+    # Make Event.objects.create raise an exception
+    mock_create.side_effect = Exception("Database error")
+
+    # This should not raise an exception
+    result = log_event(
+        user=user,
+        noun=EventNoun.USER,
+        verb=EventVerb.UPDATE,
+        field=EventField.PASSWORD,
+    )
+
+    # Should return None when error occurs
+    assert result is None
+
+    # Verify create was attempted
+    assert mock_create.called
+
+
+@pytest.mark.django_db
+@patch("gyrinx.core.models.events.logger")
+def test_event_save_logging_error_handling(mock_logger):
+    """Test that Event.save handles logging errors gracefully."""
+    user = User.objects.create_user(username="testuser")
+
+    # Make json.dumps fail by causing logger.info to raise
+    mock_logger.info.side_effect = Exception("Logging error")
+
+    # This should not raise an exception
+    event = Event.objects.create(
+        owner=user,
+        noun=EventNoun.USER,
+        verb=EventVerb.LOGIN,
+    )
+
+    # Event should still be created successfully
+    assert event.id is not None
+    assert Event.objects.count() == 1
+
+    # Should have logged the exception
+    mock_logger.exception.assert_called_once_with("Failed to log event to stream")

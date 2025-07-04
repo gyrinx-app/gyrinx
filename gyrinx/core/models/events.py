@@ -162,26 +162,30 @@ class Event(AppBase):
         """Override save to also log the event to the log stream."""
         super().save(*args, **kwargs)
 
-        # Log the event as JSON
-        event_data = {
-            "id": str(self.id),
-            "timestamp": self.created.isoformat(),
-            "user_id": str(self.owner_id) if self.owner_id else None,
-            "username": self.owner.username if self.owner else None,
-            "noun": self.noun,
-            "verb": self.verb,
-            "object_id": str(self.object_id) if self.object_id else None,
-            "object_type": self.object_type.model if self.object_type else None,
-            "ip_address": self.ip_address,
-            "session_id": self.session_id,
-            "field": self.field,
-            "context": self.context,
-        }
+        try:
+            # Log the event as JSON
+            event_data = {
+                "id": str(self.id),
+                "timestamp": self.created.isoformat(),
+                "user_id": str(self.owner_id) if self.owner_id else None,
+                "username": self.owner.username if self.owner else None,
+                "noun": self.noun,
+                "verb": self.verb,
+                "object_id": str(self.object_id) if self.object_id else None,
+                "object_type": self.object_type.model if self.object_type else None,
+                "ip_address": self.ip_address,
+                "session_id": self.session_id,
+                "field": self.field,
+                "context": self.context,
+            }
 
-        logger.info(
-            f"USER_EVENT: {self.verb} {self.noun}",
-            extra={"event_data": json.dumps(event_data)},
-        )
+            logger.info(
+                f"USER_EVENT: {self.verb} {self.noun}",
+                extra={"event_data": json.dumps(event_data)},
+            )
+        except Exception:
+            # If logging fails, don't crash - just log the error
+            logger.exception("Failed to log event to stream")
 
 
 def ensure_json_serializable(data):
@@ -227,7 +231,7 @@ def log_event(
         **context: Additional context data to store in the JSON field
 
     Returns:
-        Event: The created Event instance
+        Event: The created Event instance, or None if an error occurred
 
     Example:
         log_event(
@@ -240,31 +244,46 @@ def log_event(
             fighter_count=list_instance.fighters.count()
         )
     """
-    # Extract session ID from request if available
-    session_id = None
-    if (
-        request
-        and hasattr(request, "session")
-        and hasattr(request.session, "session_key")
-    ):
-        session_id = request.session.session_key
+    try:
+        # Extract session ID from request if available
+        session_id = None
+        if (
+            request
+            and hasattr(request, "session")
+            and hasattr(request.session, "session_key")
+        ):
+            session_id = request.session.session_key
 
-    # Extract IP address from request if not explicitly provided
-    if not ip_address and request:
-        ip_address = request.META.get("REMOTE_ADDR")
+        # Extract IP address from request if not explicitly provided
+        if not ip_address and request:
+            ip_address = request.META.get("REMOTE_ADDR")
 
-    event_data = {
-        "owner": user,
-        "noun": noun,
-        "verb": verb,
-        "ip_address": ip_address,
-        "session_id": session_id,
-        "field": field,
-        "context": ensure_json_serializable(context),
-    }
+        event_data = {
+            "owner": user,
+            "noun": noun,
+            "verb": verb,
+            "ip_address": ip_address,
+            "session_id": session_id,
+            "field": field,
+            "context": ensure_json_serializable(context),
+        }
 
-    if object:
-        event_data["object_id"] = object.pk
-        event_data["object_type"] = ContentType.objects.get_for_model(object)
+        if object:
+            event_data["object_id"] = object.pk
+            event_data["object_type"] = ContentType.objects.get_for_model(object)
 
-    return Event.objects.create(**event_data)
+        return Event.objects.create(**event_data)
+    except Exception as e:
+        # Log the error but don't crash the application
+        logger.error(
+            f"Failed to log event: {noun} {verb}",
+            exc_info=True,
+            extra={
+                "user_id": getattr(user, "id", None),
+                "noun": noun,
+                "verb": verb,
+                "error": str(e),
+                "context": context,
+            },
+        )
+        return None
