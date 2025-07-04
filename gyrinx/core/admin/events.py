@@ -13,6 +13,7 @@ class EventAdmin(BaseAdmin):
         "owner",
         "verb",
         "noun",
+        "field",
         "object_type",
         "object_id",
         "ip_address",
@@ -23,6 +24,7 @@ class EventAdmin(BaseAdmin):
         "created",
         "noun",
         "verb",
+        "field",
         "object_type",
     ]
 
@@ -52,6 +54,7 @@ class EventAdmin(BaseAdmin):
                     "owner",
                     "noun",
                     "verb",
+                    "field",
                 )
             },
         ),

@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from gyrinx.content.models import ContentHouse
 from gyrinx.core.models import Event, EventNoun, EventVerb, List, log_event
+from gyrinx.core.models.events import EventField
 
 
 @pytest.mark.django_db
@@ -87,7 +88,7 @@ def test_log_event_without_object():
         noun=EventNoun.USER,
         verb=EventVerb.UPDATE,
         ip_address="192.168.1.1",
-        action="password_change",
+        field=EventField.PASSWORD,
     )
 
     assert event.owner == user
@@ -95,7 +96,8 @@ def test_log_event_without_object():
     assert event.verb == EventVerb.UPDATE
     assert event.object_id is None
     assert event.object_type is None
-    assert event.context == {"action": "password_change"}
+    assert event.field == EventField.PASSWORD
+    assert event.context == {}
 
 
 @pytest.mark.django_db
@@ -113,7 +115,6 @@ def test_log_event_with_request_and_session():
         noun=EventNoun.LIST,
         verb=EventVerb.CREATE,
         request=mock_request,
-        action="create_list",
     )
 
     assert event.owner == user
@@ -121,7 +122,6 @@ def test_log_event_with_request_and_session():
     assert event.verb == EventVerb.CREATE
     assert event.session_id == "test-session-456"
     assert event.ip_address == "192.168.1.2"
-    assert event.context == {"action": "create_list"}
 
 
 @pytest.mark.django_db
@@ -176,6 +176,7 @@ def test_event_logging_to_stream(mock_logger):
     assert event_data["verb"] == EventVerb.CREATE
     assert event_data["ip_address"] == "192.168.1.1"
     assert event_data["session_id"] == "test-session-789"
+    assert event_data["field"] is None
     assert event_data["context"] == {"list_name": "Test List"}
 
 
@@ -217,6 +218,16 @@ def test_event_verb_choices():
     assert EventVerb.REJECT == "reject"
     assert EventVerb.IMPORT == "import"
     assert EventVerb.EXPORT == "export"
+    assert EventVerb.LOGIN == "login"
+    assert EventVerb.LOGOUT == "logout"
+    assert EventVerb.SIGNUP == "signup"
+
+
+@pytest.mark.django_db
+def test_event_subnoun_enum():
+    """Test EventSubNoun enum values."""
+    assert EventField.PASSWORD == "password"
+    assert EventField.EMAIL == "email"
 
 
 @pytest.mark.django_db

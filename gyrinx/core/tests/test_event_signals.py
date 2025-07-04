@@ -13,7 +13,7 @@ from django.contrib.auth.signals import user_logged_out
 from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory
 
-from gyrinx.core.models.events import Event, EventNoun, EventVerb
+from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb
 
 User = get_user_model()
 
@@ -44,8 +44,8 @@ def test_user_login_signal_logs_event():
     event = Event.objects.first()
     assert event.owner == user
     assert event.noun == EventNoun.USER
-    assert event.verb == EventVerb.VIEW
-    assert event.context["action"] == "login"
+    assert event.verb == EventVerb.LOGIN
+    assert event.context.get("login_method") == "email"
     assert event.ip_address == "192.168.1.1"
 
 
@@ -75,8 +75,7 @@ def test_user_logout_signal_logs_event():
     event = Event.objects.first()
     assert event.owner == user
     assert event.noun == EventNoun.USER
-    assert event.verb == EventVerb.VIEW
-    assert event.context["action"] == "logout"
+    assert event.verb == EventVerb.LOGOUT
     assert event.ip_address == "192.168.1.2"
 
 
@@ -106,8 +105,7 @@ def test_user_signup_signal_logs_event():
     event = Event.objects.first()
     assert event.owner == user
     assert event.noun == EventNoun.USER
-    assert event.verb == EventVerb.CREATE
-    assert event.context["action"] == "signup"
+    assert event.verb == EventVerb.SIGNUP
     assert event.context["sociallogin"] is False
     assert event.ip_address == "192.168.1.3"
 
@@ -149,7 +147,7 @@ def test_email_confirmed_signal_logs_event():
     assert event.owner == user
     assert event.noun == EventNoun.USER
     assert event.verb == EventVerb.UPDATE
-    assert event.context["action"] == "email_confirmed"
+    assert event.field == EventField.EMAIL
     assert event.context["email"] == "test@example.com"
     assert event.context["primary"] is True
     assert event.ip_address == "192.168.1.4"

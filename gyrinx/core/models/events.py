@@ -1,5 +1,7 @@
 import json
 import logging
+from enum import Enum
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -29,24 +31,59 @@ class EventNoun(models.TextChoices):
 class EventVerb(models.TextChoices):
     """Verbs representing actions that can be taken."""
 
+    # CRUD
     CREATE = "create", "Create"
     UPDATE = "update", "Update"
     DELETE = "delete", "Delete"
+    VIEW = "view", "View"
+
+    # Deletion
     ARCHIVE = "archive", "Archive"
     RESTORE = "restore", "Restore"
-    VIEW = "view", "View"
-    CLONE = "clone", "Clone"
+
+    # Forms & Submissions
+    SUBMIT = "submit", "Submit"
+    CONFIRM = "confirm", "Confirm"
+
+    # User actions
     JOIN = "join", "Join"
     LEAVE = "leave", "Leave"
+
+    # Assignment
     ASSIGN = "assign", "Assign"
     UNASSIGN = "unassign", "Unassign"
+
+    # Activation
     ACTIVATE = "activate", "Activate"
     DEACTIVATE = "deactivate", "Deactivate"
-    SUBMIT = "submit", "Submit"
+
+    # Approvals
     APPROVE = "approve", "Approve"
     REJECT = "reject", "Reject"
+
+    # IO
     IMPORT = "import", "Import"
     EXPORT = "export", "Export"
+
+    # Modification
+    ADD = "add", "Add"
+    REMOVE = "remove", "Remove"
+    CLONE = "clone", "Clone"
+    RESET = "reset", "Reset"
+
+    # Accounts
+    LOGIN = "login", "Login"
+    LOGOUT = "logout", "Logout"
+    SIGNUP = "signup", "Signup"
+
+
+class EventField(models.TextChoices):
+    """Fields that can be modified in user-related events."""
+
+    PASSWORD = "password", "Password"
+    EMAIL = "email", "Email"
+    MFA = "mfa", "Multi-Factor Authentication"
+    SESSION = "session", "Session"
 
 
 class Event(AppBase):
@@ -93,6 +130,15 @@ class Event(AppBase):
         help_text="Session ID of the user when the action was taken",
     )
 
+    # Field being modified (for UPDATE events)
+    field = models.CharField(
+        max_length=50,
+        choices=EventField.choices,
+        null=True,
+        blank=True,
+        help_text="The field being modified for UPDATE events",
+    )
+
     # Additional unstructured context
     context = models.JSONField(
         default=dict, blank=True, help_text="Additional context data in JSON format"
@@ -128,6 +174,7 @@ class Event(AppBase):
             "object_type": self.object_type.model if self.object_type else None,
             "ip_address": self.ip_address,
             "session_id": self.session_id,
+            "field": self.field,
             "context": self.context,
         }
 
@@ -137,7 +184,35 @@ class Event(AppBase):
         )
 
 
-def log_event(user, noun, verb, object=None, request=None, ip_address=None, **context):
+def ensure_json_serializable(data):
+    """
+    Recursively ensure all data is JSON serializable.
+
+    Converts non-serializable objects to strings or other JSON-safe types.
+    """
+    if isinstance(data, dict):
+        return {k: ensure_json_serializable(v) for k, v in data.items()}
+    elif isinstance(data, (list, tuple)):
+        return [ensure_json_serializable(item) for item in data]
+    elif isinstance(data, (str, int, float, bool, type(None))):
+        return data
+    elif isinstance(data, Enum):
+        # For Enums, use their value
+        return data.value
+    else:
+        # For any other type, convert to string representation
+        try:
+            # Try to serialize to JSON first to check if it's already serializable
+            json.dumps(data)
+            return data
+        except (TypeError, ValueError):
+            # If not serializable, convert to string
+            return str(data)
+
+
+def log_event(
+    user, noun, verb, object=None, request=None, ip_address=None, field=None, **context
+):
     """
     Utility function to easily log events throughout the application.
 
@@ -148,6 +223,7 @@ def log_event(user, noun, verb, object=None, request=None, ip_address=None, **co
         object: Optional Django model instance being acted upon
         request: Optional HttpRequest object to extract session ID and IP address
         ip_address: Optional IP address (overrides request extraction)
+        field: Optional EventField choice for UPDATE events
         **context: Additional context data to store in the JSON field
 
     Returns:
@@ -183,7 +259,8 @@ def log_event(user, noun, verb, object=None, request=None, ip_address=None, **co
         "verb": verb,
         "ip_address": ip_address,
         "session_id": session_id,
-        "context": context,
+        "field": field,
+        "context": ensure_json_serializable(context),
     }
 
     if object:
