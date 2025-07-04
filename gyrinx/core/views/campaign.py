@@ -138,8 +138,6 @@ def campaign_add_lists(request, id):
         The :model:`core.Campaign` being edited.
     ``lists``
         Available :model:`core.List` objects that can be added.
-    ``added_list``
-        The most recently added list (if any).
     ``error_message``
         None or a string describing a form error.
 
@@ -154,7 +152,6 @@ def campaign_add_lists(request, id):
         messages.error(request, "Lists cannot be added to a completed campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    added_list = None
     error_message = None
     show_confirmation = False
 
@@ -174,6 +171,11 @@ def campaign_add_lists(request, id):
                     else:
                         # Use the new method to add the list
                         added_list = campaign.add_list_to_campaign(list_to_add)
+                        # Show success message
+                        messages.success(
+                            request,
+                            f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} has been added to the campaign.",
+                        )
                         # Redirect to the same page with the search params preserved
                         query_params = []
                         if request.GET.get("q"):
@@ -184,7 +186,6 @@ def campaign_add_lists(request, id):
                         return HttpResponseRedirect(
                             reverse("core:campaign-add-lists", args=(campaign.id,))
                             + (f"?{query_str}" if query_str else "")
-                            + "#added"
                         )
                 else:
                     error_message = "You can only add your own lists or public lists."
@@ -226,13 +227,6 @@ def campaign_add_lists(request, id):
     # Order by name
     lists = lists.order_by("name")
 
-    # Check if we just added a list
-    if request.GET.get("added") and not added_list:
-        # Try to get the most recently added list
-        latest_list = campaign.lists.order_by("-id").first()
-        if latest_list:
-            added_list = latest_list
-
     # If showing confirmation, get the list to confirm
     list_to_confirm = None
     if show_confirmation and list_id:
@@ -247,7 +241,6 @@ def campaign_add_lists(request, id):
         {
             "campaign": campaign,
             "lists": lists,
-            "added_list": added_list,
             "error_message": error_message,
             "show_confirmation": show_confirmation,
             "list_to_confirm": list_to_confirm,
