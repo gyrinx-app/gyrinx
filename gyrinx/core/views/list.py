@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -1012,6 +1013,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
 
 @login_required
+@transaction.atomic
 def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     """
     Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
@@ -1253,6 +1255,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
 
 @login_required
+@transaction.atomic
 def edit_list_fighter_assign_cost(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1309,6 +1312,7 @@ def edit_list_fighter_assign_cost(
 
 
 @login_required
+@transaction.atomic
 def delete_list_fighter_assign(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1354,6 +1358,7 @@ def delete_list_fighter_assign(
 
 
 @login_required
+@transaction.atomic
 def delete_list_fighter_gear_upgrade(
     request, id, fighter_id, assign_id, upgrade_id, back_name, action_name
 ):
@@ -1408,6 +1413,7 @@ def delete_list_fighter_gear_upgrade(
 
 
 @login_required
+@transaction.atomic
 def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     """
     Managed weapon accessories for a :model:`core.ListFighterEquipmentAssignment`.
@@ -1468,6 +1474,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
 
 
 @login_required
+@transaction.atomic
 def delete_list_fighter_weapon_accessory(
     request, id, fighter_id, assign_id, accessory_id
 ):
@@ -1515,6 +1522,7 @@ def delete_list_fighter_weapon_accessory(
 
 
 @login_required
+@transaction.atomic
 def edit_list_fighter_weapon_upgrade(
     request, id, fighter_id, assign_id, back_name, action_name
 ):
@@ -1571,6 +1579,7 @@ def edit_list_fighter_weapon_upgrade(
 
 
 @login_required
+@transaction.atomic
 def disable_list_fighter_default_assign(
     request, id, fighter_id, assign_id, action_name, back_name
 ):
@@ -1616,6 +1625,7 @@ def disable_list_fighter_default_assign(
 
 
 @login_required
+@transaction.atomic
 def convert_list_fighter_default_assign(
     request, id, fighter_id, assign_id, action_name, back_name
 ):
@@ -3116,6 +3126,7 @@ def list_fighter_advancement_other(request, id, fighter_id):
 
 
 @login_required
+@transaction.atomic
 def reassign_list_fighter_equipment(
     request, id, fighter_id, assign_id, is_weapon, back_name
 ):
@@ -3207,6 +3218,7 @@ def reassign_list_fighter_equipment(
 
 
 @login_required
+@transaction.atomic
 def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     """
     Sell equipment from a stash fighter with dice roll mechanics.
