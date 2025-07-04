@@ -14,7 +14,7 @@
     {% else %}
         {% url 'account_logout' as action_url %}
     {% endif %}
-    {% element form action=action_url method="post" tags="sessions" no_visible_fields=True %}
+    {% element form action=action_url method="post" tags="sessions" no_visible_fields=True wide=True %}
         {% slot body %}
             {% csrf_token %}
             {% element table tags="sessions" %}

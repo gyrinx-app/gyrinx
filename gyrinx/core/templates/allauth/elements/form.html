@@ -1,5 +1,5 @@
 {% load allauth %}
-<form class="col-12 col-md-8 col-lg-6"
+<form class="col-12 {% if not attrs.wide %}col-12 col-md-8 col-lg-6{% endif %}"
       method="{{ attrs.method }}"
       action="{{ attrs.action }}">
     {% slot body %}

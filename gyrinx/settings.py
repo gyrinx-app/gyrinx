@@ -122,6 +122,7 @@ MIDDLEWARE = [
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
+    "allauth.usersessions.middleware.UserSessionsMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
@@ -234,6 +235,7 @@ ACCOUNT_FORMS = {
 }
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+USERSESSIONS_TRACK_ACTIVITY = True
 
 # MFA (Multi-Factor Authentication) settings
 # https://docs.allauth.org/en/latest/mfa/introduction.html
