@@ -347,8 +347,9 @@ class Command(BaseCommand):
 
                     try:
                         field = model._meta.get_field(field_name)
-                    except Exception:
-                        # Field might not exist in this version
+                    except Exception:  # nosec B112
+                        # Field might not exist in this version - this is expected
+                        # when importing content between different schema versions
                         continue
 
                     if field.get_internal_type() == "UUIDField" and isinstance(
@@ -422,7 +423,10 @@ class Command(BaseCommand):
 
                 # Update sequence for tables with serial primary keys
                 if model._meta.pk.get_internal_type() in ["AutoField", "BigAutoField"]:
-                    cursor.execute(
-                        f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), "
-                        f"(SELECT COALESCE(MAX(id), 1) FROM {table_name}), true);"
+                    # Use quote_name to safely escape table names
+                    quoted_table = connection.ops.quote_name(table_name)
+                    # Safe: table_name is from Django model metadata and quoted_table uses Django's quote_name
+                    cursor.execute(  # nosec B608 - table name is safely quoted
+                        f"SELECT setval(pg_get_serial_sequence('{quoted_table}', 'id'), "  # nosec B608
+                        f"(SELECT COALESCE(MAX(id), 1) FROM {quoted_table}), true);"
                     )
