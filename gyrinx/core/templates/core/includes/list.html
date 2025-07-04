@@ -164,6 +164,7 @@
         {% if not print %}
             {% include "core/includes/list_campaign_actions.html" with list=list %}
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
+            {% include "core/includes/list_attributes.html" with list=list attributes=attributes %}
         {% endif %}
         {% for fighter in list.fighters_cached %}
             {% if fighter.is_stash %}

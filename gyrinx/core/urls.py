@@ -271,6 +271,11 @@ urlpatterns = [
     ),
     path("list/<id>/print", list.ListPrintView.as_view(), name="list-print"),
     path(
+        "list/<id>/attribute/<attribute_id>/edit",
+        list.edit_list_attribute,
+        name="list-attribute-edit",
+    ),
+    path(
         "list/<id>/campaign-clones",
         list.ListCampaignClonesView.as_view(),
         name="list-campaign-clones",

@@ -35,6 +35,7 @@ from gyrinx.core.forms.advancement import (
     SkillCategorySelectionForm,
     SkillSelectionForm,
 )
+from gyrinx.core.forms.attribute import ListAttributeForm
 from gyrinx.core.forms.list import (
     AddInjuryForm,
     CloneListFighterForm,
@@ -211,6 +212,22 @@ class ListDetailView(generic.DetailView):
                 sold_to_guilders=False
             ).select_related("fighter", "fighter__list")
             context["captured_fighters"] = captured_fighters
+
+        # Get attributes and their values for this list
+        from gyrinx.content.models import ContentAttribute
+        from gyrinx.core.models.list import ListAttributeAssignment
+
+        attributes = {}
+        for attribute in ContentAttribute.objects.all().order_by("name"):
+            assignments = ListAttributeAssignment.objects.filter(
+                list=list_obj, attribute_value__attribute=attribute, archived=False
+            ).select_related("attribute_value")
+
+            # Get the value names
+            value_names = [a.attribute_value.name for a in assignments]
+            attributes[attribute] = value_names
+
+        context["attributes"] = attributes
 
         return context
 
@@ -3588,3 +3605,40 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
         )
 
     return render(request, "core/list_fighter_equipment_sell.html", context)
+
+
+@login_required
+def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.UUID):
+    """
+    Edit attributes for a list.
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    # Check if list is archived
+    if lst.archived:
+        messages.error(request, "Cannot modify attributes for an archived list.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Get the attribute
+    from gyrinx.content.models import ContentAttribute
+
+    attribute = get_object_or_404(ContentAttribute, id=attribute_id)
+
+    if request.method == "POST":
+        form = ListAttributeForm(
+            request.POST, list_obj=lst, attribute=attribute, request=request
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"{attribute.name} updated successfully.")
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+    else:
+        form = ListAttributeForm(list_obj=lst, attribute=attribute, request=request)
+
+    context = {
+        "list": lst,
+        "attribute": attribute,
+        "form": form,
+    }
+
+    return render(request, "core/list_attribute_edit.html", context)

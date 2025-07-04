@@ -19,16 +19,16 @@ from django.utils.functional import cached_property
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
+from gyrinx.core.models.base import AppBase
 from gyrinx.models import (
     Base,
     CostMixin,
-    FighterCostMixin,
     FighterCategoryChoices,
+    FighterCostMixin,
     QuerySetOf,
     equipment_category_group_choices,
     format_cost_display,
 )
-from gyrinx.core.models.base import AppBase
 
 ##
 ## Content Models
@@ -1896,7 +1896,7 @@ class ContentAttributeValue(Content):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.attribute.name}: {self.name}"
+        return self.name
 
     class Meta:
         verbose_name = "Gang Attribute Value"

@@ -52,7 +52,7 @@ def test_content_attribute_value_creation():
 
     assert value1.attribute == attribute
     assert value1.name == "Law Abiding"
-    assert str(value1) == "Alignment: Law Abiding"
+    assert str(value1) == "Law Abiding"
 
     assert attribute.values.count() == 2
     assert list(attribute.values.values_list("name", flat=True)) == [
