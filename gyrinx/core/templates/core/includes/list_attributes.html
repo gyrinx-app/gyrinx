@@ -1,0 +1,42 @@
+{% load allauth custom_tags humanize %}
+<div class="card g-col-12 g-col-md-12 g-col-xl-6">
+    <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
+        <h3 class="h5 mb-0">Attributes</h3>
+    </div>
+    <div class="card-body p-2">
+        {% if attributes %}
+            <table class="table table-sm mb-0 fs-7">
+                <tbody>
+                    {% for attribute, assignments in attributes.items %}
+                        <tr>
+                            <td>{{ attribute.name }}</td>
+                            <td>
+                                {% if assignments %}
+                                    {{ assignments|join:", " }}
+                                {% else %}
+                                    <span class="text-muted">Not set</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if list.owner_cached == user and not list.archived %}
+                                    <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
+                                       class="icon-link link-secondary link-sm">
+                                        <i class="bi-{% if assignments %}pencil{% else %}plus{% endif %}"
+                                           aria-hidden="true"></i>
+                                        {% if assignments %}
+                                            Edit
+                                        {% else %}
+                                            Add
+                                        {% endif %}
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-muted fs-7 mb-0">No attributes available.</p>
+        {% endif %}
+    </div>
+</div>

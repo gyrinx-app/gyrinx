@@ -1,0 +1,34 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit {{ attribute.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:list' list.id as list_url %}
+    {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h5">{{ attribute.name }}</h2>
+                    {% if attribute.is_single_select %}
+                        <p class="text-secondary">Select one option</p>
+                    {% else %}
+                        <p class="text-secondary">Select multiple options</p>
+                    {% endif %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">{{ form.values }}</div>
+                        {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% endif %}
+                        <div class="hstack gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi-check-lg"></i> Save
+                            </button>
+                            <a href="{{ list_url }}" class="btn btn-secondary btn-sm">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
