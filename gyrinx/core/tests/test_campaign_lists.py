@@ -1,4 +1,5 @@
 import pytest
+from django.contrib import messages
 from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
@@ -131,13 +132,19 @@ def test_campaign_add_list_post():
 
     # Should redirect back to the same page
     assert response.status_code == 302
-    assert (
-        response.url
-        == reverse("core:campaign-add-lists", args=[campaign.id]) + "#added"
-    )
+    assert response.url == reverse("core:campaign-add-lists", args=[campaign.id])
 
     # List should be added to campaign
     assert list_to_add in campaign.lists.all()
+
+    # Check for success message
+    response = client.get(response.url)
+    messages_list = list(response.context["messages"])
+    assert len(messages_list) == 1
+    assert messages_list[0].level == messages.SUCCESS
+    assert f"{list_to_add.name} ({house.name}) has been added to the campaign." in str(
+        messages_list[0]
+    )
 
 
 @pytest.mark.django_db
