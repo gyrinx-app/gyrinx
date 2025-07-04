@@ -2645,6 +2645,7 @@ class ListAttributeAssignment(Base, Archived):
                     ListAttributeAssignment.objects.filter(
                         list=self.list,
                         attribute_value__attribute=attribute,
+                        archived=False,  # Only check active assignments
                     )
                     .exclude(pk=self.pk)
                     .exists()

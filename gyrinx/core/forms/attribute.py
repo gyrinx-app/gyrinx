@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from gyrinx.content.models import ContentAttributeValue
+from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import ListAttributeAssignment
 
 
@@ -89,14 +90,10 @@ class ListAttributeForm(forms.Form):
                 and self.list_obj.campaign
                 and self.request
             ):
-                from gyrinx.core.models.campaign import CampaignAction
-
                 value_names = []
                 if values:
-                    if self.attribute.is_single_select:
-                        value_names = [values.name]
-                    else:
-                        value_names = [v.name for v in values]
+                    # values is always a list at this point due to line 75
+                    value_names = [v.name for v in values]
 
                 action_text = f"Updated {self.attribute.name}: {', '.join(value_names) if value_names else 'None'}"
 
@@ -104,5 +101,5 @@ class ListAttributeForm(forms.Form):
                     campaign=self.list_obj.campaign,
                     list=self.list_obj,
                     user=self.request.user,
-                    action=action_text,
+                    description=action_text,
                 )
