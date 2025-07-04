@@ -2633,7 +2633,7 @@ class ListAttributeAssignment(Base, Archived):
         unique_together = [["list", "attribute_value"]]
 
     def __str__(self):
-        return f"{self.list.name} - {self.attribute_value}"
+        return f"{self.list.name} - {self.attribute_value.attribute.name}: {self.attribute_value.name}"
 
     def clean(self):
         """Validate that single-select attributes only have one value per list."""

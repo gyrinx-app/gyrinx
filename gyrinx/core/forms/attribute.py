@@ -35,7 +35,7 @@ class ListAttributeForm(forms.Form):
                 widget=forms.RadioSelect,
                 required=False,
                 initial=current_assignments.first() if current_assignments else None,
-                label=f"Select {self.attribute.name}",
+                label="",
             )
         else:
             # Multi select - use checkboxes
@@ -44,7 +44,7 @@ class ListAttributeForm(forms.Form):
                 widget=forms.CheckboxSelectMultiple,
                 required=False,
                 initial=list(current_assignments),
-                label=f"Select {self.attribute.name} (multiple allowed)",
+                label="",
             )
 
     def clean(self):

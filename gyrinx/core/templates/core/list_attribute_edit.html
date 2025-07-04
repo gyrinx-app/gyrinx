@@ -24,7 +24,7 @@
                             <button type="submit" class="btn btn-primary btn-sm">
                                 <i class="bi-check-lg"></i> Save
                             </button>
-                            <a href="{{ list_url }}" class="btn btn-secondary btn-sm">Cancel</a>
+                            {% include "core/includes/cancel.html" with url=list_url %}
                         </div>
                     </form>
                 </div>
