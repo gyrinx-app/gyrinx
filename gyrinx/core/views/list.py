@@ -83,6 +83,7 @@ class ListsListView(generic.ListView):
 
     template_name = "core/lists.html"
     context_object_name = "lists"
+    paginate_by = 20
 
     def get_queryset(self):
         """
