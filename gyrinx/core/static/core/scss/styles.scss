@@ -89,14 +89,6 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
-// Mynor font variation settings
-body {
-    font-variation-settings:
-        "ital" 0,
-        "wdth" 100,
-        "wght" 400;
-}
-
 .hero {
     height: 25vh;
     background-size: cover;
