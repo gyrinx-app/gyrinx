@@ -7,13 +7,10 @@
     <div class="card">
         <div class="card-body">
             <h1 class="h3 mb-4">{% trans "Change Username" %}</h1>
-            <div class="alert alert-info mb-4">
-                <i class="bi-info-circle me-2"></i>
-                Your current username contains an '@' symbol. Please choose a new username that doesn't include '@'.
-            </div>
-            <p class="mb-4">
-                <strong>Current username:</strong> <code>{{ user.username }}</code>
+            <p>
+                Your current username contains an '@' symbol: <strong>{{ user.username }}</strong>
             </p>
+            <p>Please choose a new username that doesn't include '@'.</p>
             <form method="post" class="vstack gap-3">
                 {% csrf_token %}
                 <div>

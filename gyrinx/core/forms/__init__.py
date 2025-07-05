@@ -64,6 +64,7 @@ class UsernameChangeForm(forms.Form):
                 message="Username can only contain letters, numbers, and underscores.",
             ),
         ],
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     captcha = ReCaptchaField(widget=ReCaptchaV3(action="change_username"))
 
