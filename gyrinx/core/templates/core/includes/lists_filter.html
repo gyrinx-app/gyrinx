@@ -44,19 +44,22 @@
                            aria-label="Search lists"
                            name="q"
                            value="{{ request.GET.q }}">
+                    <button class="btn btn-primary" type="submit">Search</button>
                 </div>
             </div>
         </div>
         <div class="g-col-12 g-col-xl-6 align-items-center hstack gap-3 flex-wrap">
             {# Your Lists toggle #}
             <div class="form-check form-switch mb-0">
+                {# Hidden field to ensure 0 is sent when unchecked #}
+                <input type="hidden" name="my" value="0">
                 <input class="form-check-input"
                        type="checkbox"
                        role="switch"
                        id="your-lists"
                        name="my"
                        value="1"
-                       {% if request.GET.my == "1" or not request.GET.my %}checked{% endif %}>
+                       {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
             </div>
             {# Archived toggle #}
@@ -88,7 +91,9 @@
                                name="type"
                                value="list"
                                {% if type_contains_list or not request.GET.type %}checked{% endif %}>
-                        <label class="form-check-label" for="type-lists">Lists</label>
+                        <label class="form-check-label" for="type-lists">Lists (List Building)</label>
+                        •
+                        <a class="ms-auto" href="?{% qt request type="list" %}#search">only</a>
                     </div>
                     <div class="form-check mb-0">
                         <input class="form-check-input"
@@ -98,7 +103,18 @@
                                name="type"
                                value="gang"
                                {% if type_contains_gang or not request.GET.type %}checked{% endif %}>
-                        <label class="form-check-label" for="type-gangs">Gangs</label>
+                        <label class="form-check-label" for="type-gangs">Gangs (Campaign)</label>
+                        •
+                        <a class="ms-auto" href="?{% qt request type="gang" %}#search">only</a>
+                    </div>
+                    <div class="btn-group align-items-center">
+                        <button class="btn btn-link icon-link btn-sm" type="submit">
+                            <i class="bi-arrow-clockwise"></i>
+                            Update
+                        </button>
+                        •
+                        <a class="btn btn-link text-secondary icon-link btn-sm"
+                           href="?{% qt request house="all" %}#search">Reset</a>
                     </div>
                 </div>
             </div>
@@ -139,7 +155,6 @@
                     </div>
                 </div>
             </div>
-            <button class="btn btn-primary btn-sm" type="submit">Search</button>
             <div class="ms-auto btn-group align-items-center">
                 <button class="btn btn-link icon-link btn-sm"
                         type="submit"

@@ -52,6 +52,7 @@ from gyrinx.core.forms.list import (
     NewListForm,
 )
 from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -64,7 +65,6 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
-from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 
 
 class ListsListView(generic.ListView):
@@ -85,6 +85,7 @@ class ListsListView(generic.ListView):
 
     template_name = "core/lists.html"
     context_object_name = "lists"
+    paginate_by = 20
 
     def get_queryset(self):
         """
@@ -92,7 +93,9 @@ class ListsListView(generic.ListView):
         Campaign mode lists are only visible within their campaigns.
         Archived lists are excluded from this view unless requested.
         """
-        queryset = List.objects.all().select_related("content_house", "owner")
+        queryset = List.objects.all().select_related(
+            "content_house", "owner", "campaign"
+        )
 
         # Apply "Your Lists" filter (default on if user is authenticated)
         show_my_lists = self.request.GET.get(
@@ -124,9 +127,8 @@ class ListsListView(generic.ListView):
             if status_filters:
                 queryset = queryset.filter(status__in=status_filters)
         else:
-            # Default to showing only list building mode
-            # Campaign mode lists are only visible within their campaigns
-            queryset = queryset.filter(status=List.LIST_BUILDING)
+            # Default to showing all
+            pass
 
         # Apply search filter
         search_query = self.request.GET.get("q")
