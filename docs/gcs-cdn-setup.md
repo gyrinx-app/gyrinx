@@ -1,8 +1,13 @@
-# Setting Up GCS with CDN for Gyrinx
+---
+hidden: true
+---
+
+# GCS CDN Setup
 
 ## Option 1: Direct GCS Serving (Current Setup)
 
 ### Required GCS Bucket Setup with Uniform Access:
+
 ```bash
 # Create the bucket with uniform bucket-level access (recommended)
 # Using europe-west2 (London) to match your infrastructure
@@ -28,6 +33,7 @@ gsutil cors set cors.json gs://YOUR_BUCKET_NAME
 ```
 
 ### Service Account Permissions:
+
 ```bash
 # Grant Cloud Run service account upload permissions
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
@@ -39,6 +45,7 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
 ## Option 2: Cloud CDN Setup (Recommended)
 
 ### 1. Create Backend Bucket:
+
 ```bash
 # Create a backend bucket resource
 gcloud compute backend-buckets create gyrinx-media-backend \
@@ -50,6 +57,7 @@ gcloud compute backend-buckets create gyrinx-media-backend \
 ```
 
 ### 2. Create URL Map:
+
 ```bash
 # Create URL map
 gcloud compute url-maps create gyrinx-media-cdn \
@@ -57,6 +65,7 @@ gcloud compute url-maps create gyrinx-media-cdn \
 ```
 
 ### 3. Create HTTPS Proxy:
+
 ```bash
 # Create HTTPS proxy
 gcloud compute target-https-proxies create gyrinx-media-https-proxy \
@@ -65,6 +74,7 @@ gcloud compute target-https-proxies create gyrinx-media-https-proxy \
 ```
 
 ### 4. Create Forwarding Rule:
+
 ```bash
 # Reserve static IP
 gcloud compute addresses create gyrinx-media-ip --global
@@ -78,9 +88,11 @@ gcloud compute forwarding-rules create gyrinx-media-https-rule \
 ```
 
 ### 5. Update DNS:
+
 Point `cdn.gyrinx.app` to the reserved IP address.
 
 ### 6. Update Django Settings:
+
 Use `settings_prod_cdn.py` or set `CDN_DOMAIN=cdn.gyrinx.app` in your environment.
 
 ## Option 3: Cloudflare CDN (Easiest)
@@ -88,27 +100,30 @@ Use `settings_prod_cdn.py` or set `CDN_DOMAIN=cdn.gyrinx.app` in your environmen
 1. Add your GCS bucket as a Cloudflare origin
 2. Create a CNAME record: `cdn.gyrinx.app` → `storage.googleapis.com`
 3. Configure page rules:
-   - Cache Level: Cache Everything
-   - Edge Cache TTL: 1 month
-   - Browser Cache TTL: 1 year
+   * Cache Level: Cache Everything
+   * Edge Cache TTL: 1 month
+   * Browser Cache TTL: 1 year
 
 ## Cache Optimization Tips
 
 ### For uploaded images:
-- Use immutable cache headers for uploaded files (already configured)
-- Consider adding image optimization (WebP conversion, resizing)
-- Use consistent URLs (our UUID approach ensures this)
+
+* Use immutable cache headers for uploaded files (already configured)
+* Consider adding image optimization (WebP conversion, resizing)
+* Use consistent URLs (our UUID approach ensures this)
 
 ### Security Considerations:
-- All uploaded files are publicly readable
-- Consider adding a separate bucket for private files if needed
-- Monitor bucket access logs for abuse
-- Set up bucket lifecycle policies to delete old unused files
+
+* All uploaded files are publicly readable
+* Consider adding a separate bucket for private files if needed
+* Monitor bucket access logs for abuse
+* Set up bucket lifecycle policies to delete old unused files
 
 ## Monitoring
 
 Set up Cloud Monitoring alerts for:
-- Bucket size growth
-- Request rates
-- 4xx/5xx errors
-- Bandwidth usage
+
+* Bucket size growth
+* Request rates
+* 4xx/5xx errors
+* Bandwidth usage

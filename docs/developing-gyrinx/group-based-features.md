@@ -1,4 +1,4 @@
-# Group-Based Feature Toggles
+# Group-Based Features
 
 Group-based feature toggles allow developers to show or hide features based on a user's membership in Django groups. This system is used for alpha/beta testing, gradual rollouts, and access control.
 
@@ -29,15 +29,21 @@ def in_group(user, group_name):
 Load the template tag library:
 
 ```django
-{% load group_tags %}
+
+<div data-gb-custom-block data-tag="load"></div>
+
 ```
 
 Check group membership:
 
 ```django
-{% if user|in_group:"Campaigns Alpha" %}
+
+<div data-gb-custom-block data-tag="if" data-0='Campaigns Alpha'>
+
     <!-- Content only visible to group members -->
-{% endif %}
+
+</div>
+
 ```
 
 ## Examples
@@ -45,35 +51,52 @@ Check group membership:
 ### Navigation Items
 
 ```django
-{% if user|in_group:"Campaigns Alpha" %}
+
+<div data-gb-custom-block data-tag="if" data-0='Campaigns Alpha'>
+
     <li class="nav-item">
-        <a class="nav-link {% active_view 'core:campaigns' %}"
-           href="{% url 'core:campaigns' %}">Campaigns</a>
+        <a class="nav-link 
+
+<div data-gb-custom-block data-tag="active_view" data-0='core:campaigns'></div>"
+           href="<div data-gb-custom-block data-tag="url" data-0='core:campaigns'></div>
+
+">Campaigns</a>
     </li>
-{% endif %}
+
+</div>
+
 ```
 
 ### Feature Sections
 
 ```django
-{% if user|in_group:"Beta Features" %}
+
+<div data-gb-custom-block data-tag="if" data-0='Beta Features'>
+
     <div class="card">
         <h2>Beta Features</h2>
         <!-- Beta content -->
     </div>
-{% endif %}
+
+</div>
+
 ```
 
 ### Conditional Elements
 
 ```django
-{% if user|in_group:"Premium Users" %}
+
+<div data-gb-custom-block data-tag="if" data-0='Premium Users'>
+
     <button class="btn btn-primary">Advanced Export</button>
-{% else %}
+
+<div data-gb-custom-block data-tag="else"></div>
+
     <button class="btn btn-secondary" disabled>
         Advanced Export (Premium Only)
     </button>
-{% endif %}
+
+</div>
 ```
 
 ## Managing Groups
@@ -81,18 +104,21 @@ Check group membership:
 ### Creating Groups
 
 Via Django Admin:
+
 1. Navigate to `/admin/auth/group/`
 2. Click "Add Group"
 3. Enter group name
 4. Save
 
 Via Django Shell:
+
 ```python
 from django.contrib.auth.models import Group
 Group.objects.create(name="Feature Group Name")
 ```
 
 Via Data Migration:
+
 ```python
 def create_groups(apps, schema_editor):
     Group = apps.get_model('auth', 'Group')
@@ -102,11 +128,13 @@ def create_groups(apps, schema_editor):
 ### Adding Users to Groups
 
 Via Django Admin:
+
 1. Navigate to user's detail page
 2. Select groups in "Groups" field
 3. Save
 
 Via Django Shell:
+
 ```python
 from django.contrib.auth.models import User, Group
 user = User.objects.get(username="username")
@@ -130,8 +158,8 @@ def test_feature_visible_to_group_members(self):
 
 ## Current Feature Groups
 
-| Group Name | Purpose | Features |
-|------------|---------|----------|
+| Group Name      | Purpose                           | Features                                    |
+| --------------- | --------------------------------- | ------------------------------------------- |
 | Campaigns Alpha | Early access to campaign features | Campaign navigation link, campaign creation |
 
 ## Best Practices
@@ -144,14 +172,15 @@ def test_feature_visible_to_group_members(self):
 
 ## Security Considerations
 
-- Group membership is checked server-side
-- Template filter prevents rendering, not just hiding with CSS
-- Groups should not be used for critical security permissions
-- Use Django's permission system for access control
+* Group membership is checked server-side
+* Template filter prevents rendering, not just hiding with CSS
+* Groups should not be used for critical security permissions
+* Use Django's permission system for access control
 
 ## Performance
 
 The `in_group` filter:
-- Makes one database query per check
-- Results are not cached by default
-- Consider using `select_related('groups')` for user queries if checking many groups
+
+* Makes one database query per check
+* Results are not cached by default
+* Consider using `select_related('groups')` for user queries if checking many groups

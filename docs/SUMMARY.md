@@ -10,13 +10,11 @@
 
 * [Bootstrap Usage Guide](bootstrap-usage-guide.md)
 * [Icon Usage](icon-usage.md)
-* [Fighter Advancements](fighter-advancements.md)
 * [Manual Testing Guide](manual-testing-guide.md)
 * [GCS CDN Setup](gcs-cdn-setup.md)
 
 ## Technical Reference
 
-* [Technology Choices](technology-choices.md)
 * [Models and Database](developing-gyrinx/models-and-database.md)
 * [API](api.md)
 * [Content](content.md)
@@ -24,6 +22,7 @@
 * [Campaigns](campaigns.md)
 * [Psykers](psykers.md)
 * [Fighter Cost System Reference](fighter-cost-system-reference.md)
+* [Fighter Advancements](technical-reference/fighter-advancements.md)
 * [History Tracking](developing-gyrinx/history-tracking.md)
 * [Group-Based Features](developing-gyrinx/group-based-features.md)
 * [Deployment Environment Variables](deployment-environment-variables.md)
@@ -31,6 +30,7 @@
 
 ## Explanation
 
+* [Technology Choices](explanation/technology-choices.md)
 * [Key Concepts](developing-gyrinx/key-concepts.md)
 * [Fighter Cost System Design](fighter-cost-system-design.md)
 * [Frontend Development](developing-gyrinx/frontend-development.md)

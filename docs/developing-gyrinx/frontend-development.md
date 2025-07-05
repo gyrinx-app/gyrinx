@@ -5,19 +5,22 @@ Gyrinx follows a server-rendered approach using Django templates with Bootstrap 
 ## Technology Stack
 
 ### Core Technologies
-- **Django Templates** - Server-side rendering with template inheritance
-- **Bootstrap 5** - CSS framework for responsive design
-- **SCSS** - CSS preprocessing for maintainable styles
-- **Vanilla JavaScript** - Minimal client-side interactivity
+
+* **Django Templates** - Server-side rendering with template inheritance
+* **Bootstrap 5** - CSS framework for responsive design
+* **SCSS** - CSS preprocessing for maintainable styles
+* **Vanilla JavaScript** - Minimal client-side interactivity
 
 ### Build Tools
-- **npm** - Package management and build scripts
-- **SCSS compilation** - CSS preprocessing
-- **No bundlers** - Keep it simple with direct file serving
+
+* **npm** - Package management and build scripts
+* **SCSS compilation** - CSS preprocessing
+* **No bundlers** - Keep it simple with direct file serving
 
 ## Template Architecture
 
 ### Template Hierarchy
+
 ```
 templates/
 ├── core/layouts/
@@ -37,37 +40,51 @@ templates/
 ### Template Usage Patterns
 
 **Full Page Layout**
+
 ```django
-{% extends "core/layouts/base.html" %}
 
-{% block title %}My Page Title{% endblock %}
+<div data-gb-custom-block data-tag="extends" data-0='core/layouts/base.html'></div>
 
-{% block content %}
+<div data-gb-custom-block data-tag="block">My Page Title</div>
+
+<div data-gb-custom-block data-tag="block">
+
 <div class="container">
     <h1>Page Content</h1>
 </div>
-{% endblock %}
+
+</div>
+
 ```
 
 **Simple Content Page**
+
 ```django
-{% extends "core/layouts/page.html" %}
 
-{% block page_title %}Simple Page{% endblock %}
+<div data-gb-custom-block data-tag="extends" data-0='core/layouts/page.html'></div>
 
-{% block page_content %}
+<div data-gb-custom-block data-tag="block">Simple Page</div>
+
+<div data-gb-custom-block data-tag="block">
+
 <p>Simple content without navigation complexity</p>
-{% endblock %}
+
+</div>
+
 ```
 
 **Back Button Navigation**
+
 ```django
-{% include "core/includes/back.html" with url=target_url text="Back to Lists" %}
+
+<div data-gb-custom-block data-tag="include" data-0='core/includes/back.html' data-text='Back to Lists'></div>
+
 ```
 
 ## Styling with Bootstrap 5
 
 ### Mobile-First Approach
+
 All designs start with mobile layout and scale up:
 
 ```html
@@ -85,6 +102,7 @@ All designs start with mobile layout and scale up:
 ### Common Bootstrap Patterns
 
 **Cards for Content Grouping**
+
 ```html
 <div class="card">
     <div class="card-header">
@@ -97,9 +115,13 @@ All designs start with mobile layout and scale up:
 ```
 
 **Form Styling**
+
 ```html
 <form method="post">
-    {% csrf_token %}
+    
+
+<div data-gb-custom-block data-tag="csrf_token"></div>
+
     <div class="mb-3">
         <label for="name" class="form-label">Name</label>
         <input type="text" class="form-control" id="name" name="name">
@@ -109,6 +131,7 @@ All designs start with mobile layout and scale up:
 ```
 
 **Responsive Tables**
+
 ```html
 <div class="table-responsive">
     <table class="table table-striped">
@@ -127,6 +150,7 @@ All designs start with mobile layout and scale up:
 ## SCSS Development
 
 ### File Structure
+
 ```
 gyrinx/core/static/core/scss/
 ├── styles.scss           # Main entry point
@@ -136,6 +160,7 @@ gyrinx/core/static/core/scss/
 ```
 
 ### Build Process
+
 ```bash
 # Compile SCSS to CSS
 npm run css
@@ -148,9 +173,10 @@ npm run css-lint
 ```
 
 ### Custom Styling Approach
-- Override Bootstrap variables rather than writing custom CSS
-- Use Bootstrap utility classes when possible
-- Create component-specific styles only when needed
+
+* Override Bootstrap variables rather than writing custom CSS
+* Use Bootstrap utility classes when possible
+* Create component-specific styles only when needed
 
 ```scss
 // _variables.scss - Override Bootstrap defaults
@@ -171,15 +197,18 @@ $font-family-base: 'Your-Font', sans-serif;
 ## JavaScript Usage
 
 ### Minimal JavaScript Philosophy
+
 Gyrinx uses minimal JavaScript, favoring server-side rendering and simple form submissions.
 
 ### When to Use JavaScript
-- Form enhancements (show/hide fields)
-- Client-side validation feedback
-- Simple interactive elements (dropdowns, modals)
-- Progressive enhancement only
+
+* Form enhancements (show/hide fields)
+* Client-side validation feedback
+* Simple interactive elements (dropdowns, modals)
+* Progressive enhancement only
 
 ### JavaScript Patterns
+
 ```javascript
 // Progressive enhancement
 document.addEventListener('DOMContentLoaded', function() {
@@ -197,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
 ## Form Handling
 
 ### Django Form Integration
+
 ```python
 # forms.py
 class ListForm(forms.ModelForm):
@@ -213,13 +243,17 @@ class ListForm(forms.ModelForm):
 ```django
 <!-- Template -->
 <form method="post">
-    {% csrf_token %}
+    
+
+<div data-gb-custom-block data-tag="csrf_token"></div>
+
     {{ form.as_p }}
     <button type="submit" class="btn btn-primary">Save</button>
 </form>
 ```
 
 ### Custom Form Rendering
+
 ```django
 <!-- Manual form field rendering for better control -->
 <div class="mb-3">
@@ -227,15 +261,22 @@ class ListForm(forms.ModelForm):
         {{ form.name.label }}
     </label>
     {{ form.name }}
-    {% if form.name.errors %}
+    
+
+<div data-gb-custom-block data-tag="if">
+
         <div class="text-danger">{{ form.name.errors }}</div>
-    {% endif %}
+    
+
+</div>
+
 </div>
 ```
 
 ## Static File Management
 
 ### Development
+
 ```bash
 # Collect static files for development
 manage collectstatic --noinput
@@ -245,11 +286,13 @@ DEBUG=True  # in settings_dev.py
 ```
 
 ### Production
-- WhiteNoise serves static files
-- Files are collected during deployment
-- CSS is compiled from SCSS in build process
+
+* WhiteNoise serves static files
+* Files are collected during deployment
+* CSS is compiled from SCSS in build process
 
 ### File Organization
+
 ```
 gyrinx/core/static/core/
 ├── css/
@@ -266,28 +309,35 @@ gyrinx/core/static/core/
 ## Performance Considerations
 
 ### Template Performance
-- Use `{% load static %}` efficiently
-- Cache template fragments with `{% cache %}`
-- Minimize database queries in templates
+
+* Use \`
+
+\` efficiently\
+\- Cache template fragments with \`\`\
+\- Minimize database queries in templates
 
 ### CSS Performance
-- Minimize custom CSS
-- Use Bootstrap utilities to reduce file size
-- Optimize images for web delivery
+
+* Minimize custom CSS
+* Use Bootstrap utilities to reduce file size
+* Optimize images for web delivery
 
 ### JavaScript Performance
-- Load JavaScript at end of `<body>`
-- Use event delegation for dynamic content
-- Avoid large JavaScript frameworks
+
+* Load JavaScript at end of `<body>`
+* Use event delegation for dynamic content
+* Avoid large JavaScript frameworks
 
 ## Accessibility
 
 ### Built-in Bootstrap Accessibility
-- Use semantic HTML elements
-- Leverage Bootstrap's ARIA attributes
-- Ensure keyboard navigation works
+
+* Use semantic HTML elements
+* Leverage Bootstrap's ARIA attributes
+* Ensure keyboard navigation works
 
 ### Custom Accessibility
+
 ```html
 <!-- Proper labeling -->
 <label for="fighter-name">Fighter Name</label>
@@ -305,6 +355,7 @@ gyrinx/core/static/core/
 ## Testing Frontend Code
 
 ### Template Testing
+
 ```python
 @pytest.mark.django_db
 def test_list_template_renders():
@@ -317,18 +368,22 @@ def test_list_template_renders():
 ```
 
 ### CSS Testing
-- Visual regression testing (manual)
-- Cross-browser testing on common devices
-- Mobile responsiveness testing
+
+* Visual regression testing (manual)
+* Cross-browser testing on common devices
+* Mobile responsiveness testing
 
 ### JavaScript Testing
-- Manual testing for progressive enhancement
-- Ensure core functionality works without JavaScript
+
+* Manual testing for progressive enhancement
+* Ensure core functionality works without JavaScript
 
 ## Future Considerations
 
 ### htmx Integration
+
 While not currently used, htmx could add interactivity:
+
 ```html
 <!-- Potential future pattern -->
 <button hx-post="/lists/create/" hx-target="#list-container">
@@ -337,6 +392,7 @@ While not currently used, htmx could add interactivity:
 ```
 
 ### Performance Monitoring
-- Consider adding Core Web Vitals monitoring
-- Monitor CSS bundle size growth
-- Track JavaScript execution time
+
+* Consider adding Core Web Vitals monitoring
+* Monitor CSS bundle size growth
+* Track JavaScript execution time

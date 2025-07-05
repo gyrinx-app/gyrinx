@@ -1,3 +1,7 @@
+---
+hidden: true
+---
+
 # Changelog Management
 
 Gyrinx uses an automated changelog management system to keep track of changes and releases. The changelog follows the [Keep a Changelog](https://keepachangelog.com/) format and helps users and developers understand what has changed between versions.
@@ -24,20 +28,20 @@ The changelog update script (`scripts/update_changelog.sh`) performs the followi
 2. **Commit Analysis**: Retrieves all commits since that date using `git log`
 3. **Content Generation**: Uses the `llm` CLI tool with Claude 3.5 Sonnet to analyze commits and generate formatted entries
 4. **Categorization**: Groups changes by:
-   - Features (commits with `feat:` prefix)
-   - Fixes (commits with `fix:` prefix)
-   - Documentation (commits with `docs:` prefix)
-   - Dependencies (dependency updates)
-   - UI/UX (user interface improvements)
-   - Other (any other significant changes)
+   * Features (commits with `feat:` prefix)
+   * Fixes (commits with `fix:` prefix)
+   * Documentation (commits with `docs:` prefix)
+   * Dependencies (dependency updates)
+   * UI/UX (user interface improvements)
+   * Other (any other significant changes)
 5. **File Update**: Creates a backup and updates the changelog file
 6. **Validation**: Ensures the generated content is valid before replacing the original
 
 ### Prerequisites
 
-- The `llm` CLI tool must be installed and configured with Claude 3.5 Sonnet
-- Git repository with commit history
-- Write permissions to the changelog file
+* The `llm` CLI tool must be installed and configured with Claude 3.5 Sonnet
+* Git repository with commit history
+* Write permissions to the changelog file
 
 ### Changelog Format
 
@@ -84,9 +88,10 @@ If you prefer to update the changelog manually or need to see what changes need 
 ```
 
 This will display:
-- The last changelog date
-- Recent commits that need to be added
-- A formatted prompt you can use with Claude or another LLM
+
+* The last changelog date
+* Recent commits that need to be added
+* A formatted prompt you can use with Claude or another LLM
 
 ## Development Workflow Integration
 
@@ -97,29 +102,29 @@ When working with Claude Code on this repository, Claude will check the last dat
 ### For Developers
 
 Consider updating the changelog:
-- Before creating a new release
-- After merging significant features or fixes
-- As part of your regular maintenance routine
-- When the last update is more than a few days old
+
+* Before creating a new release
+* After merging significant features or fixes
+* As part of your regular maintenance routine
+* When the last update is more than a few days old
 
 ### Troubleshooting
 
 If the script fails:
 
-1. **Check LLM Installation**: Ensure `llm` is installed and configured
-   ```bash
-   llm --version
-   llm models
-   ```
+1.  **Check LLM Installation**: Ensure `llm` is installed and configured
 
-2. **Verify Git Repository**: Make sure you're in a git repository with commits
-   ```bash
-   git status
-   git log --oneline -10
-   ```
+    ```bash
+    llm --version
+    llm models
+    ```
+2.  **Verify Git Repository**: Make sure you're in a git repository with commits
 
+    ```bash
+    git status
+    git log --oneline -10
+    ```
 3. **Check File Permissions**: Ensure you have write access to the changelog file
-
 4. **Review Generated Content**: If the script creates a temp file but doesn't update the changelog, check the temp file for issues
 
 ### Alternative Update Methods
