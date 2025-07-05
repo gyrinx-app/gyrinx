@@ -9,8 +9,7 @@
     <div class="col-lg-8 px-0">
         <h1>Campaign Versions</h1>
         <p class="text-secondary">
-            All campaign versions of <a href="{{ list_url }}"
-    class="link-underline-info text-decoration-underline">{{ list.name }}</a>
+            All campaign versions of <a href="{{ list_url }}" class="linked">{{ list.name }}</a>
         </p>
         {% if campaign_clones %}
             <div class="table-responsive">
@@ -40,7 +39,7 @@
                                 <td>
                                     {% if clone.campaign %}
                                         <a href="{% url 'core:user' clone.campaign.owner.username %}"
-                                           class="link-underline-info text-decoration-underline">{{ clone.campaign.owner.username }}</a>
+                                           class="linked">{{ clone.campaign.owner.username }}</a>
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}

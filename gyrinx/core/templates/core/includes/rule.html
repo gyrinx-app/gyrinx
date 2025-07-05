@@ -3,7 +3,7 @@
     {% if rule.modded %}
         <span bs-tooltip
               data-bs-toggle="tooltip"
-              class="link-underline-info text-decoration-underline"
+              class="tooltipped"
               title="Added by equipment, accessories or upgrades">{{ rule.value }}</span>
     {% else %}
         {% ref rule.value value=rule.value %}<!-- ! -->

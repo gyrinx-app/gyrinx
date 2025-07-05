@@ -52,10 +52,7 @@
                                         {% for resource in resources %}
                                             <tr>
                                                 <td class="ps-3">
-                                                    <a href="{% url 'core:list' resource.list.id %}"
-                                                       class="link-underline-info text-decoration-underline">
-                                                        {{ resource.list.name }}
-                                                    </a>
+                                                    <a href="{% url 'core:list' resource.list.id %}" class="linked">{{ resource.list.name }}</a>
                                                 </td>
                                                 <td class="text-center">
                                                     <span class="badge bg-primary fs-6">{{ resource.amount }}</span>

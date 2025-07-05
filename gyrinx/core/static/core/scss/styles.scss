@@ -98,14 +98,29 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 
 // Links
 
-a[href="#"][data-bs-toggle="tooltip"] {
+[data-bs-toggle="tooltip"] {
     cursor: help;
+}
+
+.linked {
+    @extend .link-underline-opacity-25;
+    @extend .link-underline-opacity-100-hover;
+    @extend .link-offset-1;
 }
 
 .link-sm {
     @extend .link-underline-opacity-25;
     @extend .link-underline-opacity-100-hover;
+    @extend .link-offset-1;
     @extend .fs-7;
+}
+
+.tooltipped {
+    @extend .link-underline-opacity-50;
+    @extend .link-underline-info;
+    @extend .link-underline-opacity-100-hover;
+    @extend .link-offset-1;
+    @extend .text-decoration-underline;
 }
 
 // Tables

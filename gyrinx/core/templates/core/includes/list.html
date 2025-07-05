@@ -25,57 +25,54 @@
         </div>
         <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
-                <div class="text-secondary">
+                <div>
                     <i class="bi-person"></i>
-                    <a class="link-secondary"
+                    <a class="linked"
                        href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
                 </div>
                 {% if not print %}
-                    <div class="text-secondary">
+                    <div>
                         {% if list.public %}
                             <i class="bi-eye"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This list is visible to all users"
-                                  class="link-underline-info text-decoration-underline">Public</span>
+                                  class="tooltipped">Public</span>
                         {% endif %}
                         {% if list.owner_cached == user and not list.public %}
                             <i class="bi-eye-slash"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This list is only visible to you"
-                                  class="link-underline-info text-decoration-underline">Private</span>
+                                  class="tooltipped">Private</span>
                         {% endif %}
                     </div>
                     {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-archive"></i>
-                            <a href="{% url 'core:list-archived-fighters' list.id %}"
-                               class="link-underline-info text-decoration-underline">
+                            <a href="{% url 'core:list-archived-fighters' list.id %}" class="linked">
                                 {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
                             </a>
                         </div>
                     {% endif %}
                     {% if list.narrative %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-file-text"></i>
-                            <a class="link-underline-info text-decoration-underline"
-                               href="{% url 'core:list-about' list.id %}">About</a>
+                            <a class="linked" href="{% url 'core:list-about' list.id %}">About</a>
                         </div>
                     {% endif %}
                     {% if list.is_campaign_mode and list.original_list %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-copy"
                                data-bs-toggle="tooltip"
                                data-bs-title="This list was created via cloning"></i>
-                            <a href="{% url 'core:list' list.original_list.id %}"
-                               class="link-underline-info text-decoration-underline">{{ list.original_list.name }}</a>
+                            Cloned from <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
                         </div>
                         {% if list.campaign %}
-                            <div class="text-secondary">
+                            <div>
                                 <i class="bi-award"
                                    data-bs-toggle="tooltip"
                                    data-bs-title="Active in Campaign"></i>
-                                <a href="{% url 'core:campaign' list.campaign.id %}"
-                                   class="link-underline-info text-decoration-underline">{{ list.campaign.name }}</a>
+                                Active in
+                                <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
                                 {% if list.campaign.is_pre_campaign %}
                                     <span class="badge bg-secondary ms-1">Pre-Campaign</span>
                                 {% elif list.campaign.is_in_progress %}
@@ -87,12 +84,11 @@
                         {% endif %}
                     {% endif %}
                     {% if list.is_list_building and list.active_campaign_clones.exists %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-award"
                                data-bs-toggle="tooltip"
                                data-bs-title="Active in Campaign"></i>
-                            <a href="{% url 'core:list-campaign-clones' list.id %}"
-                               class="link-underline-info text-decoration-underline">Active in Campaigns</a>
+                            <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">Active in Campaigns</a>
                         </div>
                     {% endif %}
                 {% endif %}

@@ -182,9 +182,8 @@ def ref(*args, category=None, value=None):
     ref_str = ", ".join(ref.bookref() for ref in refs)
 
     full_ref = format_html(
-        '<a data-bs-toggle="tooltip" data-bs-title="{}" href=\'{}\' class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{}</a>',
+        '<span data-bs-toggle="tooltip" data-bs-title="{}" class="tooltipped">{}</span>',
         ref_str,
-        "#",
         value,
     )
     cache.set(cache_key, full_ref)

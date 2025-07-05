@@ -1,7 +1,7 @@
 {% if assign.kind == 'default' %}
     <span bs-tooltip
           data-bs-toggle="tooltip"
-          class="link-underline-info text-decoration-underline"
+          class="tooltipped"
           title="This weapon is assigned to the fighter by default.">
     {% endif %}
     {{ assign.base_name }}
@@ -9,7 +9,7 @@
 {% if assign.has_total_cost_override %}
     <span bs-tooltip
           data-bs-toggle="tooltip"
-          class="link-underline-info text-decoration-underline"
+          class="tooltipped"
           title="The total cost of this weapon (including ammo, accessories, and upgrades) is manually overriden.">
         ({{ assign.cost_display }})
     </span>

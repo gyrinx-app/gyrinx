@@ -39,7 +39,7 @@
                             <i class="bi-person"></i>
                             <a href="#{{ fighter.linked_list_fighter.id }}"
                                data-bs-toggle="tooltip"
-                               class="link-underline-info text-decoration-underline"
+                               class="tooltipped"
                                title="This Fighter is linked to {{ fighter.linked_list_fighter.name }} as Gear">
                                 {{ fighter.linked_list_fighter.name }}
                             </a>
@@ -207,7 +207,7 @@
                                 </div>
                                 {% if can_edit and list.owner == user or not can_edit and list.campaign and list.campaign.owner == user %}
                                     <a href="{% url 'core:list-credits-edit' list.id %}"
-                                       class="icon-link link-underline-info text-decoration-underline fs-7">
+                                       class="icon-link linked fs-7">
                                         <i class="bi-pencil" aria-hidden="true"></i> Modify
                                     </a>
                                 {% endif %}
