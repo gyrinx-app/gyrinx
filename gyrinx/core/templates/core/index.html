@@ -4,17 +4,19 @@
     Home
 {% endblock head_title %}
 {% block prebody %}
-    {% if not user.is_authenticated %}
-        <div id="hero"
-             class="hero"
-             style="background-image:linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.7)), url({% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %})">
-            <div class="container h-100 d-flex align-items-end py-4 z-1">
-                <h2 class="h1 fw-light text-light">
+    <div id="hero"
+         class="hero"
+         style="background-image:linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.7)), url({% static 'core/img/content/93daeffd-9587-404a-b3e1-33eff4ce7398.jpg' %})">
+        <div class="container h-100 d-flex align-items-end py-4 z-1">
+            <h2 class="h1 fw-light text-light">
+                {% if user.is_authenticated %}
+                    <strong>Welcome to Gyrinx's</strong> Necromunda tools.
+                {% else %}
                     <strong>Gyrinx</strong> is a new set of tools for the Necromunda community.
-                </h2>
-            </div>
+                {% endif %}
+            </h2>
         </div>
-    {% endif %}
+    </div>
 {% endblock prebody %}
 {% block content %}
     <div class="mb-5 pb-5">
