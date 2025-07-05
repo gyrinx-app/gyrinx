@@ -175,7 +175,40 @@ class ListFighterForm(forms.ModelForm):
                 # Don't allow the user to set a legacy content fighter on creation
                 self.fields.pop("legacy_content_fighter")
 
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
+        # Group fighters with the gang's own house first, then others alphabetically
+        # Also sort non-standard fighter types to the bottom
+        standard_categories = [
+            FighterCategoryChoices.LEADER,
+            FighterCategoryChoices.CHAMPION,
+            FighterCategoryChoices.GANGER,
+            FighterCategoryChoices.JUVE,
+            FighterCategoryChoices.PROSPECT,
+            FighterCategoryChoices.CREW,
+            FighterCategoryChoices.BRUTE,
+            FighterCategoryChoices.HANGER_ON,
+        ]
+
+        def fighter_group_key(fighter):
+            # Determine sort order:
+            # 0 = gang's own house fighters with standard categories
+            # 1 = gang's own house fighters with non-standard categories
+            # 2 = other house fighters with standard categories
+            # 3 = other house fighters with non-standard categories
+            is_gang_house = fighter.house_id == inst.list.content_house_id
+            is_standard_category = fighter.category in standard_categories
+
+            if is_gang_house:
+                if is_standard_category:
+                    return f"0_{inst.list.content_house.name}"
+                else:
+                    return f"1_{inst.list.content_house.name} (Other)"
+            else:
+                if is_standard_category:
+                    return f"2_{fighter.house.name}"
+                else:
+                    return f"3_{fighter.house.name} (Other)"
+
+        group_select(self, "content_fighter", key=fighter_group_key)
 
     class Meta:
         model = ListFighter
