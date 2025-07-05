@@ -1,0 +1,37 @@
+{% extends "account/base_manage.html" %}
+{% load allauth i18n %}
+{% block head_title %}
+    {% trans "Change Username" %}
+{% endblock head_title %}
+{% block content %}
+    <div class="card">
+        <div class="card-body">
+            <h1 class="h3 mb-4">{% trans "Change Username" %}</h1>
+            <p>
+                Your current username contains an '@' symbol: <strong>{{ user.username }}</strong>
+            </p>
+            <p>Please choose a new username that doesn't include '@'.</p>
+            <form method="post" class="vstack gap-3">
+                {% csrf_token %}
+                <div>
+                    <label for="{{ form.new_username.id_for_label }}" class="form-label">{{ form.new_username.label }}</label>
+                    {{ form.new_username }}
+                    {% if form.new_username.help_text %}<div class="form-text">{{ form.new_username.help_text }}</div>{% endif %}
+                    {% if form.new_username.errors %}
+                        <div class="invalid-feedback d-block">{{ form.new_username.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.captcha }}
+                    {% if form.captcha.errors %}<div class="invalid-feedback d-block">{{ form.captcha.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="hstack gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi-check-circle"></i> {% trans "Change Username" %}
+                    </button>
+                    <a href="{% url 'core:account_home' %}" class="btn btn-link">{% trans "Cancel" %}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

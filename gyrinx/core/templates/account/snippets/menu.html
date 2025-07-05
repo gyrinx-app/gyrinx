@@ -9,6 +9,16 @@
            href="{{ account_home_url_ }}"><i class="bi-gear"></i> {{ user.username }}</a>
     </li>
 {% endif %}
+{% if '@' in user.username %}
+    {% url 'core:change-username' as change_username_url_ %}
+    {% if change_username_url_ %}
+        <li class="{{ list_item_class }}">
+            <a class="{{ list_a_class }} {% active_view 'core:change-username' %}"
+               {% active_aria 'core:change-username' %}
+               href="{{ change_username_url_ }}">{% trans "Change Username" %}</a>
+        </li>
+    {% endif %}
+{% endif %}
 {% url 'account_email' as email_url_ %}
 {% if email_url_ %}
     <li class="{{ list_item_class }}">

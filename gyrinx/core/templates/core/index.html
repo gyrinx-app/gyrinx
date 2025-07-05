@@ -28,6 +28,17 @@
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
                 {% include "core/includes/announcement_banner.html" %}
+                {% if '@' in user.username %}
+                    <div class="alert alert-warning d-flex align-items-center" role="alert">
+                        <i class="bi-exclamation-triangle me-2"></i>
+                        <div class="flex-grow-1">
+                            <strong>Update your username!</strong> Your current username contains an '@' symbol, which is no longer allowed.
+                            Please update it to continue using all features.
+                        </div>
+                        <a href="{% url 'core:change-username' %}"
+                           class="btn btn-warning btn-sm ms-3">Change Username</a>
+                    </div>
+                {% endif %}
                 <!-- Three column layout for desktop, stacked for mobile -->
                 <div class="row g-4">
                     <!-- Campaign gangs column -->
