@@ -1,11 +1,10 @@
 {% load custom_tags %}
 {% if not print %}
     {% if rule.modded %}
-        <a href="#"
-           bs-tooltip
-           data-bs-toggle="tooltip"
-           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-           title="Added by equipment, accessories or upgrades">{{ rule.value }}</a>
+        <span bs-tooltip
+              data-bs-toggle="tooltip"
+              class="tooltipped"
+              title="Added by equipment, accessories or upgrades">{{ rule.value }}</span>
     {% else %}
         {% ref rule.value value=rule.value %}<!-- ! -->
     {% endif %}

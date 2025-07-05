@@ -24,34 +24,27 @@
             </div>
             <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
                 <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
-                    <div class="text-secondary">
+                    <div>
                         <i class="bi-person"></i>
-                        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                           href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                        <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
                     </div>
                     {% if campaign.public %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-eye"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This campaign is visible to all users"
-                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</span>
+                                  class="tooltipped">Public</span>
                         </div>
                     {% else %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-eye-slash"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This campaign is only visible to you"
-                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Private</span>
-                        </div>
-                    {% endif %}
-                    {% if campaign.lists.count > 0 %}
-                        <div class="text-secondary">
-                            <i class="bi-list-ul"></i>
-                            <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
+                                  class="tooltipped">Private</span>
                         </div>
                     {% endif %}
                     {% if campaign.budget > 0 %}
-                        <div class="text-secondary">
+                        <div>
                             <i class="bi-coin"></i> {{ campaign.budget }}¢
                         </div>
                     {% endif %}
@@ -175,7 +168,7 @@
                                                     <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %}">
                                                         {% if asset.holder %}
                                                             <a href="{% url 'core:list' asset.holder.id %}"
-                                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                                               class="link-underline-opacity-25 link-underline-opacity-100-hover">
                                                                 {% list_with_theme asset.holder %}
                                                             </a>
                                                         {% else %}
@@ -240,10 +233,7 @@
                                             {% for resource in resources %}
                                                 <tr>
                                                     <td class="ps-2 ps-sm-3">
-                                                        <a href="{% url 'core:list' resource.list.id %}"
-                                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                            {% list_with_theme resource.list "me-1" %}
-                                                        </a>
+                                                        <a href="{% url 'core:list' resource.list.id %}" class="linked">{% list_with_theme resource.list "me-1" %}</a>
                                                     </td>
                                                     <td class="text-center">
                                                         <span class="badge bg-primary">{{ resource.amount }}</span>

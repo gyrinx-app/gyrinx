@@ -15,8 +15,7 @@
                 <h4 class="h6 mb-0">Stash Credits</h4>
                 <div class="hstack gap-2 align-items-center">
                     {% if list.owner_cached == user and not print %}
-                        <a href="{% url 'core:list-credits-edit' list.id %}"
-                           class="fs-7 link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+                        <a href="{% url 'core:list-credits-edit' list.id %}" class="fs-7 linked">Edit</a>
                     {% endif %}
                     <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
                 </div>
@@ -50,7 +49,7 @@
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                                 <span bs-tooltip
                                                       data-bs-toggle="tooltip"
-                                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                      class="tooltipped"
                                                       title="This is assigned to the fighter by default.">
                                                 {% endif %}
                                                 {{ assign.name }}

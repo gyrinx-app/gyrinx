@@ -47,11 +47,13 @@
                                             <a href="{% url 'core:list' gang.id %}">{% list_with_theme gang %}</a>
                                         </h3>
                                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div class="text-secondary">{{ gang.content_house.name }}</div>
+                                            <div>{{ gang.content_house.name }}</div>
                                             <div class="badge text-bg-primary">{{ gang.cost_display }}</div>
                                         </div>
-                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div class="text-secondary">{{ gang.campaign.name }}</div>
+                                        <div class="small">
+                                            <i class="bi-award"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-title="Active in Campaign"></i> <a href="{% url 'core:campaign' gang.campaign.id %}">{{ gang.campaign.name }}</a>
                                         </div>
                                         {% load tz %}
                                         <div class="text-muted small">Last edit: {{ gang.modified|timesince }} ago</div>
@@ -63,7 +65,7 @@
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-secondary">You have no campaign gangs.</p>
+                                <p>You have no campaign gangs.</p>
                             {% endfor %}
                         </div>
                     </div>
@@ -130,7 +132,7 @@
                                             <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
                                         </h3>
                                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div class="text-secondary">{{ list.content_house.name }}</div>
+                                            <div>{{ list.content_house.name }}</div>
                                             <div class="badge text-bg-primary">{{ list.cost_display }}</div>
                                         </div>
                                         {% load tz %}

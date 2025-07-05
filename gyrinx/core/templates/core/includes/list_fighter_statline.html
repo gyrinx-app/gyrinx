@@ -1,11 +1,10 @@
 {% for stat in fighter.statline %}
     <td class="text-center {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}">
         {% if stat.modded %}
-            <a href="#"
-               bs-tooltip
-               data-bs-toggle="tooltip"
-               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-               title="Modified by equipment, accessories, upgrades, or manually">{{ stat.value }}</a>
+            <span bs-tooltip
+                  data-bs-toggle="tooltip"
+                  class="tooltipped"
+                  title="Modified by equipment, accessories, upgrades, or manually">{{ stat.value }}</span>
         {% else %}
             {{ stat.value }}
         {% endif %}

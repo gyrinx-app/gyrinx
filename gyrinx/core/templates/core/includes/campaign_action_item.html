@@ -13,15 +13,11 @@
             <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
             {% if action.list and show_list_link|default:True %}
                 •
-                <a href="{% url 'core:list' action.list.id %}"
-                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                    {% list_with_theme action.list %}
-                </a>
+                <a href="{% url 'core:list' action.list.id %}" class="linked">{% list_with_theme action.list %}</a>
             {% endif %}
             {% if action.battle %}
                 •
-                <a href="{% url 'core:battle' action.battle.id %}"
-                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                <a href="{% url 'core:battle' action.battle.id %}" class="linked">
                     <i class="bi-flag"></i> {{ action.battle.mission }}
                 </a>
             {% endif %}
@@ -53,7 +49,7 @@
     {% elif action.user == user %}
         <small>
             <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
-               class="link-primary">Add outcome</a>
+               class="linked">Add outcome</a>
         </small>
     {% endif %}
 </div>
