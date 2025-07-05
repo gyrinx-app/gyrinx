@@ -30,8 +30,8 @@ from gyrinx.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
-from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.core.models.list import CapturedFighter, List
 
 
 def get_campaign_resource_types_with_resources(campaign):
@@ -891,12 +891,14 @@ def campaign_asset_new(request, id, type_id):
     :template:`core/campaign/campaign_asset_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
-    asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
+    asset_type: CampaignAssetType = get_object_or_404(
+        CampaignAssetType, id=type_id, campaign=campaign
+    )
 
     if request.method == "POST":
         form = CampaignAssetForm(request.POST, asset_type=asset_type)
         if form.is_valid():
-            asset = form.save(commit=False)
+            asset: CampaignAsset = form.save(commit=False)
             asset.asset_type = asset_type
             asset.owner = request.user
             asset.save()
@@ -911,7 +913,7 @@ def campaign_asset_new(request, id, type_id):
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
                 asset_name=asset.name,
-                asset_type=asset_type.name,
+                asset_type=asset_type.name_singular,
             )
 
             messages.success(request, f"Asset '{asset.name}' created.")
