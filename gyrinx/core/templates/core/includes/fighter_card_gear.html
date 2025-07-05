@@ -1,6 +1,6 @@
 {% load allauth custom_tags %}
-<div class="card border-dark g-col-12 g-col-md-6" id="{{ fighter.id }}">
-    <div class="card-header border-dark p-2">
+<div class="card g-col-12 g-col-md-6" id="{{ fighter.id }}">
+    <div class="card-header p-2">
         <div class="vstack gap-1">
             <div class="hstack align-items-center">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
@@ -32,11 +32,11 @@
                         <th class="text-center border-bottom" scope="col">W</th>
                         <th class="text-center border-bottom" scope="col">I</th>
                         <th class="text-center border-bottom" scope="col">A</th>
-                        <th class="text-center border-bottom table-warning border-start"
+                        <th class="text-center border-bottom bg-warning-subtle border-start"
                             scope="col">Ld</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Cl</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Wil</th>
-                        <th class="text-center border-bottom table-warning" scope="col">Int</th>
+                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Cl</th>
+                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Wil</th>
+                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Int</th>
                     </tr>
                 </thead>
                 <tbody>
