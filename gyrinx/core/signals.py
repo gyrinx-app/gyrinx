@@ -139,7 +139,7 @@ def log_email_changed(request, user, from_email_address, to_email_address, **kwa
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.EMAIL,
-        from_email=from_email_address.email,
+        from_email=from_email_address.email if from_email_address else None,
         to_email=to_email_address.email,
     )
 

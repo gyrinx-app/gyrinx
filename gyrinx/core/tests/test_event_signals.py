@@ -7,7 +7,12 @@ third-party packages like allauth are properly logged.
 
 import pytest
 from allauth.account.models import EmailAddress
-from allauth.account.signals import email_confirmed, user_logged_in, user_signed_up
+from allauth.account.signals import (
+    email_changed,
+    email_confirmed,
+    user_logged_in,
+    user_signed_up,
+)
 from django.contrib.auth import get_user_model
 from django.contrib.auth.signals import user_logged_out
 from django.contrib.sessions.backends.db import SessionStore
@@ -151,3 +156,101 @@ def test_email_confirmed_signal_logs_event():
     assert event.context["email"] == "test@example.com"
     assert event.context["primary"] is True
     assert event.ip_address == "192.168.1.4"
+
+
+@pytest.mark.django_db
+def test_email_changed_signal_logs_event_with_from_email():
+    """Test that email change with a previous email creates an event."""
+    user = User.objects.create_user(username="testuser", email="old@example.com")
+
+    # Create old email address
+    old_email = EmailAddress.objects.create(
+        user=user,
+        email="old@example.com",
+        primary=True,
+        verified=True,
+    )
+
+    # Create new email address
+    new_email = EmailAddress.objects.create(
+        user=user,
+        email="new@example.com",
+        primary=False,
+        verified=True,
+    )
+
+    # Create a mock request
+    factory = RequestFactory()
+    request = factory.get("/")
+    request.session = SessionStore()
+    request.session.save()
+    request.META["REMOTE_ADDR"] = "192.168.1.5"
+    request.user = user
+
+    # Clear any existing events
+    Event.objects.all().delete()
+
+    # Send the signal
+    email_changed.send(
+        sender=EmailAddress,
+        request=request,
+        user=user,
+        from_email_address=old_email,
+        to_email_address=new_email,
+    )
+
+    # Check that an event was logged
+    assert Event.objects.count() == 1
+    event = Event.objects.first()
+    assert event.owner == user
+    assert event.noun == EventNoun.USER
+    assert event.verb == EventVerb.UPDATE
+    assert event.field == EventField.EMAIL
+    assert event.context["from_email"] == "old@example.com"
+    assert event.context["to_email"] == "new@example.com"
+    assert event.ip_address == "192.168.1.5"
+
+
+@pytest.mark.django_db
+def test_email_changed_signal_logs_event_without_from_email():
+    """Test that email change without a previous email (None) creates an event."""
+    user = User.objects.create_user(username="testuser")
+
+    # Create new email address (user has no previous email)
+    new_email = EmailAddress.objects.create(
+        user=user,
+        email="new@example.com",
+        primary=True,
+        verified=True,
+    )
+
+    # Create a mock request
+    factory = RequestFactory()
+    request = factory.get("/")
+    request.session = SessionStore()
+    request.session.save()
+    request.META["REMOTE_ADDR"] = "192.168.1.6"
+    request.user = user
+
+    # Clear any existing events
+    Event.objects.all().delete()
+
+    # Send the signal with from_email_address as None
+    email_changed.send(
+        sender=EmailAddress,
+        request=request,
+        user=user,
+        from_email_address=None,  # This is the case that was causing the error
+        to_email_address=new_email,
+    )
+
+    # Check that an event was logged
+    assert Event.objects.count() == 1
+    event = Event.objects.first()
+    assert event.owner == user
+    assert event.noun == EventNoun.USER
+    assert event.verb == EventVerb.UPDATE
+    assert event.field == EventField.EMAIL
+    assert event.context["from_email"] is None
+    assert event.context["to_email"] == "new@example.com"
+    assert event.ip_address == "192.168.1.6"
