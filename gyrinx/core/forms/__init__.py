@@ -18,3 +18,24 @@ class LoginForm(LoginForm):
 
 class SignupForm(SignupForm):
     captcha = ReCaptchaField(widget=ReCaptchaV3(action="signup"))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Update username field help text and add validation
+        print(self.fields.keys())
+        if "username" in self.fields:
+            self.fields["username"].help_text = (
+                "This is the name you'll use to log in to Gyrinx. "
+                "It can only contain letters, numbers, and underscores. "
+                "Please pick a username, not an email address."
+            )
+            # Add validator to check for @ symbol
+            from django.core import validators
+
+            self.fields["username"].validators.insert(
+                0,
+                validators.RegexValidator(
+                    regex=r"^[^@]+$",
+                    message="Username cannot be an email address. Please choose a username without @ symbol.",
+                ),
+            )
