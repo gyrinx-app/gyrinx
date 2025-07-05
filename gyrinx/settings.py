@@ -246,6 +246,9 @@ MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes i
 
 WAITING_LIST_ALLOW_SIGNUPS = os.getenv("WAITING_LIST_ALLOW_SIGNUPS", "False") == "True"
 
+# Beta badge
+SHOW_BETA_BADGE = os.getenv("SHOW_BETA_BADGE", "True") == "True"
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
