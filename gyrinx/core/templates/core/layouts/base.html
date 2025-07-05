@@ -4,15 +4,18 @@
     <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
     <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
         <div class="container">
-            <a class="navbar-brand" href="{% url 'core:index' %}">
+            <a class="navbar-brand hstack gap-1 align-items-center"
+               href="{% url 'core:index' %}">
                 <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
                      alt="Logo"
                      width="24"
                      height="24"
                      class="d-inline-block align-text-top">
-                <span class="fs-5 ms-1 fw-light">Gyrinx</span>
+                <span class="fs-5 ms-1 fw-normal">Gyrinx</span>
                 {% settings_value "SHOW_BETA_BADGE" as show_beta %}
-                {% if show_beta %}<span class="badge bg-warning text-dark ms-1 fw-normal">Beta</span>{% endif %}
+                {% if show_beta %}
+                    <span class="badge bg-success txt-bg-success ms-1 fs-7 fw-normal text-uppercase"><small>Beta</small></span>
+                {% endif %}
             </a>
             <div class="hstack gap-2 gap-sm-1 me-sm-1">
                 {% if user.is_authenticated %}
