@@ -128,7 +128,7 @@ def test_list_visibility_in_views(client):
     response = client.get(reverse("core:lists"))
     assert response.status_code == 200
     assert normal_list in response.context["lists"]
-    assert campaign_list not in response.context["lists"]
+    assert campaign_list in response.context["lists"]
 
     # Check user profile
     response = client.get(reverse("core:user", args=[user.username]))
