@@ -30,6 +30,7 @@ from gyrinx.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import CapturedFighter, List
 
 
@@ -282,6 +283,17 @@ def new_campaign(request):
                 owner=request.user,
             )
 
+            # Log the campaign creation event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.CREATE,
+                object=campaign,
+                request=request,
+                campaign_name=campaign.name,
+                public=campaign.public,
+            )
+
             return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     else:
         form = NewCampaignForm(
@@ -323,6 +335,17 @@ def edit_campaign(request, id):
         if form.is_valid():
             updated_campaign = form.save(commit=False)
             updated_campaign.save()
+
+            # Log the campaign update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.UPDATE,
+                object=updated_campaign,
+                request=request,
+                campaign_name=updated_campaign.name,
+            )
+
             return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     else:
         form = EditCampaignForm(instance=campaign)
@@ -370,6 +393,18 @@ def campaign_log_action(request, id):
             action.campaign = campaign
             action.user = request.user
             action.save()
+
+            # Log the campaign action event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ACTION,
+                verb=EventVerb.CREATE,
+                object=action,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                description=action.description,
+            )
 
             # Redirect to outcome edit page
             return HttpResponseRedirect(
@@ -573,6 +608,18 @@ def start_campaign(request, id):
                     description=f"Campaign Started: {campaign.name} is now active",
                     outcome="Campaign transitioned from pre-campaign to active status",
                 )
+
+                # Log the campaign start event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.ACTIVATE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                    action="started",
+                )
+
                 messages.success(request, "Campaign has been started!")
             else:
                 if not campaign.lists.exists():
@@ -622,6 +669,18 @@ def end_campaign(request, id):
                     description=f"Campaign Ended: {campaign.name} has concluded",
                     outcome="Campaign transitioned from active to post-campaign status",
                 )
+
+                # Log the campaign end event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.DEACTIVATE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                    action="ended",
+                )
+
                 messages.success(request, "Campaign has been ended!")
             else:
                 messages.error(request, "Campaign cannot be ended.")
@@ -668,6 +727,18 @@ def reopen_campaign(request, id):
                     description=f"Campaign Reopened: {campaign.name} is active again",
                     outcome="Campaign transitioned from post-campaign back to active status",
                 )
+
+                # Log the campaign reopen event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.ACTIVATE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                    action="reopened",
+                )
+
                 messages.success(request, "Campaign has been reopened!")
             else:
                 messages.error(request, "Campaign cannot be reopened.")
@@ -820,15 +891,31 @@ def campaign_asset_new(request, id, type_id):
     :template:`core/campaign/campaign_asset_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
-    asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
+    asset_type: CampaignAssetType = get_object_or_404(
+        CampaignAssetType, id=type_id, campaign=campaign
+    )
 
     if request.method == "POST":
         form = CampaignAssetForm(request.POST, asset_type=asset_type)
         if form.is_valid():
-            asset = form.save(commit=False)
+            asset: CampaignAsset = form.save(commit=False)
             asset.asset_type = asset_type
             asset.owner = request.user
             asset.save()
+
+            # Log the asset creation event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.CREATE,
+                object=asset,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_name=asset.name,
+                asset_type=asset_type.name_singular,
+            )
+
             messages.success(request, f"Asset '{asset.name}' created.")
 
             # Check which button was clicked
@@ -1099,6 +1186,22 @@ def campaign_resource_modify(request, id, resource_id):
             modification = form.cleaned_data["modification"]
             try:
                 resource.modify_amount(modification, user=request.user)
+
+                # Log the resource modification event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN_RESOURCE,
+                    verb=EventVerb.UPDATE,
+                    object=resource,
+                    request=request,
+                    campaign_id=str(campaign.id),
+                    campaign_name=campaign.name,
+                    resource_type=resource.resource_type.name,
+                    list_name=resource.list.name,
+                    modification=modification,
+                    new_amount=resource.amount,
+                )
+
                 messages.success(request, "Resource updated successfully.")
             except ValueError as e:
                 messages.error(request, str(e))

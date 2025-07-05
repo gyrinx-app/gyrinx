@@ -370,6 +370,17 @@ def edit_list(request, id):
         if form.is_valid():
             updated_list = form.save(commit=False)
             updated_list.save()
+
+            # Log the list update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.UPDATE,
+                object=updated_list,
+                request=request,
+                list_name=updated_list.name,
+            )
+
             return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
     else:
         form = EditListForm(instance=list_)
@@ -529,6 +540,16 @@ def archive_list(request, id):
             if request.POST.get("archive") == "1":
                 lst.archive()
 
+                # Log the archive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.ARCHIVE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                )
+
                 # Add campaign action log entries for active campaigns
                 for campaign in active_campaigns:
                     CampaignAction.objects.create(
@@ -540,6 +561,16 @@ def archive_list(request, id):
                     )
             elif lst.archived:
                 lst.unarchive()
+
+                # Log the restore event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.RESTORE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                )
 
                 # Add campaign action log entries for active campaigns when unarchiving
                 for campaign in active_campaigns:
@@ -595,6 +626,19 @@ def clone_list(request, id):
                 public=form.cleaned_data["public"],
             )
             new_list.save()
+
+            # Log the list clone event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.CLONE,
+                object=new_list,
+                request=request,
+                list_name=new_list.name,
+                source_list_id=str(list_.id),
+                source_list_name=list_.name,
+            )
+
             return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
     else:
         form = CloneListForm(
@@ -640,6 +684,19 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
+
+            # Log the fighter creation event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.CREATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+            )
+
             query_params = urlencode(dict(flash=fighter.id))
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,))
@@ -686,6 +743,19 @@ def edit_list_fighter(request, id, fighter_id):
             fighter.list = lst
             fighter.owner = lst.owner
             fighter.save()
+
+            # Log the fighter update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+            )
+
             query_params = urlencode(dict(flash=fighter.id))
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,))
@@ -735,6 +805,21 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
                 list=form.cleaned_data["list"],
             )
             new_fighter.save()
+
+            # Log the fighter clone event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.CLONE,
+                object=new_fighter,
+                request=request,
+                fighter_name=new_fighter.name,
+                list_id=str(new_fighter.list.id),
+                list_name=new_fighter.list.name,
+                source_fighter_id=str(fighter.id),
+                source_fighter_name=fighter.name,
+            )
+
             query_params = urlencode(dict(flash=new_fighter.id))
             return HttpResponseRedirect(
                 reverse("core:list", args=(new_fighter.list.id,))
@@ -1727,8 +1812,32 @@ def archive_list_fighter(request, id, fighter_id):
     if request.method == "POST":
         if request.POST.get("archive") == "1":
             fighter.archive()
+
+            # Log the fighter archive event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.ARCHIVE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+            )
         elif fighter.archived:
             fighter.unarchive()
+
+            # Log the fighter restore event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.RESTORE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+            )
         return HttpResponseRedirect(
             reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
         )
@@ -1816,6 +1925,19 @@ def kill_list_fighter(request, id, fighter_id):
             fighter.cost_override = 0
             fighter.save()
 
+            # Log the fighter kill event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.DELETE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="killed",
+            )
+
             # Log the kill in campaign action if this list is part of a campaign
             if lst.campaign:
                 CampaignAction.objects.create(
@@ -1862,6 +1984,18 @@ def delete_list_fighter(request, id, fighter_id):
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     if request.method == "POST":
+        # Log the fighter delete event before deletion
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.DELETE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+        )
+
         fighter.delete()
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
