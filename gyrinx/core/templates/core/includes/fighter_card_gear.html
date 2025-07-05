@@ -196,14 +196,14 @@
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Gear</th>
                             <td colspan="12">
-                                {% for assign in fighter.wargear %}
-                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                    {% spaceless %}
+                                {% spaceless %}
+                                    {% for assign in fighter.wargear %}
+                                        {% comment %} All this faff to avoid spaces {% endcomment %}
                                         <span>{{ assign.name }}</span>
                                         {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                         {% if not forloop.last %}<span>,</span>{% endif %}
-                                    {% endspaceless %}
-                                {% endfor %}
+                                    {% endfor %}
+                                {% endspaceless %}
                                 {% if not print and gear_mode_default == "link" %}
                                     {% if list.owner_cached == user %}
                                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"

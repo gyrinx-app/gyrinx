@@ -242,29 +242,11 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Rules</th>
                                         <td colspan="12">
-                                            {% for rule in fighter.ruleline %}
-                                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                {% spaceless %}
-                                                    <span>
-                                                        {% if not print %}
-                                                            {% if rule.modded %}
-                                                                <a href="#"
-                                                                   bs-tooltip
-                                                                   data-bs-toggle="tooltip"
-                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-                                                                   title="Added by equipment, accessories or upgrades">
-                                                                    {{ rule.value }}
-                                                                </a>
-                                                            {% else %}
-                                                                {% ref rule.value value=rule.value %}
-                                                            {% endif %}
-                                                        {% else %}
-                                                            {{ rule.value }}
-                                                        {% endif %}
-                                                    </span>
-                                                    {% if not forloop.last %}<span>,</span>{% endif %}
-                                                {% endspaceless %}
-                                            {% endfor %}
+                                            {% spaceless %}
+                                                {# djlint:off #}
+                                                {% for rule in fighter.ruleline %}<span>{% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>, </span>{% endif %}</span>{% endfor %}
+                                                {# djlint:on #}
+                                            {% endspaceless %}
                                         </td>
                                     </tr>
                                 {% endif %}
@@ -290,20 +272,17 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Skills</th>
                                         <td colspan="12">
-                                            {% for skill in fighter.skilline_cached %}
-                                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                {% if not print %}
-                                                    {% spaceless %}
+                                            {% spaceless %}
+                                                {% for skill in fighter.skilline_cached %}
+                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                                    {% if not print %}
                                                         <span>{% ref skill value=skill %}</span>
-                                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                                    {% endspaceless %}
-                                                {% else %}
-                                                    {% spaceless %}
+                                                    {% else %}
                                                         <span>{{ skill }}</span>
-                                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                                    {% endspaceless %}
-                                                {% endif %}
-                                            {% endfor %}
+                                                    {% endif %}
+                                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                {% endfor %}
+                                            {% endspaceless %}
                                             {% if not print %}
                                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                     <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
@@ -327,19 +306,19 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Powers</th>
                                         <td colspan="12">
-                                            {% for assign in fighter.powers_cached %}
-                                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                {% spaceless %}
+                                            {% spaceless %}
+                                                {% for assign in fighter.powers_cached %}
+                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
                                                     <span>{{ assign.name }}</span>
-                                                    {% if not forloop.last %}<span>,</span>{% endif %}
-                                                {% endspaceless %}
-                                            {% empty %}
-                                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                                    <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
-                                                {% else %}
-                                                    <span class="text-muted fst-italic">None</span>
-                                                {% endif %}
-                                            {% endfor %}
+                                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                {% empty %}
+                                                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                                        <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                                                    {% else %}
+                                                        <span class="text-muted fst-italic">None</span>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endspaceless %}
                                             {% if fighter.powers_cached|length > 0 and not print %}
                                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                     <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
@@ -353,20 +332,20 @@
                                         <tr class="fs-7">
                                             <th scope="row" colspan="3">{{ line.category }}</th>
                                             <td colspan="12">
-                                                {% for assign in line.assignments %}
-                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                    {% spaceless %}
+                                                {% spaceless %}
+                                                    {% for assign in line.assignments %}
+                                                        {% comment %} All this faff to avoid spaces {% endcomment %}
                                                         {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                         {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                                        {% if not forloop.last %}<span>,</span>{% endif %}
-                                                    {% endspaceless %}
-                                                {% endfor %}
+                                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                    {% endfor %}
+                                                {% endspaceless %}
                                                 {% if not print %}
                                                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                         {% if line.assignments|length > 0 %}
                                                             <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
                                                         {% else %}
-                                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                            <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
                                                         {% endif %}
                                                     {% endif %}
                                                 {% endif %}
@@ -378,14 +357,14 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Gear</th>
                                         <td colspan="12">
-                                            {% for assign in fighter.wargear %}
-                                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                {% spaceless %}
+                                            {% spaceless %}
+                                                {% for assign in fighter.wargear %}
+                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
                                                     <span>{{ assign.name }}</span>
                                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                                    {% if not forloop.last %}<span>,</span>{% endif %}
-                                                {% endspaceless %}
-                                            {% endfor %}
+                                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                {% endfor %}
+                                            {% endspaceless %}
                                             {% if not print %}
                                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
@@ -464,14 +443,14 @@
                                     <tr class="fs-7">
                                         <th scope="row" colspan="3">Gear</th>
                                         <td colspan="12">
-                                            {% for assign in fighter.wargear %}
-                                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                                {% spaceless %}
+                                            {% spaceless %}
+                                                {% for assign in fighter.wargear %}
+                                                    {% comment %} All this faff to avoid spaces {% endcomment %}
                                                     <span>{{ assign.name }}</span>
                                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                                     {% if not forloop.last %}<span>,</span>{% endif %}
-                                                {% endspaceless %}
-                                            {% endfor %}
+                                                {% endfor %}
+                                            {% endspaceless %}
                                             {% if not print %}
                                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
