@@ -305,7 +305,7 @@ def test_campaign_automatically_creates_reputation_resource():
 
     # Create a house for the list
     house = ContentHouse.objects.create(name="Test House")
-    
+
     # Verify that when campaign starts, reputation is allocated to lists
     list1 = List.objects.create(
         name="Test Gang 1",

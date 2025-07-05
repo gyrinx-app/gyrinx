@@ -30,7 +30,7 @@ from gyrinx.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
-from gyrinx.core.models.list import List, CapturedFighter
+from gyrinx.core.models.list import CapturedFighter, List
 
 
 def get_campaign_resource_types_with_resources(campaign):
@@ -249,6 +249,7 @@ def campaign_add_lists(request, id):
 
 
 @login_required
+@transaction.atomic
 def new_campaign(request):
     """
     Create a new :model:`core.Campaign` owned by the current user.
