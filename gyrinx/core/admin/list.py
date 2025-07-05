@@ -21,8 +21,7 @@ def cost(obj):
 class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
-    fields = ["name", "owner", "content_fighter", "cost_override", cost]
-    readonly_fields = [cost]
+    fields = ["name", "owner", "content_fighter", "cost_override"]
     show_change_link = True
 
 
@@ -41,11 +40,10 @@ class ListAdmin(BaseAdmin):
         "original_list",
         "campaign",
         "public",
-        cost,
         "narrative",
     ]
-    readonly_fields = [cost, "original_list", "campaign"]
-    list_display = ["name", "content_house", "owner", "status", "public", cost]
+    readonly_fields = ["original_list", "campaign"]
+    list_display = ["name", "content_house", "owner", "status", "public"]
     list_filter = ["status", "public", "content_house"]
     search_fields = ["name", "content_house__name", "campaign__name"]
 
