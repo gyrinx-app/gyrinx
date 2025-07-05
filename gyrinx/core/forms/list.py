@@ -1,4 +1,5 @@
 from django import forms
+from django.db import models
 
 from gyrinx.content.models import (
     ContentEquipmentUpgrade,
@@ -136,7 +137,12 @@ class ListFighterForm(forms.ModelForm):
             self.fields["content_fighter"].content_house = inst.list.content_house
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
                 house__in=[inst.list.content_house.id] + list(generic_houses),
-            ).exclude(category__in=[FighterCategoryChoices.EXOTIC_BEAST])
+            ).exclude(
+                category__in=[
+                    FighterCategoryChoices.EXOTIC_BEAST,
+                    FighterCategoryChoices.STASH,
+                ]
+            )
 
             self.fields[
                 "legacy_content_fighter"
@@ -175,8 +181,7 @@ class ListFighterForm(forms.ModelForm):
                 # Don't allow the user to set a legacy content fighter on creation
                 self.fields.pop("legacy_content_fighter")
 
-        # Group fighters with the gang's own house first, then others alphabetically
-        # Also sort non-standard fighter types to the bottom
+        # Group fighters by house, with standard categories first within each house
         standard_categories = [
             FighterCategoryChoices.LEADER,
             FighterCategoryChoices.CHAMPION,
@@ -189,26 +194,37 @@ class ListFighterForm(forms.ModelForm):
         ]
 
         def fighter_group_key(fighter):
-            # Determine sort order:
-            # 0 = gang's own house fighters with standard categories
-            # 1 = gang's own house fighters with non-standard categories
-            # 2 = other house fighters with standard categories
-            # 3 = other house fighters with non-standard categories
-            is_gang_house = fighter.house_id == inst.list.content_house_id
-            is_standard_category = fighter.category in standard_categories
+            # Group by house name
+            return fighter.house.name
 
-            if is_gang_house:
-                if is_standard_category:
-                    return f"0_{inst.list.content_house.name}"
-                else:
-                    return f"1_{inst.list.content_house.name} (Other)"
+        def sort_groups_key(group_name):
+            # Sort groups: gang's own house first, then alphabetically
+            if group_name == inst.list.content_house.name:
+                return (0, group_name)  # Gang's house comes first
             else:
-                if is_standard_category:
-                    return f"2_{fighter.house.name}"
-                else:
-                    return f"3_{fighter.house.name} (Other)"
+                return (1, group_name)  # Other houses alphabetically
 
-        group_select(self, "content_fighter", key=fighter_group_key)
+        # Sort fighters within each group so standard categories come first
+        self.fields["content_fighter"].queryset = self.fields[
+            "content_fighter"
+        ].queryset.order_by(
+            models.Case(
+                *[
+                    models.When(category=cat, then=models.Value(i))
+                    for i, cat in enumerate(standard_categories)
+                ],
+                default=models.Value(len(standard_categories)),
+                output_field=models.IntegerField(),
+            ),
+            "type",
+        )
+
+        group_select(
+            self,
+            "content_fighter",
+            key=fighter_group_key,
+            sort_groups_by=sort_groups_key,
+        )
 
     class Meta:
         model = ListFighter

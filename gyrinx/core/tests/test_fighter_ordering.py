@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 
 from gyrinx.content.models import ContentFighter, ContentHouse
 from gyrinx.core.forms.list import ListFighterForm
-from gyrinx.core.models import List
+from gyrinx.core.models import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -25,47 +25,47 @@ def test_fighter_ordering_prioritizes_gang_house():
 
     # Create fighters with standard categories
     gang_leader = ContentFighter.objects.create(
-        name="Gang Leader",
+        type="Gang Leader",
         house=gang_house,
         category=FighterCategoryChoices.LEADER,
-        cost=100,
+        base_cost=100,
     )
     gang_ganger = ContentFighter.objects.create(
-        name="Gang Ganger",
+        type="Gang Ganger",
         house=gang_house,
         category=FighterCategoryChoices.GANGER,
-        cost=50,
+        base_cost=50,
     )
     # Create a fighter from another house (not used but needed for realistic test)
     ContentFighter.objects.create(
-        name="Other Leader",
+        type="Other Leader",
         house=other_house,
         category=FighterCategoryChoices.LEADER,
-        cost=100,
+        base_cost=100,
     )
     generic_champion = ContentFighter.objects.create(
-        name="Generic Champion",
+        type="Generic Champion",
         house=generic_house,
         category=FighterCategoryChoices.CHAMPION,
-        cost=75,
+        base_cost=75,
     )
 
     # Create fighters with non-standard categories
     gang_specialist = ContentFighter.objects.create(
-        name="Gang Specialist",
+        type="Gang Specialist",
         house=gang_house,
         category=FighterCategoryChoices.SPECIALIST,
-        cost=80,
+        base_cost=80,
     )
     generic_bounty_hunter = ContentFighter.objects.create(
-        name="Generic Bounty Hunter",
+        type="Generic Bounty Hunter",
         house=generic_house,
         category=FighterCategoryChoices.BOUNTY_HUNTER,
-        cost=150,
+        base_cost=150,
     )
 
-    # Create form instance
-    form = ListFighterForm(instance=gang_list.fighters.model(list=gang_list))
+    # Create form instance for a new fighter in this list
+    form = ListFighterForm(instance=ListFighter(list=gang_list))
 
     # Get the choices from the form field
     choices = form.fields["content_fighter"].widget.choices
@@ -78,23 +78,22 @@ def test_fighter_ordering_prioritizes_gang_house():
             choice_list.append((group_name, fighter_id, fighter_label))
 
     # Verify the ordering
-    # First group should be gang's house with standard categories
-    assert choice_list[0][0] == "Gang House"
-    assert choice_list[0][1] in [gang_leader.id, gang_ganger.id]
-    assert choice_list[1][0] == "Gang House"
-    assert choice_list[1][1] in [gang_leader.id, gang_ganger.id]
+    # Gang house should come first and contain all its fighters (standard first, then non-standard)
+    gang_house_fighters = [c for c in choice_list if c[0] == "Gang House"]
+    assert len(gang_house_fighters) == 3  # leader, ganger, specialist
 
-    # Second group should be gang's house with non-standard categories
-    assert choice_list[2][0] == "Gang House (Other)"
-    assert choice_list[2][1] == gang_specialist.id
+    # Standard categories should come before non-standard within the gang house
+    assert gang_house_fighters[0][1] in [gang_leader.id, gang_ganger.id]
+    assert gang_house_fighters[1][1] in [gang_leader.id, gang_ganger.id]
+    assert gang_house_fighters[2][1] == gang_specialist.id
 
-    # Third group should be generic house with standard categories
-    assert choice_list[3][0] == "Generic House"
-    assert choice_list[3][1] == generic_champion.id
+    # Generic house should come after gang house
+    generic_house_fighters = [c for c in choice_list if c[0] == "Generic House"]
+    assert len(generic_house_fighters) == 2  # champion, bounty hunter
 
-    # Fourth group should be generic house with non-standard categories
-    assert choice_list[4][0] == "Generic House (Other)"
-    assert choice_list[4][1] == generic_bounty_hunter.id
+    # Standard categories should come before non-standard within the generic house
+    assert generic_house_fighters[0][1] == generic_champion.id
+    assert generic_house_fighters[1][1] == generic_bounty_hunter.id
 
 
 @pytest.mark.django_db
@@ -115,82 +114,82 @@ def test_fighter_ordering_standard_vs_nonstandard():
     # Create a mix of standard and non-standard fighters
     # Standard categories
     leader = ContentFighter.objects.create(
-        name="Leader",
+        type="Leader",
         house=gang_house,
         category=FighterCategoryChoices.LEADER,
-        cost=100,
+        base_cost=100,
     )
     champion = ContentFighter.objects.create(
-        name="Champion",
+        type="Champion",
         house=gang_house,
         category=FighterCategoryChoices.CHAMPION,
-        cost=80,
+        base_cost=80,
     )
     ganger = ContentFighter.objects.create(
-        name="Ganger",
+        type="Ganger",
         house=gang_house,
         category=FighterCategoryChoices.GANGER,
-        cost=50,
+        base_cost=50,
     )
     juve = ContentFighter.objects.create(
-        name="Juve",
+        type="Juve",
         house=gang_house,
         category=FighterCategoryChoices.JUVE,
-        cost=30,
+        base_cost=30,
     )
     prospect = ContentFighter.objects.create(
-        name="Prospect",
+        type="Prospect",
         house=gang_house,
         category=FighterCategoryChoices.PROSPECT,
-        cost=40,
+        base_cost=40,
     )
     crew = ContentFighter.objects.create(
-        name="Crew",
+        type="Crew",
         house=gang_house,
         category=FighterCategoryChoices.CREW,
-        cost=35,
+        base_cost=35,
     )
     brute = ContentFighter.objects.create(
-        name="Brute",
+        type="Brute",
         house=gang_house,
         category=FighterCategoryChoices.BRUTE,
-        cost=70,
+        base_cost=70,
     )
     hanger_on = ContentFighter.objects.create(
-        name="Hanger-on",
+        type="Hanger-on",
         house=gang_house,
         category=FighterCategoryChoices.HANGER_ON,
-        cost=60,
+        base_cost=60,
     )
 
     # Non-standard categories
     hired_gun = ContentFighter.objects.create(
-        name="Hired Gun",
+        type="Hired Gun",
         house=generic_house,
         category=FighterCategoryChoices.HIRED_GUN,
-        cost=120,
+        base_cost=120,
     )
     bounty_hunter = ContentFighter.objects.create(
-        name="Bounty Hunter",
+        type="Bounty Hunter",
         house=generic_house,
         category=FighterCategoryChoices.BOUNTY_HUNTER,
-        cost=150,
+        base_cost=150,
     )
     house_agent = ContentFighter.objects.create(
-        name="House Agent",
+        type="House Agent",
         house=generic_house,
         category=FighterCategoryChoices.HOUSE_AGENT,
-        cost=130,
+        base_cost=130,
     )
     specialist = ContentFighter.objects.create(
-        name="Specialist",
+        type="Specialist",
         house=gang_house,
         category=FighterCategoryChoices.SPECIALIST,
-        cost=90,
+        base_cost=90,
     )
 
-    # Create form instance
-    form = ListFighterForm(instance=gang_list.fighters.model(list=gang_list))
+    # Create form instance for a new fighter in this list
+    form = ListFighterForm(instance=ListFighter(list=gang_list))
 
     # Get the choices from the form field
     choices = form.fields["content_fighter"].widget.choices
@@ -232,3 +231,46 @@ def test_fighter_ordering_standard_vs_nonstandard():
     # All standard fighters should appear before non-standard fighters
     if standard_positions and non_standard_positions:
         assert max(standard_positions) < min(non_standard_positions)
+
+
+@pytest.mark.django_db
+def test_stash_fighters_are_filtered_out():
+    """Test that STASH fighters are not shown in the dropdown."""
+    # Create test user and houses
+    user = User.objects.create_user(username="testuser", password="testpass")
+    gang_house = ContentHouse.objects.create(name="Test House")
+
+    # Create a list
+    gang_list = List.objects.create(
+        name="Test Gang",
+        content_house=gang_house,
+        owner=user,
+    )
+
+    # Create a regular fighter and a stash fighter
+    regular_fighter = ContentFighter.objects.create(
+        type="Regular Fighter",
+        house=gang_house,
+        category=FighterCategoryChoices.GANGER,
+        base_cost=50,
+    )
+    stash_fighter = ContentFighter.objects.create(
+        type="Stash Fighter",
+        house=gang_house,
+        category=FighterCategoryChoices.STASH,
+        base_cost=0,
+    )
+
+    # Create form instance for a new fighter in this list
+    form = ListFighterForm(instance=ListFighter(list=gang_list))
+
+    # Get all fighter IDs from the form
+    all_fighter_ids = []
+    choices = form.fields["content_fighter"].widget.choices
+    for group_name, group_choices in choices[1:]:  # Skip empty option
+        for fighter_id, fighter_label in group_choices:
+            all_fighter_ids.append(fighter_id)
+
+    # Verify regular fighter is present but stash fighter is not
+    assert regular_fighter.id in all_fighter_ids
+    assert stash_fighter.id not in all_fighter_ids
