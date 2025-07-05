@@ -214,6 +214,39 @@ def ensure_json_serializable(data):
             return str(data)
 
 
+def get_client_ip(request):
+    """
+    Extract the client's real IP address from the request.
+
+    When running behind a proxy or load balancer (like Google Cloud Run),
+    the real client IP is passed in headers like X-Forwarded-For.
+
+    Args:
+        request: Django HttpRequest object
+
+    Returns:
+        str: The client's IP address, or None if not available
+    """
+    if not request:
+        return None
+
+    # Check X-Forwarded-For header first
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        # X-Forwarded-For can contain multiple IPs: "client-ip, proxy1, proxy2"
+        # The first IP is the original client
+        ip = x_forwarded_for.split(",")[0].strip()
+        return ip
+
+    # Check X-Real-IP header (used by some proxies)
+    x_real_ip = request.META.get("HTTP_X_REAL_IP")
+    if x_real_ip:
+        return x_real_ip.strip()
+
+    # Fall back to REMOTE_ADDR if no proxy headers are present
+    return request.META.get("REMOTE_ADDR")
+
+
 def log_event(
     user, noun, verb, object=None, request=None, ip_address=None, field=None, **context
 ):
@@ -256,7 +289,7 @@ def log_event(
 
         # Extract IP address from request if not explicitly provided
         if not ip_address and request:
-            ip_address = request.META.get("REMOTE_ADDR")
+            ip_address = get_client_ip(request)
 
         event_data = {
             "owner": user,
