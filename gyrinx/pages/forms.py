@@ -36,8 +36,12 @@ class JoinWaitingListForm(forms.ModelForm):
         widget=forms.TextInput(
             attrs={"placeholder": "lord_helmawr", "class": "form-control"}
         ),
-        help_text="This is the name you'll use to log in to Gyrinx. It can only contain letters, numbers, and underscores.",
+        help_text="This is the name you'll use to log in to Gyrinx. It can only contain letters, numbers, and underscores. Please use a username, not an email address.",
         validators=[
+            validators.RegexValidator(
+                regex=r"^[^@]+$",
+                message="Username cannot be an email address. Please choose a username without @ symbol.",
+            ),
             validators.RegexValidator(
                 regex=r"^[a-zA-Z0-9_]+$",
                 message="Username can only contain alphanumeric characters and underscores.",
