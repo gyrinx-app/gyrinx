@@ -220,7 +220,16 @@ class ListDetailView(generic.DetailView):
         from gyrinx.core.models.list import ListAttributeAssignment
 
         attributes = {}
-        for attribute in ContentAttribute.objects.all().order_by("name"):
+        # Filter attributes to only those available to this house
+        available_attributes = (
+            ContentAttribute.objects.filter(
+                Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house)
+            )
+            .distinct()
+            .order_by("name")
+        )
+
+        for attribute in available_attributes:
             assignments = ListAttributeAssignment.objects.filter(
                 list=list_obj, attribute_value__attribute=attribute, archived=False
             ).select_related("attribute_value")
@@ -3636,6 +3645,16 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
     from gyrinx.content.models import ContentAttribute
 
     attribute = get_object_or_404(ContentAttribute, id=attribute_id)
+
+    # Check if attribute is available to this house
+    if (
+        attribute.restricted_to.exists()
+        and lst.content_house not in attribute.restricted_to.all()
+    ):
+        messages.error(
+            request, f"{attribute.name} is not available to {lst.content_house.name}."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
         form = ListAttributeForm(

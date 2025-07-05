@@ -628,6 +628,7 @@ class ContentAttributeAdmin(ContentAdmin, admin.ModelAdmin):
     list_display = ["name", "is_single_select", "get_value_count"]
     list_filter = ["is_single_select"]
     list_display_links = ["name"]
+    filter_horizontal = ["restricted_to"]
 
     inlines = [ContentAttributeValueInline]
 
