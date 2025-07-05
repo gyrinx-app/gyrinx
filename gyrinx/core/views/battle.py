@@ -8,6 +8,7 @@ from django.views import generic
 
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm
 from gyrinx.core.models import Battle, Campaign
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 
 
 class BattleDetailView(generic.DetailView):
@@ -96,6 +97,19 @@ def new_battle(request, campaign_id):
             battle.owner = request.user
             battle.save()
             form.save_m2m()  # Save many-to-many relationships
+
+            # Log the battle creation event
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.CREATE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+            )
+
             messages.success(request, f"Battle '{battle.name}' created successfully!")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
@@ -122,6 +136,19 @@ def edit_battle(request, id):
         form = BattleForm(request.POST, instance=battle, campaign=battle.campaign)
         if form.is_valid():
             form.save()
+
+            # Log the battle update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.UPDATE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+
             messages.success(request, "Battle updated successfully!")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
@@ -171,7 +198,22 @@ def add_battle_note(request, battle_id):
             note = form.save(commit=False)
             note.battle = battle
             note.owner = request.user
+            is_new_note = note.pk is None
             note.save()
+
+            # Log the note creation/update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.CREATE if is_new_note else EventVerb.UPDATE,
+                object=battle,
+                request=request,
+                action="note_added" if is_new_note else "note_updated",
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+
             messages.success(request, "Note saved successfully!")
             # Get return URL from POST data (in case it was in the form)
             post_return_url = request.POST.get("return_url", return_url)
