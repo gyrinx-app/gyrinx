@@ -199,6 +199,39 @@ img {
     }
 }
 
+// Table Accent - Subtle yellow for headstats
+.table-accent {
+    --bs-table-color: #000;
+    --bs-table-bg: rgba(
+        250,
+        236,
+        206,
+        0.4
+    ); // Lower opacity version of Bootstrap's warning color
+    --bs-table-border-color: rgba(200, 189, 165, 0.4);
+    --bs-table-striped-bg: rgba(238, 224, 196, 0.4);
+    --bs-table-striped-color: #000;
+    --bs-table-active-bg: rgba(225, 213, 185, 0.4);
+    --bs-table-active-color: #000;
+    --bs-table-hover-bg: rgba(232, 218, 191, 0.4);
+    --bs-table-hover-color: #000;
+    color: var(--bs-table-color);
+    border-color: var(--bs-table-border-color);
+}
+
+// Dark mode overrides for table-accent
+[data-bs-theme="dark"] .table-accent {
+    --bs-table-color: var(--bs-body-color);
+    --bs-table-bg: rgba(250, 236, 206, 0.1); // Much lower opacity for dark mode
+    --bs-table-border-color: rgba(200, 189, 165, 0.15);
+    --bs-table-striped-bg: rgba(238, 224, 196, 0.15);
+    --bs-table-striped-color: var(--bs-body-color);
+    --bs-table-active-bg: rgba(225, 213, 185, 0.2);
+    --bs-table-active-color: var(--bs-body-color);
+    --bs-table-hover-bg: rgba(232, 218, 191, 0.15);
+    --bs-table-hover-color: var(--bs-body-color);
+}
+
 // Color Forms
 
 .color-radio-label:hover {
