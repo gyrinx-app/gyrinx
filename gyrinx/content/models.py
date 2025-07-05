@@ -1858,6 +1858,13 @@ class ContentAttribute(Content):
         default=True,
         help_text="If True, only one value can be selected. If False, multiple values can be selected.",
     )
+    restricted_to = models.ManyToManyField(
+        ContentHouse,
+        blank=True,
+        related_name="restricted_attributes",
+        verbose_name="Restricted To",
+        help_text="If provided, this attribute is only available to specific gang houses.",
+    )
 
     history = HistoricalRecords()
 
