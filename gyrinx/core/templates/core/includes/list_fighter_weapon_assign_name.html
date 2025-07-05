@@ -1,20 +1,18 @@
 {% if assign.kind == 'default' %}
-    <a href="#"
-       bs-tooltip
-       data-bs-toggle="tooltip"
-       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-       title="This weapon is assigned to the fighter by default.">
+    <span bs-tooltip
+          data-bs-toggle="tooltip"
+          class="link-underline-info text-decoration-underline"
+          title="This weapon is assigned to the fighter by default.">
     {% endif %}
     {{ assign.base_name }}
-    {% if assign.kind == 'default' %}</a>{% endif %}
+    {% if assign.kind == 'default' %}</span>{% endif %}
 {% if assign.has_total_cost_override %}
-    <a href="#"
-       bs-tooltip
-       data-bs-toggle="tooltip"
-       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-       title="The total cost of this weapon (including ammo, accessories, and upgrades) is manually overriden.">
+    <span bs-tooltip
+          data-bs-toggle="tooltip"
+          class="link-underline-info text-decoration-underline"
+          title="The total cost of this weapon (including ammo, accessories, and upgrades) is manually overriden.">
         ({{ assign.cost_display }})
-    </a>
+    </span>
 {% else %}
     {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
 {% endif %}

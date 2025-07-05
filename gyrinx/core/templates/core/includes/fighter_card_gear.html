@@ -61,7 +61,7 @@
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                                 <span bs-tooltip
                                                       data-bs-toggle="tooltip"
-                                                      class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                      class="link-underline-info text-decoration-underline"
                                                       title="This is assigned to the fighter by default.">
                                                 {% endif %}
                                                 {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
