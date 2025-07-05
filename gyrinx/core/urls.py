@@ -13,6 +13,11 @@ app_name = "core"
 urlpatterns = [
     path("", gyrinx.core.views.index, name="index"),
     path("accounts/", gyrinx.core.views.account_home, name="account_home"),
+    path(
+        "accounts/change-username/",
+        gyrinx.core.views.change_username,
+        name="change-username",
+    ),
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list.ListsListView.as_view(), name="lists"),
     path("lists/new", list.new_list, name="lists-new"),

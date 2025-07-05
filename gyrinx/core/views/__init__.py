@@ -2,13 +2,15 @@ from itertools import zip_longest
 from random import randint
 from urllib.parse import urlencode
 
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.content.models import ContentHouse
+from gyrinx.core.forms import UsernameChangeForm
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 
@@ -193,4 +195,49 @@ def user(request, slug_or_id):
         request,
         "core/user.html",
         {"user": user, "public_lists": public_lists},
+    )
+
+
+@login_required
+def change_username(request):
+    """
+    Allow users with '@' in their username to change it.
+
+    **Context**
+
+    ``form``
+        The username change form.
+    ``can_change``
+        Whether the current user is eligible to change their username.
+
+    **Template**
+
+    :template:`core/change_username.html`
+    """
+    # Check if user is eligible to change username (has @ in username)
+    can_change = "@" in request.user.username
+
+    if not can_change:
+        messages.error(request, "You are not eligible to change your username.")
+        return redirect("core:account_home")
+
+    if request.method == "POST":
+        form = UsernameChangeForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(
+                request,
+                f"Your username has been successfully changed to {form.cleaned_data['new_username']}!",
+            )
+            return redirect("core:account_home")
+    else:
+        form = UsernameChangeForm(user=request.user)
+
+    return render(
+        request,
+        "core/change_username.html",
+        {
+            "form": form,
+            "can_change": can_change,
+        },
     )
