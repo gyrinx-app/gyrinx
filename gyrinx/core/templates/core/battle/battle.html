@@ -25,7 +25,7 @@
                     </div>
                     <div class="text-secondary">
                         <i class="bi-person"></i>
-                        Created by <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                        Created by <a class="link-underline-info text-decoration-underline"
     href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
                                         <div class="text-muted small">
                                             <i class="bi-person"></i>
                                             <a href="{% url 'core:user' note.owner.username %}"
-                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ note.owner }}</a>
+                                               class="link-underline-info text-decoration-underline">{{ note.owner }}</a>
                                             <span class="mx-1">·</span>
                                             {{ note.created|date:"M d, Y g:i A" }}
                                         </div>

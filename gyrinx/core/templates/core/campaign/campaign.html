@@ -26,7 +26,7 @@
                 <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                     <div class="text-secondary">
                         <i class="bi-person"></i>
-                        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                        <a class="link-underline-info text-decoration-underline"
                            href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
                     </div>
                     {% if campaign.public %}
@@ -34,20 +34,20 @@
                             <i class="bi-eye"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This campaign is visible to all users"
-                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Public</span>
+                                  class="link-underline-info text-decoration-underline">Public</span>
                         </div>
                     {% else %}
                         <div class="text-secondary">
                             <i class="bi-eye-slash"></i>
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This campaign is only visible to you"
-                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Private</span>
+                                  class="link-underline-info text-decoration-underline">Private</span>
                         </div>
                     {% endif %}
                     {% if campaign.lists.count > 0 %}
                         <div class="text-secondary">
                             <i class="bi-list-ul"></i>
-                            <span class="link-secondary link-underline-opacity-25">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
+                            <span class="link-underline-info text-decoration-underline">{{ campaign.lists.count }} gang{{ campaign.lists.count|pluralize }}</span>
                         </div>
                     {% endif %}
                     {% if campaign.budget > 0 %}
@@ -175,7 +175,7 @@
                                                     <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %}">
                                                         {% if asset.holder %}
                                                             <a href="{% url 'core:list' asset.holder.id %}"
-                                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                                               class="link-underline-info text-decoration-underline">
                                                                 {% list_with_theme asset.holder %}
                                                             </a>
                                                         {% else %}
@@ -241,7 +241,7 @@
                                                 <tr>
                                                     <td class="ps-2 ps-sm-3">
                                                         <a href="{% url 'core:list' resource.list.id %}"
-                                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                                           class="link-underline-info text-decoration-underline">
                                                             {% list_with_theme resource.list "me-1" %}
                                                         </a>
                                                     </td>

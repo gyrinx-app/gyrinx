@@ -1,11 +1,10 @@
 {% for stat in profile.statline %}
     <td class="text-center {{ stat.classes }}">
         {% if stat.modded %}
-            <a href="#"
-               bs-tooltip
-               data-bs-toggle="tooltip"
-               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
-               title="Modified by equipment, accessories, upgrades, or manually">{{ stat.value }}</a>
+            <span bs-tooltip
+                  data-bs-toggle="tooltip"
+                  class="link-underline-info text-decoration-underline"
+                  title="Modified by equipment, accessories, upgrades, or manually">{{ stat.value }}</span>
         {% else %}
             {{ stat.value }}
         {% endif %}

@@ -14,14 +14,12 @@
             {% if action.list and show_list_link|default:True %}
                 •
                 <a href="{% url 'core:list' action.list.id %}"
-                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                    {% list_with_theme action.list %}
-                </a>
+                   class="link-underline-info text-decoration-underline">{% list_with_theme action.list %}</a>
             {% endif %}
             {% if action.battle %}
                 •
                 <a href="{% url 'core:battle' action.battle.id %}"
-                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                   class="link-underline-info text-decoration-underline">
                     <i class="bi-flag"></i> {{ action.battle.mission }}
                 </a>
             {% endif %}
