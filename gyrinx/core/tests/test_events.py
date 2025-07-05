@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from gyrinx.content.models import ContentHouse
 from gyrinx.core.models import Event, EventNoun, EventVerb, List, log_event
-from gyrinx.core.models.events import EventField
+from gyrinx.core.models.events import EventField, get_client_ip
 
 
 @pytest.mark.django_db
@@ -320,3 +320,85 @@ def test_event_save_logging_error_handling(mock_logger):
 
     # Should have logged the exception
     mock_logger.exception.assert_called_once_with("Failed to log event to stream")
+
+
+def test_get_client_ip_with_x_forwarded_for():
+    """Test get_client_ip with X-Forwarded-For header."""
+    mock_request = Mock()
+    mock_request.META = {
+        "HTTP_X_FORWARDED_FOR": "192.168.1.100, 10.0.0.1, 172.16.0.1",
+        "REMOTE_ADDR": "10.0.0.1",
+    }
+
+    ip = get_client_ip(mock_request)
+    assert ip == "192.168.1.100"
+
+
+def test_get_client_ip_with_single_x_forwarded_for():
+    """Test get_client_ip with single IP in X-Forwarded-For."""
+    mock_request = Mock()
+    mock_request.META = {
+        "HTTP_X_FORWARDED_FOR": "192.168.1.100",
+        "REMOTE_ADDR": "10.0.0.1",
+    }
+
+    ip = get_client_ip(mock_request)
+    assert ip == "192.168.1.100"
+
+
+def test_get_client_ip_with_x_real_ip():
+    """Test get_client_ip with X-Real-IP header."""
+    mock_request = Mock()
+    mock_request.META = {"HTTP_X_REAL_IP": "192.168.1.200", "REMOTE_ADDR": "10.0.0.1"}
+
+    ip = get_client_ip(mock_request)
+    assert ip == "192.168.1.200"
+
+
+def test_get_client_ip_fallback_to_remote_addr():
+    """Test get_client_ip falls back to REMOTE_ADDR when no proxy headers."""
+    mock_request = Mock()
+    mock_request.META = {"REMOTE_ADDR": "192.168.1.1"}
+
+    ip = get_client_ip(mock_request)
+    assert ip == "192.168.1.1"
+
+
+def test_get_client_ip_with_no_request():
+    """Test get_client_ip with no request returns None."""
+    ip = get_client_ip(None)
+    assert ip is None
+
+
+def test_get_client_ip_with_spaces_in_header():
+    """Test get_client_ip handles spaces in X-Forwarded-For."""
+    mock_request = Mock()
+    mock_request.META = {
+        "HTTP_X_FORWARDED_FOR": " 192.168.1.100 , 10.0.0.1 ",
+        "REMOTE_ADDR": "10.0.0.1",
+    }
+
+    ip = get_client_ip(mock_request)
+    assert ip == "192.168.1.100"
+
+
+@pytest.mark.django_db
+def test_log_event_with_x_forwarded_for():
+    """Test log_event extracts IP from X-Forwarded-For header."""
+    user = User.objects.create_user(username="testuser")
+
+    mock_request = Mock()
+    mock_request.session.session_key = "test-session"
+    mock_request.META = {
+        "HTTP_X_FORWARDED_FOR": "192.168.1.100, 10.0.0.1",
+        "REMOTE_ADDR": "10.0.0.1",
+    }
+
+    event = log_event(
+        user=user,
+        noun=EventNoun.USER,
+        verb=EventVerb.LOGIN,
+        request=mock_request,
+    )
+
+    assert event.ip_address == "192.168.1.100"
