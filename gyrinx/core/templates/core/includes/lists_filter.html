@@ -92,6 +92,8 @@
                                value="list"
                                {% if type_contains_list or not request.GET.type %}checked{% endif %}>
                         <label class="form-check-label" for="type-lists">Lists (List Building)</label>
+                        •
+                        <a class="ms-auto" href="?{% qt request type="list" %}#search">only</a>
                     </div>
                     <div class="form-check mb-0">
                         <input class="form-check-input"
@@ -102,6 +104,17 @@
                                value="gang"
                                {% if type_contains_gang or not request.GET.type %}checked{% endif %}>
                         <label class="form-check-label" for="type-gangs">Gangs (Campaign)</label>
+                        •
+                        <a class="ms-auto" href="?{% qt request type="gang" %}#search">only</a>
+                    </div>
+                    <div class="btn-group align-items-center">
+                        <button class="btn btn-link icon-link btn-sm" type="submit">
+                            <i class="bi-arrow-clockwise"></i>
+                            Update
+                        </button>
+                        •
+                        <a class="btn btn-link text-secondary icon-link btn-sm"
+                           href="?{% qt request house="all" %}#search">Reset</a>
                     </div>
                 </div>
             </div>

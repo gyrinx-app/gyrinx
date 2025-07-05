@@ -33,13 +33,17 @@
                             <div class="badge text-bg-primary">{{ list.cost_int_display }}</div>
                             {% if list.status == list.CAMPAIGN_MODE %}
                                 <div class="badge text-bg-success">
-                                    <i class="bi-fire"></i> Gang
+                                    <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
                                 </div>
                             {% else %}
                                 <div class="badge text-bg-secondary">
                                     <i class="bi-list-ul"></i> List
                                 </div>
                             {% endif %}
+                        </div>
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                            {% load tz %}
+                            <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
                         </div>
                     </div>
                     <div class="ms-auto d-md-none">
