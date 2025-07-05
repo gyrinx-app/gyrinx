@@ -1,5 +1,5 @@
 {% for stat in fighter.statline %}
-    <td class="text-center {% if stat.highlight %}table-accent{% endif %} {{ stat.classes }}">
+    <td class="text-center {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}">
         {% if stat.modded %}
             <a href="#"
                bs-tooltip
