@@ -1,7 +1,11 @@
 {% extends "core/layouts/base.html" %}
 {% load static allauth custom_tags pages color_tags %}
 {% block head_title %}
-    Home
+    {% if user.is_authenticated %}
+        Home
+    {% else %}
+        A new set of tools for the Necromunda community
+    {% endif %}
 {% endblock head_title %}
 {% block prebody %}
     <div id="hero"
