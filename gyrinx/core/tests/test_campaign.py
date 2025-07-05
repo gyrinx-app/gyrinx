@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gyrinx.content.models import ContentHouse
-from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignListResource
 from gyrinx.core.models.list import List
 
 
@@ -256,6 +256,74 @@ def test_campaign_create_edit_forms():
     assert campaign.narrative == "<p>Updated <em>narrative</em></p>"
     assert campaign.public is False
     assert campaign.budget == 2000
+
+    # Verify that Reputation resource was automatically created
+    reputation_resource = campaign.resource_types.get(name="Reputation")
+    assert reputation_resource is not None
+    assert (
+        reputation_resource.description == "Gang reputation gained during the campaign"
+    )
+    assert reputation_resource.default_amount == 0
+
+
+@pytest.mark.django_db
+def test_campaign_automatically_creates_reputation_resource():
+    """Test that creating a campaign automatically creates a Reputation resource."""
+    client = Client()
+
+    # Create and login user
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    # Create a new campaign
+    response = client.post(
+        reverse("core:campaigns-new"),
+        {
+            "name": "Reputation Test Campaign",
+            "summary": "Testing reputation resource",
+            "narrative": "",
+            "public": True,
+            "budget": 1500,
+        },
+    )
+
+    # Should redirect after successful creation
+    assert response.status_code == 302
+
+    # Get the created campaign
+    campaign = Campaign.objects.get(name="Reputation Test Campaign")
+
+    # Verify that exactly one resource type exists (Reputation)
+    assert campaign.resource_types.count() == 1
+
+    # Verify the Reputation resource details
+    reputation = campaign.resource_types.first()
+    assert reputation.name == "Reputation"
+    assert reputation.description == "Gang reputation gained during the campaign"
+    assert reputation.default_amount == 0
+    assert reputation.owner == user
+
+    # Create a house for the list
+    house = ContentHouse.objects.create(name="Test House")
+    
+    # Verify that when campaign starts, reputation is allocated to lists
+    list1 = List.objects.create(
+        name="Test Gang 1",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+    campaign.lists.add(list1)
+
+    # Start the campaign
+    assert campaign.start_campaign() is True
+
+    # Verify reputation was allocated to the cloned list
+    cloned_list = campaign.lists.first()
+    reputation_resource = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=reputation, list=cloned_list
+    )
+    assert reputation_resource.amount == 0
 
 
 @pytest.mark.django_db

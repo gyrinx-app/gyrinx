@@ -271,6 +271,16 @@ def new_campaign(request):
             campaign = form.save(commit=False)
             campaign.owner = request.user
             campaign.save()
+
+            # Automatically create a "Reputation" resource type for all campaigns
+            CampaignResourceType.objects.create(
+                campaign=campaign,
+                name="Reputation",
+                description="Gang reputation gained during the campaign",
+                default_amount=0,
+                owner=request.user,
+            )
+
             return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     else:
         form = NewCampaignForm(
