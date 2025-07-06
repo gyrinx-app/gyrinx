@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from gyrinx.content.models import ContentHouse
 from gyrinx.core.forms import UsernameChangeForm
 from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 
 from .csrf import csrf_failure as csrf_failure
@@ -84,6 +85,19 @@ def index(request):
             .order_by("-created")
         )
 
+    # Log the dashboard view
+    if request.user.is_authenticated:
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="dashboard",
+            lists_count=len(lists) if lists else 0,
+            campaign_gangs_count=len(campaign_gangs) if campaign_gangs else 0,
+            campaigns_count=campaigns.count() if campaigns else 0,
+        )
+
     return render(
         request,
         "core/index.html",
@@ -102,6 +116,15 @@ def account_home(request):
     Management page for the user's account.
 
     """
+    # Log the account home view
+    log_event(
+        user=request.user,
+        noun=EventNoun.USER,
+        verb=EventVerb.VIEW,
+        request=request,
+        page="account_home",
+    )
+
     return render(
         request,
         "core/account_home.html",
@@ -158,6 +181,20 @@ def dice(request):
         )
         for group in zip_longest(d, fp, i, fillvalue=0)
     ]
+
+    # Log the dice roll
+    log_event(
+        user=request.user,
+        noun=EventNoun.USER,
+        verb=EventVerb.VIEW,
+        request=request,
+        page="dice",
+        dice_mode=mode,
+        standard_dice_count=sum(d) if d else 0,
+        firepower_dice_count=sum(fp) if fp else 0,
+        injury_dice_count=sum(i) if i else 0,
+    )
+
     return render(
         request,
         "core/dice.html",
@@ -191,6 +228,20 @@ def user(request, slug_or_id):
     public_lists = List.objects.filter(
         owner=user, public=True, status=List.LIST_BUILDING, archived=False
     )
+
+    # Log the user profile view
+    if request.user.is_authenticated:
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            object=user,
+            request=request,
+            viewed_user_id=str(user.id),
+            viewed_username=user.username,
+            public_lists_count=public_lists.count(),
+        )
+
     return render(
         request,
         "core/user.html",
@@ -224,13 +275,35 @@ def change_username(request):
     if request.method == "POST":
         form = UsernameChangeForm(request.POST, user=request.user)
         if form.is_valid():
+            old_username = request.user.username
+            new_username = form.cleaned_data["new_username"]
             form.save()
+
+            # Log the username change
+            log_event(
+                user=request.user,
+                noun=EventNoun.USER,
+                verb=EventVerb.UPDATE,
+                request=request,
+                field="username",
+                old_username=old_username,
+                new_username=new_username,
+            )
+
             messages.success(
                 request,
-                f"Your username has been successfully changed to {form.cleaned_data['new_username']}!",
+                f"Your username has been successfully changed to {new_username}!",
             )
             return redirect("core:account_home")
     else:
+        # Log viewing the username change form
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="change_username",
+        )
         form = UsernameChangeForm(user=request.user)
 
     return render(

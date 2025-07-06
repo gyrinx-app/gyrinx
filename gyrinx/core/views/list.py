@@ -515,6 +515,21 @@ def edit_list_credits(request, id):
                             outcome=outcome,
                         )
 
+                    # Log the credit update event
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.LIST,
+                        verb=EventVerb.UPDATE,
+                        object=lst,
+                        request=request,
+                        list_name=lst.name,
+                        credit_operation=operation,
+                        amount=amount,
+                        credits_current=lst.credits_current,
+                        credits_earned=lst.credits_earned,
+                        description=description,
+                    )
+
                 messages.success(request, f"Credits updated for {lst.name}")
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
@@ -929,6 +944,21 @@ def edit_list_fighter_skills(request, id, fighter_id):
         form = ListFighterSkillsForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
+
+            # Log the skills update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                field="skills",
+                skills_count=fighter.skills.count(),
+            )
+
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
             )
@@ -1018,6 +1048,22 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 )
                 fighter.disabled_pskyer_default_powers.add(default_assign)
                 fighter.save()
+
+                # Log the power removal event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    field="psyker_powers",
+                    action="remove_default_power",
+                    power_name=default_assign.psyker_power.name,
+                )
+
                 return HttpResponseRedirect(
                     reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
                 )
@@ -1027,7 +1073,24 @@ def edit_list_fighter_powers(request, id, fighter_id):
                     psyker_power=power_id,
                     list_fighter=fighter,
                 )
+                power_name = assign.psyker_power.name
                 assign.delete()
+
+                # Log the power removal event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    field="psyker_powers",
+                    action="remove_assigned_power",
+                    power_name=power_name,
+                )
+
                 return HttpResponseRedirect(
                     reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
                 )
@@ -1043,6 +1106,22 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 psyker_power=power,
             )
             assign.save()
+
+            # Log the power add event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                field="psyker_powers",
+                action="add_power",
+                power_name=power.name,
+            )
+
             return HttpResponseRedirect(
                 reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
             )
@@ -1165,6 +1244,21 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         form = EditListFighterNarrativeForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
+
+            # Log the narrative update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                field="narrative",
+                narrative_length=len(fighter.narrative) if fighter.narrative else 0,
+            )
+
             # Get return URL from POST data (in case it was in the form)
             post_return_url = request.POST.get("return_url", return_url)
             # Validate the POST return URL as well
@@ -1270,6 +1364,23 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                             description=description,
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
+
+                # Log the equipment assignment event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+                    verb=EventVerb.CREATE,
+                    object=assign,
+                    request=request,
+                    fighter_id=str(fighter.id),
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    equipment_name=assign.content_equipment.name,
+                    equipment_type="weapon" if is_weapon else "gear",
+                    cost=total_cost,
+                    credits_remaining=lst.credits_current if lst.campaign else None,
+                )
 
                 messages.success(request, description)
 
@@ -1471,6 +1582,23 @@ def edit_list_fighter_assign_cost(
         form = ListFighterEquipmentAssignmentCostForm(request.POST, instance=assignment)
         if form.is_valid():
             form.save()
+
+            # Log the cost update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+                verb=EventVerb.UPDATE,
+                object=assignment,
+                request=request,
+                fighter_id=str(fighter.id),
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                equipment_name=assignment.content_equipment.name,
+                field="cost_override",
+                new_cost=assignment.cost_override,
+            )
+
             return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     form = ListFighterEquipmentAssignmentCostForm(
@@ -1522,7 +1650,23 @@ def delete_list_fighter_assign(
     )
 
     if request.method == "POST":
+        # Store equipment name before deletion
+        equipment_name = assignment.content_equipment.name
         assignment.delete()
+
+        # Log the equipment deletion
+        log_event(
+            user=request.user,
+            noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+            verb=EventVerb.DELETE,
+            object=fighter,  # Log against the fighter since assignment is deleted
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            equipment_name=equipment_name,
+        )
+
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     return render(
@@ -1577,6 +1721,21 @@ def delete_list_fighter_gear_upgrade(
         assignment.upgrade = None
         assignment.upgrades_field.remove(upgrade)
         assignment.save()
+
+        # Log the upgrade removal
+        log_event(
+            user=request.user,
+            noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+            verb=EventVerb.UPDATE,
+            object=assignment,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            equipment_name=assignment.content_equipment.name,
+            upgrade_removed=upgrade.name,
+        )
+
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
 
     return render(
@@ -1691,6 +1850,21 @@ def delete_list_fighter_weapon_accessory(
 
     if request.method == "POST":
         assignment.weapon_accessories_field.remove(accessory)
+
+        # Log the weapon accessory removal
+        log_event(
+            user=request.user,
+            noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+            verb=EventVerb.UPDATE,
+            object=assignment,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            equipment_name=assignment.content_equipment.name,
+            accessory_removed=accessory.name,
+        )
+
         return HttpResponseRedirect(
             reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
         )
@@ -2088,6 +2262,22 @@ def embed_list_fighter(request, id, fighter_id):
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
+    # Log the embed view event
+    log_event(
+        user=request.user
+        if hasattr(request, "user") and request.user.is_authenticated
+        else None,
+        noun=EventNoun.LIST_FIGHTER,
+        verb=EventVerb.VIEW,
+        object=fighter,
+        request=request,
+        list_id=str(lst.id),
+        list_name=lst.name,
+        fighter_id=str(fighter.id),
+        fighter_name=fighter.name,
+        embed=True,
+    )
+
     return render(
         request,
         "core/list_fighter_embed.html",
@@ -2359,6 +2549,21 @@ def mark_fighter_captured(request, id, fighter_id):
                     outcome=f"{fighter.name} is now held captive",
                 )
 
+                # Log the capture event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="captured",
+                    capturing_list_name=capturing_list.name,
+                    capturing_list_id=str(capturing_list.id),
+                )
+
             messages.success(
                 request,
                 f"{fighter.name} has been marked as captured by {capturing_list.name}.",
@@ -2448,6 +2653,21 @@ def list_fighter_add_injury(request, id, fighter_id):
                         outcome=outcome,
                     )
 
+                # Log the injury event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="injury_added",
+                    injury_name=injury.injury.name,
+                    injury_state=fighter.injury_state,
+                )
+
             messages.success(
                 request, f"Added injury '{injury.injury.name}' to {fighter.name}"
             )
@@ -2524,6 +2744,21 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
                     description=f"Recovery: {fighter.name} recovered from {injury_name}",
                     outcome=outcome,
                 )
+
+            # Log the injury removal event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="injury_removed",
+                injury_name=injury_name,
+                injury_state=fighter.injury_state,
+            )
 
         messages.success(request, f"Removed injury '{injury_name}' from {fighter.name}")
         return HttpResponseRedirect(
@@ -3107,6 +3342,23 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
             # Don't update cost_override - the cost will be computed from advancements
             advancement.apply_advancement()
 
+            # Log the advancement event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="advancement_applied",
+                advancement_type=params.advancement_type,
+                advancement_detail=stat_desc,
+                xp_cost=params.xp_cost,
+                cost_increase=params.cost_increase,
+            )
+
         messages.success(
             request,
             f"Advanced: {fighter.name} has improved {stat_desc}",
@@ -3176,6 +3428,22 @@ def apply_skill_advancement(
         # Apply the advancement (this deducts XP)
         # Don't update cost_override - the cost will be computed from advancements
         advancement.apply_advancement()
+
+        # Log the skill advancement event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            action="skill_advancement_applied",
+            skill_name=skill.name,
+            xp_cost=params.xp_cost,
+            cost_increase=params.cost_increase,
+        )
 
         return advancement
 
@@ -3441,6 +3709,21 @@ def reassign_list_fighter_equipment(
                         dice_results=[],
                         dice_total=0,
                     )
+
+                # Log the equipment reassignment
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+                    verb=EventVerb.UPDATE,
+                    object=assignment,
+                    request=request,
+                    from_fighter_name=from_fighter_name,
+                    to_fighter_name=to_fighter_name,
+                    equipment_name=equipment_name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="reassigned",
+                )
 
             messages.success(
                 request,
@@ -3747,6 +4030,21 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         dice_total=sum(dice_rolls) if dice_rolls else 0,
                     )
 
+                    # Log the equipment sale event
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.LIST,
+                        verb=EventVerb.UPDATE,
+                        object=lst,
+                        request=request,
+                        list_id=str(lst.id),
+                        list_name=lst.name,
+                        action="equipment_sold",
+                        credits_gained=total_credits,
+                        items_sold=len(sale_details),
+                        sale_summary=description,
+                    )
+
                 # Store results in session for summary
                 request.session["sale_results"] = {
                     "total_credits": total_credits,
@@ -3860,6 +4158,20 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
         )
         if form.is_valid():
             form.save()
+
+            # Log the attribute update
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.UPDATE,
+                object=lst,
+                request=request,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="attribute_updated",
+                attribute_name=attribute.name,
+            )
+
             messages.success(request, f"{attribute.name} updated successfully.")
             return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:

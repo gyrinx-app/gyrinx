@@ -7,6 +7,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
 from ..models import UploadedFile
+from ..models.events import EventNoun, EventVerb, log_event
 
 
 @require_POST
@@ -52,6 +53,18 @@ def tinymce_upload(request):
             content_type=content_type,
         )
         upload.save()
+
+        # Log the file upload event
+        log_event(
+            user=request.user,
+            noun=EventNoun.UPLOAD,
+            verb=EventVerb.CREATE,
+            object=upload,
+            request=request,
+            filename=upload.original_filename,
+            file_size=upload.file_size,
+            content_type=content_type,
+        )
 
         # Return the file URL
         return JsonResponse(
