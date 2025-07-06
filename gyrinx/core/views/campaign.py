@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -228,6 +229,11 @@ def campaign_add_lists(request, id):
     # Order by name
     lists = lists.order_by("name")
 
+    # Paginate the results
+    paginator = Paginator(lists, 20)  # Show 20 lists per page
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
     # If showing confirmation, get the list to confirm
     list_to_confirm = None
     if show_confirmation and list_id:
@@ -241,7 +247,8 @@ def campaign_add_lists(request, id):
         "core/campaign/campaign_add_lists.html",
         {
             "campaign": campaign,
-            "lists": lists,
+            "lists": page_obj,  # Pass the page object instead of the full queryset
+            "page_obj": page_obj,  # Also pass page_obj for pagination controls
             "error_message": error_message,
             "show_confirmation": show_confirmation,
             "list_to_confirm": list_to_confirm,
