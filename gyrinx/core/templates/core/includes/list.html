@@ -208,11 +208,11 @@
                         {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}
                         {% fullurl embed_url as full_embed_url %}
                         <div>
-                            <code>&lt;iframe src="{{ full_embed_url }}?theme=auto"&gt;&lt;/iframe&gt;</code>
+                            <code>&lt;iframe style="width: 100%; max-width: 400px;" src="{{ full_embed_url }}?theme=auto"&gt;&lt;/iframe&gt;</code>
                         </div>
                         <div class="hstack align-items-center gap-2">
                             <button class="btn btn-outline-secondary btn-sm"
-                                    data-clipboard-text="&lt;iframe src=&quot;{{ full_embed_url }}?theme=auto&quot;&gt;&lt;/iframe&gt;"
+                                    data-clipboard-text="&lt;iframe style=&quot;width: 100%; max-width: 400px;&quot; src=&quot;{{ full_embed_url }}?theme=auto&quot;&gt;&lt;/iframe&gt;"
                                     data-clipboard-message="copied-{{ fighter.id }}">
                                 <i class="bi-clipboard"></i> Copy
                             </button>
