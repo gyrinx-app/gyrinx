@@ -121,6 +121,22 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Get captured fighters for the campaign
+        if campaign.is_in_progress:
+            context["captured_fighters"] = (
+                CapturedFighter.objects.filter(
+                    models.Q(capturing_list__campaigns=campaign)
+                    | models.Q(fighter__list__campaigns=campaign)
+                )
+                .select_related(
+                    "fighter",
+                    "fighter__list",
+                    "fighter__content_fighter",
+                    "capturing_list",
+                )
+                .order_by("-captured_at")
+            )
+
         context["is_owner"] = user == campaign.owner
         return context
 
