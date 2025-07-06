@@ -337,10 +337,8 @@
                             <i class="bi-person-lock"></i> View Captured
                         </a>
                     </div>
-                    <div class="card-body py-2 px-2 px-sm-3">
-                        <p class="text-muted mb-0">
-                            Track fighters captured during the campaign. Captured fighters can be sold to guilders or returned to their original gang.
-                        </p>
+                    <div class="card-body p-0 px-sm-3 py-sm-2">
+                        {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
                     </div>
                 </div>
             {% endif %}

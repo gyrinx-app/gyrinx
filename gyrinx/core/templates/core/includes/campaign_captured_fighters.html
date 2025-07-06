@@ -1,0 +1,50 @@
+{% load custom_tags color_tags %}
+{% if captured_fighters %}
+    <table class="table table-sm mb-0">
+        <thead>
+            <tr>
+                <th>Fighter</th>
+                <th>Original Gang</th>
+                <th>Captured By</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for captured in captured_fighters|slice:":5" %}
+                <tr>
+                    <td>
+                        <strong>{{ captured.fighter.name }}</strong>
+                        <span class="text-secondary small d-block">{{ captured.fighter.content_fighter.type }}</span>
+                    </td>
+                    <td>
+                        <a href="{% url 'core:list' captured.fighter.list.id %}"
+                           class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                            {% list_with_theme captured.fighter.list %}
+                        </a>
+                    </td>
+                    <td>
+                        <a href="{% url 'core:list' captured.capturing_list.id %}"
+                           class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                            {% list_with_theme captured.capturing_list %}
+                        </a>
+                    </td>
+                    <td>
+                        {% if captured.sold_to_guilders %}
+                            <span class="badge bg-secondary">Sold</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Captured</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if captured_fighters.count > 5 %}
+        <div class="text-center mt-2">
+            <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+               class="btn btn-sm btn-link">View all {{ captured_fighters.count }} captured fighters →</a>
+        </div>
+    {% endif %}
+{% else %}
+    <p class="text-muted mb-0 text-center py-3">No fighters have been captured yet.</p>
+{% endif %}
