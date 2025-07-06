@@ -1454,7 +1454,15 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             )
         )
 
-    equipment = equipment.filter(rarity__in=set(als))
+    # Get equipment IDs that are already assigned to this fighter
+    already_assigned_ids = ListFighterEquipmentAssignment.objects.filter(
+        list_fighter=fighter, archived_at__isnull=True
+    ).values_list("content_equipment_id", flat=True)
+
+    # Filter by availability level, but always include items already assigned to the fighter
+    equipment = equipment.filter(
+        Q(rarity__in=set(als)) | Q(id__in=already_assigned_ids)
+    )
 
     # Apply maximum availability level filter if provided
     mal = (
