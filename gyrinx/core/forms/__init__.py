@@ -42,6 +42,13 @@ class SignupForm(SignupForm):
                 ),
             )
 
+        if "email" in self.fields:
+            self.fields["email"].help_text = (
+                "We are having difficulty sending automated emails to Microsoft email addresses "
+                "(live.com, hotmail.com, hotmail.co.uk etc.). "
+                "Please use a different address if you can."
+            )
+
 
 class UsernameChangeForm(forms.Form):
     """Form for users to change their username (only for users with @ in username)."""
