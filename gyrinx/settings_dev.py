@@ -1,7 +1,7 @@
 import os
 
-from .settings import LOGGING as BASE_LOGGING
 from .settings import *  # noqa: F403
+from .settings import LOGGING as BASE_LOGGING
 from .settings import STORAGES
 
 DEBUG = True
@@ -9,6 +9,17 @@ WHITENOISE_AUTOREFRESH = True
 
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
+
+USE_REAL_EMAIL_IN_DEV = os.getenv("USE_REAL_EMAIL_IN_DEV", "False").lower() == "true"
+if USE_REAL_EMAIL_IN_DEV:
+    # Email configuration - all values from environment variables
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.sendgrid.net")
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "apikey")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+
 
 LOGGING = {
     "version": 1,
