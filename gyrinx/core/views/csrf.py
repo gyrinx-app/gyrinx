@@ -4,6 +4,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+
 
 @csrf_exempt
 def csrf_failure(request, reason=""):
@@ -11,6 +13,17 @@ def csrf_failure(request, reason=""):
     Custom view to handle CSRF failures by redirecting back to the form
     with an error message instead of showing a 403 page.
     """
+    # Log the CSRF failure
+    if request.user.is_authenticated:
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="csrf_failure",
+            csrf_reason=reason,
+        )
+
     # Add a user-friendly error message
     messages.error(
         request,

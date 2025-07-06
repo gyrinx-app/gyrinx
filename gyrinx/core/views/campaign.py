@@ -189,6 +189,20 @@ def campaign_add_lists(request, id):
                     else:
                         # Use the new method to add the list
                         added_list = campaign.add_list_to_campaign(list_to_add)
+
+                        # Log the list addition event
+                        log_event(
+                            user=request.user,
+                            noun=EventNoun.CAMPAIGN,
+                            verb=EventVerb.ADD,
+                            object=campaign,
+                            request=request,
+                            campaign_name=campaign.name,
+                            list_added_id=str(added_list.id),
+                            list_added_name=added_list.name,
+                            list_owner=added_list.owner.username,
+                        )
+
                         # Show success message
                         messages.success(
                             request,
@@ -475,6 +489,19 @@ def campaign_action_outcome(request, id, action_id):
         form = CampaignActionOutcomeForm(request.POST, instance=action)
         if form.is_valid():
             form.save()
+
+            # Log the action outcome update
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ACTION,
+                verb=EventVerb.UPDATE,
+                object=action,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action_type=action.action_type,
+                outcome=action.outcome,
+            )
 
             # Check which button was clicked
             if "save_and_new" in request.POST:
@@ -804,6 +831,19 @@ def campaign_assets(request, id):
         )
     )
 
+    # Log viewing campaign assets
+    if request.user.is_authenticated:
+        log_event(
+            user=request.user,
+            noun=EventNoun.CAMPAIGN_ASSET,
+            verb=EventVerb.VIEW,
+            object=campaign,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            asset_types_count=asset_types.count(),
+        )
+
     return render(
         request,
         "core/campaign/campaign_assets.html",
@@ -840,6 +880,21 @@ def campaign_asset_type_new(request, id):
             asset_type.campaign = campaign
             asset_type.owner = request.user
             asset_type.save()
+
+            # Log the asset type creation
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.CREATE,
+                object=asset_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_type_name=asset_type.name_singular,
+                asset_type_plural=asset_type.name_plural,
+                is_transferable=asset_type.is_transferable,
+            )
+
             messages.success(
                 request, f"Asset type '{asset_type.name_singular}' created."
             )
@@ -881,6 +936,21 @@ def campaign_asset_type_edit(request, id, type_id):
         form = CampaignAssetTypeForm(request.POST, instance=asset_type)
         if form.is_valid():
             form.save()
+
+            # Log the asset type update
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.UPDATE,
+                object=asset_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_type_name=asset_type.name_singular,
+                asset_type_plural=asset_type.name_plural,
+                is_transferable=asset_type.is_transferable,
+            )
+
             messages.success(request, "Asset type updated.")
             return HttpResponseRedirect(
                 reverse("core:campaign-assets", args=(campaign.id,))
@@ -989,6 +1059,23 @@ def campaign_asset_edit(request, id, asset_id):
         form = CampaignAssetForm(request.POST, instance=asset)
         if form.is_valid():
             form.save()
+
+            # Log the asset update
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.UPDATE,
+                object=asset,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_name=asset.name,
+                asset_description=asset.description[:100]
+                if asset.description
+                else None,
+                asset_holder=asset.holder.name if asset.holder else None,
+            )
+
             messages.success(request, "Asset updated.")
             return HttpResponseRedirect(
                 reverse("core:campaign-assets", args=(campaign.id,))
@@ -1028,7 +1115,24 @@ def campaign_asset_transfer(request, id, asset_id):
         form = AssetTransferForm(request.POST, asset=asset)
         if form.is_valid():
             new_holder = form.cleaned_data["new_holder"]
+            old_holder = asset.holder
             asset.transfer_to(new_holder, user=request.user)
+
+            # Log the asset transfer
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.UPDATE,
+                object=asset,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_name=asset.name,
+                transfer_from=old_holder.name if old_holder else "Unassigned",
+                transfer_to=new_holder.name,
+                action="transfer",
+            )
+
             messages.success(request, "Asset transferred successfully.")
             return HttpResponseRedirect(
                 reverse("core:campaign-assets", args=(campaign.id,))
@@ -1068,6 +1172,19 @@ def campaign_resources(request, id):
     user = request.user
     is_owner = user == campaign.owner
     user_lists = campaign.lists.filter(owner=user) if user.is_authenticated else []
+
+    # Log viewing campaign resources
+    if user.is_authenticated:
+        log_event(
+            user=user,
+            noun=EventNoun.CAMPAIGN_RESOURCE,
+            verb=EventVerb.VIEW,
+            object=campaign,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            resource_types_count=len(resource_types),
+        )
 
     return render(
         request,
@@ -1118,6 +1235,22 @@ def campaign_resource_type_new(request, id):
                         owner=request.user,
                     )
 
+            # Log the resource type creation
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_RESOURCE,
+                verb=EventVerb.CREATE,
+                object=resource_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                resource_type_name=resource_type.name,
+                default_amount=resource_type.default_amount,
+                lists_allocated=campaign.lists.count()
+                if campaign.is_in_progress
+                else 0,
+            )
+
             messages.success(request, f"Resource type '{resource_type.name}' created.")
             return HttpResponseRedirect(
                 reverse("core:campaign-resources", args=(campaign.id,))
@@ -1159,6 +1292,20 @@ def campaign_resource_type_edit(request, id, type_id):
         form = CampaignResourceTypeForm(request.POST, instance=resource_type)
         if form.is_valid():
             form.save()
+
+            # Log the resource type update
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_RESOURCE,
+                verb=EventVerb.UPDATE,
+                object=resource_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                resource_type_name=resource_type.name,
+                default_amount=resource_type.default_amount,
+            )
+
             messages.success(request, "Resource type updated.")
             return HttpResponseRedirect(
                 reverse("core:campaign-resources", args=(campaign.id,))
@@ -1287,6 +1434,19 @@ def campaign_captured_fighters(request, id):
         .order_by("-captured_at")
     )
 
+    # Log viewing captured fighters
+    log_event(
+        user=request.user,
+        noun=EventNoun.CAMPAIGN,
+        verb=EventVerb.VIEW,
+        object=campaign,
+        request=request,
+        page="captured_fighters",
+        campaign_id=str(campaign.id),
+        campaign_name=campaign.name,
+        captured_fighters_count=captured_fighters.count(),
+    )
+
     return render(
         request,
         "core/campaign/campaign_captured_fighters.html",
@@ -1357,6 +1517,22 @@ def fighter_sell_to_guilders(request, id, fighter_id):
                 list=captured_fighter.capturing_list,
                 description=f"Sold {captured_fighter.fighter.name} from {captured_fighter.fighter.list.name} to the guilders"
                 + (f" for {credits} credits" if credits > 0 else ""),
+            )
+
+            # Log the fighter sale event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=captured_fighter.fighter,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="sold_to_guilders",
+                fighter_name=captured_fighter.fighter.name,
+                original_list=captured_fighter.fighter.list.name,
+                capturing_list=captured_fighter.capturing_list.name,
+                credits=credits,
             )
 
         messages.success(
@@ -1469,6 +1645,22 @@ def fighter_return_to_owner(request, id, fighter_id):
                 list=capturing_list,
                 description=f"Returned {fighter_name} to {original_list.name}"
                 + (f" for {ransom} credits" if ransom > 0 else ""),
+            )
+
+            # Log the fighter return event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=captured_fighter.fighter,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="returned_to_owner",
+                fighter_name=fighter_name,
+                original_list=original_list.name,
+                capturing_list=capturing_list.name,
+                ransom=ransom,
             )
 
         messages.success(
