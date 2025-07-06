@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
+from django.views.decorators.clickjacking import xframe_options_exempt
 from pydantic import BaseModel, field_validator
 
 from gyrinx.content.models import (
@@ -2006,6 +2007,7 @@ def delete_list_fighter(request, id, fighter_id):
     )
 
 
+@xframe_options_exempt
 def embed_list_fighter(request, id, fighter_id):
     """
     Display a single :model:`core.ListFighter` object in an embedded view.
