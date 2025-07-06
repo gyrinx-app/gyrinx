@@ -24,7 +24,6 @@ class SignupForm(SignupForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Update username field help text and add validation
-        print(self.fields.keys())
         if "username" in self.fields:
             self.fields["username"].help_text = (
                 "This is the name you'll use to log in to Gyrinx. "
