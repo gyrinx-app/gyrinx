@@ -892,7 +892,6 @@ def campaign_asset_type_new(request, id):
                 campaign_name=campaign.name,
                 asset_type_name=asset_type.name_singular,
                 asset_type_plural=asset_type.name_plural,
-                is_transferable=asset_type.is_transferable,
             )
 
             messages.success(

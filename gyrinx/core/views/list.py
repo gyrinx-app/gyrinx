@@ -2200,6 +2200,22 @@ def embed_list_fighter(request, id, fighter_id):
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
+    # Log the embed view event
+    log_event(
+        user=request.user
+        if hasattr(request, "user") and request.user.is_authenticated
+        else None,
+        noun=EventNoun.LIST_FIGHTER,
+        verb=EventVerb.VIEW,
+        object=fighter,
+        request=request,
+        list_id=str(lst.id),
+        list_name=lst.name,
+        fighter_id=str(fighter.id),
+        fighter_name=fighter.name,
+        embed=True,
+    )
+
     return render(
         request,
         "core/list_fighter_embed.html",

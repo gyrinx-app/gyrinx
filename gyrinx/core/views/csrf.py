@@ -14,7 +14,7 @@ def csrf_failure(request, reason=""):
     with an error message instead of showing a 403 page.
     """
     # Log the CSRF failure
-    if request.user.is_authenticated:
+    if hasattr(request, "user") and request.user.is_authenticated:
         log_event(
             user=request.user,
             noun=EventNoun.USER,

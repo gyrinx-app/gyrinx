@@ -57,7 +57,7 @@ def tinymce_upload(request):
         # Log the file upload event
         log_event(
             user=request.user,
-            noun=EventNoun.UPLOADED_FILE,
+            noun=EventNoun.UPLOAD,
             verb=EventVerb.CREATE,
             object=upload,
             request=request,
