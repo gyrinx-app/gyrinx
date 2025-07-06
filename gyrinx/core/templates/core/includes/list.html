@@ -136,6 +136,12 @@
                                 </li>
                                 {% if list.owner_cached == user %}
                                     <li>
+                                        <a href="{% url 'core:list-show-stash' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-plus-circle"></i> Show Stash
+                                        </a>
+                                    </li>
+                                    <li>
                                         <a href="{% url 'core:list-archive' list.id %}"
                                            class="dropdown-item icon-link">
                                             <i class="bi-archive"></i>
