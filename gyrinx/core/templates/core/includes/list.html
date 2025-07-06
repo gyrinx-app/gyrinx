@@ -136,6 +136,12 @@
                                 </li>
                                 {% if list.owner_cached == user %}
                                     <li>
+                                        <a href="{% url 'core:list-show-stash' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-plus-circle"></i> Show Stash
+                                        </a>
+                                    </li>
+                                    <li>
                                         <a href="{% url 'core:list-archive' list.id %}"
                                            class="dropdown-item icon-link">
                                             <i class="bi-archive"></i>
@@ -162,9 +168,7 @@
         {% endif %}
         {% for fighter in list.fighters_cached %}
             {% if fighter.is_stash %}
-                {% if not print %}
-                    {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
-                {% endif %}
+                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
             {% else %}
                 {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
             {% endif %}

@@ -20,6 +20,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
+    ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterPsykerPowerDefaultAssignment,
@@ -320,6 +321,25 @@ def new_list(request):
             list_.owner = request.user
             list_.save()
 
+            # Create a stash fighter for the new list
+            stash_fighter, created = ContentFighter.objects.get_or_create(
+                house=list_.content_house,
+                is_stash=True,
+                defaults={
+                    "type": "Stash",
+                    "category": "STASH",
+                    "base_cost": 0,
+                },
+            )
+
+            # Create the stash ListFighter
+            ListFighter.objects.create(
+                name="Stash",
+                content_fighter=stash_fighter,
+                list=list_,
+                owner=request.user,
+            )
+
             # Log the list creation event
             log_event(
                 user=request.user,
@@ -594,6 +614,48 @@ def archive_list(request, id):
             "active_campaigns": active_campaigns,
         },
     )
+
+
+@login_required
+def show_stash(request, id):
+    """
+    Add a stash fighter to a list if it doesn't already have one.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` to add a stash fighter to.
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    # Check if the list already has a stash fighter
+    has_stash = lst.listfighter_set.filter(content_fighter__is_stash=True).exists()
+
+    if not has_stash:
+        # Get or create a stash ContentFighter for this house
+        stash_fighter, created = ContentFighter.objects.get_or_create(
+            house=lst.content_house,
+            is_stash=True,
+            defaults={
+                "type": "Stash",
+                "category": "STASH",
+                "base_cost": 0,
+            },
+        )
+
+        # Create the stash ListFighter
+        ListFighter.objects.create(
+            name="Stash",
+            content_fighter=stash_fighter,
+            list=lst,
+            owner=request.user,
+        )
+
+        messages.success(request, "Stash fighter added to the list.")
+    else:
+        messages.info(request, "This list already has a stash fighter.")
+
+    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
 
 @login_required
