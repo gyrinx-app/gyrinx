@@ -42,6 +42,7 @@
 ## Operations
 
 * [Operational Overview](operations/operational-overview.md)
+* [Content Data Management](operations/content-data-management.md)
 * [Deployment](deployment.md)
 * [Runbook](runbook.md)
 
