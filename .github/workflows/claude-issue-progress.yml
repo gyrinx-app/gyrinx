@@ -6,8 +6,8 @@ on:
 
 jobs:
   move-to-in-progress:
-    # Only run when Claude Code creates a comment
-    if: github.event.comment.user.login == 'github-actions[bot]' && contains(github.event.comment.body, 'Claude Code')
+    # Only run when Claude Code is triggered
+    if: github.event.comment.user.login == 'tgvashworth' && contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     permissions:
       contents: read
