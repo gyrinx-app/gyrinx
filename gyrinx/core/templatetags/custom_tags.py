@@ -1,4 +1,5 @@
 import hashlib
+import random
 import re
 
 import qrcode
@@ -231,3 +232,23 @@ def subtract(value, arg):
         return int(value) - int(arg)
     except (ValueError, TypeError):
         return 0
+
+
+@register.simple_tag
+def random_404_message():
+    """Return a random 404 error message."""
+    messages = [
+        "…or maybe that's what the Delaque want you to believe.",
+        "But none can escape Helmawr's justice forever.",
+        "We blame the Caryatids.",
+        "Please direct all queries to your local Archeotek.",
+        "It might have wandered too far into Hive Secundus.",
+        "You probably shouldn't have paid the Whisper Merchant in advance.",
+        "[REDACTED BY ORDER OF LORD HELMAWR]",
+        "Never trust directions from a Goliath.",
+        "You're never going to make it as a Technomancer.",
+        "My cyber-mastiff ate it.",
+        "Check your dome runner map is the right way up.",
+        "Someone might have been at it with a data-thief.",
+    ]
+    return random.choice(messages)
