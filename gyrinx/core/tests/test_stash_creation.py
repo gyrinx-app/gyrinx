@@ -9,7 +9,7 @@ from gyrinx.core.models import List, ListFighter
 
 @pytest.mark.django_db
 def test_new_list_creates_stash_fighter():
-    """Test that creating a new list automatically creates a stash fighter"""
+    """Test that creating a new list with show_stash checked creates a stash fighter"""
     # Create a user
     user = User.objects.create_user(username="testuser", password="testpass")
 
@@ -20,13 +20,14 @@ def test_new_list_creates_stash_fighter():
     client = Client()
     client.login(username="testuser", password="testpass")
 
-    # Create a new list
+    # Create a new list with show_stash checked (default)
     response = client.post(
         reverse("core:lists-new"),
         {
             "name": "Test List",
             "content_house": house.id,
             "public": False,
+            "show_stash": True,
         },
     )
 
@@ -136,3 +137,39 @@ def test_show_stash_requires_ownership():
 
     # Should return 404
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_new_list_without_stash_fighter():
+    """Test that creating a new list with show_stash unchecked does not create a stash fighter"""
+    # Create a user
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create a house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Login
+    client = Client()
+    client.login(username="testuser", password="testpass")
+
+    # Create a new list with show_stash unchecked
+    response = client.post(
+        reverse("core:lists-new"),
+        {
+            "name": "Test List No Stash",
+            "content_house": house.id,
+            "public": False,
+            "show_stash": False,
+        },
+    )
+
+    # Check redirect
+    assert response.status_code == 302
+
+    # Check list was created
+    list_ = List.objects.get(name="Test List No Stash")
+    assert list_.owner == user
+    assert list_.content_house == house
+
+    # Check no stash fighter was created
+    assert not list_.listfighter_set.filter(content_fighter__is_stash=True).exists()
