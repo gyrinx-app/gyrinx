@@ -1441,31 +1441,34 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             .distinct("category__name", "name", "id")
         )
 
-    # Filter by availability level
-    als = request.GET.getlist("al", ["C", "R"])
-    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
-        # Always show Exclusive in equipment lists
-        als += ["E"]
-        equipment = equipment.exclude(
-            ~Q(
-                id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.equipment_list_fighter
-                ).values("equipment_id")
-            )
+    # Check if equipment list filter is active
+    # Default to equipment-list when filter is not provided (matches template behavior)
+    filter_value = request.GET.get("filter", "equipment-list")
+    is_equipment_list = filter_value == "equipment-list"
+
+    if is_equipment_list:
+        # When equipment list is toggled, only show equipment from the fighter's equipment list
+        # Ignore all availability filters - show everything on the equipment list
+        equipment = equipment.filter(
+            id__in=ContentFighterEquipmentListItem.objects.filter(
+                fighter=fighter.equipment_list_fighter
+            ).values("equipment_id")
         )
+    else:
+        # Apply availability filters normally when "all" is selected
+        als = request.GET.getlist("al", ["C", "R"])
+        equipment = equipment.filter(rarity__in=set(als))
 
-    equipment = equipment.filter(rarity__in=set(als))
-
-    # Apply maximum availability level filter if provided
-    mal = (
-        int(request.GET.get("mal"))
-        if request.GET.get("mal") and is_int(request.GET.get("mal"))
-        else None
-    )
-    if mal:
-        # Only filter by rarity_roll for items that aren't Common
-        # Common items should always be visible
-        equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
+        # Apply maximum availability level filter if provided
+        mal = (
+            int(request.GET.get("mal"))
+            if request.GET.get("mal") and is_int(request.GET.get("mal"))
+            else None
+        )
+        if mal:
+            # Only filter by rarity_roll for items that aren't Common
+            # Common items should always be visible
+            equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
 
     # Create assignment objects
     assigns = []
@@ -1474,7 +1477,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
 
             # If equipment list filter is active, only show profiles that are on the equipment list
-            if request.GET.get("filter", None) in [None, "", "equipment-list"]:
+            if is_equipment_list:
                 # Get weapon profiles that are specifically on the equipment list
                 equipment_list_profiles = (
                     ContentFighterEquipmentListItem.objects.filter(
@@ -1537,6 +1540,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         "list": lst,
         "error_message": error_message,
         "is_weapon": is_weapon,
+        "is_equipment_list": is_equipment_list,
     }
 
     # Add weapons-specific context if needed

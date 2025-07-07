@@ -248,8 +248,8 @@ def test_armor_filtering_unchanged(setup_test_data):
         ],
     )
 
-    # Test without mal - should see both armors
-    response = client.get(url, {"al": ["C", "R"]})
+    # Test without mal - should see both armors (need to set filter=all for normal filtering)
+    response = client.get(url, {"al": ["C", "R"], "filter": "all"})
     assert response.status_code == 200
     content = response.content.decode()
 
@@ -257,7 +257,7 @@ def test_armor_filtering_unchanged(setup_test_data):
     assert "Rare Armor" in content
 
     # Test with mal=5 - should only see common armor (Rare has rarity_roll=9)
-    response = client.get(url, {"mal": "5", "al": ["C", "R"]})
+    response = client.get(url, {"mal": "5", "al": ["C", "R"], "filter": "all"})
     assert response.status_code == 200
     content = response.content.decode()
 

@@ -65,14 +65,21 @@
                 </div>
             </div>
         </div>
-        <div class="btn-group">
+        <div class="btn-group"
+             {% if is_equipment_list %} data-bs-toggle="tooltip" data-bs-placement="top" title="Availability filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability." {% endif %}>
             <button type="button"
-                    class="btn btn-outline-primary btn-sm dropdown-toggle"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                    data-bs-auto-close="outside">Availability</button>
+                    class="btn btn-outline-primary btn-sm dropdown-toggle{% if is_equipment_list %} disabled{% endif %}"
+                    {% if not is_equipment_list %} data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside" {% else %} disabled {% endif %}>
+                Availability
+            </button>
             <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
                 <div class="vstack gap-3">
+                    {% if is_equipment_list %}
+                        <div class="text-muted small">
+                            <i class="bi bi-info-circle"></i>
+                            Filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability.
+                        </div>
+                    {% endif %}
                     <div>
                         <label for="mal" class="form-label">Maximum Availability Level</label>
                         <div class="row gx-2 align-items-center">
