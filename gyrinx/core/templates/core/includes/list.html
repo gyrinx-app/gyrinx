@@ -136,10 +136,20 @@
                                 </li>
                                 {% if list.owner_cached == user %}
                                     <li>
-                                        <a href="{% url 'core:list-show-stash' list.id %}"
-                                           class="dropdown-item icon-link">
-                                            <i class="bi-plus-circle"></i> Show Stash
-                                        </a>
+                                        {% if has_stash_fighter %}
+                                            <a href="#"
+                                               class="dropdown-item icon-link disabled"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-title="This list already has a stash fighter"
+                                               onclick="return false;">
+                                                <i class="bi-plus-circle"></i> Show Stash
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'core:list-show-stash' list.id %}"
+                                               class="dropdown-item icon-link">
+                                                <i class="bi-plus-circle"></i> Show Stash
+                                            </a>
+                                        {% endif %}
                                     </li>
                                     <li>
                                         <a href="{% url 'core:list-archive' list.id %}"

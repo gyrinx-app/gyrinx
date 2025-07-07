@@ -187,6 +187,11 @@ class ListDetailView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         list_obj = context["list"]
 
+        # Check if the list has a stash fighter
+        context["has_stash_fighter"] = list_obj.listfighter_set.filter(
+            content_fighter__is_stash=True
+        ).exists()
+
         # If list is in campaign mode and has a campaign, fetch recent actions
         if list_obj.is_campaign_mode and list_obj.campaign:
             from gyrinx.core.models.campaign import CampaignAction
@@ -321,24 +326,26 @@ def new_list(request):
             list_.owner = request.user
             list_.save()
 
-            # Create a stash fighter for the new list
-            stash_fighter, created = ContentFighter.objects.get_or_create(
-                house=list_.content_house,
-                is_stash=True,
-                defaults={
-                    "type": "Stash",
-                    "category": "STASH",
-                    "base_cost": 0,
-                },
-            )
+            # Only create a stash fighter if the checkbox is checked
+            if form.cleaned_data.get("show_stash", True):
+                # Create a stash fighter for the new list
+                stash_fighter, created = ContentFighter.objects.get_or_create(
+                    house=list_.content_house,
+                    is_stash=True,
+                    defaults={
+                        "type": "Stash",
+                        "category": "STASH",
+                        "base_cost": 0,
+                    },
+                )
 
-            # Create the stash ListFighter
-            ListFighter.objects.create(
-                name="Stash",
-                content_fighter=stash_fighter,
-                list=list_,
-                owner=request.user,
-            )
+                # Create the stash ListFighter
+                ListFighter.objects.create(
+                    name="Stash",
+                    content_fighter=stash_fighter,
+                    list=list_,
+                    owner=request.user,
+                )
 
             # Log the list creation event
             log_event(

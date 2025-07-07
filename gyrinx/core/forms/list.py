@@ -15,6 +15,14 @@ from gyrinx.models import FighterCategoryChoices
 
 
 class NewListForm(forms.ModelForm):
+    show_stash = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Show Stash for this list",
+        help_text="If checked, a stash fighter will be created for this list.",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
     class Meta:
         model = List
         fields = ["name", "content_house", "narrative", "public"]
