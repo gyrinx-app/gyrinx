@@ -1,0 +1,119 @@
+name: Claude Issue Progress
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  move-to-in-progress:
+    # Only run when Claude Code creates a comment
+    if: github.event.comment.user.login == 'github-actions[bot]' && contains(github.event.comment.body, 'Claude Code')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      repository-projects: write
+    steps:
+      - name: Move issue to In Progress
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // First, we need to find the project and get the issue's project item
+            const query = `
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project {
+                          id
+                          title
+                          field(name: "Status") {
+                            ... on ProjectV2SingleSelectField {
+                              id
+                              options {
+                                id
+                                name
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const variables = {
+              owner: owner,
+              repo: repo,
+              issueNumber: issueNumber
+            };
+
+            const result = await github.graphql(query, variables);
+
+            if (!result.repository.issue.projectItems.nodes.length) {
+              console.log('Issue is not in any project');
+              return;
+            }
+
+            // Process each project the issue is in
+            for (const projectItem of result.repository.issue.projectItems.nodes) {
+              const project = projectItem.project;
+              const statusField = project.field;
+
+              if (!statusField || !statusField.options) {
+                console.log(`Project "${project.title}" does not have a Status field`);
+                continue;
+              }
+
+              // Find the "In Progress" option
+              const inProgressOption = statusField.options.find(
+                option => option.name.toLowerCase() === 'in progress' ||
+                         option.name.toLowerCase() === 'in-progress' ||
+                         option.name.toLowerCase() === 'doing'
+              );
+
+              if (!inProgressOption) {
+                console.log(`Project "${project.title}" does not have an "In Progress" status option`);
+                continue;
+              }
+
+              // Update the project item
+              const updateMutation = `
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(
+                    input: {
+                      projectId: $projectId
+                      itemId: $itemId
+                      fieldId: $fieldId
+                      value: { singleSelectOptionId: $optionId }
+                    }
+                  ) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }
+              `;
+
+              const updateVariables = {
+                projectId: project.id,
+                itemId: projectItem.id,
+                fieldId: statusField.id,
+                optionId: inProgressOption.id
+              };
+
+              try {
+                await github.graphql(updateMutation, updateVariables);
+                console.log(`Successfully moved issue to "In Progress" in project "${project.title}"`);
+              } catch (error) {
+                console.error(`Failed to update project "${project.title}":`, error.message);
+              }
+            }
