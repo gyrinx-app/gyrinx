@@ -201,3 +201,19 @@ You can also enable SQL logging by setting the `SQL_DEBUG` variable:
 ```
 SQL_DEBUG=True
 ```
+
+## Content library for development
+
+To test Gyrinx locally, you are really limited unless you have the content library data available. This is because the content library is what provides the data for the Gyrinx application to work with.
+
+The content library is managed by the Gyrinx content team in production, and is what makes Gyrinx useful.
+
+Gyrinx uses a custom-ish data export/import process to manage content library data from production, so you can test locally.
+
+> [!NOTE]
+> This process is only available for trusted developers and admins.
+
+1. **Export**: Run the `gyrinx-dumpdata` Cloud Run job in production to export content to the `gyrinx-app-bootstrap-dump` bucket
+2. **Import**: Download `latest.json` from the bucket and use `manage loaddata_overwrite latest.json` to replace local content data
+
+This process ensures we have access to the latest production content library. See [docs/operations/content-data-management.md](docs/operations/content-data-management.md) for details.
