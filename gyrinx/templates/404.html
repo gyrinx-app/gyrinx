@@ -1,0 +1,29 @@
+{% extends "core/layouts/page.html" %}
+{% block head_title %}
+    Page Not Found
+{% endblock head_title %}
+{% block page_title %}
+    404 - Page Not Found
+{% endblock page_title %}
+{% block page_description %}
+    Looks like you've wandered into the underhive...
+{% endblock page_description %}
+{% block page_content %}
+    <div class="col-lg-6">
+        <p>The page you're looking for doesn't exist. It might have been moved, deleted, or you may have mistyped the URL.</p>
+        <p>Here are some things you can try:</p>
+        <ul>
+            <li>Check the URL for typos</li>
+            <li>
+                Go back to the <a href="{% url 'core:index' %}">home page</a>
+            </li>
+            <li>Try navigating from the main menu above</li>
+        </ul>
+        <div class="mt-4">
+            <a href="{% url 'core:index' %}" class="btn btn-primary">
+                <i class="bi-house"></i> Back to Home
+            </a>
+        </div>
+    </div>
+{% endblock page_content %}
+
