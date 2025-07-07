@@ -107,3 +107,11 @@ def join_the_waiting_list_success(request):
         "pages/join_the_waiting_list_success.html",
         {"entry": entry, "share_url": share_url},
     )
+
+
+def error_404(request):
+    return render(request, "404.html", status=404)
+
+
+def error_500(request):
+    return render(request, "500.html", status=500)

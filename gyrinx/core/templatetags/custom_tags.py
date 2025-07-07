@@ -251,4 +251,4 @@ def random_404_message():
         "Check your dome runner map is the right way up.",
         "Someone might have been at it with a data-thief.",
     ]
-    return random.choice(messages)
+    return random.choice(messages)  # nosec

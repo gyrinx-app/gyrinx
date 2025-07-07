@@ -1,10 +1,10 @@
 {% extends "core/layouts/page.html" %}
 {% load custom_tags %}
 {% block head_title %}
-    Page Not Found
+    Not Found
 {% endblock head_title %}
 {% block page_title %}
-    404 - Page Not Found
+    <code><pre>404 Not Found</pre></code>
 {% endblock page_title %}
 {% block page_description %}
     {% random_404_message %}
@@ -21,7 +21,7 @@
             <li>Try navigating from the main menu above</li>
         </ul>
         <div class="mt-4">
-            <a href="{% url 'core:index' %}" class="btn btn-primary">
+            <a href="{% url 'core:index' %}" class="btn btn-link icon-link">
                 <i class="bi-house"></i> Back to Home
             </a>
         </div>
