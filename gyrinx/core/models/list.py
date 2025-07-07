@@ -232,7 +232,6 @@ class List(AppBase):
             kwargs["status"] = self.CAMPAIGN_MODE
             kwargs["original_list"] = self
             kwargs["campaign"] = for_campaign
-            kwargs["public"] = False  # Campaign lists are always private
         else:
             # Regular clones get a suffix
             if not name:
@@ -242,7 +241,7 @@ class List(AppBase):
             owner = self.owner
 
         values = {
-            "public": self.public if for_campaign is None else False,
+            "public": self.public,
             "narrative": self.narrative,
             "theme_color": self.theme_color,
             **kwargs,

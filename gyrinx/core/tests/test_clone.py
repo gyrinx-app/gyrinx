@@ -138,3 +138,24 @@ def test_list_clone_excludes_stash_fighter(
     cloned_fighter = cloned_list.fighters().first()
     assert cloned_fighter.name == "Regular Fighter"
     assert not cloned_fighter.content_fighter.is_stash
+
+
+@pytest.mark.django_db
+def test_list_clone_for_campaign_preserves_public_state(make_list, make_campaign):
+    """Test that public/private state is preserved when cloning for campaigns."""
+    # Test with a public list
+    public_list = make_list("Public List", public=True)
+    campaign = make_campaign("Test Campaign")
+
+    public_clone = public_list.clone(for_campaign=campaign)
+    assert public_clone.public is True  # Should preserve public state
+    assert public_clone.campaign == campaign
+    assert public_clone.status == List.CAMPAIGN_MODE
+
+    # Test with a private list
+    private_list = make_list("Private List", public=False)
+
+    private_clone = private_list.clone(for_campaign=campaign)
+    assert private_clone.public is False  # Should preserve private state
+    assert private_clone.campaign == campaign
+    assert private_clone.status == List.CAMPAIGN_MODE
