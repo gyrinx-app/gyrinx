@@ -1448,20 +1448,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             .distinct("category__name", "name", "id")
         )
 
-    # Filter by availability level
-    als = request.GET.getlist("al", ["C", "R"])
-    if request.GET.get("filter", None) in [None, "", "equipment-list"]:
-        # Always show Exclusive in equipment lists
-        als += ["E"]
-        equipment = equipment.exclude(
-            ~Q(
-                id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.equipment_list_fighter
-                ).values("equipment_id")
-            )
-        )
+    # Check if equipment list filter is active
+    # Default to equipment-list when filter is not provided (matches template behavior)
+    filter_value = request.GET.get("filter", "equipment-list")
+    is_equipment_list = filter_value == "equipment-list"
 
-    equipment = equipment.filter(rarity__in=set(als))
+    # Check if availability filters were explicitly provided
+    has_explicit_al = "al" in request.GET
 
     # Apply maximum availability level filter if provided
     mal = (
@@ -1469,10 +1462,35 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if request.GET.get("mal") and is_int(request.GET.get("mal"))
         else None
     )
-    if mal:
-        # Only filter by rarity_roll for items that aren't Common
-        # Common items should always be visible
-        equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
+
+    if is_equipment_list and not has_explicit_al:
+        # When equipment list is toggled and no explicit availability filter is provided,
+        # show all equipment from the fighter's equipment list regardless of availability
+        equipment = equipment.filter(
+            id__in=ContentFighterEquipmentListItem.objects.filter(
+                fighter=fighter.equipment_list_fighter
+            ).values("equipment_id")
+        )
+        # For profile filtering later, we need to know all rarities are allowed
+        als = ["C", "R", "I", "L", "E"]  # All possible rarities
+    else:
+        # Apply availability filters (either explicit or default)
+        als = request.GET.getlist("al", ["C", "R"])
+        equipment = equipment.filter(rarity__in=set(als))
+
+        if mal:
+            # Only filter by rarity_roll for items that aren't Common
+            # Common items should always be visible
+            equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
+
+        if is_equipment_list:
+            # When equipment list is toggled with explicit filters,
+            # further filter to only show equipment from the fighter's equipment list
+            equipment = equipment.filter(
+                id__in=ContentFighterEquipmentListItem.objects.filter(
+                    fighter=fighter.equipment_list_fighter
+                ).values("equipment_id")
+            )
 
     # Create assignment objects
     assigns = []
@@ -1480,8 +1498,29 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if is_weapon:
             profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
 
-            # If equipment list filter is active, only show profiles that are on the equipment list
-            if request.GET.get("filter", None) in [None, "", "equipment-list"]:
+            # Apply profile filtering based on availability
+            profiles = [
+                profile
+                for profile in profiles
+                # Keep standard profiles
+                if profile.cost == 0
+                # They have an Al that matches the filter, and no roll value
+                or (not profile.rarity_roll and profile.rarity in als)
+                # They have an Al that matches the filter, and a roll
+                or (
+                    profile.rarity_roll
+                    and profile.rarity in als
+                    and (
+                        # If mal is set, check if profile passes the threshold
+                        (mal and profile.rarity_roll <= mal)
+                        # If mal is not set, show all profiles with matching rarity
+                        or not mal
+                    )
+                )
+            ]
+
+            # If equipment list filter is active, further filter to only profiles on the equipment list
+            if is_equipment_list:
                 # Get weapon profiles that are specifically on the equipment list
                 equipment_list_profiles = (
                     ContentFighterEquipmentListItem.objects.filter(
@@ -1498,27 +1537,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     if profile.cost == 0
                     # Or keep profiles that are specifically on the equipment list
                     or profile.id in equipment_list_profiles
-                ]
-            else:
-                # Standard filtering when equipment list filter is not active
-                profiles = [
-                    profile
-                    for profile in profiles
-                    # Keep standard profiles
-                    if profile.cost == 0
-                    # They have an Al that matches the filter, and no roll value
-                    or (not profile.rarity_roll and profile.rarity in als)
-                    # They have an Al that matches the filter, and a roll
-                    or (
-                        profile.rarity_roll
-                        and profile.rarity in als
-                        and (
-                            # If mal is set, check if profile passes the threshold
-                            (mal and profile.rarity_roll <= mal)
-                            # If mal is not set, show all profiles with matching rarity
-                            or not mal
-                        )
-                    )
                 ]
 
             assigns.append(
@@ -1544,6 +1562,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         "list": lst,
         "error_message": error_message,
         "is_weapon": is_weapon,
+        "is_equipment_list": is_equipment_list,
     }
 
     # Add weapons-specific context if needed
