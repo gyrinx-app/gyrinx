@@ -11,7 +11,7 @@ User = get_user_model()
 def test_newlistform_groups_by_legacy():
     """Test that NewListForm groups houses by legacy status."""
     # Create a user
-    user = User.objects.create_user(username="testuser", password="testpass")
+    User.objects.create_user(username="testuser", password="testpass")
 
     # Create the form
     form = NewListForm()
