@@ -1,5 +1,4 @@
 from django import forms
-from django.db import models
 
 from gyrinx.content.models import (
     ContentEquipmentUpgrade,
@@ -189,18 +188,6 @@ class ListFighterForm(forms.ModelForm):
                 # Don't allow the user to set a legacy content fighter on creation
                 self.fields.pop("legacy_content_fighter")
 
-        # Group fighters by house, with standard categories first within each house
-        standard_categories = [
-            FighterCategoryChoices.LEADER,
-            FighterCategoryChoices.CHAMPION,
-            FighterCategoryChoices.GANGER,
-            FighterCategoryChoices.JUVE,
-            FighterCategoryChoices.PROSPECT,
-            FighterCategoryChoices.CREW,
-            FighterCategoryChoices.BRUTE,
-            FighterCategoryChoices.HANGER_ON,
-        ]
-
         def fighter_group_key(fighter):
             # Group by house name
             return fighter.house.name
@@ -212,21 +199,7 @@ class ListFighterForm(forms.ModelForm):
             else:
                 return (1, group_name)  # Other houses alphabetically
 
-        # Sort fighters within each group so standard categories come first
-        self.fields["content_fighter"].queryset = self.fields[
-            "content_fighter"
-        ].queryset.order_by(
-            models.Case(
-                *[
-                    models.When(category=cat, then=models.Value(i))
-                    for i, cat in enumerate(standard_categories)
-                ],
-                default=models.Value(len(standard_categories)),
-                output_field=models.IntegerField(),
-            ),
-            "type",
-        )
-
+        # Group and sort groups fighters so that the gang's own house is first
         group_select(
             self,
             "content_fighter",
