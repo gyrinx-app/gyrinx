@@ -10,6 +10,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
@@ -144,3 +145,15 @@ def make_weapon_accessory():
         return ContentWeaponAccessory.objects.create(name=name, **kwargs)
 
     return make_weapon_accessory_
+
+
+@pytest.fixture
+def make_campaign(user) -> Callable[[str], Campaign]:
+    def make_campaign_(name: str, **kwargs) -> Campaign:
+        kwargs = {
+            "owner": user,
+            **kwargs,
+        }
+        return Campaign.objects.create(name=name, **kwargs)
+
+    return make_campaign_
