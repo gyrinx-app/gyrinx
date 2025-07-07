@@ -31,7 +31,6 @@ from gyrinx.content.models import (
     ContentFighterHouseOverride,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentHouseAdditionalRule,
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
@@ -486,11 +485,6 @@ class ListFighter(AppBase):
     )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
-    additional_rules = models.ManyToManyField(
-        ContentHouseAdditionalRule,
-        blank=True,
-        help_text="Additional rules for this fighter. Must be from the same house as the fighter.",
-    )
 
     # Other
 

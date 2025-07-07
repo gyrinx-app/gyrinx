@@ -63,14 +63,6 @@ class ContentHouse(Content):
         help_text="If checked, fighters in this House can join lists and gangs of any other House.",
     )
 
-    house_additional_rules_name = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-        verbose_name="House Additional Rules Type",
-        help_text="If applicable, the name of the unique additional rules for this house (e.g. Legendary Name).",
-    )
-
     history = HistoricalRecords()
 
     def fighters(self):
@@ -133,50 +125,6 @@ class ContentSkill(Content):
         verbose_name_plural = "Skills"
         ordering = ["category", "name"]
         unique_together = ["name", "category"]
-
-
-class ContentHouseAdditionalRuleTree(Content):
-    """
-    Represents a unique set of additional rules for a specific house.
-    """
-
-    house = models.ForeignKey(
-        ContentHouse,
-        on_delete=models.CASCADE,
-        related_name="house_additional_rule_trees",
-    )
-    name = models.CharField(max_length=255)
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "House Additional Rule Tree"
-        verbose_name_plural = "House Additional Rule Trees"
-        ordering = ["house__name", "name"]
-
-
-class ContentHouseAdditionalRule(Content):
-    """
-    Represents a unique additional rule for a specific house.
-    """
-
-    tree = models.ForeignKey(
-        ContentHouseAdditionalRuleTree,
-        on_delete=models.CASCADE,
-        related_name="rules",
-    )
-    name = models.CharField(max_length=255)
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "House Additional Rule"
-        verbose_name_plural = "House Additional Rules"
-        ordering = ["tree__house__name", "tree__name", "name"]
 
 
 class ContentPsykerDiscipline(Content):

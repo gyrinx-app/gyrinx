@@ -2,7 +2,6 @@ import pytest
 
 from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
-    ContentHouseAdditionalRule,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
@@ -60,46 +59,6 @@ def test_fighter_clone_with_psyker_powers(
     # Check that disabled default powers were cloned
     assert cloned_fighter.disabled_pskyer_default_powers.count() == 1
     assert cloned_fighter.disabled_pskyer_default_powers.first() == default_power
-
-
-@pytest.mark.django_db
-def test_fighter_clone_with_additional_rules(
-    content_fighter, make_list, make_list_fighter
-):
-    """Test that additional rules are properly cloned with a fighter."""
-    # Create house additional rules
-    house = content_fighter.house
-    from gyrinx.content.models import ContentHouseAdditionalRuleTree
-
-    # Create rule tree first
-    rule_tree = ContentHouseAdditionalRuleTree.objects.create(
-        house=house,
-        name="Test Rules",
-    )
-
-    rule1 = ContentHouseAdditionalRule.objects.create(
-        tree=rule_tree,
-        name="Test Rule 1",
-    )
-    rule2 = ContentHouseAdditionalRule.objects.create(
-        tree=rule_tree,
-        name="Test Rule 2",
-    )
-
-    # Create list and fighter
-    lst = make_list("Test List")
-    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
-
-    # Add additional rules
-    fighter.additional_rules.add(rule1, rule2)
-
-    # Clone the fighter
-    cloned_fighter = fighter.clone(name="Clone Fighter")
-
-    # Check that additional rules were cloned
-    assert cloned_fighter.additional_rules.count() == 2
-    assert rule1 in cloned_fighter.additional_rules.all()
-    assert rule2 in cloned_fighter.additional_rules.all()
 
 
 @pytest.mark.django_db
