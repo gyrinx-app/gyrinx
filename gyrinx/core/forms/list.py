@@ -22,6 +22,18 @@ class NewListForm(forms.ModelForm):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Group houses by legacy status
+        from gyrinx.forms import group_select
+
+        group_select(
+            self,
+            "content_house",
+            key=lambda x: "Legacy House" if x.legacy else "House",
+            sort_groups_by=lambda group: 0 if group == "House" else 1,
+        )
+
     class Meta:
         model = List
         fields = ["name", "content_house", "narrative", "public"]
