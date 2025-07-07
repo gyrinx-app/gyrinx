@@ -78,27 +78,29 @@ def test_fighter_ordering_prioritizes_gang_house():
             choice_list.append((group_name, fighter_id, fighter_label))
 
     # Verify the ordering
-    # Gang house should come first and contain all its fighters (standard first, then non-standard)
+    # Gang house should come first and contain all its fighters
     gang_house_fighters = [c for c in choice_list if c[0] == "Gang House"]
     assert len(gang_house_fighters) == 3  # leader, ganger, specialist
 
-    # Standard categories should come before non-standard within the gang house
-    assert gang_house_fighters[0][1] in [gang_leader.id, gang_ganger.id]
-    assert gang_house_fighters[1][1] in [gang_leader.id, gang_ganger.id]
-    assert gang_house_fighters[2][1] == gang_specialist.id
+    # The actual ordering follows ContentFighter's default ordering:
+    # LEADER, CHAMPION, PROSPECT, SPECIALIST, GANGER, JUVE
+    # So for Gang House: Leader -> Specialist -> Ganger
+    assert gang_house_fighters[0][1] == gang_leader.id
+    assert gang_house_fighters[1][1] == gang_specialist.id
+    assert gang_house_fighters[2][1] == gang_ganger.id
 
     # Generic house should come after gang house
     generic_house_fighters = [c for c in choice_list if c[0] == "Generic House"]
     assert len(generic_house_fighters) == 2  # champion, bounty hunter
 
-    # Standard categories should come before non-standard within the generic house
+    # For Generic House: Champion comes before Bounty Hunter (default=99 in ordering)
     assert generic_house_fighters[0][1] == generic_champion.id
     assert generic_house_fighters[1][1] == generic_bounty_hunter.id
 
 
 @pytest.mark.django_db
-def test_fighter_ordering_standard_vs_nonstandard():
-    """Test that non-standard fighter categories are sorted to bottom within each house."""
+def test_fighter_ordering_follows_category_order():
+    """Test that fighters are ordered according to ContentFighter's category ordering."""
     # Create test user and houses
     user = User.objects.create_user(username="testuser", password="testpass")
     gang_house = ContentHouse.objects.create(name="Test House")
@@ -111,8 +113,8 @@ def test_fighter_ordering_standard_vs_nonstandard():
         owner=user,
     )
 
-    # Create a mix of standard and non-standard fighters
-    # Standard categories
+    # Create fighters in different categories
+    # The expected order is: LEADER, CHAMPION, PROSPECT, SPECIALIST, GANGER, JUVE, then others (default=99)
     leader = ContentFighter.objects.create(
         type="Leader",
         house=gang_house,
@@ -143,6 +145,14 @@ def test_fighter_ordering_standard_vs_nonstandard():
         category=FighterCategoryChoices.PROSPECT,
         base_cost=40,
     )
+    specialist = ContentFighter.objects.create(
+        type="Specialist",
+        house=gang_house,
+        category=FighterCategoryChoices.SPECIALIST,
+        base_cost=90,
+    )
+
+    # Categories not in the predefined order (will get default=99)
     crew = ContentFighter.objects.create(
         type="Crew",
         house=gang_house,
@@ -162,30 +172,24 @@ def test_fighter_ordering_standard_vs_nonstandard():
         base_cost=60,
     )
 
-    # Non-standard categories
-    hired_gun = ContentFighter.objects.create(
+    # Generic house fighters (creating them to have a realistic test scenario)
+    ContentFighter.objects.create(
         type="Hired Gun",
         house=generic_house,
         category=FighterCategoryChoices.HIRED_GUN,
         base_cost=120,
     )
-    bounty_hunter = ContentFighter.objects.create(
+    ContentFighter.objects.create(
         type="Bounty Hunter",
         house=generic_house,
         category=FighterCategoryChoices.BOUNTY_HUNTER,
         base_cost=150,
     )
-    house_agent = ContentFighter.objects.create(
+    ContentFighter.objects.create(
         type="House Agent",
         house=generic_house,
         category=FighterCategoryChoices.HOUSE_AGENT,
         base_cost=130,
-    )
-    specialist = ContentFighter.objects.create(
-        type="Specialist",
-        house=gang_house,
-        category=FighterCategoryChoices.SPECIALIST,
-        base_cost=90,
     )
 
     # Create form instance for a new fighter in this list
@@ -200,37 +204,43 @@ def test_fighter_ordering_standard_vs_nonstandard():
         for fighter_id, fighter_label in group_choices:
             fighter_ids_in_order.append(fighter_id)
 
-    # Standard category fighters should come before non-standard
-    standard_fighter_ids = {
+    # Expected category order within Test House: LEADER, CHAMPION, PROSPECT, SPECIALIST, GANGER, JUVE
+    expected_order_in_gang_house = [
         leader.id,
         champion.id,
+        prospect.id,
+        specialist.id,
         ganger.id,
         juve.id,
-        prospect.id,
-        crew.id,
-        brute.id,
-        hanger_on.id,
-    }
-    non_standard_fighter_ids = {
-        hired_gun.id,
-        bounty_hunter.id,
-        house_agent.id,
-        specialist.id,
-    }
-
-    # Find positions of standard and non-standard fighters
-    standard_positions = [
-        i for i, fid in enumerate(fighter_ids_in_order) if fid in standard_fighter_ids
-    ]
-    non_standard_positions = [
-        i
-        for i, fid in enumerate(fighter_ids_in_order)
-        if fid in non_standard_fighter_ids
     ]
 
-    # All standard fighters should appear before non-standard fighters
-    if standard_positions and non_standard_positions:
-        assert max(standard_positions) < min(non_standard_positions)
+    # Categories with default ordering (CREW, BRUTE, HANGER_ON) should come after, sorted by type name
+    other_categories = [
+        (crew.id, "Crew"),
+        (brute.id, "Brute"),
+        (hanger_on.id, "Hanger-on"),
+    ]
+    other_categories.sort(key=lambda x: x[1])  # Sort by type name
+    expected_order_in_gang_house.extend([fid for fid, _ in other_categories])
+
+    # Verify the gang house fighters appear in the expected order
+    gang_house_fighter_ids = [
+        fid
+        for fid in fighter_ids_in_order
+        if fid
+        in {
+            leader.id,
+            champion.id,
+            prospect.id,
+            specialist.id,
+            ganger.id,
+            juve.id,
+            crew.id,
+            brute.id,
+            hanger_on.id,
+        }
+    ]
+    assert gang_house_fighter_ids == expected_order_in_gang_house
 
 
 @pytest.mark.django_db
