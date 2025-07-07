@@ -83,7 +83,7 @@ def test_campaign_start_clones_lists():
     assert cloned_list.is_campaign_mode
     assert cloned_list.original_list == original_list
     assert cloned_list.campaign == campaign
-    assert not cloned_list.public  # Campaign lists are private
+    assert cloned_list.public == original_list.public
 
     # Verify fighters were cloned, including stash
     list_fighters = cloned_list.fighters()
@@ -295,7 +295,7 @@ def test_campaign_list_shows_original():
     assert campaign_list.original_list == original_list
     assert campaign_list.campaign == campaign
     assert campaign_list.status == List.CAMPAIGN_MODE
-    assert not campaign_list.public
+    assert campaign_list.public == original_list.public
 
 
 @pytest.mark.django_db
