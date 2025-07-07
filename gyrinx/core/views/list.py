@@ -3692,12 +3692,13 @@ def reassign_list_fighter_equipment(
                 assignment.list_fighter = target_fighter
                 assignment.save_with_user(user=request.user)
 
+                # Get names for logging and campaign action
+                equipment_name = assignment.content_equipment.name
+                from_fighter_name = fighter.name
+                to_fighter_name = target_fighter.name
+
                 # Create campaign action if in campaign mode
                 if lst.status == List.CAMPAIGN_MODE and lst.campaign:
-                    equipment_name = assignment.content_equipment.name
-                    from_fighter_name = fighter.name
-                    to_fighter_name = target_fighter.name
-
                     CampaignAction.objects.create(
                         user=request.user,
                         owner=request.user,
