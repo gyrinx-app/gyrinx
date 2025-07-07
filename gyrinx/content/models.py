@@ -62,6 +62,10 @@ class ContentHouse(Content):
         default=False,
         help_text="If checked, fighters in this House can join lists and gangs of any other House.",
     )
+    legacy = models.BooleanField(
+        default=False,
+        help_text="If checked, this House is considered a legacy/older faction.",
+    )
 
     house_additional_rules_name = models.CharField(
         max_length=255,

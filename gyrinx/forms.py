@@ -22,6 +22,17 @@ def group_select(form, field, key=lambda x: x, sort_groups_by=None):
     if sort_groups_by is not None:
         choices.sort(key=lambda x: sort_groups_by(x[0]))
 
+        # Merge adjacent groups with the same key after sorting
+        merged_choices = []
+        for i, (group_key, items) in enumerate(choices):
+            if i > 0 and merged_choices and merged_choices[-1][0] == group_key:
+                # Merge with the previous group
+                merged_choices[-1] = (group_key, merged_choices[-1][1] + list(items))
+            else:
+                # Add as a new group
+                merged_choices.append((group_key, list(items)))
+        choices = merged_choices
+
     resolved_widget = (
         formfield.widget.widget
         if hasattr(formfield.widget, "widget")
