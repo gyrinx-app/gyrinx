@@ -3,7 +3,7 @@ import random
 
 from django.contrib.auth import get_user_model
 from django.core import validators
-from django.db import models
+from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
@@ -123,40 +123,73 @@ class Campaign(AppBase):
                     owner=self.owner,
                 )
 
+    def has_clone_of_list(self, original_list):
+        """Check if the campaign already has a clone of the given list.
+
+        Args:
+            original_list: The original list to check for clones
+
+        Returns:
+            bool: True if a clone exists, False otherwise
+        """
+        return self.lists.filter(original_list=original_list).exists()
+
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
         This will clone all associated lists into campaign mode and allocate default resources.
         """
         if self.can_start_campaign():
-            # Clone all lists for the campaign
-            original_lists = list(self.lists.all())
-            self.lists.clear()  # Remove the original lists
+            with transaction.atomic():
+                # Clone all lists for the campaign
+                # Only process lists that are not already campaign clones
+                from .list import List
 
-            cloned_lists = []
-            for original_list in original_lists:
-                # Clone the list for campaign mode
-                campaign_clone = original_list.clone(for_campaign=self)
-                self.lists.add(campaign_clone)
-                cloned_lists.append(campaign_clone)
+                original_lists = list(self.lists.filter(status=List.LIST_BUILDING))
+                self.lists.clear()  # Remove all lists
 
-                # Distribute budget credits to each gang
-                self._distribute_budget_to_list(campaign_clone)
-
-            # Allocate default resources to each list
-            for resource_type in self.resource_types.all():
-                for cloned_list in cloned_lists:
-                    CampaignListResource.objects.create(
+                cloned_lists = []
+                for original_list in original_lists:
+                    # Check if we already have a clone of this list
+                    # Note: We need to search in all lists, not just campaign.lists
+                    # because we just cleared the campaign.lists
+                    existing_clone = List.objects.filter(
+                        original_list=original_list,
                         campaign=self,
-                        resource_type=resource_type,
-                        list=cloned_list,
-                        amount=resource_type.default_amount,
-                        owner=self.owner,  # Campaign owner owns the resource tracking
-                    )
+                        status=List.CAMPAIGN_MODE,
+                    ).first()
 
-            self.status = self.IN_PROGRESS
-            self.save()
-            return True
+                    if existing_clone:
+                        logger.warning(
+                            f"Campaign {self.id} already has a clone of list {original_list.id}, re-adding existing clone"
+                        )
+                        # Re-add the existing clone to the campaign
+                        self.lists.add(existing_clone)
+                        cloned_lists.append(existing_clone)
+                        continue
+
+                    # Clone the list for campaign mode
+                    campaign_clone = original_list.clone(for_campaign=self)
+                    self.lists.add(campaign_clone)
+                    cloned_lists.append(campaign_clone)
+
+                    # Distribute budget credits to each gang
+                    self._distribute_budget_to_list(campaign_clone)
+
+                # Allocate default resources to each list
+                for resource_type in self.resource_types.all():
+                    for cloned_list in cloned_lists:
+                        CampaignListResource.objects.create(
+                            campaign=self,
+                            resource_type=resource_type,
+                            list=cloned_list,
+                            amount=resource_type.default_amount,
+                            owner=self.owner,  # Campaign owner owns the resource tracking
+                        )
+
+                self.status = self.IN_PROGRESS
+                self.save()
+                return True
         return False
 
     def end_campaign(self):
@@ -188,24 +221,33 @@ class Campaign(AppBase):
             self.lists.add(list_to_add)
             return list_to_add
         elif self.is_in_progress:
-            # In-progress: clone the list and allocate resources
-            campaign_clone = list_to_add.clone(for_campaign=self)
-            self.lists.add(campaign_clone)
+            with transaction.atomic():
+                # Check if we already have a clone of this list
+                if self.has_clone_of_list(list_to_add):
+                    logger.warning(
+                        f"Campaign {self.id} already has a clone of list {list_to_add.id}, skipping"
+                    )
+                    # Return the existing clone
+                    return self.lists.get(original_list=list_to_add)
 
-            # Distribute budget credits to the new gang
-            self._distribute_budget_to_list(campaign_clone)
+                # In-progress: clone the list and allocate resources
+                campaign_clone = list_to_add.clone(for_campaign=self)
+                self.lists.add(campaign_clone)
 
-            # Allocate default resources to the new list
-            for resource_type in self.resource_types.all():
-                CampaignListResource.objects.create(
-                    campaign=self,
-                    resource_type=resource_type,
-                    list=campaign_clone,
-                    amount=resource_type.default_amount,
-                    owner=self.owner,  # Campaign owner owns the resource tracking
-                )
+                # Distribute budget credits to the new gang
+                self._distribute_budget_to_list(campaign_clone)
 
-            return campaign_clone
+                # Allocate default resources to the new list
+                for resource_type in self.resource_types.all():
+                    CampaignListResource.objects.create(
+                        campaign=self,
+                        resource_type=resource_type,
+                        list=campaign_clone,
+                        amount=resource_type.default_amount,
+                        owner=self.owner,  # Campaign owner owns the resource tracking
+                    )
+
+                return campaign_clone
         else:
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")
