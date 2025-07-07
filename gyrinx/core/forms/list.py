@@ -98,7 +98,7 @@ class ContentFighterChoiceField(forms.ModelChoiceField):
 
     def label_from_instance(self, obj: ContentFighter):
         cost_for_house = (
-            obj.cost_for_house(self.content_house) if self.content_house else obj.cost
+            obj.cost_for_house(self.content_house) if self.content_house else obj.cost()
         )
         return f"{obj.name()} ({cost_for_house}¢)"
 
@@ -330,6 +330,8 @@ class CloneListFighterForm(forms.ModelForm):
         self.fields["content_fighter"] = ContentFighterChoiceField(
             queryset=self.fields["content_fighter"].queryset
         )
+        if inst:
+            self.fields["content_fighter"].content_house = inst.list.content_house
 
     class Meta:
         model = ListFighter
