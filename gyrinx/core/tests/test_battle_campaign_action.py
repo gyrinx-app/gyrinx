@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models import Battle, Campaign, CampaignAction, List
 
 User = get_user_model()
@@ -16,6 +17,9 @@ def test_battle_creation_creates_campaign_action():
     client = Client()
     client.login(username="testuser", password="password")
 
+    # Create content house
+    house = ContentHouse.objects.create(name="Test House")
+
     # Create campaign in progress
     campaign = Campaign.objects.create(
         name="Test Campaign",
@@ -27,11 +31,13 @@ def test_battle_creation_creates_campaign_action():
     list1 = List.objects.create(
         name="Gang 1",
         owner=user,
+        content_house=house,
         status=List.LIST_BUILDING,
     )
     list2 = List.objects.create(
         name="Gang 2",
         owner=user,
+        content_house=house,
         status=List.LIST_BUILDING,
     )
     campaign.lists.add(list1, list2)
@@ -45,7 +51,7 @@ def test_battle_creation_creates_campaign_action():
     }
 
     # Create battle via view
-    url = reverse("core:battle_new", args=[campaign.id])
+    url = reverse("core:battle-new", args=[campaign.id])
     client.post(url, battle_data)
 
     # Check battle was created
@@ -74,6 +80,9 @@ def test_battle_creation_with_draw_creates_campaign_action():
     client = Client()
     client.login(username="testuser", password="password")
 
+    # Create content house
+    house = ContentHouse.objects.create(name="Test House")
+
     # Create campaign in progress
     campaign = Campaign.objects.create(
         name="Test Campaign",
@@ -85,11 +94,13 @@ def test_battle_creation_with_draw_creates_campaign_action():
     list1 = List.objects.create(
         name="Gang A",
         owner=user,
+        content_house=house,
         status=List.LIST_BUILDING,
     )
     list2 = List.objects.create(
         name="Gang B",
         owner=user,
+        content_house=house,
         status=List.LIST_BUILDING,
     )
     campaign.lists.add(list1, list2)
@@ -103,7 +114,7 @@ def test_battle_creation_with_draw_creates_campaign_action():
     }
 
     # Create battle via view
-    url = reverse("core:battle_new", args=[campaign.id])
+    url = reverse("core:battle-new", args=[campaign.id])
     client.post(url, battle_data)
 
     # Check campaign action was created with correct outcome
