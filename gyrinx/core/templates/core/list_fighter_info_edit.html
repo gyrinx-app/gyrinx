@@ -17,10 +17,10 @@
                 <label for="{{ form.image.id_for_label }}" class="form-label">{{ form.image.label }}</label>
                 <div class="d-flex flex-column flex-md-row gap-2">
                     {% if fighter.image %}
-                        <div class="mb-2 flex-shrink-0">
+                        <div class="mb-2 me-2 flex-shrink-0">
                             <img src="{{ fighter.image.url }}"
                                  alt="{{ fighter.name }}"
-                                 class="size-em-4 img-thumbnail">
+                                 class="size-em-4 size-em-md-5 img-thumbnail">
                         </div>
                     {% endif %}
                     <div class="flex-grow-1">

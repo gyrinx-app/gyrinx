@@ -1,7 +1,7 @@
 {% if widget.is_initial %}
     {% comment %} {{ widget.initial_text }}: <a href="{{ widget.value.url }}">{{ widget.value }}</a> {% endcomment %}
     {% if not widget.required %}
-        <div class="form-check">
+        <div class="form-check border-bottom pb-2 mb-2">
             <input type="checkbox"
                    name="{{ widget.checkbox_name }}"
                    id="{{ widget.checkbox_id }}"
@@ -9,10 +9,14 @@
                    {% if widget.attrs.disabled %}disabled{% endif %}
                    {% if widget.attrs.checked %}checked{% endif %}>
             <label class="form-check-label" for="{{ widget.checkbox_id }}">{{ widget.clear_checkbox_label }}</label>
+            {% if widget.clear_checkbox_help_text %}<div class="form-text">{{ widget.clear_checkbox_help_text }}</div>{% endif %}
         </div>
     {% endif %}
 {% endif %}
 <div>
+    {% if widget.is_initial %}
+        <label class="form-label" for="{{ widget.attrs.id }}">{{ widget.input_text }}:</label>
+    {% endif %}
     <input type="{{ widget.type }}"
            name="{{ widget.name }}"
            {% include "django/forms/widgets/attrs.html" %}>

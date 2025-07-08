@@ -14,7 +14,13 @@ class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
 class BsClearableFileInput(forms.ClearableFileInput):
     template_name = "pages/forms/widgets/bs_clearable_file_input.html"
     clear_checkbox_label = _("Clear image")
-    input_text = _("Change")
+    clear_checkbox_help_text = _("Check and click Save to clear the image.")
+    input_text = _("Replace image")
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["widget"]["clear_checkbox_help_text"] = self.clear_checkbox_help_text
+        return context
 
 
 class ResetPasswordForm(ResetPasswordForm):

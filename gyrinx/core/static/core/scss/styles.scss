@@ -229,6 +229,17 @@ $em-sizes: (
     }
 }
 
+@each $bp, $bp-value in $grid-breakpoints {
+    @include media-breakpoint-up($bp) {
+        @each $size, $value in $em-sizes {
+            .size-em-#{$bp}-#{$size} {
+                width: $value;
+                height: $value;
+            }
+        }
+    }
+}
+
 // Color Forms
 
 .color-radio-label:hover {
