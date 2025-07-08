@@ -40,6 +40,8 @@ urlpatterns = debug_toolbar_urls() + [
         views.join_the_waiting_list_success,
         name="join_the_waiting_list_success",
     ),
+    path("404/", views.error_404, name="error_404"),
+    path("500/", views.error_500, name="error_500"),
     path("admin/", admin.site.urls),
     path("tinymce/", include("tinymce.urls")),
     re_path(r"^(?P<url>.*/)$", views.flatpage),
