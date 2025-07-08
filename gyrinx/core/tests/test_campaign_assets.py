@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
-from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -11,12 +10,6 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
 )
 from gyrinx.core.models.list import List
-
-
-@pytest.fixture
-def content_house():
-    """Create a ContentHouse for testing."""
-    return ContentHouse.objects.create(name="Test House")
 
 
 @pytest.mark.django_db

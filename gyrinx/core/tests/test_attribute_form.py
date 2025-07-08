@@ -7,53 +7,31 @@ from django.test import RequestFactory
 from gyrinx.content.models import (
     ContentAttribute,
     ContentAttributeValue,
-    ContentHouse,
 )
 from gyrinx.core.forms.attribute import ListAttributeForm
-from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import List, ListAttributeAssignment
 
 User = get_user_model()
 
 
 @pytest.fixture
-def user():
-    """Create a test user."""
-    return User.objects.create_user(username="testuser", password="testpass123")
-
-
-@pytest.fixture
-def house():
-    """Create a test house."""
-    return ContentHouse.objects.create(name="Test House")
-
-
-@pytest.fixture
-def list_obj(user, house):
+def list_obj(user, content_house):
     """Create a test list."""
     return List.objects.create(
         name="Test List",
         owner=user,
-        content_house=house,
+        content_house=content_house,
     )
 
 
 @pytest.fixture
-def campaign(user):
-    """Create a test campaign."""
-    return Campaign.objects.create(
-        name="Test Campaign",
-        owner=user,
-    )
-
-
-@pytest.fixture
-def campaign_list(user, house, campaign):
+def campaign_list(user, content_house, campaign):
     """Create a test list in campaign mode."""
     list_obj = List.objects.create(
         name="Campaign List",
         owner=user,
-        content_house=house,
+        content_house=content_house,
         status=List.CAMPAIGN_MODE,
         campaign=campaign,
     )

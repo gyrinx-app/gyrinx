@@ -2,7 +2,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 
@@ -332,15 +331,5 @@ def test_archive_button_in_dropdown_menu(client, user, content_house):
 
 # Fixtures
 @pytest.fixture
-def user(db):
-    return User.objects.create_user(username="testuser", password="testpass")
-
-
-@pytest.fixture
 def other_user(db):
     return User.objects.create_user(username="otheruser", password="testpass")
-
-
-@pytest.fixture
-def content_house(db):
-    return ContentHouse.objects.create(name="Test House")

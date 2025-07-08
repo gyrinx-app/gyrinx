@@ -2,6 +2,7 @@ from typing import Callable
 
 import pytest
 from django.conf import settings
+from django.contrib.auth import get_user_model
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -13,6 +14,8 @@ from gyrinx.content.models import (
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
+
+User = get_user_model()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -157,3 +160,29 @@ def make_campaign(user) -> Callable[[str], Campaign]:
         return Campaign.objects.create(name=name, **kwargs)
 
     return make_campaign_
+
+
+@pytest.fixture
+def campaign(make_campaign) -> Campaign:
+    """A basic campaign for testing."""
+    return make_campaign("Test Campaign", status=Campaign.IN_PROGRESS)
+
+
+@pytest.fixture
+def house() -> ContentHouse:
+    """Alias for content_house for backward compatibility."""
+    return ContentHouse.objects.create(name="Test House")
+
+
+@pytest.fixture
+def list_with_campaign(user, content_house, campaign) -> List:
+    """A list in campaign mode with an associated campaign."""
+    lst = List.objects.create(
+        name="Test List",
+        content_house=content_house,
+        owner=user,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    campaign.lists.add(lst)
+    return lst
