@@ -1096,7 +1096,6 @@ def campaign_asset_type_edit(request, id, type_id):
                 campaign_name=campaign.name,
                 asset_type_name=asset_type.name_singular,
                 asset_type_plural=asset_type.name_plural,
-                is_transferable=asset_type.is_transferable,
             )
 
             messages.success(request, "Asset type updated.")
