@@ -863,14 +863,43 @@ class ListFighter(AppBase):
 
     @cached_property
     def house_additional_gearline_display(self):
-        return [
-            {
-                "category": cat.name,
-                "id": cat.id,
-                "assignments": self.house_additional_assignments(cat),
-            }
-            for cat in self.content_fighter_cached.house.restricted_equipment_categories.all()
-        ]
+        gearlines = []
+        for (
+            cat
+        ) in self.content_fighter_cached.house.restricted_equipment_categories.all():
+            assignments = self.house_additional_assignments(cat)
+            # Check if this category should be visible
+            if cat.visible_only_if_in_equipment_list:
+                # Only show if the fighter has equipment in this category
+                # Check both direct assignments and equipment list items
+                has_equipment_in_category = False
+
+                # Check if any assignments exist for this category
+                if assignments:
+                    has_equipment_in_category = True
+                else:
+                    # Check equipment list items for this fighter
+                    equipment_list_items = (
+                        ContentFighterEquipmentListItem.objects.filter(
+                            fighter=self.equipment_list_fighter, equipment__category=cat
+                        ).exists()
+                    )
+                    if equipment_list_items:
+                        has_equipment_in_category = True
+
+                # Skip this category if no equipment found
+                if not has_equipment_in_category:
+                    continue
+
+            gearlines.append(
+                {
+                    "category": cat.name,
+                    "id": cat.id,
+                    "assignments": assignments,
+                }
+            )
+
+        return gearlines
 
     def house_additional_assignments(self, category: ContentEquipmentCategory):
         return [
