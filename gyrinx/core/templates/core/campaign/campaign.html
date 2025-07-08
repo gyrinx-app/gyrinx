@@ -141,9 +141,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
                     <h2 class="card-title h5 mb-0">
                         Campaign Assets
-                        <i class="bi-info-circle text-muted ms-1"
+                        <i class="bi-info-circle text-muted fs-6 ms-1"
                            data-bs-toggle="tooltip"
-                           data-bs-title="Assets are physical items or territories that gangs can control throughout the campaign. Examples include workshops, gambling dens, or special equipment caches."></i>
+                           data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-assets' campaign.id %}"
                        class="btn btn-secondary btn-sm">
@@ -216,9 +216,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
                     <h2 class="card-title h5 mb-0">
                         Campaign Resources
-                        <i class="bi-info-circle text-muted ms-1"
+                        <i class="bi-info-circle text-muted fs-6 ms-1"
                            data-bs-toggle="tooltip"
-                           data-bs-title="Resources are abstract commodities that gangs accumulate and trade during the campaign. These can include credits, reputation points, or special materials needed for upgrades."></i>
+                           data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-resources' campaign.id %}"
                        class="btn btn-secondary btn-sm">
@@ -357,9 +357,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
                     <h2 class="card-title h5 mb-0">
                         Action Log
-                        <i class="bi-info-circle text-muted ms-1"
+                        <i class="bi-info-circle text-muted fs-6 ms-1"
                            data-bs-toggle="tooltip"
-                           data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign. This includes battles, trades, injuries, advancements, and other narrative moments."></i>
+                           data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign. This includes key dice rolls, battles, trades, injuries, advancements, and other narrative moments."></i>
                     </h2>
                     <div class="hstack gap-2">
                         {% if can_log_actions %}
