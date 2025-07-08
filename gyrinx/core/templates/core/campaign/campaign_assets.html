@@ -60,6 +60,10 @@
                                                     {% else %}
                                                         <span class="text-muted">
                                                             <i class="bi-dash-circle"></i> Unowned
+                                                            {% if campaign.is_pre_campaign %}
+                                                                <br>
+                                                                <small class="text-secondary">Campaign not started</small>
+                                                            {% endif %}
                                                         </span>
                                                     {% endif %}
                                                     {% if is_owner %}

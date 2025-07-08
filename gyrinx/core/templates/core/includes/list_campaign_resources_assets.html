@@ -19,10 +19,14 @@
                                                 <span class="text-muted">({{ asset.asset_type.name_singular }})</span>
                                             {% endif %}
                                         </div>
-                                        <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
-                                           class="icon-link link-secondary link-sm ms-2">
-                                            <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
-                                        </a>
+                                        {% if list.campaign.is_pre_campaign %}
+                                            <span class="text-muted small">Campaign not started</span>
+                                        {% else %}
+                                            <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
+                                               class="icon-link link-secondary link-sm ms-2">
+                                                <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
+                                            </a>
+                                        {% endif %}
                                     </div>
                                 </li>
                             {% endfor %}
@@ -38,13 +42,21 @@
                                     <tr>
                                         <td>{{ resource.resource_type.name }}</td>
                                         <td class="text-end">
-                                            <span class="badge bg-secondary">{{ resource.amount }}</span>
+                                            {% if list.campaign.is_pre_campaign %}
+                                                <span class="text-muted">0</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ resource.amount }}</span>
+                                            {% endif %}
                                         </td>
                                         <td class="text-end">
-                                            <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}"
-                                               class="icon-link link-secondary link-sm">
-                                                <i class="bi-pencil" aria-hidden="true"></i> Modify
-                                            </a>
+                                            {% if list.campaign.is_pre_campaign %}
+                                                <span class="text-muted small">Campaign not started</span>
+                                            {% else %}
+                                                <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}"
+                                                   class="icon-link link-secondary link-sm">
+                                                    <i class="bi-pencil" aria-hidden="true"></i> Modify
+                                                </a>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                 {% endfor %}

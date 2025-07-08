@@ -1251,6 +1251,9 @@ def campaign_asset_new(request, id, type_id):
             asset: CampaignAsset = form.save(commit=False)
             asset.asset_type = asset_type
             asset.owner = request.user
+            # Don't allow holder assignment before campaign starts
+            if campaign.is_pre_campaign:
+                asset.holder = None
             asset.save()
 
             # Log the asset creation event
@@ -1315,6 +1318,16 @@ def campaign_asset_edit(request, id, asset_id):
     if request.method == "POST":
         form = CampaignAssetForm(request.POST, instance=asset)
         if form.is_valid():
+            # Check if trying to assign holder before campaign starts
+            if campaign.is_pre_campaign and form.cleaned_data.get("holder"):
+                messages.error(
+                    request,
+                    "Assets cannot be assigned to gangs before the campaign starts.",
+                )
+                return HttpResponseRedirect(
+                    reverse("core:campaign-assets", args=(campaign.id,))
+                )
+
             form.save()
 
             # Log the asset update
@@ -1368,13 +1381,14 @@ def campaign_asset_transfer(request, id, asset_id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
-    # Prevent transfer for archived campaigns
-    if campaign.archived:
+    # Check if campaign has started
+    if campaign.is_pre_campaign:
         messages.error(
-            request,
-            "Cannot transfer assets for archived campaigns.",
+            request, "Assets cannot be transferred before the campaign starts."
         )
-        return redirect("core:campaign-assets", campaign.id)
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
 
     if request.method == "POST":
         form = AssetTransferForm(request.POST, asset=asset)
@@ -1623,11 +1637,10 @@ def campaign_resource_modify(request, id, resource_id):
             reverse("core:campaign-resources", args=(campaign.id,))
         )
 
-    # Prevent modification for archived campaigns
-    if campaign.archived:
+    # Check if campaign has started
+    if campaign.is_pre_campaign:
         messages.error(
-            request,
-            "Cannot modify resources for archived campaigns.",
+            request, "Resources cannot be modified before the campaign starts."
         )
         return HttpResponseRedirect(
             reverse("core:campaign-resources", args=(campaign.id,))
