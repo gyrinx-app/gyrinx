@@ -106,20 +106,33 @@
                     {% if campaign.lists.all %}
                         <div class="list-group list-group-flush">
                             {% for list in campaign.lists.all %}
-                                <a href="{% url 'core:list' list.id %}"
-                                   class="list-group-item list-group-item-action px-2 px-sm-3">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">
-                                            <strong>{% list_with_theme list %}</strong>
-                                            {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
-                                        </h6>
-                                        <small>{{ list.cost_int }}¢</small>
+                                <div class="list-group-item px-2 px-sm-3">
+                                    <div class="d-flex align-items-start">
+                                        <a href="{% url 'core:list' list.id %}"
+                                           class="text-decoration-none text-body flex-grow-1">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">
+                                                    <strong>{% list_with_theme list %}</strong>
+                                                    {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
+                                                </h6>
+                                                <small>{{ list.cost_int }}¢</small>
+                                            </div>
+                                            <p class="mb-0 text-muted small">
+                                                <i class="bi-person"></i> {{ list.owner.username }}
+                                                • {{ list.fighters.count }} fighter{{ list.fighters.count|pluralize }}
+                                            </p>
+                                        </a>
+                                        {% if campaign.owner == user or list.owner == user %}
+                                            {% if not campaign.is_post_campaign %}
+                                                <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                                                   class="link-danger ms-2"
+                                                   title="Remove from campaign">
+                                                    <i class="bi-trash"></i>
+                                                </a>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
-                                    <p class="mb-0 text-muted small">
-                                        <i class="bi-person"></i> {{ list.owner.username }}
-                                        • {{ list.fighters.count }} fighter{{ list.fighters.count|pluralize }}
-                                    </p>
-                                </a>
+                                </div>
                             {% endfor %}
                         </div>
                     {% else %}
