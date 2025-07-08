@@ -455,3 +455,138 @@ def test_campaign_detail_shows_add_lists_for_in_progress():
 
     # Should still show the Add Lists button for in-progress campaigns
     assert b"Add Gangs" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_remove_list():
+    """Test removing a list from a campaign."""
+    client = Client()
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
+    other_user = User.objects.create_user(username="other_user", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
+    )
+
+    # Create and add lists to campaign
+    list1 = List.objects.create(name="List 1", owner=list_owner, content_house=house)
+    list2 = List.objects.create(
+        name="List 2", owner=campaign_owner, content_house=house
+    )
+    campaign.lists.add(list1, list2)
+
+    # Test that campaign owner can remove a list
+    client.login(username="campaign_owner", password="testpass")
+    response = client.get(
+        reverse("core:campaign-remove-list", args=[campaign.id, list1.id])
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaign", args=[campaign.id])
+
+    # Check list was removed from campaign
+    assert list1 not in campaign.lists.all()
+    assert list2 in campaign.lists.all()  # Other list should remain
+
+    # Test that list owner can remove their own list
+    campaign.lists.add(list1)  # Re-add the list
+    client.login(username="list_owner", password="testpass")
+    response = client.get(
+        reverse("core:campaign-remove-list", args=[campaign.id, list1.id])
+    )
+
+    assert response.status_code == 302
+    assert list1 not in campaign.lists.all()
+
+    # Test that other users cannot remove lists
+    campaign.lists.add(list1)  # Re-add the list
+    client.login(username="other_user", password="testpass")
+    response = client.get(
+        reverse("core:campaign-remove-list", args=[campaign.id, list1.id])
+    )
+
+    assert response.status_code == 302
+    assert list1 in campaign.lists.all()  # List should still be there
+
+    # Check error message was added
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    message_list = list(messages.get_messages(response.wsgi_request))
+    assert len(message_list) > 0
+    assert "don't have permission" in str(message_list[-1])
+
+
+@pytest.mark.django_db
+def test_campaign_remove_list_archives_campaign_mode_list():
+    """Test that removing a campaign mode list archives it."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Create a list in campaign mode
+    list_obj = List.objects.create(
+        name="Campaign List",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    campaign.lists.add(list_obj)
+
+    client.login(username="testuser", password="testpass")
+    response = client.get(
+        reverse("core:campaign-remove-list", args=[campaign.id, list_obj.id])
+    )
+
+    assert response.status_code == 302
+
+    # Refresh from database
+    list_obj.refresh_from_db()
+
+    # Check list was archived and campaign field cleared
+    assert list_obj.archived is True
+    assert list_obj.campaign is None
+    assert list_obj not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_cannot_remove_list_from_post_campaign():
+    """Test that lists cannot be removed from a completed campaign."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Create and add a list
+    list_obj = List.objects.create(name="Test List", owner=user, content_house=house)
+    campaign.lists.add(list_obj)
+
+    # Start and end the campaign
+    assert campaign.start_campaign()
+    assert campaign.end_campaign()
+    campaign.refresh_from_db()
+
+    # Get the cloned list that's actually in the campaign
+    campaign_list = campaign.lists.first()
+
+    client.login(username="testuser", password="testpass")
+    response = client.get(
+        reverse("core:campaign-remove-list", args=[campaign.id, campaign_list.id])
+    )
+
+    assert response.status_code == 302
+
+    # List should still be in campaign
+    assert campaign_list in campaign.lists.all()
+
+    # Check error message
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    message_list = list(messages.get_messages(response.wsgi_request))
+    assert len(message_list) > 0
+    assert "completed campaign" in str(message_list[-1])

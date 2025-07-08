@@ -299,6 +299,11 @@ urlpatterns = [
         name="campaign-add-lists",
     ),
     path(
+        "campaign/<id>/list/<list_id>/remove",
+        campaign.campaign_remove_list,
+        name="campaign-remove-list",
+    ),
+    path(
         "campaign/<id>/action/new",
         campaign.campaign_log_action,
         name="campaign-action-new",

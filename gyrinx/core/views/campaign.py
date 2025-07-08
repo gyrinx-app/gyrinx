@@ -40,13 +40,17 @@ def get_campaign_resource_types_with_resources(campaign):
     Get resource types with their list resources prefetched and ordered.
 
     This helper function ensures consistent prefetching across views.
+    Only includes resources for lists that are currently in the campaign.
     """
+    # Get the IDs of lists currently in the campaign
+    campaign_list_ids = campaign.lists.values_list("id", flat=True)
+
     return campaign.resource_types.prefetch_related(
         models.Prefetch(
             "list_resources",
-            queryset=CampaignListResource.objects.select_related("list").order_by(
-                "list__name"
-            ),
+            queryset=CampaignListResource.objects.filter(list_id__in=campaign_list_ids)
+            .select_related("list")
+            .order_by("list__name"),
         )
     )
 
@@ -284,6 +288,84 @@ def campaign_add_lists(request, id):
             "list_to_confirm": list_to_confirm,
         },
     )
+
+
+@login_required
+def campaign_remove_list(request, id, list_id):
+    """
+    Remove a list from a campaign.
+
+    Allows the campaign owner or list owner to remove a list from a campaign.
+    The list is disconnected from the campaign and archived.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being edited.
+    ``list``
+        The :model:`core.List` being removed.
+
+    **Template**
+
+    No template - redirects to campaign detail page.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    list_to_remove = get_object_or_404(List, id=list_id)
+
+    # Check permissions - campaign owner or list owner can remove
+    if request.user != campaign.owner and request.user != list_to_remove.owner:
+        messages.error(
+            request, "You don't have permission to remove this list from the campaign."
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Check if the list is actually in this campaign
+    if list_to_remove not in campaign.lists.all():
+        messages.error(request, "This list is not in this campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Don't allow removal from post-campaign
+    if campaign.is_post_campaign:
+        messages.error(request, "Lists cannot be removed from a completed campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Store list info for logging before removal
+    list_name = list_to_remove.name
+    list_house = (
+        list_to_remove.content_house.name if list_to_remove.content_house else ""
+    )
+    list_owner_username = list_to_remove.owner.username
+
+    # Remove the list from the campaign
+    campaign.lists.remove(list_to_remove)
+
+    # If the list is in campaign mode, archive it
+    if list_to_remove.status == List.CAMPAIGN_MODE:
+        list_to_remove.archived = True
+        list_to_remove.campaign = None  # Clear the campaign field
+        list_to_remove.save()
+
+    # Log the removal event
+    log_event(
+        user=request.user,
+        noun=EventNoun.CAMPAIGN,
+        verb=EventVerb.REMOVE,
+        object=campaign,
+        request=request,
+        campaign_name=campaign.name,
+        list_removed_id=str(list_to_remove.id),
+        list_removed_name=list_name,
+        list_owner=list_owner_username,
+    )
+
+    # Show success message
+    house_text = f" ({list_house})" if list_house else ""
+    messages.success(
+        request,
+        f"{list_name}{house_text} has been removed from the campaign and archived.",
+    )
+
+    return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
 
 @login_required
@@ -824,10 +906,18 @@ def campaign_assets(request, id):
     """
     campaign = get_object_or_404(Campaign, id=id)
 
+    # Get the IDs of lists currently in the campaign
+    campaign_list_ids = campaign.lists.values_list("id", flat=True)
+
     # Get all asset types for this campaign with their assets
+    # Only include assets held by lists that are currently in the campaign (or unowned assets)
     asset_types = campaign.asset_types.prefetch_related(
         models.Prefetch(
-            "assets", queryset=CampaignAsset.objects.select_related("holder")
+            "assets",
+            queryset=CampaignAsset.objects.filter(
+                models.Q(holder_id__in=campaign_list_ids)
+                | models.Q(holder__isnull=True)
+            ).select_related("holder"),
         )
     )
 
