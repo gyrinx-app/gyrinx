@@ -7,23 +7,12 @@ from django.urls import reverse
 
 from gyrinx.content.models import (
     ContentFighter,
-    ContentHouse,
     ContentSkill,
     ContentSkillCategory,
 )
-from gyrinx.core.models import Campaign, List, ListFighter, ListFighterAdvancement
+from gyrinx.core.models import List, ListFighter, ListFighterAdvancement
 
 User = get_user_model()
-
-
-@pytest.fixture
-def user():
-    return User.objects.create_user(username="testuser", password="testpass")
-
-
-@pytest.fixture
-def house():
-    return ContentHouse.objects.create(name="Test House")
 
 
 @pytest.fixture
@@ -61,29 +50,6 @@ def skill(skill_category):
         category=skill_category,
     )
     return skill
-
-
-@pytest.fixture
-def campaign(user):
-    return Campaign.objects.create(
-        name="Test Campaign",
-        owner=user,
-        status=Campaign.IN_PROGRESS,
-    )
-
-
-@pytest.fixture
-def list_with_campaign(user, house, campaign):
-    lst = List.objects.create(
-        name="Test List",
-        content_house=house,
-        owner=user,
-        status=List.CAMPAIGN_MODE,
-    )
-    lst.campaign = campaign
-    lst.save()
-    campaign.lists.add(lst)
-    return lst
 
 
 @pytest.fixture
@@ -160,7 +126,7 @@ def test_skill_advancement_application(fighter_with_xp, skill):
 @pytest.mark.django_db
 def test_advancement_list_view(client, user, fighter_with_xp):
     """Test the advancement list view."""
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse(
         "core:list-fighter-advancements",
@@ -175,7 +141,7 @@ def test_advancement_list_view(client, user, fighter_with_xp):
 @pytest.mark.django_db
 def test_advancement_start_requires_campaign_mode(client, user, house, content_fighter):
     """Test that advancement requires campaign mode."""
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     # Create a non-campaign list
     lst = List.objects.create(
@@ -200,7 +166,7 @@ def test_advancement_start_requires_campaign_mode(client, user, house, content_f
 @pytest.mark.django_db
 def test_advancement_dice_choice_flow(client, user, fighter_with_xp):
     """Test the dice choice step of advancement flow."""
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse(
         "core:list-fighter-advancement-dice-choice",

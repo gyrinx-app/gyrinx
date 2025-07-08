@@ -24,45 +24,31 @@ from gyrinx.core.models.list import (
 from gyrinx.models import FighterCategoryChoices
 
 
-def make_content():
-    category = FighterCategoryChoices.JUVE
-    house = ContentHouse.objects.create(
-        name="Squat Prospectors",
-    )
-    fighter = ContentFighter.objects.create(
-        type="Prospector Digger",
-        category=category,
-        house=house,
-        base_cost=100,
-    )
-    return category, house, fighter
+@pytest.fixture
+def test_content(content_house, content_fighter):
+    """Fixture that returns a tuple of category, house, and fighter for backward compatibility."""
+    return content_fighter.category, content_house, content_fighter
 
 
 @pytest.mark.django_db
-def test_basic_list():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_basic_list(content_house):
+    lst = List.objects.create(name="Test List", content_house=content_house)
 
     assert lst.name == "Test List"
 
 
 @pytest.mark.django_db
-def test_list_name_min_length():
-    category, house, content_fighter = make_content()
-
+def test_list_name_min_length(content_house):
     with pytest.raises(
         ValidationError, match="Ensure this value has at least 3 characters"
     ):
-        lst = List(name="Te", content_house=house)
+        lst = List(name="Te", content_house=content_house)
         lst.full_clean()  # This will trigger the validation
 
 
 @pytest.mark.django_db
-def test_basic_list_fighter():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_basic_list_fighter(content_house, content_fighter):
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -72,9 +58,8 @@ def test_basic_list_fighter():
 
 
 @pytest.mark.django_db
-def test_fighter_name_min_length(user):
-    category, house, content_fighter = make_content()
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_fighter_name_min_length(user, content_house, content_fighter):
+    lst = List.objects.create(name="Test List", content_house=content_house)
 
     with pytest.raises(
         ValidationError, match="Ensure this value has at least 3 characters"
@@ -86,18 +71,15 @@ def test_fighter_name_min_length(user):
 
 
 @pytest.mark.django_db
-def test_list_fighter_requires_content_fighter():
-    category, house, content_fighter = make_content()
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_list_fighter_requires_content_fighter(content_house):
+    lst = List.objects.create(name="Test List", content_house=content_house)
     with pytest.raises(Exception):
         ListFighter.objects.create(name="Test Fighter", list=lst)
 
 
 @pytest.mark.django_db
-def test_list_fighter_content_fighter():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_list_fighter_content_fighter(content_house, content_fighter):
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -106,9 +88,7 @@ def test_list_fighter_content_fighter():
 
 
 @pytest.mark.django_db
-def test_list_fighter_house_matches_list(user):
-    category, house, content_fighter = make_content()
-
+def test_list_fighter_house_matches_list(user, content_fighter):
     house = ContentHouse.objects.create(
         name="Ash Waste Nomads",
     )
@@ -205,10 +185,8 @@ def test_fighter_stat_override(content_fighter, make_list, make_list_fighter):
 
 
 @pytest.mark.django_db
-def test_archive_list():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_archive_list(content_house):
+    lst = List.objects.create(name="Test List", content_house=content_house)
 
     lst.archive()
 
@@ -217,10 +195,8 @@ def test_archive_list():
 
 
 @pytest.mark.django_db
-def test_history():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_history(content_house):
+    lst = List.objects.create(name="Test List", content_house=content_house)
 
     assert lst.history.all().count() == 1
 
@@ -237,10 +213,8 @@ def test_history():
 
 
 @pytest.mark.django_db
-def test_list_cost():
-    category, house, content_fighter = make_content()
-
-    lst = List.objects.create(name="Test List", content_house=house)
+def test_list_cost(content_house, content_fighter):
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -257,16 +231,15 @@ def test_list_cost():
 
 
 @pytest.mark.django_db
-def test_list_cost_variable():
-    category, house, content_fighter = make_content()
+def test_list_cost_variable(content_house, content_fighter):
     content_fighter2 = ContentFighter.objects.create(
         type="Expensive Guy",
-        category=category,
-        house=house,
+        category=content_fighter.category,
+        house=content_house,
         base_cost=150,
     )
 
-    lst = List.objects.create(name="Test List", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -280,16 +253,14 @@ def test_list_cost_variable():
 
 
 @pytest.mark.django_db
-def test_list_cost_cache():
-    category, house, content_fighter = make_content()
-
+def test_list_cost_cache(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
-    lst = List.objects.create(name="Test List", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -328,16 +299,15 @@ def test_list_cost_cache():
 
 
 @pytest.mark.django_db
-def test_list_cost_with_archived_fighter():
-    category, house, content_fighter = make_content()
+def test_list_cost_with_archived_fighter(content_house, content_fighter):
     expensive_guy = ContentFighter.objects.create(
         type="Expensive Guy",
-        category=category,
-        house=house,
+        category=content_fighter.category,
+        house=content_house,
         base_cost=150,
     )
 
-    lst = List.objects.create(name="Test List", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -353,16 +323,15 @@ def test_list_cost_with_archived_fighter():
 
 
 @pytest.mark.django_db
-def test_list_cost_with_fighter_cost_override():
-    category, house, content_fighter = make_content()
+def test_list_cost_with_fighter_cost_override(content_house, content_fighter):
     expensive_guy = ContentFighter.objects.create(
         type="Expensive Guy",
-        category=category,
-        house=house,
+        category=content_fighter.category,
+        house=content_house,
         base_cost=150,
     )
 
-    lst = List.objects.create(name="Test List", content_house=house)
+    lst = List.objects.create(name="Test List", content_house=content_house)
     fighter = ListFighter.objects.create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -391,15 +360,14 @@ def test_list_cost_with_fighter_cost_override():
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_spoon():
-    category, house, content_fighter = make_content()
+def test_list_fighter_with_spoon(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
         cost=10,
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -416,8 +384,7 @@ def test_list_fighter_with_spoon():
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_spoon_weapon():
-    category, house, content_fighter = make_content()
+def test_list_fighter_with_spoon_weapon(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -443,7 +410,7 @@ def test_list_fighter_with_spoon_weapon():
     )
     spoon_profile.traits.add(t_melee)
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -465,8 +432,7 @@ def test_list_fighter_with_spoon_weapon():
 
 
 @pytest.mark.django_db
-def test_fighter_with_spoon_weapon_profile_with_cost():
-    category, house, content_fighter = make_content()
+def test_fighter_with_spoon_weapon_profile_with_cost(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -504,7 +470,7 @@ def test_fighter_with_spoon_weapon_profile_with_cost():
         ),
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -519,11 +485,11 @@ def test_fighter_with_spoon_weapon_profile_with_cost():
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_spoon_and_not_other_assignments():
+def test_list_fighter_with_spoon_and_not_other_assignments(
+    content_house, content_fighter
+):
     # This test was introduced to fix a bug where the cost of a fighter was
     # including all equipment assignments, not just the ones for that fighter.
-
-    category, house, content_fighter = make_content()
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -561,7 +527,7 @@ def test_list_fighter_with_spoon_and_not_other_assignments():
         ),
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -613,8 +579,7 @@ def test_profile_validation_standard_profile_non_zero_cost():
 
 
 @pytest.mark.django_db
-def test_weapon_cost_equipment_list_override():
-    category, house, content_fighter = make_content()
+def test_weapon_cost_equipment_list_override(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -626,7 +591,7 @@ def test_weapon_cost_equipment_list_override():
         fighter=content_fighter, equipment=spoon, cost=5
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -647,8 +612,9 @@ def test_weapon_cost_equipment_list_override():
 
 
 @pytest.mark.django_db
-def test_weapon_cost_equipment_list_override_with_profile():
-    category, house, content_fighter = make_content()
+def test_weapon_cost_equipment_list_override_with_profile(
+    content_house, content_fighter
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -685,7 +651,7 @@ def test_weapon_cost_equipment_list_override_with_profile():
         cost=2,
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -775,8 +741,9 @@ def test_fighter_with_equipment_list_accessory(
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_same_equipment_different_profiles():
-    category, house, content_fighter = make_content()
+def test_list_fighter_with_same_equipment_different_profiles(
+    content_house, content_fighter
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -814,7 +781,7 @@ def test_list_fighter_with_same_equipment_different_profiles():
         ),
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -854,8 +821,7 @@ def test_list_fighter_with_same_equipment_different_profiles():
 
 
 @pytest.mark.django_db
-def test_weapon_with_multiple_profiles():
-    category, house, content_fighter = make_content()
+def test_weapon_with_multiple_profiles(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -909,7 +875,7 @@ def test_weapon_with_multiple_profiles():
         ),
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -941,8 +907,7 @@ def test_weapon_with_multiple_profiles():
 
 
 @pytest.mark.django_db
-def test_weapon_with_multiple_costed_profiles():
-    category, house, content_fighter = make_content()
+def test_weapon_with_multiple_costed_profiles(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -997,7 +962,7 @@ def test_weapon_with_multiple_costed_profiles():
         ),
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )
@@ -1346,8 +1311,7 @@ def test_weapon_cost_legacy_equipment_list_override_with_accessory(
 
 
 @pytest.mark.django_db
-def test_virtual_assignments():
-    category, house, content_fighter = make_content()
+def test_virtual_assignments(content_house, content_fighter):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -1372,7 +1336,7 @@ def test_virtual_assignments():
         cost=7,
     )
 
-    lst, _ = List.objects.get_or_create(name="Test List", content_house=house)
+    lst, _ = List.objects.get_or_create(name="Test List", content_house=content_house)
     fighter, _ = ListFighter.objects.get_or_create(
         name="Test Fighter", list=lst, content_fighter=content_fighter
     )

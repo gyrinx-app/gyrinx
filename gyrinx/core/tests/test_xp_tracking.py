@@ -7,13 +7,7 @@ from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter, ContentHouse
 from gyrinx.core.forms.list import EditFighterXPForm
-from gyrinx.core.models import Campaign, CampaignAction, List, ListFighter
-
-
-@pytest.fixture
-def content_house():
-    """Create a test content house."""
-    return ContentHouse.objects.create(name="Test House")
+from gyrinx.core.models import CampaignAction, List, ListFighter
 
 
 @pytest.fixture
@@ -40,24 +34,11 @@ def content_fighter(content_house):
 
 
 @pytest.fixture
-def campaign(db):
-    """Create a test campaign."""
-    owner = User.objects.create_user(username="campaignowner", password="password")
-    return Campaign.objects.create(
-        name="Test Campaign",
-        owner=owner,
-        status=Campaign.IN_PROGRESS,
-        narrative="Test campaign narrative",
-    )
-
-
-@pytest.fixture
-def list_with_fighter(content_fighter, campaign):
+def list_with_fighter(user, content_fighter, campaign):
     """Create a test list with a fighter in campaign mode."""
-    owner = User.objects.create_user(username="testuser", password="testpass")
     list_obj = List.objects.create(
         name="Test List",
-        owner=owner,
+        owner=user,
         content_house=content_fighter.house,
         status=List.CAMPAIGN_MODE,
         campaign=campaign,
@@ -66,7 +47,7 @@ def list_with_fighter(content_fighter, campaign):
         list=list_obj,
         content_fighter=content_fighter,
         name="Test Fighter",
-        owner=owner,
+        owner=user,
     )
     return list_obj, fighter
 
@@ -172,7 +153,7 @@ def test_edit_fighter_xp_view_requires_ownership(list_with_fighter):
 def test_edit_fighter_xp_view_requires_campaign_mode():
     """Test that edit_fighter_xp view requires campaign mode."""
     # Create a list in basic mode
-    owner = User.objects.create_user(username="testuser", password="testpass")
+    owner = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="House")
     content_fighter = ContentFighter.objects.create(
         type="Fighter",
@@ -207,7 +188,7 @@ def test_edit_fighter_xp_view_requires_campaign_mode():
     )
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
@@ -220,7 +201,7 @@ def test_edit_fighter_xp_view_get(list_with_fighter):
     """Test GET request to edit_fighter_xp view."""
     list_obj, fighter = list_with_fighter
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
@@ -245,7 +226,7 @@ def test_edit_fighter_xp_add_operation(list_with_fighter):
     """Test adding XP to a fighter."""
     list_obj, fighter = list_with_fighter
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -287,7 +268,7 @@ def test_edit_fighter_xp_spend_operation(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -325,7 +306,7 @@ def test_edit_fighter_xp_reduce_operation(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -363,7 +344,7 @@ def test_edit_fighter_xp_spend_validation(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -396,7 +377,7 @@ def test_edit_fighter_xp_reduce_validation(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -424,7 +405,7 @@ def test_edit_fighter_xp_without_description(list_with_fighter):
     """Test XP operations without description."""
     list_obj, fighter = list_with_fighter
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.post(
@@ -454,7 +435,7 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list", args=[list_obj.id])
     response = client.get(url)
@@ -474,7 +455,7 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
 @pytest.mark.django_db
 def test_fighter_card_hides_xp_in_basic_mode():
     """Test that fighter card doesn't show XP in basic mode."""
-    owner = User.objects.create_user(username="testuser", password="testpass")
+    owner = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="House")
     content_fighter = ContentFighter.objects.create(
         type="Fighter",
@@ -511,7 +492,7 @@ def test_fighter_card_hides_xp_in_basic_mode():
     )
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list", args=[list_obj.id])
     response = client.get(url)
@@ -528,7 +509,7 @@ def test_multiple_xp_operations_sequence(list_with_fighter):
     """Test a sequence of XP operations."""
     list_obj, fighter = list_with_fighter
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
 
@@ -607,7 +588,7 @@ def test_archived_fighter_cannot_edit_xp(list_with_fighter):
     fighter.save()
 
     client = Client()
-    client.login(username="testuser", password="testpass")
+    client.login(username="testuser", password="password")
 
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
