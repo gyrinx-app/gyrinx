@@ -33,8 +33,6 @@ from .models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentHouseAdditionalRule,
-    ContentHouseAdditionalRuleTree,
     ContentInjury,
     ContentMod,
     ContentModFighterRule,
@@ -374,35 +372,6 @@ class ContentSkillCategoryAdmin(ContentAdmin, admin.ModelAdmin):
     inlines = [ContentSkillInline]
 
 
-@admin.register(ContentHouseAdditionalRule)
-class ContentHouseAdditionalRuleAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["tree__name", "name"]
-
-
-class ContentHouseAdditionalRuleInline(ContentTabularInline):
-    model = ContentHouseAdditionalRule
-    extra = 0
-
-
-@admin.register(ContentHouseAdditionalRuleTree)
-class ContentHouseAdditionalRuleTreeAdmin(ContentAdmin, admin.ModelAdmin):
-    list_display_links = ["name"]
-    list_display_fields = ["house", "name"]
-    search_fields = ["house__name", "name"]
-    inlines = [ContentHouseAdditionalRuleInline]
-
-
-def rules(obj):
-    return ", ".join([rule.name for rule in obj.rules.all()])
-
-
-class ContentHouseAdditionalRuleTreeInline(ContentTabularInline):
-    model = ContentHouseAdditionalRuleTree
-    extra = 0
-    fields = ["name", rules]
-    readonly_fields = [rules]
-
-
 class ContentPsykerPowerInline(ContentTabularInline):
     model = ContentPsykerPower
     extra = 0
@@ -438,7 +407,7 @@ class ContentFighterInline(ContentTabularInline):
 class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
     list_display_links = ["name"]
     search_fields = ["name"]
-    inlines = [ContentFighterInline, ContentHouseAdditionalRuleTreeInline]
+    inlines = [ContentFighterInline]
 
 
 @admin.register(ContentWeaponTrait)
