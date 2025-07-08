@@ -65,8 +65,11 @@ class Battle(AppBase):
         """
         Check if a user can edit this battle.
         Only the battle owner or campaign owner can edit.
+        Cannot edit if campaign is archived.
         """
         if not user or not user.is_authenticated:
+            return False
+        if self.campaign.archived:
             return False
         return user == self.owner or user == self.campaign.owner
 
@@ -74,8 +77,11 @@ class Battle(AppBase):
         """
         Check if a user can add notes to this battle.
         Participant gang owners can add notes.
+        Cannot add notes if campaign is archived.
         """
         if not user or not user.is_authenticated:
+            return False
+        if self.campaign.archived:
             return False
         if self.can_edit(user):
             return True

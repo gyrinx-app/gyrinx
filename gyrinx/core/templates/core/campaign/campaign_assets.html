@@ -63,16 +63,18 @@
                                                         </span>
                                                     {% endif %}
                                                     {% if is_owner %}
-                                                        <div class="btn-group btn-group-sm flex-shrink-0 ms-auto">
-                                                            <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                               class="btn btn-outline-primary">
-                                                                <i class="bi-arrow-left-right"></i> Transfer
-                                                            </a>
-                                                            <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                               class="btn btn-outline-secondary">
-                                                                <i class="bi-pencil"></i> Edit
-                                                            </a>
-                                                        </div>
+                                                        {% if not campaign.archived %}
+                                                            <div class="btn-group btn-group-sm flex-shrink-0 ms-auto">
+                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                                   class="btn btn-outline-primary">
+                                                                    <i class="bi-arrow-left-right"></i> Transfer
+                                                                </a>
+                                                                <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+                                                                   class="btn btn-outline-secondary">
+                                                                    <i class="bi-pencil"></i> Edit
+                                                                </a>
+                                                            </div>
+                                                        {% endif %}
                                                     {% endif %}
                                                 </div>
                                                 {% if asset.description %}<div class="small text-muted">{{ asset.description|safe }}</div>{% endif %}

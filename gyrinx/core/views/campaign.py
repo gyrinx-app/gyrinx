@@ -6,7 +6,7 @@ from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -60,7 +60,7 @@ class Campaigns(generic.ListView):
     context_object_name = "campaigns"
 
     def get_queryset(self):
-        return Campaign.objects.filter(public=True)
+        return Campaign.objects.filter(public=True, archived=False)
 
 
 class CampaignDetailView(generic.DetailView):
@@ -101,10 +101,14 @@ class CampaignDetailView(generic.DetailView):
         campaign = self.object
         user = self.request.user
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         if user.is_authenticated:
-            context["can_log_actions"] = campaign.is_in_progress and (
-                campaign.owner == user or campaign.lists.filter(owner=user).exists()
+            context["can_log_actions"] = (
+                campaign.is_in_progress
+                and not campaign.archived
+                and (
+                    campaign.owner == user or campaign.lists.filter(owner=user).exists()
+                )
             )
         else:
             context["can_log_actions"] = False
@@ -555,10 +559,12 @@ def campaign_log_action(request, id):
     """
     campaign = get_object_or_404(Campaign, id=id)
 
-    # Check if user is part of the campaign (owner or has a list in it) and campaign is in progress
+    # Check if user is part of the campaign (owner or has a list in it) and campaign is in progress and not archived
     user_lists_in_campaign = campaign.lists.filter(owner=request.user).exists()
-    if not campaign.is_in_progress or (
-        campaign.owner != request.user and not user_lists_in_campaign
+    if (
+        not campaign.is_in_progress
+        or campaign.archived
+        or (campaign.owner != request.user and not user_lists_in_campaign)
     ):
         messages.error(request, "You cannot log actions for this campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
@@ -758,12 +764,16 @@ class CampaignActionList(generic.ListView):
             .order_by("-date", "-created")
         )
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         user = self.request.user
         if user.is_authenticated:
-            context["can_log_actions"] = self.campaign.is_in_progress and (
-                self.campaign.owner == user
-                or self.campaign.lists.filter(owner=user).exists()
+            context["can_log_actions"] = (
+                self.campaign.is_in_progress
+                and not self.campaign.archived
+                and (
+                    self.campaign.owner == user
+                    or self.campaign.lists.filter(owner=user).exists()
+                )
             )
         else:
             context["can_log_actions"] = False
@@ -948,6 +958,90 @@ def reopen_campaign(request, id):
 
 
 @login_required
+def archive_campaign(request, id):
+    """
+    Archive or unarchive a :model:`core.Campaign`.
+
+    Only the campaign owner can archive a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be archived or unarchived.
+
+    **Template**
+
+    :template:`core/campaign/campaign_archive.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            if request.POST.get("archive") == "1":
+                # Prevent archiving in-progress campaigns
+                if campaign.is_in_progress:
+                    messages.error(
+                        request,
+                        f"Cannot archive {campaign.name} while it is in progress. Please end the campaign first.",
+                    )
+                    return HttpResponseRedirect(
+                        reverse("core:campaign", args=(campaign.id,))
+                    )
+
+                campaign.archive()
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Archived: {campaign.name} has been archived",
+                    outcome="Campaign has been archived",
+                )
+
+                # Log the archive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.ARCHIVE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                )
+
+                messages.success(request, "Campaign has been archived.")
+            else:
+                campaign.unarchive()
+
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Unarchived: {campaign.name} has been unarchived",
+                    outcome="Campaign has been unarchived",
+                )
+
+                # Log the unarchive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.RESTORE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                )
+
+                messages.success(request, "Campaign has been unarchived.")
+
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_archive.html",
+        {"campaign": campaign},
+    )
+
+
+@login_required
 def campaign_assets(request, id):
     """
     Manage assets for a campaign.
@@ -1021,6 +1115,14 @@ def campaign_asset_type_new(request, id):
     :template:`core/campaign/campaign_asset_type_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    # Prevent creation of new asset types for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new asset types for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
         form = CampaignAssetTypeForm(request.POST)
@@ -1134,6 +1236,14 @@ def campaign_asset_new(request, id, type_id):
     asset_type: CampaignAssetType = get_object_or_404(
         CampaignAssetType, id=type_id, campaign=campaign
     )
+
+    # Prevent creation of new assets for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new assets for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
         form = CampaignAssetForm(request.POST, asset_type=asset_type)
@@ -1258,6 +1368,14 @@ def campaign_asset_transfer(request, id, asset_id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
+    # Prevent transfer for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot transfer assets for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
+
     if request.method == "POST":
         form = AssetTransferForm(request.POST, asset=asset)
         if form.is_valid():
@@ -1362,6 +1480,14 @@ def campaign_resource_type_new(request, id):
     :template:`core/campaign/campaign_resource_type_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    # Prevent creation of new resource types for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new resource types for archived campaigns.",
+        )
+        return redirect("core:campaign-resources", campaign.id)
 
     if request.method == "POST":
         form = CampaignResourceTypeForm(request.POST)
@@ -1493,6 +1619,16 @@ def campaign_resource_modify(request, id, resource_id):
     # Check permissions - owner can modify any, list owner can modify their own
     if request.user != campaign.owner and request.user != resource.list.owner:
         messages.error(request, "You don't have permission to modify this resource.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    # Prevent modification for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot modify resources for archived campaigns.",
+        )
         return HttpResponseRedirect(
             reverse("core:campaign-resources", args=(campaign.id,))
         )
