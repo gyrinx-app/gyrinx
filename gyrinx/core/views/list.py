@@ -1785,7 +1785,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # show all equipment from the fighter's equipment list regardless of availability
         equipment = equipment.filter(
             id__in=ContentFighterEquipmentListItem.objects.filter(
-                fighter=fighter.equipment_list_fighter
+                fighter__in=fighter.equipment_list_fighters
             ).values("equipment_id")
         )
         # For profile filtering later, we need to know all rarities are allowed
@@ -1805,7 +1805,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             # further filter to only show equipment from the fighter's equipment list
             equipment = equipment.filter(
                 id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter=fighter.equipment_list_fighter
+                    fighter__in=fighter.equipment_list_fighters
                 ).values("equipment_id")
             )
 
@@ -1813,7 +1813,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     assigns = []
     for item in equipment:
         if is_weapon:
-            profiles = item.profiles_for_fighter(fighter.equipment_list_fighter)
+            # Get profiles from all equipment list fighters (legacy and base)
+            profiles = []
+            for ef in fighter.equipment_list_fighters:
+                profiles.extend(item.profiles_for_fighter(ef))
 
             # Apply profile filtering based on availability
             profiles = [
@@ -1841,7 +1844,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 # Get weapon profiles that are specifically on the equipment list
                 equipment_list_profiles = (
                     ContentFighterEquipmentListItem.objects.filter(
-                        fighter=fighter.equipment_list_fighter,
+                        fighter__in=fighter.equipment_list_fighters,
                         equipment=item,
                         weapon_profile__isnull=False,
                     ).values_list("weapon_profile_id", flat=True)

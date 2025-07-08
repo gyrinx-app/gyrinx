@@ -593,6 +593,17 @@ class ListFighter(AppBase):
         return self.legacy_content_fighter or self.content_fighter
 
     @cached_property
+    def equipment_list_fighters(self):
+        """
+        Return a list of fighters whose equipment lists should be considered.
+        When a legacy fighter exists, returns both legacy and base fighters
+        to allow combining their equipment lists.
+        """
+        if self.legacy_content_fighter:
+            return [self.legacy_content_fighter, self.content_fighter]
+        return [self.content_fighter]
+
+    @cached_property
     def is_stash(self):
         """
         Returns True if this fighter is a stash fighter.
@@ -970,7 +981,8 @@ class ListFighter(AppBase):
                     # Check equipment list items for this fighter
                     equipment_list_items = (
                         ContentFighterEquipmentListItem.objects.filter(
-                            fighter=self.equipment_list_fighter, equipment__category=cat
+                            fighter__in=self.equipment_list_fighters,
+                            equipment__category=cat,
                         ).exists()
                     )
                     if equipment_list_items:
@@ -1675,11 +1687,12 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
 
+        # Get all fighters whose equipment lists we should check
+        fighters = self.list_fighter.equipment_list_fighters
+
         overrides = ContentFighterEquipmentListItem.objects.filter(
-            # We use the "equipment list fighter" which, under the hood, picks between the
-            # "legacy" content fighter, if set, or the more typical content fighter. This is for
-            # Venators, which can have the Gang Legacy rule.
-            fighter=self._equipment_list_fighter,
+            # Check equipment lists from both legacy and base fighters
+            fighter__in=fighters,
             equipment=self.content_equipment,
             # None here is very important: it means we're looking for the base equipment cost.
             weapon_profile=None,
@@ -1687,10 +1700,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         if not overrides.exists():
             return self.content_equipment.cost_int()
 
-        if overrides.count() > 1:
-            logger.warning(
-                f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
-            )
+        # If there are multiple overrides (from legacy and base), prefer legacy
+        if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
+            # Try to get the legacy override first
+            legacy_override = overrides.filter(
+                fighter=self.list_fighter.legacy_content_fighter
+            ).first()
+            if legacy_override:
+                return legacy_override.cost_int()
 
         override = overrides.first()
         return override.cost_int()
@@ -1748,17 +1765,28 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             )
             return cost
 
-        try:
-            override = ContentFighterEquipmentListItem.objects.get(
-                # We use the "equipment list fighter" which, under the hood, picks between the
-                # "legacy" content fighter, if set, or the more typical content fighter. This is for
-                # Venators, which can have the Gang Legacy rule.
-                fighter=self._equipment_list_fighter,
-                equipment=self.content_equipment,
-                weapon_profile=profile.profile,
-            )
-            cost = override.cost_int()
-        except ContentFighterEquipmentListItem.DoesNotExist:
+        # Get all fighters whose equipment lists we should check
+        fighters = self.list_fighter.equipment_list_fighters
+
+        overrides = ContentFighterEquipmentListItem.objects.filter(
+            fighter__in=fighters,
+            equipment=self.content_equipment,
+            weapon_profile=profile.profile,
+        )
+
+        if overrides.exists():
+            # If there are multiple overrides (from legacy and base), prefer legacy
+            if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
+                legacy_override = overrides.filter(
+                    fighter=self.list_fighter.legacy_content_fighter
+                ).first()
+                if legacy_override:
+                    cost = legacy_override.cost_int()
+                else:
+                    cost = overrides.first().cost_int()
+            else:
+                cost = overrides.first().cost_int()
+        else:
             cost = profile.cost_int()
 
         self._profile_cost_with_override_for_profile_cache[profile.profile.id] = cost
@@ -1795,16 +1823,24 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         if hasattr(accessory, "cost_for_fighter"):
             return accessory.cost_for_fighter_int()
 
-        try:
-            override = ContentFighterEquipmentListWeaponAccessory.objects.get(
-                # We use the "equipment list fighter" which, under the hood, picks between the
-                # "legacy" content fighter, if set, or the more typical content fighter. This is for
-                # Venators, which can have the Gang Legacy rule.
-                fighter=self._equipment_list_fighter,
-                weapon_accessory=accessory,
-            )
-            return override.cost_int()
-        except ContentFighterEquipmentListWeaponAccessory.DoesNotExist:
+        # Get all fighters whose equipment lists we should check
+        fighters = self.list_fighter.equipment_list_fighters
+
+        overrides = ContentFighterEquipmentListWeaponAccessory.objects.filter(
+            fighter__in=fighters,
+            weapon_accessory=accessory,
+        )
+
+        if overrides.exists():
+            # If there are multiple overrides (from legacy and base), prefer legacy
+            if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
+                legacy_override = overrides.filter(
+                    fighter=self.list_fighter.legacy_content_fighter
+                ).first()
+                if legacy_override:
+                    return legacy_override.cost_int()
+            return overrides.first().cost_int()
+        else:
             return accessory.cost_int()
 
     def accessory_cost_int(self, accessory):
@@ -1820,13 +1856,24 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             if hasattr(upgrade, "cost_for_fighter"):
                 return upgrade.cost_for_fighter
 
-            try:
-                override = ContentFighterEquipmentListUpgrade.objects.get(
-                    fighter=self._equipment_list_fighter,
-                    upgrade=upgrade,
-                )
-                return override.cost_int()
-            except ContentFighterEquipmentListUpgrade.DoesNotExist:
+            # Get all fighters whose equipment lists we should check
+            fighters = self.list_fighter.equipment_list_fighters
+
+            overrides = ContentFighterEquipmentListUpgrade.objects.filter(
+                fighter__in=fighters,
+                upgrade=upgrade,
+            )
+
+            if overrides.exists():
+                # If there are multiple overrides (from legacy and base), prefer legacy
+                if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
+                    legacy_override = overrides.filter(
+                        fighter=self.list_fighter.legacy_content_fighter
+                    ).first()
+                    if legacy_override:
+                        return legacy_override.cost_int()
+                return overrides.first().cost_int()
+            else:
                 return upgrade.cost
 
         # For SINGLE mode, calculate cumulative cost with overrides
@@ -1835,16 +1882,30 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             position__lte=upgrade.position
         ).order_by("position")
 
+        # Get all fighters whose equipment lists we should check
+        fighters = self.list_fighter.equipment_list_fighters
+
         cumulative_cost = 0
         for u in upgrades:
             # Check for fighter-specific override
-            try:
-                override = ContentFighterEquipmentListUpgrade.objects.get(
-                    fighter=self._equipment_list_fighter,
-                    upgrade=u,
-                )
-                cumulative_cost += override.cost_int()
-            except ContentFighterEquipmentListUpgrade.DoesNotExist:
+            overrides = ContentFighterEquipmentListUpgrade.objects.filter(
+                fighter__in=fighters,
+                upgrade=u,
+            )
+
+            if overrides.exists():
+                # If there are multiple overrides (from legacy and base), prefer legacy
+                if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
+                    legacy_override = overrides.filter(
+                        fighter=self.list_fighter.legacy_content_fighter
+                    ).first()
+                    if legacy_override:
+                        cumulative_cost += legacy_override.cost_int()
+                    else:
+                        cumulative_cost += overrides.first().cost_int()
+                else:
+                    cumulative_cost += overrides.first().cost_int()
+            else:
                 cumulative_cost += u.cost
 
         return cumulative_cost
