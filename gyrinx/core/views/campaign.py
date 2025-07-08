@@ -291,6 +291,7 @@ def campaign_add_lists(request, id):
 
 
 @login_required
+@transaction.atomic
 def campaign_remove_list(request, id, list_id):
     """
     Remove a list from a campaign.
