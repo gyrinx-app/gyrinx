@@ -465,7 +465,7 @@ def test_campaign_remove_list():
         username="campaign_owner", password="testpass"
     )
     list_owner = User.objects.create_user(username="list_owner", password="testpass")
-    other_user = User.objects.create_user(username="other_user", password="testpass")
+    User.objects.create_user(username="other_user", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
     campaign = Campaign.objects.create(
