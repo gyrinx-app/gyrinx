@@ -8,9 +8,8 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Add Gangs to {{ campaign.name }}</h1>
         {% if error_message %}
-            <div class="alert alert-danger">
-                <h4 class="alert-heading">Error</h4>
-                <p>{{ error_message }}</p>
+            <div class="alert alert-danger mb-last-0">
+                <p>Error: {{ error_message }}</p>
             </div>
         {% endif %}
         {% if show_confirmation and list_to_confirm %}

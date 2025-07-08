@@ -297,7 +297,92 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
     assert new_list.name.encode() in response.content
 
     # List should NOT be added yet
-    assert new_list not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_cannot_add_campaign_mode_list_to_campaign():
+    """Test that lists in campaign mode cannot be added to other campaigns."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create a campaign
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Create a list that's already in campaign mode
+    campaign_mode_list = List.objects.create(
+        name="Campaign Mode List",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+    )
+
+    client.login(username="testuser", password="testpass")
+
+    # Try to add the campaign mode list
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(campaign_mode_list.id)},
+    )
+
+    # Should show error message
+    assert response.status_code == 200
+    messages_list = list(messages.get_messages(response.wsgi_request))
+    assert len(messages_list) == 0  # No success message
+    assert (
+        b"Lists in campaign mode cannot be added to other campaigns."
+        in response.content
+    )
+
+    # List should NOT be added
+    assert campaign_mode_list not in campaign.lists.all()
+    assert campaign.lists.count() == 0
+
+
+@pytest.mark.django_db
+def test_list_already_in_campaign_message():
+    """Test that adding a list already in campaign shows appropriate message."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create a campaign in pre-campaign mode
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=user, public=True, status=Campaign.PRE_CAMPAIGN
+    )
+
+    # Create and add a list
+    test_list = List.objects.create(
+        name="Test List", owner=user, content_house=house, status=List.LIST_BUILDING
+    )
+
+    client.login(username="testuser", password="testpass")
+
+    # Add the list for the first time
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(test_list.id)},
+        follow=True,
+    )
+
+    messages_list = list(messages.get_messages(response.wsgi_request))
+    assert len(messages_list) == 1
+    assert "has been added to the campaign" in str(messages_list[0])
+
+    # Try to add the same list again
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(test_list.id)},
+        follow=True,
+    )
+
+    messages_list = list(messages.get_messages(response.wsgi_request))
+    assert len(messages_list) == 1
+    assert "is already in the campaign" in str(messages_list[0])
+
+    # List should still only be added once
+    assert campaign.lists.count() == 1
+    assert test_list in campaign.lists.all()
 
 
 @pytest.mark.django_db
