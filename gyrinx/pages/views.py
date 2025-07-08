@@ -109,7 +109,7 @@ def join_the_waiting_list_success(request):
     )
 
 
-def error_404(request):
+def error_404(request, exception=None):
     return render(request, "404.html", status=404)
 
 
