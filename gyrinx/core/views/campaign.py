@@ -6,7 +6,7 @@ from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -854,6 +854,16 @@ def archive_campaign(request, id):
     if request.method == "POST":
         with transaction.atomic():
             if request.POST.get("archive") == "1":
+                # Prevent archiving in-progress campaigns
+                if campaign.is_in_progress:
+                    messages.error(
+                        request,
+                        f"Cannot archive {campaign.name} while it is in progress. Please end the campaign first.",
+                    )
+                    return HttpResponseRedirect(
+                        reverse("core:campaign", args=(campaign.id,))
+                    )
+
                 campaign.archive()
 
                 # Log the archive event
@@ -957,6 +967,14 @@ def campaign_asset_type_new(request, id):
     :template:`core/campaign/campaign_asset_type_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    # Prevent creation of new asset types for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new asset types for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
         form = CampaignAssetTypeForm(request.POST)
@@ -1071,6 +1089,14 @@ def campaign_asset_new(request, id, type_id):
     asset_type: CampaignAssetType = get_object_or_404(
         CampaignAssetType, id=type_id, campaign=campaign
     )
+
+    # Prevent creation of new assets for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new assets for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
         form = CampaignAssetForm(request.POST, asset_type=asset_type)
@@ -1299,6 +1325,14 @@ def campaign_resource_type_new(request, id):
     :template:`core/campaign/campaign_resource_type_new.html`
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    # Prevent creation of new resource types for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot create new resource types for archived campaigns.",
+        )
+        return redirect("core:campaign-resources", campaign.id)
 
     if request.method == "POST":
         form = CampaignResourceTypeForm(request.POST)
