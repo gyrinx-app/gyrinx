@@ -11,7 +11,6 @@ from django.db.models import Exists, OuterRef, Q
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 from django.views.decorators.clickjacking import xframe_options_exempt
 from pydantic import BaseModel, field_validator
@@ -66,6 +65,7 @@ from gyrinx.core.models.list import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
 )
+from gyrinx.core.utils import build_safe_url, safe_redirect
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
 
@@ -174,10 +174,14 @@ class ListsListView(generic.ListView):
                 # Build new query parameters with page=1
                 query_params = request.GET.copy()
                 query_params[self.page_kwarg] = "1"
-                # Redirect to the same URL with page=1
-                return HttpResponseRedirect(
-                    f"{request.path}?{query_params.urlencode()}"
+                # Build safe URL for redirect
+                url = build_safe_url(
+                    request,
+                    path=request.path,
+                    query_string=query_params.urlencode(),
                 )
+                # Redirect to the same URL with page=1
+                return safe_redirect(request, url, fallback_url=reverse("core:lists"))
             # If it's already page 1, re-raise the 404
             raise
 
@@ -1266,14 +1270,6 @@ def edit_list_fighter_narrative(request, id, fighter_id):
     )
     return_url = request.GET.get("return_url", default_url)
 
-    # Validate the return URL for security
-    if not url_has_allowed_host_and_scheme(
-        url=return_url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return_url = default_url
-
     error_message = None
     if request.method == "POST":
         form = EditListFighterNarrativeForm(request.POST, instance=fighter)
@@ -1296,14 +1292,8 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
             # Get return URL from POST data (in case it was in the form)
             post_return_url = request.POST.get("return_url", return_url)
-            # Validate the POST return URL as well
-            if not url_has_allowed_host_and_scheme(
-                url=post_return_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure(),
-            ):
-                post_return_url = default_url
-            return HttpResponseRedirect(post_return_url)
+            # Use safe redirect with fallback
+            return safe_redirect(request, post_return_url, fallback_url=default_url)
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
 
