@@ -695,3 +695,44 @@ def test_cannot_remove_list_from_post_campaign():
     message_list = list(messages.get_messages(response.wsgi_request))
     assert len(message_list) > 0
     assert "completed campaign" in str(message_list[-1])
+
+
+@pytest.mark.django_db
+def test_campaign_remove_list_creates_campaign_action():
+    """Test that removing a list from a campaign creates a CampaignAction."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Create and add a list
+    list_obj = List.objects.create(name="Test Gang", owner=user, content_house=house)
+    campaign.lists.add(list_obj)
+
+    # Import CampaignAction
+    from gyrinx.core.models.campaign import CampaignAction
+
+    # Check initial state - no actions
+    assert CampaignAction.objects.filter(campaign=campaign).count() == 0
+
+    client.login(username="testuser", password="testpass")
+
+    # Remove the list from the campaign
+    response = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, list_obj.id]),
+    )
+    assert response.status_code == 302
+
+    # Check that a campaign action was created
+    actions = CampaignAction.objects.filter(campaign=campaign)
+    assert actions.count() == 1
+
+    action = actions.first()
+    assert action.user == user
+    assert action.list == list_obj
+    assert (
+        action.description
+        == "Gang 'Test Gang' has been removed from the campaign by testuser"
+    )
+    assert action.owner == user

@@ -346,6 +346,15 @@ def campaign_remove_list(request, id, list_id):
             asset.save()
             assets_unassigned_count += 1
 
+        # Create campaign action for list removal
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=list_to_remove,
+            description=f"Gang '{list_name}' has been removed from the campaign by {request.user.username}",
+            owner=request.user,
+        )
+
         # Remove the list from the campaign
         campaign.lists.remove(list_to_remove)
 
