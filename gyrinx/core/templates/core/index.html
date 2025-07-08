@@ -82,7 +82,13 @@
                     </div>
                     <!-- Campaigns column -->
                     <div class="col-12 col-lg-4">
-                        <h2 class="h4 mb-3">Campaigns</h2>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Campaigns</h2>
+                            {% if campaigns %}
+                                <a href="{% url 'core:campaigns' %}?my=1"
+                                   class="btn btn-link btn-sm">Show all</a>
+                            {% endif %}
+                        </div>
                         <div class="vstack gap-3">
                             {% if campaigns|length > 0 %}
                                 <div class="d-md-block">
