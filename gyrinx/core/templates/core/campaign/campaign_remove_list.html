@@ -1,0 +1,35 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags color_tags %}
+{% block head_title %}
+    Remove {{ list.name }} from Campaign
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign' campaign.id as campaign_url %}
+    {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Remove {{ list.name }} from {{ campaign.name }}</h1>
+        <form action="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Are you sure?</h4>
+                <p class="mb-0">
+                    This will remove <strong>{% list_with_theme list %}</strong> from the campaign.
+                </p>
+                {% if list.status == list.CAMPAIGN_MODE %}
+                    <hr>
+                    <p class="mb-0">
+                        <i class="bi-exclamation-triangle-fill"></i>
+                        This gang is in campaign mode and will be <strong>archived</strong> when removed.
+                    </p>
+                {% endif %}
+            </div>
+            <div class="mt-3">
+                <button type="submit" name="confirm" value="true" class="btn btn-danger">
+                    <i class="bi-trash"></i> Remove from Campaign
+                </button>
+                <a href="{{ campaign_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

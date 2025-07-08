@@ -479,12 +479,21 @@ def test_campaign_remove_list():
     )
     campaign.lists.add(list1, list2)
 
-    # Test that campaign owner can remove a list
+    # Test that campaign owner can remove a list - GET shows confirmation form
     client.login(username="campaign_owner", password="testpass")
     response = client.get(
         reverse("core:campaign-remove-list", args=[campaign.id, list1.id])
     )
 
+    assert response.status_code == 200
+    assert b"Remove from Campaign" in response.content
+    assert b"Are you sure?" in response.content
+
+    # Test POST actually removes the list
+    response = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, list1.id]),
+        {"confirm": "true"}
+    )
     assert response.status_code == 302
     assert response.url == reverse("core:campaign", args=[campaign.id])
 
@@ -495,11 +504,20 @@ def test_campaign_remove_list():
     # Test that list owner can remove their own list
     campaign.lists.add(list1)  # Re-add the list
     client.login(username="list_owner", password="testpass")
+    
+    # GET shows confirmation
     response = client.get(
         reverse("core:campaign-remove-list", args=[campaign.id, list1.id])
     )
+    assert response.status_code == 200
 
+    # POST removes it
+    response = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, list1.id]),
+        {"confirm": "true"}
+    )
     assert response.status_code == 302
+    assert response.url == reverse("core:campaign", args=[campaign.id])
     assert list1 not in campaign.lists.all()
 
     # Test that other users cannot remove lists
@@ -539,10 +557,18 @@ def test_campaign_remove_list_archives_campaign_mode_list():
     campaign.lists.add(list_obj)
 
     client.login(username="testuser", password="testpass")
+    
+    # GET shows confirmation form
     response = client.get(
         reverse("core:campaign-remove-list", args=[campaign.id, list_obj.id])
     )
-
+    assert response.status_code == 200
+    
+    # POST actually removes and archives the list
+    response = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, list_obj.id]),
+        {"confirm": "true"}
+    )
     assert response.status_code == 302
 
     # Refresh from database

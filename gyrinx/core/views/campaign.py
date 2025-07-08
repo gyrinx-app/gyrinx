@@ -296,7 +296,7 @@ def campaign_remove_list(request, id, list_id):
     Remove a list from a campaign.
 
     Allows the campaign owner or list owner to remove a list from a campaign.
-    The list is disconnected from the campaign and archived.
+    The list is disconnected from the campaign and archived if in campaign mode.
 
     **Context**
 
@@ -307,7 +307,7 @@ def campaign_remove_list(request, id, list_id):
 
     **Template**
 
-    No template - redirects to campaign detail page.
+    :template:`core/campaign/campaign_remove_list.html`
     """
     campaign = get_object_or_404(Campaign, id=id)
     list_to_remove = get_object_or_404(List, id=list_id)
@@ -329,43 +329,59 @@ def campaign_remove_list(request, id, list_id):
         messages.error(request, "Lists cannot be removed from a completed campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    # Store list info for logging before removal
-    list_name = list_to_remove.name
-    list_house = (
-        list_to_remove.content_house.name if list_to_remove.content_house else ""
-    )
-    list_owner_username = list_to_remove.owner.username
+    if request.method == "POST":
+        if request.POST.get("confirm") == "true":
+            # Store list info for logging before removal
+            list_name = list_to_remove.name
+            list_house = (
+                list_to_remove.content_house.name
+                if list_to_remove.content_house
+                else ""
+            )
+            list_owner_username = list_to_remove.owner.username
 
-    # Remove the list from the campaign
-    campaign.lists.remove(list_to_remove)
+            # Remove the list from the campaign
+            campaign.lists.remove(list_to_remove)
 
-    # If the list is in campaign mode, archive it
-    if list_to_remove.status == List.CAMPAIGN_MODE:
-        list_to_remove.archived = True
-        list_to_remove.campaign = None  # Clear the campaign field
-        list_to_remove.save()
+            # If the list is in campaign mode, archive it
+            archive_message = ""
+            if list_to_remove.status == List.CAMPAIGN_MODE:
+                list_to_remove.archived = True
+                list_to_remove.campaign = None  # Clear the campaign field
+                list_to_remove.save()
+                archive_message = " and archived"
 
-    # Log the removal event
-    log_event(
-        user=request.user,
-        noun=EventNoun.CAMPAIGN,
-        verb=EventVerb.REMOVE,
-        object=campaign,
-        request=request,
-        campaign_name=campaign.name,
-        list_removed_id=str(list_to_remove.id),
-        list_removed_name=list_name,
-        list_owner=list_owner_username,
-    )
+            # Log the removal event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.REMOVE,
+                object=campaign,
+                request=request,
+                campaign_name=campaign.name,
+                list_removed_id=str(list_to_remove.id),
+                list_removed_name=list_name,
+                list_owner=list_owner_username,
+            )
 
-    # Show success message
-    house_text = f" ({list_house})" if list_house else ""
-    messages.success(
+            # Show success message
+            house_text = f" ({list_house})" if list_house else ""
+            messages.success(
+                request,
+                f"{list_name}{house_text} has been removed from the campaign{archive_message}.",
+            )
+
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # GET request - show confirmation page
+    return render(
         request,
-        f"{list_name}{house_text} has been removed from the campaign and archived.",
+        "core/campaign/campaign_remove_list.html",
+        {
+            "campaign": campaign,
+            "list": list_to_remove,
+        },
     )
-
-    return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
 
 @login_required

@@ -126,8 +126,7 @@
                                             {% if not campaign.is_post_campaign %}
                                                 <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
                                                    class="link-danger ms-2"
-                                                   title="Remove from campaign"
-                                                   onclick="return confirm('Are you sure you want to remove {{ list.name }} from this campaign? The gang will be archived.');">
+                                                   title="Remove from campaign">
                                                     <i class="bi-trash"></i>
                                                 </a>
                                             {% endif %}
