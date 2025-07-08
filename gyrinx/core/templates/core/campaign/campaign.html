@@ -100,7 +100,7 @@
                                     <li>
                                         <a class="dropdown-item"
                                            href="{% url 'core:campaign-archive' campaign.id %}">
-                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}box-arrow-in-down{% endif %}"></i>
+                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
                                             {% if campaign.archived %}
                                                 Unarchive
                                             {% else %}

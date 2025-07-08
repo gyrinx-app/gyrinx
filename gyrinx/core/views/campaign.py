@@ -876,6 +876,14 @@ def archive_campaign(request, id):
 
                 campaign.archive()
 
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Archived: {campaign.name} has been archived",
+                    outcome="Campaign has been archived",
+                )
+
                 # Log the archive event
                 log_event(
                     user=request.user,
@@ -890,11 +898,19 @@ def archive_campaign(request, id):
             else:
                 campaign.unarchive()
 
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=campaign,
+                    description=f"Campaign Unarchived: {campaign.name} has been unarchived",
+                    outcome="Campaign has been unarchived",
+                )
+
                 # Log the unarchive event
                 log_event(
                     user=request.user,
                     noun=EventNoun.CAMPAIGN,
-                    verb=EventVerb.UNARCHIVE,
+                    verb=EventVerb.RESTORE,
                     object=campaign,
                     request=request,
                     campaign_name=campaign.name,
