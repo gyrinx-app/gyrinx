@@ -11,61 +11,63 @@
         {% get_pages prefix for user as flatpages %}
         {% pages_parent flatpage as parent %}
         <div class="flatpage-heading col-md-4 d-flex flex-column">
-            <div class="order-2 order-md-1">
-                {% if parent %}
-                    <i class="bi-chevron-left"></i>
-                    <a href="{{ parent.url }}"
-                       class="link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
-                        {{ parent.title }}
-                    </a>
-                {% else %}
-                    <span class="text-secondary">Help &amp; Documentation</span>
-                {% endif %}
-                <h1>{{ flatpage.title }}</h1>
-                <hr class="my-3 my-md-4" />
-            </div>
-            {% if flatpages|length > 1 %}
-                <div class="dropdown d-md-none mb-3 order-1">
-                    <button class="btn btn-outline-secondary dropdown-toggle"
-                            type="button"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false">Help &amp; Documentation</button>
-                    <ul class="dropdown-menu">
+            <div class="stickyboi sticky-md-top ms-1">
+                <div class="order-2 order-md-1">
+                    {% if parent %}
+                        <i class="bi-chevron-left"></i>
+                        <a href="{{ parent.url }}"
+                           class="link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
+                            {{ parent.title }}
+                        </a>
+                    {% else %}
+                        <span class="text-secondary">Help &amp; Documentation</span>
+                    {% endif %}
+                    <h1>{{ flatpage.title }}</h1>
+                    <hr class="my-3 my-md-4" />
+                </div>
+                {% if flatpages|length > 1 %}
+                    <div class="dropdown d-md-none mb-3 order-1">
+                        <button class="btn btn-outline-secondary dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Help &amp; Documentation</button>
+                        <ul class="dropdown-menu">
+                            {% for page in all_flatpages %}
+                                <li>
+                                    {% if page == flatpage %}
+                                        <span class="dropdown-item active">
+                                            <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
+                                        </span>
+                                    {% else %}
+                                        <a class="dropdown-item" href="{{ page.url }}">
+                                            <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
+                                        </a>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <ul class="d-none d-md-flex nav flex-column order-2">
                         {% for page in all_flatpages %}
-                            <li>
+                            <li style="padding-left:{% page_depth page %}em" class="mb-1">
                                 {% if page == flatpage %}
-                                    <span class="dropdown-item active">
-                                        <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
-                                    </span>
+                                    <span class="text-decoration-underline">{{ page.title }}</span>
                                 {% else %}
-                                    <a class="dropdown-item" href="{{ page.url }}">
-                                        <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
-                                    </a>
+                                    <a href="{{ page.url }}">{{ page.title }}</a>
                                 {% endif %}
                             </li>
                         {% endfor %}
                     </ul>
-                </div>
-                <ul class="d-none d-md-flex nav flex-column order-2">
-                    {% for page in all_flatpages %}
-                        <li style="padding-left:{% page_depth page %}em" class="mb-1">
-                            {% if page == flatpage %}
-                                <span class="text-decoration-underline">{{ page.title }}</span>
-                            {% else %}
-                                <a href="{{ page.url }}">{{ page.title }}</a>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
+                {% endif %}
+            </div>
         </div>
         <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">
             {{ flatpage.content|add_heading_links }}
             {% comment %}Sub-pages listing for narrow viewports{% endcomment %}
             {% get_pages flatpage.url for user as sub_pages %}
-            {% if sub_pages %}
-                <div class="d-md-none mt-5 pt-3 border-top">
-                    <h2 class="h5 mb-3">In this section</h2>
+            {% if sub_pages|length > 1 %}
+                <div class="mt-5 pt-3 border-top">
+                    <h2 class="h5 mb-3">In {{ flatpage.title }}:</h2>
                     <ul class="list-unstyled">
                         {% for page in sub_pages %}
                             {% if page != flatpage %}
@@ -80,9 +82,9 @@
             {% endif %}
             {% comment %}Back to top button{% endcomment %}
             <button id="back-to-top"
-                    class="btn btn-sm btn-secondary position-fixed bottom-0 end-0 me-3 mb-3 d-none"
+                    class="btn btn-sm btn-secondary position-fixed bottom-0 start-0 ms-3 mb-3 z-1 d-none"
                     aria-label="Back to top">
-                <i class="bi-arrow-up"></i>
+                <i class="bi-arrow-up"></i> Back to top
             </button>
         </div>
     </div>
@@ -93,7 +95,7 @@
     <script>
         // Back to top button functionality
         const backToTopButton = document.getElementById('back-to-top');
-        
+
         // Show/hide button based on scroll position
         window.addEventListener('scroll', () => {
             if (window.scrollY > 300) {
@@ -102,7 +104,7 @@
                 backToTopButton.classList.add('d-none');
             }
         });
-        
+
         // Scroll to top when button is clicked
         backToTopButton.addEventListener('click', () => {
             window.scrollTo({

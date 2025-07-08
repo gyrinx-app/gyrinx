@@ -230,8 +230,7 @@ img {
 
 // Flatpage navigation
 @include media-breakpoint-up(md) {
-    .flatpage-heading .nav {
-        position: sticky;
+    .flatpage-heading .stickyboi {
         top: 1em;
     }
 }
