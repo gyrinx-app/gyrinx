@@ -218,25 +218,22 @@
                                      alt="{{ fighter.name }}"
                                      class="img-fluid rounded">
                             </div>
-                            <div class="col-md-8">
-                            {% else %}
-                                <div class="col-12">
-                                {% endif %}
-                                {% if fighter.save_roll %}
-                                    <div class="mb-2">
-                                        <strong>Save:</strong> {{ fighter.save_roll }}
-                                    </div>
-                                {% endif %}
-                                {% if fighter.private_notes and user == list.owner %}
-                                    <div class="mb-2">
-                                        <strong>Private Notes:</strong>
-                                        <div class="mt-1">{{ fighter.private_notes|safe }}</div>
-                                    </div>
-                                {% endif %}
-                                {% if not fighter.image and not fighter.save_roll and not fighter.private_notes %}
-                                    <div class="text-muted fst-italic">No info added yet.</div>
-                                {% endif %}
-                            </div>
+                        {% endif %}
+                        <div class="{% if fighter.image %}col-md-8{% else %}col-12{% endif %}">
+                            {% if fighter.save_roll %}
+                                <div class="mb-2">
+                                    <strong>Save:</strong> {{ fighter.save_roll }}
+                                </div>
+                            {% endif %}
+                            {% if fighter.private_notes and user == list.owner %}
+                                <div class="mb-2">
+                                    <strong>Private Notes:</strong>
+                                    <div class="mt-1">{{ fighter.private_notes|safe }}</div>
+                                </div>
+                            {% endif %}
+                            {% if not fighter.image and not fighter.save_roll and not fighter.private_notes %}
+                                <div class="text-muted fst-italic">No info added yet.</div>
+                            {% endif %}
                         </div>
                         {% if can_edit %}
                             <div class="mt-2">
@@ -247,36 +244,36 @@
                             </div>
                         {% endif %}
                     </div>
-                    <!-- Lore tab -->
-                    <div class="tab-pane fade p-2"
-                         id="lore-{{ fighter.id }}"
-                         role="tabpanel"
-                         aria-labelledby="lore-tab-{{ fighter.id }}"
-                         tabindex="0">
-                        {% if fighter.narrative %}
-                            {{ fighter.narrative|safe }}
-                            {% if can_edit %}
-                                <div class="mt-2">
-                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-pencil"></i> Edit Lore
-                                    </a>
-                                </div>
-                            {% endif %}
-                        {% elif can_edit %}
-                            <div class="text-muted">
-                                No lore added yet.
-                                <div class="mt-2">
-                                    <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-plus"></i> Add Lore
-                                    </a>
-                                </div>
+                </div>
+                <!-- Lore tab -->
+                <div class="tab-pane fade p-2"
+                     id="lore-{{ fighter.id }}"
+                     role="tabpanel"
+                     aria-labelledby="lore-tab-{{ fighter.id }}"
+                     tabindex="0">
+                    {% if fighter.narrative %}
+                        {{ fighter.narrative|safe }}
+                        {% if can_edit %}
+                            <div class="mt-2">
+                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit Lore
+                                </a>
                             </div>
-                        {% else %}
-                            <div class="text-muted fst-italic">No lore added yet.</div>
                         {% endif %}
-                    </div>
+                    {% elif can_edit %}
+                        <div class="text-muted">
+                            No lore added yet.
+                            <div class="mt-2">
+                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-plus"></i> Add Lore
+                                </a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-muted fst-italic">No lore added yet.</div>
+                    {% endif %}
                 </div>
             </div>
         {% else %}
