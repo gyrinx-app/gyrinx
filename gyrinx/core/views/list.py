@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
-from django.http import HttpRequest, HttpResponseRedirect
+from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -89,6 +89,7 @@ class ListsListView(generic.ListView):
     template_name = "core/lists.html"
     context_object_name = "lists"
     paginate_by = 20
+    page_kwarg = "page"
 
     def get_queryset(self):
         """
@@ -156,6 +157,29 @@ class ListsListView(generic.ListView):
         context = super().get_context_data(**kwargs)
         context["houses"] = ContentHouse.objects.all().order_by("name")
         return context
+
+    def get(self, request, *args, **kwargs):
+        """
+        Override get to handle pagination errors.
+        If the requested page is out of bounds, redirect to page 1
+        with all other query parameters preserved.
+        """
+        try:
+            return super().get(request, *args, **kwargs)
+        except Http404:
+            # Check if this is a pagination-related 404
+            page = request.GET.get(self.page_kwarg, 1)
+            # If page is not 1, it's likely a pagination error
+            if page != "1":
+                # Build new query parameters with page=1
+                query_params = request.GET.copy()
+                query_params[self.page_kwarg] = "1"
+                # Redirect to the same URL with page=1
+                return HttpResponseRedirect(
+                    f"{request.path}?{query_params.urlencode()}"
+                )
+            # If it's already page 1, re-raise the 404
+            raise
 
 
 class ListDetailView(generic.DetailView):
