@@ -43,6 +43,7 @@ from gyrinx.core.forms.list import (
     CloneListFighterForm,
     CloneListForm,
     EditFighterStateForm,
+    EditListFighterInfoForm,
     EditListFighterNarrativeForm,
     EditListForm,
     ListFighterEquipmentAssignmentAccessoriesForm,
@@ -1288,6 +1289,91 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         {
             "form": form,
             "list": lst,
+            "error_message": error_message,
+            "return_url": return_url,
+        },
+    )
+
+
+@login_required
+def edit_list_fighter_info(request, id, fighter_id):
+    """
+    Edit the info section (image, save, private notes) of an existing :model:`core.ListFighter`.
+
+    **Context**
+
+    ``form``
+        A EditListFighterInfoForm for editing fighter info.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` being edited.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_info_edit.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    # Get the return URL from query params, with fallback to default
+    default_url = (
+        reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
+    )
+    return_url = request.GET.get("return_url", default_url)
+
+    # Validate the return URL for security
+    if not url_has_allowed_host_and_scheme(
+        url=return_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return_url = default_url
+
+    error_message = None
+    if request.method == "POST":
+        form = EditListFighterInfoForm(request.POST, request.FILES, instance=fighter)
+        if form.is_valid():
+            form.save()
+
+            # Log the info update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                field="info",
+                has_image=bool(fighter.image),
+                has_save=bool(fighter.save),
+                has_private_notes=bool(fighter.private_notes),
+            )
+
+            # Get return URL from POST data (in case it was in the form)
+            post_return_url = request.POST.get("return_url", return_url)
+            # Validate the POST return URL as well
+            if not url_has_allowed_host_and_scheme(
+                url=post_return_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                post_return_url = default_url
+            return HttpResponseRedirect(post_return_url)
+    else:
+        form = EditListFighterInfoForm(instance=fighter)
+
+    return render(
+        request,
+        "core/list_fighter_info_edit.html",
+        {
+            "form": form,
+            "list": lst,
+            "fighter": fighter,
             "error_message": error_message,
             "return_url": return_url,
         },

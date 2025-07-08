@@ -499,6 +499,27 @@ class ListFighter(AppBase):
         help_text="Narrative description of the Fighter: their history and how to play them.",
     )
 
+    # Fighter image/portrait
+    image = models.ImageField(
+        upload_to="fighter-images/",
+        blank=True,
+        null=True,
+        help_text="Fighter portrait or image (appears in Info section)",
+    )
+
+    # Save roll field
+    save = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Fighter's typical save roll (e.g. '5+' or '4+ inv')",
+    )
+
+    # Private notes (only visible to list owner)
+    private_notes = models.TextField(
+        blank=True,
+        help_text="Private notes about the fighter (only visible to you)",
+    )
+
     # Injury state choices
     ACTIVE = "active"
     RECOVERY = "recovery"

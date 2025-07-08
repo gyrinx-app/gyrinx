@@ -472,6 +472,32 @@ class EditListFighterNarrativeForm(forms.ModelForm):
         }
 
 
+class EditListFighterInfoForm(forms.ModelForm):
+    """Form for editing fighter info section (image, save, private notes)"""
+
+    class Meta:
+        model = ListFighter
+        fields = ["image", "save", "private_notes"]
+        labels = {
+            "image": "Fighter Portrait",
+            "save": "Save Roll",
+            "private_notes": "Private Notes",
+        }
+        help_texts = {
+            "image": "Fighter portrait or image (appears in Info section)",
+            "save": "Fighter's typical save roll (e.g. '5+' or '4+ inv')",
+            "private_notes": "Private notes about the fighter (only visible to you)",
+        }
+        widgets = {
+            "save": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. 5+ or 4+ inv"}
+            ),
+            "private_notes": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+        }
+
+
 class AddInjuryForm(forms.Form):
     injury = forms.ModelChoiceField(
         queryset=None,  # Will be set in __init__
