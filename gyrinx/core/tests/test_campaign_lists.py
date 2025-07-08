@@ -578,6 +578,88 @@ def test_campaign_remove_list_archives_campaign_mode_list():
 
 
 @pytest.mark.django_db
+def test_campaign_remove_list_unassigns_assets():
+    """Test that removing a list from a campaign un-assigns its assets."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+
+    # Create a list and add to campaign
+    list_obj = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=house,
+    )
+    campaign.lists.add(list_obj)
+
+    # Create an asset type and assets
+    from gyrinx.core.models.campaign import CampaignAssetType, CampaignAsset
+
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+
+    # Create assets held by the list
+    asset1 = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="Mining Settlement",
+        holder=list_obj,
+        owner=user,
+    )
+    asset2 = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="Trading Post",
+        holder=list_obj,
+        owner=user,
+    )
+    # Create an asset not held by this list
+    other_list = List.objects.create(
+        name="Other List",
+        owner=user,
+        content_house=house,
+    )
+    campaign.lists.add(other_list)
+    asset3 = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="Water Still",
+        holder=other_list,
+        owner=user,
+    )
+
+    # Verify initial state
+    assert asset1.holder == list_obj
+    assert asset2.holder == list_obj
+    assert asset3.holder == other_list
+
+    client.login(username="testuser", password="testpass")
+
+    # Remove the list from the campaign
+    response = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, list_obj.id]),
+    )
+    assert response.status_code == 302
+
+    # Refresh assets from database
+    asset1.refresh_from_db()
+    asset2.refresh_from_db()
+    asset3.refresh_from_db()
+
+    # Check that assets previously held by the removed list are now unassigned
+    assert asset1.holder is None
+    assert asset2.holder is None
+    # Check that other list's assets are unchanged
+    assert asset3.holder == other_list
+
+    # Check list was removed from campaign
+    assert list_obj not in campaign.lists.all()
+
+
+@pytest.mark.django_db
 def test_cannot_remove_list_from_post_campaign():
     """Test that lists cannot be removed from a completed campaign."""
     client = Client()

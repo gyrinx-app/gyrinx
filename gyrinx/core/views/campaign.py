@@ -337,6 +337,15 @@ def campaign_remove_list(request, id, list_id):
         )
         list_owner_username = list_to_remove.owner.username
 
+        # Un-assign any campaign assets held by this list
+        assets_unassigned_count = 0
+        for asset in CampaignAsset.objects.filter(
+            holder=list_to_remove, asset_type__campaign=campaign
+        ):
+            asset.holder = None
+            asset.save()
+            assets_unassigned_count += 1
+
         # Remove the list from the campaign
         campaign.lists.remove(list_to_remove)
 
