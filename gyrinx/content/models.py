@@ -339,6 +339,10 @@ class ContentEquipmentCategory(Content):
         verbose_name="Restricted To",
         help_text="If provided, this equipment category is only available to specific gang houses.",
     )
+    visible_only_if_in_equipment_list = models.BooleanField(
+        default=False,
+        help_text="If True, this category will only be visible on fighter cards if the fighter has equipment in this category in their equipment list.",
+    )
 
     history = HistoricalRecords()
 
