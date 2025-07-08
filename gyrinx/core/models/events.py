@@ -78,12 +78,16 @@ class EventVerb(models.TextChoices):
 
 
 class EventField(models.TextChoices):
-    """Fields that can be modified in user-related events."""
+    """Fields (or groups of fields) that can be modified in events."""
 
+    # User-related fields
     PASSWORD = "password", "Password"
     EMAIL = "email", "Email"
     MFA = "mfa", "Multi-Factor Authentication"
     SESSION = "session", "Session"
+
+    # Fighter-related fields
+    INFO = "info", "Info"
 
 
 class Event(AppBase):

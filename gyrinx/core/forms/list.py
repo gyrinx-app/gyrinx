@@ -6,7 +6,7 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentWeaponAccessory,
 )
-from gyrinx.core.forms import BsCheckboxSelectMultiple
+from gyrinx.core.forms import BsCheckboxSelectMultiple, BsClearableFileInput
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
@@ -468,6 +468,38 @@ class EditListFighterNarrativeForm(forms.ModelForm):
         widgets = {
             "narrative": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+        }
+
+
+class EditListFighterInfoForm(forms.ModelForm):
+    """Form for editing fighter info section (image, save, private notes)"""
+
+    class Meta:
+        model = ListFighter
+        fields = ["image", "save_roll", "private_notes"]
+        labels = {
+            "image": "Image",
+            "save_roll": "Save Roll",
+            "private_notes": "Private Notes",
+        }
+        help_texts = {
+            "image": "This image appears in Info section",
+            "save_roll": "Fighter's typical save roll",
+            "private_notes": "Private notes about the fighter (only visible to you)",
+        }
+        widgets = {
+            "save_roll": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. 5+ or 4+ inv"}
+            ),
+            "private_notes": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+            "image": BsClearableFileInput(
+                attrs={
+                    "class": "form-control",
+                    "accept": "image/*",
+                },
             ),
         }
 
