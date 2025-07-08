@@ -214,12 +214,17 @@ class Campaign(AppBase):
         For pre-campaign: adds the list directly.
         For in-progress: clones the list and allocates resources.
 
-        Returns the added list (original for pre-campaign, clone for in-progress).
+        Returns a tuple (list, was_added) where:
+        - list is the added list (original for pre-campaign, clone for in-progress)
+        - was_added is True if the list was newly added, False if it already existed
         """
         if self.is_pre_campaign:
-            # Pre-campaign: just add the list directly
+            # Pre-campaign: check if list is already in campaign
+            if list_to_add in self.lists.all():
+                return list_to_add, False
+            # Add the list directly
             self.lists.add(list_to_add)
-            return list_to_add
+            return list_to_add, True
         elif self.is_in_progress:
             with transaction.atomic():
                 # Check if we already have a clone of this list
@@ -228,7 +233,7 @@ class Campaign(AppBase):
                         f"Campaign {self.id} already has a clone of list {list_to_add.id}, skipping"
                     )
                     # Return the existing clone
-                    return self.lists.get(original_list=list_to_add)
+                    return self.lists.get(original_list=list_to_add), False
 
                 # In-progress: clone the list and allocate resources
                 campaign_clone = list_to_add.clone(for_campaign=self)
@@ -247,7 +252,7 @@ class Campaign(AppBase):
                         owner=self.owner,  # Campaign owner owns the resource tracking
                     )
 
-                return campaign_clone
+                return campaign_clone, True
         else:
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")

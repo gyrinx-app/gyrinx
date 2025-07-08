@@ -624,20 +624,60 @@ def test_campaign_add_list_prevents_duplicates():
     )
 
     # Add the list to the campaign (should clone it)
-    cloned_list1 = campaign.add_list_to_campaign(original_list)
+    cloned_list1, was_added1 = campaign.add_list_to_campaign(original_list)
+    assert was_added1 is True
     assert cloned_list1.original_list == original_list
     assert cloned_list1.status == List.CAMPAIGN_MODE
     assert campaign.lists.count() == 1
 
     # Try to add the same list again
-    cloned_list2 = campaign.add_list_to_campaign(original_list)
+    cloned_list2, was_added2 = campaign.add_list_to_campaign(original_list)
 
     # Should return the existing clone, not create a new one
+    assert was_added2 is False
     assert cloned_list2.id == cloned_list1.id
     assert campaign.lists.count() == 1
 
     # Verify the returned list is the same as the first clone
     assert cloned_list2.original_list == original_list
+
+
+@pytest.mark.django_db
+def test_campaign_add_list_already_in_pre_campaign():
+    """Test that add_list_to_campaign returns was_added=False for duplicates in pre-campaign."""
+    # Create test users
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create a campaign in pre-campaign mode
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        status=Campaign.PRE_CAMPAIGN,
+    )
+
+    # Create a house and list
+    house = ContentHouse.objects.create(name="Test House")
+    original_list = List.objects.create(
+        name="Original Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Add the list to the campaign
+    list1, was_added1 = campaign.add_list_to_campaign(original_list)
+    assert was_added1 is True
+    assert list1.id == original_list.id  # In pre-campaign, should be the same list
+    assert campaign.lists.count() == 1
+
+    # Try to add the same list again
+    list2, was_added2 = campaign.add_list_to_campaign(original_list)
+
+    # Should return the existing list, not add it again
+    assert was_added2 is False
+    assert list2.id == list1.id
+    assert campaign.lists.count() == 1
 
 
 @pytest.mark.django_db

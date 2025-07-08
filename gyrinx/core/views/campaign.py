@@ -182,32 +182,59 @@ def campaign_add_lists(request, id):
                 list_to_add = List.objects.get(id=list_id)
                 # Check if user can add this list (either owner or public)
                 if list_to_add.owner == request.user or list_to_add.public:
+                    # Check if list is in campaign mode (cannot be cloned-from)
+                    if list_to_add.status == List.CAMPAIGN_MODE:
+                        error_message = (
+                            "Lists in campaign mode cannot be added to other campaigns."
+                        )
                     # For in-progress campaigns, require confirmation
-                    if campaign.is_in_progress and not confirm:
+                    elif campaign.is_in_progress and not confirm:
                         show_confirmation = True
                         # Don't redirect, show confirmation instead
                     else:
                         # Use the new method to add the list
-                        added_list = campaign.add_list_to_campaign(list_to_add)
-
-                        # Log the list addition event
-                        log_event(
-                            user=request.user,
-                            noun=EventNoun.CAMPAIGN,
-                            verb=EventVerb.ADD,
-                            object=campaign,
-                            request=request,
-                            campaign_name=campaign.name,
-                            list_added_id=str(added_list.id),
-                            list_added_name=added_list.name,
-                            list_owner=added_list.owner.username,
+                        added_list, was_added = campaign.add_list_to_campaign(
+                            list_to_add
                         )
 
-                        # Show success message
-                        messages.success(
-                            request,
-                            f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} has been added to the campaign.",
-                        )
+                        if was_added:
+                            # Log the list addition event
+                            log_event(
+                                user=request.user,
+                                noun=EventNoun.CAMPAIGN,
+                                verb=EventVerb.ADD,
+                                object=campaign,
+                                request=request,
+                                campaign_name=campaign.name,
+                                list_added_id=str(added_list.id),
+                                list_added_name=added_list.name,
+                                list_owner=added_list.owner.username,
+                            )
+
+                            # Show success message
+                            messages.success(
+                                request,
+                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} has been added to the campaign.",
+                            )
+                        else:
+                            # Log that the list already existed
+                            log_event(
+                                user=request.user,
+                                noun=EventNoun.CAMPAIGN,
+                                verb=EventVerb.VIEW,
+                                object=campaign,
+                                request=request,
+                                campaign_name=campaign.name,
+                                list_already_exists_id=str(added_list.id),
+                                list_already_exists_name=added_list.name,
+                                action="list_already_in_campaign",
+                            )
+
+                            # Show info message that list already exists
+                            messages.info(
+                                request,
+                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} is already in the campaign.",
+                            )
                         # Redirect to the same page with the search params preserved
                         query_params = []
                         if request.GET.get("q"):
