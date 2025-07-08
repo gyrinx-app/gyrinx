@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
+from gyrinx.content.models import ContentHouse
 from gyrinx.core.models import (
     Campaign,
     Battle,
@@ -121,9 +122,11 @@ def test_archived_campaign_prevents_resource_modify():
         name="Reputation",
         default_amount=0,
     )
+    house = ContentHouse.objects.create(name="Test House")
     test_list = List.objects.create(
         name="Test Gang",
         owner=user,
+        content_house=house,
         status=List.CAMPAIGN_MODE,
     )
     test_list.campaigns.add(campaign)
@@ -183,9 +186,11 @@ def test_archived_campaign_hides_buttons_in_templates():
         name="Reputation",
         default_amount=0,
     )
+    house = ContentHouse.objects.create(name="Test House")
     test_list = List.objects.create(
         name="Test Gang",
         owner=user,
+        content_house=house,
         status=List.CAMPAIGN_MODE,
     )
     test_list.campaigns.add(campaign)
