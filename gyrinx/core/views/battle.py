@@ -7,7 +7,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm
-from gyrinx.core.models import Battle, Campaign
+from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 
 
@@ -108,6 +108,22 @@ def new_battle(request, campaign_id):
                 battle_name=battle.name,
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
+            )
+
+            # Create a campaign action for the battle
+            participants_names = ", ".join([p.name for p in battle.participants.all()])
+            winners_names = ", ".join([w.name for w in battle.winners.all()])
+
+            description = f"Battle Report created: {battle.mission} on {battle.date}. {participants_names} participated."
+            outcome = f"Winners: {winners_names}" if winners_names else "Draw"
+
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                battle=battle,
+                description=description,
+                outcome=outcome,
+                owner=request.user,
             )
 
             messages.success(request, f"Battle '{battle.name}' created successfully!")
