@@ -144,7 +144,10 @@ class ListsListView(generic.ListView):
         # Apply house filter
         house_ids = self.request.GET.getlist("house")
         if house_ids and not ("all" in house_ids or not house_ids[0]):
-            queryset = queryset.filter(content_house_id__in=house_ids)
+            # Validate UUIDs to prevent SQL injection attempts
+            valid_house_ids = [h_id for h_id in house_ids if is_valid_uuid(h_id)]
+            if valid_house_ids:
+                queryset = queryset.filter(content_house_id__in=valid_house_ids)
 
         return queryset
 
