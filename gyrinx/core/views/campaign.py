@@ -97,10 +97,14 @@ class CampaignDetailView(generic.DetailView):
         campaign = self.object
         user = self.request.user
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         if user.is_authenticated:
-            context["can_log_actions"] = campaign.is_in_progress and (
-                campaign.owner == user or campaign.lists.filter(owner=user).exists()
+            context["can_log_actions"] = (
+                campaign.is_in_progress
+                and not campaign.archived
+                and (
+                    campaign.owner == user or campaign.lists.filter(owner=user).exists()
+                )
             )
         else:
             context["can_log_actions"] = False
@@ -441,10 +445,12 @@ def campaign_log_action(request, id):
     """
     campaign = get_object_or_404(Campaign, id=id)
 
-    # Check if user is part of the campaign (owner or has a list in it) and campaign is in progress
+    # Check if user is part of the campaign (owner or has a list in it) and campaign is in progress and not archived
     user_lists_in_campaign = campaign.lists.filter(owner=request.user).exists()
-    if not campaign.is_in_progress or (
-        campaign.owner != request.user and not user_lists_in_campaign
+    if (
+        not campaign.is_in_progress
+        or campaign.archived
+        or (campaign.owner != request.user and not user_lists_in_campaign)
     ):
         messages.error(request, "You cannot log actions for this campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
@@ -644,12 +650,16 @@ class CampaignActionList(generic.ListView):
             .order_by("-date", "-created")
         )
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress)
+        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         user = self.request.user
         if user.is_authenticated:
-            context["can_log_actions"] = self.campaign.is_in_progress and (
-                self.campaign.owner == user
-                or self.campaign.lists.filter(owner=user).exists()
+            context["can_log_actions"] = (
+                self.campaign.is_in_progress
+                and not self.campaign.archived
+                and (
+                    self.campaign.owner == user
+                    or self.campaign.lists.filter(owner=user).exists()
+                )
             )
         else:
             context["can_log_actions"] = False
@@ -1221,6 +1231,14 @@ def campaign_asset_transfer(request, id, asset_id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
+    # Prevent transfer for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot transfer assets for archived campaigns.",
+        )
+        return redirect("core:campaign-assets", campaign.id)
+
     if request.method == "POST":
         form = AssetTransferForm(request.POST, asset=asset)
         if form.is_valid():
@@ -1464,6 +1482,16 @@ def campaign_resource_modify(request, id, resource_id):
     # Check permissions - owner can modify any, list owner can modify their own
     if request.user != campaign.owner and request.user != resource.list.owner:
         messages.error(request, "You don't have permission to modify this resource.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    # Prevent modification for archived campaigns
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot modify resources for archived campaigns.",
+        )
         return HttpResponseRedirect(
             reverse("core:campaign-resources", args=(campaign.id,))
         )

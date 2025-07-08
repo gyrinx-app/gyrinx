@@ -215,10 +215,12 @@
                                                     </td>
                                                     {% if is_owner %}
                                                         <td class="text-end pe-2 pe-sm-3">
-                                                            <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                               class="icon-link link-sm">
-                                                                <i class="bi-arrow-left-right"></i> Transfer
-                                                            </a>
+                                                            {% if not campaign.archived %}
+                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                                   class="icon-link link-sm">
+                                                                    <i class="bi-arrow-left-right"></i> Transfer
+                                                                </a>
+                                                            {% endif %}
                                                         </td>
                                                     {% endif %}
                                                 </tr>
@@ -278,10 +280,12 @@
                                                     </td>
                                                     <td class="text-end pe-2 pe-sm-3">
                                                         {% if is_owner or resource.list.owner == user %}
-                                                            <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}"
-                                                               class="fs-7 icon-link">
-                                                                <i class="bi-pencil"></i> Modify
-                                                            </a>
+                                                            {% if not campaign.archived %}
+                                                                <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}"
+                                                                   class="fs-7 icon-link">
+                                                                    <i class="bi-pencil"></i> Modify
+                                                                </a>
+                                                            {% endif %}
                                                         {% endif %}
                                                     </td>
                                                 </tr>
