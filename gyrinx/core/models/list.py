@@ -508,7 +508,7 @@ class ListFighter(AppBase):
     )
 
     # Save roll field
-    save = models.CharField(
+    save_roll = models.CharField(
         max_length=10,
         blank=True,
         help_text="Fighter's typical save roll (e.g. '5+' or '4+ inv')",

@@ -2,12 +2,19 @@ from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.utils.translation import gettext_lazy as _
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 
 class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     template_name = "pages/forms/widgets/bs_checkbox_select.html"
     option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
+
+
+class BsClearableFileInput(forms.ClearableFileInput):
+    template_name = "pages/forms/widgets/bs_clearable_file_input.html"
+    clear_checkbox_label = _("Clear image")
+    input_text = _("Change")
 
 
 class ResetPasswordForm(ResetPasswordForm):

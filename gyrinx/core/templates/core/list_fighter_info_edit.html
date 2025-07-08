@@ -15,17 +15,19 @@
             {{ form.media }}
             <div class="mb-3">
                 <label for="{{ form.image.id_for_label }}" class="form-label">{{ form.image.label }}</label>
-                {% if fighter.image %}
-                    <div class="mb-2">
-                        <p class="text-secondary">Current image:</p>
-                        <img src="{{ fighter.image.url }}"
-                             alt="{{ fighter.name }}"
-                             class="img-thumbnail"
-                             style="max-width: 200px">
+                <div class="d-flex flex-column flex-md-row gap-2">
+                    {% if fighter.image %}
+                        <div class="mb-2 flex-shrink-0">
+                            <img src="{{ fighter.image.url }}"
+                                 alt="{{ fighter.name }}"
+                                 class="size-em-4 img-thumbnail">
+                        </div>
+                    {% endif %}
+                    <div class="flex-grow-1">
+                        {{ form.image }}
+                        {% if form.image.help_text %}<div class="form-text">{{ form.image.help_text }}</div>{% endif %}
                     </div>
-                {% endif %}
-                {{ form.image }}
-                {% if form.image.help_text %}<div class="form-text">{{ form.image.help_text }}</div>{% endif %}
+                </div>
                 {% if form.image.errors %}
                     <div class="invalid-feedback d-block">
                         {% for error in form.image.errors %}{{ error }}{% endfor %}
@@ -33,12 +35,12 @@
                 {% endif %}
             </div>
             <div class="mb-3">
-                <label for="{{ form.save.id_for_label }}" class="form-label">{{ form.save.label }}</label>
-                {{ form.save }}
-                {% if form.save.help_text %}<div class="form-text">{{ form.save.help_text }}</div>{% endif %}
-                {% if form.save.errors %}
+                <label for="{{ form.save_roll.id_for_label }}" class="form-label">{{ form.save_roll.label }}</label>
+                {{ form.save_roll }}
+                {% if form.save_roll.help_text %}<div class="form-text">{{ form.save_roll.help_text }}</div>{% endif %}
+                {% if form.save_roll.errors %}
                     <div class="invalid-feedback d-block">
-                        {% for error in form.save.errors %}{{ error }}{% endfor %}
+                        {% for error in form.save_roll.errors %}{{ error }}{% endfor %}
                     </div>
                 {% endif %}
             </div>

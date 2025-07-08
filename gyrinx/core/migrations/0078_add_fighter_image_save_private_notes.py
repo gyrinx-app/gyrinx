@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="historicallistfighter",
-            name="save",
+            name="save_roll",
             field=models.CharField(
                 blank=True,
                 help_text="Fighter's typical save roll (e.g. '5+' or '4+ inv')",
@@ -56,7 +56,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="listfighter",
-            name="save",
+            name="save_roll",
             field=models.CharField(
                 blank=True,
                 help_text="Fighter's typical save roll (e.g. '5+' or '4+ inv')",

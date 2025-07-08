@@ -55,7 +55,7 @@ from gyrinx.core.forms.list import (
     NewListForm,
 )
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -1343,14 +1343,15 @@ def edit_list_fighter_info(request, id, fighter_id):
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
                 verb=EventVerb.UPDATE,
+                field=EventField.INFO,
                 object=fighter,
                 request=request,
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                field="info",
                 has_image=bool(fighter.image),
-                has_save=bool(fighter.save),
+                image_url=fighter.image.url if fighter.image else None,
+                has_save=bool(fighter.save_roll),
                 has_private_notes=bool(fighter.private_notes),
             )
 
