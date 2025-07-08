@@ -945,6 +945,19 @@ class ListFighter(AppBase):
         return self.psyker_assigned_powers()
 
     @property
+    def is_psyker(self):
+        """
+        Check if this fighter is a psyker by examining their full rules list
+        including modifications from equipment and injuries.
+        """
+        # Get the full list of rules after modifications
+        rules = self.ruleline
+
+        # Check if any rule indicates the fighter is a psyker
+        psyker_rules = {"psyker", "non-sanctioned psyker", "sanctioned psyker"}
+        return any(rule.value.lower() in psyker_rules for rule in rules)
+
+    @property
     def should_have_zero_cost(self):
         """Check if this fighter should contribute 0 to gang total cost."""
         return self.is_captured or self.is_sold_to_guilders
@@ -2315,7 +2328,7 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
 
     def clean(self):
         # TODO: Find a way to build this generically, rather than special-casing it
-        if not self.list_fighter.content_fighter.is_psyker:
+        if not self.list_fighter.is_psyker:
             raise ValidationError(
                 {
                     "list_fighter": "You can't assign a psyker power to a fighter that is not a psyker."
