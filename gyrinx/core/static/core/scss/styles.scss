@@ -227,3 +227,18 @@ img {
 .color-radio-input:focus + .color-radio-label {
     box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
 }
+
+// Flatpage navigation
+@include media-breakpoint-up(md) {
+    .flatpage-heading .nav {
+        position: sticky;
+        top: 1em;
+    }
+}
+
+// Sub-page links styling for narrow viewports
+.flatpage-content .list-unstyled a {
+    &:hover {
+        background-color: var(--bs-gray-100);
+    }
+}

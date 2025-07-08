@@ -59,10 +59,56 @@
                 </ul>
             {% endif %}
         </div>
-        <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">{{ flatpage.content|add_heading_links }}</div>
+        <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">
+            {{ flatpage.content|add_heading_links }}
+            {% comment %}Sub-pages listing for narrow viewports{% endcomment %}
+            {% get_pages flatpage.url for user as sub_pages %}
+            {% if sub_pages %}
+                <div class="d-md-none mt-5 pt-3 border-top">
+                    <h2 class="h5 mb-3">In this section</h2>
+                    <ul class="list-unstyled">
+                        {% for page in sub_pages %}
+                            {% if page != flatpage %}
+                                <li class="mb-2">
+                                    <a href="{{ page.url }}"
+                                       class="d-block p-2 rounded text-decoration-none">{{ page.title }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            {% comment %}Back to top button{% endcomment %}
+            <button id="back-to-top"
+                    class="btn btn-sm btn-secondary position-fixed bottom-0 end-0 me-3 mb-3 d-none"
+                    aria-label="Back to top">
+                <i class="bi-arrow-up"></i>
+            </button>
+        </div>
     </div>
 {% endblock content %}
 {% block extra_script %}
     <script src="https://cdn.jsdelivr.net/npm/@iframe-resizer/parent@5.3.2"></script>
     <script>iframeResize({ license: 'GPLv3' })</script>
+    <script>
+        // Back to top button functionality
+        const backToTopButton = document.getElementById('back-to-top');
+        
+        // Show/hide button based on scroll position
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 300) {
+                backToTopButton.classList.remove('d-none');
+            } else {
+                backToTopButton.classList.add('d-none');
+            }
+        });
+        
+        // Scroll to top when button is clicked
+        backToTopButton.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
 {% endblock extra_script %}
