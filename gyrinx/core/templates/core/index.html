@@ -127,7 +127,7 @@
                             {% endif %}
                         </div>
                         <div class="vstack gap-3">
-                            {% if lists|length > 0 %}
+                            {% if has_any_lists %}
                                 <div class="d-md-block">
                                     <a href="{% url "core:lists-new" %}" class="btn btn-primary">
                                         <i class="bi-plus-lg"></i>
@@ -156,12 +156,19 @@
                                     </div>
                                 </div>
                             {% empty %}
+                                {% if search_query and has_any_lists %}<p class="text-secondary">No lists matched your search.</p>{% endif %}
                                 <div class="py-2">
                                     <form action="{% url "core:lists-new" %}"
                                           method="get"
                                           class="card card-body vstack gap-4">
                                         <div>
-                                            <label for="id_name">What will you name your first List?</label>
+                                            <label for="id_name">
+                                                {% if has_any_lists %}
+                                                    Create a new list?
+                                                {% else %}
+                                                    What will you name your first List?
+                                                {% endif %}
+                                            </label>
                                             <input type="text"
                                                    name="name"
                                                    placeholder="Shadowskin Spectres"

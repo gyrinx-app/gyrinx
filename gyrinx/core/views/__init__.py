@@ -44,7 +44,14 @@ def index(request):
         lists = []
         campaign_gangs = []
         campaigns = []
+        has_any_lists = False
+        search_query = None
     else:
+        # Check if user has ANY lists (for showing filter)
+        has_any_lists = List.objects.filter(
+            owner=request.user, status=List.LIST_BUILDING, archived=False
+        ).exists()
+
         # Regular lists (not in campaigns) - show 5 most recent
         lists_queryset = List.objects.filter(
             owner=request.user, status=List.LIST_BUILDING, archived=False
@@ -106,6 +113,8 @@ def index(request):
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
             "houses": ContentHouse.objects.all().order_by("name"),
+            "has_any_lists": has_any_lists,
+            "search_query": search_query,
         },
     )
 
