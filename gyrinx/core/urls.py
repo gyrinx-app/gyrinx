@@ -328,6 +328,11 @@ urlpatterns = [
         campaign.reopen_campaign,
         name="campaign-reopen",
     ),
+    path(
+        "campaign/<id>/archive",
+        campaign.archive_campaign,
+        name="campaign-archive",
+    ),
     # Campaign Assets
     path(
         "campaign/<id>/assets",

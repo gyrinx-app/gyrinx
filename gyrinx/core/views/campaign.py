@@ -56,7 +56,7 @@ class Campaigns(generic.ListView):
     context_object_name = "campaigns"
 
     def get_queryset(self):
-        return Campaign.objects.filter(public=True)
+        return Campaign.objects.filter(public=True, archived=False)
 
 
 class CampaignDetailView(generic.DetailView):
@@ -829,6 +829,64 @@ def reopen_campaign(request, id):
     return render(
         request,
         "core/campaign/campaign_reopen.html",
+        {"campaign": campaign},
+    )
+
+
+@login_required
+def archive_campaign(request, id):
+    """
+    Archive or unarchive a :model:`core.Campaign`.
+
+    Only the campaign owner can archive a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` to be archived or unarchived.
+
+    **Template**
+
+    :template:`core/campaign/campaign_archive.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            if request.POST.get("archive") == "1":
+                campaign.archive()
+
+                # Log the archive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.ARCHIVE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                )
+
+                messages.success(request, "Campaign has been archived.")
+            else:
+                campaign.unarchive()
+
+                # Log the unarchive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.UNARCHIVE,
+                    object=campaign,
+                    request=request,
+                    campaign_name=campaign.name,
+                )
+
+                messages.success(request, "Campaign has been unarchived.")
+
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    return render(
+        request,
+        "core/campaign/campaign_archive.html",
         {"campaign": campaign},
     )
 

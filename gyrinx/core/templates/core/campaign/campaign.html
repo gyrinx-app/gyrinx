@@ -72,6 +72,27 @@
                                     <i class="bi-arrow-clockwise"></i> Reopen
                                 </a>
                             {% endif %}
+                            <div class="btn-group" role="group">
+                                <button type="button"
+                                        class="btn btn-secondary btn-sm dropdown-toggle"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="bi-three-dots"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:campaign-archive' campaign.id %}">
+                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}box-arrow-in-down{% endif %}"></i>
+                                            {% if campaign.archived %}
+                                                Unarchive
+                                            {% else %}
+                                                Archive
+                                            {% endif %}
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </nav>
                     {% endif %}
                 </div>
