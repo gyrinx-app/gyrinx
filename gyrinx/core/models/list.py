@@ -917,6 +917,9 @@ class ListFighter(AppBase):
                     "category": cat.name,
                     "id": cat.id,
                     "assignments": assignments,
+                    "filter": "equipment-list"
+                    if cat.visible_only_if_in_equipment_list
+                    else "all",
                 }
             )
 
