@@ -154,9 +154,9 @@
                             {% if not print %}
                                 {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                     {% if line.assignments|length > 0 %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Edit</a>
                                     {% else %}
-                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
                                     {% endif %}
                                 {% endif %}
                             {% endif %}
