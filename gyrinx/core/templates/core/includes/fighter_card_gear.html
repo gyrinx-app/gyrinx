@@ -20,7 +20,7 @@
                 </div>
             </div>
         {% endif %}
-        <table class="table table-sm table-borderless mb-0">
+        <table class="table table-sm table-borderless table-fixed mb-0">
             {% if not fighter.is_stash %}
                 <thead>
                     <tr>
@@ -40,7 +40,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+                    <tr class="table-nowrap">{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
                 </tbody>
             {% endif %}
             <tbody class="table-group-divider">
@@ -57,7 +57,7 @@
                                         {% else %}
                                             <th scope="row" colspan="3"></th>
                                         {% endif %}
-                                        <td colspan="12" class="{% flash assign.id %}">
+                                        <td colspan="9" class="{% flash assign.id %}">
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                                 <span bs-tooltip
                                                       data-bs-toggle="tooltip"
@@ -92,7 +92,7 @@
                                     {% if list.owner_cached == user and not print %}
                                         <tr class="fs-7">
                                             <th scope="row" colspan="3">{{ line.category }}</th>
-                                            <td colspan="12">
+                                            <td colspan="9">
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
@@ -108,7 +108,7 @@
                             {% for line in fighter.house_additional_gearline_display %}
                                 <tr class="fs-7">
                                     <th scope="row" colspan="3">{{ line.category }}</th>
-                                    <td colspan="12">
+                                    <td colspan="9">
                                         {% for assign in line.assignments %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
@@ -146,7 +146,7 @@
                                 {% else %}
                                     <th scope="row" colspan="3"></th>
                                 {% endif %}
-                                <td colspan="12" class="{% flash assign.id %}">
+                                <td colspan="9" class="{% flash assign.id %}">
                                     {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                         <span bs-tooltip
                                               data-bs-toggle="tooltip"
@@ -195,7 +195,7 @@
                         <!-- Wargear -->
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Gear</th>
-                            <td colspan="12">
+                            <td colspan="9">
                                 {% spaceless %}
                                     {% for assign in fighter.wargear %}
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -217,7 +217,7 @@
                     {% if list.owner_cached == user and not print %}
                         <tr class="fs-7">
                             <th scope="row" colspan="3">Gear</th>
-                            <td colspan="12">
+                            <td colspan="9">
                                 {% if gear_mode_default == "link" %}
                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
                                 {% else %}
