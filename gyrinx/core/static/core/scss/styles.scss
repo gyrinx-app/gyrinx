@@ -132,6 +132,20 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
         var(--bs-border-color) !important;
 }
 
+.table-fixed {
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+}
+
+.table-fixed .table-nowrap td,
+.table-fixed .table-nowrap th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}
+
 // Forms
 
 fieldset legend {
