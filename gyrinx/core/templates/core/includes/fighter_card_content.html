@@ -102,7 +102,10 @@
                                     type="button"
                                     role="tab"
                                     aria-controls="info-{{ fighter.id }}"
-                                    aria-selected="false">Info</button>
+                                    aria-selected="false">
+                                Info
+                                {% if fighter.has_info_content %}<i class="bi-dot"></i>{% endif %}
+                            </button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fs-7 px-2 py-1"
@@ -112,7 +115,10 @@
                                     type="button"
                                     role="tab"
                                     aria-controls="lore-{{ fighter.id }}"
-                                    aria-selected="false">Lore</button>
+                                    aria-selected="false">
+                                Lore
+                                {% if fighter.has_lore_content %}<i class="bi-dot"></i>{% endif %}
+                            </button>
                         </li>
                     </ul>
                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
