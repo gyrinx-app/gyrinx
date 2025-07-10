@@ -214,7 +214,9 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
         group_select(self, "equipment", key=lambda x: x.cat())
         group_select(self, "weapon_profile", key=lambda x: x.equipment.name)
 
@@ -231,7 +233,9 @@ class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
 
 
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
@@ -246,7 +250,9 @@ class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
         group_select(self, "upgrade", key=lambda x: x.equipment.name)
 
 
@@ -280,7 +286,9 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
         group_select(self, "equipment", key=lambda x: x.cat())
         group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
 
@@ -394,7 +402,9 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "fighter", key=lambda x: x.house.name)
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 
