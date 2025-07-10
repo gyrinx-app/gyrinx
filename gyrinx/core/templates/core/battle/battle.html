@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 {% block head_title %}
     {{ battle.name }} - Battle
 {% endblock head_title %}
@@ -25,7 +25,7 @@
                     </div>
                     <div class="text-secondary">
                         <i class="bi-person"></i>
-                        Created by <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a>
+                        Created by {% user_with_badge battle.owner %}
                     </div>
                 </div>
                 <div class="ms-sm-auto mt-2 mt-sm-0">
@@ -91,7 +91,7 @@
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div class="text-muted small">
                                             <i class="bi-person"></i>
-                                            <a href="{% url 'core:user' note.owner.username %}" class="linked">{{ note.owner }}</a>
+                                            {% user_with_badge note.owner %}
                                             <span class="mx-1">·</span>
                                             {{ note.created|date:"M d, Y g:i A" }}
                                         </div>

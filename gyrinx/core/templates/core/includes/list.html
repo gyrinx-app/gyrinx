@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 <div>
     {% if list.archived %}
         <div class="border rounded p-2 mb-3 hstack gap-2 align-items-center text-secondary">
@@ -27,8 +27,7 @@
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div>
                     <i class="bi-person"></i>
-                    <a class="linked"
-                       href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
+                    {% user_with_badge list.owner_cached %}
                 </div>
                 {% if not print %}
                     <div>

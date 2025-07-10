@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags badge_tags %}
 {% block head_title %}
     Campaigns
 {% endblock head_title %}
@@ -27,7 +27,7 @@
                                 <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
                             </h2>
                             <div>
-                                <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                                <i class="bi-person"></i> {% user_with_badge campaign.owner %}
                             </div>
                             <div>
                                 {% if not campaign.archived %}

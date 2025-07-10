@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags humanize %}
+{% load allauth custom_tags humanize badge_tags %}
 {% block head_title %}
     {{ user.username }}
 {% endblock head_title %}
@@ -16,6 +16,13 @@
                     <div class="hstack gap-2">
                         <i class="bi-trophy-fill"></i>
                         <span class="badge text-bg-success">Staff</span>
+                    </div>
+                {% endif %}
+                {% user_badges user as badges %}
+                {% if badges %}
+                    <div class="hstack gap-2">
+                        <i class="bi-award-fill"></i>
+                        {{ badges }}
                     </div>
                 {% endif %}
                 <div>

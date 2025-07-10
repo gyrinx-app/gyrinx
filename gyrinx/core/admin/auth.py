@@ -5,6 +5,8 @@ from django.contrib.auth.models import Group, User
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
+from gyrinx.core.models import CoreUserBadgeAssignment
+
 
 @admin.action(description="Add selected users to group")
 def add_users_to_group(modeladmin, request, queryset):
@@ -192,12 +194,20 @@ def remove_users_from_group(modeladmin, request, queryset):
     )
 
 
+class CoreUserBadgeAssignmentInline(admin.TabularInline):
+    model = CoreUserBadgeAssignment
+    extra = 0
+    fields = ["badge", "is_active"]
+    ordering = ["-is_active", "-created"]
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     actions = list(BaseUserAdmin.actions) + [
         add_users_to_group,
         remove_users_from_group,
     ]
+    inlines = list(BaseUserAdmin.inlines) + [CoreUserBadgeAssignmentInline]
 
 
 @admin.register(Group)

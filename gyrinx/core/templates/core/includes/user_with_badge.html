@@ -1,0 +1,7 @@
+{% load badge_tags %}
+{% if link %}
+    <a href="{% url 'core:user' user.username %}"
+       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ user.username }}</a>{% user_badge user %}
+{% else %}
+    {{ user.username }}{% user_badge user %}
+{% endif %}

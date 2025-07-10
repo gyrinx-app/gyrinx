@@ -1852,6 +1852,49 @@ class ContentPack(AppBase):
         ordering = ["name"]
 
 
+class ContentBadge(Content):
+    """
+    A badge that can be assigned to users.
+    """
+
+    name = models.CharField(max_length=50, unique=True)
+    display_text = models.CharField(
+        max_length=10, help_text="Short text shown on badge"
+    )
+    color_class = models.CharField(
+        max_length=30,
+        default="text-bg-secondary",
+        choices=[
+            ("text-bg-primary", "Primary"),
+            ("text-bg-secondary", "Secondary"),
+            ("text-bg-success", "Success"),
+            ("text-bg-danger", "Danger"),
+            ("text-bg-warning", "Warning"),
+            ("text-bg-info", "Info"),
+            ("text-bg-light", "Light"),
+            ("text-bg-dark", "Dark"),
+        ],
+        help_text="Bootstrap color class",
+    )
+    icon_class = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Bootstrap icon class (e.g., bi-star-fill)",
+    )
+    description = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "User Badge"
+        verbose_name_plural = "User Badges"
+        ordering = ["name"]
+
+
 class ContentAttribute(Content):
     """
     Represents an attribute that can be associated with gangs/lists
