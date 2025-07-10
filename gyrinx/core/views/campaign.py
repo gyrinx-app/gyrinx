@@ -1381,6 +1381,13 @@ def campaign_asset_transfer(request, id, asset_id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
+    # Check if campaign is archived
+    if campaign.archived:
+        messages.error(request, "Cannot transfer assets for archived campaigns.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
     # Check if campaign has started
     if campaign.is_pre_campaign:
         messages.error(
@@ -1633,6 +1640,13 @@ def campaign_resource_modify(request, id, resource_id):
     # Check permissions - owner can modify any, list owner can modify their own
     if request.user != campaign.owner and request.user != resource.list.owner:
         messages.error(request, "You don't have permission to modify this resource.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    # Check if campaign is archived
+    if campaign.archived:
+        messages.error(request, "Cannot modify resources for archived campaigns.")
         return HttpResponseRedirect(
             reverse("core:campaign-resources", args=(campaign.id,))
         )

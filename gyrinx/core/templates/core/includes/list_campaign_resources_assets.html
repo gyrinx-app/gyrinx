@@ -21,7 +21,7 @@
                                         </div>
                                         {% if list.campaign.is_pre_campaign %}
                                             <span class="text-muted small">Campaign not started</span>
-                                        {% else %}
+                                        {% elif not list.campaign.archived %}
                                             <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
                                                class="icon-link link-secondary link-sm ms-2">
                                                 <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
@@ -51,7 +51,7 @@
                                         <td class="text-end">
                                             {% if list.campaign.is_pre_campaign %}
                                                 <span class="text-muted small">Campaign not started</span>
-                                            {% else %}
+                                            {% elif not list.campaign.archived %}
                                                 <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}"
                                                    class="icon-link link-secondary link-sm">
                                                     <i class="bi-pencil" aria-hidden="true"></i> Modify

@@ -60,7 +60,7 @@
                                                 <td class="text-end pe-3">
                                                     {% if campaign.is_pre_campaign %}
                                                         <span class="text-muted">Campaign not started</span>
-                                                    {% elif is_owner or resource.list in user_lists %}
+                                                    {% elif not campaign.archived and is_owner or not campaign.archived and resource.list in user_lists %}
                                                         <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}"
                                                            class="btn btn-outline-primary btn-sm">
                                                             <i class="bi-pencil"></i> Modify
