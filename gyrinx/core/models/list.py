@@ -1141,6 +1141,14 @@ class ListFighter(AppBase):
             return False
         return True
 
+    def has_info_content(self):
+        """Check if the fighter has any content in the Info tab fields."""
+        return bool(self.image or self.save_roll or self.private_notes)
+
+    def has_lore_content(self):
+        """Check if the fighter has any content in the Lore tab."""
+        return bool(self.narrative)
+
     class Meta:
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
