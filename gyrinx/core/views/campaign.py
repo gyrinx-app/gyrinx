@@ -97,7 +97,7 @@ class Campaigns(generic.ListView):
         # Apply search filter
         search_query = self.request.GET.get("q")
         if search_query:
-            search_vector = SearchVector("name", "description", "owner__username")
+            search_vector = SearchVector("name", "narrative", "owner__username")
             search_q = SearchQuery(search_query)
             queryset = queryset.annotate(search=search_vector).filter(search=search_q)
 

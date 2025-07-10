@@ -30,22 +30,24 @@
                                 <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
                             </div>
                             <div>
-                                {% if campaign.is_pre_campaign %}
-                                    <span class="badge bg-secondary">Pre-Campaign</span>
-                                {% elif campaign.is_in_progress %}
-                                    <span class="badge bg-success">In Progress</span>
-                                {% else %}
-                                    <span class="badge bg-dark">Post-Campaign</span>
+                                {% if not campaign.archived %}
+                                    {% if campaign.is_pre_campaign %}
+                                        <span class="badge bg-secondary">Pre-Campaign</span>
+                                    {% elif campaign.is_in_progress %}
+                                        <span class="badge bg-success">In Progress</span>
+                                    {% else %}
+                                        <span class="badge bg-dark">Post-Campaign</span>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </div>
                         <div class="mb-last-0 text-secondary">{{ campaign.summary|safe }}</div>
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                            {% load tz %}
-                            <div class="text-muted small">
-                                <i class="bi-list-ul"></i> {{ campaign.lists.count }} lists
-                            </div>
-                            <div class="text-muted small">Created: {{ campaign.created|timesince }} ago</div>
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap fs-7 text-secondary">
+                            {% if campaign.archived %}
+                                <div>
+                                    <i class="bi-archive text-muted"></i> Archived
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="ms-auto d-md-none">
