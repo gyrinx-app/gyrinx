@@ -248,12 +248,14 @@ class ContentFighterPsykerDisciplineAssignment(Content):
         """
         Validation to ensure that a generic discipline cannot be assigned to a fighter.
         """
-        if not self.fighter.is_psyker:
-            raise ValidationError(
-                {
-                    "fighter": "Cannot assign a psyker discipline to a non-psyker fighter."
-                }
-            )
+        # This is removed because fighters can *become* psykers later in the game, if a rule
+        # is added via an updgrade or other means.
+        # if not self.fighter.is_psyker:
+        #     raise ValidationError(
+        #         {
+        #             "fighter": "Cannot assign a psyker discipline to a non-psyker fighter."
+        #         }
+        #     )
 
         if self.discipline.generic:
             raise ValidationError(
