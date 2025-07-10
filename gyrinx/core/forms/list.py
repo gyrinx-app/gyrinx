@@ -481,12 +481,12 @@ class EditListFighterInfoForm(forms.ModelForm):
         labels = {
             "image": "Image",
             "save_roll": "Save Roll",
-            "private_notes": "Private Notes",
+            "private_notes": "Notes",
         }
         help_texts = {
             "image": "This image appears in Info section",
             "save_roll": "Fighter's typical save roll",
-            "private_notes": "Private notes about the fighter (only visible to you)",
+            "private_notes": "Notes about the fighter (only visible to you)",
         }
         widgets = {
             "save_roll": forms.TextInput(

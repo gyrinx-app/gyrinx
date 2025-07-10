@@ -1298,7 +1298,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 @login_required
 def edit_list_fighter_info(request, id, fighter_id):
     """
-    Edit the info section (image, save, private notes) of an existing :model:`core.ListFighter`.
+    Edit the info section (image, save, notes) of an existing :model:`core.ListFighter`.
 
     **Context**
 

@@ -517,7 +517,7 @@ class ListFighter(AppBase):
     # Private notes (only visible to list owner)
     private_notes = models.TextField(
         blank=True,
-        help_text="Private notes about the fighter (only visible to you)",
+        help_text="Notes about the fighter (only visible to you)",
     )
 
     # Injury state choices
