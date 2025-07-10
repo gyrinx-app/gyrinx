@@ -9,7 +9,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 
 from gyrinx.core.forms.campaign import (
@@ -33,6 +32,7 @@ from gyrinx.core.models.campaign import (
 )
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import CapturedFighter, List
+from gyrinx.core.utils import safe_redirect
 
 
 def get_campaign_resource_types_with_resources(campaign):
@@ -1846,17 +1846,14 @@ def fighter_sell_to_guilders(request, id, fighter_id):
                 raise ValueError("Credits cannot be negative")
         except ValueError:
             messages.error(request, "Invalid credit amount.")
-            # Validate the redirect URL for security
-            redirect_url = request.path
-            if not url_has_allowed_host_and_scheme(
-                url=redirect_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure(),
-            ):
-                redirect_url = reverse(
+            # Redirect safely back to the form
+            return safe_redirect(
+                request,
+                request.path,
+                fallback_url=reverse(
                     "core:campaign_captured_fighters", args=[campaign.id]
-                )
-            return HttpResponseRedirect(redirect_url)
+                ),
+            )
 
         with transaction.atomic():
             # Sell the fighter
@@ -1941,17 +1938,14 @@ def fighter_return_to_owner(request, id, fighter_id):
                 raise ValueError("Ransom cannot be negative")
         except ValueError:
             messages.error(request, "Invalid ransom amount.")
-            # Validate the redirect URL for security
-            redirect_url = request.path
-            if not url_has_allowed_host_and_scheme(
-                url=redirect_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure(),
-            ):
-                redirect_url = reverse(
+            # Redirect safely back to the form
+            return safe_redirect(
+                request,
+                request.path,
+                fallback_url=reverse(
                     "core:campaign_captured_fighters", args=[campaign.id]
-                )
-            return HttpResponseRedirect(redirect_url)
+                ),
+            )
 
         original_list = captured_fighter.fighter.list
         capturing_list = captured_fighter.capturing_list
@@ -1964,17 +1958,14 @@ def fighter_return_to_owner(request, id, fighter_id):
                     request,
                     f"{original_list.name} doesn't have enough credits to pay the ransom.",
                 )
-                # Validate the redirect URL for security
-                redirect_url = request.path
-                if not url_has_allowed_host_and_scheme(
-                    url=redirect_url,
-                    allowed_hosts={request.get_host()},
-                    require_https=request.is_secure(),
-                ):
-                    redirect_url = reverse(
+                # Redirect safely back to the form
+                return safe_redirect(
+                    request,
+                    request.path,
+                    fallback_url=reverse(
                         "core:campaign_captured_fighters", args=[campaign.id]
-                    )
-                return HttpResponseRedirect(redirect_url)
+                    ),
+                )
 
         with transaction.atomic():
             if ransom > 0:
