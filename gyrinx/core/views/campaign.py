@@ -58,9 +58,56 @@ def get_campaign_resource_types_with_resources(campaign):
 class Campaigns(generic.ListView):
     template_name = "core/campaign/campaigns.html"
     context_object_name = "campaigns"
+    paginate_by = 20
 
     def get_queryset(self):
-        return Campaign.objects.filter(public=True, archived=False)
+        queryset = (
+            Campaign.objects.all().select_related("owner").prefetch_related("lists")
+        )
+
+        # Apply "My campaigns only" filter
+        show_my_campaigns = self.request.GET.get("my", "0")
+        if show_my_campaigns == "1" and self.request.user.is_authenticated:
+            # Show campaigns where user is owner
+            queryset = queryset.filter(owner=self.request.user)
+        else:
+            # Only show public campaigns if not filtering by user
+            queryset = queryset.filter(public=True)
+
+        # Apply "Participating only" filter
+        show_participating = self.request.GET.get("participating", "0")
+        if show_participating == "1" and self.request.user.is_authenticated:
+            # Show campaigns where user has lists
+            queryset = queryset.filter(lists__owner=self.request.user).distinct()
+
+        # Apply archived filter (default off)
+        show_archived = self.request.GET.get("archived", "0")
+        if show_archived == "1":
+            # Show ONLY archived campaigns
+            queryset = queryset.filter(archived=True)
+        else:
+            # Show only non-archived campaigns by default
+            queryset = queryset.filter(archived=False)
+
+        # Apply status filter
+        status_filters = self.request.GET.getlist("status")
+        if status_filters:
+            queryset = queryset.filter(status__in=status_filters)
+
+        # Apply search filter
+        search_query = self.request.GET.get("q")
+        if search_query:
+            search_vector = SearchVector("name", "narrative", "owner__username")
+            search_q = SearchQuery(search_query)
+            queryset = queryset.annotate(search=search_vector).filter(search=search_q)
+
+        return queryset.order_by("-created")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Add status choices for the filter
+        context["status_choices"] = Campaign.STATUS_CHOICES
+        return context
 
 
 class CampaignDetailView(generic.DetailView):

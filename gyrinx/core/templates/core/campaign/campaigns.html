@@ -1,50 +1,103 @@
-{% extends "core/layouts/page.html" %}
+{% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
     Campaigns
 {% endblock head_title %}
-{% block page_title %}
-    All campaigns
-{% endblock page_title %}
-{% block page_description %}
-    These are public campaigns created by all users.
-    {% if user.is_authenticated %}
-        <a href="{% url 'core:campaigns-new' %}">Create a new Campaign</a>.
-    {% endif %}
-{% endblock page_description %}
-{% block page_content %}
-    <div class="vstack gap-4">
-        {% for campaign in campaigns %}
-            <div class="hstack gap-3 position-relative">
-                <div class="d-flex flex-column gap-1">
-                    <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
-                        <h2 class="mb-0 h5">
-                            <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
-                        </h2>
-                        <div>
-                            <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+{% block content %}
+    <div class="col-lg-12 px-0 vstack gap-4">
+        <div>
+            <h1 class="mb-1">Campaigns</h1>
+            <p class="fs-5 col-12 col-md-6 mb-0">
+                Browse and manage campaigns.
+                {% if user.is_authenticated %}
+                    <a href="{% url 'core:campaigns-new' %}">Create a new Campaign</a>.
+                {% endif %}
+            </p>
+        </div>
+        <div class="grid">
+            {% url 'core:campaigns' as action %}
+            {% include "core/includes/campaigns_filter.html" with action=action status_choices=status_choices %}
+        </div>
+        <div class="vstack gap-4">
+            {% for campaign in campaigns %}
+                <div class="hstack gap-3 position-relative">
+                    <div class="d-flex flex-column gap-1">
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                            <h2 class="mb-0 h5">
+                                <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+                            </h2>
+                            <div>
+                                <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                            </div>
+                            <div>
+                                {% if not campaign.archived %}
+                                    {% if campaign.is_pre_campaign %}
+                                        <span class="badge bg-secondary">Pre-Campaign</span>
+                                    {% elif campaign.is_in_progress %}
+                                        <span class="badge bg-success">In Progress</span>
+                                    {% else %}
+                                        <span class="badge bg-dark">Post-Campaign</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
                         </div>
-                        <div>
-                            {% if campaign.is_pre_campaign %}
-                                <span class="badge bg-secondary">Pre-Campaign</span>
-                            {% elif campaign.is_in_progress %}
-                                <span class="badge bg-success">In Progress</span>
-                            {% else %}
-                                <span class="badge bg-dark">Post-Campaign</span>
+                        <div class="mb-last-0 text-secondary">{{ campaign.summary|safe }}</div>
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap fs-7 text-secondary">
+                            {% if campaign.archived %}
+                                <div>
+                                    <i class="bi-archive text-muted"></i> Archived
+                                </div>
                             {% endif %}
                         </div>
                     </div>
-                    <div class="mb-last-0 text-secondary">{{ campaign.summary|safe }}</div>
+                    <div class="ms-auto d-md-none">
+                        <a href="{% url 'core:campaign' campaign.id %}"
+                           class="p-3 stretched-link">
+                            <i class="bi-chevron-right"></i>
+                        </a>
+                    </div>
                 </div>
-                <div class="ms-auto d-md-none">
-                    <a href="{% url 'core:campaign' campaign.id %}"
-                       class="p-3 stretched-link">
-                        <i class="bi-chevron-right"></i>
-                    </a>
-                </div>
-            </div>
-        {% empty %}
-            <div class="py-2">No campaigns available.</div>
-        {% endfor %}
+            {% empty %}
+                <div class="py-2">No campaigns available.</div>
+            {% endfor %}
+            {% if is_paginated %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Previous</span>
+                            </li>
+                        {% endif %}
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Next</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
     </div>
-{% endblock page_content %}
+{% endblock content %}
