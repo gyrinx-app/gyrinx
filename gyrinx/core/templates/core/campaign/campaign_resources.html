@@ -58,13 +58,13 @@
                                                     <span class="badge bg-primary fs-6">{{ resource.amount }}</span>
                                                 </td>
                                                 <td class="text-end pe-3">
-                                                    {% if is_owner or resource.list in user_lists %}
-                                                        {% if not campaign.archived %}
-                                                            <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}"
-                                                               class="btn btn-outline-primary btn-sm">
-                                                                <i class="bi-pencil"></i> Modify
-                                                            </a>
-                                                        {% endif %}
+                                                    {% if campaign.is_pre_campaign %}
+                                                        <span class="text-muted">Campaign not started</span>
+                                                    {% elif not campaign.archived and is_owner or not campaign.archived and resource.list in user_lists %}
+                                                        <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}"
+                                                           class="btn btn-outline-primary btn-sm">
+                                                            <i class="bi-pencil"></i> Modify
+                                                        </a>
                                                     {% endif %}
                                                 </td>
                                             </tr>
