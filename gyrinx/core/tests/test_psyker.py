@@ -48,13 +48,15 @@ def test_psyker(content_fighter, make_list, make_list_fighter):
     assign.delete()
 
     # You can't assign a discipline if the ContentFighter is not a psyker
-    assign = ContentFighterPsykerDisciplineAssignment.objects.create(
-        fighter=content_fighter,
-        discipline=chronomancy,
-    )
-    with pytest.raises(ValidationError):
-        assign.full_clean()
-    assign.delete()
+    # NOTE: You now can assign a discipline to a non-psyker fighter, because they can
+    # become psykers later in the game, if a rule is added via an upgrade or other means.
+    # assign = ContentFighterPsykerDisciplineAssignment.objects.create(
+    #     fighter=content_fighter,
+    #     discipline=chronomancy,
+    # )
+    # with pytest.raises(ValidationError):
+    #     assign.full_clean()
+    # assign.delete()
 
     lst = make_list("Test List")
     fighter = make_list_fighter(lst, "Test Fighter")
