@@ -24,6 +24,11 @@ class NewListForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Filter out generic houses that can't be selected as a primary house
+        self.fields["content_house"].queryset = ContentHouse.objects.filter(
+            generic=False
+        )
+
         # Group houses by legacy status
         from gyrinx.forms import group_select
 
