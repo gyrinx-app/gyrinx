@@ -1338,13 +1338,8 @@ def edit_list_fighter_info(request, id, fighter_id):
     )
     return_url = request.GET.get("return_url", default_url)
 
-    # Validate the return URL for security
-    if not url_has_allowed_host_and_scheme(
-        url=return_url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return_url = default_url
+    # Validate the return URL for security - safe_redirect will handle validation
+    # If return_url is invalid, it will use default_url as fallback
 
     error_message = None
     if request.method == "POST":
@@ -1371,14 +1366,8 @@ def edit_list_fighter_info(request, id, fighter_id):
 
             # Get return URL from POST data (in case it was in the form)
             post_return_url = request.POST.get("return_url", return_url)
-            # Validate the POST return URL as well
-            if not url_has_allowed_host_and_scheme(
-                url=post_return_url,
-                allowed_hosts={request.get_host()},
-                require_https=request.is_secure(),
-            ):
-                post_return_url = default_url
-            return HttpResponseRedirect(post_return_url)
+            # Use safe redirect with fallback
+            return safe_redirect(request, post_return_url, fallback_url=default_url)
     else:
         form = EditListFighterInfoForm(instance=fighter)
 
