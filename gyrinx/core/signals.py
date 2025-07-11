@@ -269,3 +269,44 @@ def update_list_modified_on_event(sender, instance, created, **kwargs):
     except List.DoesNotExist:
         # List doesn't exist, nothing to do
         pass
+
+
+@receiver(post_save, sender=Event)
+def update_campaign_modified_on_event(sender, instance, created, **kwargs):
+    """
+    Update the campaign's modified timestamp when an event is created
+    that references the campaign.
+
+    This ensures that the "last edited" time shown in the UI reflects
+    any changes to campaign-related objects, not just direct campaign updates.
+    """
+    if not created:
+        # Only process newly created events
+        return
+
+    if type(instance) is not Event:
+        # Only handle Event instances, not other types
+        return
+
+    if instance.verb is EventVerb.VIEW:
+        # Skip view events, they don't modify the campaign
+        return
+
+    # Check if the event has a campaign_id in its context
+    if not instance.context or "campaign_id" not in instance.context:
+        return
+
+    campaign_id = instance.context.get("campaign_id")
+    if not campaign_id:
+        return
+
+    # Import here to avoid circular imports
+    from gyrinx.core.models.campaign import Campaign
+
+    try:
+        # Update the campaign's modified timestamp
+        # Using update() to avoid triggering save signals and history
+        Campaign.objects.filter(id=campaign_id).update(modified=instance.created)
+    except Campaign.DoesNotExist:
+        # Campaign doesn't exist, nothing to do
+        pass
