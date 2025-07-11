@@ -196,6 +196,7 @@ def remove_users_from_group(modeladmin, request, queryset):
 
 class CoreUserBadgeAssignmentInline(admin.TabularInline):
     model = CoreUserBadgeAssignment
+    fk_name = "user"  # Specify which ForeignKey to use (not 'owner')
     extra = 0
     fields = ["badge", "is_active"]
     ordering = ["-is_active", "-created"]

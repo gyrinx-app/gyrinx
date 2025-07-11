@@ -1,5 +1,6 @@
 from django import template
 from django.contrib.auth.models import User
+from django.utils.html import escape
 from django.utils.safestring import mark_safe
 
 register = template.Library()
@@ -18,15 +19,17 @@ def user_badge(user):
         return ""
 
     badge = active_badge.badge
-    icon_html = f'<i class="{badge.icon_class}"></i> ' if badge.icon_class else ""
+    icon_html = (
+        f'<i class="{escape(badge.icon_class)}"></i> ' if badge.icon_class else ""
+    )
 
     badge_html = (
-        f'<span class="badge {badge.color_class} rounded-pill ms-1">'
-        f"{icon_html}{badge.display_text}"
+        f'<span class="badge {escape(badge.color_class)} rounded-pill ms-1">'
+        f"{icon_html}{escape(badge.display_text)}"
         f"</span>"
     )
 
-    return mark_safe(badge_html)
+    return mark_safe(badge_html)  # nosec B308 B703
 
 
 @register.simple_tag
@@ -44,19 +47,21 @@ def user_badges(user):
     badge_html_list = []
     for assignment in badges:
         badge = assignment.badge
-        icon_html = f'<i class="{badge.icon_class}"></i> ' if badge.icon_class else ""
+        icon_html = (
+            f'<i class="{escape(badge.icon_class)}"></i> ' if badge.icon_class else ""
+        )
         active_indicator = (
             ' <i class="bi bi-star-fill"></i>' if assignment.is_active else ""
         )
 
         badge_html = (
-            f'<span class="badge {badge.color_class} rounded-pill">'
-            f"{icon_html}{badge.display_text}{active_indicator}"
+            f'<span class="badge {escape(badge.color_class)} rounded-pill">'
+            f"{icon_html}{escape(badge.display_text)}{active_indicator}"
             f"</span>"
         )
         badge_html_list.append(badge_html)
 
-    return mark_safe(" ".join(badge_html_list))
+    return mark_safe(" ".join(badge_html_list))  # nosec B308 B703
 
 
 @register.inclusion_tag("core/includes/user_with_badge.html")
