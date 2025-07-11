@@ -26,9 +26,10 @@ from allauth.mfa.signals import (
 )
 from allauth.usersessions.signals import session_client_changed
 from django.contrib.auth.signals import user_logged_out
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
+from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
 
 
 @receiver(user_logged_in)
@@ -227,3 +228,44 @@ def log_session_client_changed(sender, request, from_session, to_session, **kwar
         from_session=from_session,
         to_session=to_session,
     )
+
+
+@receiver(post_save, sender=Event)
+def update_list_modified_on_event(sender, instance, created, **kwargs):
+    """
+    Update the list's modified timestamp when an event is created
+    that references the list.
+
+    This ensures that the "last edited" time shown in the UI reflects
+    any changes to list-related objects, not just direct list updates.
+    """
+    if not created:
+        # Only process newly created events
+        return
+
+    if type(instance) is not Event:
+        # Only handle Event instances, not other types
+        return
+
+    if instance.verb is EventVerb.VIEW:
+        # Skip view events, they don't modify the list
+        return
+
+    # Check if the event has a list_id in its context
+    if not instance.context or "list_id" not in instance.context:
+        return
+
+    list_id = instance.context.get("list_id")
+    if not list_id:
+        return
+
+    # Import here to avoid circular imports
+    from gyrinx.core.models.list import List
+
+    try:
+        # Update the list's modified timestamp
+        # Using update() to avoid triggering save signals and history
+        List.objects.filter(id=list_id).update(modified=instance.created)
+    except List.DoesNotExist:
+        # List doesn't exist, nothing to do
+        pass
