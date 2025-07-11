@@ -1,5 +1,10 @@
 {% load allauth custom_tags %}
-<div class="card g-col-12 g-col-md-6" id="{{ fighter.id }}">
+{% if print %}
+    {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-4 g-col-xl-3' as card_classes %}
+{% else %}
+    {% firstof classes 'g-col-12 g-col-md-6' as card_classes %}
+{% endif %}
+<div class="card {{ card_classes }}" id="{{ fighter.id }}">
     <div class="card-header p-2">
         <div class="vstack gap-1">
             <div class="hstack align-items-center">
