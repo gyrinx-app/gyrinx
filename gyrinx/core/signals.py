@@ -243,6 +243,14 @@ def update_list_modified_on_event(sender, instance, created, **kwargs):
         # Only process newly created events
         return
 
+    if type(instance) is not Event:
+        # Only handle Event instances, not other types
+        return
+
+    if instance.verb is EventVerb.VIEW:
+        # Skip view events, they don't modify the list
+        return
+
     # Check if the event has a list_id in its context
     if not instance.context or "list_id" not in instance.context:
         return
