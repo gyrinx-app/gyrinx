@@ -63,7 +63,9 @@ def index(request):
             search_vector = SearchVector("name", "content_house__name")
             search_q = SearchQuery(search_query)
             lists_queryset = lists_queryset.annotate(search=search_vector).filter(
-                search=search_q
+                Q(search=search_q)
+                | Q(name__icontains=search_query)
+                | Q(content_house__name__icontains=search_query)
             )
 
         # Order by modified and limit to 5

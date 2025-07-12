@@ -141,7 +141,11 @@ class ListsListView(generic.ListView):
                 "name", "content_house__name", "owner__username"
             )
             search_q = SearchQuery(search_query)
-            queryset = queryset.annotate(search=search_vector).filter(search=search_q)
+            queryset = queryset.annotate(search=search_vector).filter(
+                Q(search=search_q)
+                | Q(name__icontains=search_query)
+                | Q(content_house__name__icontains=search_query)
+            )
 
         # Apply house filter
         house_ids = self.request.GET.getlist("house")
