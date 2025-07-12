@@ -111,6 +111,57 @@ def test_homepage_search_with_results():
 
 
 @pytest.mark.django_db
+def test_homepage_search_partial_match():
+    """Test that homepage shows results when search partially matches."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="password")
+
+    # Create test house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create some lists
+    shadow_gang = List.objects.create(
+        name="Shadow Runners",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+    List.objects.create(
+        name="Night Stalkers",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+
+    # Search for something that exists
+    response = client.get(reverse("core:index"), {"q": "Shad"})
+
+    assert response.status_code == 200
+
+    # Check context variables
+    assert response.context["has_any_lists"] is True
+    assert response.context["search_query"] == "Shad"
+    assert len(response.context["lists"]) == 1
+    assert response.context["lists"][0] == shadow_gang
+
+    content = response.content.decode()
+
+    # Check that filter is shown
+    assert 'name="q"' in content
+    assert 'value="Shad"' in content
+
+    # Check results are shown
+    assert "Shadow Runners" in content
+    assert "Night Stalkers" not in content  # This one shouldn't appear
+
+    # Should not show "nothing matched" message
+    assert "No lists matched your search." not in content
+
+
+@pytest.mark.django_db
 def test_homepage_no_lists_no_search():
     """Test homepage when user has no lists at all."""
     # Create test user
