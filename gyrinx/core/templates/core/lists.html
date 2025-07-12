@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags badge_tags %}
 {% block head_title %}
     Lists
 {% endblock head_title %}
@@ -25,7 +25,7 @@
                                 <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
                             </h2>
                             <div>
-                                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>
+                                <i class="bi-person"></i> {% user_with_badge list.owner_cached %}
                             </div>
                         </div>
                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">

@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 {% block head_title %}
     Add Gangs - {{ campaign.name }}
 {% endblock head_title %}
@@ -121,7 +121,7 @@
                                             {% if list.owner == request.user %}
                                                 Your gang
                                             {% else %}
-                                                By {{ list.owner.username }}
+                                                By {% user_with_badge list.owner link=False %}
                                             {% endif %}
                                             • {{ list.cost_int_cached }}¢
                                         </p>

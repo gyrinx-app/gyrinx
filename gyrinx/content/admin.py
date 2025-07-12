@@ -18,6 +18,7 @@ from gyrinx.models import equipment_category_choices
 from .models import (
     ContentAttribute,
     ContentAttributeValue,
+    ContentBadge,
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -565,6 +566,14 @@ class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentRule)
 class ContentRuleAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+
+
+@admin.register(ContentBadge)
+class ContentBadgeAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "display_text", "description"]
+    list_filter = ["active", "color_class"]
+    list_display = ["name", "display_text", "color_class", "icon_class", "active"]
+    list_display_links = ["name"]
 
 
 class ContentModInline(ContentTabularInline):
