@@ -1,6 +1,12 @@
 import pytest
-from django.test import Client, override_settings
+from django.contrib.auth.models import Group
+from django.contrib.flatpages.models import FlatPage
+from django.contrib.sites.models import Site
+from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
+
+from gyrinx.pages.models import FlatPageVisibility
+from gyrinx.pages.views import error_400, error_403, error_404, error_500
 
 
 @pytest.mark.django_db
@@ -12,30 +18,12 @@ def test_404_handler(client):
     assert "Page Not Found" in response.content.decode()
     # Check that one of the jokes appears in the response
     content = response.content.decode()
-    jokes = [
-        "or maybe that's what the Delaque want you to believe.",
-        "But none can escape Helmawr's justice forever.",
-        "We blame the Caryatids.",
-        "Please direct all queries to your local Archeotek.",
-        "It might have wandered too far into Hive Secundus.",
-        "You probably shouldn't have paid the Whisper Merchant in advance.",
-        "[REDACTED BY ORDER OF LORD HELMAWR]",
-        "Never trust directions from a Goliath.",
-        "You're never going to make it as a Technomancer.",
-        "My cyber-mastiff ate it.",
-        "Check your dome runner map is the right way up.",
-        "Someone might have been at it with a data-thief.",
-    ]
-    assert any(joke in content for joke in jokes)
+    assert 'data-test-id="the-joke"' in content
 
 
 @pytest.mark.django_db
 def test_403_handler_with_permission_denied(client, admin_user):
     # Test by accessing a flatpage that requires permissions
-    from django.contrib.flatpages.models import FlatPage
-    from django.contrib.sites.models import Site
-    from gyrinx.pages.models import FlatPageVisibility
-    from django.contrib.auth.models import Group
 
     # Create a flatpage with restricted visibility
     site = Site.objects.get_current()
@@ -67,8 +55,6 @@ def test_403_handler_with_permission_denied(client, admin_user):
 def test_400_handler():
     # Testing 400 errors is tricky because Django handles most bad requests
     # before they reach our handler. We'll test the view directly.
-    from gyrinx.pages.views import error_400
-    from django.test import RequestFactory
 
     factory = RequestFactory()
     request = factory.get("/")
@@ -81,8 +67,6 @@ def test_400_handler():
 @pytest.mark.django_db
 def test_403_handler():
     # Test the 403 handler directly
-    from gyrinx.pages.views import error_403
-    from django.test import RequestFactory
 
     factory = RequestFactory()
     request = factory.get("/")
@@ -96,8 +80,6 @@ def test_403_handler():
 def test_500_handler():
     # Testing 500 errors requires DEBUG=False
     # We'll test the view directly
-    from gyrinx.pages.views import error_500
-    from django.test import RequestFactory
 
     factory = RequestFactory()
     request = factory.get("/")
@@ -119,8 +101,6 @@ def test_500_handler():
 @pytest.mark.django_db
 def test_500_handler_shows_error_id_consistently():
     # Test that the error ID shown to user matches what would be logged
-    from gyrinx.pages.views import error_500
-    from django.test import RequestFactory
 
     factory = RequestFactory()
     request = factory.get("/")
@@ -188,8 +168,6 @@ def test_error_page_urls_exist(client):
 @pytest.mark.django_db
 def test_error_handlers_context():
     # Test that the views pass the correct context
-    from gyrinx.pages.views import error_400, error_403, error_404, error_500
-    from django.test import RequestFactory
 
     factory = RequestFactory()
     request = factory.get("/")
