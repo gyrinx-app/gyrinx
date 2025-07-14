@@ -10,6 +10,9 @@ WHITENOISE_AUTOREFRESH = True
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
 
+# Allow local hosts for development
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
+
 USE_REAL_EMAIL_IN_DEV = os.getenv("USE_REAL_EMAIL_IN_DEV", "False").lower() == "true"
 if USE_REAL_EMAIL_IN_DEV:
     # Email configuration - all values from environment variables
@@ -22,23 +25,22 @@ if USE_REAL_EMAIL_IN_DEV:
 
 
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
+    **BASE_LOGGING,
     "handlers": {
         **BASE_LOGGING["handlers"],
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-        },
     },
     "loggers": {
         **BASE_LOGGING["loggers"],
         "django.db.backends": {
             "handlers": ["console"],
+            "level": "DEBUG" if os.getenv("SQL_DEBUG") == "True" else "INFO",
+            "propagate": False,
+        },
+        "gyrinx": {
+            "handlers": ["console"],
             "level": "DEBUG",
-        }
-        if os.getenv("SQL_DEBUG") == "True"
-        else {"level": "INFO"},
+            "propagate": True,
+        },
     },
 }
 

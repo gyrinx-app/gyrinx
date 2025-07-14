@@ -29,6 +29,15 @@
                 <h1 class="display-1 fw-bold text-danger">500</h1>
                 <h2 class="mb-3">Server Error</h2>
                 <p class="fs-5 text-muted mb-4">Something went wrong on our end.</p>
+                {% if error_id %}
+                    <div class="alert alert-secondary mb-4" role="alert">
+                        <small>
+                            <strong>Error ID:</strong> <code>{{ error_id }}</code>
+                            <br>
+                            <span class="text-muted">Please include this ID when reporting the issue</span>
+                        </small>
+                    </div>
+                {% endif %}
                 <p class="mb-4">Please try again in a few moments. If the problem persists, you can:</p>
                 <ul class="list-unstyled">
                     <li class="mb-2">
