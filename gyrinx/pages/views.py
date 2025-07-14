@@ -13,7 +13,6 @@ from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry
 
 def flatpage(request, url):
     # This is copied from django.contrib.flatpages.views.flatpage
-
     if not url.startswith("/"):
         url = "/" + url
     site_id = get_current_site(request).id
