@@ -3476,7 +3476,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                 list_id=str(lst.id),
                 list_name=lst.name,
                 action="advancement_applied",
-                advancement_type=params.advancement_type,
+                advancement_type=advancement.advancement_type,
                 advancement_detail=stat_desc,
                 xp_cost=params.xp_cost,
                 cost_increase=params.cost_increase,
