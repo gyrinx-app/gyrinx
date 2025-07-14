@@ -109,9 +109,46 @@ def join_the_waiting_list_success(request):
     )
 
 
+def error_400(request, exception=None):
+    context = {
+        "error_code": 400,
+        "error_message": "Bad Request",
+        "error_description": "The request could not be understood by the server.",
+    }
+    return render(request, "errors/error.html", context, status=400)
+
+
+def error_403(request, exception=None):
+    context = {
+        "error_code": 403,
+        "error_message": "Forbidden",
+        "error_description": "You don't have permission to access this resource.",
+    }
+    return render(request, "errors/error.html", context, status=403)
+
+
 def error_404(request, exception=None):
     return render(request, "404.html", status=404)
 
 
 def error_500(request):
-    return render(request, "500.html", status=500)
+    # Django automatically logs exceptions through django.request logger
+    # See: https://docs.djangoproject.com/en/5.2/howto/error-reporting/
+
+    # Generate a unique error ID for tracing
+    import uuid
+
+    error_id = str(uuid.uuid4())
+
+    # Log the error ID so we can correlate with user reports
+    import logging
+
+    logger = logging.getLogger("django.request")
+    logger.error(
+        f"Error ID: {error_id} - User can reference this when reporting issues"
+    )
+
+    context = {
+        "error_id": error_id,
+    }
+    return render(request, "500.html", context, status=500)

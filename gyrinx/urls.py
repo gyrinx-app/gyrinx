@@ -40,6 +40,8 @@ urlpatterns = debug_toolbar_urls() + [
         views.join_the_waiting_list_success,
         name="join_the_waiting_list_success",
     ),
+    path("400/", views.error_400, name="error_400"),
+    path("403/", views.error_403, name="error_403"),
     path("404/", views.error_404, name="error_404"),
     path("500/", views.error_500, name="error_500"),
     path("admin/", admin.site.urls),
@@ -52,5 +54,7 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Custom error handlers
+handler400 = "gyrinx.pages.views.error_400"
+handler403 = "gyrinx.pages.views.error_403"
 handler404 = "gyrinx.pages.views.error_404"
 handler500 = "gyrinx.pages.views.error_500"
