@@ -41,4 +41,4 @@ class Migration(migrations.Migration):
         ("content", "0084_contentequipment_category_obj_and_more"),
     ]
 
-    operations = [migrations.RunPython(do_migration, undo_migration)]
+    operations = [migrations.RunPython(do_migration, undo_migration, elidable=True)]

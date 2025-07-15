@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(do_migration),
+        migrations.RunPython(do_migration, elidable=True),
         migrations.AlterField(
             model_name="contentskill",
             name="category_obj",

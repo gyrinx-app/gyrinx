@@ -25,4 +25,4 @@ class Migration(migrations.Migration):
         ("content", "0017_alter_contentweaponprofile_cost_sign_and_more"),
     ]
 
-    operations = [migrations.RunPython(do_migration)]
+    operations = [migrations.RunPython(do_migration, elidable=True)]

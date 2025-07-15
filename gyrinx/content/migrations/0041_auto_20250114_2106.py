@@ -33,4 +33,6 @@ class Migration(migrations.Migration):
         ("content", "0040_alter_contentequipment_rarity_and_more"),
     ]
 
-    operations = [migrations.RunPython(do_migration, migrations.RunPython.noop)]
+    operations = [
+        migrations.RunPython(do_migration, migrations.RunPython.noop, elidable=True)
+    ]

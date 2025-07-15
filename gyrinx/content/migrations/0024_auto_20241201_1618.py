@@ -28,5 +28,4 @@ class Migration(migrations.Migration):
         ("content", "0023_auto_20241201_0940"),
     ]
 
-    operations = [migrations.RunPython(do_migration)]
-    operations = [migrations.RunPython(do_migration)]
+    operations = [migrations.RunPython(do_migration, elidable=True)]
