@@ -203,15 +203,26 @@ class CampaignAssetForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         asset_type = kwargs.pop("asset_type", None)
+        campaign = kwargs.pop("campaign", None)
         super().__init__(*args, **kwargs)
 
-        # Limit holder choices to lists in the campaign
-        if asset_type:
-            self.fields["holder"].queryset = asset_type.campaign.lists.all()
-        elif self.instance and self.instance.pk:
-            self.fields[
-                "holder"
-            ].queryset = self.instance.asset_type.campaign.lists.all()
+        # Get campaign from asset_type if not provided
+        if not campaign and asset_type:
+            campaign = asset_type.campaign
+        elif not campaign and self.instance and self.instance.pk:
+            campaign = self.instance.asset_type.campaign
+
+        # Hide holder field if campaign is not in progress
+        if campaign and not campaign.is_in_progress:
+            del self.fields["holder"]
+        else:
+            # Limit holder choices to lists in the campaign
+            if asset_type:
+                self.fields["holder"].queryset = asset_type.campaign.lists.all()
+            elif self.instance and self.instance.pk:
+                self.fields[
+                    "holder"
+                ].queryset = self.instance.asset_type.campaign.lists.all()
 
 
 class AssetTransferForm(forms.Form):

@@ -218,9 +218,7 @@
                                         <tbody>
                                             {% for asset in assets %}
                                                 <tr>
-                                                    <td class="ps-2 ps-sm-3">
-                                                        <span class="fw-light">{{ asset.name }}</span>
-                                                    </td>
+                                                    <td class="ps-2 ps-sm-3">{{ asset.name }}</td>
                                                     <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %}">
                                                         {% if asset.holder %}
                                                             <a href="{% url 'core:list' asset.holder.id %}"

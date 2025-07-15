@@ -1293,14 +1293,11 @@ def campaign_asset_new(request, id, type_id):
         return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
-        form = CampaignAssetForm(request.POST, asset_type=asset_type)
+        form = CampaignAssetForm(request.POST, asset_type=asset_type, campaign=campaign)
         if form.is_valid():
             asset: CampaignAsset = form.save(commit=False)
             asset.asset_type = asset_type
             asset.owner = request.user
-            # Don't allow holder assignment before campaign starts
-            if campaign.is_pre_campaign:
-                asset.holder = None
             asset.save()
 
             # Log the asset creation event
@@ -1332,7 +1329,7 @@ def campaign_asset_new(request, id, type_id):
                     reverse("core:campaign-assets", args=(campaign.id,))
                 )
     else:
-        form = CampaignAssetForm(asset_type=asset_type)
+        form = CampaignAssetForm(asset_type=asset_type, campaign=campaign)
 
     return render(
         request,
@@ -1363,18 +1360,8 @@ def campaign_asset_edit(request, id, asset_id):
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     if request.method == "POST":
-        form = CampaignAssetForm(request.POST, instance=asset)
+        form = CampaignAssetForm(request.POST, instance=asset, campaign=campaign)
         if form.is_valid():
-            # Check if trying to assign holder before campaign starts
-            if campaign.is_pre_campaign and form.cleaned_data.get("holder"):
-                messages.error(
-                    request,
-                    "Assets cannot be assigned to gangs before the campaign starts.",
-                )
-                return HttpResponseRedirect(
-                    reverse("core:campaign-assets", args=(campaign.id,))
-                )
-
             form.save()
 
             # Log the asset update
@@ -1398,7 +1385,7 @@ def campaign_asset_edit(request, id, asset_id):
                 reverse("core:campaign-assets", args=(campaign.id,))
             )
     else:
-        form = CampaignAssetForm(instance=asset)
+        form = CampaignAssetForm(instance=asset, campaign=campaign)
 
     return render(
         request,
