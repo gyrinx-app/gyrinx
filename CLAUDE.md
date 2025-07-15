@@ -9,6 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+The Django management command `manage` is used to run various tasks in the Gyrinx application. It is made available by setuptools. It provides a convenient way to execute commands without needing to specify the Django project settings each time. When running management commands, you MUST use `manage` directly.
+
 ### Environment Setup
 
 ```bash
