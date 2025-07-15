@@ -1,0 +1,201 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+    .chart-container {
+        position: relative;
+        height: 400px;
+        margin-bottom: 2rem;
+    }
+    .time-scale-selector {
+        margin: 1rem 0;
+    }
+    .time-scale-selector select {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .dashboard-grid {
+        display: grid;
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+    .dashboard-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 1rem;
+        max-width: 100%;
+    }
+    .dashboard-card h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        color: #333;
+    }
+    .chart-container canvas {
+        max-width: 100%;
+    }
+    </style>
+{% endblock extrahead %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">Home</a>
+        › Analytics Dashboard
+    </div>
+{% endblock breadcrumbs %}
+{% block content %}
+    <h1>Analytics Dashboard</h1>
+    <div class="time-scale-selector">
+        <label for="time-scale">Time Scale:</label>
+        <select id="time-scale" onchange="updateTimeScale(this.value)">
+            {% for scale in time_scales %}
+                <option value="{{ scale.value }}"
+                        {% if scale.value == time_scale %}selected{% endif %}>{{ scale.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="dashboard-grid">
+        <!-- User Registrations Chart -->
+        <div class="dashboard-card">
+            <h3>User Registrations</h3>
+            <div class="chart-container">
+                <canvas id="userChart"></canvas>
+            </div>
+        </div>
+        <!-- Top Events Chart -->
+        <div class="dashboard-card">
+            <h3>Top Events (Excluding Views)</h3>
+            <div class="chart-container">
+                <canvas id="eventsChart"></canvas>
+            </div>
+        </div>
+        <!-- Cumulative Creations Chart -->
+        <div class="dashboard-card">
+            <h3>Cumulative Creations</h3>
+            <div class="chart-container">
+                <canvas id="cumulativeChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script>
+// Parse data from Django
+const userData = {{ user_data|safe }};
+const eventsData = {{ events_data|safe }};
+const cumulativeData = {{ cumulative_data|safe }};
+
+// Initialize user registrations chart
+const userCtx = document.getElementById('userChart').getContext('2d');
+const userChart = new Chart(userCtx, {
+    type: 'line',
+    data: {
+        labels: userData.labels,
+        datasets: [{
+            label: 'User Registrations',
+            data: userData.data,
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.1,
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Count'
+                }
+            }
+        }
+    }
+});
+
+// Initialize top events chart
+const eventsCtx = document.getElementById('eventsChart').getContext('2d');
+const eventsChart = new Chart(eventsCtx, {
+    type: 'line',
+    data: eventsData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Count'
+                }
+            }
+        }
+    }
+});
+
+// Initialize cumulative chart
+const cumulativeCtx = document.getElementById('cumulativeChart').getContext('2d');
+const cumulativeChart = new Chart(cumulativeCtx, {
+    type: 'line',
+    data: cumulativeData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Cumulative Count'
+                }
+            }
+        }
+    }
+});
+
+// Function to update time scale
+function updateTimeScale(scale) {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('time_scale', scale);
+    window.location.href = currentUrl.toString();
+}
+    </script>
+{% endblock content %}

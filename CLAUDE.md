@@ -373,3 +373,11 @@ The advancement system allows fighters to spend XP in campaign mode. Key impleme
     - If you see advancement models with `description`, `stat_mod`, `dice_count` fields, that's from an older version before the rebuild
     - The current system uses `advancement_type` with separate `stat_increased` and `skill` fields
     - Form validation happens in the form's `clean()` method, not just the model's `clean()`
+
+# important-instruction-reminders
+
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+ALWAYS look up model definitions before using their fields or properties - do not assume field names or choices. Use the Read tool to check the actual model definition in the models.py file.
