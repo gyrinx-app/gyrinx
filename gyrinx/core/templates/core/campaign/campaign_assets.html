@@ -34,8 +34,12 @@
                                     <i class="bi-plus"></i> Add {{ asset_type.name_singular }}
                                 </a>
                                 <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
-                                   class="btn btn-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit Type
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit
+                                </a>
+                                <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
+                                   class="btn btn-outline-danger btn-sm">
+                                    <i class="bi-trash"></i> Remove
                                 </a>
                             </div>
                         {% endif %}
