@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0105_remove_contentinjury_page_refs"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         ("core", "0056_historicallistfighterinjury_archived_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

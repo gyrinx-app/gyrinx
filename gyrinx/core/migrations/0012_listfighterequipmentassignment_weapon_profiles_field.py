@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0028_alter_contentpageref_page_and_more"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         (
             "core",
             "0010_historicallist_public_list_public_squashed_0011_alter_historicallist_public_alter_list_public",

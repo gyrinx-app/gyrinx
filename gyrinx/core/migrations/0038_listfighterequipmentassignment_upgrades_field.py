@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0094_alter_contentequipmentupgrade_position_and_more"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         ("core", "0037_alter_listfighter_equipment"),
     ]
 
