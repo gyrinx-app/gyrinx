@@ -31,4 +31,4 @@ class Migration(migrations.Migration):
         ("content", "0043_auto_20250114_2124"),
     ]
 
-    operations = [migrations.RunPython(do_migration, undo_migration)]
+    operations = [migrations.RunPython(do_migration, undo_migration, elidable=True)]

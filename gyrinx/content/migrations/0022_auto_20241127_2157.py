@@ -102,4 +102,4 @@ class Migration(migrations.Migration):
         ("content", "0021_auto_20241127_2057"),
     ]
 
-    operations = [migrations.RunPython(do_migration, reverse_migration)]
+    operations = [migrations.RunPython(do_migration, reverse_migration, elidable=True)]

@@ -328,5 +328,5 @@ class Migration(migrations.Migration):
             },
             bases=(simple_history.models.HistoricalChanges, models.Model),
         ),
-        migrations.RunPython(do_import, reverse_import),
+        migrations.RunPython(do_import, reverse_import, elidable=True),
     ]

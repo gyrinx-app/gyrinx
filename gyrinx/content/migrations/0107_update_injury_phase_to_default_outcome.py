@@ -69,6 +69,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             convert_phase_to_default_outcome,
             reverse_default_outcome_to_phase,
+            elidable=True,
         ),
         # Update the phase field choices and metadata
         migrations.AlterField(

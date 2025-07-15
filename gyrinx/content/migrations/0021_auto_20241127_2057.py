@@ -33,4 +33,4 @@ class Migration(migrations.Migration):
         ("content", "0020_contentrule_contentfighter_rules_and_more"),
     ]
 
-    operations = [migrations.RunPython(do_migration)]
+    operations = [migrations.RunPython(do_migration, elidable=True)]

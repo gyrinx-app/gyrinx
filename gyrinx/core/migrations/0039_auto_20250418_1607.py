@@ -36,4 +36,4 @@ class Migration(migrations.Migration):
         ("core", "0038_listfighterequipmentassignment_upgrades_field"),
     ]
 
-    operations = [migrations.RunPython(do_migration, undo_migration)]
+    operations = [migrations.RunPython(do_migration, undo_migration, elidable=True)]
