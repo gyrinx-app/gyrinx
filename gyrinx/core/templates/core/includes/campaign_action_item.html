@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 {% comment %}
     Campaign action item template - accepts the following parameters:
     - action: The campaign action object to display
@@ -10,7 +10,7 @@
 <div class="list-group-item px-2 px-sm-3">
     <small class="text-muted hstack w-100 justify-content-between">
         <div class="flex-grow-1">
-            <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
+            <strong><i class="bi-person"></i> {% user_with_badge action.user link=False %}</strong>
             {% if action.list and show_list_link|default:True %}
                 •
                 <a href="{% url 'core:list' action.list.id %}" class="linked">{% list_with_theme action.list %}</a>

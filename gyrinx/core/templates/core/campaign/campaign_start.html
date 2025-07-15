@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags badge_tags %}
 {% block head_title %}
     Start Campaign - {{ campaign.name }}
 {% endblock head_title %}
@@ -20,7 +20,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h4 class="fs-6 mb-0">{{ list.name }}</h4>
                         <div>
-                            <i class="bi-person"></i> {{ list.owner.username }}
+                            <i class="bi-person"></i> {% user_with_badge list.owner link=False %}
                         </div>
                         {% if campaign.budget > 0 %}
                             <div class="badge text-bg-secondary bg-secondary">

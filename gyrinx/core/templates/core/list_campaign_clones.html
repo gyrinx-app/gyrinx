@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 {% block head_title %}
     Campaign Versions of {{ list.name }}
 {% endblock head_title %}
@@ -38,8 +38,7 @@
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
-                                        <a href="{% url 'core:user' clone.campaign.owner.username %}"
-                                           class="linked">{{ clone.campaign.owner.username }}</a>
+                                        {% user_with_badge clone.campaign.owner %}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}

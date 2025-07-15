@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags badge_tags %}
 {% block head_title %}
     Actions - {{ campaign.name }}
 {% endblock head_title %}
@@ -62,7 +62,7 @@
                                             {% if request.GET.gang == list.id|stringformat:"s" %}selected{% endif %}>
                                         {{ list.name }}
                                         {% if list.content_house %}({{ list.content_house.name }}){% endif %}
-                                        - {{ list.owner.username }}
+                                        - {% user_with_badge list.owner link=False %}
                                     </option>
                                 {% endfor %}
                             </select>
