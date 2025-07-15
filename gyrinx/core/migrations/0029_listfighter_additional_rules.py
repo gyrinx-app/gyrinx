@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0072_alter_contenthouse_house_additional_rules_name_and_more"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         ("core", "0028_historicallistfighterequipmentassignment_upgrade_and_more"),
     ]
 

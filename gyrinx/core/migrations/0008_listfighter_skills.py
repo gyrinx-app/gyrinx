@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0024_auto_20241201_1618"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         (
             "core",
             "0007_historicallistfighterequipmentassignment_weapon_profile_and_more",

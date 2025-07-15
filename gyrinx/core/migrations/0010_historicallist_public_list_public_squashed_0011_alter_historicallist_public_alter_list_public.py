@@ -4,11 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("core", "0010_historicallist_public_list_public"),
-        ("core", "0011_alter_historicallist_public_alter_list_public"),
-    ]
-
     dependencies = [
         ("core", "0009_alter_historicallist_archived_at_and_more"),
     ]

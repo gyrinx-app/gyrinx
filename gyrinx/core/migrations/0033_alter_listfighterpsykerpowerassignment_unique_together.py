@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
     dependencies = [
         (
             "content",
-            "0076_historicalcontentfighterpsykerpowerdefaultassignment_and_more",
+            "0001_squashed_0116_add_visible_only_if_in_equipment_list",
         ),
         ("core", "0032_historicallistfighterpsykerpowerassignment_and_more"),
     ]

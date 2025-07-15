@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0054_contentfighterdefaultassignment_weapon_accessories_field"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         (
             "core",
             "0019_remove_historicallistfighterequipmentassignment_weapon_profile_and_more",

@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0066_alter_contentfighterdefaultassignment_unique_together"),
+        ("content", "0001_squashed_0116_add_visible_only_if_in_equipment_list"),
         ("core", "0026_alter_list_options"),
     ]
 
