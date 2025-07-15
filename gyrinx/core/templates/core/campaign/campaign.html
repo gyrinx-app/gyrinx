@@ -93,7 +93,8 @@
                                 <button type="button"
                                         class="btn btn-secondary btn-sm dropdown-toggle"
                                         data-bs-toggle="dropdown"
-                                        aria-expanded="false">
+                                        aria-expanded="false"
+                                        aria-label="More options">
                                     <i class="bi-three-dots"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
@@ -164,7 +165,8 @@
                                             {% if not campaign.is_post_campaign %}
                                                 <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
                                                    class="link-danger ms-2"
-                                                   title="Remove from campaign">
+                                                   title="Remove from campaign"
+                                                   aria-label="Remove from campaign">
                                                     <i class="bi-trash"></i>
                                                 </a>
                                             {% endif %}

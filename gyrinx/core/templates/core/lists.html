@@ -47,7 +47,9 @@
                         </div>
                     </div>
                     <div class="ms-auto d-md-none">
-                        <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
+                        <a href="{% url 'core:list' list.id %}"
+                           class="p-3 stretched-link"
+                           aria-label="View {{ list.name }} details">
                             <i class="bi-chevron-right"></i>
                         </a>
                     </div>

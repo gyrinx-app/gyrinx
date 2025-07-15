@@ -23,27 +23,32 @@
                         {% if group.dice_n > 1 %}
                             <a rel="nofollow"
                                class="btn btn-outline-secondary"
-                               href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"-1"|max:"1" %}">
+                               href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"-1"|max:"1" %}"
+                               aria-label="Remove one die">
                                 <i class="bi-dash-lg"></i>
                             </a>
                             <a rel="nofollow"
                                class="btn btn-outline-secondary"
                                href="?{% qt_nth request nth=forloop.counter0 d="1" %}">1</a>
                         {% else %}
-                            <a rel="nofollow" class="btn btn-outline-secondary disabled">
+                            <a rel="nofollow"
+                               class="btn btn-outline-secondary disabled"
+                               aria-label="Remove one die (disabled)">
                                 <i class="bi-dash-lg"></i>
                             </a>
                             <a rel="nofollow" class="btn btn-outline-secondary disabled">1</a>
                         {% endif %}
                         <a rel="nofollow"
                            class="btn btn-outline-primary"
-                           href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"1" %}">
+                           href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"1" %}"
+                           aria-label="Add one die">
                             <i class="bi-plus-lg"></i>
                         </a>
                         {% if forloop.counter0 > 0 %}
                             <a rel="nofollow"
                                class="ms-auto ms-md-0 btn btn-outline-danger"
-                               href="?{% qt_rm_nth request nth=forloop.counter0 d=1 fp=1 i=1 %}">
+                               href="?{% qt_rm_nth request nth=forloop.counter0 d=1 fp=1 i=1 %}"
+                               aria-label="Remove dice group">
                                 <i class="bi-x-lg"></i>
                             </a>
                         {% endif %}
