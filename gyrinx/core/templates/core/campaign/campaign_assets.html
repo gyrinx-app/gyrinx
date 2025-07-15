@@ -60,19 +60,17 @@
                                                     {% else %}
                                                         <div class="flex-grow-1 text-muted">
                                                             <i class="bi-dash-circle"></i> Unowned
-                                                            {% if campaign.is_pre_campaign %}
-                                                                <br>
-                                                                <small class="text-secondary">Campaign not started</small>
-                                                            {% endif %}
                                                         </div>
                                                     {% endif %}
                                                     {% if is_owner %}
                                                         {% if not campaign.archived %}
                                                             <div class="btn-group btn-group-sm flex-shrink-0 ms-auto">
-                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                                   class="btn btn-outline-primary">
-                                                                    <i class="bi-arrow-left-right"></i> Transfer
-                                                                </a>
+                                                                {% if not campaign.is_pre_campaign %}
+                                                                    <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                                       class="btn btn-outline-primary">
+                                                                        <i class="bi-arrow-left-right"></i> Transfer
+                                                                    </a>
+                                                                {% endif %}
                                                                 <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
                                                                    class="btn btn-outline-secondary">
                                                                     <i class="bi-pencil"></i> Edit
