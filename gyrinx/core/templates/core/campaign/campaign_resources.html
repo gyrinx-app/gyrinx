@@ -28,10 +28,16 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h2 class="card-title h5 mb-0">{{ resource_type.name }}</h2>
                         {% if is_owner %}
-                            <a href="{% url 'core:campaign-resource-type-edit' campaign.id resource_type.id %}"
-                               class="btn btn-secondary btn-sm">
-                                <i class="bi-pencil"></i> Edit Type
-                            </a>
+                            <div class="btn-group">
+                                <a href="{% url 'core:campaign-resource-type-edit' campaign.id resource_type.id %}"
+                                   class="btn btn-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit Type
+                                </a>
+                                <a href="{% url 'core:campaign-resource-type-remove' campaign.id resource_type.id %}"
+                                   class="btn btn-danger btn-sm">
+                                    <i class="bi-trash"></i> Remove Type
+                                </a>
+                            </div>
                         {% endif %}
                     </div>
                     {% if resource_type.description %}

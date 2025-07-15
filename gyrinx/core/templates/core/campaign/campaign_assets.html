@@ -37,6 +37,10 @@
                                    class="btn btn-secondary btn-sm">
                                     <i class="bi-pencil"></i> Edit Type
                                 </a>
+                                <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
+                                   class="btn btn-danger btn-sm">
+                                    <i class="bi-trash"></i> Remove Type
+                                </a>
                             </div>
                         {% endif %}
                     </div>

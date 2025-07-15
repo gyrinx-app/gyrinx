@@ -1262,6 +1262,74 @@ def campaign_asset_type_edit(request, id, type_id):
 
 
 @login_required
+@transaction.atomic
+def campaign_asset_type_remove(request, id, type_id):
+    """
+    Remove an asset type from a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset type belongs to.
+    ``asset_type``
+        The :model:`core.CampaignAssetType` being removed.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_type_remove.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
+
+    # Prevent removal from archived campaigns
+    if campaign.archived:
+        messages.error(request, "Cannot remove asset types from archived campaigns.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
+    if request.method == "POST":
+        # Store info for logging before deletion
+        asset_type_name = asset_type.name_singular
+        asset_type_plural = asset_type.name_plural
+        assets_count = asset_type.assets.count()
+
+        # Delete the asset type (cascades to assets)
+        asset_type.delete()
+
+        # Log the removal event
+        log_event(
+            user=request.user,
+            noun=EventNoun.CAMPAIGN_ASSET,
+            verb=EventVerb.DELETE,
+            object=campaign,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            asset_type_name=asset_type_name,
+            asset_type_plural=asset_type_plural,
+            assets_deleted=assets_count,
+        )
+
+        messages.success(request, f"Asset type '{asset_type_name}' has been removed.")
+
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
+    # GET request - show confirmation page
+    return render(
+        request,
+        "core/campaign/campaign_asset_type_remove.html",
+        {
+            "campaign": campaign,
+            "asset_type": asset_type,
+            "assets_count": asset_type.assets.count(),
+        },
+    )
+
+
+@login_required
 def campaign_asset_new(request, id, type_id):
     """
     Create a new asset for a campaign.
@@ -1645,6 +1713,76 @@ def campaign_resource_type_edit(request, id, type_id):
         request,
         "core/campaign/campaign_resource_type_edit.html",
         {"form": form, "campaign": campaign, "resource_type": resource_type},
+    )
+
+
+@login_required
+@transaction.atomic
+def campaign_resource_type_remove(request, id, type_id):
+    """
+    Remove a resource type from a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the resource type belongs to.
+    ``resource_type``
+        The :model:`core.CampaignResourceType` being removed.
+
+    **Template**
+
+    :template:`core/campaign/campaign_resource_type_remove.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    resource_type = get_object_or_404(
+        CampaignResourceType, id=type_id, campaign=campaign
+    )
+
+    # Prevent removal from archived campaigns
+    if campaign.archived:
+        messages.error(request, "Cannot remove resource types from archived campaigns.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    if request.method == "POST":
+        # Store info for logging before deletion
+        resource_type_name = resource_type.name
+        resources_count = resource_type.list_resources.count()
+
+        # Delete the resource type (cascades to list resources)
+        resource_type.delete()
+
+        # Log the removal event
+        log_event(
+            user=request.user,
+            noun=EventNoun.CAMPAIGN_RESOURCE,
+            verb=EventVerb.DELETE,
+            object=campaign,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            resource_type_name=resource_type_name,
+            resources_deleted=resources_count,
+        )
+
+        messages.success(
+            request, f"Resource type '{resource_type_name}' has been removed."
+        )
+
+        return HttpResponseRedirect(
+            reverse("core:campaign-resources", args=(campaign.id,))
+        )
+
+    # GET request - show confirmation page
+    return render(
+        request,
+        "core/campaign/campaign_resource_type_remove.html",
+        {
+            "campaign": campaign,
+            "resource_type": resource_type,
+            "resources_count": resource_type.list_resources.count(),
+        },
     )
 
 

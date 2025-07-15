@@ -360,6 +360,11 @@ urlpatterns = [
         name="campaign-asset-type-edit",
     ),
     path(
+        "campaign/<id>/assets/type/<type_id>/remove",
+        campaign.campaign_asset_type_remove,
+        name="campaign-asset-type-remove",
+    ),
+    path(
         "campaign/<id>/assets/type/<type_id>/new",
         campaign.campaign_asset_new,
         name="campaign-asset-new",
@@ -389,6 +394,11 @@ urlpatterns = [
         "campaign/<id>/resources/type/<type_id>/edit",
         campaign.campaign_resource_type_edit,
         name="campaign-resource-type-edit",
+    ),
+    path(
+        "campaign/<id>/resources/type/<type_id>/remove",
+        campaign.campaign_resource_type_remove,
+        name="campaign-resource-type-remove",
     ),
     path(
         "campaign/<id>/resources/<resource_id>/modify",
