@@ -1361,7 +1361,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return f"{self.content_equipment_cached}"
 
     def __str__(self):
-        return f"{self.list_fighter} – {self.name()}"
+        return f"{self.list_fighter} – {self.base_name()}"
 
     # Profiles
 

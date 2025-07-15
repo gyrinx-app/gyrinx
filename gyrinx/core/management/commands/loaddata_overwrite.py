@@ -4,10 +4,11 @@ This command will delete existing objects and replace them with fixture data.
 """
 
 import json
-from django.core.management.base import BaseCommand, CommandError
-from django.core.management import call_command
-from django.db import connection
+
 from django.apps import apps
+from django.core.management import call_command
+from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
 
 
 class Command(BaseCommand):
@@ -65,7 +66,15 @@ class Command(BaseCommand):
         # Clear all data from regular models first (in reverse dependency order)
         if not dry_run:
             self.stdout.write("Clearing existing data...")
-            self._clear_all_models(regular_models, verbose)
+            # Temporarily disable foreign key checks for clearing
+            with connection.cursor() as cursor:
+                cursor.execute("SET session_replication_role = 'replica';")
+            try:
+                self._clear_all_models(regular_models, verbose)
+            finally:
+                # Re-enable foreign key checks
+                with connection.cursor() as cursor:
+                    cursor.execute("SET session_replication_role = 'origin';")
 
         # Process regular models
         self._process_models(regular_models, dry_run, verbose)
@@ -161,16 +170,17 @@ class Command(BaseCommand):
                 count = model.objects.all().count()
                 if count > 0:
                     with connection.cursor() as cursor:
-                        # Use TRUNCATE for faster deletion and to reset sequences
-                        cursor.execute(
-                            f'TRUNCATE TABLE "{model._meta.db_table}" CASCADE'
-                        )
+                        # Use plain TRUNCATE without CASCADE since foreign keys are disabled
+                        cursor.execute(f'TRUNCATE TABLE "{model._meta.db_table}"')
                     if verbose:
                         self.stdout.write(f"Cleared {count} objects from {model_label}")
             except Exception:
-                # Fallback to regular delete if TRUNCATE fails
+                # Fallback to DELETE without cascading
                 try:
-                    count = model.objects.all().delete()[0]
+                    # Delete only objects in this table, not related objects
+                    with connection.cursor() as cursor:
+                        cursor.execute(f'DELETE FROM "{model._meta.db_table}"')  # nosec B608
+                        count = cursor.rowcount
                     if verbose and count > 0:
                         self.stdout.write(f"Deleted {count} objects from {model_label}")
                 except Exception as e2:
