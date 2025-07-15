@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "gyrinx.core",
     "gyrinx.content",
+    "gyrinx.analytics",
     "gyrinx.pages",
     "gyrinx.api",
     "tinymce",

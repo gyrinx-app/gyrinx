@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+{% block title %}
+    {% if subtitle %}{{ subtitle }} |{% endif %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block branding %}
+    <div id="site-name">
+        <a href="{% url 'admin:index' %}">{{ site_header|default:_("Django administration") }}</a>
+    </div>
+    {% if user.is_anonymous %}
+        {% include "admin/color_theme_toggle.html" %}
+    {% endif %}
+{% endblock branding %}
+{% block nav-global %}
+{% endblock nav-global %}
+{% block userlinks %}
+    {% if site_url %}
+        <a href="{{ site_url }}">{% trans "View site" %}</a> /
+    {% endif %}
+    <a href="{% url 'admin:analytics_dashboard' %}">Analytics</a> /
+    {% if user.is_active and user.is_staff %}
+        {% url 'django-admindocs-docroot' as docsroot %}
+        {% if docsroot %}
+            <a href="{{ docsroot }}">{% trans "Documentation" %}</a> /
+        {% endif %}
+    {% endif %}
+    {% if user.has_usable_password %}
+        <a href="{% url 'admin:password_change' %}">{% trans "Change password" %}</a> /
+    {% endif %}
+    <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+        {% csrf_token %}
+        <button type="submit">{% trans "Log out" %}</button>
+    </form>
+{% endblock userlinks %}
