@@ -14,15 +14,17 @@ def test_can_hire_any_includes_all_fighters_except_stash():
     """Test that when can_hire_any is True, the form includes all fighters except stash."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser", password="password")
-    
+
     # Create the Outcast house with can_hire_any=True
-    outcast_house = ContentHouse.objects.create(name="Underhive Outcasts", can_hire_any=True)
-    
+    outcast_house = ContentHouse.objects.create(
+        name="Underhive Outcasts", can_hire_any=True
+    )
+
     # Create other houses
     house1 = ContentHouse.objects.create(name="House Escher")
     house2 = ContentHouse.objects.create(name="House Goliath")
     generic_house = ContentHouse.objects.create(name="Generic House", generic=True)
-    
+
     # Create various fighters
     fighter_outcast = ContentFighter.objects.create(
         type="Outcast Leader",
@@ -60,23 +62,23 @@ def test_can_hire_any_includes_all_fighters_except_stash():
         category=FighterCategoryChoices.STASH,
         base_cost=0,
     )
-    
+
     # Create an Outcast list
     outcast_list = List.objects.create(
         owner=user,
         name="My Outcasts",
         content_house=outcast_house,
     )
-    
+
     # Create a list fighter instance
     list_fighter = ListFighter(list=outcast_list)
-    
+
     # Create the form
     form = ListFighterForm(instance=list_fighter)
-    
+
     # Get the queryset from the form
     available_fighters = form.fields["content_fighter"].queryset
-    
+
     # Verify that all fighters except stash are included
     assert fighter_outcast in available_fighters
     assert fighter_escher in available_fighters
@@ -84,7 +86,7 @@ def test_can_hire_any_includes_all_fighters_except_stash():
     assert fighter_generic in available_fighters
     assert fighter_exotic in available_fighters  # Exotic beasts should be included
     assert fighter_stash not in available_fighters  # Stash should be excluded
-    
+
     # Verify the total count
     assert available_fighters.count() == 5  # All except stash
 
@@ -94,12 +96,12 @@ def test_normal_house_excludes_exotic_beasts_and_other_houses():
     """Test that normal houses (can_hire_any=False) follow the original filtering rules."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser2", password="password")
-    
+
     # Create houses
     normal_house = ContentHouse.objects.create(name="House Normal", can_hire_any=False)
     other_house = ContentHouse.objects.create(name="House Other")
     generic_house = ContentHouse.objects.create(name="Generic House", generic=True)
-    
+
     # Create various fighters
     fighter_normal = ContentFighter.objects.create(
         type="Normal Fighter",
@@ -131,29 +133,29 @@ def test_normal_house_excludes_exotic_beasts_and_other_houses():
         category=FighterCategoryChoices.STASH,
         base_cost=0,
     )
-    
+
     # Create a normal list
     normal_list = List.objects.create(
         owner=user,
         name="My Normal Gang",
         content_house=normal_house,
     )
-    
+
     # Create a list fighter instance
     list_fighter = ListFighter(list=normal_list)
-    
+
     # Create the form
     form = ListFighterForm(instance=list_fighter)
-    
+
     # Get the queryset from the form
     available_fighters = form.fields["content_fighter"].queryset
-    
+
     # Verify filtering rules for normal houses
     assert fighter_normal in available_fighters  # Own house fighter
     assert fighter_generic in available_fighters  # Generic house fighter
     assert fighter_other not in available_fighters  # Other house fighter excluded
     assert fighter_exotic not in available_fighters  # Exotic beasts excluded
     assert fighter_stash not in available_fighters  # Stash excluded
-    
+
     # Verify the count
     assert available_fighters.count() == 2  # Only normal and generic
