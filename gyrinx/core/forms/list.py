@@ -155,18 +155,29 @@ class ListFighterForm(forms.ModelForm):
         if inst:
             # Fighters for the house and from generic houses, excluding Exotic Beasts
             # who are added via equipment
-            generic_houses = ContentHouse.objects.filter(generic=True).values_list(
-                "id", flat=True
-            )
             self.fields["content_fighter"].content_house = inst.list.content_house
-            self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house__in=[inst.list.content_house.id] + list(generic_houses),
-            ).exclude(
-                category__in=[
-                    FighterCategoryChoices.EXOTIC_BEAST,
-                    FighterCategoryChoices.STASH,
-                ]
-            )
+
+            # Check if the house can hire any fighter
+            if inst.list.content_house.can_hire_any:
+                # Can hire any fighter except stash fighters
+                self.fields[
+                    "content_fighter"
+                ].queryset = ContentFighter.objects.exclude(
+                    category=FighterCategoryChoices.STASH
+                )
+            else:
+                # Normal filtering: only house and generic houses, exclude exotic beasts and stash
+                generic_houses = ContentHouse.objects.filter(generic=True).values_list(
+                    "id", flat=True
+                )
+                self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
+                    house__in=[inst.list.content_house.id] + list(generic_houses),
+                ).exclude(
+                    category__in=[
+                        FighterCategoryChoices.EXOTIC_BEAST,
+                        FighterCategoryChoices.STASH,
+                    ]
+                )
 
             self.fields[
                 "legacy_content_fighter"
