@@ -66,6 +66,10 @@ class ContentHouse(Content):
         default=False,
         help_text="If checked, this House is considered a legacy/older faction.",
     )
+    can_hire_any = models.BooleanField(
+        default=False,
+        help_text="If checked, this House can hire any fighter from any house (except stash fighters).",
+    )
 
     house_additional_rules_name = models.CharField(
         max_length=255,
