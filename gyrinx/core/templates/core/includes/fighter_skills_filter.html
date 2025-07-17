@@ -1,12 +1,12 @@
 {% load allauth custom_tags %}
 {% comment %}Filter component for fighter skills.{% endcomment %}
-<div class="vstack gap-2">
-    <form id="search-skills"
-          method="get"
-          action="{{ action }}#search"
-          class="hstack gap-3 flex-wrap">
+<form id="search-skills"
+      method="get"
+      action="{{ action }}#search"
+      class="row">
+    <div class="col-12 col-lg-6 mb-2 mb-lg-0">
         <input type="hidden" name="flash" value="search">
-        <div class="input-group" style="max-width: 400px;">
+        <div class="input-group">
             <span class="input-group-text">
                 <i class="bi-search"></i>
             </span>
@@ -22,6 +22,8 @@
                    class="btn btn-outline-secondary">Clear</a>
             {% endif %}
         </div>
+    </div>
+    <div class="col-12 col-lg-6 hstack gap-3">
         <div class="form-check form-switch mb-0">
             <input type="hidden" name="filter" value="all">
             <input class="form-check-input"
@@ -43,5 +45,5 @@
             •
             <a class="btn btn-link text-secondary icon-link btn-sm" href="?#search">Reset</a>
         </div>
-    </form>
-</div>
+    </div>
+</form>
