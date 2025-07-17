@@ -1,7 +1,15 @@
 from django.contrib import admin
 
+from gyrinx.admin import GyTabularInline
 from gyrinx.core.admin.base import BaseAdmin
-from gyrinx.core.models.campaign import Campaign, CampaignAction
+from gyrinx.core.models.campaign import (
+    Campaign,
+    CampaignAction,
+    CampaignAsset,
+    CampaignAssetType,
+    CampaignListResource,
+    CampaignResourceType,
+)
 
 
 @admin.register(Campaign)
@@ -27,3 +35,35 @@ class CampaignActionAdmin(BaseAdmin):
         "dice_total",
         "outcome",
     ]
+
+
+class CampaignAssetInline(GyTabularInline):
+    model = CampaignAsset
+    extra = 0
+    fields = ["name", "description", "holder", "owner"]
+
+
+@admin.register(CampaignAssetType)
+class CampaignAssetTypeAdmin(BaseAdmin):
+    list_display = ["name_singular", "campaign", "description"]
+    search_fields = ["name_singular", "campaign__name"]
+    list_filter = ["campaign"]
+    fields = ["name_singular", "campaign", "description", "owner"]
+
+    inlines = [CampaignAssetInline]
+
+
+class CampaignListResourceInline(GyTabularInline):
+    model = CampaignListResource
+    extra = 0
+    fields = ["list", "campaign", "resource_type", "amount", "owner"]
+
+
+@admin.register(CampaignResourceType)
+class CampaignResourceTypeAdmin(BaseAdmin):
+    list_display = ["name", "campaign", "description"]
+    search_fields = ["name", "campaign__name"]
+    list_filter = ["campaign"]
+    fields = ["name", "campaign", "description", "owner"]
+
+    inlines = [CampaignListResourceInline]
