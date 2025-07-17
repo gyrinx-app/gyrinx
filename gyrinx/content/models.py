@@ -2596,6 +2596,21 @@ class ContentStatlineTypeStat(Content):
 
     history = HistoricalRecords()
 
+    def save(self, *args, **kwargs):
+        # Auto-generate field_name from full_name on first save
+        if not self.field_name and self.full_name:
+            import re
+
+            # Convert to lowercase and replace non-alphanumeric with underscores
+            field_name = re.sub(r"[^a-z0-9]+", "_", self.full_name.lower())
+            # Remove leading/trailing underscores
+            field_name = field_name.strip("_")
+            # Replace multiple underscores with single
+            field_name = re.sub(r"_+", "_", field_name)
+            self.field_name = field_name
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.statline_type.name} - {self.short_name} ({self.full_name})"
 

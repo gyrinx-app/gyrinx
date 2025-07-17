@@ -645,6 +645,7 @@ class ContentStatlineTypeStatInline(ContentTabularInline):
         "is_highlighted",
         "is_first_of_group",
     ]
+    readonly_fields = ["field_name"]
     ordering = ["position"]
 
 
