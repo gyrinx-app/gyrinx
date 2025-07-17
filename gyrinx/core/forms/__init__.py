@@ -33,6 +33,14 @@ class LoginForm(LoginForm):
 
 class SignupForm(SignupForm):
     captcha = ReCaptchaField(widget=ReCaptchaV3(action="signup"))
+    tos_agreement = forms.BooleanField(
+        required=True,
+        label="",
+        help_text='By signing up, you acknowledge that you have read and agree to be bound by our <a href="/terms/" target="_blank">Terms of Use</a>',
+        error_messages={
+            "required": "You must agree to the Terms of Use to create an account."
+        },
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
