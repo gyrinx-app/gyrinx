@@ -29,6 +29,7 @@ from django.contrib.auth.signals import user_logged_out
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
 
 
@@ -66,6 +67,18 @@ def log_user_signup(request, user, **kwargs):
         request=request,
         sociallogin=bool(kwargs.get("sociallogin")),
     )
+
+
+@receiver(user_signed_up)
+def create_user_profile_and_record_tos(request, user, **kwargs):
+    """Create UserProfile and record ToS agreement when a new user signs up."""
+    # Create the user profile if it doesn't exist
+    profile, created = UserProfile.objects.get_or_create(user=user)
+
+    # Record ToS agreement if the form data indicates agreement
+    # The form data is available in the request POST data
+    if request and hasattr(request, "POST") and request.POST.get("tos_agreement"):
+        profile.record_tos_agreement()
 
 
 @receiver(email_confirmed)

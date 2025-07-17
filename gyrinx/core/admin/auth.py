@@ -5,6 +5,8 @@ from django.contrib.auth.models import Group, User
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
+from gyrinx.core.models.auth import UserProfile
+
 
 @admin.action(description="Add selected users to group")
 def add_users_to_group(modeladmin, request, queryset):
@@ -190,6 +192,16 @@ def remove_users_from_group(modeladmin, request, queryset):
         "core/admin/remove_users_from_group.html",
         context,
     )
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ["user", "user__email", "tos_agreed_at"]
+    search_fields = ["user__username", "user__email"]
+    readonly_fields = ["tos_agreed_at"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(User)
