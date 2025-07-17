@@ -148,11 +148,20 @@ def test_add_skills_to_fighter(
     )
     assert response.status_code == 200
 
-    # Add skills
+    # Add skill 1
     response = client.post(
-        reverse("core:list-fighter-skills-edit", args=[lst.id, fighter.id]),
+        reverse("core:list-fighter-skill-add", args=[lst.id, fighter.id]),
         {
-            "skills": [skill1.id, skill2.id],
+            "skill_id": skill1.id,
+        },
+    )
+    assert response.status_code == 302
+
+    # Add skill 2
+    response = client.post(
+        reverse("core:list-fighter-skill-add", args=[lst.id, fighter.id]),
+        {
+            "skill_id": skill2.id,
         },
     )
     assert response.status_code == 302
