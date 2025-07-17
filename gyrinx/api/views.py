@@ -142,4 +142,17 @@ def hook_patreon(request):
 
         return HttpResponse(status=204)
 
+    if request.method == "GET":
+        # Handle GET requests if needed, e.g., for health checks
+        return HttpResponse(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "message": "Patreon webhook is active and ready to receive events.",
+                }
+            ),
+            status=200,
+            content_type="application/json",
+        )
+
     return HttpResponse(status=400)
