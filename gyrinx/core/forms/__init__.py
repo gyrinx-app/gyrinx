@@ -35,7 +35,7 @@ class SignupForm(SignupForm):
     captcha = ReCaptchaField(widget=ReCaptchaV3(action="signup"))
     tos_agreement = forms.BooleanField(
         required=True,
-        label="",
+        label="Agree to the Terms of Use",
         help_text='By signing up, you acknowledge that you have read and agree to be bound by our <a href="/terms/" target="_blank">Terms of Use</a>',
         error_messages={
             "required": "You must agree to the Terms of Use to create an account."
@@ -68,6 +68,11 @@ class SignupForm(SignupForm):
                 "(live.com, hotmail.com, hotmail.co.uk etc.). "
                 "Please use a different address if you can."
             )
+
+        # Move tos_agreement to the end of the form
+        if "tos_agreement" in self.fields:
+            tos_field = self.fields.pop("tos_agreement")
+            self.fields["tos_agreement"] = tos_field
 
 
 class UsernameChangeForm(forms.Form):
