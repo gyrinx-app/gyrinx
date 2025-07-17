@@ -1,44 +1,134 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Skills - {{ form.instance.name }} - {{ form.instance.content_fighter.name }} - {{ list.name }}
+    Skills - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with text=list.name %}
-    <div class="col-lg-12 px-0 vstack gap-3">
-        <h1 class="h3">Skills: {{ form.instance.name }} - {{ form.instance.content_fighter.name }}</h1>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle">
-                <tbody>
-                    {% for cat in skill_cats %}
-                        <tr>
-                            <th>{{ cat.name }}</th>
-                            <td>
-                                {% if cat.primary %}Primary{% endif %}
-                                {% if cat.secondary %}Secondary{% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    {% for cat in special_cats %}
-                        <tr class="table-warning">
-                            <th>{{ cat.name }}</th>
-                            <td>
-                                {% if cat.primary %}Primary{% endif %}
-                                {% if cat.secondary %}Secondary{% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <form action="{% url 'core:list-fighter-skills-edit' list.id form.instance.id %}"
-              method="post">
-            {% csrf_token %}
-            {{ form }}
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Save</button>
-                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3">Skills: {{ fighter.fully_qualified_name }}</h1>
+        {# Current skills table #}
+        {% if fighter.skills.exists %}
+            <div class="card">
+                <div class="card-header p-2">
+                    <h3 class="h5 mb-0">Current Skills</h3>
+                </div>
+                <div class="card-body p-0 p-sm-2">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <tbody>
+                                {% for skill in fighter.skills.all %}
+                                    <tr>
+                                        <td>{{ skill.name }}</td>
+                                        <td class="text-secondary">{{ skill.category.name }}</td>
+                                        <td class="text-end">
+                                            <form method="post"
+                                                  action="{% url 'core:list-fighter-skill-remove' list.id fighter.id skill.id %}"
+                                                  class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Remove {{ skill.name }}?')">
+                                                    <i class="bi-x"></i> Remove
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-        </form>
+        {% endif %}
+        {# Table of contents #}
+        <div class="card">
+            <div class="card-header p-2">
+                <h3 class="h5 mb-0">Skill Categories</h3>
+            </div>
+            <div class="card-body p-0 p-sm-2">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <tbody>
+                            {% for cat_data in categories %}
+                                <tr {% if cat_data.is_special %}class="table-warning"{% endif %}>
+                                    <td>
+                                        <a href="#category-{{ cat_data.category.id }}"
+                                           class="text-decoration-none">{{ cat_data.category.name }}</a>
+                                    </td>
+                                    <td class="text-secondary text-end">
+                                        {% if cat_data.primary %}
+                                            <span class="badge bg-primary">Primary</span>
+                                        {% elif cat_data.secondary %}
+                                            <span class="badge bg-secondary">Secondary</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {# Filter bar #}
+        {% url 'core:list-fighter-skills-edit' list.id fighter.id as filter_action %}
+        {% include "core/includes/fighter_skills_filter.html" with action=filter_action %}
+        {# Skills grid #}
+        <div class="grid">
+            {% for cat_data in categories %}
+                <div class="card g-col-12 g-col-md-6"
+                     id="category-{{ cat_data.category.id }}">
+                    <div class="card-header p-2 {% if cat_data.is_special %}bg-warning-subtle{% endif %}">
+                        <div class="vstack gap-1">
+                            <div class="hstack">
+                                <h3 class="h5 mb-0">{{ cat_data.category.name }}</h3>
+                                <span class="ms-auto">
+                                    {% if cat_data.primary %}
+                                        <span class="badge bg-primary">Primary</span>
+                                    {% elif cat_data.secondary %}
+                                        <span class="badge bg-secondary">Secondary</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 p-sm-2">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <tbody>
+                                    {% for skill in cat_data.skills %}
+                                        <tr>
+                                            <td>{{ skill.name }}</td>
+                                            <td class="text-end">
+                                                <form method="post"
+                                                      action="{% url 'core:list-fighter-skill-add' list.id fighter.id %}"
+                                                      class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="skill_id" value="{{ skill.id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi-plus"></i> Add
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="g-col-12">
+                    {% if not search_query and primary_secondary_only %}
+                        No available skills found in primary or secondary categories.
+                    {% elif search_query %}
+                        No skills found matching "{{ search_query }}".
+                        <a href="?">Clear your search</a>.
+                    {% else %}
+                        No available skills found.
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
     </div>
 {% endblock content %}

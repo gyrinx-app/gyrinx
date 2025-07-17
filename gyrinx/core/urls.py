@@ -50,6 +50,16 @@ urlpatterns = [
         name="list-fighter-skills-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/skills/add",
+        list.add_list_fighter_skill,
+        name="list-fighter-skill-add",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/skills/<skill_id>/remove",
+        list.remove_list_fighter_skill,
+        name="list-fighter-skill-remove",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/powers",
         list.edit_list_fighter_powers,
         name="list-fighter-powers-edit",

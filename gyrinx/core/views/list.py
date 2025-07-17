@@ -50,7 +50,6 @@ from gyrinx.core.forms.list import (
     ListFighterEquipmentAssignmentForm,
     ListFighterEquipmentAssignmentUpgradeForm,
     ListFighterForm,
-    ListFighterSkillsForm,
     NewListForm,
 )
 from gyrinx.core.models.campaign import CampaignAction
@@ -968,12 +967,14 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     **Context**
 
-    ``form``
-        A ListFighterSkillsForm for selecting fighter skills.
+    ``fighter``
+        The :model:`core.ListFighter` being edited.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
+    ``categories``
+        All skill categories with their skills.
+    ``primary_secondary_only``
+        Whether to show only primary/secondary categories.
 
     **Template**
 
@@ -982,32 +983,16 @@ def edit_list_fighter_skills(request, id, fighter_id):
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
-    error_message = None
-    if request.method == "POST":
-        form = ListFighterSkillsForm(request.POST, instance=fighter)
-        if form.is_valid():
-            form.save()
+    # Get query parameters
+    search_query = request.GET.get("q", "").strip()
+    primary_secondary_only = (
+        request.GET.get("filter", "primary-secondary") == "primary-secondary"
+    )
 
-            # Log the skills update event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.UPDATE,
-                object=fighter,
-                request=request,
-                fighter_name=fighter.name,
-                list_id=str(lst.id),
-                list_name=lst.name,
-                field="skills",
-                skills_count=fighter.skills.count(),
-            )
+    # Get current fighter skills
+    current_skill_ids = set(fighter.skills.values_list("id", flat=True))
 
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
-            )
-    else:
-        form = ListFighterSkillsForm(instance=fighter)
-
+    # Get all skill categories with annotations
     skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
         primary=Exists(
             ContentSkillCategory.primary_fighters.through.objects.filter(
@@ -1022,6 +1007,8 @@ def edit_list_fighter_skills(request, id, fighter_id):
             )
         ),
     )
+
+    # Get special categories from the house
     special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
         primary=Exists(
             ContentSkillCategory.primary_fighters.through.objects.filter(
@@ -1036,19 +1023,142 @@ def edit_list_fighter_skills(request, id, fighter_id):
             )
         ),
     )
-    n_cats = skill_cats.count() + special_cats.count()
+
+    # Combine all categories
+    all_categories = []
+
+    # Process regular categories
+    for cat in skill_cats:
+        if primary_secondary_only and not (cat.primary or cat.secondary):
+            continue
+
+        # Get skills for this category that fighter doesn't have
+        skills_qs = cat.skills.exclude(id__in=current_skill_ids)
+
+        # Apply search filter
+        if search_query:
+            skills_qs = skills_qs.filter(name__icontains=search_query)
+
+        if skills_qs.exists():
+            all_categories.append(
+                {
+                    "category": cat,
+                    "skills": list(skills_qs.order_by("name")),
+                    "is_special": False,
+                    "primary": cat.primary,
+                    "secondary": cat.secondary,
+                }
+            )
+
+    # Process special categories
+    for cat in special_cats:
+        if primary_secondary_only and not (cat.primary or cat.secondary):
+            continue
+
+        # Get skills for this category that fighter doesn't have
+        skills_qs = cat.skills.exclude(id__in=current_skill_ids)
+
+        # Apply search filter
+        if search_query:
+            skills_qs = skills_qs.filter(name__icontains=search_query)
+
+        if skills_qs.exists():
+            all_categories.append(
+                {
+                    "category": cat,
+                    "skills": list(skills_qs.order_by("name")),
+                    "is_special": True,
+                    "primary": cat.primary,
+                    "secondary": cat.secondary,
+                }
+            )
 
     return render(
         request,
         "core/list_fighter_skills_edit.html",
         {
-            "form": form,
+            "fighter": fighter,
             "list": lst,
-            "error_message": error_message,
-            "n_cats": n_cats,
-            "skill_cats": list(skill_cats),
-            "special_cats": list(special_cats),
+            "categories": all_categories,
+            "primary_secondary_only": primary_secondary_only,
+            "search_query": search_query,
         },
+    )
+
+
+@login_required
+def add_list_fighter_skill(request, id, fighter_id):
+    """
+    Add a single skill to a :model:`core.ListFighter`.
+    """
+    if request.method != "POST":
+        raise Http404()
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    skill_id = request.POST.get("skill_id")
+    if skill_id:
+        skill = get_object_or_404(ContentSkill, id=skill_id)
+        fighter.skills.add(skill)
+
+        # Log the skill addition event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            field="skills",
+            action="add_skill",
+            skill_name=skill.name,
+            skills_count=fighter.skills.count(),
+        )
+
+        messages.success(request, f"Added {skill.name}")
+
+    return HttpResponseRedirect(
+        reverse("core:list-fighter-skills-edit", args=(lst.id, fighter.id))
+    )
+
+
+@login_required
+def remove_list_fighter_skill(request, id, fighter_id, skill_id):
+    """
+    Remove a single skill from a :model:`core.ListFighter`.
+    """
+    if request.method != "POST":
+        raise Http404()
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+
+    skill = get_object_or_404(ContentSkill, id=skill_id)
+    fighter.skills.remove(skill)
+
+    # Log the skill removal event
+    log_event(
+        user=request.user,
+        noun=EventNoun.LIST_FIGHTER,
+        verb=EventVerb.UPDATE,
+        object=fighter,
+        request=request,
+        fighter_name=fighter.name,
+        list_id=str(lst.id),
+        list_name=lst.name,
+        field="skills",
+        action="remove_skill",
+        skill_name=skill.name,
+        skills_count=fighter.skills.count(),
+    )
+
+    messages.success(request, f"Removed {skill.name}")
+
+    return HttpResponseRedirect(
+        reverse("core:list-fighter-skills-edit", args=(lst.id, fighter.id))
     )
 
 

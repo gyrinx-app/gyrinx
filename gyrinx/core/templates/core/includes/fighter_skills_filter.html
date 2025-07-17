@@ -1,0 +1,47 @@
+{% load allauth custom_tags %}
+{% comment %}Filter component for fighter skills.{% endcomment %}
+<div class="vstack gap-2">
+    <form id="search-skills"
+          method="get"
+          action="{{ action }}#search"
+          class="hstack gap-3 flex-wrap">
+        <input type="hidden" name="flash" value="search">
+        <div class="input-group" style="max-width: 400px;">
+            <span class="input-group-text">
+                <i class="bi-search"></i>
+            </span>
+            <input class="form-control"
+                   type="search"
+                   placeholder="Search skills"
+                   aria-label="Search skills"
+                   name="q"
+                   value="{{ request.GET.q }}">
+            <button class="btn btn-primary" type="submit">Search</button>
+            {% if request.GET.q %}
+                <a href="?{% qt_rm request "q" "flash" %}#search"
+                   class="btn btn-outline-secondary">Clear</a>
+            {% endif %}
+        </div>
+        <div class="form-check form-switch mb-0">
+            <input type="hidden" name="filter" value="all">
+            <input class="form-check-input"
+                   type="checkbox"
+                   role="switch"
+                   id="filter-switch"
+                   name="filter"
+                   value="primary-secondary"
+                   {% if not request.GET.filter or request.GET.filter == "primary-secondary" %}checked{% endif %}>
+            <label class="form-check-label" for="filter-switch">Primary/Secondary Only</label>
+        </div>
+        <div class="ms-sm-auto">
+            <button class="btn btn-link icon-link btn-sm"
+                    type="submit"
+                    id="update-filters">
+                <i class="bi-arrow-clockwise"></i>
+                Update
+            </button>
+            •
+            <a class="btn btn-link text-secondary icon-link btn-sm" href="?#search">Reset</a>
+        </div>
+    </form>
+</div>
