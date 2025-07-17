@@ -47,6 +47,9 @@ from .models import (
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
+    ContentStatline,
+    ContentStatlineType,
+    ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
@@ -629,3 +632,44 @@ class ContentAttributeValueAdmin(ContentAdmin, admin.ModelAdmin):
     list_display = ["name", "attribute", "description"]
     list_filter = ["attribute"]
     list_display_links = ["name"]
+
+
+class ContentStatlineTypeStatInline(ContentTabularInline):
+    model = ContentStatlineTypeStat
+    extra = 0
+    fields = [
+        "field_name",
+        "short_name",
+        "full_name",
+        "position",
+        "is_highlighted",
+        "is_first_of_group",
+    ]
+    ordering = ["position"]
+
+
+@admin.register(ContentStatlineType)
+class ContentStatlineTypeAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "get_stat_count"]
+    list_display_links = ["name"]
+
+    inlines = [ContentStatlineTypeStatInline]
+
+    def get_stat_count(self, obj):
+        return obj.stats.count()
+
+    get_stat_count.short_description = "Stats"
+
+
+@admin.register(ContentStatline)
+class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["content_fighter__type", "statline_type__name"]
+    list_display = ["content_fighter", "statline_type"]
+    list_filter = ["statline_type"]
+    list_display_links = ["content_fighter"]
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "stat_values":
+            kwargs["widget"] = admin.widgets.AdminTextareaWidget
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
