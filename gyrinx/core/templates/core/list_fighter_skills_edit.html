@@ -8,66 +8,62 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Skills: {{ fighter.fully_qualified_name }}</h1>
         {# Current skills table #}
-        {% if fighter.skills.exists %}
-            <div class="card">
-                <div class="card-header p-2">
-                    <h3 class="h5 mb-0">Current Skills</h3>
-                </div>
-                <div class="card-body p-0 p-sm-2">
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <tbody>
-                                {% for skill in fighter.skills.all %}
-                                    <tr>
-                                        <td>{{ skill.name }}</td>
-                                        <td class="text-secondary">{{ skill.category.name }}</td>
-                                        <td class="text-end">
-                                            <form method="post"
-                                                  action="{% url 'core:list-fighter-skill-remove' list.id fighter.id skill.id %}"
-                                                  class="d-inline">
-                                                {% csrf_token %}
-                                                <button type="submit"
-                                                        class="btn btn-sm btn-outline-danger"
-                                                        onclick="return confirm('Remove {{ skill.name }}?')">
-                                                    <i class="bi-x"></i> Remove
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        {% endif %}
-        {# Table of contents #}
         <div class="card">
             <div class="card-header p-2">
-                <h3 class="h5 mb-0">Skill Categories</h3>
+                <h3 class="h5 mb-0">Current Skills</h3>
             </div>
             <div class="card-body p-0 p-sm-2">
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-borderless table-sm align-middle mb-0">
                         <tbody>
-                            {% for cat_data in categories %}
-                                <tr {% if cat_data.is_special %}class="table-warning"{% endif %}>
-                                    <td>
-                                        <a href="#category-{{ cat_data.category.id }}"
-                                           class="text-decoration-none">{{ cat_data.category.name }}</a>
+                            {% for skill in fighter.skills.all %}
+                                <tr>
+                                    <td>{{ skill.name }}</td>
+                                    <td class="text-secondary">{{ skill.category.name }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-skill-remove' list.id fighter.id skill.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-link icon-link fs-7 link-danger">
+                                                <i class="bi-trash"></i> Remove
+                                            </button>
+                                        </form>
                                     </td>
-                                    <td class="text-secondary text-end">
-                                        {% if cat_data.primary %}
-                                            <span class="badge bg-primary">Primary</span>
-                                        {% elif cat_data.secondary %}
-                                            <span class="badge bg-secondary">Secondary</span>
-                                        {% endif %}
-                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-secondary">No skills assigned to this fighter.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+        {# Table of contents #}
+        <div>
+            <h3 class="h5 mb-1">Skill Categories</h3>
+            <div class="table-responsive">
+                <table class="table table-borderless table-sm align-middle mb-0">
+                    <tbody>
+                        {% for cat_data in categories %}
+                            <tr {% if cat_data.is_special %}class="table-warning"{% endif %}>
+                                <td class="ps-2">
+                                    <a href="#category-{{ cat_data.category.id }}"
+                                       class="text-decoration-none">{{ cat_data.category.name }}</a>
+                                </td>
+                                <td class="pe-2 text-secondary text-end">
+                                    {% if cat_data.primary %}
+                                        <span class="badge bg-primary">Primary</span>
+                                    {% elif cat_data.secondary %}
+                                        <span class="badge bg-secondary">Secondary</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
         {# Filter bar #}
@@ -94,7 +90,7 @@
                     </div>
                     <div class="card-body p-0 p-sm-2">
                         <div class="table-responsive">
-                            <table class="table table-sm align-middle mb-0">
+                            <table class="table table-borderless table-sm align-middle mb-0">
                                 <tbody>
                                     {% for skill in cat_data.skills %}
                                         <tr>
@@ -106,7 +102,7 @@
                                                     {% csrf_token %}
                                                     <input type="hidden" name="skill_id" value="{{ skill.id }}">
                                                     <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                        <i class="bi-plus"></i> Add
+                                                        <i class="bi-plus-lg"></i> Add
                                                     </button>
                                                 </form>
                                             </td>
