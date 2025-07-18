@@ -47,6 +47,7 @@ from .models import (
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
+    ContentStat,
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
@@ -639,15 +640,21 @@ class ContentStatlineTypeStatInline(ContentTabularInline):
     model = ContentStatlineTypeStat
     extra = 0
     fields = [
-        "field_name",
-        "short_name",
-        "full_name",
+        "stat",
         "position",
         "is_highlighted",
         "is_first_of_group",
     ]
-    readonly_fields = ["field_name"]
+    readonly_fields = []
     ordering = ["position"]
+
+
+@admin.register(ContentStat)
+class ContentStatAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["field_name", "short_name", "full_name"]
+    list_display = ["field_name", "short_name", "full_name"]
+    list_display_links = ["field_name"]
+    readonly_fields = ["field_name"]  # Auto-generated from full_name
 
 
 @admin.register(ContentStatlineType)

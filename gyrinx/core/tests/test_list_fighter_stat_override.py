@@ -9,6 +9,7 @@ from django.urls import reverse
 from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
+    ContentStat,
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
@@ -106,11 +107,19 @@ def vehicle_stats(db, vehicle_statline_type):
         is_highlighted,
         is_first_of_group,
     ) in stat_data:
+        # Create or get the stat definition
+        stat_def, _ = ContentStat.objects.get_or_create(
+            field_name=field_name,
+            defaults={
+                "short_name": short_name,
+                "full_name": full_name,
+            },
+        )
+
+        # Create the statline type stat
         stat = ContentStatlineTypeStat.objects.create(
             statline_type=vehicle_statline_type,
-            field_name=field_name,
-            short_name=short_name,
-            full_name=full_name,
+            stat=stat_def,
             position=position,
             is_highlighted=is_highlighted,
             is_first_of_group=is_first_of_group,

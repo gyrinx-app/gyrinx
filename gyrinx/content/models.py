@@ -2564,6 +2564,52 @@ class ContentInjury(Content):
 ##
 
 
+class ContentStat(Content):
+    """
+    Represents a single stat definition that can be used across multiple
+    statline types. This avoids duplication of stat definitions.
+    """
+
+    help_text = "A stat definition that can be shared across different statline types."
+    field_name = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Internal field name (e.g., 'movement', 'front_toughness')",
+    )
+    short_name = models.CharField(
+        max_length=10, help_text="Short display name (e.g., 'M', 'Fr')"
+    )
+    full_name = models.CharField(
+        max_length=50,
+        help_text="Full display name (e.g., 'Movement', 'Front Toughness')",
+    )
+
+    history = HistoricalRecords()
+
+    def save(self, *args, **kwargs):
+        # Auto-generate field_name from full_name on first save
+        if not self.field_name and self.full_name:
+            import re
+
+            # Convert to lowercase and replace non-alphanumeric with underscores
+            field_name = re.sub(r"[^a-z0-9]+", "_", self.full_name.lower())
+            # Remove leading/trailing underscores
+            field_name = field_name.strip("_")
+            # Replace multiple underscores with single
+            field_name = re.sub(r"_+", "_", field_name)
+            self.field_name = field_name
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.short_name} ({self.full_name})"
+
+    class Meta:
+        verbose_name = "Stat"
+        verbose_name_plural = "Stats"
+        ordering = ["full_name"]
+
+
 class ContentStatlineType(Content):
     """
     Defines a type of statline (e.g., 'Fighter', 'Vehicle') that can have
@@ -2586,23 +2632,17 @@ class ContentStatlineType(Content):
 
 class ContentStatlineTypeStat(Content):
     """
-    Defines individual stats for a statline type with display properties.
+    Links a stat to a statline type with display properties.
+    This allows the same stat to be used across multiple statline types
+    with different positions and display settings.
     """
 
-    help_text = "Represents a single stat definition for a statline type."
+    help_text = "Links a stat definition to a statline type with positioning and display settings."
     statline_type = models.ForeignKey(
         ContentStatlineType, on_delete=models.CASCADE, related_name="stats"
     )
-    field_name = models.CharField(
-        max_length=50,
-        help_text="Internal field name (e.g., 'movement', 'front_toughness')",
-    )
-    short_name = models.CharField(
-        max_length=10, help_text="Short display name (e.g., 'M', 'Fr')"
-    )
-    full_name = models.CharField(
-        max_length=50,
-        help_text="Full display name (e.g., 'Movement', 'Front Toughness')",
+    stat = models.ForeignKey(
+        ContentStat, on_delete=models.CASCADE, related_name="statline_type_stats"
     )
     position = models.IntegerField(
         help_text="Display order position (lower numbers appear first)"
@@ -2618,29 +2658,27 @@ class ContentStatlineTypeStat(Content):
 
     history = HistoricalRecords()
 
-    def save(self, *args, **kwargs):
-        # Auto-generate field_name from full_name on first save
-        if not self.field_name and self.full_name:
-            import re
+    # Properties for backward compatibility
+    @property
+    def field_name(self):
+        return self.stat.field_name
 
-            # Convert to lowercase and replace non-alphanumeric with underscores
-            field_name = re.sub(r"[^a-z0-9]+", "_", self.full_name.lower())
-            # Remove leading/trailing underscores
-            field_name = field_name.strip("_")
-            # Replace multiple underscores with single
-            field_name = re.sub(r"_+", "_", field_name)
-            self.field_name = field_name
+    @property
+    def short_name(self):
+        return self.stat.short_name
 
-        super().save(*args, **kwargs)
+    @property
+    def full_name(self):
+        return self.stat.full_name
 
     def __str__(self):
-        return f"{self.statline_type.name} - {self.short_name} ({self.full_name})"
+        return f"{self.statline_type.name} - {self.stat.short_name} ({self.stat.full_name})"
 
     class Meta:
         verbose_name = "Statline Type Stat"
         verbose_name_plural = "Statline Type Stats"
         ordering = ["statline_type", "position"]
-        unique_together = ["statline_type", "field_name"]
+        unique_together = ["statline_type", "stat"]
 
 
 class ContentStatline(Content):
@@ -2678,13 +2716,13 @@ class ContentStatline(Content):
             and not self._state.adding
         ):
             required_stats = set(
-                self.statline_type.stats.values_list("field_name", flat=True)
+                self.statline_type.stats.values_list("stat__field_name", flat=True)
             )
 
             # Only validate if there are required stats
             if required_stats:
                 provided_stats = set(
-                    self.stats.values_list("statline_type_stat__field_name", flat=True)
+                    self.stats.values_list("statline_type_stat__stat__field_name", flat=True)
                 )
                 missing_stats = required_stats - provided_stats
 

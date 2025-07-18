@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
+    ContentStat,
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
@@ -28,19 +29,27 @@ def test_content_statline_clean_during_creation():
         name="Vehicle",
     )
 
-    # Create required stats for the type
-    ContentStatlineTypeStat.objects.create(
-        statline_type=statline_type,
+    # Create stat definitions
+    movement_stat = ContentStat.objects.create(
         field_name="movement",
         short_name="M",
         full_name="Movement",
+    )
+    toughness_stat = ContentStat.objects.create(
+        field_name="toughness",
+        short_name="T",
+        full_name="Toughness",
+    )
+
+    # Create required stats for the type
+    ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=movement_stat,
         position=1,
     )
     ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
-        field_name="toughness",
-        short_name="T",
-        full_name="Toughness",
+        stat=toughness_stat,
         position=2,
     )
 
@@ -65,7 +74,7 @@ def test_content_statline_clean_during_creation():
         statline.clean()
 
     # Add one stat
-    movement_stat = statline_type.stats.get(field_name="movement")
+    movement_stat = statline_type.stats.get(stat__field_name="movement")
     ContentStatlineStat.objects.create(
         statline=statline,
         statline_type_stat=movement_stat,
@@ -77,7 +86,7 @@ def test_content_statline_clean_during_creation():
         statline.clean()
 
     # Add the second stat
-    toughness_stat = statline_type.stats.get(field_name="toughness")
+    toughness_stat = statline_type.stats.get(stat__field_name="toughness")
     ContentStatlineStat.objects.create(
         statline=statline,
         statline_type_stat=toughness_stat,

@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
+    ContentStat,
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
@@ -25,20 +26,29 @@ def test_content_statline_stat_model():
     # Create statline type
     statline_type = ContentStatlineType.objects.create(name="Vehicle")
 
-    # Create statline type stats
-    movement_stat = ContentStatlineTypeStat.objects.create(
-        statline_type=statline_type,
+    # Create stat definitions
+    movement_stat_def = ContentStat.objects.create(
         field_name="movement",
         short_name="M",
         full_name="Movement",
+    )
+
+    front_stat_def = ContentStat.objects.create(
+        field_name="front",
+        short_name="Fr",
+        full_name="Front",
+    )
+
+    # Create statline type stats linking to stat definitions
+    movement_stat = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=movement_stat_def,
         position=1,
     )
 
     front_stat = ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
-        field_name="front",
-        short_name="Fr",
-        full_name="Front",
+        stat=front_stat_def,
         position=2,
     )
 
@@ -126,11 +136,19 @@ def test_content_fighter_statline_method():
         highlight,
         first_of_group,
     ) in stats_data:
+        # Create or get the stat definition
+        stat_def, _ = ContentStat.objects.get_or_create(
+            field_name=field_name,
+            defaults={
+                "short_name": short_name,
+                "full_name": full_name,
+            },
+        )
+
+        # Create the statline type stat
         stat = ContentStatlineTypeStat.objects.create(
             statline_type=vehicle_type,
-            field_name=field_name,
-            short_name=short_name,
-            full_name=full_name,
+            stat=stat_def,
             position=position,
             is_highlighted=highlight,
             is_first_of_group=first_of_group,
@@ -183,19 +201,29 @@ def test_statline_validation():
     # Create statline type with stats
     statline_type = ContentStatlineType.objects.create(name="Test Type")
 
-    ContentStatlineTypeStat.objects.create(
-        statline_type=statline_type,
+    # Create stat definitions
+    stat1_def = ContentStat.objects.create(
         field_name="stat1",
         short_name="S1",
         full_name="Stat 1",
+    )
+
+    stat2_def = ContentStat.objects.create(
+        field_name="stat2",
+        short_name="S2",
+        full_name="Stat 2",
+    )
+
+    # Create statline type stats
+    ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat1_def,
         position=1,
     )
 
     ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
-        field_name="stat2",
-        short_name="S2",
-        full_name="Stat 2",
+        stat=stat2_def,
         position=2,
     )
 
