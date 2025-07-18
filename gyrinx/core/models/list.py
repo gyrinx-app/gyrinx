@@ -577,12 +577,22 @@ class ListFighter(AppBase):
         return self.content_fighter_cached.is_stash
 
     @cached_property
+    def is_vehicle(self):
+        """
+        Returns True if this fighter is a vehicle.
+        """
+        return self.content_fighter_cached.is_vehicle
+
+    @cached_property
     def proximal_demonstrative(self) -> str:
         """
         Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
         """
         if self.is_stash:
             return "The stash"
+
+        if self.is_vehicle:
+            return "The vehicle"
 
         return "This fighter"
 

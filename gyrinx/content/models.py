@@ -785,6 +785,13 @@ class ContentFighter(Content):
         """
         return f"{self.type} ({self.cat()})"
 
+    @cached_property
+    def is_vehicle(self):
+        """
+        Indicates whether this fighter is a vehicle.
+        """
+        return self.category == FighterCategoryChoices.VEHICLE
+
     def cost(self):
         """
         Returns the cost of the fighter (base cost only, unless additional
