@@ -2288,10 +2288,10 @@ class ContentModStat(ContentMod, ContentModStatApplyMixin):
 
 class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     """
-    Weapon stat modifier
+    Fighter stat modifier
     """
 
-    help_text = "A modification to a specific value in a weapon statline"
+    help_text = "A modification to a specific value in a fighter statline"
     stat = models.CharField(
         max_length=50,
         choices=[
