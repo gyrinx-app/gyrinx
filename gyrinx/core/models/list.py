@@ -1701,13 +1701,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             return self.content_equipment.cost_int()
 
         # If there are multiple overrides (from legacy and base), prefer legacy
-        if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
-            # Try to get the legacy override first
-            legacy_override = overrides.filter(
-                fighter=self.list_fighter.legacy_content_fighter
-            ).first()
-            if legacy_override:
-                return legacy_override.cost_int()
+        if overrides.count() > 1:
+            # Log warning if there are multiple overrides but only one fighter (shouldn't happen normally)
+            if len(fighters) == 1:
+                logger.warning(
+                    f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
+                )
+
+            # If we have a legacy fighter, try to get the legacy override first
+            if self.list_fighter.legacy_content_fighter:
+                legacy_override = overrides.filter(
+                    fighter=self.list_fighter.legacy_content_fighter
+                ).first()
+                if legacy_override:
+                    return legacy_override.cost_int()
 
         override = overrides.first()
         return override.cost_int()
