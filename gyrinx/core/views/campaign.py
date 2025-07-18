@@ -1571,6 +1571,15 @@ def campaign_asset_remove(request, id, asset_id):
         # Delete the asset
         asset.delete()
 
+        # Create campaign action for asset deletion
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            owner=request.user,
+            description=f"Asset Removed: {asset_name} ({asset_type_name}) has been removed from the campaign",
+            outcome=f"Asset was held by {holder_name}",
+        )
+
         # Log the removal event
         log_event(
             user=request.user,
