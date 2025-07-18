@@ -732,7 +732,6 @@ class EditListFighterStatsForm(forms.Form):
                     widget=forms.TextInput(
                         attrs={
                             "class": "form-control form-control-sm",
-                            "placeholder": placeholder,
                             "data-stat-id": stat_def.id,
                             "data-short-name": stat_def.short_name,
                         }
@@ -742,6 +741,7 @@ class EditListFighterStatsForm(forms.Form):
 
                 # Store metadata for template rendering
                 self.fields[field_name].stat_def = stat_def
+                self.fields[field_name].is_first_of_group = stat_def.is_first_of_group
                 self.fields[field_name].base_value = placeholder
         else:
             # Use legacy override fields
@@ -771,14 +771,17 @@ class EditListFighterStatsForm(forms.Form):
                     widget=forms.TextInput(
                         attrs={
                             "class": "form-control form-control-sm",
-                            "placeholder": base_value,
                             "data-short-name": short_name,
+                            "placeholder": "",
                         }
                     ),
                     initial=current_value,
                 )
 
                 # Store metadata for template rendering
+                self.fields[override_field].is_first_of_group = field_name in [
+                    "leadership"
+                ]
                 self.fields[override_field].short_name = short_name
                 self.fields[override_field].full_name = full_name
                 self.fields[override_field].base_value = base_value

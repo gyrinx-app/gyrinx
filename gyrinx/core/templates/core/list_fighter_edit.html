@@ -23,7 +23,7 @@
                 {% if form.content_fighter.help_text %}<div class="form-text">{{ form.content_fighter.help_text }}</div>{% endif %}
                 {% for error in form.content_fighter.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
             </div>
-            {% if form.legacy_content_fighter %}
+            {% if form.instance.content_fighter.can_take_legacy %}
                 <div>
                     {{ form.legacy_content_fighter.label_tag }}
                     {{ form.legacy_content_fighter }}
@@ -42,13 +42,10 @@
                 {% for error in form.cost_override.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
             </div>
             <div>
-                <label>Edit Stats</label>
-                <div>
-                    <a href="{% url 'core:list-fighter-stats-edit' list.id form.instance.id %}"
-                       class="btn btn-sm btn-secondary">
-                        <i class="bi bi-pencil-square"></i> Edit Fighter Stats
-                    </a>
-                </div>
+                <a href="{% url 'core:list-fighter-stats-edit' list.id form.instance.id %}"
+                   class="icon-link link-primary">
+                    <i class="bi-pencil-square"></i> Edit Fighter Stats
+                </a>
                 <div class="form-text">Customize the fighter's stat values (Movement, Weapon Skill, etc.)</div>
             </div>
             <div class="mt-3">
