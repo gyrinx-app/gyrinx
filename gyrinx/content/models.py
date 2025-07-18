@@ -2647,20 +2647,34 @@ class ContentStatline(Content):
     def clean(self):
         """
         Validates that all required stats have values through ContentStatlineStat.
+
+        Note: This validation is skipped during creation since the related
+        ContentStatlineStat objects are created after the ContentStatline is saved.
+        The admin's save_related method handles creating missing stats automatically.
         """
-        if self.statline_type_id and self.pk:
+        # Only validate if this is an existing object (has a pk) and has a statline type
+        # Skip validation during creation or when pk is not yet set
+        if (
+            self.statline_type_id
+            and self.pk
+            and hasattr(self, "_state")
+            and not self._state.adding
+        ):
             required_stats = set(
                 self.statline_type.stats.values_list("field_name", flat=True)
             )
-            provided_stats = set(
-                self.stats.values_list("statline_type_stat__field_name", flat=True)
-            )
-            missing_stats = required_stats - provided_stats
 
-            if missing_stats:
-                raise ValidationError(
-                    f"Missing required stats: {', '.join(sorted(missing_stats))}"
+            # Only validate if there are required stats
+            if required_stats:
+                provided_stats = set(
+                    self.stats.values_list("statline_type_stat__field_name", flat=True)
                 )
+                missing_stats = required_stats - provided_stats
+
+                if missing_stats:
+                    raise ValidationError(
+                        f"Missing required stats: {', '.join(sorted(missing_stats))}"
+                    )
 
     class Meta:
         verbose_name = "Fighter Statline"

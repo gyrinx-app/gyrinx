@@ -17,14 +17,14 @@ def test_content_statline_stat_model():
     # Create test data
     house = ContentHouse.objects.create(name="Test House")
     fighter = ContentFighter.objects.create(
-        type="Test Fighter", 
+        type="Test Fighter",
         house=house,
-        category="LEADER"  # Add required category
+        category="LEADER",  # Add required category
     )
-    
+
     # Create statline type
     statline_type = ContentStatlineType.objects.create(name="Vehicle")
-    
+
     # Create statline type stats
     movement_stat = ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
@@ -33,7 +33,7 @@ def test_content_statline_stat_model():
         full_name="Movement",
         position=1,
     )
-    
+
     front_stat = ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
         field_name="front",
@@ -41,42 +41,42 @@ def test_content_statline_stat_model():
         full_name="Front",
         position=2,
     )
-    
+
     # Create statline
     statline = ContentStatline.objects.create(
         content_fighter=fighter,
         statline_type=statline_type,
     )
-    
+
     # Create stat values
     movement_value = ContentStatlineStat.objects.create(
         statline=statline,
         statline_type_stat=movement_stat,
         value='8"',
     )
-    
-    front_value = ContentStatlineStat.objects.create(
+
+    ContentStatlineStat.objects.create(
         statline=statline,
         statline_type_stat=front_stat,
         value="12",
     )
-    
+
     # Test relationships
     assert statline.stats.count() == 2
     assert movement_value.statline == statline
     assert movement_value.statline_type_stat == movement_stat
     assert movement_value.value == '8"'
-    
+
     # Test string representation
-    assert str(movement_value) == "M: 8\""
+    assert str(movement_value) == 'M: 8"'
     assert str(statline) == "Test House Test Fighter (Leader) - Vehicle Statline"
-    
+
     # Test unique together constraint
     with pytest.raises(Exception):  # IntegrityError
         ContentStatlineStat.objects.create(
             statline=statline,
             statline_type_stat=movement_stat,
-            value="10\"",
+            value='10"',
         )
 
 
@@ -102,10 +102,10 @@ def test_content_fighter_statline_method():
         willpower=0,
         intelligence=0,
     )
-    
+
     # Create vehicle statline type
     vehicle_type = ContentStatlineType.objects.create(name="Vehicle")
-    
+
     # Create stats for vehicle
     stats_data = [
         ("movement", "M", "Movement", 1, False, False),
@@ -116,9 +116,16 @@ def test_content_fighter_statline_method():
         ("handling", "Hnd", "Handling", 6, True, False),
         ("crew", "Sv", "Crew", 7, True, False),
     ]
-    
+
     type_stats = []
-    for field_name, short_name, full_name, position, highlight, first_of_group in stats_data:
+    for (
+        field_name,
+        short_name,
+        full_name,
+        position,
+        highlight,
+        first_of_group,
+    ) in stats_data:
         stat = ContentStatlineTypeStat.objects.create(
             statline_type=vehicle_type,
             field_name=field_name,
@@ -129,13 +136,13 @@ def test_content_fighter_statline_method():
             is_first_of_group=first_of_group,
         )
         type_stats.append(stat)
-    
+
     # Create custom statline
     custom_statline = ContentStatline.objects.create(
         content_fighter=fighter,
         statline_type=vehicle_type,
     )
-    
+
     # Create stat values
     stat_values = ['8"', "12", "10", "9", "3", "6+", "5+"]
     for stat, value in zip(type_stats, stat_values):
@@ -144,19 +151,19 @@ def test_content_fighter_statline_method():
             statline_type_stat=stat,
             value=value,
         )
-    
+
     # Test the statline method
     statline = fighter.statline()
-    
+
     assert len(statline) == 7
     assert statline[0]["name"] == "M"
     assert statline[0]["value"] == '8"'
     assert statline[0]["highlight"] is False
-    
+
     assert statline[4]["name"] == "HP"
     assert statline[4]["value"] == "3"
     assert statline[4]["classes"] == "border-start"
-    
+
     assert statline[5]["name"] == "Hnd"
     assert statline[5]["value"] == "6+"
     assert statline[5]["highlight"] is True
@@ -168,14 +175,14 @@ def test_statline_validation():
     # Create test data
     house = ContentHouse.objects.create(name="Test House")
     fighter = ContentFighter.objects.create(
-        type="Test Fighter", 
+        type="Test Fighter",
         house=house,
-        category="GANGER"  # Add required category
+        category="GANGER",  # Add required category
     )
-    
+
     # Create statline type with stats
     statline_type = ContentStatlineType.objects.create(name="Test Type")
-    
+
     ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
         field_name="stat1",
@@ -183,7 +190,7 @@ def test_statline_validation():
         full_name="Stat 1",
         position=1,
     )
-    
+
     ContentStatlineTypeStat.objects.create(
         statline_type=statline_type,
         field_name="stat2",
@@ -191,22 +198,22 @@ def test_statline_validation():
         full_name="Stat 2",
         position=2,
     )
-    
+
     # Create statline without all required stats
     statline = ContentStatline.objects.create(
         content_fighter=fighter,
         statline_type=statline_type,
     )
-    
+
     # Add only one stat value
     ContentStatlineStat.objects.create(
         statline=statline,
         statline_type_stat=statline_type.stats.first(),
         value="10",
     )
-    
+
     # Validation should fail because stat2 is missing
     with pytest.raises(ValidationError) as exc_info:
         statline.clean()
-    
+
     assert "Missing required stats: stat2" in str(exc_info.value)

@@ -154,6 +154,7 @@ class FighterCategoryChoices(models.TextChoices):
     PROSPECT = "PROSPECT", "Prospect"
     SPECIALIST = "SPECIALIST", "Specialist"
     STASH = "STASH", "Stash"
+    VEHICLE = "VEHICLE", "Vehicle"
 
 
 class EquipmentCategoryChoices(models.TextChoices):
