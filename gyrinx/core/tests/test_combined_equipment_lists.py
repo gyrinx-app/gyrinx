@@ -4,11 +4,8 @@ from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import (
-    ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterEquipmentListItem,
-    ContentHouse,
 )
 from gyrinx.core.models import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
@@ -16,36 +13,10 @@ from gyrinx.models import FighterCategoryChoices
 User = get_user_model()
 
 
-def make_content_house(name):
-    """Helper to create a content house."""
-    return ContentHouse.objects.create(name=name)
-
-
-def make_content_fighter(
-    type, category, house, base_cost, can_take_legacy=False, can_be_legacy=False
-):
-    """Helper to create a content fighter."""
-    return ContentFighter.objects.create(
-        type=type,
-        category=category,
-        house=house,
-        base_cost=base_cost,
-        can_take_legacy=can_take_legacy,
-        can_be_legacy=can_be_legacy,
-    )
-
-
-def make_equipment(name, category, cost):
-    """Helper to create equipment."""
-    return ContentEquipment.objects.create(
-        name=name,
-        category=category,
-        cost=cost,
-    )
-
-
 @pytest.mark.django_db
-def test_combined_equipment_lists_legacy_and_base():
+def test_combined_equipment_lists_legacy_and_base(
+    make_content_house, make_content_fighter, make_equipment
+):
     """
     Test that when a fighter has a legacy, equipment from both the legacy fighter
     and base fighter equipment lists are available.
@@ -81,19 +52,19 @@ def test_combined_equipment_lists_legacy_and_base():
 
     # Create equipment - psyker options on base fighter
     non_sanctioned_psyker = make_equipment(
-        "Non-sanctioned Psyker",
+        name="Non-sanctioned Psyker",
         category=options_category,
         cost=30,
     )
     sanctioned_psyker = make_equipment(
-        "Sanctioned Psyker",
+        name="Sanctioned Psyker",
         category=options_category,
         cost=35,
     )
 
     # Create equipment - legacy equipment
     legacy_gear = make_equipment(
-        "Legacy Gear",
+        name="Legacy Gear",
         category=options_category,
         cost=50,
     )
@@ -178,7 +149,9 @@ def test_combined_equipment_lists_legacy_and_base():
 
 
 @pytest.mark.django_db
-def test_trading_post_shows_combined_equipment():
+def test_trading_post_shows_combined_equipment(
+    make_content_house, make_content_fighter, make_equipment
+):
     """
     Test that the trading post view shows equipment from both legacy and base fighters.
     """
@@ -208,7 +181,7 @@ def test_trading_post_shows_combined_equipment():
 
     # Equipment only on base fighter
     base_only_equipment = make_equipment(
-        "Base Fighter Equipment",
+        name="Base Fighter Equipment",
         category=options_category,
         cost=20,
     )
@@ -220,7 +193,7 @@ def test_trading_post_shows_combined_equipment():
 
     # Equipment only on legacy fighter
     legacy_only_equipment = make_equipment(
-        "Legacy Fighter Equipment",
+        name="Legacy Fighter Equipment",
         category=options_category,
         cost=30,
     )
