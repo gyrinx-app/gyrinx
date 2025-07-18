@@ -1,4 +1,5 @@
 import pytest
+from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
@@ -10,7 +11,6 @@ from gyrinx.content.models import (
     ContentHouse,
 )
 from gyrinx.core.models import List, ListFighter
-from django.contrib.auth import get_user_model
 from gyrinx.models import FighterCategoryChoices
 
 User = get_user_model()
@@ -250,14 +250,13 @@ def test_trading_post_shows_combined_equipment():
     client.force_login(user)
 
     # Access trading post with equipment list filter
-    url = reverse(
-        "core:list_fighter_equipment_assign", args=[fighter.id, options_category.id]
-    )
+    url = reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
     response = client.get(url, {"filter": "equipment-list"})
 
     assert response.status_code == 200
 
     # Both equipment should be in the response context
-    equipment_ids = [eq.equipment.id for eq in response.context["equipment"]]
+    # The view stores VirtualListFighterEquipmentAssignment objects in 'assigns'
+    equipment_ids = [assign.equipment.id for assign in response.context["assigns"]]
     assert base_only_equipment.id in equipment_ids
     assert legacy_only_equipment.id in equipment_ids
