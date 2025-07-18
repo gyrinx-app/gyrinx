@@ -48,6 +48,7 @@ from .models import (
     ContentSkill,
     ContentSkillCategory,
     ContentStatline,
+    ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
     ContentWeaponAccessory,
@@ -663,14 +664,54 @@ class ContentStatlineTypeAdmin(ContentAdmin, admin.ModelAdmin):
     get_stat_count.short_description = "Stats"
 
 
+class ContentStatlineStatInline(ContentTabularInline):
+    model = ContentStatlineStat
+    extra = 0
+    fields = ["statline_type_stat", "value"]
+    readonly_fields = []
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "statline_type_stat":
+            # Get the parent statline object if it exists
+            if request.resolver_match.kwargs.get("object_id"):
+                try:
+                    statline = ContentStatline.objects.get(
+                        pk=request.resolver_match.kwargs["object_id"]
+                    )
+                    # Filter to only show stats for this statline type
+                    kwargs["queryset"] = ContentStatlineTypeStat.objects.filter(
+                        statline_type=statline.statline_type
+                    )
+                except ContentStatline.DoesNotExist:
+                    pass
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
 @admin.register(ContentStatline)
 class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["content_fighter__type", "statline_type__name"]
     list_display = ["content_fighter", "statline_type"]
     list_filter = ["statline_type"]
     list_display_links = ["content_fighter"]
+    inlines = [ContentStatlineStatInline]
 
-    def formfield_for_dbfield(self, db_field, request, **kwargs):
-        if db_field.name == "stat_values":
-            kwargs["widget"] = admin.widgets.AdminTextareaWidget
-        return super().formfield_for_dbfield(db_field, request, **kwargs)
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+
+        # After saving, ensure all required stats exist
+        statline = form.instance
+        if statline.statline_type:
+            # Get all required stats for this statline type
+            required_stats = statline.statline_type.stats.all()
+            existing_stats = set(
+                statline.stats.values_list("statline_type_stat_id", flat=True)
+            )
+
+            # Create missing stats with empty values
+            for stat in required_stats:
+                if stat.id not in existing_stats:
+                    ContentStatlineStat.objects.create(
+                        statline=statline,
+                        statline_type_stat=stat,
+                        value="-",  # Default empty value
+                    )

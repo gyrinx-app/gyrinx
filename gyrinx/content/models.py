@@ -812,8 +812,13 @@ class ContentFighter(Content):
         if hasattr(self, "custom_statline"):
             statline = self.custom_statline
             stats = []
+            # Get all stat values for this statline
+            stat_values = {
+                stat.statline_type_stat.field_name: stat.value
+                for stat in statline.stats.select_related("statline_type_stat")
+            }
             for stat_def in statline.statline_type.stats.all():
-                value = statline.stat_values.get(stat_def.field_name, "-")
+                value = stat_values.get(stat_def.field_name, "-")
                 stats.append(
                     {
                         "field_name": stat_def.field_name,
@@ -2633,10 +2638,6 @@ class ContentStatline(Content):
         ContentFighter, on_delete=models.CASCADE, related_name="custom_statline"
     )
     statline_type = models.ForeignKey(ContentStatlineType, on_delete=models.CASCADE)
-    stat_values = models.JSONField(
-        default=dict,
-        help_text="JSON object storing stat values, e.g., {'movement': '5\"', 'front': '12', ...}",
-    )
 
     history = HistoricalRecords()
 
@@ -2645,22 +2646,51 @@ class ContentStatline(Content):
 
     def clean(self):
         """
-        Validates that all required stats are provided in stat_values.
+        Validates that all required stats have values through ContentStatlineStat.
         """
-        if self.statline_type_id and self.stat_values:
+        if self.statline_type_id and self.pk:
             required_stats = set(
                 self.statline_type.stats.values_list("field_name", flat=True)
             )
-            provided_stats = set(self.stat_values.keys())
+            provided_stats = set(
+                self.stats.values_list("statline_type_stat__field_name", flat=True)
+            )
             missing_stats = required_stats - provided_stats
 
             if missing_stats:
                 raise ValidationError(
-                    {
-                        "stat_values": f"Missing required stats: {', '.join(sorted(missing_stats))}"
-                    }
+                    f"Missing required stats: {', '.join(sorted(missing_stats))}"
                 )
 
     class Meta:
         verbose_name = "Fighter Statline"
         verbose_name_plural = "Fighter Statlines"
+
+
+class ContentStatlineStat(Content):
+    """
+    Stores a single stat value for a ContentStatline.
+    """
+
+    help_text = "Stores a single stat value for a fighter's statline."
+    statline = models.ForeignKey(
+        ContentStatline, on_delete=models.CASCADE, related_name="stats"
+    )
+    statline_type_stat = models.ForeignKey(
+        ContentStatlineTypeStat, on_delete=models.CASCADE
+    )
+    value = models.CharField(
+        max_length=10,
+        help_text="The stat value (e.g., '5\"', '12', '4+', '-')",
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.statline_type_stat.short_name}: {self.value}"
+
+    class Meta:
+        verbose_name = "Statline Stat"
+        verbose_name_plural = "Statline Stats"
+        unique_together = ["statline", "statline_type_stat"]
+        ordering = ["statline_type_stat__position"]
