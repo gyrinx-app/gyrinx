@@ -853,7 +853,6 @@ def edit_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_edit.html`
     """
-    print(f"Editing fighter {fighter_id} in list {id}")
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
