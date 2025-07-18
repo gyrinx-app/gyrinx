@@ -70,39 +70,41 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if fighter.skilline_cached|length > 0 %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="3">Skills</th>
-                    <td colspan="{% widthratio fighter.statline|length 12 9 %}">
-                        {% spaceless %}
-                            {% for skill in fighter.skilline_cached %}
-                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                {% if not print %}
-                                    <span>{% ref skill value=skill %}</span>
-                                {% else %}
-                                    <span>{{ skill }}</span>
+            {% if not fighter.content_fighter.hide_skills %}
+                {% if fighter.skilline_cached|length > 0 %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="3">Skills</th>
+                        <td colspan="{% widthratio fighter.statline|length 12 9 %}">
+                            {% spaceless %}
+                                {% for skill in fighter.skilline_cached %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% if not print %}
+                                        <span>{% ref skill value=skill %}</span>
+                                    {% else %}
+                                        <span>{{ skill }}</span>
+                                    {% endif %}
+                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% endfor %}
+                            {% endspaceless %}
+                            {% if not print %}
+                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
                                 {% endif %}
-                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                            {% endfor %}
-                        {% endspaceless %}
-                        {% if not print %}
-                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
                             {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
-            {% else %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="3">Skills</th>
-                    <td colspan="{% widthratio fighter.statline|length 12 9 %}">
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
-                        {% else %}
-                            <span class="text-muted fst-italic">None</span>
-                        {% endif %}
-                    </td>
-                </tr>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="3">Skills</th>
+                        <td colspan="{% widthratio fighter.statline|length 12 9 %}">
+                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
+                            {% else %}
+                                <span class="text-muted fst-italic">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
             {% endif %}
             {% if fighter.is_psyker %}
                 <tr class="fs-7">
@@ -129,7 +131,7 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if fighter.has_house_additional_gear %}
+            {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
                 {% for line in fighter.house_additional_gearline_display %}
                     <tr class="fs-7">
                         <th scope="row" colspan="3">{{ line.category }}</th>

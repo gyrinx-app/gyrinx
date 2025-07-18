@@ -752,6 +752,16 @@ class ContentFighter(Content):
         help_text="If checked, this fighter represents a gang's stash and should only show gear/weapons.",
     )
 
+    hide_skills = models.BooleanField(
+        default=False,
+        help_text="If checked, skills section will not be displayed on fighter card.",
+    )
+
+    hide_house_restricted_gear = models.BooleanField(
+        default=False,
+        help_text="If checked, house restricted gear section will not be displayed on fighter card.",
+    )
+
     # Other
 
     history = HistoricalRecords()
