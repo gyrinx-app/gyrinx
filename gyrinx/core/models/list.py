@@ -37,6 +37,7 @@ from gyrinx.content.models import (
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
+    ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
     RulelineDisplay,
@@ -720,13 +721,30 @@ class ListFighter(AppBase):
         Get the statline for this fighter.
         """
         stats = []
+
+        # Check if the fighter has a custom statline
+        has_custom_statline = hasattr(self.content_fighter_cached, "custom_statline")
+
+        # Get stat overrides for this fighter
+        stat_overrides = {}
+        if has_custom_statline and self.stat_overrides.exists():
+            stat_overrides = {
+                override.content_stat.field_name: override.value
+                for override in self.stat_overrides.select_related("content_stat")
+            }
+
         for stat in self.content_fighter_cached.statline():
             input_value = stat["value"]
 
             # Check for overrides
-            value_override = getattr(self, f"{stat['field_name']}_override", None)
-            if value_override is not None:
-                input_value = value_override
+            if has_custom_statline and stat["field_name"] in stat_overrides:
+                # Use ListFighterStatOverride if we have a custom statline
+                input_value = stat_overrides[stat["field_name"]]
+            else:
+                # Fall back to legacy _override fields
+                value_override = getattr(self, f"{stat['field_name']}_override", None)
+                if value_override is not None:
+                    input_value = value_override
 
             # Apply the mods
             value = self._apply_mods(
@@ -2806,3 +2824,44 @@ class CapturedFighter(AppBase):
     def get_original_list(self):
         """Get the original gang this fighter belongs to."""
         return self.fighter.list
+
+
+class ListFighterStatOverride(AppBase):
+    """
+    Allows overriding individual stat values for a ListFighter
+    when they have a custom statline.
+    """
+
+    help_text = (
+        "Represents a stat override for a ListFighter with a custom statline. "
+        "This allows overriding individual stat values from the base ContentStatline."
+    )
+
+    list_fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="stat_overrides",
+        help_text="The ListFighter this override applies to",
+    )
+    content_stat = models.ForeignKey(
+        ContentStatlineTypeStat,
+        on_delete=models.CASCADE,
+        help_text="The stat being overridden",
+    )
+    value = models.CharField(
+        max_length=10,
+        help_text="The overridden stat value (e.g., '5\"', '12', '4+', '-')",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "List Fighter Stat Override"
+        verbose_name_plural = "List Fighter Stat Overrides"
+        unique_together = ["list_fighter", "content_stat"]
+        ordering = ["content_stat__position"]
+
+    def __str__(self):
+        return (
+            f"{self.list_fighter.name} - {self.content_stat.short_name}: {self.value}"
+        )

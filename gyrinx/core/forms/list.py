@@ -7,7 +7,11 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
 )
 from gyrinx.core.forms import BsCheckboxSelectMultiple, BsClearableFileInput
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
@@ -760,3 +764,99 @@ class EquipmentSellForm(forms.Form):
         widget=forms.HiddenInput(),
         initial=True,
     )
+
+
+class EditListFighterStatsForm(forms.Form):
+    """Form for editing fighter stat overrides in a table format."""
+
+    def __init__(self, *args, **kwargs):
+        fighter = kwargs.pop("fighter", None)
+        super().__init__(*args, **kwargs)
+
+        if not fighter:
+            return
+
+        # Check if the fighter has a custom statline
+        has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
+
+        if has_custom_statline:
+            # Use the custom statline approach
+            statline = fighter.content_fighter.custom_statline
+
+            # Get existing overrides
+            existing_overrides = {
+                override.content_stat.id: override.value
+                for override in fighter.stat_overrides.select_related("content_stat")
+            }
+
+            # Create fields for each stat in the statline
+            for stat_def in statline.statline_type.stats.all():
+                field_name = f"stat_{stat_def.id}"
+                initial_value = existing_overrides.get(stat_def.id, "")
+
+                # Get the base value from ContentStatline
+                try:
+                    base_stat = statline.stats.get(statline_type_stat=stat_def)
+                    placeholder = base_stat.value
+                except Exception:
+                    placeholder = "-"
+
+                self.fields[field_name] = forms.CharField(
+                    required=False,
+                    label=stat_def.full_name,
+                    widget=forms.TextInput(
+                        attrs={
+                            "class": "form-control form-control-sm",
+                            "placeholder": placeholder,
+                            "data-stat-id": stat_def.id,
+                            "data-short-name": stat_def.short_name,
+                        }
+                    ),
+                    initial=initial_value,
+                )
+
+                # Store metadata for template rendering
+                self.fields[field_name].stat_def = stat_def
+                self.fields[field_name].base_value = placeholder
+        else:
+            # Use legacy override fields
+            legacy_stats = [
+                ("movement", "M", "Movement"),
+                ("weapon_skill", "WS", "Weapon Skill"),
+                ("ballistic_skill", "BS", "Ballistic Skill"),
+                ("strength", "S", "Strength"),
+                ("toughness", "T", "Toughness"),
+                ("wounds", "W", "Wounds"),
+                ("initiative", "I", "Initiative"),
+                ("attacks", "A", "Attacks"),
+                ("leadership", "Ld", "Leadership"),
+                ("cool", "Cl", "Cool"),
+                ("willpower", "Wil", "Willpower"),
+                ("intelligence", "Int", "Intelligence"),
+            ]
+
+            for field_name, short_name, full_name in legacy_stats:
+                override_field = f"{field_name}_override"
+                current_value = getattr(fighter, override_field) or ""
+                base_value = getattr(fighter.content_fighter, field_name) or "-"
+
+                self.fields[override_field] = forms.CharField(
+                    required=False,
+                    label=full_name,
+                    widget=forms.TextInput(
+                        attrs={
+                            "class": "form-control form-control-sm",
+                            "placeholder": base_value,
+                            "data-short-name": short_name,
+                        }
+                    ),
+                    initial=current_value,
+                )
+
+                # Store metadata for template rendering
+                self.fields[override_field].short_name = short_name
+                self.fields[override_field].full_name = full_name
+                self.fields[override_field].base_value = base_value
+
+        self.fighter = fighter
+        self.has_custom_statline = has_custom_statline

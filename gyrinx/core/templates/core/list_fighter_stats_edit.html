@@ -1,0 +1,83 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit Stats - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=return_url text="Back" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Edit Stats: {{ fighter.name }}</h1>
+        
+        <form action="{% url 'core:list-fighter-stats-edit' list.id fighter.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="return_url" value="{{ return_url }}">
+            
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Stat Overrides</h5>
+                    <p class="text-muted mb-3">
+                        Leave fields empty to use the default values. Enter new values to override the base stats.
+                    </p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Stat</th>
+                                    <th>Short</th>
+                                    <th>Base Value</th>
+                                    <th>Override</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field in form %}
+                                    <tr>
+                                        <td>{{ field.label }}</td>
+                                        <td>
+                                            {% if form.has_custom_statline %}
+                                                {{ field.field.stat_def.short_name }}
+                                            {% else %}
+                                                {{ field.field.short_name }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-muted">
+                                            {{ field.field.base_value }}
+                                        </td>
+                                        <td>
+                                            {{ field }}
+                                            {% if field.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ field.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% if form.has_custom_statline %}
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            This fighter uses a custom statline. Overrides are stored separately from legacy stat overrides.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if error_message %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error_message }}
+                </div>
+            {% endif %}
+            
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{{ return_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
