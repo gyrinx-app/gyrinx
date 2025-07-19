@@ -485,10 +485,8 @@ def test_campaign_state_change_actions(client):
     # Second action should be the campaign start action
     start_action = all_actions[1]
     assert start_action.user == user
-    assert start_action.description == "Campaign Started: Test Campaign is now active"
     assert (
-        start_action.outcome
-        == "Campaign transitioned from pre-campaign to active status"
+        start_action.description == "Campaign Started: Test Campaign is now in progress"
     )
 
     # Store the IDs of the initial actions

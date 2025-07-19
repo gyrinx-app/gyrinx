@@ -853,8 +853,7 @@ def start_campaign(request, id):
                     user=request.user,
                     owner=request.user,
                     campaign=campaign,
-                    description=f"Campaign Started: {campaign.name} is now active",
-                    outcome="Campaign transitioned from pre-campaign to active status",
+                    description=f"Campaign Started: {campaign.name} is now in progress",
                 )
 
                 # Log the campaign start event
@@ -1571,14 +1570,14 @@ def campaign_asset_remove(request, id, asset_id):
         # Delete the asset
         asset.delete()
 
-        # Create campaign action for asset deletion
-        CampaignAction.objects.create(
-            campaign=campaign,
-            user=request.user,
-            owner=request.user,
-            description=f"Asset Removed: {asset_name} ({asset_type_name}) has been removed from the campaign",
-            outcome=f"Asset was held by {holder_name}",
-        )
+        if campaign.is_in_progress:
+            # Create campaign action for asset deletion
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                owner=request.user,
+                description=f"Asset Removed: {asset_name} ({asset_type_name}) has been removed from the campaign",
+            )
 
         # Log the removal event
         log_event(
