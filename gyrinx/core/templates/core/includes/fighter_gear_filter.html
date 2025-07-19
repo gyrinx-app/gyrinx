@@ -68,6 +68,7 @@
         <div class="btn-group"
              {% if is_equipment_list %} data-bs-toggle="tooltip" data-bs-placement="top" title="Availability filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability." {% endif %}>
             <button type="button"
+                    id="availability-dropdown-button"
                     class="btn btn-outline-primary btn-sm dropdown-toggle{% if is_equipment_list %} disabled{% endif %}"
                     {% if not is_equipment_list %} data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside" {% else %} disabled {% endif %}>
                 Availability

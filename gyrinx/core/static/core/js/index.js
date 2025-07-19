@@ -224,16 +224,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const filterSwitch = document.getElementById("filter-switch");
     const illegalCheckbox = document.getElementById("al-i");
 
-    // Find the availability button by looking for a button containing "Availability" text
-    let availabilityButton = null;
-    const dropdownButtons = document.querySelectorAll(
-        ".btn-group button.dropdown-toggle",
+    // Find the availability button by its ID
+    const availabilityButton = document.getElementById(
+        "availability-dropdown-button",
     );
-    dropdownButtons.forEach((button) => {
-        if (button.textContent.trim() === "Availability") {
-            availabilityButton = button;
-        }
-    });
 
     if (filterSwitch && availabilityButton) {
         filterSwitch.addEventListener("change", (event) => {
