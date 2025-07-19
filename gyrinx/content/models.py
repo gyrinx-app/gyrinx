@@ -752,6 +752,16 @@ class ContentFighter(Content):
         help_text="If checked, this fighter represents a gang's stash and should only show gear/weapons.",
     )
 
+    hide_skills = models.BooleanField(
+        default=False,
+        help_text="If checked, skills section will not be displayed on fighter card.",
+    )
+
+    hide_house_restricted_gear = models.BooleanField(
+        default=False,
+        help_text="If checked, house restricted gear section will not be displayed on fighter card.",
+    )
+
     # Other
 
     history = HistoricalRecords()
@@ -774,6 +784,13 @@ class ContentFighter(Content):
         Returns a composite name combining fighter type and category label.
         """
         return f"{self.type} ({self.cat()})"
+
+    @cached_property
+    def is_vehicle(self):
+        """
+        Indicates whether this fighter is a vehicle.
+        """
+        return self.category == FighterCategoryChoices.VEHICLE
 
     def cost(self):
         """
@@ -806,7 +823,36 @@ class ContentFighter(Content):
     def statline(self):
         """
         Returns a list of dictionaries describing the fighter's core stats,
-        with additional styling indicators.
+        with additional styling indicators. Prefers custom statline if available.
+        """
+        # Check for custom statline first
+        if hasattr(self, "custom_statline"):
+            statline = self.custom_statline
+            stats = []
+            # Get all stat values for this statline
+            stat_values = {
+                stat.statline_type_stat.field_name: stat.value
+                for stat in statline.stats.select_related("statline_type_stat")
+            }
+            for stat_def in statline.statline_type.stats.all():
+                value = stat_values.get(stat_def.field_name, "-")
+                stats.append(
+                    {
+                        "field_name": stat_def.field_name,
+                        "name": stat_def.short_name,
+                        "value": value,
+                        "highlight": stat_def.is_highlighted,
+                        "classes": "border-start" if stat_def.is_first_of_group else "",
+                    }
+                )
+            return stats
+
+        # Fall back to legacy hardcoded stats
+        return self._legacy_statline()
+
+    def _legacy_statline(self):
+        """
+        Returns the hardcoded statline for backward compatibility.
         """
         stats = [
             (f, self._meta.get_field(f))
@@ -2104,6 +2150,8 @@ class ContentModStatApplyMixin:
         "cool",
         "willpower",
         "initiative",
+        "handling",
+        "save",
     ]
 
     inch_stats = ["range_short", "range_long", "movement"]
@@ -2119,6 +2167,8 @@ class ContentModStatApplyMixin:
         "cool",
         "willpower",
         "initiative",
+        "handling",
+        "save",
     ]
 
     def apply(self, input_value: str) -> str:
@@ -2242,10 +2292,10 @@ class ContentModStat(ContentMod, ContentModStatApplyMixin):
 
 class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     """
-    Weapon stat modifier
+    Fighter stat modifier
     """
 
-    help_text = "A modification to a specific value in a weapon statline"
+    help_text = "A modification to a specific value in a fighter statline"
     stat = models.CharField(
         max_length=50,
         choices=[
@@ -2261,6 +2311,12 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
             ("cool", "Cool"),
             ("willpower", "Willpower"),
             ("intelligence", "Intelligence"),
+            ("front", "Front"),
+            ("side", "Side"),
+            ("rear", "Rear"),
+            ("hull_points", "Hull Points"),
+            ("handling", "Handling"),
+            ("save", "Save"),
         ],
     )
     mode = models.CharField(
@@ -2511,3 +2567,211 @@ class ContentInjury(Content):
         verbose_name = "Injury"
         verbose_name_plural = "Injuries"
         ordering = ["group", "name"]
+
+
+##
+## Statline Models for flexible stat systems (e.g., vehicles)
+##
+
+
+class ContentStat(Content):
+    """
+    Represents a single stat definition that can be used across multiple
+    statline types. This avoids duplication of stat definitions.
+    """
+
+    help_text = "A stat definition that can be shared across different statline types."
+    field_name = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Internal field name (e.g., 'movement', 'front_toughness')",
+    )
+    short_name = models.CharField(
+        max_length=10, help_text="Short display name (e.g., 'M', 'Fr')"
+    )
+    full_name = models.CharField(
+        max_length=50,
+        help_text="Full display name (e.g., 'Movement', 'Front Toughness')",
+    )
+
+    history = HistoricalRecords()
+
+    def save(self, *args, **kwargs):
+        # Auto-generate field_name from full_name on first save
+        if not self.field_name and self.full_name:
+            import re
+
+            # Convert to lowercase and replace non-alphanumeric with underscores
+            field_name = re.sub(r"[^a-z0-9]+", "_", self.full_name.lower())
+            # Remove leading/trailing underscores
+            field_name = field_name.strip("_")
+            # Replace multiple underscores with single
+            field_name = re.sub(r"_+", "_", field_name)
+            self.field_name = field_name
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.short_name} ({self.full_name})"
+
+    class Meta:
+        verbose_name = "Stat"
+        verbose_name_plural = "Stats"
+        ordering = ["full_name"]
+
+
+class ContentStatlineType(Content):
+    """
+    Defines a type of statline (e.g., 'Fighter', 'Vehicle') that can have
+    different sets of statistics.
+    """
+
+    help_text = "Represents a type of statline with its own set of stats (e.g., Fighter, Vehicle)."
+    name = models.CharField(max_length=255, unique=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Statline Type"
+        verbose_name_plural = "Statline Types"
+        ordering = ["name"]
+
+
+class ContentStatlineTypeStat(Content):
+    """
+    Links a stat to a statline type with display properties.
+    This allows the same stat to be used across multiple statline types
+    with different positions and display settings.
+    """
+
+    help_text = "Links a stat definition to a statline type with positioning and display settings."
+    statline_type = models.ForeignKey(
+        ContentStatlineType, on_delete=models.CASCADE, related_name="stats"
+    )
+    stat = models.ForeignKey(
+        ContentStat, on_delete=models.CASCADE, related_name="statline_type_stats"
+    )
+    position = models.IntegerField(
+        help_text="Display order position (lower numbers appear first)"
+    )
+    is_highlighted = models.BooleanField(
+        default=False,
+        help_text="Whether this stat should be highlighted in the UI (like Ld, Cl, Wil, Int)",
+    )
+    is_first_of_group = models.BooleanField(
+        default=False,
+        help_text="Whether this stat starts a new visual group (adds border)",
+    )
+
+    history = HistoricalRecords()
+
+    # Properties for backward compatibility
+    @property
+    def field_name(self):
+        return self.stat.field_name
+
+    @property
+    def short_name(self):
+        return self.stat.short_name
+
+    @property
+    def full_name(self):
+        return self.stat.full_name
+
+    def __str__(self):
+        return f"{self.statline_type.name} - {self.stat.short_name} ({self.stat.full_name})"
+
+    class Meta:
+        verbose_name = "Statline Type Stat"
+        verbose_name_plural = "Statline Type Stats"
+        ordering = ["statline_type", "position"]
+        unique_together = ["statline_type", "stat"]
+
+
+class ContentStatline(Content):
+    """
+    Stores actual stat values for a ContentFighter using a flexible statline type.
+    """
+
+    help_text = (
+        "Stores the actual stat values for a fighter using a custom statline type."
+    )
+    content_fighter = models.OneToOneField(
+        ContentFighter, on_delete=models.CASCADE, related_name="custom_statline"
+    )
+    statline_type = models.ForeignKey(ContentStatlineType, on_delete=models.CASCADE)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.content_fighter} - {self.statline_type.name} Statline"
+
+    def clean(self):
+        """
+        Validates that all required stats have values through ContentStatlineStat.
+
+        Note: This validation is skipped during creation since the related
+        ContentStatlineStat objects are created after the ContentStatline is saved.
+        The admin's save_related method handles creating missing stats automatically.
+        """
+        # Only validate if this is an existing object (has a pk) and has a statline type
+        # Skip validation during creation or when pk is not yet set
+        if (
+            self.statline_type_id
+            and self.pk
+            and hasattr(self, "_state")
+            and not self._state.adding
+        ):
+            required_stats = set(
+                self.statline_type.stats.values_list("stat__field_name", flat=True)
+            )
+
+            # Only validate if there are required stats
+            if required_stats:
+                provided_stats = set(
+                    self.stats.values_list(
+                        "statline_type_stat__stat__field_name", flat=True
+                    )
+                )
+                missing_stats = required_stats - provided_stats
+
+                if missing_stats:
+                    raise ValidationError(
+                        f"Missing required stats: {', '.join(sorted(missing_stats))}"
+                    )
+
+    class Meta:
+        verbose_name = "Fighter Statline"
+        verbose_name_plural = "Fighter Statlines"
+
+
+class ContentStatlineStat(Content):
+    """
+    Stores a single stat value for a ContentStatline.
+    """
+
+    help_text = "Stores a single stat value for a fighter's statline."
+    statline = models.ForeignKey(
+        ContentStatline, on_delete=models.CASCADE, related_name="stats"
+    )
+    statline_type_stat = models.ForeignKey(
+        ContentStatlineTypeStat, on_delete=models.CASCADE
+    )
+    value = models.CharField(
+        max_length=10,
+        help_text="The stat value (e.g., '5\"', '12', '4+', '-')",
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.statline_type_stat.short_name}: {self.value}"
+
+    class Meta:
+        verbose_name = "Statline Stat"
+        verbose_name_plural = "Statline Stats"
+        unique_together = ["statline", "statline_type_stat"]
+        ordering = ["statline_type_stat__position"]

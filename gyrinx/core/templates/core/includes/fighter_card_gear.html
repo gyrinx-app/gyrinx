@@ -23,21 +23,10 @@
         <table class="table table-sm table-borderless table-fixed mb-0">
             {% if not fighter.is_stash %}
                 <thead>
-                    <tr>
-                        <th class="text-center border-bottom" scope="col">M</th>
-                        <th class="text-center border-bottom" scope="col">WS</th>
-                        <th class="text-center border-bottom" scope="col">BS</th>
-                        <th class="text-center border-bottom" scope="col">S</th>
-                        <th class="text-center border-bottom" scope="col">T</th>
-                        <th class="text-center border-bottom" scope="col">W</th>
-                        <th class="text-center border-bottom" scope="col">I</th>
-                        <th class="text-center border-bottom" scope="col">A</th>
-                        <th class="text-center border-bottom bg-warning-subtle border-start"
-                            scope="col">Ld</th>
-                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Cl</th>
-                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Wil</th>
-                        <th class="text-center border-bottom bg-warning-subtle" scope="col">Int</th>
-                    </tr>
+                    {% for stat in fighter.statline %}
+                        <th class="text-center border-bottom {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                            scope="col">{{ stat.name }}</th>
+                    {% endfor %}
                 </thead>
                 <tbody>
                     <tr class="table-nowrap">{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
@@ -46,18 +35,19 @@
             <tbody class="table-group-divider">
                 {% firstof gear_mode "link" as gear_mode_default %}
                 {% if not fighter.is_stash %}
-                    {% if fighter.has_house_additional_gear %}
+                    {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
                         {% if gear_mode == "edit" %}
                             <!-- House Additional Gearline -->
                             {% for line in fighter.house_additional_gearline_display %}
                                 {% for assign in line.assignments %}
                                     <tr class="fs-7">
                                         {% if forloop.first %}
-                                            <th scope="row" colspan="3">{{ line.category }}</th>
+                                            <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">{{ line.category }}</th>
                                         {% else %}
-                                            <th scope="row" colspan="3"></th>
+                                            <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}"></th>
                                         {% endif %}
-                                        <td colspan="9" class="{% flash assign.id %}">
+                                        <td colspan="{% widthratio 75 100 fighter.statline|length %}"
+                                            class="{% flash assign.id %}">
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                                 <span bs-tooltip
                                                       data-bs-toggle="tooltip"
@@ -91,8 +81,8 @@
                                 {% empty %}
                                     {% if list.owner_cached == user and not print %}
                                         <tr class="fs-7">
-                                            <th scope="row" colspan="3">{{ line.category }}</th>
-                                            <td colspan="9">
+                                            <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">{{ line.category }}</th>
+                                            <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
@@ -107,8 +97,8 @@
                             <!-- House Additional Gearline -->
                             {% for line in fighter.house_additional_gearline_display %}
                                 <tr class="fs-7">
-                                    <th scope="row" colspan="3">{{ line.category }}</th>
-                                    <td colspan="9">
+                                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">{{ line.category }}</th>
+                                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                                         {% for assign in line.assignments %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
                                             {% spaceless %}
@@ -142,11 +132,12 @@
                         {% for assign in fighter.wargear %}
                             <tr class="fs-7">
                                 {% if forloop.first %}
-                                    <th scope="row" colspan="3">Gear</th>
+                                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Gear</th>
                                 {% else %}
-                                    <th scope="row" colspan="3"></th>
+                                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}"></th>
                                 {% endif %}
-                                <td colspan="9" class="{% flash assign.id %}">
+                                <td colspan="{% widthratio 75 100 fighter.statline|length %}"
+                                    class="{% flash assign.id %}">
                                     {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                         <span bs-tooltip
                                               data-bs-toggle="tooltip"
@@ -194,8 +185,8 @@
                     {% else %}
                         <!-- Wargear -->
                         <tr class="fs-7">
-                            <th scope="row" colspan="3">Gear</th>
-                            <td colspan="9">
+                            <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Gear</th>
+                            <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                                 {% spaceless %}
                                     {% for assign in fighter.wargear %}
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -216,8 +207,8 @@
                 {% else %}
                     {% if list.owner_cached == user and not print %}
                         <tr class="fs-7">
-                            <th scope="row" colspan="3">Gear</th>
-                            <td colspan="9">
+                            <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Gear</th>
+                            <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                                 {% if gear_mode_default == "link" %}
                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
                                 {% else %}

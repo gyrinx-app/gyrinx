@@ -30,19 +30,10 @@
     <table class="table table-sm table-borderless table-fixed mb-0">
         <thead>
             <tr>
-                <th class="text-center border-bottom" scope="col">M</th>
-                <th class="text-center border-bottom" scope="col">WS</th>
-                <th class="text-center border-bottom" scope="col">BS</th>
-                <th class="text-center border-bottom" scope="col">S</th>
-                <th class="text-center border-bottom" scope="col">T</th>
-                <th class="text-center border-bottom" scope="col">W</th>
-                <th class="text-center border-bottom" scope="col">I</th>
-                <th class="text-center border-bottom" scope="col">A</th>
-                <th class="text-center border-bottom bg-warning-subtle border-start"
-                    scope="col">Ld</th>
-                <th class="text-center border-bottom bg-warning-subtle" scope="col">Cl</th>
-                <th class="text-center border-bottom bg-warning-subtle" scope="col">Wil</th>
-                <th class="text-center border-bottom bg-warning-subtle" scope="col">Int</th>
+                {% for stat in fighter.statline %}
+                    <th class="text-center border-bottom {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                        scope="col">{{ stat.name }}</th>
+                {% endfor %}
             </tr>
         </thead>
         <tbody>
@@ -51,8 +42,8 @@
         <tbody class="table-group-divider">
             {% if fighter.ruleline|length > 0 %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Rules</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Rules</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% spaceless %}
                             {# djlint:off #}
                             {% for rule in fighter.ruleline %}<span>{% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>, </span>{% endif %}</span>{% endfor %}
@@ -64,8 +55,8 @@
             {% comment %} XP (only in campaign mode) {% endcomment %}
             {% if list.is_campaign_mode %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">XP</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">XP</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
                         {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
@@ -79,44 +70,46 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if fighter.skilline_cached|length > 0 %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="3">Skills</th>
-                    <td colspan="9">
-                        {% spaceless %}
-                            {% for skill in fighter.skilline_cached %}
-                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                {% if not print %}
-                                    <span>{% ref skill value=skill %}</span>
-                                {% else %}
-                                    <span>{{ skill }}</span>
+            {% if not fighter.content_fighter.hide_skills %}
+                {% if fighter.skilline_cached|length > 0 %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Skills</th>
+                        <td colspan="{% widthratio 75 100 fighter.statline|length %}">
+                            {% spaceless %}
+                                {% for skill in fighter.skilline_cached %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% if not print %}
+                                        <span>{% ref skill value=skill %}</span>
+                                    {% else %}
+                                        <span>{{ skill }}</span>
+                                    {% endif %}
+                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% endfor %}
+                            {% endspaceless %}
+                            {% if not print %}
+                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
                                 {% endif %}
-                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                            {% endfor %}
-                        {% endspaceless %}
-                        {% if not print %}
-                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Edit skills</a>
                             {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
-            {% else %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="3">Skills</th>
-                    <td colspan="9">
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
-                        {% else %}
-                            <span class="text-muted fst-italic">None</span>
-                        {% endif %}
-                    </td>
-                </tr>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Skills</th>
+                        <td colspan="{% widthratio 75 100 fighter.statline|length %}">
+                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
+                            {% else %}
+                                <span class="text-muted fst-italic">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
             {% endif %}
             {% if fighter.is_psyker %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Powers</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Powers</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% spaceless %}
                             {% for assign in fighter.powers_cached %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -138,11 +131,11 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if fighter.has_house_additional_gear %}
+            {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
                 {% for line in fighter.house_additional_gearline_display %}
                     <tr class="fs-7">
-                        <th scope="row" colspan="3">{{ line.category }}</th>
-                        <td colspan="9">
+                        <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">{{ line.category }}</th>
+                        <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                             {% spaceless %}
                                 {% for assign in line.assignments %}
                                     {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -166,8 +159,8 @@
             {% endif %}
             {% if fighter.wargearline_cached|length > 0 %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Gear</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Gear</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% spaceless %}
                             {% for assign in fighter.wargear %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -186,8 +179,8 @@
                 </tr>
             {% else %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Gear</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Gear</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
                         {% else %}
@@ -199,8 +192,8 @@
             {% comment %} Injuries (only in campaign mode) {% endcomment %}
             {% if list.is_campaign_mode and fighter.injuries.exists %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Injuries</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Injuries</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% for injury in fighter.injuries.all %}
                             {% if not forloop.first %},{% endif %}
                             {{ injury.injury.name }}
@@ -212,8 +205,8 @@
                 </tr>
             {% elif list.is_campaign_mode %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Injuries</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Injuries</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add injuries</a>
                         {% else %}
@@ -225,8 +218,8 @@
             {% comment %} Advancements (only in campaign mode) {% endcomment %}
             {% if list.is_campaign_mode %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="3">Advancements</th>
-                    <td colspan="9">
+                    <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Advancements</th>
+                    <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                         {% with advancement_count=fighter.advancements.count %}
                             {% if advancement_count == 0 %}
                                 {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}

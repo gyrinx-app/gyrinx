@@ -7,7 +7,11 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
 )
 from gyrinx.core.forms import BsCheckboxSelectMultiple, BsClearableFileInput
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices
@@ -137,21 +141,6 @@ class ListFighterForm(forms.ModelForm):
             help_text=self.fields["content_fighter"].help_text,
         )
 
-        overrides = [
-            "movement_override",
-            "weapon_skill_override",
-            "ballistic_skill_override",
-            "strength_override",
-            "toughness_override",
-            "wounds_override",
-            "initiative_override",
-            "attacks_override",
-            "leadership_override",
-            "cool_override",
-            "willpower_override",
-            "intelligence_override",
-        ]
-
         if inst:
             # Fighters for the house and from generic houses, excluding Exotic Beasts
             # who are added via equipment
@@ -196,11 +185,6 @@ class ListFighterForm(forms.ModelForm):
                     inst._base_cost_int
                 )
 
-                for field in overrides:
-                    self.fields[field].widget.attrs["placeholder"] = getattr(
-                        inst.content_fighter, field.replace("_override", "")
-                    )
-
                 # Disable legacy content fighter if the content fighter is not a legacy
                 if not inst.content_fighter.can_take_legacy:
                     self.fields["legacy_content_fighter"].disabled = True
@@ -208,13 +192,8 @@ class ListFighterForm(forms.ModelForm):
 
                 group_select(self, "legacy_content_fighter", key=lambda x: x.house.name)
             else:
-                # If no instance is provided, we are creating a new fighter
-                # and we don't want to allow the user to override the stats
-                for field in overrides:
-                    self.fields.pop(field, None)
-
                 # Don't allow the user to set a legacy content fighter on creation
-                self.fields.pop("legacy_content_fighter")
+                self.fields.pop("legacy_content_fighter", None)
 
         def fighter_group_key(fighter):
             # Group by house name
@@ -242,53 +221,17 @@ class ListFighterForm(forms.ModelForm):
             "content_fighter",
             "legacy_content_fighter",
             "cost_override",
-            "movement_override",
-            "weapon_skill_override",
-            "ballistic_skill_override",
-            "strength_override",
-            "toughness_override",
-            "wounds_override",
-            "initiative_override",
-            "attacks_override",
-            "leadership_override",
-            "cool_override",
-            "willpower_override",
-            "intelligence_override",
         ]
         labels = {
             "name": "Name",
             "content_fighter": "Fighter Type",
             "legacy_content_fighter": "Gang Legacy",
             "cost_override": "Manually Set Cost",
-            "movement_override": "Movement",
-            "weapon_skill_override": "Weapon Skill",
-            "ballistic_skill_override": "Ballistic Skill",
-            "strength_override": "Strength",
-            "toughness_override": "Toughness",
-            "wounds_override": "Wounds",
-            "initiative_override": "Initiative",
-            "attacks_override": "Attacks",
-            "leadership_override": "Leadership",
-            "cool_override": "Cool",
-            "willpower_override": "Willpower",
-            "intelligence_override": "Intelligence",
         }
         help_texts = {
             "name": "The name you use to identify this Fighter. This may be public.",
             "legacy_content_fighter": "The Gang Legacy for this fighter.",
             "cost_override": "Only change this if you want to override the default base cost of the Fighter.",
-            "movement_override": "Override the default Movement for this fighter",
-            "weapon_skill_override": "Override the default Weapon Skill for this fighter",
-            "ballistic_skill_override": "Override the default Ballistic Skill for this fighter",
-            "strength_override": "Override the default Strength for this fighter",
-            "toughness_override": "Override the default Toughness for this fighter",
-            "wounds_override": "Override the default Wounds for this fighter",
-            "initiative_override": "Override the default Initiative for this fighter",
-            "attacks_override": "Override the default Attacks for this fighter",
-            "leadership_override": "Override the default Leadership for this fighter",
-            "cool_override": "Override the default Cool for this fighter",
-            "willpower_override": "Override the default Willpower for this fighter",
-            "intelligence_override": "Override the default Intelligence for this fighter",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -299,20 +242,6 @@ class ListFighterForm(forms.ModelForm):
             "cost_override": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}
             ),
-            "movement_override": forms.TextInput(attrs={"class": "form-control"}),
-            "weapon_skill_override": forms.TextInput(attrs={"class": "form-control"}),
-            "ballistic_skill_override": forms.TextInput(
-                attrs={"class": "form-control"}
-            ),
-            "strength_override": forms.TextInput(attrs={"class": "form-control"}),
-            "toughness_override": forms.TextInput(attrs={"class": "form-control"}),
-            "wounds_override": forms.TextInput(attrs={"class": "form-control"}),
-            "initiative_override": forms.TextInput(attrs={"class": "form-control"}),
-            "attacks_override": forms.TextInput(attrs={"class": "form-control"}),
-            "leadership_override": forms.TextInput(attrs={"class": "form-control"}),
-            "cool_override": forms.TextInput(attrs={"class": "form-control"}),
-            "willpower_override": forms.TextInput(attrs={"class": "form-control"}),
-            "intelligence_override": forms.TextInput(attrs={"class": "form-control"}),
         }
 
 
@@ -760,3 +689,102 @@ class EquipmentSellForm(forms.Form):
         widget=forms.HiddenInput(),
         initial=True,
     )
+
+
+class EditListFighterStatsForm(forms.Form):
+    """Form for editing fighter stat overrides in a table format."""
+
+    def __init__(self, *args, **kwargs):
+        fighter = kwargs.pop("fighter", None)
+        super().__init__(*args, **kwargs)
+
+        if not fighter:
+            return
+
+        # Check if the fighter has a custom statline
+        has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
+
+        if has_custom_statline:
+            # Use the custom statline approach
+            statline = fighter.content_fighter.custom_statline
+
+            # Get existing overrides
+            existing_overrides = {
+                override.content_stat.id: override.value
+                for override in fighter.stat_overrides.select_related("content_stat")
+            }
+
+            # Create fields for each stat in the statline
+            for stat_def in statline.statline_type.stats.all():
+                field_name = f"stat_{stat_def.id}"
+                initial_value = existing_overrides.get(stat_def.id, "")
+
+                # Get the base value from ContentStatline
+                try:
+                    base_stat = statline.stats.get(statline_type_stat=stat_def)
+                    placeholder = base_stat.value
+                except Exception:
+                    placeholder = "-"
+
+                self.fields[field_name] = forms.CharField(
+                    required=False,
+                    label=stat_def.full_name,
+                    widget=forms.TextInput(
+                        attrs={
+                            "class": "form-control form-control-sm",
+                            "data-stat-id": stat_def.id,
+                            "data-short-name": stat_def.short_name,
+                        }
+                    ),
+                    initial=initial_value,
+                )
+
+                # Store metadata for template rendering
+                self.fields[field_name].stat_def = stat_def
+                self.fields[field_name].is_first_of_group = stat_def.is_first_of_group
+                self.fields[field_name].base_value = placeholder
+        else:
+            # Use legacy override fields
+            legacy_stats = [
+                ("movement", "M", "Movement"),
+                ("weapon_skill", "WS", "Weapon Skill"),
+                ("ballistic_skill", "BS", "Ballistic Skill"),
+                ("strength", "S", "Strength"),
+                ("toughness", "T", "Toughness"),
+                ("wounds", "W", "Wounds"),
+                ("initiative", "I", "Initiative"),
+                ("attacks", "A", "Attacks"),
+                ("leadership", "Ld", "Leadership"),
+                ("cool", "Cl", "Cool"),
+                ("willpower", "Wil", "Willpower"),
+                ("intelligence", "Int", "Intelligence"),
+            ]
+
+            for field_name, short_name, full_name in legacy_stats:
+                override_field = f"{field_name}_override"
+                current_value = getattr(fighter, override_field) or ""
+                base_value = getattr(fighter.content_fighter, field_name) or "-"
+
+                self.fields[override_field] = forms.CharField(
+                    required=False,
+                    label=full_name,
+                    widget=forms.TextInput(
+                        attrs={
+                            "class": "form-control form-control-sm",
+                            "data-short-name": short_name,
+                            "placeholder": "",
+                        }
+                    ),
+                    initial=current_value,
+                )
+
+                # Store metadata for template rendering
+                self.fields[override_field].is_first_of_group = field_name in [
+                    "leadership"
+                ]
+                self.fields[override_field].short_name = short_name
+                self.fields[override_field].full_name = full_name
+                self.fields[override_field].base_value = base_value
+
+        self.fighter = fighter
+        self.has_custom_statline = has_custom_statline

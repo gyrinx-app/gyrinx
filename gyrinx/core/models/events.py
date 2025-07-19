@@ -88,6 +88,7 @@ class EventField(models.TextChoices):
 
     # Fighter-related fields
     INFO = "info", "Info"
+    STATS = "stats", "Stats"
 
 
 class Event(AppBase):
