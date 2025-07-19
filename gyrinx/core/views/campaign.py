@@ -1480,8 +1480,17 @@ def campaign_asset_transfer(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_transfer.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_object_or_404(Campaign, id=id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
+
+    # Check if user has permission: must be either campaign owner or owner of the list holding the asset
+    has_permission = request.user == campaign.owner or (
+        asset.holder and request.user == asset.holder.owner
+    )
+
+    if not has_permission:
+        messages.error(request, "You don't have permission to transfer this asset.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     # Check if campaign is archived
     if campaign.archived:
