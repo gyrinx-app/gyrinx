@@ -20,7 +20,7 @@ def content_fighter(house):
     return ContentFighter.objects.create(
         type="Test Fighter Type",
         house=house,
-        movement="4",
+        movement='4"',
         weapon_skill="3+",
         ballistic_skill="4+",
         strength="3",
@@ -100,6 +100,27 @@ def test_stat_advancement_application(fighter_with_xp):
 
     # Since original_ws is "3+", the override should be "2+" (improved by 1)
     assert fighter_with_xp.weapon_skill_override == "2+"
+    assert fighter_with_xp.xp_current == 40  # 50 - 10
+
+
+@pytest.mark.django_db
+def test_stat_advancement_application_movement(fighter_with_xp):
+    """Test applying a stat advancement."""
+    # ListFighter gets base stats from content_fighter
+
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="movement",
+        xp_cost=10,
+        cost_increase=20,
+    )
+
+    advancement.apply_advancement()
+    fighter_with_xp.refresh_from_db()
+
+    # Since original is '4"', the override should be '5"' (improved by 1)
+    assert fighter_with_xp.movement_override == '5"'
     assert fighter_with_xp.xp_current == 40  # 50 - 10
 
 

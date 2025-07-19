@@ -45,9 +45,14 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
-from gyrinx.models import FighterCategoryChoices
 from gyrinx.core.models.history_mixin import HistoryMixin
-from gyrinx.models import Archived, Base, QuerySetOf, format_cost_display
+from gyrinx.models import (
+    Archived,
+    Base,
+    FighterCategoryChoices,
+    QuerySetOf,
+    format_cost_display,
+)
 
 logger = logging.getLogger(__name__)
 pylist = list
@@ -2671,15 +2676,19 @@ class ListFighterAdvancement(AppBase):
             else:
                 # For stats without "+" (like S, T, W), just add 1
                 try:
-                    base_numeric = int(base_value) if base_value else 0
+                    base_numeric = int(base_value.replace('"', "")) if base_value else 0
                     if current_override is None:
                         new_value = str(base_numeric + 1)
                     else:
-                        current_numeric = int(current_override)
+                        current_numeric = int(current_override.replace('"', ""))
                         new_value = str(current_numeric + 1)
                 except (ValueError, TypeError):
                     # If we can't parse it as a number, just use the base value
                     new_value = base_value
+
+            if '"' in base_value:
+                # If the base value is a distance (e.g., "4\""), ensure we keep the format
+                new_value = f'{new_value}"'
 
             setattr(self.fighter, override_field, new_value)
             self.fighter.save()
