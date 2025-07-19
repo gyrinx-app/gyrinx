@@ -79,6 +79,10 @@
                                                                    class="btn btn-outline-secondary">
                                                                     <i class="bi-pencil"></i> Edit
                                                                 </a>
+                                                                <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
+                                                                   class="btn btn-outline-danger">
+                                                                    <i class="bi-trash"></i> Remove
+                                                                </a>
                                                             </div>
                                                         {% endif %}
                                                     {% endif %}

@@ -394,6 +394,11 @@ urlpatterns = [
         campaign.campaign_asset_transfer,
         name="campaign-asset-transfer",
     ),
+    path(
+        "campaign/<id>/assets/<asset_id>/remove",
+        campaign.campaign_asset_remove,
+        name="campaign-asset-remove",
+    ),
     # Campaign Resources
     path(
         "campaign/<id>/resources",

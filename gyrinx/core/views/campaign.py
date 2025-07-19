@@ -853,8 +853,7 @@ def start_campaign(request, id):
                     user=request.user,
                     owner=request.user,
                     campaign=campaign,
-                    description=f"Campaign Started: {campaign.name} is now active",
-                    outcome="Campaign transitioned from pre-campaign to active status",
+                    description=f"Campaign Started: {campaign.name} is now in progress",
                 )
 
                 # Log the campaign start event
@@ -1532,6 +1531,82 @@ def campaign_asset_transfer(request, id, asset_id):
         request,
         "core/campaign/campaign_asset_transfer.html",
         {"form": form, "campaign": campaign, "asset": asset},
+    )
+
+
+@login_required
+@transaction.atomic
+def campaign_asset_remove(request, id, asset_id):
+    """
+    Remove an individual asset from a campaign.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset belongs to.
+    ``asset``
+        The :model:`core.CampaignAsset` being removed.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_remove.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
+
+    # Prevent removal from archived campaigns
+    if campaign.archived:
+        messages.error(request, "Cannot remove assets from archived campaigns.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
+    if request.method == "POST":
+        # Store info for logging before deletion
+        asset_name = asset.name
+        asset_type_name = asset.asset_type.name_singular
+        holder_name = asset.holder.name if asset.holder else "Unowned"
+
+        # Delete the asset
+        asset.delete()
+
+        if campaign.is_in_progress:
+            # Create campaign action for asset deletion
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                owner=request.user,
+                description=f"Asset Removed: {asset_name} ({asset_type_name}) has been removed from the campaign",
+            )
+
+        # Log the removal event
+        log_event(
+            user=request.user,
+            noun=EventNoun.CAMPAIGN_ASSET,
+            verb=EventVerb.DELETE,
+            object=campaign,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            asset_name=asset_name,
+            asset_type=asset_type_name,
+            holder=holder_name,
+        )
+
+        messages.success(request, f"Asset '{asset_name}' has been removed.")
+
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
+    # GET request - show confirmation page
+    return render(
+        request,
+        "core/campaign/campaign_asset_remove.html",
+        {
+            "campaign": campaign,
+            "asset": asset,
+        },
     )
 
 
