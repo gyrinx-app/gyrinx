@@ -12,7 +12,7 @@
                         <ul class="list-group list-group-flush">
                             {% for asset in held_assets %}
                                 <li class="list-group-item px-0 py-1 fs-7">
-                                    <div class="vstack">
+                                    <div class="hstack">
                                         <div>
                                             <strong>{{ asset.name }}</strong>
                                             {% if asset.asset_type.name_singular %}
@@ -23,7 +23,7 @@
                                             <span class="text-muted small">Campaign not started</span>
                                         {% elif not list.campaign.archived %}
                                             <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
-                                               class="icon-link link-secondary link-sm ms-2">
+                                               class="icon-link link-secondary link-sm ms-auto">
                                                 <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
                                             </a>
                                         {% endif %}
