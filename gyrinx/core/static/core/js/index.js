@@ -219,6 +219,83 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
     });
 });
 
+// Equipment list filter toggle functionality
+document.addEventListener("DOMContentLoaded", () => {
+    const filterSwitch = document.getElementById("filter-switch");
+    const illegalCheckbox = document.getElementById("al-i");
+
+    // Find the availability button by its ID
+    const availabilityButton = document.getElementById(
+        "availability-dropdown-button",
+    );
+
+    if (filterSwitch && availabilityButton) {
+        filterSwitch.addEventListener("change", (event) => {
+            if (event.target.checked) {
+                // Equipment list is ON - disable availability
+                availabilityButton.classList.add("disabled");
+                availabilityButton.setAttribute("disabled", "");
+                availabilityButton.removeAttribute("data-bs-toggle");
+                availabilityButton.removeAttribute("aria-expanded");
+                availabilityButton.removeAttribute("data-bs-auto-close");
+
+                // Remove existing tooltip if any
+                const existingTooltip = bootstrap.Tooltip.getInstance(
+                    availabilityButton.parentElement,
+                );
+                if (existingTooltip) {
+                    existingTooltip.dispose();
+                }
+
+                // Add tooltip
+                availabilityButton.parentElement.setAttribute(
+                    "data-bs-toggle",
+                    "tooltip",
+                );
+                availabilityButton.parentElement.setAttribute(
+                    "data-bs-placement",
+                    "top",
+                );
+                availabilityButton.parentElement.setAttribute(
+                    "title",
+                    "Availability filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability.",
+                );
+                new bootstrap.Tooltip(availabilityButton.parentElement);
+            } else {
+                // Equipment list is OFF - enable availability
+                availabilityButton.classList.remove("disabled");
+                availabilityButton.removeAttribute("disabled");
+                availabilityButton.setAttribute("data-bs-toggle", "dropdown");
+                availabilityButton.setAttribute("aria-expanded", "false");
+                availabilityButton.setAttribute(
+                    "data-bs-auto-close",
+                    "outside",
+                );
+
+                // Remove tooltip
+                const tooltip = bootstrap.Tooltip.getInstance(
+                    availabilityButton.parentElement,
+                );
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+                availabilityButton.parentElement.removeAttribute(
+                    "data-bs-toggle",
+                );
+                availabilityButton.parentElement.removeAttribute(
+                    "data-bs-placement",
+                );
+                availabilityButton.parentElement.removeAttribute("title");
+
+                // Check the illegal checkbox
+                if (illegalCheckbox && !illegalCheckbox.checked) {
+                    illegalCheckbox.checked = true;
+                }
+            }
+        });
+    }
+});
+
 // Add loading spinner to form submit buttons
 document.addEventListener("DOMContentLoaded", () => {
     const forms = document.querySelectorAll("form");
