@@ -77,9 +77,11 @@ def new_battle(request, campaign_id):
     """Create a new battle for a campaign."""
     campaign = get_object_or_404(Campaign, id=campaign_id)
 
-    # Check permissions - only campaign owner can create battles
-    if request.user != campaign.owner:
-        messages.error(request, "Only the campaign owner can create battles.")
+    # Check permissions - only users with a list in the campaign can create battles
+    if not campaign.lists.filter(owner=request.user).exists():
+        messages.error(
+            request, "Only players with a gang in the campaign can create battles."
+        )
         return HttpResponseRedirect(reverse("core:campaign", args=[campaign.id]))
 
     # Check campaign is in progress
