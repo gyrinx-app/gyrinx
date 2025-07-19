@@ -129,8 +129,8 @@ def test_list_ordering_with_link(
     assert lst.fighters().count() == 3
 
     assert [f.name for f in lst.fighters()] == [
-        "Owner",
         "Beast",
+        "Owner",
         "Another",
     ]
 

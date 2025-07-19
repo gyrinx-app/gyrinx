@@ -365,9 +365,7 @@ class ListFighterManager(models.Manager):
                     # Linked fighters should be sorted next to their parent
                     When(
                         _is_linked=True,
-                        then=Concat(
-                            "linked_fighter__list_fighter__name", Value("-after")
-                        ),
+                        then=Concat(Value(" "), "linked_fighter__list_fighter__name"),
                     ),
                     default=F("name"),
                     output_field=models.CharField(),
