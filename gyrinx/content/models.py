@@ -2150,6 +2150,8 @@ class ContentModStatApplyMixin:
         "cool",
         "willpower",
         "initiative",
+        "handling",
+        "save",
     ]
 
     inch_stats = ["range_short", "range_long", "movement"]
@@ -2165,6 +2167,8 @@ class ContentModStatApplyMixin:
         "cool",
         "willpower",
         "initiative",
+        "handling",
+        "save",
     ]
 
     def apply(self, input_value: str) -> str:
@@ -2307,6 +2311,12 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
             ("cool", "Cool"),
             ("willpower", "Willpower"),
             ("intelligence", "Intelligence"),
+            ("front", "Front"),
+            ("side", "Side"),
+            ("rear", "Rear"),
+            ("hull_points", "Hull Points"),
+            ("handling", "Handling"),
+            ("save", "Save"),
         ],
     )
     mode = models.CharField(
@@ -2722,7 +2732,9 @@ class ContentStatline(Content):
             # Only validate if there are required stats
             if required_stats:
                 provided_stats = set(
-                    self.stats.values_list("statline_type_stat__stat__field_name", flat=True)
+                    self.stats.values_list(
+                        "statline_type_stat__stat__field_name", flat=True
+                    )
                 )
                 missing_stats = required_stats - provided_stats
 
