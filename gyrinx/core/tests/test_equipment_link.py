@@ -136,6 +136,189 @@ def test_list_ordering_with_link(
 
 
 @pytest.mark.django_db
+def test_comprehensive_sorting_with_vehicles_and_beasts(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    """Test all sorting scenarios for fighters linked to vehicles and beasts."""
+    house = make_content_house("Example House")
+
+    # Create content fighters
+    fighter_cf = make_content_fighter(
+        type="Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=100,
+    )
+    vehicle_cf = make_content_fighter(
+        type="Vehicle",
+        category=FighterCategoryChoices.VEHICLE,
+        house=house,
+        base_cost=200,
+    )
+    beast_cf = make_content_fighter(
+        type="Beast",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=house,
+        base_cost=50,
+    )
+
+    # Create equipment
+    vehicle_ce = make_equipment(
+        "Vehicle Equipment",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=200,
+    )
+    beast_ce = make_equipment(
+        "Beast Equipment",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    # Link equipment to content fighters
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle_ce, content_fighter=vehicle_cf
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=beast_ce, content_fighter=beast_cf
+    )
+
+    lst = make_list("Example List", content_house=house, owner=user)
+
+    # Scenario 1: Fighter linked to Beast should sort: Fighter, Beast
+    fighter1_lf = make_list_fighter(
+        lst, "Fighter1", content_fighter=fighter_cf, owner=user
+    )
+    assign1 = ListFighterEquipmentAssignment(
+        list_fighter=fighter1_lf, content_equipment=beast_ce
+    )
+    assign1.save()
+
+    # Scenario 2: Fighter linked to Vehicle should sort: Vehicle, Fighter
+    fighter2_lf = make_list_fighter(
+        lst, "Fighter2", content_fighter=fighter_cf, owner=user
+    )
+    assign2 = ListFighterEquipmentAssignment(
+        list_fighter=fighter2_lf, content_equipment=vehicle_ce
+    )
+    assign2.save()
+
+    # The vehicle is created automatically when we assign vehicle equipment
+
+    # Scenario 3: Fighter linked to Vehicle, where Fighter is also linked to Beast
+    # should sort: Vehicle, Fighter, Fighter's Beast
+    fighter3_lf = make_list_fighter(
+        lst, "Fighter3", content_fighter=fighter_cf, owner=user
+    )
+    assign3_vehicle = ListFighterEquipmentAssignment(
+        list_fighter=fighter3_lf, content_equipment=vehicle_ce
+    )
+    assign3_vehicle.save()
+    assign3_beast = ListFighterEquipmentAssignment(
+        list_fighter=fighter3_lf, content_equipment=beast_ce
+    )
+    assign3_beast.save()
+
+    # Scenario 4: Fighter linked to Vehicle, where Vehicle is also linked to Beast
+    # should sort: Vehicle, Fighter, Vehicle's Beast
+    fighter4_lf = make_list_fighter(
+        lst, "Fighter4", content_fighter=fighter_cf, owner=user
+    )
+    assign4 = ListFighterEquipmentAssignment(
+        list_fighter=fighter4_lf, content_equipment=vehicle_ce
+    )
+    assign4.save()
+
+    # Get the vehicle for fighter4
+    vehicle4_lf = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.VEHICLE,
+        linked_fighter__list_fighter=fighter4_lf,
+    )
+
+    # Add beast to the vehicle
+    assign_vehicle_beast = ListFighterEquipmentAssignment(
+        list_fighter=vehicle4_lf, content_equipment=beast_ce
+    )
+    assign_vehicle_beast.save()
+
+    # Update names to be unique for better debugging
+    beast1 = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+        linked_fighter__list_fighter=fighter1_lf,
+    )
+    beast1.name = "Beast1"
+    beast1.save()
+
+    vehicle2 = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.VEHICLE,
+        linked_fighter__list_fighter=fighter2_lf,
+    )
+    vehicle2.name = "Vehicle2"
+    vehicle2.save()
+
+    vehicle3 = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.VEHICLE,
+        linked_fighter__list_fighter=fighter3_lf,
+    )
+    vehicle3.name = "Vehicle3"
+    vehicle3.save()
+
+    beast3 = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+        linked_fighter__list_fighter=fighter3_lf,
+    )
+    beast3.name = "Beast3"
+    beast3.save()
+
+    vehicle4_lf.name = "Vehicle4"
+    vehicle4_lf.save()
+
+    beast4 = ListFighter.objects.get(
+        list=lst,
+        content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+        linked_fighter__list_fighter=vehicle4_lf,
+    )
+    beast4.name = "Beast4"
+    beast4.save()
+
+    # Check the sorting
+    fighters = lst.fighters()
+    fighter_names = [f.name for f in fighters]
+
+    expected_order = [
+        # Scenario 1: Fighter, Beast
+        "Fighter1",
+        "Beast1",  # Fighter1's Beast
+        # Scenario 2: Vehicle, Fighter
+        "Vehicle2",  # Fighter2's Vehicle
+        "Fighter2",
+        # Scenario 3: Vehicle, Fighter, Fighter's Beast
+        "Vehicle3",  # Fighter3's Vehicle
+        "Fighter3",
+        "Beast3",  # Fighter3's Beast
+        # Scenario 4: Vehicle, Fighter, Vehicle's Beast
+        "Vehicle4",  # Fighter4's Vehicle
+        "Fighter4",
+        "Beast4",  # Vehicle4's Beast
+    ]
+
+    # Print for debugging
+    print(f"Actual order: {fighter_names}")
+    print(f"Expected order: {expected_order}")
+
+    assert fighter_names == expected_order
+
+
+@pytest.mark.django_db
 def test_fighter_link_archive(
     user,
     make_list,

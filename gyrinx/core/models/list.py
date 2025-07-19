@@ -45,6 +45,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
+from gyrinx.models import FighterCategoryChoices
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.models import Archived, Base, QuerySetOf, format_cost_display
 
@@ -362,14 +363,20 @@ class ListFighterManager(models.Manager):
                     default=99,
                 ),
                 _sort_key=Case(
-                    # Linked fighters should be sorted next to their parent
+                    # If this is a beast linked to a fighter, sort after the owner
                     When(
                         _is_linked=True,
-                        then=Concat(
-                            "linked_fighter__list_fighter__name", Value("-after")
-                        ),
+                        content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+                        then=Concat("linked_fighter__list_fighter__name", Value("~2")),
                     ),
-                    default=F("name"),
+                    # If this is a vehicle linked to a fighter, sort with the parent but come first
+                    When(
+                        _is_linked=True,
+                        content_fighter__category=FighterCategoryChoices.VEHICLE,
+                        then=Concat("linked_fighter__list_fighter__name", Value("~0")),
+                    ),
+                    # Default: regular fighters sort by their own name with a middle priority
+                    default=Concat(F("name"), Value("~1")),
                     output_field=models.CharField(),
                 ),
             )
