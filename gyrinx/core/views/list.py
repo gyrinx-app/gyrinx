@@ -1730,6 +1730,18 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         .order_by("name")
     )
 
+    # Filter categories based on fighter category restrictions
+    fighter_category = fighter.content_fighter_cached.category
+    restricted_category_ids = []
+    for category in categories:
+        if not category.is_available_to_fighter_category(fighter_category):
+            restricted_category_ids.append(category.id)
+
+    # Remove restricted categories
+    if restricted_category_ids:
+        categories = categories.exclude(id__in=restricted_category_ids)
+        equipment = equipment.exclude(category_id__in=restricted_category_ids)
+
     # Filter by category if specified
     cats = (
         [

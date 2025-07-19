@@ -349,16 +349,49 @@ class ContentEquipmentCategory(Content):
         default=False,
         help_text="If True, this category will only be visible on fighter cards if the fighter has equipment in this category in their equipment list.",
     )
-
     history = HistoricalRecords()
 
     def __str__(self):
         return self.name
 
+    def get_fighter_category_restrictions(self):
+        """Returns a list of fighter categories this equipment category is restricted to."""
+        return list(
+            ContentEquipmentCategoryFighterRestriction.objects.filter(
+                equipment_category=self
+            ).values_list("fighter_category", flat=True)
+        )
+
+    def is_available_to_fighter_category(self, fighter_category):
+        """Check if this equipment category is available to a specific fighter category."""
+        restrictions = self.get_fighter_category_restrictions()
+        # If no restrictions, available to all
+        if not restrictions:
+            return True
+        # If restrictions exist, fighter category must be in the list
+        return fighter_category in restrictions
+
     class Meta:
         verbose_name = "Equipment Category"
         verbose_name_plural = "Equipment Categories"
         ordering = ["name"]
+
+
+class ContentEquipmentCategoryFighterRestriction(models.Model):
+    equipment_category = models.ForeignKey(
+        ContentEquipmentCategory, on_delete=models.CASCADE
+    )
+    fighter_category = models.CharField(
+        max_length=255, choices=FighterCategoryChoices.choices
+    )
+
+    class Meta:
+        unique_together = ["equipment_category", "fighter_category"]
+        verbose_name = "Equipment Category Fighter Restriction"
+        verbose_name_plural = "Equipment Category Fighter Restrictions"
+
+    def __str__(self):
+        return f"{self.equipment_category.name} - {self.get_fighter_category_display()}"
 
 
 class ContentEquipmentManager(models.Manager):
