@@ -1510,6 +1510,14 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
         help_text="The credit cost of the weapon accessory at the Trading Post. This cost can be "
         "overridden by the fighter's equipment list.",
     )
+    cost_expression = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional cost calculation expression. If provided, this will be used instead of the base cost. "
+        "Available variables: cost_int (the base cost of the weapon). "
+        "Available functions: round(), ceil(), floor(), round_up(). "
+        "Example: 'ceil(cost_int * 0.25 / 5) * 5' for 25% of cost rounded up to nearest 5.",
+    )
     rarity = models.CharField(
         max_length=1,
         choices=[
@@ -1537,6 +1545,39 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
 
     def __str__(self):
         return self.name
+
+    def calculate_cost_for_weapon(self, weapon_base_cost: int) -> int:
+        """Calculate the cost of this accessory for a given weapon base cost."""
+        if not self.cost_expression:
+            return self.cost
+
+        import math
+        from simpleeval import simple_eval
+
+        # Custom round_up function for rounding up to nearest integer
+        def round_up(x):
+            return math.ceil(x)
+
+        # Define available functions
+        functions = {
+            "round": round,
+            "round_up": round_up,
+            "ceil": math.ceil,
+            "floor": math.floor,
+        }
+
+        # Define available names (variables)
+        names = {
+            "cost_int": weapon_base_cost,
+        }
+
+        try:
+            result = simple_eval(self.cost_expression, functions=functions, names=names)
+            # Ensure result is an integer
+            return int(result)
+        except Exception:
+            # If evaluation fails, fall back to base cost
+            return self.cost
 
     class Meta:
         verbose_name = "Weapon Accessory"
