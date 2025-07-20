@@ -900,10 +900,27 @@ class ListFighter(AppBase):
         return self.weapons()
 
     def wargear(self):
+        # For stash fighters, show all non-weapon gear regardless of restrictions
+        if self.is_stash:
+            return [
+                e
+                for e in self.assignments_cached
+                if not e.is_weapon_cached and not e.is_house_additional
+            ]
+
+        # Get categories that have fighter restrictions
+        restricted_category_ids = (
+            ContentEquipmentCategoryFighterRestriction.objects.values_list(
+                "equipment_category_id", flat=True
+            ).distinct()
+        )
+
         return [
             e
             for e in self.assignments_cached
-            if not e.is_weapon_cached and not e.is_house_additional
+            if not e.is_weapon_cached
+            and not e.is_house_additional
+            and e.content_equipment.category_id not in restricted_category_ids
         ]
 
     @cached_property
@@ -977,6 +994,10 @@ class ListFighter(AppBase):
     def has_category_restricted_gear(self):
         """Check if this fighter has access to any category-restricted equipment."""
 
+        # Stash fighters can see all categories
+        if self.is_stash:
+            return ContentEquipmentCategoryFighterRestriction.objects.exists()
+
         fighter_category = self.content_fighter_cached.category
         return ContentEquipmentCategoryFighterRestriction.objects.filter(
             fighter_category=fighter_category
@@ -990,9 +1011,15 @@ class ListFighter(AppBase):
         fighter_category = self.content_fighter_cached.category
 
         # Get all categories restricted to this fighter's category
-        restricted_categories = ContentEquipmentCategory.objects.filter(
-            contentequipmentcategoryfighterrestriction__fighter_category=fighter_category
-        ).distinct()
+        # Stash fighters can see all restricted categories
+        if self.is_stash:
+            restricted_categories = ContentEquipmentCategory.objects.filter(
+                contentequipmentcategoryfighterrestriction__isnull=False
+            ).distinct()
+        else:
+            restricted_categories = ContentEquipmentCategory.objects.filter(
+                contentequipmentcategoryfighterrestriction__fighter_category=fighter_category
+            ).distinct()
 
         for cat in restricted_categories:
             assignments = self.category_restricted_assignments(cat)
