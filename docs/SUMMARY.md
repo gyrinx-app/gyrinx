@@ -13,6 +13,7 @@
 * [Manual Testing Guide](manual-testing-guide.md)
 * [GCS CDN Setup](gcs-cdn-setup.md)
 * [Analytics Graph Configuration](how-to-guides/analytics-graph-configuration.md)
+* [Useful Scripts](useful-scripts.md)
 
 ## Technical Reference
 
