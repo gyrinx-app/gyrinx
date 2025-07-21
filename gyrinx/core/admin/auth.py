@@ -4,6 +4,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group, User
 from django.shortcuts import render
 from django.utils.translation import gettext as _
+from allauth.account.models import EmailAddress
+from allauth.account.internal.flows.email_verification import get_email_verification_url
 
 from gyrinx.core.models.auth import UserProfile
 
@@ -215,3 +217,60 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(Group)
 class GroupAdmin(BaseGroupAdmin):
     pass
+
+
+@admin.action(description="Show verification links for selected email addresses")
+def show_verification_links(modeladmin, request, queryset):
+    """
+    Show email verification links for unverified email addresses.
+    This allows manual sending of verification emails when automatic emails are blocked.
+    """
+    links_shown = 0
+
+    for email_address in queryset:
+        if not email_address.verified:
+            # Create a new email confirmation
+            confirmation = email_address.send_confirmation(request, signup=False)
+
+            # Generate the verification URL
+            verification_url = get_email_verification_url(request, confirmation)
+
+            # Show the URL in the admin messages
+            modeladmin.message_user(
+                request,
+                f"Verification link for {email_address.email}: {verification_url}",
+                messages.SUCCESS,
+            )
+            links_shown += 1
+        else:
+            modeladmin.message_user(
+                request,
+                f"{email_address.email} is already verified",
+                messages.INFO,
+            )
+
+    if links_shown == 0 and queryset.count() > 0:
+        modeladmin.message_user(
+            request,
+            "All selected email addresses are already verified",
+            messages.INFO,
+        )
+
+
+# Unregister allauth's default EmailAddress admin if it exists
+try:
+    admin.site.unregister(EmailAddress)
+except admin.sites.NotRegistered:
+    pass
+
+
+@admin.register(EmailAddress)
+class EmailAddressAdmin(admin.ModelAdmin):
+    list_display = ["email", "user", "verified", "primary"]
+    list_filter = ["verified", "primary"]
+    search_fields = ["email", "user__username", "user__email"]
+    actions = [show_verification_links]
+
+    def has_add_permission(self, request):
+        # Disable manual addition of email addresses for security
+        return False
