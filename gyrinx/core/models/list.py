@@ -294,12 +294,22 @@ class List(AppBase):
                 )
 
                 # Create the stash ListFighter
-                ListFighter.objects.create(
+                new_stash = ListFighter.objects.create(
                     name="Stash",
                     content_fighter=stash_fighter,
                     list=clone,
                     owner=owner,
                 )
+
+                # Clone equipment from original stash if it exists
+                original_stash = self.listfighter_set.filter(
+                    content_fighter__is_stash=True
+                ).first()
+
+                if original_stash:
+                    # Clone all equipment assignments from the original stash
+                    for assignment in original_stash._direct_assignments():
+                        assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.all():
