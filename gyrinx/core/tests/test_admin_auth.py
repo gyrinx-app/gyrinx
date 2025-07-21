@@ -5,6 +5,7 @@ from django.test import RequestFactory
 from django.contrib.messages import get_messages
 from django.contrib.messages.storage.fallback import FallbackStorage
 from allauth.account.models import EmailAddress
+from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
 from gyrinx.core.admin.auth import EmailAddressAdmin, show_verification_links
 
@@ -14,6 +15,24 @@ def test_email_address_admin_is_registered():
     """Test that EmailAddress is registered in the admin."""
     assert EmailAddress in admin.site._registry
     assert isinstance(admin.site._registry[EmailAddress], EmailAddressAdmin)
+
+
+@pytest.mark.django_db
+def test_email_address_admin_inherits_from_allauth():
+    """Test that our EmailAddressAdmin inherits from allauth's EmailAddressAdmin."""
+    admin_instance = admin.site._registry[EmailAddress]
+    assert isinstance(admin_instance, AllauthEmailAddressAdmin)
+    # Check that the default allauth actions are preserved
+    action_names = []
+    for action in admin_instance.actions:
+        if hasattr(action, "__name__"):
+            action_names.append(action.__name__)
+        elif isinstance(action, str):
+            action_names.append(action)
+
+    assert "make_verified" in action_names
+    # Check that our custom action is added
+    assert "show_verification_links" in action_names
 
 
 @pytest.mark.django_db

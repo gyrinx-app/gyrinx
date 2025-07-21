@@ -6,6 +6,7 @@ from django.shortcuts import render
 from django.utils.translation import gettext as _
 from allauth.account.models import EmailAddress
 from allauth.account.internal.flows.email_verification import get_email_verification_url
+from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
 from gyrinx.core.models.auth import UserProfile
 
@@ -265,11 +266,9 @@ except admin.sites.NotRegistered:
 
 
 @admin.register(EmailAddress)
-class EmailAddressAdmin(admin.ModelAdmin):
-    list_display = ["email", "user", "verified", "primary"]
-    list_filter = ["verified", "primary"]
-    search_fields = ["email", "user__username", "user__email"]
-    actions = [show_verification_links]
+class EmailAddressAdmin(AllauthEmailAddressAdmin):
+    # Extend allauth's EmailAddressAdmin to add our custom action
+    actions = AllauthEmailAddressAdmin.actions + [show_verification_links]
 
     def has_add_permission(self, request):
         # Disable manual addition of email addresses for security
