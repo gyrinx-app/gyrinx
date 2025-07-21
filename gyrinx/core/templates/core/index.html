@@ -64,7 +64,10 @@
                                         <div class="small">
                                             <i class="bi-award"
                                                data-bs-toggle="tooltip"
-                                               data-bs-title="Active in Campaign"></i> <a href="{% url 'core:campaign' gang.campaign.id %}">{{ gang.campaign.name }}</a>
+                                               data-bs-title="Active in Campaign"></i>
+                                            <a class="d-none d-md-inline"
+                                               href="{% url 'core:campaign' gang.campaign.id %}">{{ gang.campaign.name }}</a>
+                                            <span class="d-inline d-md-none">{{ gang.campaign.name }}</span>
                                         </div>
                                         {% load tz %}
                                         <div class="text-muted small">Last edit: {{ gang.modified|timesince }} ago</div>
