@@ -1777,6 +1777,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             ):
                 return 0
 
+        # Check for cost expression first, as it takes precedence over simple cost overrides
+        if hasattr(accessory, "cost_expression") and accessory.cost_expression:
+            weapon_base_cost = self.base_cost_int_cached
+            return accessory.calculate_cost_for_weapon(weapon_base_cost)
+
         if hasattr(accessory, "cost_for_fighter"):
             return accessory.cost_for_fighter_int()
 
@@ -1790,10 +1795,6 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             )
             return override.cost_int()
         except ContentFighterEquipmentListWeaponAccessory.DoesNotExist:
-            # If the accessory has a cost expression, calculate it based on the weapon's base cost
-            if hasattr(accessory, "cost_expression") and accessory.cost_expression:
-                weapon_base_cost = self.base_cost_int_cached
-                return accessory.calculate_cost_for_weapon(weapon_base_cost)
             return accessory.cost_int()
 
     def accessory_cost_int(self, accessory):

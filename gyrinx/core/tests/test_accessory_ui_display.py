@@ -144,20 +144,19 @@ def test_accessory_selection_preserves_existing_accessories(client):
     # Check that the form shows the correct selection state
     content = response.content.decode()
 
-    # The form should show the first accessory as checked
+    # The form should show checkboxes for accessories
     assert 'type="checkbox"' in content
-    # Look for the checked attribute on the Extended Magazine checkbox
-    # This is a bit fragile but Django forms should render checked accessories with checked="checked"
-    lines = content.split("\n")
-    for i, line in enumerate(lines):
-        if "Extended Magazine" in line and "checkbox" in line:
-            # Check if this checkbox or a nearby one has checked attribute
-            context_lines = "".join(lines[max(0, i - 2) : i + 3])
-            if "checked" in context_lines and accessory1.id.__str__() in context_lines:
-                found_extended_mag_checked = True
-                break
 
-    # TODO: Fix this assertion - the checkbox detection is fragile
-    assert found_extended_mag_checked, (
-        "Extended Magazine checkbox should be checked in the form"
-    )
+    # Check that both accessories are shown with correct costs
+    assert "Extended Magazine (5¢)" in content
+    assert "Custom Grip (2¢)" in content  # 10% of 20
+
+    # Check that the Extended Magazine checkbox is checked
+    # Look for checked attribute near the Extended Magazine text
+    extended_mag_idx = content.find("Extended Magazine")
+    assert extended_mag_idx != -1, "Extended Magazine not found in content"
+
+    # Look for checked within reasonable distance (500 chars before)
+    search_start = max(0, extended_mag_idx - 500)
+    search_area = content[search_start:extended_mag_idx]
+    assert "checked" in search_area, "Extended Magazine checkbox should be checked"
