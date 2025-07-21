@@ -1,3 +1,4 @@
+from allauth.account.models import EmailAddress
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -215,3 +216,61 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(Group)
 class GroupAdmin(BaseGroupAdmin):
     pass
+
+
+@admin.action(description="Send verification email")
+def send_verification_email(modeladmin, request, queryset):
+    """Send verification emails to selected email addresses."""
+    sent_count = 0
+    error_count = 0
+
+    for email_address in queryset:
+        try:
+            # Only send to unverified emails
+            if not email_address.verified:
+                email_address.send_confirmation(request=request)
+                sent_count += 1
+        except Exception as e:
+            error_count += 1
+            modeladmin.message_user(
+                request,
+                _("Error sending verification to %(email)s: %(error)s")
+                % {"email": email_address.email, "error": str(e)},
+                messages.ERROR,
+            )
+
+    if sent_count > 0:
+        modeladmin.message_user(
+            request,
+            _("Sent verification email to %(count)d address(es).")
+            % {"count": sent_count},
+            messages.SUCCESS,
+        )
+
+    if error_count > 0:
+        modeladmin.message_user(
+            request,
+            _("Failed to send %(count)d verification email(s).")
+            % {"count": error_count},
+            messages.ERROR,
+        )
+
+
+# Unregister the default EmailAddress admin
+try:
+    admin.site.unregister(EmailAddress)
+except admin.sites.NotRegistered:
+    pass
+
+
+@admin.register(EmailAddress)
+class EmailAddressAdmin(admin.ModelAdmin):
+    list_display = ["email", "user", "verified", "primary"]
+    list_filter = ["verified", "primary"]
+    search_fields = ["email", "user__username", "user__email"]
+    ordering = ["-id"]
+    actions = [send_verification_email]
+
+    def has_add_permission(self, request):
+        # Prevent manual addition of email addresses
+        return False
