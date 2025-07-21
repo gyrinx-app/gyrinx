@@ -20,6 +20,7 @@ from gyrinx.content.models import (
     ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
+    ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
@@ -899,10 +900,27 @@ class ListFighter(AppBase):
         return self.weapons()
 
     def wargear(self):
+        # For stash fighters, show all non-weapon gear regardless of restrictions
+        if self.is_stash:
+            return [
+                e
+                for e in self.assignments_cached
+                if not e.is_weapon_cached and not e.is_house_additional
+            ]
+
+        # Get categories that have fighter restrictions
+        restricted_category_ids = (
+            ContentEquipmentCategoryFighterRestriction.objects.values_list(
+                "equipment_category_id", flat=True
+            ).distinct()
+        )
+
         return [
             e
             for e in self.assignments_cached
-            if not e.is_weapon_cached and not e.is_house_additional
+            if not e.is_weapon_cached
+            and not e.is_house_additional
+            and e.content_equipment.category_id not in restricted_category_ids
         ]
 
     @cached_property
@@ -970,6 +988,91 @@ class ListFighter(AppBase):
             e
             for e in self.assignments_cached
             if e.is_house_additional and e.category == category.name
+        ]
+
+    @cached_property
+    def has_category_restricted_gear(self):
+        """Check if this fighter has access to any category-restricted equipment."""
+
+        # Stash fighters can see all categories
+        if self.is_stash:
+            return ContentEquipmentCategoryFighterRestriction.objects.exists()
+
+        fighter_category = self.content_fighter_cached.category
+        return ContentEquipmentCategoryFighterRestriction.objects.filter(
+            fighter_category=fighter_category
+        ).exists()
+
+    @cached_property
+    def category_restricted_gearline_display(self):
+        """Returns equipment categories restricted to this fighter's category."""
+
+        gearlines = []
+        fighter_category = self.content_fighter_cached.category
+
+        # Get all categories restricted to this fighter's category
+        # Stash fighters can see all restricted categories
+        if self.is_stash:
+            restricted_categories = ContentEquipmentCategory.objects.filter(
+                contentequipmentcategoryfighterrestriction__isnull=False
+            ).distinct()
+        else:
+            restricted_categories = ContentEquipmentCategory.objects.filter(
+                contentequipmentcategoryfighterrestriction__fighter_category=fighter_category
+            ).distinct()
+
+        for cat in restricted_categories:
+            assignments = self.category_restricted_assignments(cat)
+            # Check if this category should be visible
+            if cat.visible_only_if_in_equipment_list:
+                # Only show if the fighter has equipment in this category
+                has_equipment_in_category = False
+
+                # Check if any assignments exist for this category
+                if assignments:
+                    has_equipment_in_category = True
+                else:
+                    # Check equipment list items for this fighter
+                    equipment_list_items = (
+                        ContentFighterEquipmentListItem.objects.filter(
+                            fighter=self.equipment_list_fighter, equipment__category=cat
+                        ).exists()
+                    )
+                    if equipment_list_items:
+                        has_equipment_in_category = True
+
+                # Skip this category if no equipment found
+                if not has_equipment_in_category:
+                    continue
+
+            gearlines.append(
+                {
+                    "category": cat.name,
+                    "id": cat.id,
+                    "assignments": assignments,
+                    "filter": "equipment-list"
+                    if cat.visible_only_if_in_equipment_list
+                    else "all",
+                }
+            )
+
+        return gearlines
+
+    def category_restricted_assignments(self, category: ContentEquipmentCategory):
+        """Get assignments for a category-restricted equipment category."""
+        return [
+            e
+            for e in self.assignments_cached
+            if e.category == category.name
+            # Check both house AND category restrictions (AND rule)
+            and (
+                not e.is_house_additional
+                or (
+                    e.is_house_additional
+                    and self.content_fighter_cached.house
+                    in category.restricted_to.all()
+                )
+            )
         ]
 
     def powers(self):

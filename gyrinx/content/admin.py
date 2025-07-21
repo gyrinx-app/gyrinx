@@ -21,6 +21,7 @@ from .models import (
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
+    ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
@@ -88,12 +89,20 @@ class ContentStackedPolymorphicInline(
 ): ...
 
 
+class ContentEquipmentCategoryFighterRestrictionInline(ContentTabularInline):
+    model = ContentEquipmentCategoryFighterRestriction
+    extra = 0
+    verbose_name = "Fighter Category Restriction"
+    verbose_name_plural = "Fighter Category Restrictions"
+
+
 @admin.register(ContentEquipmentCategory)
 class ContentEquipmentCategoryAdmin(ContentAdmin):
     search_fields = ["name", "group"]
     list_display_links = ["name"]
     list_display_fields = ["name"]
     list_filter = ["group", "restricted_to", "visible_only_if_in_equipment_list"]
+    inlines = [ContentEquipmentCategoryFighterRestrictionInline]
 
 
 class ContentWeaponProfileInline(ContentStackedInline):
