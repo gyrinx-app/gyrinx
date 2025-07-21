@@ -399,6 +399,52 @@ class ContentEquipmentCategoryFighterRestriction(models.Model):
         return f"{self.equipment_category.name} - {self.get_fighter_category_display()}"
 
 
+class ContentFighterEquipmentCategoryLimit(Content):
+    """
+    Links ContentFighter to ContentEquipmentCategory with a numeric limit.
+    Used to set per-fighter limits on category-restricted equipment.
+    """
+
+    fighter = models.ForeignKey(
+        "ContentFighter",
+        on_delete=models.CASCADE,
+        related_name="equipment_category_limits",
+    )
+    equipment_category = models.ForeignKey(
+        ContentEquipmentCategory,
+        on_delete=models.CASCADE,
+        related_name="fighter_limits",
+    )
+    limit = models.PositiveIntegerField(
+        default=1,
+        help_text="Maximum number of items from this category the fighter can have.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = ["fighter", "equipment_category"]
+        verbose_name = "Fighter Equipment Category Limit"
+        verbose_name_plural = "Fighter Equipment Category Limits"
+        ordering = ["fighter__type", "equipment_category__name"]
+
+    def __str__(self):
+        return f"{self.fighter} - {self.equipment_category.name} (limit: {self.limit})"
+
+    def clean(self):
+        """
+        Validate that the equipment category has a ContentEquipmentCategoryFighterRestriction.
+        """
+        if not ContentEquipmentCategoryFighterRestriction.objects.filter(
+            equipment_category=self.equipment_category
+        ).exists():
+            raise ValidationError(
+                {
+                    "equipment_category": "The equipment category must have fighter restrictions before limits can be set."
+                }
+            )
+
+
 class ContentEquipmentManager(models.Manager):
     """
     Custom manager for :model:`content.ContentEquipment` model, providing annotated

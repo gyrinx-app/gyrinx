@@ -27,6 +27,7 @@ from .models import (
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterDefaultAssignment,
+    ContentFighterEquipmentCategoryLimit,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
     ContentFighterEquipmentListWeaponAccessory,
@@ -96,13 +97,58 @@ class ContentEquipmentCategoryFighterRestrictionInline(ContentTabularInline):
     verbose_name_plural = "Fighter Category Restrictions"
 
 
+class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
+    class Meta:
+        model = ContentFighterEquipmentCategoryLimit
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        equipment_category = cleaned_data.get("equipment_category")
+
+        # Check if we have an equipment_category and this is an inline form
+        if equipment_category and hasattr(self, "parent_instance"):
+            # The parent_instance is the ContentEquipmentCategory being edited
+            equipment_category = self.parent_instance
+
+            # Check if this category has fighter restrictions
+            if not ContentEquipmentCategoryFighterRestriction.objects.filter(
+                equipment_category=equipment_category
+            ).exists():
+                raise forms.ValidationError(
+                    "Fighter equipment category limits can only be set for categories that have fighter restrictions."
+                )
+
+        return cleaned_data
+
+
+class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
+    model = ContentFighterEquipmentCategoryLimit
+    form = ContentFighterEquipmentCategoryLimitForm
+    extra = 0
+    verbose_name = "Fighter Equipment Category Limit"
+    verbose_name_plural = "Fighter Equipment Category Limits"
+    raw_id_fields = ["fighter"]
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        if obj:
+            # Pass the parent instance to each form
+            for form in formset.form:
+                form.parent_instance = obj
+        return formset
+
+
 @admin.register(ContentEquipmentCategory)
 class ContentEquipmentCategoryAdmin(ContentAdmin):
     search_fields = ["name", "group"]
     list_display_links = ["name"]
     list_display_fields = ["name"]
     list_filter = ["group", "restricted_to", "visible_only_if_in_equipment_list"]
-    inlines = [ContentEquipmentCategoryFighterRestrictionInline]
+    inlines = [
+        ContentEquipmentCategoryFighterRestrictionInline,
+        ContentFighterEquipmentCategoryLimitInline,
+    ]
 
 
 class ContentWeaponProfileInline(ContentStackedInline):

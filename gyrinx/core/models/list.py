@@ -1055,9 +1055,22 @@ class ListFighter(AppBase):
                 if not has_equipment_in_category:
                     continue
 
+            # Get limit for this category and fighter if it exists
+            from gyrinx.content.models import ContentFighterEquipmentCategoryLimit
+
+            limit_obj = ContentFighterEquipmentCategoryLimit.objects.filter(
+                fighter=self.content_fighter_cached, equipment_category=cat
+            ).first()
+
+            # Build category display string with limit if applicable
+            category_display = cat.name
+            if limit_obj:
+                current_count = len(assignments)
+                category_display = f"{cat.name} ({current_count}/{limit_obj.limit})"
+
             gearlines.append(
                 {
-                    "category": cat.name,
+                    "category": category_display,
                     "id": cat.id,
                     "assignments": assignments,
                     "filter": "equipment-list"
