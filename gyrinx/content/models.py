@@ -7,6 +7,7 @@ models for fighters, equipment, rules, and more. Custom managers and querysets
 provide streamlined data access.
 """
 
+import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
@@ -18,6 +19,7 @@ from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils.functional import cached_property
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
+from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
 from gyrinx.models import (
@@ -1550,9 +1552,6 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
         """Calculate the cost of this accessory for a given weapon base cost."""
         if not self.cost_expression:
             return self.cost
-
-        import math
-        from simpleeval import simple_eval
 
         # Custom round_up function for rounding up to nearest integer
         def round_up(x):
