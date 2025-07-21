@@ -65,13 +65,20 @@ class Campaigns(generic.ListView):
             Campaign.objects.all().select_related("owner").prefetch_related("lists")
         )
 
-        # Apply "My campaigns only" filter
-        show_my_campaigns = self.request.GET.get("my", "0")
-        if show_my_campaigns == "1" and self.request.user.is_authenticated:
-            # Show campaigns where user is owner
-            queryset = queryset.filter(owner=self.request.user)
+        # Apply "My campaigns only" filter - default to "my" campaigns if user is authenticated
+        if self.request.user.is_authenticated:
+            # Check if "my" parameter is explicitly set to "0" to show public campaigns
+            show_my_campaigns = self.request.GET.get(
+                "my", "1"
+            )  # Default to "1" (my campaigns)
+            if show_my_campaigns == "1":
+                # Show campaigns where user is owner
+                queryset = queryset.filter(owner=self.request.user)
+            else:
+                # Only show public campaigns if explicitly requested
+                queryset = queryset.filter(public=True)
         else:
-            # Only show public campaigns if not filtering by user
+            # For unauthenticated users, only show public campaigns
             queryset = queryset.filter(public=True)
 
         # Apply "Participating only" filter
@@ -101,7 +108,7 @@ class Campaigns(generic.ListView):
             search_q = SearchQuery(search_query)
             queryset = queryset.annotate(search=search_vector).filter(search=search_q)
 
-        return queryset.order_by("-created")
+        return queryset.order_by("name")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
