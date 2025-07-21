@@ -32,9 +32,9 @@ def test_show_verification_links_action():
     request.user = User.objects.create_superuser("admin", "admin@test.com", "password")
 
     # Set up messages framework
-    setattr(request, 'session', 'session')
+    setattr(request, "session", "session")
     messages_storage = FallbackStorage(request)
-    setattr(request, '_messages', messages_storage)
+    setattr(request, "_messages", messages_storage)
 
     # Execute the action
     queryset = EmailAddress.objects.filter(pk=email_address.pk)
@@ -65,9 +65,9 @@ def test_show_verification_links_skips_verified_emails():
     request.user = User.objects.create_superuser("admin", "admin@test.com", "password")
 
     # Set up messages framework
-    setattr(request, 'session', 'session')
+    setattr(request, "session", "session")
     messages_storage = FallbackStorage(request)
-    setattr(request, '_messages', messages_storage)
+    setattr(request, "_messages", messages_storage)
 
     # Execute the action
     queryset = EmailAddress.objects.filter(pk=email_address.pk)
