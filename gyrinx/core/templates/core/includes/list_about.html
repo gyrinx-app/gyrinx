@@ -9,7 +9,7 @@
     </div>
     <nav class="nav card card-body flex-column mb-3 p-2">
         <a class="nav-link p-2 py-1" href="#about-list">Overview</a>
-        {% for fighter in list.fighters %}
+        {% for fighter in list.active_fighters %}
             {% if fighter.narrative %}
                 <a class="nav-link p-2 py-1" href="#about-{{ fighter.id }}">{{ fighter.name }}</a>
             {% endif %}
