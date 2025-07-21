@@ -19,7 +19,7 @@ def test_content_fighter_equipment_category_limit_creation():
     """Test creating a ContentFighterEquipmentCategoryLimit."""
     house = ContentHouse.objects.create(name="Test House")
     category = ContentEquipmentCategory.objects.create(
-        name="Drive Upgrades", group="gear"
+        name="Test Limit Drive Upgrades", group="gear"
     )
     fighter = ContentFighter.objects.create(
         type="Vehicle 1",
@@ -44,15 +44,18 @@ def test_content_fighter_equipment_category_limit_creation():
     assert limit.fighter == fighter
     assert limit.equipment_category == category
     assert limit.limit == 2
-    assert str(limit) == "Test House Vehicle 1 (Vehicle) - Drive Upgrades (limit: 2)"
+    assert (
+        str(limit)
+        == "Test House Vehicle 1 (Vehicle) - Test Limit Drive Upgrades (limit: 2)"
+    )
 
 
 @pytest.mark.django_db
 def test_content_fighter_equipment_category_limit_validation():
     """Test that ContentFighterEquipmentCategoryLimit requires category to have fighter restrictions."""
     house = ContentHouse.objects.create(name="Test House")
-    category = ContentEquipmentCategory.objects.create(
-        name="Normal Equipment", group="gear"
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Normal Equipment", defaults={"group": "gear"}
     )
     fighter = ContentFighter.objects.create(
         type="Test Fighter",
@@ -75,14 +78,14 @@ def test_content_fighter_equipment_category_limit_validation():
     assert "must have fighter restrictions" in str(exc_info.value)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_category_restricted_gearline_display_with_limit():
     """Test that the category restricted gearline display shows the limit indicator."""
     house = ContentHouse.objects.create(name="Test House")
 
     # Create category with fighter restriction
     category = ContentEquipmentCategory.objects.create(
-        name="Drive Upgrades", group="gear"
+        name="Test Drive Upgrades", group="gear"
     )
     ContentEquipmentCategoryFighterRestriction.objects.create(
         equipment_category=category,
@@ -126,7 +129,7 @@ def test_category_restricted_gearline_display_with_limit():
     # Initially no equipment assigned
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
-    assert gearlines[0]["category"] == "Drive Upgrades (0/2)"
+    assert gearlines[0]["category"] == "Test Drive Upgrades (0/2)"
     assert len(gearlines[0]["assignments"]) == 0
 
     # Assign one piece of equipment
@@ -134,13 +137,12 @@ def test_category_restricted_gearline_display_with_limit():
         list_fighter=list_vehicle, content_equipment=equipment1
     )
 
-    # Clear cached property
-    if hasattr(list_vehicle, "_category_restricted_gearline_display"):
-        del list_vehicle._category_restricted_gearline_display
+    # Get a fresh instance from the database to clear all caches
+    list_vehicle = ListFighter.objects.get(pk=list_vehicle.pk)
 
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
-    assert gearlines[0]["category"] == "Drive Upgrades (1/2)"
+    assert gearlines[0]["category"] == "Test Drive Upgrades (1/2)"
     assert len(gearlines[0]["assignments"]) == 1
 
     # Assign two more pieces (exceeding limit)
@@ -151,14 +153,13 @@ def test_category_restricted_gearline_display_with_limit():
         list_fighter=list_vehicle, content_equipment=equipment3
     )
 
-    # Clear cached property
-    if hasattr(list_vehicle, "_category_restricted_gearline_display"):
-        del list_vehicle._category_restricted_gearline_display
+    # Get a fresh instance from the database to clear all caches
+    list_vehicle = ListFighter.objects.get(pk=list_vehicle.pk)
 
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
     assert (
-        gearlines[0]["category"] == "Drive Upgrades (3/2)"
+        gearlines[0]["category"] == "Test Drive Upgrades (3/2)"
     )  # Shows 3/2, exceeding limit
     assert len(gearlines[0]["assignments"]) == 3
 
@@ -169,8 +170,8 @@ def test_category_without_limit_shows_no_indicator():
     house = ContentHouse.objects.create(name="Test House")
 
     # Create category with fighter restriction but no limit
-    category = ContentEquipmentCategory.objects.create(
-        name="Vehicle Equipment", group="gear"
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Vehicle Equipment", defaults={"group": "gear"}
     )
     ContentEquipmentCategoryFighterRestriction.objects.create(
         equipment_category=category,
@@ -203,11 +204,11 @@ def test_category_without_limit_shows_no_indicator():
 def test_admin_form_validation():
     """Test admin form validation for ContentFighterEquipmentCategoryLimit."""
     house = ContentHouse.objects.create(name="Test House")
-    category_restricted = ContentEquipmentCategory.objects.create(
-        name="Restricted Category", group="gear"
+    category_restricted, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Restricted Category", defaults={"group": "gear"}
     )
-    category_normal = ContentEquipmentCategory.objects.create(
-        name="Normal Category", group="gear"
+    category_normal, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Normal Category", defaults={"group": "gear"}
     )
     fighter = ContentFighter.objects.create(
         type="Test Fighter",
