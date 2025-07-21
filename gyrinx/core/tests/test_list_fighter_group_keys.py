@@ -15,7 +15,7 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_vehicle_and_crew_have_same_group_key():
-    """Test that vehicles and their crew have the same group key."""
+    """Test that vehicles and their crew have the same group key (the crew member's ID)."""
     # Create a user and house
     user = User.objects.create_user("testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -98,9 +98,9 @@ def test_vehicle_and_crew_have_same_group_key():
     crew_with_group = fighters_with_groups.get(id=crew_lf.id)
     vehicle_with_group = fighters_with_groups.get(id=vehicle_lf.id)
 
-    # Check that both have the same group key (the vehicle's ID)
-    assert crew_with_group.group_key == vehicle_lf.id
-    assert vehicle_with_group.group_key == vehicle_lf.id
+    # Check that both have the same group key (the crew member's ID)
+    assert crew_with_group.group_key == crew_lf.id
+    assert vehicle_with_group.group_key == crew_lf.id
     assert crew_with_group.group_key == vehicle_with_group.group_key
 
 
