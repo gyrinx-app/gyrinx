@@ -7,6 +7,7 @@ models for fighters, equipment, rules, and more. Custom managers and querysets
 provide streamlined data access.
 """
 
+import logging
 import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
@@ -31,6 +32,8 @@ from gyrinx.models import (
     equipment_category_group_choices,
     format_cost_display,
 )
+
+logger = logging.getLogger(__name__)
 
 ##
 ## Content Models
@@ -1517,7 +1520,7 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
         blank=True,
         help_text="Optional cost calculation expression. If provided, this will be used instead of the base cost. "
         "Available variables: cost_int (the base cost of the weapon). "
-        "Available functions: round(), ceil(), floor(), round_up(). "
+        "Available functions: min(), max(), round(), ceil(), floor(). "
         "Example: 'ceil(cost_int * 0.25 / 5) * 5' for 25% of cost rounded up to nearest 5.",
     )
     rarity = models.CharField(
@@ -1553,16 +1556,13 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
         if not self.cost_expression:
             return self.cost
 
-        # Custom round_up function for rounding up to nearest integer
-        def round_up(x):
-            return math.ceil(x)
-
         # Define available functions
         functions = {
             "round": round,
-            "round_up": round_up,
             "ceil": math.ceil,
             "floor": math.floor,
+            "min": min,
+            "max": max,
         }
 
         # Define available names (variables)
@@ -1576,6 +1576,10 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
             return int(result)
         except Exception:
             # If evaluation fails, fall back to base cost
+            logger.exception(
+                "Failed to evaluate cost expression for weapon accessory %s",
+                self.name,
+            )
             return self.cost
 
     class Meta:

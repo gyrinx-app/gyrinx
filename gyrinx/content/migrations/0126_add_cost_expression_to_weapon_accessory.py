@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0124_alter_contentmodfighterstat_stat_and_more"),
+        ("content", "0125_contentequipmentcategoryfighterrestriction"),
     ]
 
     operations = [
