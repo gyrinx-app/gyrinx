@@ -327,8 +327,8 @@ def test_assign_accessory_stat_mod(
         ]
     ]
     assert modded_profile.traitline() == [
-        "Add Me",
         "Rapid Fire (1)",
+        "Add Me",
     ]
 
     modded_spike_profile = profiles[1]
@@ -392,8 +392,8 @@ def test_assign_accessory_stat_mod(
         ]
     ]
     assert modded_spike_profile.traitline() == [
-        "Add Me",
         "Rapid Fire (1)",
+        "Add Me",
     ]
 
 
