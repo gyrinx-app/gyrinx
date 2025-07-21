@@ -344,26 +344,49 @@ class ListFighterEquipmentAssignmentCostForm(forms.ModelForm):
         }
 
 
+class ListFighterWeaponAccessoryField(forms.ModelMultipleChoiceField):
+    """Custom field for weapon accessories that shows calculated costs."""
+
+    def __init__(self, *args, assignment=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.assignment = assignment
+
+    def label_from_instance(self, obj):
+        # Use the assignment's accessory cost calculation which includes expression support
+        if self.assignment:
+            cost = self.assignment._accessory_cost_with_override(obj)
+        else:
+            # Fallback: check for annotated cost_for_fighter first, then basic cost
+            if hasattr(obj, "cost_for_fighter") and obj.cost_for_fighter is not None:
+                cost = obj.cost_for_fighter
+            else:
+                cost = obj.cost
+        unit = "¢" if str(cost).strip().isnumeric() else ""
+        return f"{obj.name} ({cost}{unit})"
+
+
 class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         inst: ListFighterEquipmentAssignment | None = kwargs.get("instance", None)
         if inst is not None:
+            # Create new field with assignment instance
+            self.fields["weapon_accessories_field"] = ListFighterWeaponAccessoryField(
+                label="Accessories",
+                queryset=ContentWeaponAccessory.objects.with_cost_for_fighter(
+                    inst.list_fighter.content_fighter
+                ).all(),
+                widget=BsCheckboxSelectMultiple(
+                    attrs={"class": "form-check-input"},
+                ),
+                help_text="Costs reflect the Fighter's Equipment List.",
+                required=False,
+                assignment=inst,
+            )
+            # Set initial value
             self.fields[
                 "weapon_accessories_field"
-            ].queryset = ContentWeaponAccessory.objects.with_cost_for_fighter(
-                inst.list_fighter.content_fighter
-            ).all()
-
-    weapon_accessories_field = ListFighterEquipmentField(
-        label="Accessories",
-        queryset=ContentWeaponAccessory.objects.all(),
-        widget=BsCheckboxSelectMultiple(
-            attrs={"class": "form-check-input"},
-        ),
-        help_text="Costs reflect the Fighter's Equipment List.",
-        required=False,
-    )
+            ].initial = inst.weapon_accessories_field.all()
 
     class Meta:
         model = ListFighterEquipmentAssignment
