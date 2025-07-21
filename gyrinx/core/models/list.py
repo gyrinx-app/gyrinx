@@ -416,6 +416,31 @@ class ListFighterManager(models.Manager):
             )
         )
 
+    def with_group_keys(self):
+        """
+        Annotate fighters with group keys for display grouping.
+
+        - Vehicles and their crew share the same group key (the vehicle's ID)
+        - All other fighters have unique group keys (their own ID)
+        """
+        return self.get_queryset().annotate(
+            group_key=Case(
+                # If this is a vehicle, use its own ID as group key
+                When(
+                    content_fighter__category=FighterCategoryChoices.VEHICLE,
+                    then=F("id"),
+                ),
+                # If this fighter has vehicle equipment (is crew), use the vehicle's ID
+                When(
+                    listfighterequipmentassignment__linked_fighter__content_fighter__category=FighterCategoryChoices.VEHICLE,
+                    then=F("listfighterequipmentassignment__linked_fighter__id"),
+                ),
+                # Default: use fighter's own ID
+                default=F("id"),
+                output_field=models.UUIDField(),
+            )
+        )
+
 
 class ListFighterQuerySet(models.QuerySet):
     """

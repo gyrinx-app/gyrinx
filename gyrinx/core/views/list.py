@@ -284,6 +284,14 @@ class ListDetailView(generic.DetailView):
 
         context["attributes"] = attributes
 
+        # Get fighters with group keys for display grouping
+        from gyrinx.core.models.list import ListFighter
+
+        fighters_with_groups = ListFighter.objects.with_group_keys().filter(
+            list=list_obj, archived=False
+        )
+        context["fighters_with_groups"] = fighters_with_groups
+
         return context
 
 
