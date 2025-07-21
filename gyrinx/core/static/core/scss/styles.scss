@@ -254,6 +254,48 @@ $em-sizes: (
     }
 }
 
+// Responsive removal of border
+
+@each $bp, $bp-value in $grid-breakpoints {
+    @include media-breakpoint-up($bp) {
+        .border-#{$bp}-0 {
+            border: none !important;
+        }
+        .border-top-#{$bp}-0 {
+            border-top: none !important;
+        }
+        .border-bottom-#{$bp}-0 {
+            border-bottom: none !important;
+        }
+        .border-end-#{$bp}-0 {
+            border-right: none !important;
+        }
+        .border-start-#{$bp}-0 {
+            border-left: none !important;
+        }
+
+        .rounded-#{$bp}-0 {
+            border-radius: 0 !important;
+        }
+        .rounded-top-#{$bp}-0 {
+            border-top-left-radius: 0 !important;
+            border-top-right-radius: 0 !important;
+        }
+        .rounded-bottom-#{$bp}-0 {
+            border-bottom-left-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+        .rounded-start-#{$bp}-0 {
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+        }
+        .rounded-end-#{$bp}-0 {
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+    }
+}
+
 // Color Forms
 
 .color-radio-label:hover {

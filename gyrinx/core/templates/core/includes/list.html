@@ -182,13 +182,19 @@
             {% if fighter_groups %}
                 {% for group in fighter_groups %}
                     {% if group.list|length > 1 %}
-                        <div class="g-col-12 g-col-md-6 g-col-lg-4">
-                            <div class="grid gap-0 border rounded p-2">
+                        <div class="g-col-12 g-col-xl-8">
+                            <div class="grid gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
                                 {% for fighter in group.list %}
                                     {% if fighter.is_stash %}
-                                        {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                                        {% comment %} Stash fighter in group? Nope {% endcomment %}
                                     {% else %}
-                                        {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
+                                        {% if forloop.first %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-end-md-0 rounded-end-md-0" %}
+                                        {% elif forloop.last %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0" %}
+                                        {% else %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0 border-end-md-0 rounded-end-md-0" %}
+                                        {% endif %}
                                     {% endif %}
                                 {% endfor %}
                             </div>

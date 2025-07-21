@@ -8,7 +8,7 @@ from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, F, Q, Value, When
+from django.db.models import Case, F, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Concat
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
 from django.dispatch import receiver
@@ -423,21 +423,28 @@ class ListFighterManager(models.Manager):
         - Vehicles and their crew share the same group key (the vehicle's ID)
         - All other fighters have unique group keys (their own ID)
         """
-        return self.get_queryset().annotate(
-            group_key=Case(
-                # If this is a vehicle, use its own ID as group key
-                When(
-                    content_fighter__category=FighterCategoryChoices.VEHICLE,
-                    then=F("id"),
-                ),
-                # If this fighter has vehicle equipment (is crew), use the vehicle's ID
-                When(
-                    listfighterequipmentassignment__linked_fighter__content_fighter__category=FighterCategoryChoices.VEHICLE,
-                    then=F("listfighterequipmentassignment__linked_fighter__id"),
-                ),
-                # Default: use fighter's own ID
-                default=F("id"),
-                output_field=models.UUIDField(),
+        return (
+            self.get_queryset()
+            .annotate(
+                # TODO: Multiple vehicles? Yikes
+                linked_vehicle=Subquery(
+                    ListFighter.objects.filter(
+                        content_fighter__category=FighterCategoryChoices.VEHICLE,
+                        linked_fighter__list_fighter=OuterRef("id"),
+                    ).values("id")[:1]
+                )
+            )
+            .annotate(
+                group_key=Case(
+                    # If this fighter has vehicle equipment (is crew), use the vehicle's ID
+                    When(
+                        linked_vehicle__isnull=False,
+                        then=F("linked_vehicle"),
+                    ),
+                    # Default: use fighter's own ID
+                    default=F("id"),
+                    output_field=models.UUIDField(),
+                )
             )
         )
 
@@ -917,7 +924,7 @@ class ListFighter(AppBase):
         return self.assignments()
 
     @cached_property
-    def has_linked_fighter(self):
+    def has_linked_fighter(self: "ListFighter") -> bool:
         return self.linked_fighter.exists()
 
     def skilline(self):
