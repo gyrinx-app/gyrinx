@@ -1064,13 +1064,17 @@ class ListFighter(AppBase):
 
             # Build category display string with limit if applicable
             category_display = cat.name
+            category_limit = ""
+            # If there's a limit, show current count and limit
             if limit_obj:
                 current_count = len(assignments)
-                category_display = f"{cat.name} ({current_count}/{limit_obj.limit})"
+                category_display = f"{cat.name}"
+                category_limit = f"({current_count}/{limit_obj.limit})"
 
             gearlines.append(
                 {
                     "category": category_display,
+                    "category_limit": category_limit,
                     "id": cat.id,
                     "assignments": assignments,
                     "filter": "equipment-list"

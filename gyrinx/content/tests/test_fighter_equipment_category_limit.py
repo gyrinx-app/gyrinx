@@ -129,7 +129,8 @@ def test_category_restricted_gearline_display_with_limit():
     # Initially no equipment assigned
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
-    assert gearlines[0]["category"] == "Test Drive Upgrades (0/2)"
+    assert gearlines[0]["category"] == "Test Drive Upgrades"
+    assert gearlines[0]["category_limit"] == "(0/2)"
     assert len(gearlines[0]["assignments"]) == 0
 
     # Assign one piece of equipment
@@ -142,7 +143,8 @@ def test_category_restricted_gearline_display_with_limit():
 
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
-    assert gearlines[0]["category"] == "Test Drive Upgrades (1/2)"
+    assert gearlines[0]["category"] == "Test Drive Upgrades"
+    assert gearlines[0]["category_limit"] == "(1/2)"
     assert len(gearlines[0]["assignments"]) == 1
 
     # Assign two more pieces (exceeding limit)
@@ -158,9 +160,8 @@ def test_category_restricted_gearline_display_with_limit():
 
     gearlines = list_vehicle.category_restricted_gearline_display
     assert len(gearlines) == 1
-    assert (
-        gearlines[0]["category"] == "Test Drive Upgrades (3/2)"
-    )  # Shows 3/2, exceeding limit
+    assert gearlines[0]["category"] == "Test Drive Upgrades"
+    assert gearlines[0]["category_limit"] == "(3/2)"  # Shows 3/2, exceeding limit
     assert len(gearlines[0]["assignments"]) == 3
 
 

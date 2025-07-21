@@ -98,6 +98,13 @@ class ContentEquipmentCategoryFighterRestrictionInline(ContentTabularInline):
 
 
 class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
+    def init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        group_select(
+            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
+        )
+
     class Meta:
         model = ContentFighterEquipmentCategoryLimit
         fields = "__all__"
@@ -128,14 +135,24 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
     extra = 0
     verbose_name = "Fighter Equipment Category Limit"
     verbose_name_plural = "Fighter Equipment Category Limits"
-    raw_id_fields = ["fighter"]
 
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)
         if obj:
-            # Pass the parent instance to each form
-            for form in formset.form:
-                form.parent_instance = obj
+            # Pass the parent instance to the form class
+            original_form = formset.form
+
+            class FormWithParentInstance(original_form):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.parent_instance = obj
+                    group_select(
+                        self,
+                        "fighter",
+                        key=lambda x: x.house.name if x.house else "No House",
+                    )
+
+            formset.form = FormWithParentInstance
         return formset
 
 

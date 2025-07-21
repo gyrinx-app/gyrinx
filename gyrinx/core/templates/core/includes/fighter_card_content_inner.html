@@ -161,7 +161,10 @@
             {% if fighter.has_category_restricted_gear %}
                 {% for line in fighter.category_restricted_gearline_display %}
                     <tr class="fs-7">
-                        <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">{{ line.category }}</th>
+                        <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">
+                            {{ line.category }}
+                            {% if line.category_limit %}<span class="fw-normal">{{ line.category_limit }}</span>{% endif %}
+                        </th>
                         <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                             {% spaceless %}
                                 {% for assign in line.assignments %}
