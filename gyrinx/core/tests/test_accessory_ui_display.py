@@ -1,13 +1,13 @@
 import pytest
-from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentWeaponAccessory,
     ContentFighter,
     ContentHouse,
+    ContentWeaponAccessory,
 )
 from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 
@@ -27,7 +27,7 @@ def test_accessory_form_shows_weapon_info_and_tooltip(client):
     # Create weapon category and weapon
     category = ContentEquipmentCategory.objects.create(name="Weapons")
     weapon = ContentEquipment.objects.create(name="Lasgun", category=category, cost=10)
-    
+
     # Create accessories
     ContentWeaponAccessory.objects.create(
         name="Red Dot Sight",
@@ -41,7 +41,9 @@ def test_accessory_form_shows_weapon_info_and_tooltip(client):
 
     # Create list, fighter, and assignment
     list_obj = List.objects.create(name="Test Gang", owner=user, content_house=house)
-    content_fighter = ContentFighter.objects.create(type="Ganger", house=house, base_cost=50, category="GANGER")
+    content_fighter = ContentFighter.objects.create(
+        type="Ganger", house=house, base_cost=50, category="GANGER"
+    )
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         list=list_obj,
@@ -97,8 +99,10 @@ def test_accessory_selection_preserves_existing_accessories(client):
 
     # Create weapon category and weapon
     category = ContentEquipmentCategory.objects.create(name="Weapons")
-    weapon = ContentEquipment.objects.create(name="Bolt Pistol", category=category, cost=20)
-    
+    weapon = ContentEquipment.objects.create(
+        name="Bolt Pistol", category=category, cost=20
+    )
+
     # Create accessories
     accessory1 = ContentWeaponAccessory.objects.create(
         name="Extended Magazine",
@@ -112,7 +116,9 @@ def test_accessory_selection_preserves_existing_accessories(client):
 
     # Create list, fighter, and assignment with one accessory already added
     list_obj = List.objects.create(name="Test Gang", owner=user, content_house=house)
-    content_fighter = ContentFighter.objects.create(type="Leader", house=house, base_cost=100, category="LEADER")
+    content_fighter = ContentFighter.objects.create(
+        type="Leader", house=house, base_cost=100, category="LEADER"
+    )
     fighter = ListFighter.objects.create(
         name="Test Leader",
         list=list_obj,
@@ -143,7 +149,6 @@ def test_accessory_selection_preserves_existing_accessories(client):
     # Look for the checked attribute on the Extended Magazine checkbox
     # This is a bit fragile but Django forms should render checked accessories with checked="checked"
     lines = content.split("\n")
-    found_extended_mag_checked = False
     for i, line in enumerate(lines):
         if "Extended Magazine" in line and "checkbox" in line:
             # Check if this checkbox or a nearby one has checked attribute
@@ -152,7 +157,7 @@ def test_accessory_selection_preserves_existing_accessories(client):
                 found_extended_mag_checked = True
                 break
 
-    # TODO: Fix this assertion - the checkbox detection is fragile  
-    # assert found_extended_mag_checked, (
-    #     "Extended Magazine checkbox should be checked in the form"
-    # )
+    # TODO: Fix this assertion - the checkbox detection is fragile
+    assert found_extended_mag_checked, (
+        "Extended Magazine checkbox should be checked in the form"
+    )

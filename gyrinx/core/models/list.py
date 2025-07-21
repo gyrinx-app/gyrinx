@@ -1768,7 +1768,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         after_overrides = [self._accessory_cost_with_override(a) for a in accessories]
         return sum(after_overrides)
 
-    def _accessory_cost_with_override(self, accessory):
+    def _accessory_cost_with_override(self, accessory: "ContentWeaponAccessory"):
         if self.from_default_assignment:
             # If this is a default assignment and the default assignment contains this accessory,
             # then we don't need to check for an override: it's free.
