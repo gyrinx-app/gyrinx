@@ -416,6 +416,29 @@ class ListFighterManager(models.Manager):
             )
         )
 
+    def with_group_keys(self):
+        """
+        Annotate fighters with group keys for display grouping.
+
+        - Vehicles and their crew share the same group key (the vehicle's ID)
+        - All other fighters have unique group keys (their own ID)
+        """
+        return self.get_queryset().annotate(
+            group_key=Case(
+                # If this fighter is linked, and we are a vehicle, use the linked fighter's id
+                When(
+                    linked_fighter__isnull=False,
+                    # TODO: De-special-case this, so that we check something like
+                    #       content_fighter__category__groups_with_linked_fighter
+                    content_fighter__category=FighterCategoryChoices.VEHICLE,
+                    then=F("linked_fighter__list_fighter__id"),
+                ),
+                # Default: use fighter's own ID
+                default=F("id"),
+                output_field=models.UUIDField(),
+            ),
+        )
+
 
 class ListFighterQuerySet(models.QuerySet):
     """
@@ -892,7 +915,7 @@ class ListFighter(AppBase):
         return self.assignments()
 
     @cached_property
-    def has_linked_fighter(self):
+    def has_linked_fighter(self: "ListFighter") -> bool:
         return self.linked_fighter.exists()
 
     def skilline(self):

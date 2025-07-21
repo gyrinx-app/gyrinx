@@ -177,21 +177,64 @@
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
             {% include "core/includes/list_attributes.html" with list=list attributes=attributes %}
         {% endif %}
-        {% for fighter in list.fighters_cached %}
-            {% if fighter.is_stash %}
-                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+        {% if fighters_with_groups %}
+            {% regroup fighters_with_groups by group_key as fighter_groups %}
+            {% if fighter_groups %}
+                {% for group in fighter_groups %}
+                    {% if group.list|length > 1 %}
+                        <div class="g-col-12 g-col-xl-8">
+                            <div class="grid gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
+                                {% for fighter in group.list %}
+                                    {% if fighter.is_stash %}
+                                        {% comment %} Stash fighter in group? Nope {% endcomment %}
+                                    {% else %}
+                                        {% if forloop.first %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-end-md-0 rounded-end-md-0" %}
+                                        {% elif forloop.last %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0" %}
+                                        {% else %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0 border-end-md-0 rounded-end-md-0" %}
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% else %}
+                        {% for fighter in group.list %}
+                            {% if fighter.is_stash %}
+                                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                            {% else %}
+                                {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
             {% else %}
-                {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
+                <div class="g-col-12 py-2 hstack gap-2 align-items-center">
+                    This List is empty.
+                    {% if not print and list.owner_cached == user and not list.archived %}
+                        <a href="{% url 'core:list-fighter-new' list.id %}"
+                           class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
+                    {% endif %}
+                </div>
             {% endif %}
-        {% empty %}
-            <div class="g-col-12 py-2 hstack gap-2 align-items-center">
-                This List is empty.
-                {% if not print and list.owner_cached == user and not list.archived %}
-                    <a href="{% url 'core:list-fighter-new' list.id %}"
-                       class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
+        {% else %}
+            {% for fighter in list.fighters_cached %}
+                {% if fighter.is_stash %}
+                    {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                {% else %}
+                    {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
                 {% endif %}
-            </div>
-        {% endfor %}
+            {% empty %}
+                <div class="g-col-12 py-2 hstack gap-2 align-items-center">
+                    This List is empty.
+                    {% if not print and list.owner_cached == user and not list.archived %}
+                        <a href="{% url 'core:list-fighter-new' list.id %}"
+                           class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
     </div>
     <div class="offcanvas offcanvas-end"
          tabindex="-1"
