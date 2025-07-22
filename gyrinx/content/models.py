@@ -2624,7 +2624,22 @@ class VirtualWeaponProfile:
 
     def traitline(self):
         # TODO: We need some kind of TraitDisplay thing
-        return sorted([trait.name for trait in self.traits])
+        # Get original traits from the profile
+        original_traits = list(self.profile.traits.all())
+
+        # Get the final trait list after modifications
+        final_traits = self.traits
+
+        # Separate traits into original (that weren't removed) and mod-added
+        original_trait_names = [
+            trait.name for trait in final_traits if trait in original_traits
+        ]
+        mod_added_trait_names = sorted(
+            [trait.name for trait in final_traits if trait not in original_traits]
+        )
+
+        # Return original traits first, then mod-added traits
+        return original_trait_names + mod_added_trait_names
 
     @cached_property
     def traitline_cached(self):
