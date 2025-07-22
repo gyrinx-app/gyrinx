@@ -1,5 +1,7 @@
 ## How is the Gyrinx codebase & project run?
 
+We'd love to get your contributions to Gyrinx. The best way to identify how to contribute is to use Gyrinx and spot improvements!
+
 While we are in a rapid development phase, the project is run [BDFL-style](https://en.m.wikipedia.org/wiki/Benevolent_dictator_for_life):
 
 - [@tgvashworth](https://github.com/tgvashworth) is the final decision-maker on all aspects of design, development and operations
@@ -13,7 +15,7 @@ Before contributing, read our [Code of Conduct](./CODE-OF-CONDUCT.md) — by joi
 #### **Did you find a bug?**
 
 - **Do not open up a GitHub issue if the bug is a security vulnerability
-  in Gyrinx**, and instead [email hella@gyrinx.app](mailto:hello@gyrinx.app).
+  in Gyrinx**, and instead [email hello@gyrinx.app](mailto:hello@gyrinx.app).
 
 - **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/gyrinx-app/gyrinx/issues).
 
