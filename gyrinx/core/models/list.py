@@ -420,11 +420,19 @@ class ListFighterManager(models.Manager):
         """
         Annotate fighters with group keys for display grouping.
 
-        - Vehicles and their crew share the same group key (the vehicle's ID)
+        - Vehicles and their crew share the same group key (the crew's ID)
+        - Vehicles linked to stash use their own ID (don't group with stash)
         - All other fighters have unique group keys (their own ID)
         """
         return self.get_queryset().annotate(
             group_key=Case(
+                # If this fighter is linked to stash and is a vehicle, use own ID
+                When(
+                    linked_fighter__isnull=False,
+                    content_fighter__category=FighterCategoryChoices.VEHICLE,
+                    linked_fighter__list_fighter__content_fighter__is_stash=True,
+                    then=F("id"),
+                ),
                 # If this fighter is linked, and we are a vehicle, use the linked fighter's id
                 When(
                     linked_fighter__isnull=False,

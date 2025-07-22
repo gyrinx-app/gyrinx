@@ -232,3 +232,123 @@ def test_list_view_includes_fighters_with_groups(client, django_user_model):
     # Check that the fighters have group_key attribute
     for fighter in fighters:
         assert hasattr(fighter, "group_key")
+
+
+@pytest.mark.django_db
+def test_stash_vehicles_have_unique_group_keys():
+    """Test that vehicles linked to the stash have their own ID as group key (not grouped with stash)."""
+    # Create a user and house
+    user = User.objects.create_user("testuser4", password="testpass")
+    house = ContentHouse.objects.create(name="Test House 4")
+
+    # Create a campaign list
+    test_list = List.objects.create(
+        name="Test Campaign List",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+    )
+
+    # Create a stash fighter
+    stash_cf = ContentFighter.objects.create(
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        is_stash=True,
+        base_cost=0,
+        house=house,
+    )
+    stash_lf = ListFighter.objects.create(
+        name="Stash",
+        list=test_list,
+        content_fighter=stash_cf,
+    )
+
+    # Create two vehicle equipment items with fighter profiles
+    vehicle1_ce = ContentEquipment.objects.create(
+        name="Vehicle Equipment 1",
+        cost=100,
+    )
+    vehicle1_cf = ContentFighter.objects.create(
+        type="Vehicle 1",
+        category=FighterCategoryChoices.VEHICLE,
+        base_cost=0,
+        house=house,
+        movement='7"',
+        weapon_skill="5+",
+        ballistic_skill="4+",
+        strength="5",
+        toughness="5",
+        wounds="3",
+        initiative="5+",
+        attacks="*",
+        leadership="7+",
+        cool="7+",
+        willpower="8+",
+        intelligence="8+",
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle1_ce,
+        content_fighter=vehicle1_cf,
+    )
+
+    vehicle2_ce = ContentEquipment.objects.create(
+        name="Vehicle Equipment 2",
+        cost=150,
+    )
+    vehicle2_cf = ContentFighter.objects.create(
+        type="Vehicle 2",
+        category=FighterCategoryChoices.VEHICLE,
+        base_cost=0,
+        house=house,
+        movement='8"',
+        weapon_skill="5+",
+        ballistic_skill="4+",
+        strength="5",
+        toughness="5",
+        wounds="3",
+        initiative="5+",
+        attacks="*",
+        leadership="7+",
+        cool="7+",
+        willpower="8+",
+        intelligence="8+",
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle2_ce,
+        content_fighter=vehicle2_cf,
+    )
+
+    # Assign both vehicles to the stash
+    assignment1 = ListFighterEquipmentAssignment(
+        list_fighter=stash_lf,
+        content_equipment=vehicle1_ce,
+    )
+    assignment1.save()
+    vehicle1_lf = assignment1.linked_fighter
+
+    assignment2 = ListFighterEquipmentAssignment(
+        list_fighter=stash_lf,
+        content_equipment=vehicle2_ce,
+    )
+    assignment2.save()
+    vehicle2_lf = assignment2.linked_fighter
+
+    # Get fighters with group keys
+    fighters_with_groups = ListFighter.objects.with_group_keys().filter(list=test_list)
+
+    # Find all fighters in the results
+    stash_with_group = fighters_with_groups.get(id=stash_lf.id)
+    vehicle1_with_group = fighters_with_groups.get(id=vehicle1_lf.id)
+    vehicle2_with_group = fighters_with_groups.get(id=vehicle2_lf.id)
+
+    # Check that stash has its own ID as group key
+    assert stash_with_group.group_key == stash_lf.id
+
+    # Check that each vehicle has its own ID as group key (not grouped with stash)
+    assert vehicle1_with_group.group_key == vehicle1_lf.id
+    assert vehicle2_with_group.group_key == vehicle2_lf.id
+
+    # Check that all three have different group keys
+    assert stash_with_group.group_key != vehicle1_with_group.group_key
+    assert stash_with_group.group_key != vehicle2_with_group.group_key
+    assert vehicle1_with_group.group_key != vehicle2_with_group.group_key
