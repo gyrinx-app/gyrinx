@@ -327,6 +327,8 @@ class ListPrintView(generic.DetailView):
 
     ``list``
         The requested :model:`core.List` object.
+    ``fighters_with_groups``
+        QuerySet of :model:`core.ListFighter` objects with group keys for display grouping.
 
     **Template**
 
@@ -341,6 +343,20 @@ class ListPrintView(generic.DetailView):
         Retrieve the :model:`core.List` by its `id`.
         """
         return get_object_or_404(List, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+
+        # Get fighters with group keys for display grouping
+        from gyrinx.core.models.list import ListFighter
+
+        fighters_with_groups = ListFighter.objects.with_group_keys().filter(
+            list=list_obj, archived=False
+        )
+        context["fighters_with_groups"] = fighters_with_groups
+
+        return context
 
 
 @login_required
