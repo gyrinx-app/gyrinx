@@ -21,7 +21,7 @@
             <th scope="col">
                 Weapons
                 {% if mode == "gear" %}
-                    <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
+                    <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
                        class="fw-normal">Edit weapons</a>
                 {% endif %}
             </th>

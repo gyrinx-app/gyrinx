@@ -1703,11 +1703,41 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
                 messages.success(request, description)
 
-                query_params = make_query_params_str(
-                    flash=assign.id,
-                    filter=request.POST.get("filter"),
-                    q=request.POST.get("q"),
-                )
+                # Build query parameters, preserving filters from both POST and GET
+                query_dict = {}
+                query_dict["flash"] = assign.id
+
+                # From POST
+                if request.POST.get("filter"):
+                    query_dict["filter"] = request.POST.get("filter")
+                if request.POST.get("q"):
+                    query_dict["q"] = request.POST.get("q")
+
+                # From GET - category and availability filters
+                cat_list = request.GET.getlist("cat")
+                if cat_list:
+                    # For lists, we need to use QueryDict to properly encode them
+                    from django.http import QueryDict
+
+                    qd = QueryDict(mutable=True)
+                    for k, v in query_dict.items():
+                        qd[k] = v
+                    qd.setlist("cat", cat_list)
+
+                    al_list = request.GET.getlist("al")
+                    if al_list:
+                        qd.setlist("al", al_list)
+
+                    mal = request.GET.get("mal")
+                    if mal:
+                        qd["mal"] = mal
+
+                    query_params = qd.urlencode()
+                else:
+                    # No lists, use simple approach
+                    if request.GET.get("mal"):
+                        query_dict["mal"] = request.GET.get("mal")
+                    query_params = make_query_params_str(**query_dict)
                 return HttpResponseRedirect(
                     reverse(view_name, args=(lst.id, fighter.id))
                     + f"?{query_params}"
