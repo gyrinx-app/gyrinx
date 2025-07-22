@@ -46,7 +46,6 @@ urlpatterns = debug_toolbar_urls() + [
     path("500/", views.error_500, name="error_500"),
     path("admin/", admin.site.urls),
     path("tinymce/", include("tinymce.urls")),
-    path("robots.txt", views.robots_txt, name="robots_txt"),
     re_path(r"^(?P<url>.*/)$", views.flatpage),
 ]
 
