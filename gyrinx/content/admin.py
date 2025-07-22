@@ -411,12 +411,29 @@ class ContentFighterForm(forms.ModelForm):
     pass
 
 
+class ContentStatlineInline(ContentStackedInline):
+    model = ContentStatline
+    extra = 0
+    max_num = 1
+    verbose_name = "Fighter Statline"
+    verbose_name_plural = "Fighter Statline"
+    fields = ["statline_type"]
+    can_delete = True
+
+    def has_add_permission(self, request, obj=None):
+        # Allow adding a statline if the fighter doesn't have one
+        if obj and hasattr(obj, "custom_statline"):
+            return False
+        return super().has_add_permission(request, obj)
+
+
 @admin.register(ContentFighter)
 class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
     list_filter = ["category", "house", "psyker_disciplines__discipline"]
     inlines = [
+        ContentStatlineInline,
         # ContentFighterHouseOverrideInline,
         # ContentFighterEquipmentInline,
         # ContentFighterDefaultAssignmentInline,
