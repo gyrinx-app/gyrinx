@@ -196,3 +196,15 @@ def test_error_handlers_context():
     assert response.status_code == 500
     assert "500" in response.content.decode()
     assert "Server Error" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_robots_txt(client):
+    """Test that robots.txt is served correctly via template."""
+    response = client.get("/robots.txt")
+    assert response.status_code == 200
+    assert response["Content-Type"] == "text/plain"
+
+    content = response.content.decode()
+    assert "User-agent: *" in content
+    assert "Disallow: /admin/" in content
