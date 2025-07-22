@@ -23,6 +23,7 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,7 +48,6 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
       - name: Cache npm dependencies
         uses: actions/cache@v4
         with:
@@ -55,18 +55,15 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-
       - name: Install dependencies
         run: |
           python -m venv .venv && \
           . .venv/bin/activate && \
           pip install --editable .
-
       - name: Write to .env file
         run: |
           echo "SECRET_KEY=test-secret" >> .env
           echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
-
       - name: Install Node dependencies
         run: npm ci
 
@@ -74,7 +71,6 @@ jobs:
         run: |
           . .venv/bin/activate && \
           pip install pre-commit
-
       - name: Install pre-commit hooks
         run: |
           . .venv/bin/activate && \
@@ -82,19 +78,28 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: grll/claude-code-action@beta
+        uses: anthropics/claude-code-action@beta
         with:
-          model: claude-opus-4-20250514
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          use_oauth: true
-          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
-          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
-          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
 
-          timeout_minutes: "60"
+          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
+          model: "claude-opus-4-20250514"
 
+          # Optional: Customize the trigger phrase (default: @claude)
+          # trigger_phrase: "/claude"
+
+          # Optional: Trigger when specific user is assigned to an issue
+          assignee_trigger: "claude-bot"
+
+          # Optional: Allow Claude to run specific commands
+          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
           allowed_tools: "Bash"
 
+          # Optional: Add custom instructions for Claude to customize its behavior for your project
           custom_instructions: |
             IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
             pip install --editable .
@@ -112,7 +117,7 @@ jobs:
 
             For formatting:
             - Run ./scripts/fmt.sh to format all code
-            - Or use: ruff format . && ruff check --fix
+            - Or use: ruff format . && ruff check --fix --unsafe-fixes
 
             WORKFLOW FOR COMPLETING TASKS:
             1. Make the requested changes
@@ -123,3 +128,7 @@ jobs:
             6. Only after all tests pass, commit and push your changes
 
             When completing a task, you MUST commit any changes you make before you can report success and stop.
+
+          # Optional: Custom environment variables for Claude
+          # claude_env: |
+          #   NODE_ENV: test
