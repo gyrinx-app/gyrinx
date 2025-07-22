@@ -1,7 +1,9 @@
+import csv
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group, User
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 from allauth.account.models import EmailAddress
@@ -226,36 +228,61 @@ def show_verification_links(modeladmin, request, queryset):
     Show email verification links for unverified email addresses.
     This allows manual sending of verification emails when automatic emails are blocked.
     """
-    links_shown = 0
+    selected = queryset.values_list("pk", flat=True)
+
+    # Check if this is a CSV download request
+    if request.POST.get("download_csv"):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            'attachment; filename="verification_links.csv"'
+        )
+
+        writer = csv.writer(response)
+        writer.writerow(["Email Address", "Status", "Verification Link"])
+
+        for email_address in queryset:
+            if not email_address.verified:
+                # Create a new email confirmation
+                confirmation = email_address.send_confirmation(request, signup=False)
+                # Generate the verification URL
+                verification_url = get_email_verification_url(request, confirmation)
+                writer.writerow([email_address.email, "Unverified", verification_url])
+            else:
+                writer.writerow([email_address.email, "Already Verified", ""])
+
+        return response
+
+    # Build verification data for the template
+    verification_data = []
 
     for email_address in queryset:
+        item = {
+            "email": email_address.email,
+            "already_verified": email_address.verified,
+            "verification_url": None,
+        }
+
         if not email_address.verified:
             # Create a new email confirmation
             confirmation = email_address.send_confirmation(request, signup=False)
-
             # Generate the verification URL
-            verification_url = get_email_verification_url(request, confirmation)
+            item["verification_url"] = get_email_verification_url(request, confirmation)
 
-            # Show the URL in the admin messages
-            modeladmin.message_user(
-                request,
-                f"Verification link for {email_address.email}: {verification_url}",
-                messages.SUCCESS,
-            )
-            links_shown += 1
-        else:
-            modeladmin.message_user(
-                request,
-                f"{email_address.email} is already verified",
-                messages.INFO,
-            )
+        verification_data.append(item)
 
-    if links_shown == 0 and queryset.count() > 0:
-        modeladmin.message_user(
-            request,
-            "All selected email addresses are already verified",
-            messages.INFO,
-        )
+    # Render the template with the verification data
+    context = {
+        **modeladmin.admin_site.each_context(request),
+        "title": _("Email Verification Links"),
+        "verification_data": verification_data,
+        "selected": selected,
+    }
+    request.current_app = modeladmin.admin_site.name
+    return render(
+        request,
+        "core/admin/show_verification_links.html",
+        context,
+    )
 
 
 # Unregister allauth's default EmailAddress admin if it exists
