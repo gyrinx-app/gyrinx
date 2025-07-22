@@ -199,24 +199,12 @@ def test_error_handlers_context():
 
 
 @pytest.mark.django_db
-def test_robots_txt():
-    """Test that robots.txt exists as a static file."""
-    # Since we're serving robots.txt as a static file, we need to verify
-    # that the file exists in the correct location and has the right content
-    import os
-    from django.conf import settings
+def test_robots_txt(client):
+    """Test that robots.txt is served correctly via template."""
+    response = client.get("/robots.txt")
+    assert response.status_code == 200
+    assert response["Content-Type"] == "text/plain"
 
-    # Check the original static file
-    static_robots_path = os.path.join(settings.BASE_DIR, "static", "robots.txt")
-    assert os.path.exists(static_robots_path), (
-        "robots.txt should exist in static directory"
-    )
-
-    with open(static_robots_path, "r") as f:
-        content = f.read()
-        assert "User-agent: *" in content
-        assert "Disallow: /admin/" in content
-
-    # In production, WhiteNoise will serve this file at /robots.txt
-    # In development, Django's static file handler serves it
-    # The actual HTTP serving is tested in integration/deployment tests
+    content = response.content.decode()
+    assert "User-agent: *" in content
+    assert "Disallow: /admin/" in content

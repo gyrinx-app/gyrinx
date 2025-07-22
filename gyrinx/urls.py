@@ -20,6 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
+from django.views.generic import TemplateView
 
 from gyrinx.pages import views
 
@@ -30,6 +31,10 @@ urlpatterns = debug_toolbar_urls() + [
     path("api/", include("gyrinx.api.urls")),
     path("accounts/", include("allauth.urls")),
     path("admin/doc/", include("django.contrib.admindocs.urls")),
+    path(
+        "robots.txt",
+        TemplateView.as_view(template_name="robots.txt", content_type="text/plain"),
+    ),
     path(
         "join-the-waiting-list/",
         views.join_the_waiting_list,
