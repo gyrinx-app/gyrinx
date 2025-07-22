@@ -13,113 +13,52 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'tgvashworth') ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'tgvashworth') ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.user.login == 'tgvashworth') ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.issue.user.login == 'tgvashworth')
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
       issues: read
       id-token: write
+      actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Cache pip
-        id: cache-pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Cache npm dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Install dependencies
-        run: |
-          python -m venv .venv && \
-          . .venv/bin/activate && \
-          pip install --editable .
-
-      - name: Write to .env file
-        run: |
-          echo "SECRET_KEY=test-secret" >> .env
-          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Install pre-commit
-        run: |
-          . .venv/bin/activate && \
-          pip install pre-commit
-
-      - name: Install pre-commit hooks
-        run: |
-          . .venv/bin/activate && \
-          pre-commit install --install-hooks
-
       - name: Run Claude Code
         id: claude
-        uses: grll/claude-code-action@beta
+        uses: anthropics/claude-code-action@beta
         with:
-          model: claude-opus-4-20250514
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          use_oauth: true
-          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
-          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
-          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
+          
+          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
+          # model: "claude-opus-4-20250514"
+          
+          # Optional: Customize the trigger phrase (default: @claude)
+          # trigger_phrase: "/claude"
+          
+          # Optional: Trigger when specific user is assigned to an issue
+          # assignee_trigger: "claude-bot"
+          
+          # Optional: Allow Claude to run specific commands
+          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          
+          # Optional: Add custom instructions for Claude to customize its behavior for your project
+          # custom_instructions: |
+          #   Follow our coding standards
+          #   Ensure all new code has tests
+          #   Use TypeScript for new files
+          
+          # Optional: Custom environment variables for Claude
+          # claude_env: |
+          #   NODE_ENV: test
 
-          timeout_minutes: "60"
-
-          allowed_tools: "Bash"
-
-          custom_instructions: |
-            IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
-            pip install --editable .
-
-            This installs all project dependencies defined in pyproject.toml, including:
-            - pytest for testing
-            - ruff for linting and formatting
-            - All other development dependencies
-
-            CRITICAL TEST REQUIREMENTS:
-            1. BEFORE committing any changes, you MUST run the tests using: pytest
-            2. Check the test output - ALL tests must pass (no failures, no errors)
-            3. If ANY tests fail, you MUST fix them before proceeding
-            4. Only commit and push after ALL tests pass successfully
-
-            For formatting:
-            - Run ./scripts/fmt.sh to format all code
-            - Or use: ruff format . && ruff check --fix
-
-            WORKFLOW FOR COMPLETING TASKS:
-            1. Make the requested changes
-            2. Run formatting: ./scripts/fmt.sh
-            3. Run tests: pytest
-            4. Verify ALL tests pass
-            5. If tests fail, fix the issues and repeat steps 2-4
-            6. Only after all tests pass, commit and push your changes
-
-            When completing a task, you MUST commit any changes you make before you can report success and stop.
