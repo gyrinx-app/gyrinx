@@ -2,7 +2,12 @@ from django.conf import settings
 from django.contrib.flatpages import views
 from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
-from django.http import Http404, HttpResponsePermanentRedirect, HttpResponseRedirect
+from django.http import (
+    Http404,
+    HttpResponse,
+    HttpResponsePermanentRedirect,
+    HttpResponseRedirect,
+)
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
@@ -151,3 +156,8 @@ def error_500(request):
         "error_id": error_id,
     }
     return render(request, "500.html", context, status=500)
+
+
+def robots_txt(request):
+    content = "User-agent: *\nDisallow: /admin/"
+    return HttpResponse(content, content_type="text/plain")
