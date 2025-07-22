@@ -3,11 +3,28 @@ import os
 import google.cloud.logging
 
 from .settings import *  # noqa: F403
-from .settings import STORAGES
+from .settings import LOGGING, STORAGES
 from .storage_settings import configure_gcs_storage
 
+# Configure Google Cloud Logging with structured logging for exceptions
 client = google.cloud.logging.Client()
-client.setup_logging()
+# Use exclude_loggers to prevent duplicate logging from standard Django loggers
+client.setup_logging(
+    excluded_loggers=(
+        "django.security.DisallowedHost",
+        "django.db.backends",
+    )
+)
+
+# Override Django logging configuration for production to ensure exceptions are logged as single entries
+LOGGING["handlers"]["structured_console"] = {
+    "class": "google.cloud.logging.handlers.StructuredLogHandler",
+}
+
+# Update loggers to use structured logging
+LOGGING["loggers"]["django.request"]["handlers"] = ["structured_console"]
+LOGGING["loggers"]["gyrinx"]["handlers"] = ["structured_console"]
+LOGGING["root"]["handlers"] = ["structured_console"]
 
 DEBUG = False
 CSRF_COOKIE_SECURE = True
