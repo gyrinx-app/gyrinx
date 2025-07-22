@@ -102,7 +102,11 @@
                         </div>
                     </div>
                     <div>
-                        <label for="al" class="form-label">Availability</label>
+                        <label for="al" class="form-label">
+                            Availability
+                            •
+                            <a href="#" id="availability-all-link" class="ms-auto">all</a>
+                        </label>
                         {% qt_contains request "al" "C" as al_contains_c %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"

@@ -286,11 +286,30 @@ document.addEventListener("DOMContentLoaded", () => {
                     "data-bs-placement",
                 );
                 availabilityButton.parentElement.removeAttribute("title");
+            }
+        });
+    }
+});
 
-                // Check the illegal checkbox
-                if (illegalCheckbox && !illegalCheckbox.checked) {
-                    illegalCheckbox.checked = true;
-                }
+// Handle "all" link in availability dropdown
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("availability-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Check all availability checkboxes
+            const checkboxes = document.querySelectorAll(
+                'input[name="al"][type="checkbox"]',
+            );
+            checkboxes.forEach((checkbox) => {
+                checkbox.checked = true;
+            });
+
+            // Submit the search form to apply the changes
+            const searchForm = document.getElementById("search");
+            if (searchForm) {
+                searchForm.submit();
             }
         });
     }
