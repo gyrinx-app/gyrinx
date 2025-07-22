@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+        › <a href="{% url 'admin:account_emailaddress_changelist' %}">{% trans "Email addresses" %}</a>
+        › {% trans "Verification Links" %}
+    </div>
+{% endblock breadcrumbs %}
+{% block content %}
+    <h1>{% trans "Email Verification Links" %}</h1>
+    {% if verification_data %}
+        <p>{% trans "The following verification links have been generated:" %}</p>
+        <div class="mb-3">
+            <form method="post" action="">
+                {% csrf_token %}
+                <input type="hidden" name="download_csv" value="1">
+                {% for pk in selected %}<input type="hidden" name="_selected_action" value="{{ pk }}">{% endfor %}
+                <input type="hidden" name="action" value="show_verification_links">
+                <button type="submit" class="button">{% trans "Download as CSV" %}</button>
+            </form>
+        </div>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>{% trans "Email Address" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Verification Link" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in verification_data %}
+                    <tr>
+                        <td>{{ item.email }}</td>
+                        <td>
+                            {% if item.already_verified %}
+                                <span class="text-success">{% trans "Already Verified" %}</span>
+                            {% else %}
+                                <span class="text-warning">{% trans "Unverified" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.verification_url %}
+                                <input type="text"
+                                       value="{{ item.verification_url }}"
+                                       readonly
+                                       class="form-control"
+                                       onclick="this.select();">
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="mt-3">
+            <a href="{% url 'admin:account_emailaddress_changelist' %}"
+               class="button">{% trans "Back to Email Addresses" %}</a>
+        </div>
+    {% else %}
+        <p>{% trans "No email addresses were selected." %}</p>
+        <div class="mt-3">
+            <a href="{% url 'admin:account_emailaddress_changelist' %}"
+               class="button">{% trans "Back to Email Addresses" %}</a>
+        </div>
+    {% endif %}
+{% endblock content %}
