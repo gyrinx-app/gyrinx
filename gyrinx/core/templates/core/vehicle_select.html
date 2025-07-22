@@ -1,0 +1,35 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Select Vehicle - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 col-lg-8 col-xl-6">
+        {% include "core/includes/back.html" with url=list.get_absolute_url text="Back to List" %}
+        <h1 class="h2">Add Vehicle to {{ list.name }}</h1>
+        <div class="progress mb-3"
+             role="progressbar"
+             aria-label="Step 1 of 3"
+             aria-valuenow="33"
+             aria-valuemin="0"
+             aria-valuemax="100">
+            {# djlint:off #}
+                <div class="progress-bar" style="width: 33%">Step 1 of 3</div>
+            {# djlint:on #}
+        </div>
+        <p class="h4 mb-3">Select a vehicle</p>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                <label for="{{ form.vehicle_equipment.id_for_label }}" class="form-label">{{ form.vehicle_equipment.label }}</label>
+                {{ form.vehicle_equipment.errors }}
+                {{ form.vehicle_equipment }}
+            </div>
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">
+                    Next <i class="bi-arrow-right"></i>
+                </button>
+                <a href="{{ list.get_absolute_url }}" class="link-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

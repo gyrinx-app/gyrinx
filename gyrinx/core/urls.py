@@ -2,7 +2,7 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import battle, campaign, list
+from .views import battle, campaign, list, vehicle
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -29,6 +29,18 @@ urlpatterns = [
     path("list/<id>/credits", list.edit_list_credits, name="list-credits-edit"),
     path("list/<id>/clone", list.clone_list, name="list-clone"),
     path("list/<id>/fighters/new", list.new_list_fighter, name="list-fighter-new"),
+    path("list/<id>/vehicles/new", vehicle.new_vehicle, name="list-vehicle-new"),
+    path(
+        "list/<id>/vehicles/new/select",
+        vehicle.vehicle_select,
+        name="list-vehicle-select",
+    ),
+    path("list/<id>/vehicles/new/crew", vehicle.vehicle_crew, name="list-vehicle-crew"),
+    path(
+        "list/<id>/vehicles/new/confirm",
+        vehicle.vehicle_confirm,
+        name="list-vehicle-confirm",
+    ),
     path(
         "list/<id>/fighters/archived",
         list.ListArchivedFightersView.as_view(),
