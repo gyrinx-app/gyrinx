@@ -384,7 +384,9 @@ class ContentEquipmentCategory(Content):
 
 class ContentEquipmentCategoryFighterRestriction(models.Model):
     equipment_category = models.ForeignKey(
-        ContentEquipmentCategory, on_delete=models.CASCADE
+        ContentEquipmentCategory,
+        on_delete=models.CASCADE,
+        related_name="fighter_restrictions",
     )
     fighter_category = models.CharField(
         max_length=255, choices=FighterCategoryChoices.choices
