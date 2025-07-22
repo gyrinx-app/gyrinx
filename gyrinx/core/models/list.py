@@ -1059,11 +1059,11 @@ class ListFighter(AppBase):
         # Stash fighters can see all restricted categories
         if self.is_stash:
             restricted_categories = ContentEquipmentCategory.objects.filter(
-                contentequipmentcategoryfighterrestriction__isnull=False
+                fighter_restrictions__isnull=False
             ).distinct()
         else:
             restricted_categories = ContentEquipmentCategory.objects.filter(
-                contentequipmentcategoryfighterrestriction__fighter_category=fighter_category
+                fighter_restrictions__fighter_category=fighter_category
             ).distinct()
 
         for cat in restricted_categories:

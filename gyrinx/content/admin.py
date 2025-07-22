@@ -407,6 +407,31 @@ class ContentFighterPsykerPowerDefaultAssignmentInline(ContentTabularInline):
     form = ContentFighterPsykerPowerDefaultAssignmentForm
 
 
+class ContentFighterEquipmentCategoryLimitForFighterForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only show equipment categories that have fighter restrictions
+        self.fields["equipment_category"].queryset = (
+            ContentEquipmentCategory.objects.filter(fighter_restrictions__isnull=False)
+            .distinct()
+            .order_by("group", "name")
+        )
+
+        group_select(self, "equipment_category", key=lambda x: x.group)
+
+    class Meta:
+        model = ContentFighterEquipmentCategoryLimit
+        fields = ["equipment_category", "limit"]
+
+
+class ContentFighterEquipmentCategoryLimitForFighterInline(ContentTabularInline):
+    model = ContentFighterEquipmentCategoryLimit
+    form = ContentFighterEquipmentCategoryLimitForFighterForm
+    extra = 0
+    verbose_name = "Equipment Category Limit"
+    verbose_name_plural = "Equipment Category Limits"
+
+
 class ContentFighterForm(forms.ModelForm):
     pass
 
@@ -437,6 +462,7 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
         # ContentFighterHouseOverrideInline,
         # ContentFighterEquipmentInline,
         # ContentFighterDefaultAssignmentInline,
+        ContentFighterEquipmentCategoryLimitForFighterInline,
         ContentFighterPsykerDisciplineAssignmentInline,
         ContentFighterPsykerPowerDefaultAssignmentInline,
     ]
