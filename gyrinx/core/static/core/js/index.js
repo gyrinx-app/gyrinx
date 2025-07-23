@@ -303,19 +303,22 @@ document.addEventListener("DOMContentLoaded", () => {
         allLink.addEventListener("click", (event) => {
             event.preventDefault();
 
-            // Check all availability checkboxes
-            const checkboxes = document.querySelectorAll(
-                'input[name="al"][type="checkbox"]',
-            );
-            checkboxes.forEach((checkbox) => {
-                checkbox.checked = true;
-            });
+            // Build query string with all availability options
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
 
-            // Submit the search form to apply the changes
-            const searchForm = document.getElementById("search");
-            if (searchForm) {
-                searchForm.submit();
-            }
+            // Remove existing availability parameters
+            params.delete("al");
+
+            // Add all availability parameters
+            params.append("al", "C");
+            params.append("al", "R");
+            params.append("al", "I");
+            params.append("al", "E");
+            params.append("al", "U");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
         });
     }
 });

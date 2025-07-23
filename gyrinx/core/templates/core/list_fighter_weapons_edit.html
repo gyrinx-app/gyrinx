@@ -38,7 +38,7 @@
                         No weapons found.
                     {% endif %}
                     {% if request.GET.q %}
-                        <a href="?{% qt_rm request "q" "flash" %}">Clear your search</a>.
+                        <a href="?{% qt_rm request "q" "flash" %}"><em>Clear your search</em></a>
                     {% endif %}
                     {% comment %}Check if not all availability filters are selected{% endcomment %}
                     {% qt_contains request "al" "C" as has_c %}
@@ -49,11 +49,13 @@
                     {% if request.GET.filter == "all" and not has_c and not has_r and not has_i and not has_e and not has_u %}
                         {# If no explicit al params, check defaults #}
                         {% if request.GET.al %}
-                            <a href="?filter=all&al=C&al=R&al=I&al=E&al=U#search">Show equipment with any availability</a>.
+                            {% if request.GET.q %}or{% endif %}
+                            <a href="?filter=all&al=C&al=R&al=I&al=E&al=U#search"> <em>Show equipment with any availability</em></a>.
                         {% endif %}
                     {% elif request.GET.filter == "all" and not has_i and not has_e and not has_u %}
                         {# Some filters missing #}
-                        <a href="?filter=all&al=C&al=R&al=I&al=E&al=U#search">Show equipment with any availability</a>.
+                        {% if request.GET.q %}or{% endif %}
+                        <a href="?filter=all&al=C&al=R&al=I&al=E&al=U#search"><em>Show equipment with any availability</em></a>.
                     {% endif %}
                 </div>
             {% endfor %}
