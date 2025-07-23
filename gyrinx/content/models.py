@@ -751,7 +751,16 @@ class ContentFighterQuerySet(models.QuerySet):
     Custom QuerySet for :model:`content.ContentFighter`.
     """
 
-    def available_for_house(self, house):
+    def available_for_house(
+        self,
+        house,
+        include=[],
+        exclude=[
+            FighterCategoryChoices.EXOTIC_BEAST,
+            FighterCategoryChoices.VEHICLE,
+            FighterCategoryChoices.STASH,
+        ],
+    ):
         """
         Returns fighters available for a specific house.
 
@@ -762,11 +771,15 @@ class ContentFighterQuerySet(models.QuerySet):
 
         Args:
             house: ContentHouse instance
+            include: List of fighter categories to include, which are removed from exclude
+            exclude: List of fighter categories to exclude, defaults to exotic beasts, vehicles, and stash
 
         Returns:
             QuerySet of ContentFighter objects
         """
         from gyrinx.models import FighterCategoryChoices
+
+        exclude = set(exclude) - set(include)
 
         # Check if the house can hire any fighter
         if house.can_hire_any:
@@ -779,13 +792,7 @@ class ContentFighterQuerySet(models.QuerySet):
             )
             return self.filter(
                 house__in=[house.id] + list(generic_houses),
-            ).exclude(
-                category__in=[
-                    FighterCategoryChoices.EXOTIC_BEAST,
-                    FighterCategoryChoices.VEHICLE,
-                    FighterCategoryChoices.STASH,
-                ]
-            )
+            ).exclude(category__in=exclude)
 
 
 class ContentFighter(Content):

@@ -5,7 +5,7 @@
 {% block content %}
     <div class="col-12 col-lg-8 col-xl-6">
         {% url "core:list-vehicle-crew" list.id as back_url %}
-        {% include "core/includes/back.html" with url=back_url|add:"?"|add:request.GET.urlencode text="Back" %}
+        {% include "core/includes/back.html" %}
         <h1 class="h2">Add Vehicle to {{ list.name }}</h1>
         <div class="progress mb-3"
              role="progressbar"
@@ -18,29 +18,38 @@
             {# djlint:on #}
         </div>
         <p class="h4 mb-3">Confirm vehicle and crew</p>
-        <dl class="row my-3">
-            <dt class="col-sm-4">Vehicle</dt>
-            <dd class="col-sm-8">
-                <strong>{{ vehicle_equipment.name }}</strong> ({{ vehicle_equipment.cost }}¢)
-            </dd>
-            <dt class="col-sm-4">Crew</dt>
-            <dd class="col-sm-8">
-                <strong>{{ crew_name }}</strong> — {{ crew_fighter.type }} ({{ crew_cost }}¢)
-            </dd>
-            <dt class="col-sm-4">Total Cost</dt>
-            <dd class="col-sm-8">
-                <strong>{{ total_cost }}¢</strong>
-            </dd>
-        </dl>
-        <form method="post">
-            {% csrf_token %}
-            {{ form.confirm }}
-            <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">
-                    <i class="bi-check-circle"></i> Confirm and Add
-                </button>
-                <a href="{{ list.get_absolute_url }}" class="link-secondary">Cancel</a>
-            </div>
-        </form>
+        <div class="vstack gap-4">
+            <dl class="row my-3">
+                <dt class="col-sm-4">Vehicle</dt>
+                <dd class="col-sm-8">
+                    <strong>{{ vehicle_equipment.name }}</strong> ({{ vehicle_equipment.cost }}¢)
+                </dd>
+                {% if crew_fighter %}
+                    <dt class="col-sm-4">Crew</dt>
+                    <dd class="col-sm-8">
+                        <strong>{{ crew_name }}</strong> — {{ crew_fighter.type }} ({{ crew_cost }}¢)
+                    </dd>
+                {% else %}
+                    <dt class="col-sm-4 text-secondary">Crew</dt>
+                    <dd class="col-sm-8 text-secondary">
+                        Adding to stash, no crew selected.
+                    </dd>
+                {% endif %}
+                <dt class="col-sm-4 border-top pt-2 mt-1">Total Cost</dt>
+                <dd class="col-sm-8 border-top pt-2 mt-1">
+                    <strong>{{ total_cost }}¢</strong>
+                </dd>
+            </dl>
+            <form method="post">
+                {% csrf_token %}
+                {{ form.confirm }}
+                <div class="hstack gap-3 align-items-center">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi-check-circle"></i> Add Vehicle
+                    </button>
+                    <a href="{% url "core:list" list.id %}" class="link-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
     </div>
 {% endblock content %}

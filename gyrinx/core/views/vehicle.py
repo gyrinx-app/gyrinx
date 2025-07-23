@@ -29,6 +29,7 @@ from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssig
 class VehicleFlowParams(BaseModel):
     """Parameters for the vehicle addition flow."""
 
+    action: Optional[str] = None
     vehicle_equipment_id: Optional[uuid.UUID] = None
     crew_name: str | None = None
     crew_fighter_id: Optional[uuid.UUID] = None
@@ -62,29 +63,36 @@ def vehicle_select(request, id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
+        print(request.POST)
         form = VehicleSelectionForm(request.POST, list_instance=lst)
         if form.is_valid():
             vehicle_equipment = form.cleaned_data["vehicle_equipment"]
 
-            # Build query params for next step
-            params = VehicleFlowParams(vehicle_equipment_id=vehicle_equipment.id)
-            query_string = urlencode(params.model_dump(exclude_none=True))
+            action = request.POST.get("action")
+            print(f"Selected action: {action}")
+            if action == "add_to_stash":
+                # Go to confirmation step with stash action
+                params = VehicleFlowParams(
+                    vehicle_equipment_id=vehicle_equipment.id, action=action
+                )
+                query_string = urlencode(params.model_dump(exclude_none=True))
+                return HttpResponseRedirect(
+                    reverse("core:list-vehicle-confirm", args=(lst.id,))
+                    + f"?{query_string}"
+                )
+            elif action == "select_crew":
+                # Redirect to crew selection step
+                params = VehicleFlowParams(
+                    vehicle_equipment_id=vehicle_equipment.id, action=action
+                )
+                query_string = urlencode(params.model_dump(exclude_none=True))
+                return HttpResponseRedirect(
+                    reverse("core:list-vehicle-crew", args=(lst.id,))
+                    + f"?{query_string}"
+                )
 
-            return HttpResponseRedirect(
-                reverse("core:list-vehicle-crew", args=(lst.id,)) + f"?{query_string}"
-            )
     else:
         form = VehicleSelectionForm(list_instance=lst)
-
-        # Log viewing the vehicle selection form
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST,
-            verb=EventVerb.VIEW,
-            object=lst,
-            request=request,
-            page="vehicle_select",
-        )
 
     return render(
         request,
@@ -131,6 +139,7 @@ def vehicle_crew(request, id):
         )
         if form.is_valid():
             # Update params with crew info
+            params.action = form.cleaned_data["action"]
             params.crew_name = form.cleaned_data["crew_name"]
             params.crew_fighter_id = form.cleaned_data["crew_fighter"].id
 
@@ -142,17 +151,6 @@ def vehicle_crew(request, id):
             )
     else:
         form = CrewSelectionForm(list_instance=lst, vehicle_equipment=vehicle_equipment)
-
-        # Log viewing the crew selection form
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST,
-            verb=EventVerb.VIEW,
-            object=lst,
-            request=request,
-            page="vehicle_crew",
-            vehicle_equipment_id=str(vehicle_equipment.id),
-        )
 
     return render(
         request,
@@ -187,10 +185,13 @@ def vehicle_confirm(request, id):
         messages.error(request, "Invalid flow parameters.")
         return redirect("core:list-vehicle-select", id=lst.id)
 
-    if (
-        not params.vehicle_equipment_id
-        or not params.crew_fighter_id
-        or not params.crew_name
+    if (params.action == "add_to_stash" and not params.vehicle_equipment_id) or (
+        params.action == "select_crew"
+        and (
+            not params.vehicle_equipment_id
+            or not params.crew_fighter_id
+            or not params.crew_name
+        )
     ):
         messages.error(request, "Missing required information.")
         return redirect("core:list-vehicle-select", id=lst.id)
@@ -198,7 +199,6 @@ def vehicle_confirm(request, id):
     vehicle_equipment = get_object_or_404(
         ContentEquipment, id=params.vehicle_equipment_id
     )
-    crew_fighter = get_object_or_404(ContentFighter, id=params.crew_fighter_id)
 
     # Get the vehicle fighter profile
     profile = (
@@ -213,17 +213,25 @@ def vehicle_confirm(request, id):
 
     vehicle_fighter = profile.content_fighter
 
+    crew_fighter = None
+    if params.action == "select_crew":
+        crew_fighter = get_object_or_404(ContentFighter, id=params.crew_fighter_id)
+
     if request.method == "POST":
         form = VehicleConfirmationForm(request.POST)
         if form.is_valid():
             with transaction.atomic():
                 # Create the crew member
-                crew = ListFighter.objects.create(
-                    list=lst,
-                    owner=lst.owner,
-                    name=params.crew_name,
-                    content_fighter=crew_fighter,
-                )
+                if params.action == "select_crew":
+                    crew = ListFighter.objects.create(
+                        list=lst,
+                        owner=lst.owner,
+                        name=params.crew_name,
+                        content_fighter=crew_fighter,
+                    )
+                else:
+                    # We are adding to stash, so make sure there's stash fighter
+                    crew = lst.ensure_stash()
 
                 # Create the equipment assignment - this will trigger automatic vehicle creation
                 ListFighterEquipmentAssignment.objects.create(
@@ -244,6 +252,7 @@ def vehicle_confirm(request, id):
                     is_vehicle_crew=True,
                     vehicle_equipment_id=str(vehicle_equipment.id),
                     vehicle_equipment_name=vehicle_equipment.name,
+                    action=params.action,
                 )
 
                 messages.success(
@@ -261,19 +270,9 @@ def vehicle_confirm(request, id):
     else:
         form = VehicleConfirmationForm()
 
-        # Log viewing the confirmation form
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST,
-            verb=EventVerb.VIEW,
-            object=lst,
-            request=request,
-            page="vehicle_confirm",
-        )
-
     # Calculate total cost
     vehicle_cost = vehicle_equipment.cost_int()
-    crew_cost = crew_fighter.cost_for_house(lst.content_house)
+    crew_cost = crew_fighter.cost_for_house(lst.content_house) if crew_fighter else 0
     total_cost = vehicle_cost + crew_cost
 
     return render(

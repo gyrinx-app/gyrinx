@@ -66,7 +66,8 @@ class VehicleSelectionForm(forms.Form):
         if list_instance:
             # Get equipment-fighter profiles for vehicles available to this list's house
             available_fighters = ContentFighter.objects.available_for_house(
-                list_instance.content_house
+                list_instance.content_house,
+                include=[FighterCategoryChoices.VEHICLE],
             )
             vehicle_equipment_ids = ContentEquipmentFighterProfile.objects.filter(
                 content_fighter__in=available_fighters,
@@ -125,6 +126,12 @@ class CrewSelectionForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         label="Crew Type",
         help_text="Select the type of fighter to crew the vehicle.",
+    )
+
+    action = forms.CharField(
+        widget=forms.HiddenInput(),
+        initial="select_crew",
+        required=False,
     )
 
     def __init__(

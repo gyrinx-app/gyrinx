@@ -18,26 +18,25 @@
             {# djlint:on #}
         </div>
         <p class="h4 mb-3">Select crew for {{ vehicle_equipment.name }} ({{ vehicle_equipment.cost }}¢)</p>
-        <div class="vstack gap-2">
-            <form method="post" class="vstack gap-3">
-                {% csrf_token %}
-                <div>
-                    <label for="{{ form.crew_name.id_for_label }}" class="form-label">{{ form.crew_name.label }}</label>
-                    {{ form.crew_name.errors }}
-                    {{ form.crew_name }}
-                </div>
-                <div>
-                    <label for="{{ form.crew_fighter.id_for_label }}" class="form-label">{{ form.crew_fighter.label }}</label>
-                    {{ form.crew_fighter.errors }}
-                    {{ form.crew_fighter }}
-                </div>
-                <div class="hstack gap-3 align-items-center">
-                    <button type="submit" class="btn btn-primary">
-                        Next <i class="bi-arrow-right"></i>
-                    </button>
-                    <a href="{{ list.get_absolute_url }}" class="link-secondary">Cancel</a>
-                </div>
-            </form>
-        </div>
+        <form method="post" class="vstack gap-4">
+            {% csrf_token %}
+            {{ form.action }}
+            <div>
+                <label for="{{ form.crew_name.id_for_label }}" class="form-label">{{ form.crew_name.label }}</label>
+                {{ form.crew_name.errors }}
+                {{ form.crew_name }}
+            </div>
+            <div>
+                <label for="{{ form.crew_fighter.id_for_label }}" class="form-label">{{ form.crew_fighter.label }}</label>
+                {{ form.crew_fighter.errors }}
+                {{ form.crew_fighter }}
+            </div>
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">
+                    Next <i class="bi-arrow-right"></i>
+                </button>
+                <a href="{% url "core:list" list.id %}" class="link-secondary">Cancel</a>
+            </div>
+        </form>
     </div>
 {% endblock content %}
