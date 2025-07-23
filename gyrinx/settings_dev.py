@@ -38,7 +38,7 @@ LOGGING = {
         },
         "gyrinx": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": os.getenv("GYRINX_LOG_LEVEL", "DEBUG").upper(),
             "propagate": True,
         },
     },

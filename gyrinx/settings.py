@@ -62,6 +62,10 @@ logger.info(f"CSRF_COOKIE_DOMAIN: {CSRF_COOKIE_DOMAIN}")
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "hello@gyrinx.app"
 
+# Extra email headers (JSON string)
+# Example: '{"X-Auto-Response-Suppress": "OOF, DR, RN, NRN, AutoReply", "List-Unsubscribe": "<mailto:unsubscribe@gyrinx.app>"}'
+EMAIL_EXTRA_HEADERS = os.getenv("EMAIL_EXTRA_HEADERS", "{}")
+
 # Analytics
 
 GOOGLE_ANALYTICS_ID = os.getenv("GOOGLE_ANALYTICS_ID", "")
@@ -325,13 +329,13 @@ LOGGING = {
         },
         "gyrinx": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": os.getenv("GYRINX_LOG_LEVEL", "INFO").upper(),
             "propagate": True,
         },
     },
     "root": {
         "handlers": ["console"],
-        "level": "INFO",
+        "level": os.getenv("GYRINX_LOG_LEVEL", "INFO").upper(),
     },
 }
 
