@@ -287,11 +287,38 @@ document.addEventListener("DOMContentLoaded", () => {
                 );
                 availabilityButton.parentElement.removeAttribute("title");
 
-                // Check the illegal checkbox
-                if (illegalCheckbox && !illegalCheckbox.checked) {
+                // Automatically tick the illegal checkbox when equipment list is unticked
+                if (illegalCheckbox) {
                     illegalCheckbox.checked = true;
                 }
             }
+        });
+    }
+});
+
+// Handle "all" link in availability dropdown
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("availability-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with all availability options
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing availability parameters
+            params.delete("al");
+
+            // Add all availability parameters
+            params.append("al", "C");
+            params.append("al", "R");
+            params.append("al", "I");
+            params.append("al", "E");
+            params.append("al", "U");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
         });
     }
 });
