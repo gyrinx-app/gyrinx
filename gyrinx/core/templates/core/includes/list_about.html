@@ -37,7 +37,7 @@
             <div class="text-muted fst-italic">No narrative added yet.</div>
         {% endif %}
     </div>
-    <div class="grid">
+    <div class="grid auto-flow-dense">
         {% for fighter in list.active_fighters %}
             {% if fighter.narrative %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">

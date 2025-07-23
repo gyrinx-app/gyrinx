@@ -323,3 +323,8 @@ $em-sizes: (
         background-color: var(--bs-secondary-bg-subtle);
     }
 }
+
+// Fighter card grids
+.auto-flow-dense {
+    grid-auto-flow: row dense;
+}
