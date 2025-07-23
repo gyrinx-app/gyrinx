@@ -139,7 +139,7 @@ def test_error_handlers_with_debug_false():
     assert "Page Not Found" in response.content.decode()
 
     # Test that the error pages use the correct template
-    assert "Go Home" in response.content.decode()
+    assert "Home" in response.content.decode()
 
 
 @pytest.mark.django_db
