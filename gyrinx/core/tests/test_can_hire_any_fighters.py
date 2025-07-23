@@ -56,6 +56,12 @@ def test_can_hire_any_includes_all_fighters_except_stash():
         category=FighterCategoryChoices.EXOTIC_BEAST,
         base_cost=200,
     )
+    fighter_vehicle = ContentFighter.objects.create(
+        type="Ridgehauler",
+        house=house1,
+        category=FighterCategoryChoices.VEHICLE,
+        base_cost=300,
+    )
     fighter_stash = ContentFighter.objects.create(
         type="Stash",
         house=outcast_house,
@@ -85,15 +91,16 @@ def test_can_hire_any_includes_all_fighters_except_stash():
     assert fighter_goliath in available_fighters
     assert fighter_generic in available_fighters
     assert fighter_exotic in available_fighters  # Exotic beasts should be included
+    assert fighter_vehicle in available_fighters  # Vehicles should be included
     assert fighter_stash not in available_fighters  # Stash should be excluded
 
     # Verify the total count
-    assert available_fighters.count() == 5  # All except stash
+    assert available_fighters.count() == 6  # All except stash
 
 
 @pytest.mark.django_db
-def test_normal_house_excludes_exotic_beasts_and_other_houses():
-    """Test that normal houses (can_hire_any=False) follow the original filtering rules."""
+def test_normal_house_excludes_exotic_beasts_vehicles_and_other_houses():
+    """Test that normal houses (can_hire_any=False) follow the original filtering rules, excluding exotic beasts and vehicles."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser2", password="password")
 
@@ -127,6 +134,12 @@ def test_normal_house_excludes_exotic_beasts_and_other_houses():
         category=FighterCategoryChoices.EXOTIC_BEAST,
         base_cost=200,
     )
+    fighter_vehicle = ContentFighter.objects.create(
+        type="Ridgehauler",
+        house=normal_house,
+        category=FighterCategoryChoices.VEHICLE,
+        base_cost=300,
+    )
     fighter_stash = ContentFighter.objects.create(
         type="Stash",
         house=normal_house,
@@ -155,6 +168,7 @@ def test_normal_house_excludes_exotic_beasts_and_other_houses():
     assert fighter_generic in available_fighters  # Generic house fighter
     assert fighter_other not in available_fighters  # Other house fighter excluded
     assert fighter_exotic not in available_fighters  # Exotic beasts excluded
+    assert fighter_vehicle not in available_fighters  # Vehicles excluded
     assert fighter_stash not in available_fighters  # Stash excluded
 
     # Verify the count
