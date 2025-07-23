@@ -2116,7 +2116,7 @@ def delete_related_objects_post_delete(sender, instance, **kwargs):
 
 
 @receiver(
-    [pre_delete, post_save],
+    [post_delete, post_save],
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="update_list_cache_for_assignment",
 )
