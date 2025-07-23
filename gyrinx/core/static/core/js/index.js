@@ -286,6 +286,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     "data-bs-placement",
                 );
                 availabilityButton.parentElement.removeAttribute("title");
+
+                // Automatically tick the illegal checkbox when equipment list is unticked
+                if (illegalCheckbox) {
+                    illegalCheckbox.checked = true;
+                }
             }
         });
     }
