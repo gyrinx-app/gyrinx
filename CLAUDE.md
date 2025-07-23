@@ -15,8 +15,8 @@ The Django management command `manage` is used to run various tasks in the Gyrin
 
 ```bash
 # Setup virtual environment and install dependencies
-python -m venv .venv && . .venv/bin/activate
-pip install --editable .
+uv venv .venv
+uv pip install --editable .
 
 # Setup environment file
 manage setupenv
@@ -58,7 +58,7 @@ npm run watch
 ptw .
 
 # Run specific test
-pytest gyrinx/core/tests/test_models_core.py::TestListModel::test_list_creation
+pytest gyrinx/core/tests/test_models_core.py::test_basic_list
 
 # Run tests with pytest directly (faster, uses existing database)
 pytest
@@ -93,6 +93,8 @@ npm run js-fmt
 npm run watch
 ```
 
+DO NOT commit CSS files. They are generated from SCSS automatically.
+
 ### Database Operations
 
 ```bash
@@ -115,17 +117,16 @@ SQL_DEBUG=True
 
 ## Development Workflow
 
+- When building something new, create a branch for it and open a pull request at the end
 - Always run `./scripts/fmt.sh` after making code changes to format everything (Python, JS, SCSS, templates, etc.)
 - **IMPORTANT**: This includes running `./scripts/fmt.sh` after editing CLAUDE.md itself to ensure consistent formatting
 - Alternatively, you can run formatters individually:
-    - `ruff format` and `ruff check --fix` for Python
+    - `ruff format` and `ruff check --fix --unsafe-fixes` for Python
     - `npm run fmt` for JS, SCSS, JSON, YAML, Markdown
-    - `djlint --profile=django --reformat .` for Django templates
-- When building something new, create a branch for it and open a pull request at the end
-- Use the screenshot tool when making UI changes and add the screenshot to the PR description. Mobile UI is important to show as we are mobile-first.
+    - `djlint --profile=django --reformat .` and `djlint --profile=django --lint --check .` for Django templates formatting
 - **CRITICAL FOR CI/GITHUB ACTIONS**: Before committing and pushing changes, you MUST:
     1. Run the formatting script: `./scripts/fmt.sh`
-    2. Run the tests: `pytest` (or `./scripts/test.sh` if Docker is needed)
+    2. Run the tests: `pytest -n auto`
     3. Check that ALL tests pass - if any tests fail, fix them before proceeding
     4. Only after tests pass, commit and push your changes
 - **CRITICAL**: When running in CI or a GitHub action, you MUST COMMIT AND PUSH BEFORE FINISHING. This is critical: otherwise, work is lost.
@@ -202,16 +203,15 @@ SQL_DEBUG=True
 
 ### Content Management
 
-- Game data stored in YAML files with JSON schema validation (deprecated - now in database)
-- Content managed through Django admin interface
-- Complex equipment/weapon relationship modeling
-- Equipment ordering handled by manager (category name, then equipment name)
+- Content is managed through Django admin interface
 
 ### Template Patterns
 
 - Use `{% extends "core/layouts/base.html" %}` for full-page layouts
 - Use `{% extends "core/layouts/page.html" %}` for simple content pages
 - Back buttons use `{% include "core/includes/back.html" with url=target_url text="Back Text" %}`
+- Work "mobile-first" with responsive design
+- Left-align templates: typically `col-12 col-xl-6` works well
 - User content should use `|safe` filter for HTML rendering
 - Templates follow Bootstrap 5 patterns with cards, alerts, and responsive utilities
 
@@ -250,6 +250,10 @@ The list view establishes the standard UI pattern for detail pages:
     - Destructive actions use `btn-danger`
     - View/navigation use `btn-outline-secondary`
 
+6. **Card Layout**:
+    - Avoid using `card`
+    - Use card for fighters and things that appear in a grid: nowhere else
+
 ### URL Patterns
 
 - List views: plural noun (e.g., `/campaigns/`, `/lists/`)
@@ -265,15 +269,10 @@ The list view establishes the standard UI pattern for detail pages:
 - Static files must be collected before running tests that render templates
 - The conftest.py configures tests to use StaticFilesStorage to avoid manifest issues
 
-### Code Quality
+### Security
 
-- Run `./scripts/fmt.sh` to format all code (Python, JS, SCSS, templates, etc.) in one go
-- This script runs:
-    - `ruff format` and `ruff check --fix` for Python formatting and linting
-    - `npm run fmt` for Markdown, YAML, JSON, SCSS, and JavaScript formatting
-    - `djlint --profile=django --reformat .` for Django template formatting
-- Always run `./scripts/fmt.sh` after making code changes
 - Run `bandit -c pyproject.toml -r .` to check for security issues in Python code
+- The pre-commmit hooks also check for secrets in the codebase
 
 ### Git Workflow
 
@@ -283,101 +282,10 @@ The list view establishes the standard UI pattern for detail pages:
 - This is useful for keeping the claude local file up-to-date
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
 
-### UI Documentation
-
-When making UI changes, use the automated screenshot utility to capture before/after screenshots:
-
-```bash
-# Install Playwright if not already installed
-pip install playwright
-
-# Capture before screenshots (Chromium will be installed automatically)
-python scripts/screenshot.py core:campaign --before --args <campaign_id>
-
-# Make your UI changes...
-
-# Capture after screenshots
-python scripts/screenshot.py core:campaign --after --args <campaign_id>
-
-# Capture multiple viewports
-python scripts/screenshot.py core:list --viewports desktop,tablet,mobile --args <list_id>
-
-# Capture specific element only
-python scripts/screenshot.py core:campaign --selector ".campaign-header" --args <id>
-```
-
-The automated script will:
-
-1. Use Playwright to launch a headless browser
-2. Authenticate using Django test client
-3. Navigate to the specified URL
-4. Capture full-page screenshots
-5. Save to `ui_archive/` with comparison markdown
-6. Support multiple viewports and themes
-
-Screenshots are organized as:
-
-- `ui_archive/<url_name>_<label>_<viewport>_<timestamp>.png`
-- `ui_archive/<url_name>_<label>_<viewport>_latest.png`
-- `ui_archive/<url_name>_comparison.md` for before/after pairs
-
-The `ui_archive/` directory is gitignored to keep the repository clean.
-
-### Changelog Management
-
-The project uses an automated changelog update script that leverages the `llm` CLI tool to analyze commits and maintain the CHANGELOG.md file.
-
-```bash
-# Update the changelog with recent commits
-./scripts/update_changelog.sh
-
-# Update a specific changelog file
-./scripts/update_changelog.sh path/to/changelog.md
-```
-
-The script will:
-
-1. Detect the last date in the existing changelog
-2. Find all commits since that date
-3. Use LLM to analyze commits and generate properly formatted entries
-4. Group commits by date and category (Features, Fixes, Documentation, etc.)
-5. Create a backup of the original file before updating
-
-**Important for Claude Code**: When working on this repository, check the last date in CHANGELOG.md. If it's more than 2 days old, proactively offer to run the changelog update script to ensure the changelog stays current with recent development activity.
-
-### Fighter Advancement System
-
-The advancement system allows fighters to spend XP in campaign mode. Key implementation details:
-
-1. **Model Structure**: The `ListFighterAdvancement` model tracks advancements with fields for:
-    - `advancement_type` - Either "stat" or "skill"
-    - `stat_increased` - Which stat was improved (for stat advancements)
-    - `skill` - Which skill was gained (for skill advancements)
-    - `xp_cost` - How much XP was spent
-    - `cost_increase` - How much the fighter's credit cost increased
-
-2. **Multi-Step Form Flow**: Uses a wizard-style flow with forms in `core/forms/advancement.py`:
-    - Step 1: Choose dice rolling vs manual selection
-    - Step 2: Select advancement type (stat/skill)
-    - Step 3: Choose specific stat or skill
-    - Step 4: Confirmation
-
-3. **Important Notes**:
-    - Advancements only work in campaign mode (`List.CAMPAIGN_MODE`)
-    - XP is tracked with `xp_current` (available) and `xp_total` (lifetime)
-    - Stat improvements with "+" values (like WS 4+) improve by reducing the number
-    - Skills are restricted to fighter's primary/secondary categories
-    - Uses HTMX for dynamic form updates without page reloads
-
-4. **Common Issues**:
-    - If you see advancement models with `description`, `stat_mod`, `dice_count` fields, that's from an older version before the rebuild
-    - The current system uses `advancement_type` with separate `stat_increased` and `skill` fields
-    - Form validation happens in the form's `clean()` method, not just the model's `clean()`
-
 # important-instruction-reminders
 
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
-ALWAYS look up model definitions before using their fields or properties - do not assume field names or choices. Use the Read tool to check the actual model definition in the models.py file.
+- Do what has been asked; nothing more, nothing less.
+- NEVER create files unless they're absolutely necessary for achieving your goal.
+- ALWAYS prefer editing an existing file to creating a new one.
+- NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+- ALWAYS look up model definitions before using their fields or properties - do not assume field names or choices. Use the Read tool to check the actual model definition in the models.py file.
