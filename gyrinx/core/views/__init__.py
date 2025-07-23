@@ -1,3 +1,4 @@
+import json
 from itertools import zip_longest
 from random import randint
 from urllib.parse import urlencode
@@ -7,7 +8,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from gyrinx.content.models import ContentHouse
 from gyrinx.core.forms import UsernameChangeForm
@@ -325,3 +328,52 @@ def change_username(request):
             "can_change": can_change,
         },
     )
+
+
+@require_POST
+def dismiss_banner(request):
+    """
+    Dismiss a banner by storing its ID in the session.
+
+    **Request Body**
+
+    ``banner_id`` (str)
+        The ID of the banner to dismiss.
+
+    **Returns**
+
+    JSON response with success status.
+    """
+    try:
+        data = json.loads(request.body)
+        banner_id = data.get("banner_id")
+
+        if banner_id:
+            # Get or create the dismissed banners list in session
+            dismissed_banners = request.session.get("dismissed_banners", [])
+
+            # Add this banner ID if not already dismissed
+            if banner_id not in dismissed_banners:
+                dismissed_banners.append(banner_id)
+                request.session["dismissed_banners"] = dismissed_banners
+                request.session.modified = True
+
+            # Log the banner dismissal
+            if request.user.is_authenticated:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.USER,
+                    verb=EventVerb.UPDATE,
+                    request=request,
+                    action="dismiss_banner",
+                    banner_id=banner_id,
+                )
+
+            return JsonResponse({"success": True})
+        else:
+            return JsonResponse(
+                {"success": False, "error": "No banner ID provided"}, status=400
+            )
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)

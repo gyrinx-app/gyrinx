@@ -1,0 +1,33 @@
+{% if banner %}
+    <div class="col-12 mb-3" id="site-banner-{{ banner.id }}">
+        <div class="alert alert-{{ banner.colour }} alert-dismissible fade show d-flex align-items-center"
+             role="alert">
+            {% if banner.icon %}<i class="bi {{ banner.icon }} me-2"></i>{% endif %}
+            <div class="flex-grow-1">
+                {{ banner.text }}
+                {% if banner.cta_url and banner.cta_text %}
+                    <a href="{{ banner.cta_url }}" class="alert-link ms-2">{{ banner.cta_text }}</a>
+                {% endif %}
+            </div>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"
+                    onclick="dismissBanner('{{ banner.id }}')"></button>
+        </div>
+    </div>
+    <script>
+function dismissBanner(bannerId) {
+    fetch('{% url "core:dismiss-banner" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            'banner_id': bannerId
+        })
+    });
+}
+    </script>
+{% endif %}
