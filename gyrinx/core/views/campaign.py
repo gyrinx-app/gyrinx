@@ -700,7 +700,6 @@ def campaign_action_outcome(request, id, action_id):
                 request=request,
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
-                action_type=action.action_type,
                 outcome=action.outcome,
             )
 
