@@ -48,7 +48,7 @@
                 <table class="table table-borderless table-sm align-middle mb-0">
                     <tbody>
                         {% for cat_data in categories %}
-                            <tr {% if cat_data.is_special %}class="table-warning"{% endif %}>
+                            <tr>
                                 <td class="ps-2">
                                     <a href="#category-{{ cat_data.category.id }}"
                                        class="text-decoration-none">{{ cat_data.category.name }}</a>
@@ -74,7 +74,7 @@
             {% for cat_data in categories %}
                 <div class="card g-col-12 g-col-md-6"
                      id="category-{{ cat_data.category.id }}">
-                    <div class="card-header p-2 {% if cat_data.is_special %}bg-warning-subtle{% endif %}">
+                    <div class="card-header p-2 {% if cat_data.is_special %}bg-info-subtle{% endif %}">
                         <div class="vstack gap-1">
                             <div class="hstack">
                                 <h3 class="h5 mb-0">{{ cat_data.category.name }}</h3>
