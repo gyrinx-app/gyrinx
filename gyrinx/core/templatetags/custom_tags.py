@@ -252,3 +252,13 @@ def random_404_message():
         "Someone might have been at it with a data-thief.",
     ]
     return random.choice(messages)  # nosec
+
+
+@register.simple_tag
+def cachebuster():
+    """
+    Generate a cachebuster string.
+
+    This is used to force browsers to reload forms even if other params don't change.
+    """
+    return hex(int(random.random() * 1e8))[2:]  # nosec

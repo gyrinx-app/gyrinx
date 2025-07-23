@@ -32,6 +32,7 @@
                    id="filter-switch"
                    name="filter"
                    value="primary-secondary"
+                   data-gy-toggle-submit="search-skills"
                    {% if not request.GET.filter or request.GET.filter == "primary-secondary" %}checked{% endif %}>
             <label class="form-check-label" for="filter-switch">Primary/Secondary Only</label>
         </div>

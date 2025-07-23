@@ -353,3 +353,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+// Auto-submit forms when elements with data-gy-toggle-submit are changed
+document.addEventListener("DOMContentLoaded", () => {
+    // Find all elements with data-gy-toggle-submit attribute
+    const autoSubmitElements = document.querySelectorAll(
+        "[data-gy-toggle-submit]",
+    );
+
+    autoSubmitElements.forEach((element) => {
+        element.addEventListener("change", (event) => {
+            const formIdentifier = element.getAttribute(
+                "data-gy-toggle-submit",
+            );
+            let form;
+
+            if (formIdentifier) {
+                // If a value is provided, find the form by that identifier
+                form =
+                    document.getElementById(formIdentifier) ||
+                    document.querySelector(formIdentifier);
+            } else {
+                // If no value provided, find the parent form
+                form = event.target.form || event.target.closest("form");
+            }
+
+            if (form) {
+                // Submit the form
+                form.submit();
+            }
+        });
+    });
+});
