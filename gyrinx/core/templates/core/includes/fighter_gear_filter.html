@@ -7,6 +7,7 @@
           action="{{ action }}{{ querystring }}#search"
           class="g-col-12 g-col-md-6 hstack gap-2 align-items-end">
         <input type="hidden" name="flash" value="search">
+        <input type="hidden" name="cb" value="{% cachebuster %}">
         <div class="input-group">
             <span class="input-group-text">
                 <i class="bi-search"></i>
@@ -21,7 +22,7 @@
         <div class="btn-group">
             <button class="btn btn-primary" type="submit">Search</button>
             {% if request.GET.q %}
-                <a href="?{% qt_rm request "q" "flash" %}#search"
+                <a href="?cb={% cachebuster %}&{% qt_rm request "q" "flash" %}#search"
                    class="btn btn-outline-secondary">Clear</a>
             {% endif %}
         </div>
@@ -61,7 +62,7 @@
                     </button>
                     •
                     <a class="btn btn-link text-secondary icon-link btn-sm"
-                       href="?{% qt request cat="all" %}#search">Reset</a>
+                       href="?cb={% cachebuster %}&{% qt request cat="all" %}#search">Reset</a>
                 </div>
             </div>
         </div>
@@ -184,7 +185,7 @@
                             </button>
                             •
                             <a class="btn btn-link text-secondary icon-link btn-sm"
-                               href="?{% qt_rm request "al" "mal" %}#search">Reset</a>
+                               href="?cb={% cachebuster %}&{% qt_rm request "al" "mal" %}#search">Reset</a>
                         </div>
                     </div>
                 </div>
@@ -205,7 +206,7 @@
                {% if not request.GET.filter or request.GET.filter == "equipment-list" %}checked{% endif %}>
         <label class="form-check-label fs-7 mb-0" for="filter-switch">Only Equipment List</label>
     </div>
-    <div class="ms-auto btn-group align-items-center">
+    <div class="btn-group align-items-center">
         <button class="btn btn-link icon-link btn-sm"
                 type="submit"
                 form="search"
@@ -214,6 +215,7 @@
             Update
         </button>
         •
-        <a class="btn btn-link text-secondary icon-link btn-sm" href="?#search">Reset</a>
+        <a class="btn btn-link text-secondary icon-link btn-sm"
+           href="?cb={% cachebuster %}&#search">Reset</a>
     </div>
 </div>

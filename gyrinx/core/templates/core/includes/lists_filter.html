@@ -15,6 +15,7 @@
             <span class="input-group-text">
                 <i class="bi-search"></i>
             </span>
+            <input type="hidden" name="cb" value="{% cachebuster %}">
             <input class="form-control"
                    type="search"
                    placeholder="Search"
@@ -31,6 +32,7 @@
           action="{{ action }}#search"
           class="grid g-col-12">
         <input type="hidden" name="flash" value="search">
+        <input type="hidden" name="cb" value="{% cachebuster %}">
         {# Search and filters row #}
         <div class="g-col-12 g-col-xl-6">
             <div class="hstack gap-2 align-items-end">
@@ -49,32 +51,6 @@
             </div>
         </div>
         <div class="g-col-12 align-items-center hstack gap-3 flex-wrap">
-            {# Your Lists toggle #}
-            <div class="form-check form-switch mb-0">
-                {# Hidden field to ensure 0 is sent when unchecked #}
-                <input type="hidden" name="my" value="0">
-                <input class="form-check-input"
-                       type="checkbox"
-                       role="switch"
-                       id="your-lists"
-                       name="my"
-                       value="1"
-                       data-gy-toggle-submit
-                       {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
-                <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
-            </div>
-            {# Archived toggle #}
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input"
-                       type="checkbox"
-                       role="switch"
-                       id="archived"
-                       name="archived"
-                       value="1"
-                       data-gy-toggle-submit
-                       {% if request.GET.archived == "1" %}checked{% endif %}>
-                <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
-            </div>
             {# Type filter dropdown #}
             <div class="btn-group">
                 <button type="button"
@@ -157,7 +133,33 @@
                     </div>
                 </div>
             </div>
-            <div class="ms-auto btn-group align-items-center">
+            {# Your Lists toggle #}
+            <div class="form-check form-switch mb-0">
+                {# Hidden field to ensure 0 is sent when unchecked #}
+                <input type="hidden" name="my" value="0">
+                <input class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       id="your-lists"
+                       name="my"
+                       value="1"
+                       data-gy-toggle-submit
+                       {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
+                <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
+            </div>
+            {# Archived toggle #}
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       id="archived"
+                       name="archived"
+                       value="1"
+                       data-gy-toggle-submit
+                       {% if request.GET.archived == "1" %}checked{% endif %}>
+                <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
+            </div>
+            <div class="btn-group align-items-center">
                 <button class="btn btn-link icon-link btn-sm"
                         type="submit"
                         id="update-filters">
@@ -166,7 +168,7 @@
                 </button>
                 •
                 <a class="btn btn-link text-secondary icon-link btn-sm"
-                   href="{{ action }}">Clear</a>
+                   href="{{ action }}">Reset</a>
             </div>
         </div>
     </form>

@@ -15,6 +15,7 @@
             <span class="input-group-text">
                 <i class="bi-search"></i>
             </span>
+            <input type="hidden" name="cb" value="{% cachebuster %}">
             <input class="form-control"
                    type="search"
                    placeholder="Search"
@@ -31,6 +32,7 @@
           action="{{ action }}#search"
           class="grid g-col-12">
         <input type="hidden" name="flash" value="search">
+        <input type="hidden" name="cb" value="{% cachebuster %}">
         {# Search and filters row #}
         <div class="g-col-12 g-col-xl-6">
             <div class="hstack gap-2 align-items-end">
@@ -121,7 +123,7 @@
                        {% if request.GET.archived == "1" %}checked{% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
             </div>
-            <div class="ms-auto btn-group align-items-center">
+            <div class="btn-group align-items-center">
                 <button class="btn btn-link icon-link btn-sm"
                         type="submit"
                         id="update-filters">
@@ -130,7 +132,7 @@
                 </button>
                 •
                 <a class="btn btn-link text-secondary icon-link btn-sm"
-                   href="{{ action }}">Clear</a>
+                   href="{{ action }}">Reset</a>
             </div>
         </div>
     </form>
