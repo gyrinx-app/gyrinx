@@ -142,7 +142,7 @@ class ListFighterForm(forms.ModelForm):
         )
 
         if inst:
-            # Fighters for the house and from generic houses, excluding Exotic Beasts
+            # Fighters for the house and from generic houses, excluding Exotic Beasts and Vehicles
             # who are added via equipment
             self.fields["content_fighter"].content_house = inst.list.content_house
 
@@ -155,7 +155,7 @@ class ListFighterForm(forms.ModelForm):
                     category=FighterCategoryChoices.STASH
                 )
             else:
-                # Normal filtering: only house and generic houses, exclude exotic beasts and stash
+                # Normal filtering: only house and generic houses, exclude exotic beasts, vehicles and stash
                 generic_houses = ContentHouse.objects.filter(generic=True).values_list(
                     "id", flat=True
                 )
@@ -164,6 +164,7 @@ class ListFighterForm(forms.ModelForm):
                 ).exclude(
                     category__in=[
                         FighterCategoryChoices.EXOTIC_BEAST,
+                        FighterCategoryChoices.VEHICLE,
                         FighterCategoryChoices.STASH,
                     ]
                 )
