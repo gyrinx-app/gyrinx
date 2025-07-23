@@ -59,6 +59,7 @@
                        id="your-lists"
                        name="my"
                        value="1"
+                       data-gy-toggle-submit
                        {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
             </div>
@@ -70,6 +71,7 @@
                        id="archived"
                        name="archived"
                        value="1"
+                       data-gy-toggle-submit
                        {% if request.GET.archived == "1" %}checked{% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
             </div>

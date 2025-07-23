@@ -354,33 +354,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// Auto-submit filter forms when toggle checkboxes are changed
+// Auto-submit forms when elements with data-gy-toggle-submit are changed
 document.addEventListener("DOMContentLoaded", () => {
-    // List of toggle checkbox IDs that should trigger auto-submit
-    const autoSubmitCheckboxIds = [
-        // Lists filter
-        "your-lists",
-        "archived",
-        // Campaigns filter
-        "my-campaigns",
-        "participating",
-        // Fighter gear filter
-        "filter-switch",
-        // Note: We're using the same ID for both fighter gear and skills filter
-        // so this will handle both
-    ];
+    // Find all elements with data-gy-toggle-submit attribute
+    const autoSubmitElements = document.querySelectorAll(
+        "[data-gy-toggle-submit]",
+    );
 
-    autoSubmitCheckboxIds.forEach((checkboxId) => {
-        const checkbox = document.getElementById(checkboxId);
-        if (checkbox && checkbox.type === "checkbox") {
-            checkbox.addEventListener("change", (event) => {
-                // Find the form this checkbox belongs to
-                const form = event.target.form || event.target.closest("form");
-                if (form) {
-                    // Submit the form
-                    form.submit();
-                }
-            });
-        }
+    autoSubmitElements.forEach((element) => {
+        element.addEventListener("change", (event) => {
+            const formIdentifier = element.getAttribute(
+                "data-gy-toggle-submit",
+            );
+            let form;
+
+            if (formIdentifier) {
+                // If a value is provided, find the form by that identifier
+                form =
+                    document.getElementById(formIdentifier) ||
+                    document.querySelector(formIdentifier);
+            } else {
+                // If no value provided, find the parent form
+                form = event.target.form || event.target.closest("form");
+            }
+
+            if (form) {
+                // Submit the form
+                form.submit();
+            }
+        });
     });
 });
