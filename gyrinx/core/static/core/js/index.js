@@ -353,3 +353,34 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+// Auto-submit filter forms when toggle checkboxes are changed
+document.addEventListener("DOMContentLoaded", () => {
+    // List of toggle checkbox IDs that should trigger auto-submit
+    const autoSubmitCheckboxIds = [
+        // Lists filter
+        "your-lists",
+        "archived",
+        // Campaigns filter
+        "my-campaigns",
+        "participating",
+        // Fighter gear filter
+        "filter-switch",
+        // Note: We're using the same ID for both fighter gear and skills filter
+        // so this will handle both
+    ];
+
+    autoSubmitCheckboxIds.forEach((checkboxId) => {
+        const checkbox = document.getElementById(checkboxId);
+        if (checkbox && checkbox.type === "checkbox") {
+            checkbox.addEventListener("change", (event) => {
+                // Find the form this checkbox belongs to
+                const form = event.target.form || event.target.closest("form");
+                if (form) {
+                    // Submit the form
+                    form.submit();
+                }
+            });
+        }
+    });
+});
