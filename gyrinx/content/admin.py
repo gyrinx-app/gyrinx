@@ -374,6 +374,7 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
 class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profiles_field__name"]
     form = ContentFighterDefaultAssignmentAdminForm
+    actions = [copy_selected_to_fighter]
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):
