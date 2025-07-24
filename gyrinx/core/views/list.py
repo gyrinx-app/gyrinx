@@ -22,6 +22,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentPsykerDiscipline,
@@ -2233,8 +2234,6 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     # Build the accessories queryset
     if filter_mode == "equipment-list":
         # Get accessories from equipment list
-        from gyrinx.content.models import ContentFighterEquipmentListWeaponAccessory
-
         equipment_list_accessories = (
             ContentFighterEquipmentListWeaponAccessory.objects.filter(
                 fighter=fighter.content_fighter
@@ -2265,7 +2264,8 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     # Prepare accessories for display
     accessories = []
     for accessory in accessories_qs:
-        cost_int = getattr(accessory, "cost_for_fighter", accessory.cost)
+        # Calculate the actual cost for this accessory on this weapon assignment
+        cost_int = assignment.accessory_cost_int(accessory)
         cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
 
         accessories.append(
