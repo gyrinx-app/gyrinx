@@ -7,19 +7,22 @@
     {% url back_url list.id fighter.id as full_back_url %}
     {% include "core/includes/back.html" with url=full_back_url %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Delete from {{ fighter.fully_qualified_name }}</h1>
+        <h1 class="h3">Delete {{ assign.content_equipment.name }} from {{ fighter.fully_qualified_name }}</h1>
         <form action="{% url action_url list.id fighter.id assign.id %}"
               method="post">
             {% csrf_token %}
             <p>Are you sure you want to delete the {{ assign.content_equipment.name }} from {{ fighter.name }}?</p>
-            {% if assign.content_equipment.category.name == "Vehicles" or assign.content_equipment.category.parent and assign.content_equipment.category.parent.name == "Vehicles" %}
-                <div class="alert alert-warning" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>Warning:</strong> This will delete the vehicle's entire profile. Are you sure you wish to proceed?
-                    <br>
-                    <br>
-                    <strong>Note:</strong> If you want to instead move the vehicle to another fighter or to your stash, use the Reassign option.
+            {% if assign.linked_fighter %}
+                <div class="alert alert-danger mb-last-0" role="alert">
+                    <p>
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Warning:</strong> This will also <strong>delete {{ assign.linked_fighter.fully_qualified_name }}</strong>, including any modifications, gear, weapons and upgrades.
+                    </p>
+                    <p>This action cannot be undone.</p>
                 </div>
+                <p>
+                    If you want to instead keep this {{ assign.content_equipment.name }} in your stash, or assign it to another fighter, use the <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}">Reassign</a> option.
+                </p>
             {% else %}
                 <div class="alert alert-info" role="alert">
                     <i class="bi bi-info-circle-fill me-2"></i>
