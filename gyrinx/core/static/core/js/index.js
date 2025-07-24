@@ -426,7 +426,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const finalCsrfToken = csrfToken || getCookie("csrftoken");
 
-            fetch("/dismiss-banner/", {
+            fetch("/banner/dismiss/", {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": finalCsrfToken,

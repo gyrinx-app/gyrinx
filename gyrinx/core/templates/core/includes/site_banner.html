@@ -1,20 +1,25 @@
 {% if banner %}
-    <div class="bg-{{ banner.colour }}" id="site-banner-{{ banner.id }}">
+    <div class="bg-{{ banner.colour }}-subtle border-bottom border-1 border-{{ banner.colour }}"
+         id="site-banner-{{ banner.id }}">
         <div class="container">
-            <div class="alert alert-{{ banner.colour }} mb-0 alert-dismissible fade show d-flex align-items-center"
+            <div class="alert alert-{{ banner.colour }} hstack gap-2 border-0 mb-0 py-2 px-0 alert-dismissible fade show align-middle align-items-center"
                  role="alert">
-                {% if banner.icon %}<i class="bi {{ banner.icon }} me-2"></i>{% endif %}
-                <div class="flex-grow-1">
+                {% if banner.icon %}<i class="{{ banner.icon }}"></i>{% endif %}
+                <div class="flex-grow-1 hstack gap-2 flex-wrap">
                     {{ banner.text }}
                     {% if banner.cta_url and banner.cta_text %}
-                        <a href="{{ banner.cta_url }}" class="alert-link ms-2">{{ banner.cta_text }}</a>
+                        <a href="{{ banner.cta_url }}"
+                           target="_new"
+                           class="btn btn-{{ banner.colour }}">{{ banner.cta_text }} <i class="bi-arrow-right ms-1"></i></a>
                     {% endif %}
                 </div>
                 <button type="button"
-                        class="btn-close"
+                        class="btn btn-sm btn-outline-{{ banner.colour }} icon-link"
                         data-bs-dismiss="alert"
                         aria-label="Close"
-                        data-gy-banner-dismiss="{{ banner.id }}"></button>
+                        data-gy-banner-dismiss="{{ banner.id }}">
+                    <i class="bi-x-lg"></i>
+                </button>
             </div>
         </div>
     </div>
