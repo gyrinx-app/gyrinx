@@ -33,7 +33,11 @@
                 </div>
             {% endif %}
             <div class="hstack gap-3">
-                <button type="submit" class="btn btn-primary">Roll 2D6</button>
+                <button type="submit"
+                        class="btn btn-primary"
+                        {% if not is_campaign_mode %} disabled data-bs-toggle="tooltip" data-bs-placement="top" title="Only available when the gang is active in a campaign" {% endif %}>
+                    Roll 2D6
+                </button>
                 <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                    class="btn btn-success">Spend XP</a>
             </div>
