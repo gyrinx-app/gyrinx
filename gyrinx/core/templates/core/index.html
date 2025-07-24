@@ -27,7 +27,6 @@
     <div class="mb-5 pb-5">
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
-                {% include "core/includes/site_banner.html" %}
                 {% include "core/includes/announcement_banner.html" %}
                 {% if '@' in user.username %}
                     <div class="alert alert-warning d-flex align-items-center" role="alert">
@@ -195,7 +194,6 @@
             </div>
         {% else %}
             <div class="mt-4 vstack gap-4">
-                {% include "core/includes/site_banner.html" %}
                 <div class="row">
                     <div class="col-md-4">
                         <h2>Build and manage your gangs</h2>

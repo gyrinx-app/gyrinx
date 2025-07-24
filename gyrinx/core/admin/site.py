@@ -10,12 +10,12 @@ class BannerAdmin(admin.ModelAdmin):
         "get_banner_preview",
         "colour",
         "is_live",
-        "created_at",
-        "updated_at",
+        "created",
+        "modified",
     ]
-    list_filter = ["is_live", "colour", "created_at"]
+    list_filter = ["is_live", "colour", "created"]
     search_fields = ["text", "cta_text"]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["created", "modified"]
 
     fieldsets = (
         ("Banner Content", {"fields": ("text", "icon", "colour")}),
@@ -35,7 +35,7 @@ class BannerAdmin(admin.ModelAdmin):
         ),
         (
             "Metadata",
-            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+            {"fields": ("created", "modified"), "classes": ("collapse",)},
         ),
     )
 

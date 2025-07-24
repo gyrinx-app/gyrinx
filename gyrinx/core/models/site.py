@@ -38,14 +38,12 @@ class Banner(AppBase):
         default=False,
         help_text="Whether this banner is currently live. Only one banner can be live at a time.",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     # History tracking
     history = HistoricalRecords()
 
     class Meta:
-        ordering = ["-updated_at"]
+        ordering = ["-modified"]
         verbose_name = "Banner"
         verbose_name_plural = "Banners"
 
