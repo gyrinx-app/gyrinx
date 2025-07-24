@@ -271,7 +271,7 @@ def vehicle_confirm(request, id):
         form = VehicleConfirmationForm()
 
     # Calculate total cost
-    vehicle_cost = vehicle_equipment.cost_int()
+    vehicle_cost = vehicle_fighter.cost_for_house(lst.content_house)
     crew_cost = crew_fighter.cost_for_house(lst.content_house) if crew_fighter else 0
     total_cost = vehicle_cost + crew_cost
 
