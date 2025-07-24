@@ -2139,7 +2139,7 @@ def delete_list_fighter_gear_upgrade(
             upgrade_removed=upgrade.name,
         )
 
-        return HttpResponseRedirect(return_url)
+        return safe_redirect(request, return_url, default_url)
 
     return render(
         request,
@@ -2362,7 +2362,7 @@ def delete_list_fighter_weapon_accessory(
             accessory_removed=accessory.name,
         )
 
-        return HttpResponseRedirect(return_url)
+        return safe_redirect(request, return_url, default_url)
 
     return render(
         request,
