@@ -4,8 +4,8 @@
     Accessories - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:list-fighter-weapons-edit' list.id fighter.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url %}
+    {% url 'core:list' list.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=list.name %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Accessories: {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
@@ -14,161 +14,119 @@
             </div>
         {% endif %}
         <!-- Weapon Details Section -->
-        <div class="border rounded p-3">
-            <h4 class="h5 mb-3">Weapon Details</h4>
-            <div class="mb-2">
-                <strong>Name:</strong> {{ assign.content_equipment.name }}
-                {% if assign.has_total_cost_override %}
-                    <span class="text-muted">({{ assign.total_cost_override }}¢)</span>
-                {% else %}
-                    <span class="text-muted">({{ assign.cost_display }})</span>
-                {% endif %}
+        <div class="card col-12 col-md-8 col-lg-6">
+            <div class="card-header py-1 px-2 hstack justify-content-between align-items-center">
+                <h4 class="h5 mb-0">{{ assign.content_equipment.name }}</h4>
+                <div class="mb-2">
+                    {% if assign.has_total_cost_override %}
+                        <span class="badge text-bg-secondary">{{ assign.total_cost_override }}¢</span>
+                    {% else %}
+                        <span class="badge text-bg-secondary">{{ assign.cost_display }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <!-- Weapon Profiles Table -->
-            <div class="table-responsive">
-                <table class="table table-sm mb-0 fs-7">
-                    <thead>
-                        <tr>
-                            <th scope="col">Profile</th>
-                            <th class="text-center" scope="col">S</th>
-                            <th class="text-center" scope="col">L</th>
-                            <th class="text-center border-start" scope="col">S</th>
-                            <th class="text-center" scope="col">L</th>
-                            <th class="text-center border-start" scope="col">Str</th>
-                            <th class="text-center" scope="col">Ap</th>
-                            <th class="text-center" scope="col">D</th>
-                            <th class="text-center" scope="col">Am</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for profile in assign.all_profiles_cached %}
+            <div class="card-body py-2 px-2">
+                <!-- Weapon Profiles Table -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-borderless mb-0 fs-7">
+                        <thead class="table-group-divider">
                             <tr>
-                                <td>
-                                    {% if profile.name %}
-                                        {{ profile.name }}
-                                    {% else %}
-                                        <em>Standard</em>
-                                    {% endif %}
-                                </td>
-                                {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                                <th scope="col"></th>
+                                <th class="text-center" scope="col">S</th>
+                                <th class="text-center" scope="col">L</th>
+                                <th class="text-center border-start" scope="col">S</th>
+                                <th class="text-center" scope="col">L</th>
+                                <th class="text-center border-start" scope="col">Str</th>
+                                <th class="text-center" scope="col">Ap</th>
+                                <th class="text-center" scope="col">D</th>
+                                <th class="text-center" scope="col">Am</th>
                             </tr>
-                            {% if profile.traitline_cached|length > 0 %}
-                                <tr>
-                                    <td colspan="9">
-                                        <small class="text-muted">{{ profile.traitline_cached|join:", " }}</small>
-                                    </td>
-                                </tr>
-                            {% endif %}
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="table-group-divider">
+                            {% include "core/includes/list_fighter_weapon_rows.html" %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         <!-- Filter Bar -->
-        <div class="border rounded p-3">
-            <form id="search"
-                  method="get"
-                  action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                  class="row g-2 align-items-end">
-                <div class="col-12 col-md-6">
-                    <label for="search-input" class="form-label">Search Accessories</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi-search"></i>
-                        </span>
-                        <input class="form-control"
-                               type="search"
-                               placeholder="Search accessories..."
-                               aria-label="Search"
-                               name="q"
-                               id="search-input"
-                               value="{{ search_query }}">
-                    </div>
+        <form id="search"
+              method="get"
+              action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
+              class="col-12 col-md-8 col-lg-6 vstack gap-2">
+            <input type="hidden" name="flash" value="search">
+            <input type="hidden" name="cb" value="{% cachebuster %}">
+            <div class="hstack gap-2">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi-search"></i>
+                    </span>
+                    <input class="form-control"
+                           type="search"
+                           placeholder="Search accessories..."
+                           aria-label="Search"
+                           name="q"
+                           id="search-input"
+                           value="{{ search_query }}">
                 </div>
-                <div class="col-12 col-md-4">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               role="switch"
-                               id="filter-switch"
-                               name="filter"
-                               value="equipment-list"
-                               {% if filter == "equipment-list" %}checked{% endif %}>
-                        <label class="form-check-label" for="filter-switch">Only Equipment List</label>
-                    </div>
-                </div>
-                <div class="col-12 col-md-2">
-                    <div class="btn-group">
-                        <button class="btn btn-primary" type="submit">Search</button>
-                        {% if search_query %}
-                            <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}?filter={{ filter }}"
-                               class="btn btn-outline-secondary">Clear</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </form>
-        </div>
-        <!-- Current Accessories -->
-        {% if assign.weapon_accessories_field.exists %}
-            <div class="border rounded p-3">
-                <h4 class="h5 mb-3">Current Accessories</h4>
-                <form action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                      method="post">
-                    {% csrf_token %}
-                    {{ form }}
-                    <div class="mt-3">
-                        <button type="submit" class="btn btn-primary">Update</button>
-                    </div>
-                </form>
-            </div>
-        {% endif %}
-        <!-- Available Accessories -->
-        <div class="border rounded p-3">
-            <h4 class="h5 mb-3">Available Accessories</h4>
-            {% if accessories %}
-                <div class="vstack gap-2">
-                    {% for accessory in accessories %}
-                        {% if not accessory.is_added %}
-                            <form action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                                  method="post"
-                                  class="d-flex align-items-center gap-2">
-                                {% csrf_token %}
-                                <input type="hidden" name="accessory_id" value="{{ accessory.id }}">
-                                <input type="hidden" name="filter" value="{{ filter }}">
-                                <input type="hidden" name="q" value="{{ search_query }}">
-                                <div class="flex-grow-1">
-                                    <strong>{{ accessory.name }}</strong>
-                                    <span class="text-muted">({{ accessory.cost_display }})</span>
-                                </div>
-                                <button type="submit" class="btn btn-outline-primary btn-sm">
-                                    <i class="bi-plus"></i> Add
-                                </button>
-                            </form>
-                        {% else %}
-                            <div class="d-flex align-items-center gap-2 text-muted">
-                                <div class="flex-grow-1">
-                                    <strong>{{ accessory.name }}</strong>
-                                    <span>({{ accessory.cost_display }})</span>
-                                </div>
-                                <span class="badge bg-secondary">Already Added</span>
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="text-muted mb-0">
-                    {% if filter == "equipment-list" %}
-                        No accessories found in the equipment list.
-                    {% else %}
-                        No accessories found.
-                    {% endif %}
+                <div class="btn-group">
+                    <button class="btn btn-primary" type="submit">Search</button>
                     {% if search_query %}
-                        <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}?filter={{ filter }}">
-                            <em>Clear your search</em>
-                        </a>
+                        <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}?filter={{ filter }}"
+                           class="btn btn-outline-secondary">Clear</a>
                     {% endif %}
-                </p>
-            {% endif %}
+                </div>
+            </div>
+            <div class="form-check form-switch">
+                <input type="hidden" name="filter" value="all">
+                <input class="form-check-input"
+                       type="checkbox"
+                       role="switch"
+                       id="filter-switch"
+                       name="filter"
+                       value="equipment-list"
+                       data-gy-toggle-submit="search"
+                       {% if filter == "equipment-list" %}checked{% endif %}>
+                <label class="form-check-label" for="filter-switch">Only Equipment List</label>
+            </div>
+        </form>
+        <!-- Available Accessories -->
+        <div class="card col-12 col-md-8 col-lg-6">
+            <div class="card-header p-1 p-sm-2">
+                <h4 class="h5 mb-0">Available Accessories</h4>
+            </div>
+            <div class="card-body vstack gap-2 p-1 p-sm-2 {% flash "search" %}">
+                {% for accessory in accessories %}
+                    <form action="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
+                          method="post"
+                          class="d-flex align-items-center gap-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="accessory_id" value="{{ accessory.id }}">
+                        <input type="hidden" name="filter" value="{{ filter }}">
+                        <input type="hidden" name="q" value="{{ search_query }}">
+                        <div class="flex-grow-1">
+                            {{ accessory.name }}
+                            <span class="text-muted">({{ accessory.cost_display }})</span>
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi-plus"></i> Add
+                        </button>
+                    </form>
+                {% empty %}
+                    <p class="text-muted mb-0">
+                        {% if filter == "equipment-list" %}
+                            No accessories found in the equipment list.
+                        {% else %}
+                            No accessories found.
+                        {% endif %}
+                        {% if search_query %}
+                            <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}?filter={{ filter }}">
+                                <em>Clear your search</em>
+                            </a>
+                        {% endif %}
+                    </p>
+                {% endfor %}
+            </div>
         </div>
     </div>
 {% endblock content %}

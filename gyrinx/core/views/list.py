@@ -2117,6 +2117,9 @@ def delete_list_fighter_gear_upgrade(
         pk=upgrade_id,
     )
 
+    default_url = reverse(back_name, args=(lst.id, fighter.id))
+    return_url = request.GET.get("return_url", default_url)
+
     if request.method == "POST":
         assignment.upgrade = None
         assignment.upgrades_field.remove(upgrade)
@@ -2136,7 +2139,7 @@ def delete_list_fighter_gear_upgrade(
             upgrade_removed=upgrade.name,
         )
 
-        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+        return HttpResponseRedirect(return_url)
 
     return render(
         request,
@@ -2147,7 +2150,7 @@ def delete_list_fighter_gear_upgrade(
             "assign": assignment,
             "upgrade": upgrade,
             "action_url": action_name,
-            "back_url": back_name,
+            "return_url": return_url,
         },
     )
 
@@ -2265,18 +2268,20 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     accessories = []
     for accessory in accessories_qs:
         # Calculate the actual cost for this accessory on this weapon assignment
+        # TODO: this should probably be refactored to use a method on the assignment named
+        #       something finishing `..._display`
         cost_int = assignment.accessory_cost_int(accessory)
         cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
 
-        accessories.append(
-            {
-                "id": accessory.id,
-                "name": accessory.name,
-                "cost_int": cost_int,
-                "cost_display": cost_display,
-                "is_added": accessory.id in existing_accessory_ids,
-            }
-        )
+        if accessory.id not in existing_accessory_ids:
+            accessories.append(
+                {
+                    "id": accessory.id,
+                    "name": accessory.name,
+                    "cost_int": cost_int,
+                    "cost_display": cost_display,
+                }
+            )
 
     form = ListFighterEquipmentAssignmentAccessoriesForm(
         instance=assignment,
@@ -2290,10 +2295,11 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
             "fighter": fighter,
             "form": form,
             "error_message": error_message,
-            "assign": assignment,
+            "assign": VirtualListFighterEquipmentAssignment.from_assignment(assignment),
             "accessories": accessories,
             "filter": filter_mode,
             "search_query": search_query,
+            "mode": "edit",
         },
     )
 
@@ -2333,6 +2339,12 @@ def delete_list_fighter_weapon_accessory(
         pk=accessory_id,
     )
 
+    default_url = (
+        reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        + f"?flash={assignment.id}#{str(fighter.id)}"
+    )
+    return_url = request.GET.get("return_url", default_url)
+
     if request.method == "POST":
         assignment.weapon_accessories_field.remove(accessory)
 
@@ -2350,14 +2362,18 @@ def delete_list_fighter_weapon_accessory(
             accessory_removed=accessory.name,
         )
 
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-        )
+        return HttpResponseRedirect(return_url)
 
     return render(
         request,
         "core/list_fighter_weapons_accessory_delete.html",
-        {"list": lst, "fighter": fighter, "assign": assignment, "accessory": accessory},
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": assignment,
+            "accessory": accessory,
+            "return_url": return_url,
+        },
     )
 
 
