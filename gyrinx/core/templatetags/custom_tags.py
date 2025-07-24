@@ -304,3 +304,8 @@ def cachebuster():
     This is used to force browsers to reload forms even if other params don't change.
     """
     return hex(int(random.random() * 1e8))[2:]  # nosec
+
+
+@register.simple_tag
+def dot():
+    return mark_safe("&nbsp;·&nbsp;")

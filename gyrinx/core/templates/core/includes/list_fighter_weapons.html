@@ -23,6 +23,9 @@
                 {% if mode == "gear" %}
                     <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
                        class="fw-normal">Edit weapons</a>
+                {% elif not mode %}
+                    <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
+                       class="fw-normal">Edit</a>
                 {% endif %}
             </th>
             <th class="text-center" scope="col">S</th>
@@ -40,137 +43,13 @@
         <tbody class="table-group-divider {% flash assign.id %}"
                id="assign-{{ assign.id }}">
             <!-- {{ assign.id }} ({{ assign.kind }}) -->
-            {% comment %} Base-case: one profile for the weapon {% endcomment %}
-            {% if assign.all_profiles_cached|length == 1 %}
-                {% with assign.all_profiles_cached.0 as profile %}
-                    <tr class="align-top">
-                        <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                            {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
-                        </td>
-                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
-                        {% if mode == 'add' %}
-                            <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
-                        {% endif %}
-                    </tr>
-                    {% if profile.traitline_cached|length > 0 %}
-                        <tr>
-                            <td colspan="9">{{ profile.traitline_cached|join:", " }}</td>
-                        </tr>
-                    {% endif %}
-                {% endwith %}
-            {% else %}
-                {% comment %} First profile is named, so we need to add a title row {% endcomment %}
-                {% if assign.standard_profiles_cached.0.name != "" %}
-                    <tr class="align-bottom">
-                        <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}</td>
-                        {% if mode == 'add' %}
-                            <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
-                        {% endif %}
-                    </tr>
-                {% endif %}
-                {% for profile in assign.standard_profiles_cached %}
-                    <tr class="align-top">
-                        <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                            {% comment %} The first, standard profile is not named so inline the weapon name {% endcomment %}
-                            {% if forloop.counter0 == 0 and profile.name == "" %}
-                                {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
-                            {% elif profile.name != "" %}
-                                <i class="bi-dash"></i> {{ profile.name }}
-                            {% endif %}
-                        </td>
-                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
-                        {% if mode == 'add' %}
-                            <td class="text-center border-start">{% comment %} Nothing here because it's a standard profile {% endcomment %}</td>
-                        {% endif %}
-                    </tr>
-                    {% if profile.traitline_cached|length > 0 %}
-                        <tr>
-                            <td colspan="9">{{ profile.traitline_cached|join:", " }}</td>
-                        </tr>
-                    {% endif %}
-                {% endfor %}
-                {% comment %} Non-standard profile(s) {% endcomment %}
-                {% for pd in assign.weapon_profiles_display %}
-                    <tr class="align-top">
-                        <td rowspan="{% if pd.profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                            {% if mode == 'add' %}
-                                <div class="form-check">
-                                    <input type="checkbox"
-                                           name="weapon_profiles_field"
-                                           value="{{ pd.profile.id }}"
-                                           id="profile-{{ pd.profile.id }}"
-                                           form="weapon-{{ assign.equipment.id }}"
-                                           class="form-check-input">
-                                    <label class="form-check-label" for="profile-{{ pd.profile.id }}">
-                                        {{ pd.profile.name }}
-                                        {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
-                                    </label>
-                                </div>
-                            {% else %}
-                                <i class="bi-dash"></i>
-                                {{ pd.profile.name }}
-                                {% if not assign.has_total_cost_override %}
-                                    {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
-                                {% endif %}
-                                {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign_mode' and list.owner_cached == user and assign.kind == 'assigned' %}
-                                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ pd.profile.id }}"
-                                       class="link-warning">Sell</a>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
-                        {% if mode == 'add' %}
-                            <td class="text-center border-start">{{ pd.profile.rarity }}{% firstof pd.profile.rarity_roll "" %}</td>
-                        {% endif %}
-                    </tr>
-                    {% if pd.profile.traitline_cached|length > 0 %}
-                        <tr>
-                            <td colspan="9">{{ pd.profile.traitline_cached|join:", " }}</td>
-                        </tr>
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-            {% if assign.weapon_accessories_display_cached|length > 0 %}
-                {% for ad in assign.weapon_accessories_display_cached %}
-                    <tr>
-                        <td colspan="9">
-                            <i class="bi-dash"></i>
-                            <i class="bi-crosshair"></i>
-                            {{ ad.accessory.name }}
-                            {% if not assign.has_total_cost_override %}
-                                {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
-                            {% endif %}
-                            {% if mode == 'edit' and assign.kind == 'assigned' %}
-                                <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}"
-                                   class="ms-auto link-danger">Delete</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            {% endif %}
+            {% include "core/includes/list_fighter_weapon_rows.html" with list=list fighter=fighter assign=assign mode=mode %}
             {% if mode == 'add' %}
                 {% if assign.upgrades_display|length > 0 %}
                     <tr>
                         <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_upgrade_form.html" with assign=assign %}</td>
                     </tr>
                 {% endif %}
-            {% endif %}
-            {% if assign.active_upgrade_cached %}
-                <tr>
-                    <td colspan="9">
-                        <i class="bi-dash"></i>
-                        <i class="bi-arrow-up-circle"></i>
-                        {{ assign.equipment.upgrade_stack_name }}:
-                        {{ assign.active_upgrade_cached.name }}
-                        {% if not assign.has_total_cost_override %}
-                            {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}
-                        {% endif %}
-                        {% if mode == 'edit' and assign.kind == 'assigned' %}
-                            <a href="{% url 'core:list-fighter-gear-upgrade-delete' list.id fighter.id assign.id assign.active_upgrade_cached.id %}"
-                               class="ms-auto link-danger">Delete</a>
-                        {% endif %}
-                    </td>
-                </tr>
             {% endif %}
             {% if mode == 'add' %}
                 <tr>
@@ -187,89 +66,7 @@
                 </tr>
             {% endif %}
             {% if mode == 'edit' %}
-                <tr>
-                    <td colspan="9" class="text-end">
-                        <div class="d-flex">
-                            {% if assign.kind == 'assigned' %}
-                                <div class="btn-group">
-                                    <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-crosshair"></i>
-                                        Accessories
-                                    </a>
-                                    {% if assign.upgrades_display|length > 0 %}
-                                        <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
-                                           class="btn btn-outline-secondary btn-sm">
-                                            <i class="bi-arrow-up-circle"></i>
-                                            <span class="d-none d-sm-inline">{{ assign.equipment.upgrade_stack_name }}</span>
-                                        </a>
-                                    {% endif %}
-                                    {% if fighter.is_stash and list.status == 'campaign_mode' %}
-                                        <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
-                                           class="btn btn-outline-secondary btn-sm">
-                                            <i class="bi-coin"></i> Sell All
-                                        </a>
-                                    {% endif %}
-                                    <div class="btn-group">
-                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                aria-expanded="false">
-                                            <i class="bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
-                                                   class="dropdown-item">
-                                                    <i class="bi-pencil"></i> Cost
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a href="{% url 'core:list-fighter-weapon-reassign' list.id fighter.id assign.id %}"
-                                                   class="dropdown-item">
-                                                    <i class="bi-arrow-left-right"></i> Reassign
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <hr class="dropdown-divider">
-                                            </li>
-                                            <li>
-                                                <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
-                                                   class="dropdown-item text-danger">
-                                                    <i class="bi-trash"></i> Delete
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            {% elif assign.kind == 'default' %}
-                                <div class="btn-group">
-                                    <a href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-pencil"></i>
-                                        Modify from default
-                                    </a>
-                                    <div class="btn-group">
-                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                aria-expanded="false">
-                                            <i class="bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
-                                                   class="dropdown-item text-danger">
-                                                    <i class="bi-trash"></i> Delete
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
+                {% include "core/includes/fighter_card_weapon_menu.html" with assign=assign fighter=fighter list=list %}
             {% endif %}
         </tbody>
     {% empty %}
