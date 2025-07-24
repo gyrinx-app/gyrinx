@@ -142,7 +142,7 @@
                             {% endif %}
                             {% if mode == 'edit' and assign.kind == 'assigned' %}
                                 <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}"
-                                   class="ms-auto link-danger">Remove</a>
+                                   class="ms-auto link-danger">Delete</a>
                             {% endif %}
                         </td>
                     </tr>
@@ -167,7 +167,7 @@
                         {% endif %}
                         {% if mode == 'edit' and assign.kind == 'assigned' %}
                             <a href="{% url 'core:list-fighter-gear-upgrade-delete' list.id fighter.id assign.id assign.active_upgrade_cached.id %}"
-                               class="ms-auto link-danger">Remove</a>
+                               class="ms-auto link-danger">Delete</a>
                         {% endif %}
                     </td>
                 </tr>
@@ -236,7 +236,7 @@
                                             <li>
                                                 <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                                                    class="dropdown-item text-danger">
-                                                    <i class="bi-trash"></i> Remove
+                                                    <i class="bi-trash"></i> Delete
                                                 </a>
                                             </li>
                                         </ul>
@@ -260,7 +260,7 @@
                                             <li>
                                                 <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
                                                    class="dropdown-item text-danger">
-                                                    <i class="bi-trash"></i> Remove
+                                                    <i class="bi-trash"></i> Delete
                                                 </a>
                                             </li>
                                         </ul>
