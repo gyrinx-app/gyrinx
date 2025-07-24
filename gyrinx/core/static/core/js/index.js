@@ -383,3 +383,73 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+// Handle banner dismissal
+document.addEventListener("DOMContentLoaded", () => {
+    // Find all elements with data-gy-banner-dismiss attribute
+    const bannerDismissButtons = document.querySelectorAll(
+        "[data-gy-banner-dismiss]",
+    );
+
+    bannerDismissButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+            const bannerId = button.getAttribute("data-gy-banner-dismiss");
+            if (!bannerId) return;
+
+            // Get CSRF token from Django
+            const csrfToken = document.querySelector(
+                "[name=csrfmiddlewaretoken]",
+            )?.value;
+
+            // Fallback to getting CSRF from cookie if not in form
+            const getCookie = (name) => {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== "") {
+                    const cookies = document.cookie.split(";");
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (
+                            cookie.substring(0, name.length + 1) ===
+                            name + "="
+                        ) {
+                            cookieValue = decodeURIComponent(
+                                cookie.substring(name.length + 1),
+                            );
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            };
+
+            const finalCsrfToken = csrfToken || getCookie("csrftoken");
+
+            fetch("/banner/dismiss/", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": finalCsrfToken,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    banner_id: bannerId,
+                }),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        console.error(
+                            `Failed to dismiss banner: ${response.statusText}`,
+                        );
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    if (!data.success) {
+                        console.error("Failed to dismiss banner:", data.error);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error dismissing banner:", error);
+                });
+        });
+    });
+});

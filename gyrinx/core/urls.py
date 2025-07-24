@@ -480,4 +480,10 @@ urlpatterns = [
         gyrinx.core.views.tinymce_upload,
         name="tinymce-upload",
     ),
+    # Banner dismissal
+    path(
+        "banner/dismiss/",
+        gyrinx.core.views.dismiss_banner,
+        name="dismiss-banner",
+    ),
 ]
