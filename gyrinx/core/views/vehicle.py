@@ -63,13 +63,11 @@ def vehicle_select(request, id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        print(request.POST)
         form = VehicleSelectionForm(request.POST, list_instance=lst)
         if form.is_valid():
             vehicle_equipment = form.cleaned_data["vehicle_equipment"]
 
             action = request.POST.get("action")
-            print(f"Selected action: {action}")
             if action == "add_to_stash":
                 # Go to confirmation step with stash action
                 params = VehicleFlowParams(
