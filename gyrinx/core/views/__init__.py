@@ -1,4 +1,5 @@
 import json
+import logging
 from itertools import zip_longest
 from random import randint
 from urllib.parse import urlencode
@@ -20,6 +21,8 @@ from gyrinx.core.models.list import List
 
 from .csrf import csrf_failure as csrf_failure
 from .upload import tinymce_upload as tinymce_upload
+
+logger = logging.getLogger(__name__)
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -375,5 +378,19 @@ def dismiss_banner(request):
                 {"success": False, "error": "No banner ID provided"}, status=400
             )
 
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=400)
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON received in banner dismissal request")
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON format"}, status=400
+        )
+    except KeyError:
+        logger.exception("Missing required data in banner dismissal request")
+        return JsonResponse(
+            {"success": False, "error": "Missing required data"}, status=400
+        )
+    except Exception:
+        # Log unexpected exceptions for debugging purposes
+        logger.exception("Unexpected error during banner dismissal")
+        return JsonResponse(
+            {"success": False, "error": "An unexpected error occurred"}, status=500
+        )

@@ -27,6 +27,22 @@ function dismissBanner(bannerId) {
         body: JSON.stringify({
             'banner_id': bannerId
         })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Network response was not ok: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data.success) {
+            console.error('Failed to dismiss banner:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error dismissing banner:', error);
+        // Optionally show a user-friendly message
+        // alert('Failed to dismiss the banner. Please try again.');
     });
 }
     </script>
