@@ -1,0 +1,42 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Select Crew - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 col-lg-8 col-xl-6">
+        {% url "core:list-vehicle-select" list.id as back_url %}
+        {% include "core/includes/back.html" with url=back_url text="Back" %}
+        <h1 class="h2">Add Vehicle to {{ list.name }}</h1>
+        <div class="progress mb-3"
+             role="progressbar"
+             aria-label="Step 2 of 3"
+             aria-valuenow="66"
+             aria-valuemin="0"
+             aria-valuemax="100">
+            {# djlint:off #}
+                <div class="progress-bar" style="width: 66%">Step 2 of 3</div>
+            {# djlint:on #}
+        </div>
+        <p class="h4 mb-3">Select crew for {{ vehicle_equipment.name }} ({{ vehicle_equipment.cost }}¢)</p>
+        <form method="post" class="vstack gap-4">
+            {% csrf_token %}
+            {{ form.action }}
+            <div>
+                <label for="{{ form.crew_name.id_for_label }}" class="form-label">{{ form.crew_name.label }}</label>
+                {{ form.crew_name.errors }}
+                {{ form.crew_name }}
+            </div>
+            <div>
+                <label for="{{ form.crew_fighter.id_for_label }}" class="form-label">{{ form.crew_fighter.label }}</label>
+                {{ form.crew_fighter.errors }}
+                {{ form.crew_fighter }}
+            </div>
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-primary">
+                    Next <i class="bi-arrow-right"></i>
+                </button>
+                <a href="{% url "core:list" list.id %}" class="link-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

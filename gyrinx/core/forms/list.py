@@ -13,8 +13,7 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
-from gyrinx.forms import group_select
-from gyrinx.models import FighterCategoryChoices
+from gyrinx.forms import fighter_group_key, group_select, group_sorter
 
 
 class NewListForm(forms.ModelForm):
@@ -34,7 +33,6 @@ class NewListForm(forms.ModelForm):
         )
 
         # Group houses by legacy status
-        from gyrinx.forms import group_select
 
         group_select(
             self,
@@ -146,28 +144,12 @@ class ListFighterForm(forms.ModelForm):
             # who are added via equipment
             self.fields["content_fighter"].content_house = inst.list.content_house
 
-            # Check if the house can hire any fighter
-            if inst.list.content_house.can_hire_any:
-                # Can hire any fighter except stash fighters
-                self.fields[
-                    "content_fighter"
-                ].queryset = ContentFighter.objects.exclude(
-                    category=FighterCategoryChoices.STASH
-                )
-            else:
-                # Normal filtering: only house and generic houses, exclude exotic beasts, vehicles and stash
-                generic_houses = ContentHouse.objects.filter(generic=True).values_list(
-                    "id", flat=True
-                )
-                self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                    house__in=[inst.list.content_house.id] + list(generic_houses),
-                ).exclude(
-                    category__in=[
-                        FighterCategoryChoices.EXOTIC_BEAST,
-                        FighterCategoryChoices.VEHICLE,
-                        FighterCategoryChoices.STASH,
-                    ]
-                )
+            # Use the available_for_house method to get available fighters
+            self.fields[
+                "content_fighter"
+            ].queryset = ContentFighter.objects.available_for_house(
+                inst.list.content_house
+            )
 
             self.fields[
                 "legacy_content_fighter"
@@ -196,23 +178,12 @@ class ListFighterForm(forms.ModelForm):
                 # Don't allow the user to set a legacy content fighter on creation
                 self.fields.pop("legacy_content_fighter", None)
 
-        def fighter_group_key(fighter):
-            # Group by house name
-            return fighter.house.name
-
-        def sort_groups_key(group_name):
-            # Sort groups: gang's own house first, then alphabetically
-            if group_name == inst.list.content_house.name:
-                return (0, group_name)  # Gang's house comes first
-            else:
-                return (1, group_name)  # Other houses alphabetically
-
         # Group and sort groups fighters so that the gang's own house is first
         group_select(
             self,
             "content_fighter",
             key=fighter_group_key,
-            sort_groups_by=sort_groups_key,
+            sort_groups_by=group_sorter(inst.list.content_house.name if inst else ""),
         )
 
     class Meta:

@@ -224,6 +224,47 @@ class List(AppBase):
         cache.delete(cache_key)
         cache.set(cache_key, self.cost_int(), settings.CACHE_LIST_TTL)
 
+    def ensure_stash(self, owner=None):
+        """Ensure this list has a stash fighter, creating one if needed.
+
+        Args:
+            owner: Owner for the stash fighter (defaults to list owner)
+
+        Returns:
+            ListFighter: The stash fighter for this list
+        """
+        # Check if there's already a stash fighter
+        existing_stash = self.listfighter_set.filter(
+            content_fighter__is_stash=True
+        ).first()
+
+        if existing_stash:
+            return existing_stash
+
+        if not owner:
+            owner = self.owner
+
+        # Get or create a stash ContentFighter for this house
+        stash_fighter, created = ContentFighter.objects.get_or_create(
+            house=self.content_house,
+            is_stash=True,
+            defaults={
+                "type": "Stash",
+                "category": FighterCategoryChoices.STASH,
+                "base_cost": 0,
+            },
+        )
+
+        # Create the stash ListFighter
+        new_stash = ListFighter.objects.create(
+            name="Stash",
+            content_fighter=stash_fighter,
+            list=self,
+            owner=owner,
+        )
+
+        return new_stash
+
     def clone(self, name=None, owner=None, for_campaign=None, **kwargs):
         """Clone the list, creating a new list with the same fighters.
 
@@ -276,40 +317,17 @@ class List(AppBase):
 
         # Add a stash fighter if cloning for a campaign
         if for_campaign:
-            # Check if there's already a stash fighter in the cloned list
-            has_stash = clone.listfighter_set.filter(
+            new_stash = clone.ensure_stash(owner=owner)
+
+            # Clone equipment from original stash if it exists
+            original_stash = self.listfighter_set.filter(
                 content_fighter__is_stash=True
-            ).exists()
+            ).first()
 
-            if not has_stash:
-                # Get or create a stash ContentFighter for this house
-                stash_fighter, created = ContentFighter.objects.get_or_create(
-                    house=self.content_house,
-                    is_stash=True,
-                    defaults={
-                        "type": "Stash",
-                        "category": "STASH",  # Default category
-                        "base_cost": 0,
-                    },
-                )
-
-                # Create the stash ListFighter
-                new_stash = ListFighter.objects.create(
-                    name="Stash",
-                    content_fighter=stash_fighter,
-                    list=clone,
-                    owner=owner,
-                )
-
-                # Clone equipment from original stash if it exists
-                original_stash = self.listfighter_set.filter(
-                    content_fighter__is_stash=True
-                ).first()
-
-                if original_stash:
-                    # Clone all equipment assignments from the original stash
-                    for assignment in original_stash._direct_assignments():
-                        assignment.clone(list_fighter=new_stash)
+            if original_stash:
+                # Clone all equipment assignments from the original stash
+                for assignment in original_stash._direct_assignments():
+                    assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.all():

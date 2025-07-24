@@ -335,20 +335,18 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             submitButtons.forEach((button) => {
-                // Store original content
-                const originalContent = button.innerHTML;
+                // Only modify the button if it is the one that was clicked
+                if (button.isSameNode(event.submitter)) {
+                    button.style.width = `${button.offsetWidth}px`;
+                    button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>`;
+                }
 
-                // Create spinner SVG
-                const spinnerSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="16" height="16" style="display: inline-block; vertical-align: middle;"><circle fill="currentColor" stroke="currentColor" stroke-width="4" r="15" cx="40" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.4"></animate></circle><circle fill="currentColor" stroke="currentColor" stroke-width="4" r="15" cx="100" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.2"></animate></circle><circle fill="currentColor" stroke="currentColor" stroke-width="4" r="15" cx="160" cy="100"><animate attributeName="opacity" calcMode="spline" dur="2" values="1;0;1;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="0"></animate></circle></svg>`;
-
-                // Replace button content with spinner
-                button.innerHTML = spinnerSVG;
-
-                // Disable the button
-                button.disabled = true;
-
-                // Add a data attribute to prevent multiple submissions
-                button.setAttribute("data-submitting", "true");
+                // Disable all the buttons
+                // This is setTimeout to ensure it runs after the form submission starts so that any
+                // name/value attributes are still submitted.
+                setTimeout(() => {
+                    button.disabled = true;
+                }, 0);
             });
         });
     });

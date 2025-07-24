@@ -1,4 +1,7 @@
+from collections.abc import Callable
 from itertools import groupby
+
+from gyrinx.content.models import ContentFighter
 
 
 def group_select(form, field, key=lambda x: x, sort_groups_by=None):
@@ -45,3 +48,19 @@ def group_select(form, field, key=lambda x: x, sort_groups_by=None):
         ] + choices
     else:
         formfield.widget.choices = choices
+
+
+def fighter_group_key(fighter: ContentFighter):
+    # Group by house name
+    return fighter.house.name
+
+
+def group_sorter(priority_name: str) -> Callable[[str], tuple]:
+    def sort_groups_key(group_name):
+        # Sort groups: gang's own house first, then alphabetically
+        if group_name == priority_name:
+            return (0, group_name)  # Gang's house comes first
+        else:
+            return (1, group_name)  # Other houses alphabetically
+
+    return sort_groups_key

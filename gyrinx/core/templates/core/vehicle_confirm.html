@@ -1,0 +1,55 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Confirm Vehicle - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 col-lg-8 col-xl-6">
+        {% url "core:list-vehicle-crew" list.id as back_url %}
+        {% include "core/includes/back.html" %}
+        <h1 class="h2">Add Vehicle to {{ list.name }}</h1>
+        <div class="progress mb-3"
+             role="progressbar"
+             aria-label="Step 3 of 3"
+             aria-valuenow="100"
+             aria-valuemin="0"
+             aria-valuemax="100">
+            {# djlint:off #}
+                <div class="progress-bar" style="width: 100%">Step 3 of 3</div>
+            {# djlint:on #}
+        </div>
+        <p class="h4 mb-3">Confirm vehicle and crew</p>
+        <div class="vstack gap-4">
+            <dl class="row my-3">
+                <dt class="col-sm-4">Vehicle</dt>
+                <dd class="col-sm-8">
+                    <strong>{{ vehicle_equipment.name }}</strong> ({{ vehicle_equipment.cost }}¢)
+                </dd>
+                {% if crew_fighter %}
+                    <dt class="col-sm-4">Crew</dt>
+                    <dd class="col-sm-8">
+                        <strong>{{ crew_name }}</strong> — {{ crew_fighter.type }} ({{ crew_cost }}¢)
+                    </dd>
+                {% else %}
+                    <dt class="col-sm-4 text-secondary">Crew</dt>
+                    <dd class="col-sm-8 text-secondary">
+                        Adding to stash, no crew selected.
+                    </dd>
+                {% endif %}
+                <dt class="col-sm-4 border-top pt-2 mt-1">Total Cost</dt>
+                <dd class="col-sm-8 border-top pt-2 mt-1">
+                    <strong>{{ total_cost }}¢</strong>
+                </dd>
+            </dl>
+            <form method="post">
+                {% csrf_token %}
+                {{ form.confirm }}
+                <div class="hstack gap-3 align-items-center">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi-check-circle"></i> Add Vehicle
+                    </button>
+                    <a href="{% url "core:list" list.id %}" class="link-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}
