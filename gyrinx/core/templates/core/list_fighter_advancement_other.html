@@ -37,12 +37,16 @@
                         </div>
                     </div>
                 </div>
-                <div>
-                    <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
-                    {{ form.description }}
-                    {% if form.description.help_text %}<div class="form-text">{{ form.description.help_text }}</div>{% endif %}
-                    {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
-                </div>
+                {% if is_campaign_mode %}
+                    <div>
+                        <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                        {{ form.description }}
+                        {% if form.description.help_text %}<div class="form-text">{{ form.description.help_text }}</div>{% endif %}
+                        {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
+                    </div>
+                {% else %}
+                    <input type="hidden" name="description" value="Other Advancement" />
+                {% endif %}
             </div>
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Continue</button>

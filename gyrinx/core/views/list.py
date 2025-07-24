@@ -3872,6 +3872,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                 "stat": stat,
                 "description": stat_desc,
             },
+            "is_campaign_mode": lst.status == List.CAMPAIGN_MODE,
         },
     )
 
@@ -4130,6 +4131,7 @@ def list_fighter_advancement_other(request, id, fighter_id):
             "fighter": fighter,
             "list": lst,
             "params": params,
+            "is_campaign_mode": lst.status == List.CAMPAIGN_MODE,
         },
     )
 
