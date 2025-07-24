@@ -26,10 +26,12 @@
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
             <p>You can choose to roll 2D6 for your advancement.</p>
             {{ form.roll_dice }}
-            <div class="alert alert-info">
-                <i class="bi-info-circle"></i>
-                The roll will <em>immediately</em> be added to the campaign action log.
-            </div>
+            {% if is_campaign_mode %}
+                <div class="alert alert-info">
+                    <i class="bi-info-circle"></i>
+                    The roll will <em>immediately</em> be added to the campaign action log.
+                </div>
+            {% endif %}
             <div class="hstack gap-3">
                 <button type="submit" class="btn btn-primary">Roll 2D6</button>
                 <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"

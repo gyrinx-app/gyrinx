@@ -3305,11 +3305,6 @@ def edit_list_fighter_xp(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(request, "XP can only be tracked for fighters in campaign mode.")
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
     if request.method == "POST":
         form = EditFighterXPForm(request.POST, fighter=fighter)
         if form.is_valid():
@@ -3467,13 +3462,6 @@ def list_fighter_advancement_start(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        from django.contrib import messages
-
-        messages.error(request, "Advancements can only be purchased in campaign mode.")
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
     # Redirect to dice choice
     return HttpResponseRedirect(
         reverse("core:list-fighter-advancement-dice-choice", args=(lst.id, fighter.id))
@@ -3516,25 +3504,30 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
                     dice2 = random.randint(1, 6)
                     total = dice1 + dice2
 
-                    # Create campaign action for the roll
-                    campaign_action = CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Rolling for advancement to {fighter.name}",
-                        dice_count=2,
-                        dice_results=[dice1, dice2],
-                        dice_total=total,
-                    )
+                    # Create campaign action for the roll if in campaign mode
+                    campaign_action = None
+                    if lst.status == List.CAMPAIGN_MODE and lst.campaign:
+                        campaign_action = CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=f"Rolling for advancement to {fighter.name}",
+                            dice_count=2,
+                            dice_results=[dice1, dice2],
+                            dice_total=total,
+                        )
 
                 # Redirect to type selection with campaign action
                 url = reverse(
                     "core:list-fighter-advancement-type", args=(lst.id, fighter.id)
                 )
-                return HttpResponseRedirect(
-                    f"{url}?campaign_action_id={campaign_action.id}"
-                )
+                if campaign_action:
+                    return HttpResponseRedirect(
+                        f"{url}?campaign_action_id={campaign_action.id}"
+                    )
+                else:
+                    return HttpResponseRedirect(url)
             else:
                 # Redirect to type selection without campaign action
                 return HttpResponseRedirect(
@@ -3552,6 +3545,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             "form": form,
             "fighter": fighter,
             "list": lst,
+            "is_campaign_mode": lst.status == List.CAMPAIGN_MODE,
         },
     )
 
