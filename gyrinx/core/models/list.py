@@ -223,6 +223,9 @@ class List(AppBase):
         cache_key = self.cost_cache_key()
         cache.delete(cache_key)
         cache.set(cache_key, self.cost_int(), settings.CACHE_LIST_TTL)
+        # Also clear the cached property from the instance
+        if "cost_int_cached" in self.__dict__:
+            del self.__dict__["cost_int_cached"]
 
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.
@@ -2134,14 +2137,20 @@ def delete_related_objects_post_delete(sender, instance, **kwargs):
 
 
 @receiver(
-    [pre_delete, post_save],
+    [post_delete, post_save],
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="update_list_cache_for_assignment",
 )
 def update_list_cache_for_assignment(
     sender, instance: ListFighterEquipmentAssignment, **kwargs
 ):
-    instance.list_fighter.list.update_cost_cache()
+    # Clear the fighter's cached properties that depend on assignments
+    fighter = instance.list_fighter
+    for prop in ["cost_int_cached", "assignments_cached"]:
+        if prop in fighter.__dict__:
+            del fighter.__dict__[prop]
+    # Update the list's cost cache (which also clears its cached property)
+    fighter.list.update_cost_cache()
 
 
 @receiver(
