@@ -1,6 +1,7 @@
 import pytest
 
 from gyrinx.content.models import (
+    ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
@@ -817,6 +818,81 @@ def test_fighter_default_assignment_conversion_to_full(
     assert assignment.weapon_profiles()[1] == spoon_spike_profile
     assert assignment.weapon_accessories()[0] == spoon_scope
     assert assignment.cost_int() == 0
+    assert assignment.is_from_default_assignment()
+
+
+@pytest.mark.django_db
+def test_fighter_default_assignment_with_upgrades(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+):
+    """Test that default assignments can have upgrades and they're properly converted."""
+    spoon = make_equipment(
+        "Wooden Spoon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=10,
+        upgrade_mode=ContentEquipment.UpgradeMode.MULTI,  # Ensure multi mode for individual costs
+    )
+
+    # Create some upgrades for the spoon
+    spoon_upgrade_1 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon,
+        name="Polished Handle",
+        cost=5,
+        position=1,
+    )
+    spoon_upgrade_2 = ContentEquipmentUpgrade.objects.create(
+        equipment=spoon,
+        name="Reinforced Bowl",
+        cost=8,
+        position=2,
+    )
+
+    spoon_profile = make_weapon_profile(spoon, cost=0)  # Ensure profile has 0 cost
+
+    # Create default assignment with upgrades
+    content_fighter_equip = content_fighter.default_assignments.create(equipment=spoon)
+    content_fighter_equip.weapon_profiles_field.add(spoon_profile)
+    content_fighter_equip.upgrades_field.add(spoon_upgrade_1, spoon_upgrade_2)
+
+    # Test upgrade cost calculation on default assignment
+    assert content_fighter_equip.upgrade_cost_int() == 13  # 5 + 8
+    assert content_fighter_equip.cost_int() == 13  # Base cost is 0, so just upgrades
+
+    lst = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+    # Check the default assignment appears with upgrades
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+    assert len(assignment.active_upgrades()) == 2
+    assert spoon_upgrade_1 in assignment.active_upgrades()
+    assert spoon_upgrade_2 in assignment.active_upgrades()
+
+    # Fighter cost should include upgrade costs
+    assert fighter.cost_int() == content_fighter.cost_int() + 13
+
+    # Convert to full assignment
+    fighter.convert_default_assignment(assignment)
+
+    # Refresh because caching
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    # Check the converted assignment retains upgrades
+    assert len(fighter.assignments()) == 1
+    assignment = fighter.assignments()[0]
+    assert assignment.content_equipment == spoon
+    assert assignment.weapon_profiles()[0] == spoon_profile
+    assert len(assignment.active_upgrades()) == 2
+    assert spoon_upgrade_1 in assignment.active_upgrades()
+    assert spoon_upgrade_2 in assignment.active_upgrades()
+    # When converting default assignments, the equipment itself has cost_override=0
+    # but upgrades still have their costs
+    assert assignment.cost_int() == 13  # 0 base + 13 upgrade costs
     assert assignment.is_from_default_assignment()
 
 

@@ -881,6 +881,7 @@ class ListFighter(AppBase):
         equipment,
         weapon_profiles: pylist[ContentWeaponProfile] | None = None,
         weapon_accessories: pylist[ContentWeaponAccessory] | None = None,
+        upgrades: pylist[ContentEquipmentUpgrade] | None = None,
         from_default_assignment: ContentFighterDefaultAssignment | None = None,
         cost_override: int | None = None,
     ) -> "ListFighterEquipmentAssignment":
@@ -908,6 +909,10 @@ class ListFighter(AppBase):
         if weapon_accessories:
             for accessory in weapon_accessories:
                 assign.weapon_accessories_field.add(accessory)
+
+        if upgrades:
+            for upgrade in upgrades:
+                assign.upgrades_field.add(upgrade)
 
         if from_default_assignment:
             assign.from_default_assignment = from_default_assignment
@@ -1260,6 +1265,7 @@ class ListFighter(AppBase):
             equipment=assignment.equipment,
             weapon_profiles=assignment.weapon_profiles_field.all(),
             weapon_accessories=assignment.weapon_accessories_field.all(),
+            upgrades=assignment.upgrades_field.all(),
             from_default_assignment=assignment,
             cost_override=0,
         )
@@ -2291,7 +2297,8 @@ class VirtualListFighterEquipmentAssignment:
             return self._assignment.total_cost_override
 
         if isinstance(self._assignment, ContentFighterDefaultAssignment):
-            return 0
+            # Default assignments can now have upgrades with costs
+            return self._assignment.cost_int()
 
         if isinstance(self._assignment, ListFighterEquipmentAssignment):
             # If this is a direct assignment, we can use the cost directly
@@ -2348,11 +2355,11 @@ class VirtualListFighterEquipmentAssignment:
         if not self._assignment:
             return 0
 
-        # TODO: Support default assignment upgrades?
-        if isinstance(self._assignment, ContentFighterDefaultAssignment):
-            return 0
+        # Support both default and direct assignment upgrades
+        if hasattr(self._assignment, "upgrade_cost_int_cached"):
+            return self._assignment.upgrade_cost_int_cached
 
-        return self._assignment.upgrade_cost_int_cached
+        return 0
 
     def base_name(self):
         """

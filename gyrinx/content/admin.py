@@ -356,6 +356,13 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
             ].queryset = ContentWeaponProfile.objects.filter(
                 equipment=self.instance.equipment
             )
+            # Filter upgrades to only show ones for the selected equipment
+            if "upgrades_field" in self.fields:
+                self.fields[
+                    "upgrades_field"
+                ].queryset = ContentEquipmentUpgrade.objects.filter(
+                    equipment=self.instance.equipment
+                )
 
         self.fields["weapon_profiles_field"].queryset = self.fields[
             "weapon_profiles_field"
@@ -368,6 +375,8 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
         )
         group_select(self, "equipment", key=lambda x: x.cat())
         group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
+        if "upgrades_field" in self.fields:
+            group_select(self, "upgrades_field", key=lambda x: x.equipment.name)
 
 
 @admin.register(ContentFighterDefaultAssignment)
