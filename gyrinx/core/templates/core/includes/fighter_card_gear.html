@@ -69,11 +69,11 @@
                                                        class="link-secondary">Reassign</a>
                                                     <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% endif %}
                                             {% endif %}
                                         </td>
@@ -160,11 +160,11 @@
                                                        class="link-secondary">Reassign</a>
                                                     <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% endif %}
                                             {% endif %}
                                         </td>
@@ -258,7 +258,7 @@
                                                class="link-secondary">Reassign</a>
                                             <span class="text-muted">·</span>
                                             <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                               class="link-danger">Remove</a>
+                                               class="link-danger">Delete</a>
                                             {% if fighter.is_stash %}
                                                 <span class="text-muted">·</span>
                                                 <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
@@ -267,7 +267,7 @@
                                         {% elif assign.kind == 'default' %}
                                             <br>
                                             <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                               class="link-danger">Remove</a>
+                                               class="link-danger">Delete</a>
                                         {% endif %}
                                     {% endif %}
                                 </td>

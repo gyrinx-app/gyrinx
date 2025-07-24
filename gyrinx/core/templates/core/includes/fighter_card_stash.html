@@ -87,11 +87,11 @@
                                                     {% endif %}
                                                     <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Remove</a>
+                                                       class="link-danger">Delete</a>
                                                 {% endif %}
                                             {% endif %}
                                         </div>
@@ -197,7 +197,7 @@
                                                         <li>
                                                             <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                                                                class="dropdown-item text-danger">
-                                                                <i class="bi-trash"></i> Remove
+                                                                <i class="bi-trash"></i> Delete
                                                             </a>
                                                         </li>
                                                     </ul>
@@ -220,7 +220,7 @@
                                                         <li>
                                                             <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
                                                                class="dropdown-item text-danger">
-                                                                <i class="bi-trash"></i> Remove
+                                                                <i class="bi-trash"></i> Delete
                                                             </a>
                                                         </li>
                                                     </ul>
