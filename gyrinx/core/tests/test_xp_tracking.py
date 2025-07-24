@@ -452,8 +452,8 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
 
 
 @pytest.mark.django_db
-def test_fighter_card_hides_xp_in_basic_mode():
-    """Test that fighter card doesn't show XP in basic mode."""
+def test_fighter_card_shows_xp_in_basic_mode():
+    """Test that fighter card shows XP in basic mode."""
     owner = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="House")
     content_fighter = ContentFighter.objects.create(
@@ -498,9 +498,9 @@ def test_fighter_card_hides_xp_in_basic_mode():
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Check XP is NOT displayed
-    assert "10 XP" not in content
-    assert "Edit XP" not in content
+    # Check XP IS displayed (changed to match new behavior)
+    assert "10 XP" in content
+    assert "Edit XP" in content
 
 
 @pytest.mark.django_db
