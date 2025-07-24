@@ -1,0 +1,37 @@
+{% load custom_tags %}
+<tr>
+    <td colspan="9" class="text-end">
+        <div class="d-flex">
+            <i class="bi-arrow-90deg-up text-secondary me-2"></i>
+            {% if assign.kind == 'assigned' %}
+                <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
+                   class="link-secondary">Accessories</a>
+                {% dot %}
+                {% if assign.upgrades_display|length > 0 %}
+                    <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
+                       class="link-secondary">{{ assign.equipment.upgrade_stack_name }}</a>
+                    {% dot %}
+                {% endif %}
+                {% if fighter.is_stash and list.status == 'campaign_mode' %}
+                    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
+                       class="link-secondary">Sell All</a>
+                    {% dot %}
+                {% endif %}
+                <a href="{% url 'core:list-fighter-weapon-cost-edit' list.id fighter.id assign.id %}"
+                   class="link-secondary">Cost</a>
+                {% dot %}
+                <a href="{% url 'core:list-fighter-weapon-reassign' list.id fighter.id assign.id %}"
+                   class="link-secondary">Reassign</a>
+                {% dot %}
+                <a href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
+                   class="link-danger">Delete</a>
+            {% elif assign.kind == 'default' %}
+                <a href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}"
+                   class="link-secondary">Modify from default</a>
+                {% dot %}
+                <a href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"
+                   class="link-danger">Delete</a>
+            {% endif %}
+        </div>
+    </td>
+</tr>
