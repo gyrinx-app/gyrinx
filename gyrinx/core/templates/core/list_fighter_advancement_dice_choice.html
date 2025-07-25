@@ -10,7 +10,7 @@
             {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
             <div class="progress mb-1"
                  role="progressbar"
-                 aria-label="Basic example"
+                 aria-label="Step 1 of 3"
                  aria-valuenow="33"
                  aria-valuemin="0"
                  aria-valuemax="100">
@@ -26,18 +26,12 @@
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
             <p>You can choose to roll 2D6 for your advancement.</p>
             {{ form.roll_dice }}
-            {% if is_campaign_mode %}
-                <div class="alert alert-info">
-                    <i class="bi-info-circle"></i>
-                    The roll will <em>immediately</em> be added to the campaign action log.
-                </div>
-            {% endif %}
+            <div class="alert alert-info">
+                <i class="bi-info-circle"></i>
+                The roll will <em>immediately</em> be added to the campaign action log.
+            </div>
             <div class="hstack gap-3">
-                <button type="submit"
-                        class="btn btn-primary"
-                        {% if not is_campaign_mode %} disabled data-bs-toggle="tooltip" data-bs-placement="top" title="Only available when the gang is active in a campaign" {% endif %}>
-                    Roll 2D6
-                </button>
+                <button type="submit" class="btn btn-primary">Roll 2D6</button>
                 <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                    class="btn btn-success">Spend XP</a>
             </div>

@@ -3492,6 +3492,10 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    if lst.status != List.CAMPAIGN_MODE:
+        url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        return HttpResponseRedirect(url)
+
     if request.method == "POST":
         form = AdvancementDiceChoiceForm(request.POST)
         if form.is_valid():
@@ -3545,7 +3549,6 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             "form": form,
             "fighter": fighter,
             "list": lst,
-            "is_campaign_mode": lst.status == List.CAMPAIGN_MODE,
         },
     )
 
@@ -3685,6 +3688,8 @@ def list_fighter_advancement_type(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    is_campaign_mode = lst.status == List.CAMPAIGN_MODE
+
     params = AdvancementBaseParams.model_validate(request.GET.dict())
     # Get campaign action if provided
     campaign_action = None
@@ -3737,6 +3742,10 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "fighter": fighter,
             "list": lst,
             "campaign_action": campaign_action,
+            "is_campaign_mode": is_campaign_mode,
+            "steps": 3 if is_campaign_mode else 2,
+            "current_step": 2 if is_campaign_mode else 1,
+            "progress": 66 if is_campaign_mode else 50,
         },
     )
 
@@ -3764,6 +3773,8 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
+
+    is_campaign_mode = lst.status == List.CAMPAIGN_MODE
 
     # Get and sanitize parameters from query string, and make sure only stat or other advancements
     # reach this stage. Then build the details object.
@@ -3861,9 +3872,13 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
+    steps = 3
+    if not is_campaign_mode and not params.is_other_advancement():
+        steps = 2
+
     return render(
         request,
-        "core/list_fighter_advancement_confirm.html",  # TODO: Check and update this template
+        "core/list_fighter_advancement_confirm.html",
         {
             "fighter": fighter,
             "list": lst,
@@ -3872,7 +3887,9 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                 "stat": stat,
                 "description": stat_desc,
             },
-            "is_campaign_mode": lst.status == List.CAMPAIGN_MODE,
+            "is_campaign_mode": is_campaign_mode,
+            "steps": steps,
+            "current_step": steps,
         },
     )
 
@@ -3970,6 +3987,8 @@ def list_fighter_advancement_select(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    is_campaign_mode = lst.status == List.CAMPAIGN_MODE
+
     # Get and sanitize parameters from query string, and make sure only stat advancements
     # reach this stage. Then build the details object.
     try:
@@ -4066,6 +4085,9 @@ def list_fighter_advancement_select(request, id, fighter_id):
             "list": lst,
             "skill_type": skill_type,
             "is_random": params.is_random_skill_advancement(),
+            "is_campaign_mode": is_campaign_mode,
+            "steps": 3 if is_campaign_mode else 2,
+            "current_step": 3 if is_campaign_mode else 2,
         },
     )
 
