@@ -160,8 +160,8 @@ def test_advancement_list_view(client, user, fighter_with_xp):
 
 
 @pytest.mark.django_db
-def test_advancement_start_requires_campaign_mode(client, user, house, content_fighter):
-    """Test that advancement requires campaign mode."""
+def test_advancement_start_works_in_any_mode(client, user, house, content_fighter):
+    """Test that advancement works in any list mode."""
     client.login(username="testuser", password="password")
 
     # Create a non-campaign list
@@ -175,13 +175,16 @@ def test_advancement_start_requires_campaign_mode(client, user, house, content_f
         name="Test Fighter",
         content_fighter=content_fighter,
         list=lst,
+        owner=user,
     )
 
     url = reverse("core:list-fighter-advancement-start", args=[lst.id, fighter.id])
     response = client.get(url)
 
-    assert response.status_code == 302  # Redirect
-    assert response.url == reverse("core:list", args=[lst.id])
+    assert response.status_code == 302  # Redirect to dice choice
+    assert response.url == reverse(
+        "core:list-fighter-advancement-dice-choice", args=[lst.id, fighter.id]
+    )
 
 
 @pytest.mark.django_db

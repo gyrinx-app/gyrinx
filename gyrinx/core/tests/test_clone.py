@@ -159,3 +159,51 @@ def test_list_clone_for_campaign_preserves_public_state(make_list, make_campaign
     assert private_clone.public is False  # Should preserve private state
     assert private_clone.campaign == campaign
     assert private_clone.status == List.CAMPAIGN_MODE
+
+
+@pytest.mark.django_db
+def test_fighter_clone_with_xp_and_advancements(
+    make_list, make_list_fighter, make_user
+):
+    """Test that XP and advancements are cloned with fighters."""
+    list_ = make_list("Test List")
+    fighter = make_list_fighter(list_, "Test Fighter")
+
+    # Set XP on the fighter
+    fighter.xp_current = 15
+    fighter.xp_total = 25
+    fighter.save()
+
+    # Create an advancement (stat type instead of skill)
+    from gyrinx.core.models.list import ListFighterAdvancement
+
+    ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        owner=fighter.owner,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="strength",
+        xp_cost=6,
+        cost_increase=5,
+    )
+
+    # Clone the fighter
+    new_fighter = fighter.clone(
+        name="Test Fighter (Clone)",
+    )
+
+    # Check XP was cloned
+    assert new_fighter.xp_current == 15
+    assert new_fighter.xp_total == 25
+
+    # Check advancement was cloned
+    assert new_fighter.advancements.count() == 1
+    cloned_advancement = new_fighter.advancements.first()
+    assert (
+        cloned_advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_STAT
+    )
+    assert cloned_advancement.stat_increased == "strength"
+    assert cloned_advancement.xp_cost == 6
+    assert cloned_advancement.cost_increase == 5
+    assert (
+        cloned_advancement.campaign_action is None
+    )  # Should not clone campaign action reference

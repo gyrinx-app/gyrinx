@@ -1289,6 +1289,8 @@ class ListFighter(AppBase):
             "cool_override": self.cool_override,
             "willpower_override": self.willpower_override,
             "intelligence_override": self.intelligence_override,
+            "xp_current": self.xp_current,
+            "xp_total": self.xp_total,
             **kwargs,
         }
 
@@ -1335,6 +1337,14 @@ class ListFighter(AppBase):
                 list_fighter=clone,
                 psyker_power=power_assignment.psyker_power,
             )
+
+        # Clone advancements
+        for advancement in self.advancements.all():
+            # Use Django model instance copying
+            advancement.pk = None  # Clear primary key
+            advancement.fighter = clone  # Set to the new fighter
+            advancement.campaign_action = None  # Clear campaign action reference
+            advancement.save()
 
         return clone
 

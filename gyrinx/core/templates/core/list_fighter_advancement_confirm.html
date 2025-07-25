@@ -15,7 +15,7 @@
                  aria-valuemin="0"
                  aria-valuemax="100">
                 {# djlint:off #}
-                <div class="progress-bar" style="width: 100%">Step 3 of 3</div>
+                <div class="progress-bar" style="width: 100%">Step {{ current_step }} of {{ steps }}</div>
                 {# djlint:on #}
             </div>
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
