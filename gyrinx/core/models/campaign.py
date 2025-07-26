@@ -179,12 +179,14 @@ class Campaign(AppBase):
                 # Allocate default resources to each list
                 for resource_type in self.resource_types.all():
                     for cloned_list in cloned_lists:
-                        CampaignListResource.objects.create(
+                        CampaignListResource.objects.get_or_create(
                             campaign=self,
                             resource_type=resource_type,
                             list=cloned_list,
-                            amount=resource_type.default_amount,
-                            owner=self.owner,  # Campaign owner owns the resource tracking
+                            defaults={
+                                "amount": resource_type.default_amount,
+                                "owner": self.owner,  # Campaign owner owns the resource tracking
+                            },
                         )
 
                 self.status = self.IN_PROGRESS
@@ -244,12 +246,14 @@ class Campaign(AppBase):
 
                 # Allocate default resources to the new list
                 for resource_type in self.resource_types.all():
-                    CampaignListResource.objects.create(
+                    CampaignListResource.objects.get_or_create(
                         campaign=self,
                         resource_type=resource_type,
                         list=campaign_clone,
-                        amount=resource_type.default_amount,
-                        owner=self.owner,  # Campaign owner owns the resource tracking
+                        defaults={
+                            "amount": resource_type.default_amount,
+                            "owner": self.owner,  # Campaign owner owns the resource tracking
+                        },
                     )
 
                 return campaign_clone, True
