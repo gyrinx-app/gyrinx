@@ -1531,7 +1531,7 @@ def campaign_asset_transfer(request, id, asset_id):
                 campaign_name=campaign.name,
                 asset_name=asset.name,
                 transfer_from=old_holder.name if old_holder else "Unassigned",
-                transfer_to=new_holder.name,
+                transfer_to=new_holder.name if new_holder else "Unassigned",
                 action="transfer",
             )
 

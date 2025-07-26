@@ -346,3 +346,65 @@ def test_campaign_detail_shows_assets(content_house):
     assert "Old Ruins" in content
     assert "Test Gang" in content
     assert "Unowned" in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_transfer_to_none(content_house):
+    """Test transferring an asset to no one (unowned) through the view."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    # Create a gang list
+    gang_list = List.objects.create(
+        name="Test Gang",
+        owner=user,
+        content_house=content_house,
+    )
+    campaign.lists.add(gang_list)
+
+    # Create asset type
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+
+    # Create asset owned by the gang
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        holder=gang_list,
+        owner=user,
+    )
+
+    # Transfer the asset to no one (unowned)
+    response = client.post(
+        reverse("core:campaign-asset-transfer", args=[campaign.id, asset.id]),
+        {
+            "new_holder": "",  # Empty means transfer to no one
+        },
+    )
+
+    # Should redirect back to the assets page
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaign-assets", args=[campaign.id])
+
+    # Check the asset is now unowned
+    asset.refresh_from_db()
+    assert asset.holder is None
+
+    # Check that a campaign action was logged
+    action = CampaignAction.objects.last()
+    assert action.campaign == campaign
+    assert (
+        action.description
+        == "Territory Transfer: The Sump transferred from Test Gang to no one"
+    )
