@@ -900,3 +900,227 @@ def test_campaign_action_list_timeframe_filtering():
     # Check that filter parameters are preserved in pagination links
     assert "page=2" in content  # Next page link should exist
     assert "timeframe=24h" in content  # Filter should be preserved
+
+
+@pytest.mark.django_db
+def test_campaign_restart_with_existing_clones_no_integrity_error():
+    """Test that restarting a campaign with existing clones doesn't cause IntegrityError."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        status=Campaign.PRE_CAMPAIGN,
+    )
+
+    # Create resource types for the campaign
+    from gyrinx.core.models.campaign import CampaignResourceType
+
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        default_amount=10,
+        owner=user,
+    )
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Ammo",
+        default_amount=20,
+        owner=user,
+    )
+
+    # Create a house and list
+    house = ContentHouse.objects.create(name="Test House")
+    original_list = List.objects.create(
+        name="Original Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Add the list to the campaign
+    campaign.lists.add(original_list)
+
+    # Start the campaign (should clone the list and allocate resources)
+    assert campaign.start_campaign() is True
+
+    # Verify resources were allocated
+    cloned_list = campaign.lists.first()
+    assert (
+        CampaignListResource.objects.filter(campaign=campaign, list=cloned_list).count()
+        == 2
+    )
+
+    # Reset campaign status to pre-campaign (simulating a restart scenario)
+    campaign.status = Campaign.PRE_CAMPAIGN
+    campaign.save()
+
+    # Add the original list back (simulating the scenario that triggers the bug)
+    campaign.lists.add(original_list)
+
+    # Start the campaign again - this should NOT raise IntegrityError
+    # The fix uses get_or_create instead of create
+    assert campaign.start_campaign() is True
+
+    # Verify we still have the same resources (not duplicated)
+    campaign.refresh_from_db()
+    assert campaign.lists.count() == 1  # Still just one cloned list
+    cloned_list = campaign.lists.first()
+    assert (
+        CampaignListResource.objects.filter(campaign=campaign, list=cloned_list).count()
+        == 2
+    )  # Still just 2 resource types
+
+
+@pytest.mark.django_db
+def test_add_list_to_in_progress_campaign_with_existing_resources():
+    """Test that adding a list to in-progress campaign handles resource allocation idempotently."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create a campaign already in progress
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    # Create resource types for the campaign
+    from gyrinx.core.models.campaign import CampaignResourceType
+
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        default_amount=10,
+        owner=user,
+    )
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Ammo",
+        default_amount=20,
+        owner=user,
+    )
+
+    # Create a house and list
+    house = ContentHouse.objects.create(name="Test House")
+    original_list = List.objects.create(
+        name="Original Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Add the list to the campaign (should clone and allocate resources)
+    cloned_list1, was_added1 = campaign.add_list_to_campaign(original_list)
+    assert was_added1 is True
+
+    # Verify resources were allocated
+    assert (
+        CampaignListResource.objects.filter(
+            campaign=campaign, list=cloned_list1
+        ).count()
+        == 2
+    )
+
+    # Try to add the same list again - should return existing clone
+    cloned_list2, was_added2 = campaign.add_list_to_campaign(original_list)
+    assert was_added2 is False  # Should return existing clone
+    assert cloned_list2.id == cloned_list1.id
+
+    # Create another list to add
+    original_list2 = List.objects.create(
+        name="Another Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Add a new list - this should work without IntegrityError
+    cloned_list3, was_added3 = campaign.add_list_to_campaign(original_list2)
+    assert was_added3 is True
+    assert cloned_list3.id != cloned_list1.id
+
+    # Verify the new list has resources allocated
+    assert (
+        CampaignListResource.objects.filter(
+            campaign=campaign, list=cloned_list3
+        ).count()
+        == 2
+    )
+
+    # Verify no duplicate resources were created
+    # Each list should have exactly 2 resources (one for each resource type)
+    all_resources = CampaignListResource.objects.filter(campaign=campaign)
+    assert all_resources.count() == 4  # 2 lists * 2 resource types
+
+
+@pytest.mark.django_db
+def test_campaign_resource_allocation_race_condition():
+    """Test that resource allocation is safe even when called multiple times (simulating race conditions)."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        status=Campaign.PRE_CAMPAIGN,
+    )
+
+    # Create resource types for the campaign
+    from gyrinx.core.models.campaign import CampaignResourceType
+
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Credits",
+        default_amount=100,
+        owner=user,
+    )
+
+    # Create a house and list
+    house = ContentHouse.objects.create(name="Test House")
+    original_list = List.objects.create(
+        name="Original Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Add the list to the campaign
+    campaign.lists.add(original_list)
+
+    # Start the campaign
+    assert campaign.start_campaign() is True
+
+    # Get the cloned list
+    cloned_list = campaign.lists.first()
+
+    # Verify resources were allocated
+    resources_count = CampaignListResource.objects.filter(
+        campaign=campaign, list=cloned_list
+    ).count()
+    assert resources_count == 1
+
+    # Simulate calling the resource allocation code again
+    # This would happen in the old code if start_campaign was called twice
+    # With get_or_create, this should not create duplicates
+    CampaignListResource.objects.get_or_create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=cloned_list,
+        defaults={
+            "amount": resource_type.default_amount,
+            "owner": campaign.owner,
+        },
+    )
+
+    # Verify no duplicates were created
+    resources_count = CampaignListResource.objects.filter(
+        campaign=campaign, list=cloned_list
+    ).count()
+    assert resources_count == 1  # Still just one resource, not two
