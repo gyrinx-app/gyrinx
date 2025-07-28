@@ -3,6 +3,7 @@ import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
 from django.conf import settings
+from django.contrib.sites.shortcuts import get_current_site
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,14 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         except (json.JSONDecodeError, AttributeError) as e:
             logger.warning(f"Failed to parse EMAIL_EXTRA_HEADERS: {e}")
 
-        # Render the email with headers
+        if "current_site" not in context:
+            context["current_site"] = get_current_site(self.request)
+
+        if "email" not in context:
+            context["email"] = email
+
+        if "request" not in context:
+            context["request"] = self.request
+
         msg = self.render_mail(template_prefix, email, context, headers=headers)
         msg.send()
