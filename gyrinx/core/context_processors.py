@@ -1,6 +1,7 @@
 import logging
 
 from django.db import DatabaseError, OperationalError
+from django.db.utils import InterfaceError
 
 from gyrinx.core.models import Banner
 
@@ -22,7 +23,7 @@ def site_banner(request):
     except Banner.DoesNotExist:
         # This is expected when no banner exists
         pass
-    except (DatabaseError, OperationalError):
+    except (DatabaseError, OperationalError, InterfaceError):
         # Database-related errors should be logged but not break the page
         logger.exception("Database error while fetching site banner")
         pass
