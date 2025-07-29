@@ -213,3 +213,58 @@ def test_campaign_clone_with_attributes(make_list, user):
     assert campaign_list.attributes.count() == 1
     assert campaign_list.attributes.first() == law_abiding
     assert campaign_list.status == List.CAMPAIGN_MODE
+
+
+@pytest.mark.django_db
+def test_list_clone_with_archived_single_select_attributes(make_list):
+    """Test that cloning a list with archived single-select attributes only clones non-archived ones."""
+    list_ = make_list("Original Gang")
+
+    # Create single-select attribute
+    alignment = ContentAttribute.objects.create(
+        name="Alignment",
+        is_single_select=True,
+    )
+    law_abiding = ContentAttributeValue.objects.create(
+        attribute=alignment,
+        name="Law Abiding",
+    )
+    outlaw = ContentAttributeValue.objects.create(
+        attribute=alignment,
+        name="Outlaw",
+    )
+
+    # First assign law_abiding
+    assignment1 = ListAttributeAssignment.objects.create(
+        list=list_,
+        attribute_value=law_abiding,
+    )
+
+    # Archive the first assignment
+    assignment1.archived = True
+    assignment1.save()
+
+    # Now we can assign outlaw since the first one is archived
+    # (archived assignments don't count for single-select validation)
+    ListAttributeAssignment.objects.create(
+        list=list_,
+        attribute_value=outlaw,
+    )
+
+    # Verify the list has both assignments
+    assert list_.listattributeassignment_set.count() == 2
+    assert list_.listattributeassignment_set.filter(archived=True).count() == 1
+    assert list_.listattributeassignment_set.filter(archived=False).count() == 1
+
+    # Clone the list
+    cloned_list = list_.clone(name="Cloned Gang")
+
+    # Verify only the non-archived assignment was cloned
+    assert cloned_list.listattributeassignment_set.count() == 1
+    cloned_assignment = cloned_list.listattributeassignment_set.first()
+    assert cloned_assignment.attribute_value == outlaw
+    assert cloned_assignment.archived is False
+
+    # Verify the cloned list only has the active attribute value
+    assert cloned_list.attributes.count() == 1
+    assert cloned_list.attributes.first() == outlaw
