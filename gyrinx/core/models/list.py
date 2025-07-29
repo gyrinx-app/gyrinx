@@ -333,7 +333,9 @@ class List(AppBase):
                     assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
-        for attribute_assignment in self.listattributeassignment_set.all():
+        for attribute_assignment in self.listattributeassignment_set.filter(
+            archived=False
+        ):
             ListAttributeAssignment.objects.create(
                 list=clone,
                 attribute_value=attribute_assignment.attribute_value,
