@@ -1,7 +1,6 @@
 import logging
 
-from django.db import DatabaseError, OperationalError
-from django.db.utils import InterfaceError
+from django.db import DatabaseError, OperationalError, InterfaceError
 
 from gyrinx.core.models import Banner
 
