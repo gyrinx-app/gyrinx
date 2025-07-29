@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -2046,12 +2046,21 @@ def fighter_sell_to_guilders(request, id, fighter_id):
     :template:`core/campaign/fighter_sell_to_guilders.html`
     """
     campaign = get_object_or_404(Campaign, id=id)
+
+    # Get the captured fighter - must be in this campaign and not sold
     captured_fighter = get_object_or_404(
         CapturedFighter,
         fighter_id=fighter_id,
-        capturing_list__owner=request.user,
+        capturing_list__campaign=campaign,
         sold_to_guilders=False,
     )
+
+    # Check permissions: must be capturing list owner OR campaign owner
+    if (
+        request.user != captured_fighter.capturing_list.owner
+        and request.user != campaign.owner
+    ):
+        raise Http404()
 
     if request.method == "POST":
         credits = request.POST.get("credits", 0)
@@ -2138,12 +2147,21 @@ def fighter_return_to_owner(request, id, fighter_id):
     :template:`core/campaign/fighter_return_to_owner.html`
     """
     campaign = get_object_or_404(Campaign, id=id)
+
+    # Get the captured fighter - must be in this campaign and not sold
     captured_fighter = get_object_or_404(
         CapturedFighter,
         fighter_id=fighter_id,
-        capturing_list__owner=request.user,
+        capturing_list__campaign=campaign,
         sold_to_guilders=False,
     )
+
+    # Check permissions: must be capturing list owner OR campaign owner
+    if (
+        request.user != captured_fighter.capturing_list.owner
+        and request.user != campaign.owner
+    ):
+        raise Http404()
 
     if request.method == "POST":
         ransom = request.POST.get("ransom", 0)

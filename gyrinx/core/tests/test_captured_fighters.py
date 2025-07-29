@@ -337,10 +337,10 @@ def test_return_to_owner_view(client, campaign_with_lists):
 
 @pytest.mark.django_db
 def test_capture_permissions(client, campaign_with_lists):
-    """Test that only the capturing gang owner can sell/return fighters."""
+    """Test that only the capturing gang owner or campaign owner can sell/return fighters."""
     campaign = campaign_with_lists["campaign"]
     owner1 = campaign_with_lists["owner1"]
-    campaign_with_lists["owner2"]
+    owner2 = campaign_with_lists["owner2"]
     fighter1 = campaign_with_lists["fighter1"]
     list2 = campaign_with_lists["list2"]
 
@@ -349,15 +349,44 @@ def test_capture_permissions(client, campaign_with_lists):
         capturing_list=list2,
     )
 
-    # Login as wrong user
+    # Create a third user who is not involved
+    other_user = User.objects.create_user(username="other", email="other@test.com")
+
+    # Test 1: Campaign owner (owner1) can sell/return
     client.force_login(owner1)
 
-    # Try to sell - should get 404
+    # Campaign owner can sell
+    url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Campaign owner can return
+    url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test 2: Capturing gang owner (owner2) can also sell/return
+    client.force_login(owner2)
+
+    # Capturing gang owner can sell
+    url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Capturing gang owner can return
+    url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test 3: Other users get 404
+    client.force_login(other_user)
+
+    # Other user cannot sell
     url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
     response = client.post(url, {"credits": "50"})
     assert response.status_code == 404
 
-    # Try to return - should get 404
+    # Other user cannot return
     url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
     response = client.post(url, {"ransom": "25"})
     assert response.status_code == 404
