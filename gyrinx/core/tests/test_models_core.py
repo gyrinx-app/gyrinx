@@ -39,11 +39,13 @@ def test_basic_list(content_house):
 
 @pytest.mark.django_db
 def test_list_name_min_length(content_house):
-    with pytest.raises(
-        ValidationError, match="Ensure this value has at least 3 characters"
-    ):
-        lst = List(name="Te", content_house=content_house)
-        lst.full_clean()  # This will trigger the validation
+    # Test that 1 character names are now allowed
+    lst = List.objects.create(name="A", content_house=content_house)
+    assert lst.name == "A"
+
+    # Test that 2 character names still work
+    lst2 = List.objects.create(name="AB", content_house=content_house)
+    assert lst2.name == "AB"
 
 
 @pytest.mark.django_db
@@ -61,11 +63,16 @@ def test_basic_list_fighter(content_house, content_fighter):
 def test_fighter_name_min_length(user, content_house, content_fighter):
     lst = List.objects.create(name="Test List", content_house=content_house)
 
-    with pytest.raises(
-        ValidationError, match="Ensure this value has at least 3 characters"
-    ):
+    # Test that 1 character names are now allowed
+    fighter = ListFighter(
+        name="B", list=lst, content_fighter=content_fighter, owner=user
+    )
+    fighter.full_clean()  # This should not raise any validation error
+
+    # Test that empty names still fail (due to blank=False)
+    with pytest.raises(ValidationError, match="This field cannot be blank"):
         fighter = ListFighter(
-            name="Te", list=lst, content_fighter=content_fighter, owner=user
+            name="", list=lst, content_fighter=content_fighter, owner=user
         )
         fighter.full_clean()  # This will trigger the validation
 
