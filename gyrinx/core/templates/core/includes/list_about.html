@@ -67,6 +67,13 @@
                     </div>
                     <div class="text-muted fst-italic">No narrative added yet.</div>
                 </div>
+            {% else %}
+                <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
+                    <div class="hstack">
+                        <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
+                    </div>
+                    <div class="text-muted fst-italic">No narrative added yet.</div>
+                </div>
             {% endif %}
             {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=True classes="g-col-12 g-col-md-6" %}
         {% empty %}
