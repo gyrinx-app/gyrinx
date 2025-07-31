@@ -78,7 +78,7 @@ class List(AppBase):
 
     help_text = "A List is a reusable collection of fighters."
     name = models.CharField(
-        max_length=255, validators=[validators.MinLengthValidator(3)]
+        max_length=255, validators=[validators.MinLengthValidator(1)]
     )
     content_house = models.ForeignKey(
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
@@ -484,7 +484,7 @@ class ListFighter(AppBase):
 
     help_text = "A ListFighter is a member of a List, linked to a Content Fighter archetype to give base stats and equipment."
     name = models.CharField(
-        max_length=255, validators=[validators.MinLengthValidator(3)]
+        max_length=255, validators=[validators.MinLengthValidator(1)]
     )
     content_fighter = models.ForeignKey(
         ContentFighter, on_delete=models.CASCADE, null=False, blank=False
