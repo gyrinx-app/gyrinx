@@ -4741,13 +4741,15 @@ def edit_list_fighter_rules(request, id, fighter_id):
     custom_rules = fighter.custom_rules.all()
 
     # Get all available rules for search, excluding those already in custom rules
-    available_rules = ContentRule.objects.exclude(
+    available_rules: QuerySetOf[ContentRule] = ContentRule.objects.exclude(
         id__in=custom_rules.values_list("id", flat=True)
     )
 
     if search_query:
-        available_rules = available_rules.filter(
-            Q(name__icontains=search_query) | Q(description__icontains=search_query)
+        search_vector = SearchVector("name")
+        search = SearchQuery(search_query)
+        available_rules = available_rules.annotate(search=search_vector).filter(
+            Q(search=search) | Q(name__icontains=search_query)
         )
 
     # Sort alphabetically
