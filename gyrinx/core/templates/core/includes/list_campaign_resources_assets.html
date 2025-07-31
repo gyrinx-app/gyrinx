@@ -81,6 +81,9 @@
                                             or
                                             <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}"
                                                class="link-secondary link-sm">Ransom</a>
+                                            or
+                                            <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}"
+                                               class="link-secondary link-sm">Release</a>
                                         </td>
                                     </tr>
                                 {% endfor %}
