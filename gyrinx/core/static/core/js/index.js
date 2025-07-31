@@ -361,6 +361,25 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     autoSubmitElements.forEach((element) => {
+        // If this is a checkbox with a preceding hidden input of the same name,
+        // disable the hidden input when the checkbox is checked
+        if (element.type === "checkbox") {
+            const hiddenInput = element.previousElementSibling;
+            if (
+                hiddenInput &&
+                hiddenInput.type === "hidden" &&
+                hiddenInput.name === element.name
+            ) {
+                // Set initial state
+                hiddenInput.disabled = element.checked;
+
+                // Update on change
+                element.addEventListener("change", () => {
+                    hiddenInput.disabled = element.checked;
+                });
+            }
+        }
+
         element.addEventListener("change", (event) => {
             const formIdentifier = element.getAttribute(
                 "data-gy-toggle-submit",

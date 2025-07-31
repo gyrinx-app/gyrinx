@@ -25,6 +25,7 @@
     </div>
     <div class="col-12 col-lg-6 hstack gap-3">
         <div class="form-check form-switch mb-0">
+            <input type="hidden" name="filter" value="all">
             <input class="form-check-input"
                    type="checkbox"
                    role="switch"
@@ -32,7 +33,7 @@
                    name="filter"
                    value="primary-secondary"
                    data-gy-toggle-submit="search-skills"
-                   {% if request.GET.filter != "all" %}checked{% endif %}>
+                   {% if not request.GET.filter or request.GET.filter == "primary-secondary" %}checked{% endif %}>
             <label class="form-check-label" for="filter-switch">Primary/Secondary Only</label>
         </div>
         <div class="ms-sm-auto">
