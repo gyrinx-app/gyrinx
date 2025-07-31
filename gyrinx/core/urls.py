@@ -474,6 +474,11 @@ urlpatterns = [
         campaign.fighter_return_to_owner,
         name="fighter-return-to-owner",
     ),
+    path(
+        "campaign/<id>/fighter/<fighter_id>/release",
+        campaign.fighter_release,
+        name="fighter-release",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

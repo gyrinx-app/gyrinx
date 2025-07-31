@@ -392,6 +392,123 @@ def test_capture_permissions(client, campaign_with_lists):
     assert response.status_code == 404
 
     # Captured fighter should still exist
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists() is True
+
+
+@pytest.mark.django_db
+def test_fighter_release_view(client, campaign_with_lists):
+    """Test the release fighter view."""
+    campaign = campaign_with_lists["campaign"]
+    owner2 = campaign_with_lists["owner2"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    client.force_login(owner2)
+
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+
+    # Test GET
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test POST
+    response = client.post(url)
+    assert response.status_code == 302
+
+    # Check fighter was released
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists() is False
+
+    # Check campaign action was logged
+    actions = CampaignAction.objects.filter(campaign=campaign)
+    assert any("Released Fighter 1" in action.description for action in actions)
+
+
+@pytest.mark.django_db
+def test_captured_gang_owner_permissions(client, campaign_with_lists):
+    """Test that captured gang owner can release/ransom but not sell."""
+    campaign = campaign_with_lists["campaign"]
+    owner1 = campaign_with_lists["owner1"]  # Captured gang owner
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    # Change campaign owner to someone else to properly test permissions
+    third_owner = User.objects.create_user(
+        username="campaign_owner_test", email="campaign_owner_test@test.com"
+    )
+    campaign.owner = third_owner
+    campaign.save()
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    # Test as captured gang owner (owner1)
+    client.force_login(owner1)
+
+    # Captured gang owner CANNOT sell to guilders
+    url = reverse("core:fighter-sell-to-guilders", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 404
+
+    # Captured gang owner CAN return for ransom
+    url = reverse("core:fighter-return-to-owner", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Captured gang owner CAN release
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_release_permissions_all_roles(client, campaign_with_lists):
+    """Test release permissions for different user roles."""
+    campaign = campaign_with_lists["campaign"]
+    owner1 = campaign_with_lists["owner1"]  # Captured gang owner
+    owner2 = campaign_with_lists["owner2"]  # Capturing gang owner
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    # Create campaign owner who is not a gang owner
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", email="campaign_owner@test.com"
+    )
+    campaign.owner = campaign_owner
+    campaign.save()
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    # Test 1: Campaign owner can release
+    client.force_login(campaign_owner)
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test 2: Capturing gang owner can release
+    client.force_login(owner2)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test 3: Captured gang owner can release
+    client.force_login(owner1)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test 4: Other users cannot release
+    other_user = User.objects.create_user(username="other2", email="other2@test.com")
+    client.force_login(other_user)
+    response = client.get(url)
+    assert response.status_code == 404
     assert CapturedFighter.objects.filter(fighter=fighter1).exists()
 
 

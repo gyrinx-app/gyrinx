@@ -2156,10 +2156,11 @@ def fighter_return_to_owner(request, id, fighter_id):
         sold_to_guilders=False,
     )
 
-    # Check permissions: must be capturing list owner OR campaign owner
+    # Check permissions: must be capturing list owner OR campaign owner OR captured gang owner
     if (
         request.user != captured_fighter.capturing_list.owner
         and request.user != campaign.owner
+        and request.user != captured_fighter.fighter.list.owner
     ):
         raise Http404()
 
@@ -2257,5 +2258,94 @@ def fighter_return_to_owner(request, id, fighter_id):
         {
             "campaign": campaign,
             "captured_fighter": captured_fighter,
+            "is_captor": request.user == captured_fighter.capturing_list.owner,
+            "is_captured_owner": request.user == captured_fighter.fighter.list.owner,
+            "is_campaign_owner": request.user == campaign.owner,
+        },
+    )
+
+
+@login_required
+def fighter_release(request, id, fighter_id):
+    """
+    Release a captured fighter without ransom.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the fighter belongs to.
+    ``captured_fighter``
+        The :model:`core.CapturedFighter` being released.
+
+    **Template**
+
+    :template:`core/campaign/fighter_release.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    # Get the captured fighter - must be in this campaign and not sold
+    captured_fighter = get_object_or_404(
+        CapturedFighter,
+        fighter_id=fighter_id,
+        capturing_list__campaign=campaign,
+        sold_to_guilders=False,
+    )
+
+    # Check permissions: must be capturing list owner OR campaign owner OR captured gang owner
+    if (
+        request.user != captured_fighter.capturing_list.owner
+        and request.user != campaign.owner
+        and request.user != captured_fighter.fighter.list.owner
+    ):
+        raise Http404()
+
+    if request.method == "POST":
+        original_list = captured_fighter.fighter.list
+        capturing_list = captured_fighter.capturing_list
+        fighter_name = captured_fighter.fighter.name
+
+        with transaction.atomic():
+            # Release the fighter without ransom
+            captured_fighter.return_to_owner(credits=0)
+
+            # Log release action
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=request.user,
+                list=capturing_list,
+                description=f"Released {fighter_name} back to {original_list.name}",
+            )
+
+            # Log the fighter release event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=captured_fighter.fighter,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="released",
+                fighter_name=fighter_name,
+                original_list=original_list.name,
+                capturing_list=capturing_list.name,
+            )
+
+        messages.success(
+            request, f"{fighter_name} has been released back to {original_list.name}."
+        )
+        return HttpResponseRedirect(
+            reverse("core:campaign-captured-fighters", args=(campaign.id,))
+        )
+
+    return render(
+        request,
+        "core/campaign/fighter_release.html",
+        {
+            "campaign": campaign,
+            "captured_fighter": captured_fighter,
+            "is_captor": request.user == captured_fighter.capturing_list.owner,
+            "is_captured_owner": request.user == captured_fighter.fighter.list.owner,
+            "is_campaign_owner": request.user == campaign.owner,
         },
     )
