@@ -367,11 +367,15 @@ document.addEventListener("DOMContentLoaded", () => {
             // and disable it when the checkbox is checked
             const form = checkbox.form || checkbox.closest("form");
             if (form) {
-                // The input may not be within (DOM Child) of the form, so we need to use document.querySelector
-                // to find it by name and form ID.
-                const hiddenInput = document.querySelector(
-                    `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
-                );
+                // The input may not be within (DOM Child) of the form, so we need to use
+                // document.querySelector as a fallback to find it by name and form ID.
+                const hiddenInput =
+                    form.querySelector(
+                        `input[type="hidden"][name="${checkbox.name}"]`,
+                    ) ||
+                    document.querySelector(
+                        `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
+                    );
                 if (hiddenInput) {
                     // Set initial state
                     hiddenInput.disabled = checkbox.checked;
