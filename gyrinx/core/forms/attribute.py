@@ -30,12 +30,18 @@ class ListAttributeForm(forms.Form):
 
         if self.attribute.is_single_select:
             # Single select - use radio buttons
+            # Note: empty_label doesn't work with RadioSelect, so we manually add None option
             self.fields["values"] = forms.ModelChoiceField(
                 queryset=values,
                 widget=forms.RadioSelect,
                 required=False,
                 initial=current_assignments.first() if current_assignments else None,
                 label="",
+                empty_label=None,
+            )
+            # Manually add a "None" option at the beginning of choices
+            self.fields["values"].choices = [("", "None")] + list(
+                self.fields["values"].choices
             )
         else:
             # Multi select - use checkboxes
