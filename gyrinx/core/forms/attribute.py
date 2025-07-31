@@ -72,7 +72,10 @@ class ListAttributeForm(forms.Form):
             if values:
                 # Handle both single and multiple values
                 if self.attribute.is_single_select:
-                    values = [values] if values else []
+                    values = [values]
+                else:
+                    # values is already a list for multi-select
+                    pass
 
                 for value in values:
                     assignment, created = ListAttributeAssignment.objects.get_or_create(
@@ -92,8 +95,11 @@ class ListAttributeForm(forms.Form):
             ):
                 value_names = []
                 if values:
-                    # values is always a list at this point due to line 75
-                    value_names = [v.name for v in values]
+                    # Handle both single value and list of values
+                    if self.attribute.is_single_select and values:
+                        value_names = [values[0].name]
+                    else:
+                        value_names = [v.name for v in values]
 
                 action_text = f"Updated {self.attribute.name}: {', '.join(value_names) if value_names else 'None'}"
 
