@@ -353,6 +353,38 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+// Find all checkboxes and add change event listeners to any hidden fields
+// with the same name in the same form and disable them when the checkbox is checked.
+// This is useful for forms where a checkbox controls whether a hidden field should be submitted.
+document.addEventListener("DOMContentLoaded", () => {
+    const checkboxes = document.querySelectorAll(
+        'input[type="checkbox"][name]',
+    );
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.addEventListener("change", (event) => {
+            // If this is a checkbox, find any hidden input with the same name in the same form
+            // and disable it when the checkbox is checked
+            const form = checkbox.form || checkbox.closest("form");
+            if (form) {
+                // The input may not be within (DOM Child) of the form, so we need to use
+                // document.querySelector as a fallback to find it by name and form ID.
+                const hiddenInput =
+                    form.querySelector(
+                        `input[type="hidden"][name="${checkbox.name}"]`,
+                    ) ||
+                    document.querySelector(
+                        `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
+                    );
+                if (hiddenInput) {
+                    // Set initial state
+                    hiddenInput.disabled = checkbox.checked;
+                }
+            }
+        });
+    });
+});
+
 // Auto-submit forms when elements with data-gy-toggle-submit are changed
 document.addEventListener("DOMContentLoaded", () => {
     // Find all elements with data-gy-toggle-submit attribute
