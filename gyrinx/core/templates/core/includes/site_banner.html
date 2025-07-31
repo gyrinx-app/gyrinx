@@ -8,7 +8,7 @@
                 <div class="flex-grow-1 hstack gap-2 flex-wrap">
                     {{ banner.text }}
                     {% if banner.cta_url and banner.cta_text %}
-                        <a href="{{ banner.cta_url }}"
+                        <a href="{% url 'core:track-banner-click' banner.id %}"
                            target="_new"
                            class="btn btn-sm btn-{{ banner.colour }}">{{ banner.cta_text }} <i class="bi-arrow-right ms-1"></i></a>
                     {% endif %}

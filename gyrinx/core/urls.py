@@ -511,4 +511,10 @@ urlpatterns = [
         gyrinx.core.views.dismiss_banner,
         name="dismiss-banner",
     ),
+    # Banner click tracking
+    path(
+        "banner/<id>/click/",
+        gyrinx.core.views.track_banner_click,
+        name="track-banner-click",
+    ),
 ]

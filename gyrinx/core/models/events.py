@@ -26,6 +26,7 @@ class EventNoun(models.TextChoices):
     CAMPAIGN_ACTION = "campaign_action", "Campaign Action"
     CAMPAIGN_RESOURCE = "campaign_resource", "Campaign Resource"
     CAMPAIGN_ASSET = "campaign_asset", "Campaign Asset"
+    BANNER = "banner", "Banner"
 
 
 class EventVerb(models.TextChoices):
@@ -75,6 +76,9 @@ class EventVerb(models.TextChoices):
     LOGIN = "login", "Login"
     LOGOUT = "logout", "Logout"
     SIGNUP = "signup", "Signup"
+
+    # Click tracking
+    CLICK = "click", "Click"
 
 
 class EventField(models.TextChoices):
