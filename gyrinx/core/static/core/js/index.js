@@ -361,22 +361,23 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     autoSubmitElements.forEach((element) => {
-        // If this is a checkbox with a preceding hidden input of the same name,
-        // disable the hidden input when the checkbox is checked
+        // If this is a checkbox, find any hidden input with the same name in the same form
+        // and disable it when the checkbox is checked
         if (element.type === "checkbox") {
-            const hiddenInput = element.previousElementSibling;
-            if (
-                hiddenInput &&
-                hiddenInput.type === "hidden" &&
-                hiddenInput.name === element.name
-            ) {
-                // Set initial state
-                hiddenInput.disabled = element.checked;
-
-                // Update on change
-                element.addEventListener("change", () => {
+            const form = element.form || element.closest("form");
+            if (form) {
+                const hiddenInput = form.querySelector(
+                    `input[type="hidden"][name="${element.name}"]`,
+                );
+                if (hiddenInput) {
+                    // Set initial state
                     hiddenInput.disabled = element.checked;
-                });
+
+                    // Update on change
+                    element.addEventListener("change", () => {
+                        hiddenInput.disabled = element.checked;
+                    });
+                }
             }
         }
 
