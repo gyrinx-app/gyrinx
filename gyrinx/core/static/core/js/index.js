@@ -338,6 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Only modify the button if it is the one that was clicked
                 if (button.isSameNode(event.submitter)) {
                     button.style.width = `${button.offsetWidth}px`;
+                    button.style.height = `${button.offsetHeight}px`;
                     button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>`;
                 }
 
