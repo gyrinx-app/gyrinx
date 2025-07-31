@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -58,6 +59,17 @@ class Banner(AppBase):
                 is_live=False
             )
         super().save(*args, **kwargs)
+        # Clear the banner cache when any banner is saved
+        from gyrinx.core.context_processors import BANNER_CACHE_KEY
+
+        cache.delete(BANNER_CACHE_KEY)
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        # Clear the banner cache when any banner is deleted
+        from gyrinx.core.context_processors import BANNER_CACHE_KEY
+
+        cache.delete(BANNER_CACHE_KEY)
 
     def clean(self):
         super().clean()
