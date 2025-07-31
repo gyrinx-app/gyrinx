@@ -19,16 +19,14 @@ def site_banner(request):
             dismissed_banners = request.session.get("dismissed_banners", [])
             if str(live_banner.id) not in dismissed_banners:
                 context["banner"] = live_banner
-    except Banner.DoesNotExist:
-        # This is expected when no banner exists
-        pass
-    except (DatabaseError, OperationalError, InterfaceError):
+    except (DatabaseError, OperationalError, InterfaceError) as e:
         # Database-related errors should be logged but not break the page
-        logger.exception("Database error while fetching site banner")
-        pass
+        # Use warning level instead of exception to reduce noise in logs
+        logger.warning(
+            f"Database error while fetching site banner: {type(e).__name__}: {e}"
+        )
     except Exception:
         # Log any unexpected errors but don't break page rendering
         logger.exception("Unexpected error in site_banner context processor")
-        pass
 
     return context
