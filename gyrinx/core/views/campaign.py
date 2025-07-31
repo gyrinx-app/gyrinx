@@ -2156,10 +2156,11 @@ def fighter_return_to_owner(request, id, fighter_id):
         sold_to_guilders=False,
     )
 
-    # Check permissions: must be capturing list owner OR campaign owner
+    # Check permissions: must be capturing list owner OR campaign owner OR captured fighter owner
     if (
         request.user != captured_fighter.capturing_list.owner
         and request.user != campaign.owner
+        and request.user != captured_fighter.fighter.list.owner
     ):
         raise Http404()
 
@@ -2287,10 +2288,11 @@ def fighter_release(request, id, fighter_id):
         sold_to_guilders=False,
     )
 
-    # Check permissions: must be capturing list owner OR campaign owner
+    # Check permissions: must be capturing list owner OR campaign owner OR captured fighter owner
     if (
         request.user != captured_fighter.capturing_list.owner
         and request.user != campaign.owner
+        and request.user != captured_fighter.fighter.list.owner
     ):
         raise Http404()
 
