@@ -396,6 +396,111 @@ def test_capture_permissions(client, campaign_with_lists):
 
 
 @pytest.mark.django_db
+def test_release_fighter(campaign_with_lists):
+    """Test releasing a captured fighter without ransom."""
+    fighter = campaign_with_lists["fighter1"]
+    capturing_list = campaign_with_lists["list2"]
+
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=capturing_list,
+    )
+
+    # Test fighter is captured
+    assert fighter.is_captured is True
+    assert fighter.can_participate() is False
+
+    # Release the fighter (simulate what the view does)
+    captured.delete()
+
+    # Refresh fighter from database to clear cached relationships
+    fighter.refresh_from_db()
+
+    # Fighter should be back to normal
+    assert fighter.is_captured is False
+    assert fighter.is_sold_to_guilders is False
+    assert fighter.captured_state is None
+    assert fighter.can_participate() is True
+
+
+@pytest.mark.django_db
+def test_release_fighter_view(client, campaign_with_lists):
+    """Test the release fighter view."""
+    campaign = campaign_with_lists["campaign"]
+    owner2 = campaign_with_lists["owner2"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list1 = campaign_with_lists["list1"]
+    list2 = campaign_with_lists["list2"]
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    client.force_login(owner2)
+
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+
+    # Test GET
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test POST
+    response = client.post(url)
+    assert response.status_code == 302
+
+    # Check fighter was released
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists() is False
+
+    # Check credits were NOT transferred (no ransom)
+    list1.refresh_from_db()
+    list2.refresh_from_db()
+    assert list1.credits_current == 100  # Unchanged
+    assert list2.credits_current == 50  # Unchanged
+
+    # Check campaign action was logged
+    action = CampaignAction.objects.filter(
+        campaign=campaign, description__contains="Released Fighter 1"
+    ).first()
+    assert action is not None
+    assert "without ransom" in action.description
+
+
+@pytest.mark.django_db
+def test_release_permissions(client, campaign_with_lists):
+    """Test that only the capturing gang owner or campaign owner can release fighters."""
+    campaign = campaign_with_lists["campaign"]
+    owner1 = campaign_with_lists["owner1"]
+    fighter1 = campaign_with_lists["fighter1"]
+    list2 = campaign_with_lists["list2"]
+
+    CapturedFighter.objects.create(
+        fighter=fighter1,
+        capturing_list=list2,
+    )
+
+    # Create a third user who is not involved
+    other_user = User.objects.create_user(username="other", email="other@test.com")
+
+    # Test: Campaign owner (owner1) can release
+    client.force_login(owner1)
+
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Test: Other users get 404
+    client.force_login(other_user)
+
+    url = reverse("core:fighter-release", args=[campaign.id, fighter1.id])
+    response = client.get(url)
+    assert response.status_code == 404
+
+    # Captured fighter should still exist
+    assert CapturedFighter.objects.filter(fighter=fighter1).exists()
+
+
+@pytest.mark.django_db
 def test_fighter_sorting_with_captured(campaign_with_lists):
     """Test that captured fighters are sorted to the end of the list."""
     list1 = campaign_with_lists["list1"]
