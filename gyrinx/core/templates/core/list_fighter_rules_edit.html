@@ -48,7 +48,7 @@
         {# Custom added rules #}
         <div class="card">
             <div class="card-header p-2">
-                <h3 class="h5 mb-0">Custom Rules</h3>
+                <h3 class="h5 mb-0">User-added Rules</h3>
             </div>
             <div class="card-body p-0 p-sm-2">
                 <div class="table-responsive">
@@ -70,7 +70,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="2" class="text-center text-secondary">No custom rules added to this fighter.</td>
+                                    <td colspan="2" class="text-center text-secondary">No user-added rules for this fighter.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -106,38 +106,34 @@
                     </div>
                 </form>
                 {# Available rules list #}
-                <div class="table-responsive">
-                    <table class="table table-borderless table-sm align-middle mb-0">
-                        <tbody>
-                            {% for rule in page_obj %}
-                                <tr>
-                                    <td>{{ rule.name }}</td>
-                                    <td class="text-end">
-                                        <form method="post"
-                                              action="{% url 'core:list-fighter-rule-add' list.id fighter.id %}"
-                                              class="d-inline">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="rule_id" value="{{ rule.id }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="2" class="text-center text-secondary">
-                                        {% if search_query %}
-                                            No rules found matching "{{ search_query }}".
-                                            <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Clear your search</a>.
-                                        {% else %}
-                                            No available rules found.
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <div class="row g-2">
+                    {% for rule in page_obj %}
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex align-items-center justify-content-between p-2 border rounded">
+                                <span>{{ rule.name }}</span>
+                                <form method="post"
+                                      action="{% url 'core:list-fighter-rule-add' list.id fighter.id %}"
+                                      class="d-inline ms-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi-plus-lg"></i> Add
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="col-12">
+                            <div class="text-center text-secondary p-3">
+                                {% if search_query %}
+                                    No rules found matching "{{ search_query }}".
+                                    <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Clear your search</a>.
+                                {% else %}
+                                    No available rules found.
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
                 </div>
                 {# Pagination #}
                 {% if page_obj.paginator.num_pages > 1 %}
