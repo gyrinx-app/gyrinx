@@ -1,0 +1,176 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Rules - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3">Rules: {{ fighter.fully_qualified_name }}</h1>
+        {# Default rules from ContentFighter #}
+        <div class="card">
+            <div class="card-header p-2">
+                <h3 class="h5 mb-0">Default Rules</h3>
+            </div>
+            <div class="card-body p-0 p-sm-2">
+                <div class="table-responsive">
+                    <table class="table table-borderless table-sm align-middle mb-0">
+                        <tbody>
+                            {% for rule_data in default_rules_display %}
+                                <tr class="{% if rule_data.is_disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                    <td>{{ rule_data.rule.name }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-rule-toggle' list.id fighter.id rule_data.rule.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-link icon-link fs-7 {% if rule_data.is_disabled %}link-success{% else %}link-danger{% endif %}">
+                                                {% if rule_data.is_disabled %}
+                                                    <i class="bi-check-circle"></i> Enable
+                                                {% else %}
+                                                    <i class="bi-x-circle"></i> Disable
+                                                {% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-secondary">No default rules for this fighter.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {# Custom added rules #}
+        <div class="card">
+            <div class="card-header p-2">
+                <h3 class="h5 mb-0">Custom Rules</h3>
+            </div>
+            <div class="card-body p-0 p-sm-2">
+                <div class="table-responsive">
+                    <table class="table table-borderless table-sm align-middle mb-0">
+                        <tbody>
+                            {% for rule in custom_rules %}
+                                <tr>
+                                    <td>{{ rule.name }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-rule-remove' list.id fighter.id rule.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-link icon-link fs-7 link-danger">
+                                                <i class="bi-trash"></i> Remove
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-secondary">No custom rules added to this fighter.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {# Search for available rules #}
+        <div class="card">
+            <div class="card-header p-2">
+                <h3 class="h5 mb-0">Add Rules</h3>
+            </div>
+            <div class="card-body p-2">
+                {# Search form #}
+                <form method="get"
+                      action="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}"
+                      class="mb-3">
+                    <div class="input-group">
+                        <input type="text"
+                               name="q"
+                               class="form-control"
+                               placeholder="Search rules..."
+                               value="{{ search_query }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi-search"></i> Search
+                        </button>
+                        {% if search_query %}
+                            <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}"
+                               class="btn btn-secondary">
+                                <i class="bi-x"></i> Clear
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+                {# Available rules list #}
+                <div class="table-responsive">
+                    <table class="table table-borderless table-sm align-middle mb-0">
+                        <tbody>
+                            {% for rule in page_obj %}
+                                <tr>
+                                    <td>{{ rule.name }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-rule-add' list.id fighter.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi-plus-lg"></i> Add
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center text-secondary">
+                                        {% if search_query %}
+                                            No rules found matching "{{ search_query }}".
+                                            <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Clear your search</a>.
+                                        {% else %}
+                                            No available rules found.
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {# Pagination #}
+                {% if page_obj.paginator.num_pages > 1 %}
+                    <nav aria-label="Rules pagination" class="mt-3">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?{% qt request page=page_obj.previous_page_number %}">Previous</a>
+                                </li>
+                            {% endif %}
+                            {# Page numbers #}
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% qt request page=num %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?{% qt request page=page_obj.next_page_number %}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

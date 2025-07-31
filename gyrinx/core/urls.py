@@ -72,6 +72,26 @@ urlpatterns = [
         name="list-fighter-skill-remove",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/rules",
+        list.edit_list_fighter_rules,
+        name="list-fighter-rules-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/rules/<rule_id>/toggle",
+        list.toggle_list_fighter_rule,
+        name="list-fighter-rule-toggle",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/rules/add",
+        list.add_list_fighter_rule,
+        name="list-fighter-rule-add",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/rules/<rule_id>/remove",
+        list.remove_list_fighter_rule,
+        name="list-fighter-rule-remove",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/powers",
         list.edit_list_fighter_powers,
         name="list-fighter-powers-edit",
