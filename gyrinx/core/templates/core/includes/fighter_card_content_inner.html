@@ -49,6 +49,22 @@
                             {% for rule in fighter.ruleline %}<span>{% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>, </span>{% endif %}</span>{% endfor %}
                             {# djlint:on #}
                         {% endspaceless %}
+                        {% if not print %}
+                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Edit rules</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Rules</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                            <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Add rules</a>
+                        {% else %}
+                            <span class="text-muted fst-italic">None</span>
+                        {% endif %}
                     </td>
                 </tr>
             {% endif %}

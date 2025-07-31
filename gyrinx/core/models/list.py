@@ -569,6 +569,20 @@ class ListFighter(AppBase):
         help_text="Additional rules for this fighter. Must be from the same house as the fighter.",
     )
 
+    # Rule overrides
+    disabled_rules = models.ManyToManyField(
+        "content.ContentRule",
+        blank=True,
+        related_name="disabled_by_fighters",
+        help_text="Default rules from the ContentFighter that have been disabled for this fighter.",
+    )
+    custom_rules = models.ManyToManyField(
+        "content.ContentRule",
+        blank=True,
+        related_name="custom_for_fighters",
+        help_text="Custom rules added to this fighter beyond their default rules.",
+    )
+
     # Other
 
     narrative = models.TextField(
@@ -868,14 +882,27 @@ class ListFighter(AppBase):
         """
         Get the ruleline for this fighter.
         """
+        # Start with default rules from ContentFighter
         rules = list(self.content_fighter_cached.rules.all())
         modded = []
+
+        # Remove disabled rules
+        disabled_rules_set = set(self.disabled_rules.all())
+        rules = [r for r in rules if r not in disabled_rules_set]
+
+        # Apply modifications from equipment/items
         for mod in self._rulemods:
             if mod.mode == "add" and mod.rule not in rules:
                 rules.append(mod.rule)
                 modded.append(mod.rule)
             elif mod.mode == "remove" and mod.rule in rules:
                 rules.remove(mod.rule)
+
+        # Add custom rules
+        for custom_rule in self.custom_rules.all():
+            if custom_rule not in rules:
+                rules.append(custom_rule)
+                modded.append(custom_rule)
 
         return [RulelineDisplay(rule.name, rule in modded) for rule in rules]
 
@@ -1304,6 +1331,8 @@ class ListFighter(AppBase):
         # Clone ManyToMany relationships
         clone.skills.set(self.skills.all())
         clone.additional_rules.set(self.additional_rules.all())
+        clone.disabled_rules.set(self.disabled_rules.all())
+        clone.custom_rules.set(self.custom_rules.all())
 
         # Don't clone disabled default assignments if they've been converted to direct assignments
         disabled_defaults_to_clone = []
