@@ -699,6 +699,7 @@ class ContentFighterManager(models.Manager):
                                 "SPECIALIST",
                                 "GANGER",
                                 "JUVE",
+                                "GANG_TERRAIN",
                             ]
                         )
                     ],
@@ -732,6 +733,7 @@ class ContentFighterManager(models.Manager):
                                 "SPECIALIST",
                                 "GANGER",
                                 "JUVE",
+                                "GANG_TERRAIN",
                             ]
                         )
                     ],
