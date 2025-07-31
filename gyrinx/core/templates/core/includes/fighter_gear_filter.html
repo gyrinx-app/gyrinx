@@ -204,7 +204,13 @@
                value="equipment-list"
                data-gy-toggle-submit="search"
                {% if not request.GET.filter or request.GET.filter == "equipment-list" %}checked{% endif %}>
-        <label class="form-check-label fs-7 mb-0" for="filter-switch">Only Equipment List</label>
+        <label class="form-check-label fs-7 mb-0" for="filter-switch">
+            {% if fighter.is_stash %}
+                Only Gang Exclusive
+            {% else %}
+                Only Equipment List
+            {% endif %}
+        </label>
     </div>
     <div class="btn-group align-items-center">
         <button class="btn btn-link icon-link btn-sm"
