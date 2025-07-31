@@ -379,9 +379,11 @@ def test_filter_weapons_by_category_and_availability(
     assert response.status_code == 200
     assert "Laspistol" in response.content.decode()
     assert "Lasgun" in response.content.decode()
-    assert "Plasma Gun" not in response.content.decode()
+    # Plasma Gun is rare, so it should not appear... but this is the equipment-list, so
+    # things of all availability should be shown
+    assert "Plasma Gun" in response.content.decode()
 
-    # Test combined filters - use correct parameter names
+    # Test combined filters
     response = client.get(
         reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
         + f"?cat={special_cat.id}&al=R"
