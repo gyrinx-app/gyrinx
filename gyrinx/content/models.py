@@ -1805,6 +1805,12 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
         ContentWeaponAccessory,
         blank=True,
     )
+    upgrades_field = models.ManyToManyField(
+        ContentEquipmentUpgrade,
+        blank=True,
+        related_name="default_assignments",
+        help_text="The upgrades that this default assignment has.",
+    )
     cost = models.IntegerField(
         default=0, help_text="You typically should not overwrite this."
     )
@@ -1875,6 +1881,32 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
             [profile.name for profile in self.weapon_profiles_cached]
         )
         return f"{self.equipment}" + (f" ({profiles_names})" if profiles_names else "")
+
+    # Upgrades
+
+    def upgrades(self):
+        return list(self.upgrades_field.all())
+
+    @cached_property
+    def upgrades_cached(self):
+        return self.upgrades()
+
+    def upgrade_cost_int(self):
+        if not self.upgrades_field.exists():
+            return 0
+
+        return sum([upgrade.cost for upgrade in self.upgrades_field.all()])
+
+    @cached_property
+    def upgrade_cost_int_cached(self):
+        return self.upgrade_cost_int()
+
+    def cost_int(self):
+        """
+        Returns the total cost including base cost and upgrade costs.
+        """
+        base_cost = super().cost_int()
+        return base_cost + self.upgrade_cost_int_cached
 
     class Meta:
         verbose_name = "Default Equipment Assignment"
