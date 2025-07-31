@@ -18,6 +18,7 @@ from gyrinx.core.forms import UsernameChangeForm
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
+from gyrinx.core.models.site import Banner
 
 from .csrf import csrf_failure as csrf_failure
 from .upload import tinymce_upload as tinymce_upload
@@ -394,3 +395,38 @@ def dismiss_banner(request):
         return JsonResponse(
             {"success": False, "error": "An unexpected error occurred"}, status=500
         )
+
+
+def track_banner_click(request, id):
+    """
+    Track a banner CTA click and redirect to the target URL.
+
+    **URL Parameters**
+
+    ``id`` (str)
+        The ID of the banner that was clicked.
+
+    **Returns**
+
+    Redirects to the banner's CTA URL or to the home page if the banner is not found.
+    """
+    banner = get_object_or_404(Banner, id=id, is_live=True)
+
+    # Log the banner click event
+    log_event(
+        user=request.user if request.user.is_authenticated else None,
+        noun=EventNoun.BANNER,
+        verb=EventVerb.CLICK,
+        object=banner,
+        request=request,
+        banner_id=str(banner.id),
+        banner_text=banner.text,
+        cta_text=banner.cta_text,
+        cta_url=banner.cta_url,
+    )
+
+    # Redirect to the CTA URL if available, otherwise to home
+    if banner.cta_url:
+        return redirect(banner.cta_url)
+    else:
+        return redirect("core:index")
