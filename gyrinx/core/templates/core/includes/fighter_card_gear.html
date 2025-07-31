@@ -24,7 +24,7 @@
             {% if not fighter.is_stash %}
                 <thead>
                     {% for stat in fighter.statline %}
-                        <th class="text-center border-bottom {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                        <th class="text-center border-bottom fs-7 {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
                             scope="col">{{ stat.name }}</th>
                     {% endfor %}
                 </thead>
