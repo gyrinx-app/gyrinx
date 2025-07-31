@@ -36,6 +36,7 @@ class ListAttributeForm(forms.Form):
                 required=False,
                 initial=current_assignments.first() if current_assignments else None,
                 label="",
+                empty_label="None",
             )
         else:
             # Multi select - use checkboxes
