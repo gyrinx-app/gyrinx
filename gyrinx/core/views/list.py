@@ -1824,9 +1824,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
 
-    # Check if availability filters were explicitly provided
-    has_explicit_al = "al" in request.GET
-
     # Apply maximum availability level filter if provided
     mal = (
         int(request.GET.get("mal"))
@@ -1834,7 +1831,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         else None
     )
 
-    if is_equipment_list and not has_explicit_al:
+    if is_equipment_list:
         # When equipment list is toggled and no explicit availability filter is provided,
         # show all equipment from the fighter's equipment list regardless of availability
         equipment = equipment.filter(
@@ -1853,15 +1850,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             # Only filter by rarity_roll for items that aren't Common
             # Common items should always be visible
             equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
-
-        if is_equipment_list:
-            # When equipment list is toggled with explicit filters,
-            # further filter to only show equipment from the fighter's equipment list
-            equipment = equipment.filter(
-                id__in=ContentFighterEquipmentListItem.objects.filter(
-                    fighter__in=fighter.equipment_list_fighters
-                ).values("equipment_id")
-            )
 
     # Create assignment objects
     assigns = []
