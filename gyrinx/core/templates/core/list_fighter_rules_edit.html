@@ -109,14 +109,9 @@
                 <div class="table-responsive">
                     <table class="table table-borderless table-sm align-middle mb-0">
                         <tbody>
-                            {% for rule in available_rules|slice:":20" %}
+                            {% for rule in page_obj %}
                                 <tr>
-                                    <td>
-                                        <div>
-                                            <div>{{ rule.name }}</div>
-                                            {% if rule.description %}<small class="text-secondary">{{ rule.description|truncatewords:20 }}</small>{% endif %}
-                                        </div>
-                                    </td>
+                                    <td>{{ rule.name }}</td>
                                     <td class="text-end">
                                         <form method="post"
                                               action="{% url 'core:list-fighter-rule-add' list.id fighter.id %}"
@@ -141,14 +136,40 @@
                                     </td>
                                 </tr>
                             {% endfor %}
-                            {% if available_rules.count > 20 %}
-                                <tr>
-                                    <td colspan="2" class="text-center text-secondary">Showing first 20 results. Use search to find specific rules.</td>
-                                </tr>
-                            {% endif %}
                         </tbody>
                     </table>
                 </div>
+                {# Pagination #}
+                {% if page_obj.paginator.num_pages > 1 %}
+                    <nav aria-label="Rules pagination" class="mt-3">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?{% qt request page=page_obj.previous_page_number %}">Previous</a>
+                                </li>
+                            {% endif %}
+                            {# Page numbers #}
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% qt request page=num %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?{% qt request page=page_obj.next_page_number %}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             </div>
         </div>
     </div>

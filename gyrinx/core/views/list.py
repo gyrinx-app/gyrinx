@@ -6,10 +6,11 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.http import Http404, HttpRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import generic
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -4740,20 +4741,44 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get custom rules
     custom_rules = fighter.custom_rules.all()
 
-    # Get all available rules for search, excluding those already in custom rules
-    available_rules: QuerySetOf[ContentRule] = ContentRule.objects.exclude(
+    # Get all available rules for search
+    available_rules: QuerySetOf[ContentRule] = ContentRule.objects.all()
+
+    if search_query:
+        available_rules = available_rules.filter(Q(name__icontains=search_query))
+
+    # Exclude those already in custom rules
+    available_rules = available_rules.exclude(
         id__in=custom_rules.values_list("id", flat=True)
     )
 
-    if search_query:
-        search_vector = SearchVector("name")
-        search = SearchQuery(search_query)
-        available_rules = available_rules.annotate(search=search_vector).filter(
-            Q(search=search) | Q(name__icontains=search_query)
-        )
-
     # Sort alphabetically
     available_rules = available_rules.order_by("name")
+
+    # Paginate the results
+    paginator = Paginator(available_rules, 20)  # Show 20 rules per page
+    page_number = request.GET.get("page", 1)
+
+    # Validate page number and redirect if necessary
+    try:
+        page_number = int(page_number)
+        if page_number < 1:
+            page_number = 1
+    except (TypeError, ValueError):
+        page_number = 1
+
+    # If the requested page is out of range due to search, redirect to page 1
+    if page_number > paginator.num_pages and paginator.num_pages > 0:
+        # Build redirect URL with search query preserved
+        url = reverse("core:list-fighter-rules-edit", args=(lst.id, fighter.id))
+        params = {}
+        if search_query:
+            params["q"] = search_query
+        if params:
+            url = f"{url}?{urlencode(params)}"
+        return redirect(url)
+
+    page_obj = paginator.get_page(page_number)
 
     return render(
         request,
@@ -4764,6 +4789,7 @@ def edit_list_fighter_rules(request, id, fighter_id):
             "default_rules_display": default_rules_display,
             "custom_rules": custom_rules,
             "available_rules": available_rules,
+            "page_obj": page_obj,
             "search_query": search_query,
         },
     )
@@ -4829,7 +4855,7 @@ def add_list_fighter_rule(request, id, fighter_id):
     fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
 
     rule_id = request.POST.get("rule_id")
-    if rule_id:
+    if rule_id and is_valid_uuid(rule_id):
         rule = get_object_or_404(ContentRule, id=rule_id)
         fighter.custom_rules.add(rule)
 
@@ -4850,6 +4876,8 @@ def add_list_fighter_rule(request, id, fighter_id):
         )
 
         messages.success(request, f"Added {rule.name}")
+    elif rule_id:
+        messages.error(request, "Invalid rule ID provided.")
 
     return HttpResponseRedirect(
         reverse("core:list-fighter-rules-edit", args=(lst.id, fighter.id))

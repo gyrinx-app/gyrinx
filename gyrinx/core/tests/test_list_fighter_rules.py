@@ -298,3 +298,91 @@ def test_clone_fighter_preserves_rule_overrides(client):
     # Verify rule overrides are preserved
     assert clone.disabled_rules.filter(id=disabled_rule.id).exists()
     assert clone.custom_rules.filter(id=custom_rule.id).exists()
+
+
+@pytest.mark.django_db
+def test_rules_edit_pagination(client):
+    """Test pagination in the rules edit view."""
+    # Create test data
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create many rules to test pagination
+    for i in range(25):
+        ContentRule.objects.create(name=f"Rule {i:02d}")
+
+    # Create a fighter
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a list and list fighter
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Access the rules edit page
+    url = reverse("core:list-fighter-rules-edit", args=[lst.id, list_fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    # Should show pagination controls
+    assert "pagination" in response.content.decode()
+    assert "page-link" in response.content.decode()
+
+    # Test page 2
+    response = client.get(url + "?page=2")
+    assert response.status_code == 200
+    assert "Rule 20" in response.content.decode()  # Should be on page 2
+    assert "Rule 00" not in response.content.decode()  # Should not be on page 2
+
+    # Test search with pagination reset
+    response = client.get(url + "?q=Rule+01&page=5")
+    # Should redirect to page 1 since search results won't have 5 pages
+    assert response.status_code == 302
+    assert response.url == url + "?q=Rule+01"
+
+
+@pytest.mark.django_db
+def test_add_rule_with_invalid_uuid(client):
+    """Test adding a rule with invalid UUID."""
+    # Create test data
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a list and list fighter
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Try to add a rule with invalid UUID
+    url = reverse("core:list-fighter-rule-add", args=[lst.id, list_fighter.id])
+    response = client.post(url, {"rule_id": "invalid-uuid"})
+
+    assert response.status_code == 302
+    # Should redirect back to edit page
+    assert response.url == reverse(
+        "core:list-fighter-rules-edit", args=[lst.id, list_fighter.id]
+    )
+
+    # Verify no rule was added
+    assert list_fighter.custom_rules.count() == 0
