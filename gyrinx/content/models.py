@@ -75,6 +75,10 @@ class ContentHouse(Content):
         default=False,
         help_text="If checked, this House can hire any fighter from any house (except stash fighters).",
     )
+    can_buy_any = models.BooleanField(
+        default=False,
+        help_text="If checked, this House can buy any equipment from any equipment list and trading post.",
+    )
 
     house_additional_rules_name = models.CharField(
         max_length=255,
