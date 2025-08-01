@@ -12,6 +12,7 @@ import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
+from django.contrib.postgres.fields import ArrayField
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -2753,6 +2754,63 @@ class ContentInjuryDefaultOutcome(models.TextChoices):
     RECOVERY = "recovery", "Recovery"
     CONVALESCENCE = "convalescence", "Convalescence"
     DEAD = "dead", "Dead"
+    IN_REPAIR = "in_repair", "In Repair"  # Added for vehicle damage
+
+
+class ContentInjuryGroup(Content):
+    """
+    Groups of injuries that can be restricted to specific fighter categories.
+    """
+
+    help_text = "Represents a group of injuries that can be restricted to specific fighter categories."
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    restricted_to = ArrayField(
+        models.CharField(max_length=20, choices=FighterCategoryChoices.choices),
+        blank=True,
+        default=list,
+        help_text="Fighter categories that can see this injury group. If empty, all can see it.",
+    )
+    unavailable_to = ArrayField(
+        models.CharField(max_length=20, choices=FighterCategoryChoices.choices),
+        blank=True,
+        default=list,
+        help_text="Fighter categories that cannot see this injury group.",
+    )
+    history = HistoricalRecords()
+
+    def is_available_for_fighter_category(self, category):
+        """
+        Check if this injury group is available for a specific fighter category.
+
+        Truth table:
+        Fighter | Restricted To | Unavailable To | Outcome
+        --------|---------------|----------------|--------
+        Leader  | -             | -              | ✅
+        Leader  | Leader        | -              | ✅
+        Leader  | -             | Leader         | ❌
+        Leader  | Leader        | Leader         | ❌ (weird but handled)
+        Stash   | Leader,Champ  | -              | ❌
+        Stash   | -             | Stash          | ❌
+        """
+        # If both restricted_to and unavailable_to contain the category, unavailable wins
+        if category in self.unavailable_to:
+            return False
+
+        # If restricted_to is set, category must be in it
+        if self.restricted_to:
+            return category in self.restricted_to
+
+        # If no restrictions, it's available
+        return True
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Injury Group"
+        verbose_name_plural = "Injury Groups"
+        ordering = ["name"]
 
 
 class ContentInjury(Content):
@@ -2773,7 +2831,15 @@ class ContentInjury(Content):
     group = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Optional grouping for organizing injuries in selection dropdowns.",
+        help_text="Legacy field for grouping. Use injury_group instead.",
+    )
+    injury_group = models.ForeignKey(
+        ContentInjuryGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="injuries",
+        help_text="The injury group this injury belongs to.",
     )
     modifiers = models.ManyToManyField(
         ContentMod,
@@ -2783,13 +2849,19 @@ class ContentInjury(Content):
     )
     history = HistoricalRecords()
 
+    def get_group_name(self):
+        """Get the group name, preferring injury_group over legacy group field."""
+        if self.injury_group:
+            return self.injury_group.name
+        return self.group or "Other"
+
     def __str__(self):
         return self.name
 
     class Meta:
         verbose_name = "Injury"
         verbose_name_plural = "Injuries"
-        ordering = ["group", "name"]
+        ordering = ["injury_group__name", "group", "name"]
 
 
 ##

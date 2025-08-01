@@ -469,21 +469,57 @@ class AddInjuryForm(forms.Form):
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
-        from gyrinx.content.models import ContentInjury
+        from gyrinx.content.models import ContentInjury, ContentInjuryDefaultOutcome
         from gyrinx.forms import group_select
 
-        self.fields["injury"].queryset = ContentInjury.objects.select_related()
+        # Base queryset for injuries
+        injury_queryset = ContentInjury.objects.select_related("injury_group")
 
-        # Group injuries by their group field if it exists
-        group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
+        # Filter injuries based on fighter category if fighter is provided
+        if fighter and fighter.content_fighter:
+            fighter_category = fighter.content_fighter.category
 
-        # Set fighter state choices including Active for injuries that don't affect availability
-        self.fields["fighter_state"].choices = [
-            (ListFighter.ACTIVE, "Active"),
-            (ListFighter.RECOVERY, "Recovery"),
-            (ListFighter.CONVALESCENCE, "Convalescence"),
-            (ListFighter.DEAD, "Dead"),
-        ]
+            # Get injury groups available for this fighter category
+
+            # Filter injuries to only show those available for the fighter's category
+            # We need to check each injury's group separately
+            available_injuries = []
+            for injury in ContentInjury.objects.select_related("injury_group").all():
+                if injury.injury_group is None:
+                    # No group means available to all
+                    available_injuries.append(injury.id)
+                elif injury.injury_group.is_available_for_fighter_category(
+                    fighter_category
+                ):
+                    available_injuries.append(injury.id)
+
+            injury_queryset = injury_queryset.filter(id__in=available_injuries)
+
+        self.fields["injury"].queryset = injury_queryset
+
+        # Group injuries by their group field, preferring injury_group over legacy group
+        group_select(self, "injury", key=lambda x: x.get_group_name())
+
+        # Set fighter state choices from ContentInjuryDefaultOutcome
+        # Map the choices to match ListFighter states
+        state_choices = []
+        for choice in ContentInjuryDefaultOutcome.choices:
+            # Skip NO_CHANGE as it's not a valid fighter state
+            if choice[0] != ContentInjuryDefaultOutcome.NO_CHANGE:
+                # Map ContentInjuryDefaultOutcome values to ListFighter state values
+                if choice[0] == ContentInjuryDefaultOutcome.ACTIVE:
+                    state_choices.append((ListFighter.ACTIVE, choice[1]))
+                elif choice[0] == ContentInjuryDefaultOutcome.RECOVERY:
+                    state_choices.append((ListFighter.RECOVERY, choice[1]))
+                elif choice[0] == ContentInjuryDefaultOutcome.CONVALESCENCE:
+                    state_choices.append((ListFighter.CONVALESCENCE, choice[1]))
+                elif choice[0] == ContentInjuryDefaultOutcome.DEAD:
+                    state_choices.append((ListFighter.DEAD, choice[1]))
+                elif choice[0] == ContentInjuryDefaultOutcome.IN_REPAIR:
+                    # For vehicles, map IN_REPAIR to RECOVERY
+                    state_choices.append((ListFighter.RECOVERY, choice[1]))
+
+        self.fields["fighter_state"].choices = state_choices
 
         # Set initial fighter state to the fighter's current state if provided
         if fighter and not self.is_bound:
