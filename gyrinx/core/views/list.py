@@ -1846,8 +1846,20 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             .distinct("category__name", "name", "id")
         )
 
+    # Check if the house has can_buy_any flag
+    house_can_buy_any = lst.content_house.can_buy_any
+
     # Check if equipment list filter is active
     # Default to equipment-list when filter is not provided (matches template behavior)
+    # But if house has can_buy_any and no filter is provided, redirect to filter=all
+    if house_can_buy_any and "filter" not in request.GET:
+        # Redirect to the same URL with filter=all
+        query_dict = request.GET.copy()
+        query_dict["filter"] = "all"
+        return HttpResponseRedirect(
+            reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
+        )
+
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
 
@@ -1877,6 +1889,29 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             # Only filter by rarity_roll for items that aren't Common
             # Common items should always be visible
             equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
+
+        # If house has can_buy_any, also include equipment from equipment list
+        if house_can_buy_any:
+            equipment_list_ids = ContentFighterEquipmentListItem.objects.filter(
+                fighter__in=fighter.equipment_list_fighters
+            ).values("equipment_id")
+
+            # Get equipment list items with proper annotations
+            equipment_list_items = ContentEquipment.objects.filter(
+                id__in=equipment_list_ids
+            )
+
+            if is_weapon:
+                equipment_list_items = equipment_list_items.with_cost_for_fighter(
+                    fighter.equipment_list_fighter
+                ).with_profiles_for_fighter(fighter.equipment_list_fighter)
+            else:
+                equipment_list_items = equipment_list_items.with_cost_for_fighter(
+                    fighter.equipment_list_fighter
+                )
+
+            # Combine with OR and remove duplicates
+            equipment = (equipment | equipment_list_items).distinct()
 
     # Create assignment objects
     assigns = []
