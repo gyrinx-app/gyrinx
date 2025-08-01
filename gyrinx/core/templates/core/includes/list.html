@@ -206,7 +206,7 @@
                 {% for group in fighter_groups %}
                     {% if group.list|length > 1 %}
                         <div class="{{ inner_grid_layout_classes }}">
-                            <div class="grid gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
+                            <div class="grid h-100 gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
                                 {% for fighter in group.list %}
                                     {% if fighter.is_stash %}
                                         {% comment %} Stash fighter in group? Nope {% endcomment %}

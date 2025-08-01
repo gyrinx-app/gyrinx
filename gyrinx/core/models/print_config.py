@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.core import validators
 from django.db import models
+from django.utils.translation import ngettext
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
@@ -25,22 +26,22 @@ class PrintConfig(AppBase):
     # Card type toggles
     include_assets = models.BooleanField(
         default=True,
-        help_text="Include asset cards in the print output.",
+        help_text="Include asset card in the print output.",
     )
 
     include_attributes = models.BooleanField(
         default=True,
-        help_text="Include attribute cards in the print output.",
+        help_text="Include attribute card in the print output.",
     )
 
     include_stash = models.BooleanField(
         default=True,
-        help_text="Include stash cards in the print output.",
+        help_text="Include the stash card in the print output.",
     )
 
     include_actions = models.BooleanField(
         default=False,
-        help_text="Include action cards in the print output.",
+        help_text="Include the action card in the print output.",
     )
 
     include_dead_fighters = models.BooleanField(
@@ -56,25 +57,12 @@ class PrintConfig(AppBase):
         help_text="Specific fighters to include in the print output.",
     )
 
-    is_default = models.BooleanField(
-        default=False,
-        help_text="Whether this is the default configuration for the list.",
-    )
-
     history = HistoricalRecords()
 
     class Meta:
-        ordering = ["-is_default", "name"]
+        ordering = ["name"]
         verbose_name = "Print Configuration"
         verbose_name_plural = "Print Configurations"
-        constraints = [
-            # Only one default config per list
-            models.UniqueConstraint(
-                fields=["list", "is_default"],
-                condition=models.Q(is_default=True),
-                name="unique_default_print_config_per_list",
-            )
-        ]
 
     def __str__(self):
         return f"{self.name} - {self.list.name}"
@@ -93,12 +81,14 @@ class PrintConfig(AppBase):
             included.append("Actions")
         if self.include_dead_fighters:
             included.append("Dead Fighters")
-        return ", ".join(included) if included else "None"
 
-    def save(self, *args, **kwargs):
-        # If this is being set as default, unset any other defaults for this list
-        if self.is_default and self.list_id:
-            PrintConfig.objects.filter(list=self.list, is_default=True).exclude(
-                pk=self.pk
-            ).update(is_default=False)
-        super().save(*args, **kwargs)
+        fighter_count = self.included_fighters.count()
+        if self.included_fighters.exists():
+            included.append(
+                ngettext("%(count)d Fighter", "%(count)d Fighters", fighter_count)
+                % {"count": fighter_count}
+            )
+        else:
+            included.append("All Fighters")
+
+        return ", ".join(included) if included else "None"

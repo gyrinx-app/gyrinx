@@ -69,7 +69,14 @@ from gyrinx.core.models.list import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
 )
-from gyrinx.core.utils import build_safe_url, safe_redirect
+from gyrinx.core.utils import (
+    build_safe_url,
+    get_list_attributes,
+    get_list_campaign_resources,
+    get_list_held_assets,
+    get_list_recent_campaign_actions,
+    safe_redirect,
+)
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
 
@@ -234,27 +241,14 @@ class ListDetailView(generic.DetailView):
 
         # If list is in campaign mode and has a campaign, fetch recent actions
         if list_obj.is_campaign_mode and list_obj.campaign:
-            from gyrinx.core.models.campaign import CampaignAction
-
             # Get recent actions for this specific list only
-            recent_actions = (
-                CampaignAction.objects.filter(campaign=list_obj.campaign)
-                .filter(list=list_obj)
-                .select_related("user", "list")
-                .order_by("-created")[:5]
-            )
-
-            context["recent_actions"] = recent_actions
+            context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
             # Get campaign resources held by this list
-            campaign_resources = list_obj.campaign_resources.filter(
-                amount__gt=0
-            ).select_related("resource_type")
-            context["campaign_resources"] = campaign_resources
+            context["campaign_resources"] = get_list_campaign_resources(list_obj)
 
             # Get assets held by this list
-            held_assets = list_obj.held_assets.select_related("asset_type")
-            context["held_assets"] = held_assets
+            context["held_assets"] = get_list_held_assets(list_obj)
 
             # Get captured fighters held by this list
             captured_fighters = list_obj.captured_fighters.filter(
@@ -263,29 +257,7 @@ class ListDetailView(generic.DetailView):
             context["captured_fighters"] = captured_fighters
 
         # Get attributes and their values for this list
-        from gyrinx.content.models import ContentAttribute
-        from gyrinx.core.models.list import ListAttributeAssignment
-
-        attributes = {}
-        # Filter attributes to only those available to this house
-        available_attributes = (
-            ContentAttribute.objects.filter(
-                Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house)
-            )
-            .distinct()
-            .order_by("name")
-        )
-
-        for attribute in available_attributes:
-            assignments = ListAttributeAssignment.objects.filter(
-                list=list_obj, attribute_value__attribute=attribute, archived=False
-            ).select_related("attribute_value")
-
-            # Get the value names
-            value_names = [a.attribute_value.name for a in assignments]
-            attributes[attribute] = value_names
-
-        context["attributes"] = attributes
+        context["attributes"] = get_list_attributes(list_obj)
 
         # Get fighters with group keys for display grouping
         from gyrinx.core.models.list import ListFighter
@@ -367,10 +339,8 @@ class ListPrintView(generic.DetailView):
             except PrintConfig.DoesNotExist:
                 pass
         else:
-            # Try to get default config
-            print_config = PrintConfig.objects.filter(
-                list=list_obj, is_default=True, archived=False
-            ).first()
+            # No default config anymore - just use built-in defaults
+            print_config = None
 
         context["print_config"] = print_config
 
@@ -391,63 +361,28 @@ class ListPrintView(generic.DetailView):
 
             # Exclude dead fighters if configured
             if not print_config.include_dead_fighters:
-                fighters_qs = fighters_qs.exclude(state=ListFighter.DEAD)
+                fighters_qs = fighters_qs.exclude(injury_state=ListFighter.DEAD)
         else:
             # Default behavior: exclude dead fighters
-            fighters_qs = fighters_qs.exclude(state=ListFighter.DEAD)
+            fighters_qs = fighters_qs.exclude(injury_state=ListFighter.DEAD)
 
         context["fighters_with_groups"] = fighters_qs
 
         # Add attributes if configured to be included
         if not print_config or print_config.include_attributes:
-            from gyrinx.content.models import ContentAttribute
-
-            attributes = {}
-            # Filter attributes to only those available to this house
-            available_attributes = (
-                ContentAttribute.objects.filter(
-                    Q(restricted_to__isnull=True)
-                    | Q(restricted_to=list_obj.content_house)
-                )
-                .distinct()
-                .prefetch_related("values")
-            )
-
-            # Group attribute values by attribute
-            for attribute in available_attributes:
-                house_values = attribute.values.filter(
-                    Q(restricted_to__isnull=True)
-                    | Q(restricted_to=list_obj.content_house)
-                ).distinct()
-                value_names = list(house_values.values_list("name", flat=True))
-
-                if value_names:
-                    attributes[attribute] = value_names
-
-            context["attributes"] = attributes
+            context["attributes"] = get_list_attributes(list_obj)
 
         # Add assets and campaign resources if configured to be included
         if not print_config or print_config.include_assets:
             # Get campaign resources
-            campaign_resources = list_obj.campaign_resources.filter(
-                amount__gt=0
-            ).select_related("resource_type")
-            context["campaign_resources"] = campaign_resources
+            context["campaign_resources"] = get_list_campaign_resources(list_obj)
 
             # Get assets held by this list
-            held_assets = list_obj.held_assets.select_related("asset_type")
-            context["held_assets"] = held_assets
+            context["held_assets"] = get_list_held_assets(list_obj)
 
         # Add recent campaign actions if configured to be included
         if not print_config or print_config.include_actions:
-            if list_obj.is_campaign_mode and list_obj.campaign:
-                from gyrinx.core.models import CampaignAction
-
-                recent_actions = CampaignAction.objects.filter(
-                    campaign=list_obj.campaign,
-                    gang=list_obj,
-                ).order_by("-date_time")[:5]
-                context["recent_actions"] = recent_actions
+            context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
         return context
 
