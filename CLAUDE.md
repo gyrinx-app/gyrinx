@@ -2,14 +2,39 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Reference (Most Important)
+
+**Critical Commands:**
+
+- Format code: `./scripts/fmt.sh`
+- Run tests: `pytest -n auto`
+- Django commands: Use `manage` (not `python manage.py`)
+- Don't commit CSS files - they're auto-generated from SCSS
+
+**Key Principles:**
+
+- Server-rendered HTML, not SPA
+- Mobile-first design
+- Look up model definitions before use - don't assume field names
+- Always validate redirect URLs with `safe_redirect`
+
 ## Infrastructure
 
 - All our infra is in GCP europe-west2 (London)
 - In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
 
+## Critical Workflow (Before Push)
+
+1. Format code: `./scripts/fmt.sh`
+2. Run tests: `pytest -n auto`
+3. Fix any failing tests
+4. Commit and push changes
+
+**In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
+
 ## Development Commands
 
-The Django management command `manage` is used to run various tasks in the Gyrinx application. It is made available by setuptools. It provides a convenient way to execute commands without needing to specify the Django project settings each time. When running management commands, you MUST use `manage` directly.
+**Django:** Use `manage` command (not `python manage.py`)
 
 ### Environment Setup
 
@@ -115,41 +140,33 @@ manage migrate
 SQL_DEBUG=True
 ```
 
-## Development Workflow
+## Key Models Reference
 
-- When building something new, create a branch for it and open a pull request at the end
-- Always run `./scripts/fmt.sh` after making code changes to format everything (Python, JS, SCSS, templates, etc.)
-- **IMPORTANT**: This includes running `./scripts/fmt.sh` after editing CLAUDE.md itself to ensure consistent formatting
-- Alternatively, you can run formatters individually:
-    - `ruff format` and `ruff check --fix --unsafe-fixes` for Python
-    - `npm run fmt` for JS, SCSS, JSON, YAML, Markdown
-    - `djlint --profile=django --reformat .` and `djlint --profile=django --lint --check .` for Django templates formatting
-- **CRITICAL FOR CI/GITHUB ACTIONS**: Before committing and pushing changes, you MUST:
-    1. Run the formatting script: `./scripts/fmt.sh`
-    2. Run the tests: `pytest -n auto`
-    3. Check that ALL tests pass - if any tests fail, fix them before proceeding
-    4. Only after tests pass, commit and push your changes
-- **CRITICAL**: When running in CI or a GitHub action, you MUST COMMIT AND PUSH BEFORE FINISHING. This is critical: otherwise, work is lost.
+**Content App (Game Data):**
+
+- `ContentFighter` - Fighter templates
+- `ContentEquipment` - Equipment/weapons
+- `ContentWeaponProfile` - Weapon stats
+- `ContentFighterDefaultAssignment` - Default equipment on fighters
+- `ContentEquipmentUpgrade` - Equipment upgrades
+
+**Core App (User Data):**
+
+- `List` - User's gang/list
+- `ListFighter` - User's fighters
+- `ListFighterEquipmentAssignment` - Equipment assigned to fighters
+- `VirtualListFighterEquipmentAssignment` - Wrapper for assignments
 
 ## Architecture Overview
 
 ### Django Apps Structure
 
-- **`content`** - Game data models (fighters, equipment, weapons, skills, houses)
-    - Contains official Necromunda rulebook content
-    - Uses django-simple-history for change tracking
-    - Complex relationships between game entities
+**Main Apps:**
 
-- **`core`** - User lists and gang management
-    - List/ListFighter models for user-created gangs
-    - Equipment assignment system with costs and modifications
-    - Campaign functionality
-
-- **`pages`** - Static content and waiting list system
-    - Flat pages with visibility controls
-    - User registration waiting list
-
-- **`api`** - Minimal webhook handling for external integrations
+- `content` - Game data models (ContentFighter, ContentEquipment, etc.)
+- `core` - User lists/gangs (List, ListFighter, ListFighterEquipmentAssignment)
+- `pages` - Static content and waiting list
+- `api` - Webhook handling
 
 ### Base Model Architecture
 
@@ -164,14 +181,10 @@ SQL_DEBUG=True
 
 ### Key Model Relationships
 
-- **Content → Core**: ContentFighter/ContentEquipment used as templates for user ListFighter assignments
-- **Virtual Equipment System**: ListFighterEquipmentAssignment handles complex equipment with profiles, accessories, upgrades
-- **Cost Calculation**: Dynamic pricing based on fighter type, equipment lists, and modifications
-- **Historical Tracking**: All models use simple-history for audit trails
-    - Middleware tracks user for web requests automatically
-    - Use `save_with_user(user=user)` for manual user tracking (defaults to owner if not provided)
-    - Use `Model.objects.create_with_user(user=user, ...)` for creating with history (defaults to owner)
-    - Use `Model.bulk_create_with_history(objs, user=user)` for bulk operations with history (defaults to each object's owner)
+- Content models (ContentFighter, ContentEquipment) → Templates for user data
+- Core models (ListFighter, ListFighterEquipmentAssignment) → User-created content
+- VirtualListFighterEquipmentAssignment → Wrapper for both default and direct assignments
+- All models use django-simple-history for tracking changes
 
 ### Technical Principles
 
@@ -215,44 +228,21 @@ SQL_DEBUG=True
 - User content should use `|safe` filter for HTML rendering
 - Templates follow Bootstrap 5 patterns with cards, alerts, and responsive utilities
 
-### UI Layout Patterns (List/Campaign View Style)
+### UI Patterns
 
-The list view establishes the standard UI pattern for detail pages:
+**Button Classes:**
 
-1. **Header Structure**:
-    - Title uses `<h2 class="mb-0">` (or h1 for main pages)
-    - Metadata in a horizontal stack (`hstack`) with `text-secondary` styling
-    - Cost/status badges aligned to the right using `ms-md-auto`
-    - Status badges use contextual colors (e.g., `bg-success` for active states)
+- Primary: `btn btn-primary btn-sm`
+- Secondary: `btn btn-secondary btn-sm`
+- Danger: `btn btn-danger btn-sm`
+- Link style: `link-secondary link-underline-opacity-25 link-underline-opacity-100-hover`
 
-2. **Metadata Row**:
-    - Uses `d-flex flex-column flex-sm-row` for responsive stacking
-    - Each metadata item in `<div class="text-secondary">` with icon + text
-    - Links use `link-secondary link-underline-opacity-25 link-underline-opacity-100-hover`
-    - Items separated by `column-gap-2`
+**Layout:**
 
-3. **Action Buttons**:
-    - Positioned right with `ms-sm-auto`
-    - Primary actions use `btn btn-primary btn-sm`
-    - Secondary actions use `btn btn-secondary btn-sm`
-    - More options in a dropdown with `btn-group` and three-dots icon
-
-4. **Information Callouts**:
-    - Avoid `alert` classes
-    - Use simple text with `text-secondary` or `text-muted`
-    - For separated content, use `border rounded p-2` instead of alerts
-    - Keep messaging minimal and inline where possible
-
-5. **Button Patterns**:
-    - All action buttons use `btn-sm` size
-    - Primary actions (Add/Create) use `btn-primary`
-    - Edit/modify actions use `btn-secondary`
-    - Destructive actions use `btn-danger`
-    - View/navigation use `btn-outline-secondary`
-
-6. **Card Layout**:
-    - Avoid using `card`
-    - Use card for fighters and things that appear in a grid: nowhere else
+- Headers: `<h2 class="mb-0">`
+- Metadata: `text-secondary` with icons
+- Avoid `alert` classes - use `border rounded p-2` instead
+- Cards only for fighters in grids
 
 ### URL Patterns
 
@@ -281,6 +271,30 @@ The list view establishes the standard UI pattern for detail pages:
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
+
+## Common File Locations
+
+**Models:**
+
+- `gyrinx/content/models.py` - Game content models
+- `gyrinx/core/models/list.py` - User list/fighter models
+- `gyrinx/core/models/campaign.py` - Campaign models
+
+**Views:**
+
+- `gyrinx/core/views/list.py` - List/fighter views
+- `gyrinx/core/views/campaign.py` - Campaign views
+- `gyrinx/core/views/vehicle.py` - Vehicle flow
+
+**Templates:**
+
+- `gyrinx/core/templates/core/` - Main templates
+- `gyrinx/core/templates/core/includes/` - Reusable components
+
+**Tests:**
+
+- `gyrinx/core/tests/` - Core app tests
+- `gyrinx/content/tests/` - Content app tests
 
 # important-instruction-reminders
 
