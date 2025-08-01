@@ -189,7 +189,7 @@ def print_config_delete(request, list_id, config_id):
 
         messages.success(request, f"Print configuration '{print_config.name}' deleted.")
 
-    return redirect("core:print_config_index", list_id=list_obj.id)
+    return redirect("core:print-config-index", list_id=list_obj.id)
 
 
 @login_required
