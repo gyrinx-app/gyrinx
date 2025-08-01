@@ -1,9 +1,9 @@
 {% load allauth custom_tags humanize %}
-<div class="card g-col-12 g-col-md-12 g-col-lg-6 g-col-xl-4">
+<div class="card g-col-12 {% if print %}g-col-sm-6 g-col-md-4 g-col-xl-3{% else %}g-col-md-12 g-col-lg-6 {% endif %}">
     <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
         <h3 class="h5 mb-0">Attributes</h3>
     </div>
-    <div class="card-body p-2">
+    <div class="card-body {% if print %}p-0{% else %}p-2{% endif %}">
         {% if attributes %}
             <table class="table table-sm mb-0 fs-7">
                 <tbody>
@@ -17,20 +17,22 @@
                                     <span class="text-muted">Not set</span>
                                 {% endif %}
                             </td>
-                            <td class="text-end">
-                                {% if list.owner_cached == user and not list.archived %}
-                                    <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
-                                       class="icon-link link-secondary link-sm">
-                                        <i class="bi-{% if assignments %}pencil{% else %}plus{% endif %}"
-                                           aria-hidden="true"></i>
-                                        {% if assignments %}
-                                            Edit
-                                        {% else %}
-                                            Add
-                                        {% endif %}
-                                    </a>
-                                {% endif %}
-                            </td>
+                            {% if not print %}
+                                <td class="text-end">
+                                    {% if list.owner_cached == user and not list.archived %}
+                                        <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
+                                           class="icon-link link-secondary link-sm">
+                                            <i class="bi-{% if assignments %}pencil{% else %}plus{% endif %}"
+                                               aria-hidden="true"></i>
+                                            {% if assignments %}
+                                                Edit
+                                            {% else %}
+                                                Add
+                                            {% endif %}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -1,0 +1,78 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Print Configurations - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" %}
+    <div class="col-12 px-0 vstack gap-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h3">Print Configurations</h1>
+            <a href="{% url 'core:print-config-create' list.id %}"
+               class="btn btn-primary btn-sm">
+                <i class="bi-plus"></i>
+                New Configuration
+            </a>
+        </div>
+        <p class="text-muted">
+            Manage print configurations for <strong>{{ list.name }}</strong>.
+            Create custom configurations to control which cards and fighters are included when printing.
+        </p>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Cards</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Default configuration (always present) -->
+                    <tr class="align-middle">
+                        <td>
+                            <strong>Default</strong>
+                            <span class="badge bg-secondary ms-2">Built-in</span>
+                        </td>
+                        <td class="text-muted">All cards and active fighters</td>
+                        <td class="text-end">
+                            <a href="{% url 'core:list-print' list.id %}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi-printer"></i>
+                                Print
+                            </a>
+                        </td>
+                    </tr>
+                    <!-- User configurations -->
+                    {% for config in print_configs %}
+                        <tr class="align-middle">
+                            <td>
+                                <strong>{{ config.name }}</strong>
+                            </td>
+                            <td class="text-muted">{{ config.card_summary }}</td>
+                            <td class="text-end">
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'core:print-config-edit' list.id config.id %}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-pencil"></i>
+                                        Edit
+                                    </a>
+                                    <a href="{% url 'core:print-config-delete' list.id config.id %}"
+                                       class="btn btn-outline-danger btn-sm">
+                                        <i class="bi-trash"></i>
+                                        Delete
+                                    </a>
+                                    <a href="{% url 'core:print-config-print' list.id config.id %}"
+                                       class="btn btn-primary btn-sm">
+                                        <i class="bi-printer"></i>
+                                        Print
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock content %}

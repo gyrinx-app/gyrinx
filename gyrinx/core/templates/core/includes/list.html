@@ -121,7 +121,7 @@
                                 </button>
                                 <ul class="dropdown-menu">
                                     <li>
-                                        <a href="{% url 'core:list-print' list.id %}"
+                                        <a href="{% url 'core:print-config-index' list.id %}"
                                            class="dropdown-item icon-link">
                                             <i class="bi-printer"></i> Print
                                         </a>
@@ -183,6 +183,17 @@
             {% include "core/includes/list_campaign_actions.html" with list=list %}
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
             {% include "core/includes/list_attributes.html" with list=list attributes=attributes %}
+        {% elif print %}
+            {% comment %} In print mode, show cards based on print configuration {% endcomment %}
+            {% if recent_actions %}
+                {% include "core/includes/list_campaign_actions.html" with list=list recent_actions=recent_actions print=True %}
+            {% endif %}
+            {% if campaign_resources or held_assets %}
+                {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets print=True %}
+            {% endif %}
+            {% if attributes %}
+                {% include "core/includes/list_attributes.html" with list=list attributes=attributes print=True %}
+            {% endif %}
         {% endif %}
         {% if print %}
             {% firstof 'g-col-12 g-col-xl-6 g-col-lg-6' as inner_grid_layout_classes %}
@@ -195,7 +206,7 @@
                 {% for group in fighter_groups %}
                     {% if group.list|length > 1 %}
                         <div class="{{ inner_grid_layout_classes }}">
-                            <div class="grid gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
+                            <div class="grid h-100 gap-2 gap-md-0 border rounded p-2 bg-secondary-subtle">
                                 {% for fighter in group.list %}
                                     {% if fighter.is_stash %}
                                         {% comment %} Stash fighter in group? Nope {% endcomment %}

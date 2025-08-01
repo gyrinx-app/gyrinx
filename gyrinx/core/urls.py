@@ -2,7 +2,7 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import battle, campaign, list, vehicle
+from .views import battle, campaign, list, print_config, vehicle
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -328,6 +328,31 @@ urlpatterns = [
         name="list-fighter-embed",
     ),
     path("list/<id>/print", list.ListPrintView.as_view(), name="list-print"),
+    path(
+        "list/<list_id>/print-configs",
+        print_config.PrintConfigIndexView.as_view(),
+        name="print-config-index",
+    ),
+    path(
+        "list/<list_id>/print-configs/new",
+        print_config.print_config_create,
+        name="print-config-create",
+    ),
+    path(
+        "list/<list_id>/print-configs/<config_id>/edit",
+        print_config.print_config_edit,
+        name="print-config-edit",
+    ),
+    path(
+        "list/<list_id>/print-configs/<config_id>/delete",
+        print_config.print_config_delete,
+        name="print-config-delete",
+    ),
+    path(
+        "list/<list_id>/print-configs/<config_id>/print",
+        print_config.print_config_print,
+        name="print-config-print",
+    ),
     path(
         "list/<id>/attribute/<attribute_id>/edit",
         list.edit_list_attribute,
