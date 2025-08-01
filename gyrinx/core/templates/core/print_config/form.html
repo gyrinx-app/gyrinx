@@ -1,0 +1,84 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ title }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:print-config-index' list.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Back to Print Configurations" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">{{ title }}</h1>
+        <form method="post" class="vstack gap-4">
+            {% csrf_token %}
+            <!-- Configuration Name -->
+            <div>{% element field form.name %}</div>
+                <!-- Card Types Section -->
+                <div>
+                    <h2 class="h5 mb-3">Card Types</h2>
+                    <p class="text-muted small mb-3">Select which types of cards to include in the print output.</p>
+                    <div class="vstack gap-2">
+                        <div class="form-check">
+                            {{ form.include_assets }}
+                            <label class="form-check-label" for="{{ form.include_assets.id_for_label }}">Include Asset Cards</label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.include_attributes }}
+                            <label class="form-check-label"
+                                   for="{{ form.include_attributes.id_for_label }}">Include Attribute Cards</label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.include_stash }}
+                            <label class="form-check-label" for="{{ form.include_stash.id_for_label }}">Include Stash Cards</label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.include_actions }}
+                            <label class="form-check-label"
+                                   for="{{ form.include_actions.id_for_label }}">Include Action Cards</label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.include_dead_fighters }}
+                            <label class="form-check-label"
+                                   for="{{ form.include_dead_fighters.id_for_label }}">Include Dead Fighters</label>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fighter Selection Section -->
+                <div>
+                    <h2 class="h5 mb-3">Fighter Selection</h2>
+                    <p class="text-muted small mb-3">{{ form.included_fighters.help_text }}</p>
+                    <div class="border rounded p-3 overflow-auto">
+                        {% if form.included_fighters.field.queryset %}
+                            <div class="vstack gap-2">
+                                {% for choice in form.included_fighters %}{{ choice }}{% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">No fighters available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Default Configuration Option -->
+                <div class="form-check">
+                    {{ form.is_default }}
+                    <label class="form-check-label" for="{{ form.is_default.id_for_label }}">
+                        Set as default print configuration for this list
+                    </label>
+                    <small class="form-text text-muted d-block mt-1">
+                        The default configuration will be used when clicking the Print button in the list dropdown.
+                    </small>
+                </div>
+                <!-- Form Actions -->
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        {% if print_config %}
+                            Update
+                        {% else %}
+                            Create
+                        {% endif %}
+                        Configuration
+                    </button>
+                    {% url 'core:print-config-index' list.id as cancel_url %}
+                    {% include "core/includes/cancel.html" with url=cancel_url %}
+                </div>
+            </form>
+        </div>
+    {% endblock content %}

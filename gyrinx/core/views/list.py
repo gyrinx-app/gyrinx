@@ -332,6 +332,8 @@ class ListPrintView(generic.DetailView):
         The requested :model:`core.List` object.
     ``fighters_with_groups``
         QuerySet of :model:`core.ListFighter` objects with group keys for display grouping.
+    ``print_config``
+        The :model:`core.PrintConfig` object if a config_id is provided.
 
     **Template**
 
@@ -351,13 +353,101 @@ class ListPrintView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         list_obj = context["list"]
 
+        # Get print configuration if specified
+        from gyrinx.core.models import PrintConfig
+
+        config_id = self.request.GET.get("config_id")
+        print_config = None
+
+        if config_id:
+            try:
+                print_config = PrintConfig.objects.get(
+                    id=config_id, list=list_obj, archived=False
+                )
+            except PrintConfig.DoesNotExist:
+                pass
+        else:
+            # Try to get default config
+            print_config = PrintConfig.objects.filter(
+                list=list_obj, is_default=True, archived=False
+            ).first()
+
+        context["print_config"] = print_config
+
         # Get fighters with group keys for display grouping
         from gyrinx.core.models.list import ListFighter
 
-        fighters_with_groups = ListFighter.objects.with_group_keys().filter(
+        fighters_qs = ListFighter.objects.with_group_keys().filter(
             list=list_obj, archived=False
         )
-        context["fighters_with_groups"] = fighters_with_groups
+
+        # Apply print config filters if available
+        if print_config:
+            # Filter by included fighters if specific ones are selected
+            if print_config.included_fighters.exists():
+                fighters_qs = fighters_qs.filter(
+                    id__in=print_config.included_fighters.values_list("id", flat=True)
+                )
+
+            # Exclude dead fighters if configured
+            if not print_config.include_dead_fighters:
+                fighters_qs = fighters_qs.exclude(state=ListFighter.DEAD)
+        else:
+            # Default behavior: exclude dead fighters
+            fighters_qs = fighters_qs.exclude(state=ListFighter.DEAD)
+
+        context["fighters_with_groups"] = fighters_qs
+
+        # Add attributes if configured to be included
+        if not print_config or print_config.include_attributes:
+            from gyrinx.content.models import ContentAttribute
+
+            attributes = {}
+            # Filter attributes to only those available to this house
+            available_attributes = (
+                ContentAttribute.objects.filter(
+                    Q(restricted_to__isnull=True)
+                    | Q(restricted_to=list_obj.content_house)
+                )
+                .distinct()
+                .prefetch_related("values")
+            )
+
+            # Group attribute values by attribute
+            for attribute in available_attributes:
+                house_values = attribute.values.filter(
+                    Q(restricted_to__isnull=True)
+                    | Q(restricted_to=list_obj.content_house)
+                ).distinct()
+                value_names = list(house_values.values_list("name", flat=True))
+
+                if value_names:
+                    attributes[attribute] = value_names
+
+            context["attributes"] = attributes
+
+        # Add assets and campaign resources if configured to be included
+        if not print_config or print_config.include_assets:
+            # Get campaign resources
+            campaign_resources = list_obj.campaign_resources.filter(
+                amount__gt=0
+            ).select_related("resource_type")
+            context["campaign_resources"] = campaign_resources
+
+            # Get assets held by this list
+            held_assets = list_obj.held_assets.select_related("asset_type")
+            context["held_assets"] = held_assets
+
+        # Add recent campaign actions if configured to be included
+        if not print_config or print_config.include_actions:
+            if list_obj.is_campaign_mode and list_obj.campaign:
+                from gyrinx.core.models import CampaignAction
+
+                recent_actions = CampaignAction.objects.filter(
+                    campaign=list_obj.campaign,
+                    gang=list_obj,
+                ).order_by("-date_time")[:5]
+                context["recent_actions"] = recent_actions
 
         return context
 
