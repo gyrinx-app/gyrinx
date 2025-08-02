@@ -8,11 +8,13 @@
     <div class="col-12 px-0 vstack gap-3">
         <div class="d-flex justify-content-between align-items-center">
             <h1 class="h3">Print Configurations</h1>
-            <a href="{% url 'core:print-config-create' list.id %}"
-               class="btn btn-primary btn-sm">
-                <i class="bi-plus"></i>
-                New Configuration
-            </a>
+            {% if is_owner %}
+                <a href="{% url 'core:print-config-create' list.id %}"
+                   class="btn btn-primary btn-sm">
+                    <i class="bi-plus"></i>
+                    New Configuration
+                </a>
+            {% endif %}
         </div>
         <p class="text-muted">
             Manage print configurations for <strong>{{ list.name }}</strong>.
@@ -52,16 +54,18 @@
                             <td class="text-muted">{{ config.card_summary }}</td>
                             <td class="text-end">
                                 <div class="btn-group" role="group">
-                                    <a href="{% url 'core:print-config-edit' list.id config.id %}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-pencil"></i>
-                                        Edit
-                                    </a>
-                                    <a href="{% url 'core:print-config-delete' list.id config.id %}"
-                                       class="btn btn-outline-danger btn-sm">
-                                        <i class="bi-trash"></i>
-                                        Delete
-                                    </a>
+                                    {% if is_owner %}
+                                        <a href="{% url 'core:print-config-edit' list.id config.id %}"
+                                           class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi-pencil"></i>
+                                            Edit
+                                        </a>
+                                        <a href="{% url 'core:print-config-delete' list.id config.id %}"
+                                           class="btn btn-outline-danger btn-sm">
+                                            <i class="bi-trash"></i>
+                                            Delete
+                                        </a>
+                                    {% endif %}
                                     <a href="{% url 'core:print-config-print' list.id config.id %}"
                                        class="btn btn-primary btn-sm">
                                         <i class="bi-printer"></i>
