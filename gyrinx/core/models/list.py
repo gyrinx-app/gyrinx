@@ -803,6 +803,48 @@ class ListFighter(AppBase):
             value = mod.apply(value)
         return value
 
+    def get_primary_skill_categories(self):
+        """
+        Get primary skill categories for this fighter, including equipment modifications.
+        """
+        from gyrinx.content.models import ContentModSkillTreeAccess
+
+        # Start with base primary skill categories from content fighter
+        categories = set(self.content_fighter.primary_skill_categories.all())
+
+        # Apply equipment modifications
+        for mod in self._mods:
+            if isinstance(mod, ContentModSkillTreeAccess):
+                if mod.mode == "add_primary":
+                    categories.add(mod.skill_category)
+                elif mod.mode == "remove_primary":
+                    categories.discard(mod.skill_category)
+                elif mod.mode == "disable":
+                    categories.discard(mod.skill_category)
+
+        return categories
+
+    def get_secondary_skill_categories(self):
+        """
+        Get secondary skill categories for this fighter, including equipment modifications.
+        """
+        from gyrinx.content.models import ContentModSkillTreeAccess
+
+        # Start with base secondary skill categories from content fighter
+        categories = set(self.content_fighter.secondary_skill_categories.all())
+
+        # Apply equipment modifications
+        for mod in self._mods:
+            if isinstance(mod, ContentModSkillTreeAccess):
+                if mod.mode == "add_secondary":
+                    categories.add(mod.skill_category)
+                elif mod.mode == "remove_secondary":
+                    categories.discard(mod.skill_category)
+                elif mod.mode == "disable":
+                    categories.discard(mod.skill_category)
+
+        return categories
+
     def _statmods(self, stat: str):
         """
         Get the stat mods for this fighter.

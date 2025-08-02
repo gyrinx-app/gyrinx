@@ -2592,6 +2592,42 @@ class ContentModFighterSkill(ContentMod):
         ordering = ["skill__name", "mode"]
 
 
+class ContentModSkillTreeAccess(ContentMod):
+    """
+    Modifies fighter skill tree access (primary/secondary)
+    """
+
+    help_text = "A modification to fighter skill tree access"
+
+    skill_category = models.ForeignKey(
+        ContentSkillCategory,
+        on_delete=models.CASCADE,
+        related_name="modified_by_skill_tree_access",
+        null=False,
+        blank=False,
+    )
+
+    mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("add_primary", "Add as Primary"),
+            ("add_secondary", "Add as Secondary"),
+            ("remove_primary", "Remove from Primary"),
+            ("remove_secondary", "Remove from Secondary"),
+            ("disable", "Disable Access"),
+        ],
+    )
+
+    def __str__(self):
+        choices = dict(self._meta.get_field("mode").choices)
+        return f"{choices[self.mode]} - {self.skill_category}"
+
+    class Meta:
+        verbose_name = "Skill Tree Access Modifier"
+        verbose_name_plural = "Skill Tree Access Modifiers"
+        ordering = ["skill_category__name", "mode"]
+
+
 @dataclass
 class VirtualWeaponProfile:
     """
