@@ -1050,14 +1050,18 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_categories = fighter.get_primary_skill_categories()
     secondary_categories = fighter.get_secondary_skill_categories()
 
+    # Extract IDs once to avoid duplicate list comprehensions
+    primary_category_ids = [cat.id for cat in primary_categories]
+    secondary_category_ids = [cat.id for cat in secondary_categories]
+
     skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
         primary=Case(
-            When(id__in=[cat.id for cat in primary_categories], then=True),
+            When(id__in=primary_category_ids, then=True),
             default=False,
             output_field=models.BooleanField(),
         ),
         secondary=Case(
-            When(id__in=[cat.id for cat in secondary_categories], then=True),
+            When(id__in=secondary_category_ids, then=True),
             default=False,
             output_field=models.BooleanField(),
         ),
@@ -1066,12 +1070,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
     # Get special categories from the house
     special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
         primary=Case(
-            When(id__in=[cat.id for cat in primary_categories], then=True),
+            When(id__in=primary_category_ids, then=True),
             default=False,
             output_field=models.BooleanField(),
         ),
         secondary=Case(
-            When(id__in=[cat.id for cat in secondary_categories], then=True),
+            When(id__in=secondary_category_ids, then=True),
             default=False,
             output_field=models.BooleanField(),
         ),
