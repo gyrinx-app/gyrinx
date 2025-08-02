@@ -479,21 +479,24 @@ class AddInjuryForm(forms.Form):
         if fighter and fighter.content_fighter:
             fighter_category = fighter.content_fighter.category
 
-            # Get injury groups available for this fighter category
-
             # Filter injuries to only show those available for the fighter's category
-            # We need to check each injury's group separately
-            available_injuries = []
-            for injury in ContentInjury.objects.select_related("injury_group").all():
-                if injury.injury_group is None:
-                    # No group means available to all
-                    available_injuries.append(injury.id)
-                elif injury.injury_group.is_available_for_fighter_category(
-                    fighter_category
-                ):
-                    available_injuries.append(injury.id)
+            # Using Q objects for efficient database-level filtering
+            from django.db.models import Q
 
-            injury_queryset = injury_queryset.filter(id__in=available_injuries)
+            injury_queryset = injury_queryset.filter(
+                Q(injury_group__isnull=True)  # No group means available to all
+                | (
+                    ~Q(
+                        injury_group__unavailable_to__contains=[fighter_category]
+                    )  # Not in unavailable_to
+                    & (
+                        Q(injury_group__restricted_to=[])  # No restrictions
+                        | Q(
+                            injury_group__restricted_to__contains=[fighter_category]
+                        )  # In restricted_to
+                    )
+                )
+            ).distinct()
 
         self.fields["injury"].queryset = injury_queryset
 

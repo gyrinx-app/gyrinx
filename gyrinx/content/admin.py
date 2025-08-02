@@ -36,6 +36,7 @@ from .models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentInjury,
+    ContentInjuryGroup,
     ContentMod,
     ContentModFighterRule,
     ContentModFighterSkill,
@@ -716,12 +717,49 @@ class ContentInjuryForm(forms.ModelForm):
         fields = "__all__"
 
 
+@admin.register(ContentInjuryGroup)
+class ContentInjuryGroupAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "description"]
+    list_display = ["name", "get_restricted_to_display", "get_unavailable_to_display"]
+    readonly_fields = ["id", "created", "modified"]
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": [
+                    "id",
+                    "created",
+                    "modified",
+                    "name",
+                    "description",
+                    "restricted_to",
+                    "unavailable_to",
+                ],
+            },
+        ),
+    ]
+
+    def get_restricted_to_display(self, obj):
+        if not obj.restricted_to:
+            return "All categories"
+        return ", ".join(obj.restricted_to)
+
+    get_restricted_to_display.short_description = "Restricted To"
+
+    def get_unavailable_to_display(self, obj):
+        if not obj.unavailable_to:
+            return "—"
+        return ", ".join(obj.unavailable_to)
+
+    get_unavailable_to_display.short_description = "Unavailable To"
+
+
 @admin.register(ContentInjury)
 class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentInjuryForm
     search_fields = ["name", "description", "group"]
-    list_filter = ["group", "phase"]
-    list_display = ["name", "group", "phase", "get_modifier_count"]
+    list_filter = ["injury_group", "group", "phase"]
+    list_display = ["name", "injury_group", "group", "phase", "get_modifier_count"]
     readonly_fields = ["id", "created", "modified"]
 
     inlines = [ContentModInline]
