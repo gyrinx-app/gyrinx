@@ -33,6 +33,11 @@ class PrintConfigIndexView(generic.ListView):
     context_object_name = "print_configs"
 
     def dispatch(self, request, *args, **kwargs):
+        # Redirect anonymous users to the default print page
+        if not request.user.is_authenticated:
+            list_id = kwargs["list_id"]
+            return redirect("core:list-print", list_id=list_id)
+
         self.list = get_object_or_404(List, id=kwargs["list_id"], owner=request.user)
         return super().dispatch(request, *args, **kwargs)
 
