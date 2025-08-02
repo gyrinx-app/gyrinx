@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -12,7 +11,7 @@ from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import safe_redirect
 
 
-class PrintConfigIndexView(LoginRequiredMixin, generic.ListView):
+class PrintConfigIndexView(generic.ListView):
     """
     Display a list of print configurations for a list.
 
@@ -34,6 +33,11 @@ class PrintConfigIndexView(LoginRequiredMixin, generic.ListView):
     context_object_name = "print_configs"
 
     def dispatch(self, request, *args, **kwargs):
+        # Redirect anonymous users to the default print page
+        if not request.user.is_authenticated:
+            list_id = kwargs["list_id"]
+            return redirect("core:list-print", list_id=list_id)
+
         self.list = get_object_or_404(List, id=kwargs["list_id"], owner=request.user)
         return super().dispatch(request, *args, **kwargs)
 
