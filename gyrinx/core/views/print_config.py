@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -11,7 +12,7 @@ from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import safe_redirect
 
 
-class PrintConfigIndexView(generic.ListView):
+class PrintConfigIndexView(LoginRequiredMixin, generic.ListView):
     """
     Display a list of print configurations for a list.
 
