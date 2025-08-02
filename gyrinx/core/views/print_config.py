@@ -38,7 +38,8 @@ class PrintConfigIndexView(generic.ListView):
             list_id = kwargs["list_id"]
             return redirect("core:list-print", id=list_id)
 
-        self.list = get_object_or_404(List, id=kwargs["list_id"], owner=request.user)
+        # Allow any authenticated user to view print configurations
+        self.list = get_object_or_404(List, id=kwargs["list_id"])
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
@@ -49,6 +50,7 @@ class PrintConfigIndexView(generic.ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["list"] = self.list
+        context["is_owner"] = self.request.user == self.list.owner
         return context
 
 
@@ -195,7 +197,8 @@ def print_config_delete(request, list_id, config_id):
 @login_required
 def print_config_print(request, list_id, config_id=None):
     """Redirect to the print view with the specified configuration."""
-    list_obj = get_object_or_404(List, id=list_id, owner=request.user)
+    # Allow any authenticated user to print
+    list_obj = get_object_or_404(List, id=list_id)
 
     if config_id:
         # Verify the config exists and belongs to this list
