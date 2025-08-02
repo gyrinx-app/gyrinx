@@ -176,7 +176,7 @@ class SkillSelectionForm(forms.Form):
 
             if "primary" in skill_type:
                 # Primary skills - show all skills from primary categories
-                categories = fighter.content_fighter.primary_skill_categories.all()
+                categories = fighter.get_primary_skill_categories()
                 self.fields["skill"].queryset = (
                     ContentSkill.objects.filter(category__in=categories)
                     .exclude(id__in=existing_skills.values_list("id", flat=True))
@@ -185,7 +185,7 @@ class SkillSelectionForm(forms.Form):
                 )
             elif "secondary" in skill_type:
                 # Secondary skills - show all skills from secondary categories
-                categories = fighter.content_fighter.secondary_skill_categories.all()
+                categories = fighter.get_secondary_skill_categories()
                 self.fields["skill"].queryset = (
                     ContentSkill.objects.filter(category__in=categories)
                     .exclude(id__in=existing_skills.values_list("id", flat=True))
@@ -221,9 +221,9 @@ class SkillCategorySelectionForm(forms.Form):
 
         if fighter and skill_type:
             if "primary" in skill_type:
-                categories = fighter.content_fighter.primary_skill_categories.all()
+                categories = fighter.get_primary_skill_categories()
             elif "secondary" in skill_type:
-                categories = fighter.content_fighter.secondary_skill_categories.all()
+                categories = fighter.get_secondary_skill_categories()
             else:
                 # For "any" skill type, show all categories
                 categories = ContentSkillCategory.objects.all()

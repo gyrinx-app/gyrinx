@@ -40,6 +40,7 @@ from .models import (
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
+    ContentModSkillTreeAccess,
     ContentModStat,
     ContentModTrait,
     ContentPageRef,
@@ -222,6 +223,9 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             )
             | mod_qs.instance_of(
                 ContentModFighterSkill,
+            )
+            | mod_qs.instance_of(
+                ContentModSkillTreeAccess,
             )
         )
 
@@ -638,6 +642,11 @@ class ContentModFighterSkillAdmin(ContentModChildAdmin):
     form = ContentModFighterSkillAdminForm
 
 
+@admin.register(ContentModSkillTreeAccess)
+class ContentModSkillTreeAccessAdmin(ContentModChildAdmin):
+    base_model = ContentModSkillTreeAccess
+
+
 @admin.register(ContentMod)
 class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
     base_model = ContentMod
@@ -647,6 +656,7 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModTrait,
         ContentModFighterRule,
         ContentModFighterSkill,
+        ContentModSkillTreeAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
 

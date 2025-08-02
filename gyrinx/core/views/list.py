@@ -7,8 +7,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db import models, transaction
+from django.db.models import Case, Exists, OuterRef, Q, When
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1046,34 +1046,34 @@ def edit_list_fighter_skills(request, id, fighter_id):
     current_skill_ids = set(fighter.skills.values_list("id", flat=True))
 
     # Get all skill categories with annotations
+    # Get fighter's primary and secondary categories including equipment modifications
+    primary_categories = fighter.get_primary_skill_categories()
+    secondary_categories = fighter.get_secondary_skill_categories()
+
     skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
-        primary=Exists(
-            ContentSkillCategory.primary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
+        primary=Case(
+            When(id__in=[cat.id for cat in primary_categories], then=True),
+            default=False,
+            output_field=models.BooleanField(),
         ),
-        secondary=Exists(
-            ContentSkillCategory.secondary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
+        secondary=Case(
+            When(id__in=[cat.id for cat in secondary_categories], then=True),
+            default=False,
+            output_field=models.BooleanField(),
         ),
     )
 
     # Get special categories from the house
     special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
-        primary=Exists(
-            ContentSkillCategory.primary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
+        primary=Case(
+            When(id__in=[cat.id for cat in primary_categories], then=True),
+            default=False,
+            output_field=models.BooleanField(),
         ),
-        secondary=Exists(
-            ContentSkillCategory.secondary_fighters.through.objects.filter(
-                contentskillcategory_id=OuterRef("pk"),
-                contentfighter_id=fighter.content_fighter.id,
-            )
+        secondary=Case(
+            When(id__in=[cat.id for cat in secondary_categories], then=True),
+            default=False,
+            output_field=models.BooleanField(),
         ),
     )
 
