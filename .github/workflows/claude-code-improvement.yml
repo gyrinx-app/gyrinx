@@ -3,7 +3,7 @@ name: Claude Code Improvement
 on:
   schedule:
     # Run every 6 hours
-    - cron: '0 */6 * * *'
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     # Allow manual triggering
 
@@ -108,15 +108,14 @@ jobs:
                - Each issue must be actionable and provide clear value
                - Maximum of 3 issues per run
 
-            5. **Create GitHub issues** using this template for each issue:
+            5. **Create GitHub issues** with a clear, specific title describing the problem. Use this template for each issue:
 
-               ## Issue Title
-               [Clear, specific title describing the problem]
-
-               ## Description
                [Detailed explanation of the issue and why it matters]
 
-               ## Current Code
+               ## Examples
+
+               [Provide specific examples of the issue in the code]
+
                ```language
                [Show the problematic code with file paths and line numbers]
                ```
