@@ -2919,7 +2919,12 @@ def list_fighter_state_edit(request, id, fighter_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.select_related("content_fighter"),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
