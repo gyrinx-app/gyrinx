@@ -3487,6 +3487,9 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
             injury_name = injury.injury.name
             injury.delete()
 
+            # Clear the prefetch cache to get accurate count
+            fighter._prefetched_objects_cache = {}
+
             # If fighter has no more injuries, reset state to active
             if fighter.injuries.count() == 0:
                 fighter.injury_state = ListFighter.ACTIVE
