@@ -165,7 +165,7 @@ SQL_DEBUG=True
 
 - `content` - Game data models (ContentFighter, ContentEquipment, etc.)
 - `core` - User lists/gangs (List, ListFighter, ListFighterEquipmentAssignment)
-- `pages` - Static content and waiting list
+- `pages` - Static content
 - `api` - Webhook handling
 
 ### Base Model Architecture

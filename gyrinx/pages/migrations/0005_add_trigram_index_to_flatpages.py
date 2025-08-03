@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("pages", "0013_historicalwaitinglistentry_invited_and_more"),
+        ("pages", "0004_remove_waitinglist"),
     ]
 
     operations = [

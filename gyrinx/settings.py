@@ -247,9 +247,6 @@ USERSESSIONS_TRACK_ACTIVITY = True
 MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
 MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
 
-# Waiting list
-
-WAITING_LIST_ALLOW_SIGNUPS = os.getenv("WAITING_LIST_ALLOW_SIGNUPS", "False") == "True"
 
 # Beta badge
 SHOW_BETA_BADGE = os.getenv("SHOW_BETA_BADGE", "True") == "True"
