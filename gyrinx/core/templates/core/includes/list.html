@@ -98,26 +98,25 @@
                     <div class="nav hstack gap-1 flex-nowrap">
                         {% if list.owner_cached == user and not list.archived %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
-                               class="btn btn-primary btn-sm">
+                               class="btn btn-primary btn-sm"
+                               title="Add a fighter to this list">
                                 <i class="bi-person-add"></i> Add fighter</a>
                             <a href="{% url 'core:list-vehicle-new' list.id %}"
-                               class="btn btn-primary btn-sm">
+                               class="btn btn-primary btn-sm"
+                               title="Add a vehicle to this list">
                                 <i class="bi-truck"></i> Add vehicle</a>
                         {% endif %}
                         <a href="{% url 'core:print-config-index' list.id %}"
                            class="btn btn-secondary btn-sm d-none d-sm-inline-flex"
                            title="Print">
-                            <i class="bi-printer"></i> Print
-                        </a>
-                        <a href="{% url 'core:print-config-index' list.id %}"
-                           class="btn btn-secondary btn-sm d-inline-flex d-sm-none"
-                           title="Print">
                             <i class="bi-printer"></i>
+                            <span class="visually-hidden">Print</span>
                         </a>
                         <nav class="btn-group">
                             {% if list.owner_cached == user and not list.archived %}
                                 <a href="{% url 'core:list-edit' list.id %}"
-                                   class="btn btn-secondary btn-sm">
+                                   class="btn btn-secondary btn-sm"
+                                   title="Edit this list">
                                     <i class="bi-pencil"></i> Edit
                                 </a>
                             {% endif %}
@@ -130,6 +129,12 @@
                                     <i class="bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu">
+                                    <li>
+                                        <a href="{% url 'core:print-config-index' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-printer"></i> Print
+                                        </a>
+                                    </li>
                                     <li>
                                         <button type="button"
                                                 class="dropdown-item icon-link"
