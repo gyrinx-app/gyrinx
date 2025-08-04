@@ -1,99 +1,45 @@
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
-    ContentHouse,
     ContentWeaponProfile,
 )
-from gyrinx.core.models.list import (
-    List,
-    ListFighter,
-    ListFighterEquipmentAssignment,
-)
-from gyrinx.models import FighterCategoryChoices
-
-User = get_user_model()
-
-
-@pytest.fixture
-def user():
-    """Create a test user."""
-    return User.objects.create_user(username="testuser", password="password")
-
-
-@pytest.fixture
-def house():
-    """Create a test house."""
-    return ContentHouse.objects.create(name="Test House", can_buy_any=False)
+from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
 
 @pytest.fixture
 def equipment_category():
-    """Create a test equipment category."""
-    return ContentEquipmentCategory.objects.create(
-        name="Test Gear",
-        group="Gear",
-    )
+    """Get or create test equipment category."""
+    return ContentEquipmentCategory.objects.get_or_create(
+        name="Personal Equipment",
+        defaults={"group": "Gear"},
+    )[0]
 
 
 @pytest.fixture
 def weapon_category():
-    """Create a test weapon category."""
-    return ContentEquipmentCategory.objects.create(
-        name="Test Weapons",
-        group="Weapon",
-    )
+    """Get or create test weapon category."""
+    return ContentEquipmentCategory.objects.get_or_create(
+        name="Basic Weapons",
+        defaults={"group": "Weapons & Ammo"},
+    )[0]
 
 
 @pytest.fixture
-def content_fighter(house):
-    """Create a test content fighter."""
-    return ContentFighter.objects.create(
-        type="Test Champion",
-        house=house,
-        category=FighterCategoryChoices.CHAMPION,
-        base_cost=150,
-        movement="5",
-        weapon_skill="3+",
-        ballistic_skill="3+",
-        strength="3",
-        toughness="3",
-        wounds="2",
-        initiative="3+",
-        attacks="2",
-        leadership="6+",
-        cool="6+",
-        willpower="7+",
-        intelligence="7+",
-    )
-
-
-@pytest.fixture
-def test_list(user, house):
+def test_list(make_list):
     """Create a test list."""
-    return List.objects.create(
-        owner=user,
-        name="Test List",
-        content_house=house,
-    )
+    return make_list("Test List")
 
 
 @pytest.fixture
-def list_fighter(test_list, content_fighter, user):
+def list_fighter(test_list, make_list_fighter):
     """Create a test list fighter."""
-    return ListFighter.objects.create(
-        list=test_list,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-        owner=user,
-    )
+    return make_list_fighter(test_list, "Test Fighter")
 
 
 @pytest.fixture
@@ -461,15 +407,17 @@ def test_equipment_assignment_with_zero_cost(
 
 @pytest.mark.django_db
 def test_equipment_reassignment_between_fighters(
-    client, test_list, list_fighter, content_fighter, equipment_category, user
+    client,
+    test_list,
+    list_fighter,
+    content_fighter,
+    equipment_category,
+    make_list_fighter,
 ):
     """Test reassigning equipment from one fighter to another."""
     # Create second fighter
-    fighter2 = ListFighter.objects.create(
-        list=test_list,
-        content_fighter=content_fighter,
-        name="Fighter 2",
-        owner=user,
+    fighter2 = make_list_fighter(
+        test_list, "Fighter 2", content_fighter=content_fighter
     )
 
     # Create and assign equipment to first fighter
