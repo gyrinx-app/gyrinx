@@ -6,6 +6,7 @@
       class="row">
     <div class="col-12 col-lg-6 mb-2 mb-lg-0">
         <input type="hidden" name="flash" value="search">
+        <input type="hidden" name="cb" value="{% cachebuster %}">
         <div class="input-group">
             <span class="input-group-text">
                 <i class="bi-search"></i>
@@ -18,7 +19,7 @@
                    value="{{ request.GET.q }}">
             <button class="btn btn-primary" type="submit">Search</button>
             {% if request.GET.q %}
-                <a href="?{% qt_rm request "q" "flash" %}#search"
+                <a href="?cb={% cachebuster %}&{% qt_rm request "q" "flash" %}#search"
                    class="btn btn-outline-secondary">Clear</a>
             {% endif %}
         </div>
@@ -44,7 +45,8 @@
                 Update
             </button>
             •
-            <a class="btn btn-link text-secondary icon-link btn-sm" href="?#search">Reset</a>
+            <a class="btn btn-link text-secondary icon-link btn-sm"
+               href="?cb={% cachebuster %}&#search">Reset</a>
         </div>
     </div>
 </form>
