@@ -22,6 +22,8 @@ COPY pyproject.toml requirements.txt /app/
 COPY scripts/ /app/scripts/
 COPY gyrinx/ /app/gyrinx/
 COPY content/ /app/content/
+# Set a version for setuptools-scm when .git is not available
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GYRINX=1.0.0
 RUN pip install --editable .
 
 # Install node dependencies
