@@ -4,8 +4,7 @@ from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
 
 from gyrinx.core.widgets import TinyMCEWithUpload
-from gyrinx.pages.actions import invite_user
-from gyrinx.pages.models import FlatPageVisibility, WaitingListEntry, WaitingListSkill
+from gyrinx.pages.models import FlatPageVisibility
 
 
 class FlatPageVisibilityInline(admin.TabularInline):
@@ -84,46 +83,3 @@ class FlatPageVisibilityAdmin(admin.ModelAdmin):
     search_fields = ("page__title", "groups__name")
     ordering = ("page__title",)
     actions = None
-
-
-# Waiting List
-
-
-@admin.register(WaitingListSkill)
-class WaitingListSkillAdmin(admin.ModelAdmin):
-    list_display = ("name", "description")
-    search_fields = ("name", "description")
-    ordering = ("name",)
-
-
-def display(field, key):
-    @admin.display(description=field)
-    def _display(obj):
-        return ", ".join([getattr(item, key) for item in getattr(obj, field).all()])
-
-    return _display
-
-
-@admin.register(WaitingListEntry)
-class WaitingListEntryAdmin(admin.ModelAdmin):
-    readonly_fields = ["share_code", "referred_by_code"]
-    list_display = (
-        "email",
-        "desired_username",
-        "yaktribe_username",
-        "share_code",
-        "referred_by_code",
-        "invited",
-        display("skills", "name"),
-    )
-    list_filter = ["invited"]
-    search_fields = (
-        "email",
-        "desired_username",
-        "yaktribe_username",
-        "skills__name",
-        "notes",
-    )
-    ordering = ("email",)
-
-    actions = [invite_user]

@@ -25,7 +25,7 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 * Users can sign up when `ACCOUNT_ALLOW_SIGNUPS=True`
 * Registration requires username, email, password with reCAPTCHA verification
 * Users are redirected to account home after successful registration and email verification
-* When signups are disabled, users see a waiting list form where they can express interest
+* When signups are disabled, users cannot sign up
 
 **User Login/Logout**
 
@@ -43,7 +43,7 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 | Scenario           | Steps                                           | Expected Result          |
 | ------------------ | ----------------------------------------------- | ------------------------ |
-| Signup disabled    | Set `ACCOUNT_ALLOW_SIGNUPS=False`, visit signup | Waiting list form shown  |
+| Signup disabled    | Set `ACCOUNT_ALLOW_SIGNUPS=False`, visit signup | Signup not available     |
 | Duplicate username | Register with existing username                 | Error message displayed  |
 | Profile visibility | Create private list, view as another user       | Private list not visible |
 

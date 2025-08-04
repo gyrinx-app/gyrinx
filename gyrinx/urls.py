@@ -30,16 +30,6 @@ urlpatterns = debug_toolbar_urls() + [
     path("api/", include("gyrinx.api.urls")),
     path("accounts/", include("allauth.urls")),
     path("admin/doc/", include("django.contrib.admindocs.urls")),
-    path(
-        "join-the-waiting-list/",
-        views.join_the_waiting_list,
-        name="join_the_waiting_list",
-    ),
-    path(
-        "join-the-waiting-list/success/",
-        views.join_the_waiting_list_success,
-        name="join_the_waiting_list_success",
-    ),
     path("400/", views.error_400, name="error_400"),
     path("403/", views.error_403, name="error_403"),
     path("404/", views.error_404, name="error_404"),
