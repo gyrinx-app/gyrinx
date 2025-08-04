@@ -42,6 +42,7 @@ from .models import (
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
+    ContentModPsykerDisciplineAccess,
     ContentModSkillTreeAccess,
     ContentModStat,
     ContentModTrait,
@@ -649,6 +650,11 @@ class ContentModSkillTreeAccessAdmin(ContentModChildAdmin):
     base_model = ContentModSkillTreeAccess
 
 
+@admin.register(ContentModPsykerDisciplineAccess)
+class ContentModPsykerDisciplineAccessAdmin(ContentModChildAdmin):
+    base_model = ContentModPsykerDisciplineAccess
+
+
 @admin.register(ContentMod)
 class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
     base_model = ContentMod
@@ -659,6 +665,7 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModFighterRule,
         ContentModFighterSkill,
         ContentModSkillTreeAccess,
+        ContentModPsykerDisciplineAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
 

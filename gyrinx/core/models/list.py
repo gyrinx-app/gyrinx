@@ -950,6 +950,27 @@ class ListFighter(AppBase):
 
         return categories
 
+    def get_available_psyker_disciplines(self):
+        """
+        Get available psyker disciplines for this fighter, including equipment modifications.
+        """
+        from gyrinx.content.models import ContentModPsykerDisciplineAccess
+
+        # Start with base disciplines from ContentFighter
+        # Access the psyker_disciplines through the assignment model
+        base_assignments = self.content_fighter.psyker_disciplines.all()
+        disciplines = set(assignment.discipline for assignment in base_assignments)
+
+        # Apply equipment modifications
+        for mod in self._mods:
+            if isinstance(mod, ContentModPsykerDisciplineAccess):
+                if mod.mode == "add":
+                    disciplines.add(mod.discipline)
+                elif mod.mode == "remove":
+                    disciplines.discard(mod.discipline)
+
+        return disciplines
+
     def _statmods(self, stat: str):
         """
         Get the stat mods for this fighter.
@@ -2887,11 +2908,11 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
                 }
             )
 
+        # Check if the psyker power's discipline is available to this fighter
+        available_disciplines = self.list_fighter.get_available_psyker_disciplines()
         if (
             not self.psyker_power.discipline.generic
-            and not self.list_fighter.content_fighter.psyker_disciplines.filter(
-                discipline=self.psyker_power.discipline
-            ).exists()
+            and self.psyker_power.discipline not in available_disciplines
         ):
             raise ValidationError(
                 {
