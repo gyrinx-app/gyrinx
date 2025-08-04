@@ -104,6 +104,16 @@
                                class="btn btn-primary btn-sm">
                                 <i class="bi-truck"></i> Add vehicle</a>
                         {% endif %}
+                        <a href="{% url 'core:print-config-index' list.id %}"
+                           class="btn btn-secondary btn-sm d-none d-sm-inline-flex"
+                           title="Print">
+                            <i class="bi-printer"></i> Print
+                        </a>
+                        <a href="{% url 'core:print-config-index' list.id %}"
+                           class="btn btn-secondary btn-sm d-inline-flex d-sm-none"
+                           title="Print">
+                            <i class="bi-printer"></i>
+                        </a>
                         <nav class="btn-group">
                             {% if list.owner_cached == user and not list.archived %}
                                 <a href="{% url 'core:list-edit' list.id %}"
@@ -120,12 +130,6 @@
                                     <i class="bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu">
-                                    <li>
-                                        <a href="{% url 'core:print-config-index' list.id %}"
-                                           class="dropdown-item icon-link">
-                                            <i class="bi-printer"></i> Print
-                                        </a>
-                                    </li>
                                     <li>
                                         <button type="button"
                                                 class="dropdown-item icon-link"
