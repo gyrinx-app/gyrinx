@@ -2927,7 +2927,7 @@ def list_fighter_state_edit(request, id, fighter_id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        form = EditFighterStateForm(request.POST, current_state=fighter.injury_state)
+        form = EditFighterStateForm(request.POST, fighter=fighter)
         if form.is_valid():
             old_state = fighter.get_injury_state_display()
             new_state = form.cleaned_data["fighter_state"]
@@ -2974,7 +2974,7 @@ def list_fighter_state_edit(request, id, fighter_id):
                 reverse("core:list-fighter-injuries-edit", args=(lst.id, fighter.id))
             )
     else:
-        form = EditFighterStateForm(current_state=fighter.injury_state)
+        form = EditFighterStateForm(fighter=fighter)
 
     return render(
         request,

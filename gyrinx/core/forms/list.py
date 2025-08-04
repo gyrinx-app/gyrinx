@@ -532,7 +532,10 @@ class AddInjuryForm(forms.Form):
             fighter
             and fighter.content_fighter.category == FighterCategoryChoices.VEHICLE
         ):
-            choices.append((ListFighter.IN_REPAIR, "In Repair"))
+            choices = [
+                (ListFighter.ACTIVE, "Active"),
+                (ListFighter.IN_REPAIR, "In Repair"),
+            ]
 
         self.fields["fighter_state"].choices = choices
 
@@ -556,15 +559,30 @@ class EditFighterStateForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
-        current_state = kwargs.pop("current_state", None)
+        fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
 
         # Set all state choices
-        self.fields["fighter_state"].choices = ListFighter.INJURY_STATE_CHOICES
+        self.fields["fighter_state"].choices = [
+            (ListFighter.ACTIVE, "Active"),
+            (ListFighter.RECOVERY, "Recovery"),
+            (ListFighter.CONVALESCENCE, "Convalescence"),
+            (ListFighter.DEAD, "Dead"),
+        ]
+
+        if (
+            fighter
+            and fighter.content_fighter.category == FighterCategoryChoices.VEHICLE
+        ):
+            # If the fighter is a vehicle, add In Repair state
+            self.fields["fighter_state"].choices = [
+                (ListFighter.ACTIVE, "Active"),
+                (ListFighter.IN_REPAIR, "In Repair"),
+            ]
 
         # Set initial value to current state
-        if current_state:
-            self.fields["fighter_state"].initial = current_state
+        if fighter and fighter.injury_state:
+            self.fields["fighter_state"].initial = fighter.injury_state
 
 
 class EditFighterXPForm(forms.Form):

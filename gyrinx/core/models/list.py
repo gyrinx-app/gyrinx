@@ -781,6 +781,25 @@ class ListFighter(AppBase):
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
 
+    @cached_property
+    def is_active(self):
+        """
+        Returns True if this fighter is active and can participate in battles.
+        """
+        return self.injury_state == ListFighter.ACTIVE
+
+    @cached_property
+    def is_injured(self):
+        return self.injury_state in [
+            ListFighter.RECOVERY,
+            ListFighter.CONVALESCENCE,
+            ListFighter.IN_REPAIR,
+        ]
+
+    @cached_property
+    def is_dead(self):
+        return self.injury_state == ListFighter.DEAD
+
     # Stats & rules
 
     @cached_property
