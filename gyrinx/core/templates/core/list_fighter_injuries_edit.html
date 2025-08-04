@@ -6,7 +6,7 @@
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-lg-8 px-0 vstack gap-3">
-        <h1 class="h3">Edit Injuries: {{ fighter.name }}</h1>
+        <h1 class="h3">Edit {{ fighter.term_injury_plural }}: {{ fighter.name }}</h1>
         <div class="card">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
@@ -27,13 +27,13 @@
         {% if fighter.injuries.exists %}
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Current Injuries</h5>
+                    <h5 class="mb-0">Current {{ fighter.term_injury_plural }}</h5>
                 </div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless">
                         <thead>
                             <tr>
-                                <th>Injury</th>
+                                <th>{{ fighter.term_injury_singular }}</th>
                                 <th>Received</th>
                                 <th>
                                     <span class="visually-hidden">Actions</span>
@@ -65,13 +65,13 @@
         {% else %}
             <div class="alert alert-info">
                 <i class="bi bi-info-circle me-1"></i>
-                {{ fighter.proximal_demonstrative }} has no injuries.
+                {{ fighter.proximal_demonstrative }} has no {{ fighter.term_injury_plural|lower }}.
             </div>
         {% endif %}
         <div>
             <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
                class="btn btn-primary">
-                <i class="bi bi-plus-lg"></i> Add Injury
+                <i class="bi bi-plus-lg"></i> Add {{ fighter.term_injury_singular }}
             </a>
             <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
                class="btn btn-link">Back to list</a>

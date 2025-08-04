@@ -25,6 +25,7 @@ from gyrinx.content.models import (
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterCategoryTerms,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
@@ -701,7 +702,22 @@ class ListFighter(AppBase):
     def proximal_demonstrative(self) -> str:
         """
         Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
+        For backward compatibility, calls term_proximal_demonstrative.
         """
+        return self.term_proximal_demonstrative()
+
+    def term_proximal_demonstrative(self) -> str:
+        """
+        Returns the proximal demonstrative for this fighter, using custom terms if available.
+        """
+        # Check if this fighter has custom terms
+        try:
+            if hasattr(self.content_fighter_cached, "category_terms"):
+                return self.content_fighter_cached.category_terms.proximal_demonstrative
+        except ContentFighterCategoryTerms.DoesNotExist:
+            pass
+
+        # Fall back to default logic
         if self.is_stash:
             return "The stash"
 
@@ -709,6 +725,34 @@ class ListFighter(AppBase):
             return "The vehicle"
 
         return "This fighter"
+
+    def term_injury_singular(self) -> str:
+        """
+        Returns the singular form of injury for this fighter, using custom terms if available.
+        """
+        # Check if this fighter has custom terms
+        try:
+            if hasattr(self.content_fighter_cached, "category_terms"):
+                return self.content_fighter_cached.category_terms.injury_singular
+        except ContentFighterCategoryTerms.DoesNotExist:
+            pass
+
+        # Default
+        return "Injury"
+
+    def term_injury_plural(self) -> str:
+        """
+        Returns the plural form of injury for this fighter, using custom terms if available.
+        """
+        # Check if this fighter has custom terms
+        try:
+            if hasattr(self.content_fighter_cached, "category_terms"):
+                return self.content_fighter_cached.category_terms.injury_plural
+        except ContentFighterCategoryTerms.DoesNotExist:
+            pass
+
+        # Default
+        return "Injuries"
 
     @cached_property
     def fully_qualified_name(self) -> str:

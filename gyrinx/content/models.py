@@ -1115,6 +1115,41 @@ class ContentFighter(Content):
     )()
 
 
+class ContentFighterCategoryTerms(Content):
+    """
+    Stores custom terminology for specific fighter types.
+    Allows customization of language used for different fighter categories.
+    """
+
+    content_fighter = models.OneToOneField(
+        ContentFighter, on_delete=models.CASCADE, related_name="category_terms"
+    )
+    proximal_demonstrative = models.CharField(
+        max_length=255,
+        default="This fighter",
+        help_text="How to refer to this fighter (e.g., 'This fighter', 'The stash', 'The vehicle')",
+    )
+    injury_singular = models.CharField(
+        max_length=255,
+        default="Injury",
+        help_text="Singular form of injury (e.g., 'Injury', 'Damage', 'Glitch')",
+    )
+    injury_plural = models.CharField(
+        max_length=255,
+        default="Injuries",
+        help_text="Plural form of injury (e.g., 'Injuries', 'Damage')",
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.content_fighter.type} terms"
+
+    class Meta:
+        verbose_name = "Fighter Category Terms"
+        verbose_name_plural = "Fighter Category Terms"
+
+
 class ContentFighterEquipmentListItem(CostMixin, Content):
     """
     Associates :model:`content.ContentEquipment` with a given fighter in the rulebook, optionally

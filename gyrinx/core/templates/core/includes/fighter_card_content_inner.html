@@ -236,23 +236,23 @@
             {% comment %} Injuries (only in campaign mode) {% endcomment %}
             {% if list.is_campaign_mode and fighter.injuries.exists %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Injuries</th>
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                         {% for injury in fighter.injuries.all %}
                             {% if not forloop.first %},{% endif %}
                             {{ injury.injury.name }}
                         {% endfor %}
                         {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit injuries</a>
+                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit {{ fighter.term_injury_plural|lower }}</a>
                         {% endif %}
                     </td>
                 </tr>
             {% elif list.is_campaign_mode %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Injuries</th>
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                         {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add injuries</a>
+                            <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add {{ fighter.term_injury_plural|lower }}</a>
                         {% else %}
                             <span class="text-muted fst-italic">None</span>
                         {% endif %}
