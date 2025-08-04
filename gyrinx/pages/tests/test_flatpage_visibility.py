@@ -3,16 +3,9 @@
 import pytest
 from django.contrib.auth.models import Group, User
 from django.contrib.flatpages.models import FlatPage
-from django.contrib.sites.models import Site
 from django.test import Client
 
 from gyrinx.pages.models import FlatPageVisibility
-
-
-@pytest.fixture
-def site():
-    """Get the current site."""
-    return Site.objects.get_current()
 
 
 @pytest.fixture
@@ -51,12 +44,7 @@ def another_group():
     return Group.objects.create(name="Another Group")
 
 
-@pytest.fixture
-def user():
-    """Create a test user."""
-    return User.objects.create_user(
-        username="testuser", email="test@example.com", password="testpass123"
-    )
+# Note: user fixture is already available from conftest.py
 
 
 @pytest.fixture
@@ -104,7 +92,7 @@ def test_protected_flatpage_returns_404_for_authenticated_user_without_groups(
     visibility.groups.add(group)
 
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
     response = client.get(protected_flatpage.url)
     assert response.status_code == 404
 
@@ -119,7 +107,7 @@ def test_protected_flatpage_accessible_to_user_with_correct_group(
     visibility.groups.add(group)
 
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
     response = client.get(protected_flatpage.url)
     assert response.status_code == 200
     assert "Protected Page" in response.content.decode()
@@ -136,7 +124,7 @@ def test_protected_flatpage_with_multiple_groups_allows_any_matching_group(
 
     # User has only one of the required groups
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
     response = client.get(protected_flatpage.url)
     assert response.status_code == 200
     assert "Protected Page" in response.content.decode()
@@ -155,7 +143,7 @@ def test_protected_flatpage_returns_404_for_user_with_wrong_group(
     user.groups.add(another_group)
 
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
     response = client.get(protected_flatpage.url)
     assert response.status_code == 404
 
@@ -174,7 +162,7 @@ def test_multiple_visibility_rules_for_same_page(
 
     # User has one of the groups
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
     response = client.get(protected_flatpage.url)
     assert response.status_code == 200
 
@@ -195,7 +183,7 @@ def test_flatpage_with_trailing_slash_redirect(site, group, user_with_group):
     visibility.groups.add(group)
 
     client = Client()
-    client.login(username="testuser", password="testpass123")
+    client.login(username="testuser", password="password")
 
     # Django should add trailing slash and redirect
     response = client.get("/no-trailing-slash", follow=False)
