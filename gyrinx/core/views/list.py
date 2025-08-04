@@ -907,9 +907,7 @@ def edit_list_fighter(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -974,9 +972,7 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
     )
@@ -1048,9 +1044,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1173,9 +1167,7 @@ def add_list_fighter_skill(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1219,9 +1211,7 @@ def remove_list_fighter_skill(request, id, fighter_id, skill_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1273,9 +1263,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1475,9 +1463,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1550,9 +1536,7 @@ def edit_list_fighter_info(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1633,9 +1617,7 @@ def list_fighter_stats_edit(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -1742,9 +1724,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2088,19 +2068,13 @@ def edit_list_fighter_assign_cost(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2171,19 +2145,13 @@ def delete_list_fighter_assign(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2246,19 +2214,13 @@ def delete_list_fighter_gear_upgrade(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2335,19 +2297,13 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2490,19 +2446,13 @@ def delete_list_fighter_weapon_accessory(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2574,19 +2524,13 @@ def edit_list_fighter_weapon_upgrade(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2640,9 +2584,7 @@ def disable_list_fighter_default_assign(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2696,9 +2638,7 @@ def convert_list_fighter_default_assign(
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2743,9 +2683,7 @@ def archive_list_fighter(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2812,9 +2750,7 @@ def kill_list_fighter(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2931,9 +2867,7 @@ def delete_list_fighter(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -2980,9 +2914,7 @@ def embed_list_fighter(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -3055,9 +2987,7 @@ def list_fighter_injuries_edit(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -3104,9 +3034,7 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -3205,9 +3133,7 @@ def mark_fighter_captured(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -3353,9 +3279,7 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -3473,9 +3397,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -4450,19 +4372,13 @@ def reassign_list_fighter_equipment(
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
     )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment.objects.select_related(
-            "content_equipment", "list_fighter"
-        ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
-        ),
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -4570,9 +4486,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
     )
@@ -5014,9 +4928,7 @@ def edit_list_fighter_rules(request, id, fighter_id):
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -5106,9 +5018,7 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -5161,9 +5071,7 @@ def add_list_fighter_rule(request, id, fighter_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
@@ -5209,9 +5117,7 @@ def remove_list_fighter_rule(request, id, fighter_id, rule_id):
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
-        ListFighter.objects.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
-        ),
+        ListFighter.objects.with_related_data(),
         id=fighter_id,
         list=lst,
         owner=lst.owner,
