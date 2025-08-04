@@ -617,12 +617,14 @@ class ListFighter(AppBase):
     RECOVERY = "recovery"
     CONVALESCENCE = "convalescence"
     DEAD = "dead"
+    IN_REPAIR = "in_repair"
 
     INJURY_STATE_CHOICES = [
         (ACTIVE, "Active"),
         (RECOVERY, "Recovery"),
         (CONVALESCENCE, "Convalescence"),
         (DEAD, "Dead"),
+        (IN_REPAIR, "In Repair"),
     ]
 
     injury_state = models.CharField(

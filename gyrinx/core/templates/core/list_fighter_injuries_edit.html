@@ -12,7 +12,7 @@
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <strong>Fighter State:</strong>
-                        <span class="badge {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% else %}bg-success{% endif %} ms-2">
+                        <span class="badge {% if fighter.injury_state == 'recovery' %}bg-warning{% elif fighter.injury_state == 'convalescence' %}bg-warning{% elif fighter.injury_state == 'in_repair' %}bg-warning{% elif fighter.injury_state == 'dead' %}bg-danger{% else %}bg-success{% endif %} ms-2">
                             {{ fighter.get_injury_state_display }}
                         </span>
                     </div>
