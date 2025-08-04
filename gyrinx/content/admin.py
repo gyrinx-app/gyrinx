@@ -36,6 +36,7 @@ from .models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentInjury,
+    ContentInjuryGroup,
     ContentMod,
     ContentModFighterRule,
     ContentModFighterSkill,
@@ -716,12 +717,45 @@ class ContentInjuryForm(forms.ModelForm):
         fields = "__all__"
 
 
+class ContentInjuryInline(ContentTabularInline):
+    model = ContentInjury
+    extra = 0
+    fields = ["name", "description", "phase", "modifiers"]
+
+
+@admin.register(ContentInjuryGroup)
+class ContentInjuryGroupAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "description",
+        "restricted_to_houses",
+        "restricted_to_fighters",
+        "unavailable_to_fighters",
+    ]
+
+    inlines = [ContentInjuryInline]
+
+    @admin.display(description="Restricted to Houses")
+    def restricted_to_houses(self, obj):
+        if obj.restricted_to_house.exists():
+            return ", ".join([house.name for house in obj.restricted_to_house.all()])
+        return "-"
+
+    @admin.display(description="Restricted to Fighters")
+    def restricted_to_fighters(self, obj):
+        return obj.get_restricted_to_display()
+
+    @admin.display(description="Unavailable to Fighters")
+    def unavailable_to_fighters(self, obj):
+        return obj.get_unavailable_to_display()
+
+
 @admin.register(ContentInjury)
 class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentInjuryForm
-    search_fields = ["name", "description", "group"]
-    list_filter = ["group", "phase"]
-    list_display = ["name", "group", "phase", "get_modifier_count"]
+    search_fields = ["name", "description"]
+    list_filter = ["phase"]
+    list_display = ["name", "description", "phase", "get_modifier_count"]
     readonly_fields = ["id", "created", "modified"]
 
     inlines = [ContentModInline]

@@ -14,6 +14,7 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import fighter_group_key, group_select, group_sorter
+from gyrinx.models import FighterCategoryChoices
 
 
 class NewListForm(forms.ModelForm):
@@ -469,21 +470,74 @@ class AddInjuryForm(forms.Form):
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
-        from gyrinx.content.models import ContentInjury
+        from django.db.models import Q
+
+        from gyrinx.content.models import ContentInjury, ContentInjuryGroup
         from gyrinx.forms import group_select
 
-        self.fields["injury"].queryset = ContentInjury.objects.select_related()
+        # Filter injuries based on fighter category if fighter is provided
+        if fighter:
+            fighter_category = fighter.content_fighter.category
+            fighter_house = fighter.list.content_house
 
-        # Group injuries by their group field if it exists
-        group_select(self, "injury", key=lambda x: x.group if x.group else "Other")
+            # Build query for injury groups available to this fighter
+            # Start with groups that have no category restrictions or include this category
+            group_query = (
+                Q(restricted_to__isnull=True)
+                | Q(restricted_to="")
+                | Q(restricted_to__contains=fighter_category)
+            )
+
+            # Exclude groups that are unavailable to this category
+            group_query &= ~Q(unavailable_to__contains=fighter_category)
+
+            # Apply house restrictions if present
+            if fighter_house:
+                # Include groups with no house restrictions or those restricted to this house
+                group_query &= Q(restricted_to_house__isnull=True) | Q(
+                    restricted_to_house=fighter_house
+                )
+
+            available_groups = ContentInjuryGroup.objects.filter(group_query)
+
+            # Filter injuries by available groups
+            self.fields["injury"].queryset = ContentInjury.objects.select_related(
+                "injury_group"
+            ).filter(
+                Q(injury_group__in=available_groups) | Q(injury_group__isnull=True)
+            )
+        else:
+            # If no fighter, show all injuries
+            self.fields["injury"].queryset = ContentInjury.objects.select_related(
+                "injury_group"
+            )
+
+        # Group injuries by their injury_group field
+        group_select(
+            self,
+            "injury",
+            key=lambda x: x.injury_group.name if x.injury_group else "Other",
+        )
 
         # Set fighter state choices including Active for injuries that don't affect availability
-        self.fields["fighter_state"].choices = [
+        # Add In Repair if the fighter is a vehicle
+        choices = [
             (ListFighter.ACTIVE, "Active"),
             (ListFighter.RECOVERY, "Recovery"),
             (ListFighter.CONVALESCENCE, "Convalescence"),
             (ListFighter.DEAD, "Dead"),
         ]
+
+        if (
+            fighter
+            and fighter.content_fighter.category == FighterCategoryChoices.VEHICLE
+        ):
+            choices = [
+                (ListFighter.ACTIVE, "Active"),
+                (ListFighter.IN_REPAIR, "In Repair"),
+            ]
+
+        self.fields["fighter_state"].choices = choices
 
         # Set initial fighter state to the fighter's current state if provided
         if fighter and not self.is_bound:
@@ -505,15 +559,30 @@ class EditFighterStateForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
-        current_state = kwargs.pop("current_state", None)
+        fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
 
         # Set all state choices
-        self.fields["fighter_state"].choices = ListFighter.INJURY_STATE_CHOICES
+        self.fields["fighter_state"].choices = [
+            (ListFighter.ACTIVE, "Active"),
+            (ListFighter.RECOVERY, "Recovery"),
+            (ListFighter.CONVALESCENCE, "Convalescence"),
+            (ListFighter.DEAD, "Dead"),
+        ]
+
+        if (
+            fighter
+            and fighter.content_fighter.category == FighterCategoryChoices.VEHICLE
+        ):
+            # If the fighter is a vehicle, add In Repair state
+            self.fields["fighter_state"].choices = [
+                (ListFighter.ACTIVE, "Active"),
+                (ListFighter.IN_REPAIR, "In Repair"),
+            ]
 
         # Set initial value to current state
-        if current_state:
-            self.fields["fighter_state"].initial = current_state
+        if fighter and fighter.injury_state:
+            self.fields["fighter_state"].initial = fighter.injury_state
 
 
 class EditFighterXPForm(forms.Form):
