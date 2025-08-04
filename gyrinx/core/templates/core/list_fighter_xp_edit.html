@@ -16,7 +16,7 @@
                         <span class="badge text-bg-secondary">{{ fighter.xp_total }} XP</span> Total
                     </li>
                 </ul>
-                <form method="post">
+                <form method="post" class="vstack gap-3">
                     {% csrf_token %}
                     {{ form.as_div }}
                     <div class="hstack gap-2 mt-3 align-items-center">

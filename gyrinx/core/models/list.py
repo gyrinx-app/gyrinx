@@ -25,6 +25,7 @@ from gyrinx.content.models import (
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterCategoryTerms,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
@@ -701,7 +702,42 @@ class ListFighter(AppBase):
     def proximal_demonstrative(self) -> str:
         """
         Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
+        For backward compatibility, calls term_proximal_demonstrative.
         """
+        return self.term_proximal_demonstrative
+
+    @cached_property
+    def term_singular(self) -> str:
+        """
+        Returns the singular term for this fighter, using custom terms if available.
+        """
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+        if category_terms:
+            return category_terms.singular
+
+        # Default to "fighter" if no custom term is found
+        return "Fighter"
+
+    @cached_property
+    def term_proximal_demonstrative(self) -> str:
+        """
+        Returns the proximal demonstrative for this fighter, using custom terms if available.
+        """
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.proximal_demonstrative
+
+        # Fall back to default logic
         if self.is_stash:
             return "The stash"
 
@@ -709,6 +745,44 @@ class ListFighter(AppBase):
             return "The vehicle"
 
         return "This fighter"
+
+    @cached_property
+    def term_injury_singular(self) -> str:
+        """
+        Returns the singular form of injury for this fighter, using custom terms if available.
+        """
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.injury_singular
+
+        # Default
+        return "Injury"
+
+    @cached_property
+    def term_injury_plural(self) -> str:
+        """
+        Returns the plural form of injury for this fighter, using custom terms if available.
+        """
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.injury_plural
+
+        # Default
+        return "Injuries"
 
     @cached_property
     def fully_qualified_name(self) -> str:

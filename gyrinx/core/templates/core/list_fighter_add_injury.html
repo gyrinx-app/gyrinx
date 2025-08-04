@@ -1,23 +1,23 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Add Injury - {{ fighter.name }} - {{ list.name }}
+    Add {{ fighter.term_injury_singular }} - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-lg-8 px-0 vstack gap-3">
-        <h1 class="h3">Add Injury: {{ fighter.name }}</h1>
-        <div class="border rounded p-2 text-secondary">
-            <i class="bi bi-info-circle me-1"></i>
-            Adding an injury will automatically log this event to the campaign action log.
-            The injury's modifiers will be applied to the fighter's stats immediately.
-        </div>
+        <h1 class="h3">Add {{ fighter.term_injury_singular }}: {{ fighter.name }}</h1>
+        <p>
+            Adding {{ fighter.proximal_demonstrative|lower }}'s {{ fighter.term_injury_singular|lower }} will automatically log this event to the campaign action log.
+            The {{ fighter.term_injury_singular|lower }}'s modifiers will be applied to {{ fighter.proximal_demonstrative|lower }}'s stats immediately.
+        </p>
         <form action="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
-              method="post">
+              method="post"
+              class="vstack gap-3">
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Add Injury</button>
+                <button type="submit" class="btn btn-primary">Add {{ fighter.term_injury_singular }}</button>
                 <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

@@ -40,9 +40,7 @@ def test_add_injury_form_initialization():
     injury_field = form.fields["injury"]
     assert isinstance(injury_field, forms.ModelChoiceField)
     assert injury_field.label == "Select Injury"
-    assert (
-        injury_field.help_text == "Choose the lasting injury to apply to this fighter."
-    )
+    assert injury_field.help_text == "Choose the injury to apply to this fighter."
     assert injury_field.required is True
 
     # Check notes field properties
