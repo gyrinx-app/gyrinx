@@ -906,7 +906,12 @@ def edit_list_fighter(request, id, fighter_id):
     :template:`core/list_fighter_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     error_message = None
     if request.method == "POST":
@@ -966,7 +971,11 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
     :template:`core/list_fighter_clone.html`
     """
     lst = get_object_or_404(List, id=id)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+    )
 
     error_message = None
     if request.method == "POST":
@@ -1034,7 +1043,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
     :template:`core/list_fighter_skills_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
@@ -1152,7 +1166,12 @@ def add_list_fighter_skill(request, id, fighter_id):
         raise Http404()
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     skill_id = request.POST.get("skill_id")
     if skill_id:
@@ -1191,7 +1210,12 @@ def remove_list_fighter_skill(request, id, fighter_id, skill_id):
         raise Http404()
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     skill = get_object_or_404(ContentSkill, id=skill_id)
     fighter.skills.remove(skill)
@@ -1238,7 +1262,12 @@ def edit_list_fighter_powers(request, id, fighter_id):
     :template:`core/list_fighter_psyker_powers_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     error_message = None
     if request.method == "POST":
@@ -1433,7 +1462,12 @@ def edit_list_fighter_narrative(request, id, fighter_id):
     :template:`core/list_fighter_narrative_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Get the return URL from query params, with fallback to default
     default_url = (
@@ -1501,7 +1535,12 @@ def edit_list_fighter_info(request, id, fighter_id):
     :template:`core/list_fighter_info_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Get the return URL from query params, with fallback to default
     default_url = (
@@ -1577,7 +1616,12 @@ def list_fighter_stats_edit(request, id, fighter_id):
     :template:`core/list_fighter_stats_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Get the return URL from query params, with fallback to default
     default_url = reverse("core:list-fighter-edit", args=(lst.id, fighter.id))
@@ -1679,7 +1723,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     view_name = (
         "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
     )
@@ -2018,9 +2067,14 @@ def edit_list_fighter_assign_cost(
     :template:`core/list_fighter_assign_cost_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2090,9 +2144,14 @@ def delete_list_fighter_assign(
     :template:`core/list_fighter_assign_delete_confirm.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2154,9 +2213,14 @@ def delete_list_fighter_gear_upgrade(
     :template:`core/list_fighter_assign_upgrade_delete_confirm.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2232,9 +2296,14 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
 
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2376,9 +2445,14 @@ def delete_list_fighter_weapon_accessory(
     :template:`core/list_fighter_weapons_accessory_delete.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2449,9 +2523,14 @@ def edit_list_fighter_weapon_upgrade(
     :template:`core/list_fighter_assign_upgrade_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -2504,7 +2583,12 @@ def disable_list_fighter_default_assign(
     :template:`core/list_fighter_assign_disable.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
         ContentFighterDefaultAssignment,
         pk=assign_id,
@@ -2553,7 +2637,12 @@ def convert_list_fighter_default_assign(
     :template:`core/list_fighter_assign_convert.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
         ContentFighterDefaultAssignment,
         pk=assign_id,
@@ -2593,7 +2682,12 @@ def archive_list_fighter(request, id, fighter_id):
     :template:`core/list_fighter_archive.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     if request.method == "POST":
         if request.POST.get("archive") == "1":
@@ -2655,7 +2749,12 @@ def kill_list_fighter(request, id, fighter_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Only allow killing fighters in campaign mode
     if not lst.is_campaign_mode:
@@ -2767,7 +2866,12 @@ def delete_list_fighter(request, id, fighter_id):
     :template:`core/list_fighter_delete.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     if request.method == "POST":
         # Log the fighter delete event before deletion
@@ -2809,7 +2913,12 @@ def embed_list_fighter(request, id, fighter_id):
     :template:`core/list_fighter_embed.html`
     """
     lst = get_object_or_404(List, id=id)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Log the embed view event
     log_event(
@@ -2877,7 +2986,12 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     from django.contrib import messages
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
@@ -2919,7 +3033,12 @@ def list_fighter_state_edit(request, id, fighter_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
@@ -3013,7 +3132,12 @@ def mark_fighter_captured(request, id, fighter_id):
     from gyrinx.core.models.list import CapturedFighter
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
@@ -3154,7 +3278,12 @@ def list_fighter_add_injury(request, id, fighter_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Check campaign mode
     if lst.status != List.CAMPAIGN_MODE:
@@ -3267,13 +3396,21 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
 
     if request.method == "POST":
         with transaction.atomic():
             injury_name = injury.injury.name
             injury.delete()
+
+            # Clear the prefetch cache to get accurate count
+            fighter._prefetched_objects_cache = {}
 
             # If fighter has no more injuries, reset state to active
             if fighter.injuries.count() == 0:
@@ -4234,9 +4371,14 @@ def reassign_list_fighter_equipment(
     from gyrinx.core.forms.list import EquipmentReassignForm
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     assignment = get_object_or_404(
-        ListFighterEquipmentAssignment,
+        ListFighterEquipmentAssignment.objects.with_related_data(),
         pk=assign_id,
         list_fighter=fighter,
     )
@@ -4343,7 +4485,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+    )
 
     # For summary step, assignment might not exist (already deleted)
     step = request.GET.get("step", "selection")
@@ -4351,7 +4497,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
         assignment = None
     else:
         assignment = get_object_or_404(
-            ListFighterEquipmentAssignment,
+            ListFighterEquipmentAssignment.objects.select_related(
+                "content_equipment", "list_fighter"
+            ).prefetch_related(
+                "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
+            ),
             pk=assign_id,
             list_fighter=fighter,
         )
@@ -4777,7 +4927,12 @@ def edit_list_fighter_rules(request, id, fighter_id):
     :template:`core/list_fighter_rules_edit.html`
     """
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
@@ -4862,7 +5017,12 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
         raise Http404()
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
     rule = get_object_or_404(ContentRule, id=rule_id)
 
     # Ensure this is a default rule for the fighter
@@ -4910,7 +5070,12 @@ def add_list_fighter_rule(request, id, fighter_id):
         raise Http404()
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     rule_id = request.POST.get("rule_id")
     if rule_id and is_valid_uuid(rule_id):
@@ -4951,7 +5116,12 @@ def remove_list_fighter_rule(request, id, fighter_id, rule_id):
         raise Http404()
 
     lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(ListFighter, id=fighter_id, list=lst, owner=lst.owner)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
 
     rule = get_object_or_404(ContentRule, id=rule_id)
     fighter.custom_rules.remove(rule)

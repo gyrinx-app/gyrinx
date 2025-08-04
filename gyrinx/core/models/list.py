@@ -476,7 +476,17 @@ class ListFighterQuerySet(models.QuerySet):
     Custom QuerySet for :model:`content.ListFighter`.
     """
 
-    pass
+    def with_related_data(self):
+        """
+        Optimize queries by selecting related content_fighter and list,
+        and prefetching injuries and equipment assignments.
+
+        This is the standard optimization pattern used throughout views
+        to reduce N+1 query issues.
+        """
+        return self.select_related("content_fighter", "list").prefetch_related(
+            "injuries", "listfighterequipmentassignment_set"
+        )
 
 
 class ListFighter(AppBase):
@@ -1580,6 +1590,26 @@ def update_list_cost_cache(sender, instance: ListFighter, **kwargs):
     instance.list.update_cost_cache()
 
 
+class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
+    """
+    Custom QuerySet for :model:`content.ListFighterEquipmentAssignment`.
+    """
+
+    def with_related_data(self):
+        """
+        Optimize queries by selecting related content_equipment and list_fighter,
+        and prefetching weapon profiles, accessories, and upgrades.
+
+        This is the standard optimization pattern used throughout views
+        to reduce N+1 query issues.
+        """
+        return self.select_related(
+            "content_equipment", "list_fighter"
+        ).prefetch_related(
+            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
+        )
+
+
 class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
 
@@ -2154,6 +2184,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                         "upgrade": f"Upgrade {upgrade} is not for equipment {self.content_equipment}"
                     }
                 )
+
+    objects = ListFighterEquipmentAssignmentQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
