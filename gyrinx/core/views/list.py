@@ -1052,6 +1052,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_secondary_only = (
         request.GET.get("filter", "primary-secondary") == "primary-secondary"
     )
+    show_restricted = request.GET.get("restricted", "0") == "1"
 
     # Get current fighter skills
     current_skill_ids = set(fighter.skills.values_list("id", flat=True))
@@ -1065,7 +1066,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_category_ids = [cat.id for cat in primary_categories]
     secondary_category_ids = [cat.id for cat in secondary_categories]
 
-    skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
+    # Build skill categories query
+    skill_cats_query = ContentSkillCategory.objects.all()
+    if not show_restricted:
+        skill_cats_query = skill_cats_query.filter(restricted=False)
+
+    skill_cats = skill_cats_query.annotate(
         primary=Case(
             When(id__in=primary_category_ids, then=True),
             default=False,
@@ -1078,19 +1084,39 @@ def edit_list_fighter_skills(request, id, fighter_id):
         ),
     )
 
-    # Get special categories from the house
-    special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
-        primary=Case(
-            When(id__in=primary_category_ids, then=True),
-            default=False,
-            output_field=models.BooleanField(),
-        ),
-        secondary=Case(
-            When(id__in=secondary_category_ids, then=True),
-            default=False,
-            output_field=models.BooleanField(),
-        ),
-    )
+    # Get special categories
+    if show_restricted:
+        # When showing restricted, get all house-specific categories from all houses
+        special_cats = (
+            ContentSkillCategory.objects.filter(houses__isnull=False)
+            .distinct()
+            .annotate(
+                primary=Case(
+                    When(id__in=primary_category_ids, then=True),
+                    default=False,
+                    output_field=models.BooleanField(),
+                ),
+                secondary=Case(
+                    When(id__in=secondary_category_ids, then=True),
+                    default=False,
+                    output_field=models.BooleanField(),
+                ),
+            )
+        )
+    else:
+        # Default behavior: only show categories from the fighter's house
+        special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
+            primary=Case(
+                When(id__in=primary_category_ids, then=True),
+                default=False,
+                output_field=models.BooleanField(),
+            ),
+            secondary=Case(
+                When(id__in=secondary_category_ids, then=True),
+                default=False,
+                output_field=models.BooleanField(),
+            ),
+        )
 
     # Combine all categories
     all_categories = []
@@ -1150,6 +1176,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "categories": all_categories,
             "primary_secondary_only": primary_secondary_only,
             "search_query": search_query,
+            "show_restricted": show_restricted,
         },
     )
 
@@ -1362,20 +1389,29 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
             )
 
+    # Get query parameters
+    show_restricted = request.GET.get("restricted", "0") == "1"
+
     # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
     disabled_defaults = fighter.disabled_pskyer_default_powers.values("id")
 
     # Get available disciplines including equipment modifications
     available_disciplines = fighter.get_available_psyker_disciplines()
 
+    # Build the disciplines query
+    if show_restricted:
+        # Show all disciplines when restricted is enabled
+        disciplines_query = ContentPsykerDiscipline.objects.all()
+    else:
+        # Default behavior: only show assigned or generic disciplines
+        disciplines_query = ContentPsykerDiscipline.objects.filter(
+            Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True)
+        ).distinct()
+
     powers: QuerySetOf[ContentPsykerPower] = (
         ContentPsykerPower.objects.filter(
-            # Get powers via disciplines that are available (including equipment mods), or are generic...
-            Q(
-                discipline__in=ContentPsykerDiscipline.objects.filter(
-                    Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True)
-                ).distinct()
-            )
+            # Get powers via disciplines
+            Q(discipline__in=disciplines_query)
             # ...and get powers that are assigned to this fighter by default
             | Q(
                 fighter_assignments__fighter=fighter.content_fighter_cached,
