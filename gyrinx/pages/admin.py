@@ -83,3 +83,8 @@ class FlatPageVisibilityAdmin(admin.ModelAdmin):
     search_fields = ("page__title", "groups__name")
     ordering = ("page__title",)
     actions = None
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Prefetch groups to avoid N+1 queries
+        return qs.prefetch_related("groups").select_related("page")
