@@ -3,6 +3,7 @@ from typing import Callable
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.sites.models import Site
 
 from gyrinx.content.models import (
     ContentBook,
@@ -169,6 +170,12 @@ def make_user(django_user_model) -> Callable[[str, str], object]:
 @pytest.fixture
 def user(make_user):
     return make_user("testuser", "password")
+
+
+@pytest.fixture
+def site():
+    """Get the current site."""
+    return Site.objects.get_current()
 
 
 @pytest.fixture
