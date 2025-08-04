@@ -710,12 +710,16 @@ class ListFighter(AppBase):
         """
         Returns the proximal demonstrative for this fighter, using custom terms if available.
         """
-        # Check if this fighter has custom terms
-        try:
-            if hasattr(self.content_fighter_cached, "category_terms"):
-                return self.content_fighter_cached.category_terms.proximal_demonstrative
-        except ContentFighterCategoryTerms.DoesNotExist:
-            pass
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.proximal_demonstrative
 
         # Fall back to default logic
         if self.is_stash:
@@ -730,12 +734,16 @@ class ListFighter(AppBase):
         """
         Returns the singular form of injury for this fighter, using custom terms if available.
         """
-        # Check if this fighter has custom terms
-        try:
-            if hasattr(self.content_fighter_cached, "category_terms"):
-                return self.content_fighter_cached.category_terms.injury_singular
-        except ContentFighterCategoryTerms.DoesNotExist:
-            pass
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.injury_singular
 
         # Default
         return "Injury"
@@ -744,12 +752,16 @@ class ListFighter(AppBase):
         """
         Returns the plural form of injury for this fighter, using custom terms if available.
         """
-        # Check if this fighter has custom terms
-        try:
-            if hasattr(self.content_fighter_cached, "category_terms"):
-                return self.content_fighter_cached.category_terms.injury_plural
-        except ContentFighterCategoryTerms.DoesNotExist:
-            pass
+        # Import here to avoid circular imports
+
+        # Check if this fighter's category has custom terms
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+
+        if category_terms:
+            return category_terms.injury_plural
 
         # Default
         return "Injuries"

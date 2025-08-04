@@ -1121,8 +1121,10 @@ class ContentFighterCategoryTerms(Content):
     Allows customization of language used for different fighter categories.
     """
 
-    content_fighter = models.OneToOneField(
-        ContentFighter, on_delete=models.CASCADE, related_name="category_terms"
+    categories = MultiSelectField(
+        choices=FighterCategoryChoices.choices,
+        blank=False,
+        help_text="Fighter categories that use these terms",
     )
     proximal_demonstrative = models.CharField(
         max_length=255,
@@ -1143,7 +1145,10 @@ class ContentFighterCategoryTerms(Content):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.content_fighter.type} terms"
+        categories_display = ", ".join(
+            str(dict(FighterCategoryChoices.choices)[cat]) for cat in self.categories
+        )
+        return f"Terms for: {categories_display}"
 
     class Meta:
         verbose_name = "Fighter Category Terms"

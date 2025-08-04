@@ -48,9 +48,9 @@ def test_vehicle_custom_terms():
         base_cost=200,
     )
 
-    # Create custom terms for the vehicle
+    # Create custom terms for vehicles
     ContentFighterCategoryTerms.objects.create(
-        content_fighter=vehicle_fighter,
+        categories=[FighterCategoryChoices.VEHICLE],
         proximal_demonstrative="The vehicle",
         injury_singular="Damage",
         injury_plural="Damage",
@@ -83,9 +83,9 @@ def test_stash_custom_terms():
         is_stash=True,
     )
 
-    # Create custom terms for the stash
+    # Create custom terms for stash
     ContentFighterCategoryTerms.objects.create(
-        content_fighter=stash_fighter,
+        categories=[FighterCategoryChoices.STASH],
         proximal_demonstrative="The stash",
         injury_singular="Wear",
         injury_plural="Wear",
@@ -157,56 +157,49 @@ def test_default_fallback_for_stash_without_terms():
 
 
 @pytest.mark.django_db
-def test_unique_terms_per_fighter_type():
-    """Test that different fighter types can have different terms."""
+def test_multiple_categories_can_share_terms():
+    """Test that multiple fighter categories can share the same terms."""
     house = ContentHouse.objects.create(name="Test House")
 
-    # Create two different fighter types
-    fighter1 = ContentFighter.objects.create(
-        type="Robot",
+    # Create different category fighters
+    specialist = ContentFighter.objects.create(
+        type="Specialist",
         category=FighterCategoryChoices.SPECIALIST,
         house=house,
         base_cost=100,
     )
 
-    fighter2 = ContentFighter.objects.create(
-        type="Cyborg",
-        category=FighterCategoryChoices.SPECIALIST,
+    champion = ContentFighter.objects.create(
+        type="Champion",
+        category=FighterCategoryChoices.CHAMPION,
         house=house,
         base_cost=150,
     )
 
-    # Create different terms for each
+    # Create shared terms for both specialists and champions
     ContentFighterCategoryTerms.objects.create(
-        content_fighter=fighter1,
-        proximal_demonstrative="This unit",
-        injury_singular="Malfunction",
-        injury_plural="Malfunctions",
-    )
-
-    ContentFighterCategoryTerms.objects.create(
-        content_fighter=fighter2,
-        proximal_demonstrative="This operative",
-        injury_singular="Glitch",
-        injury_plural="Glitches",
+        categories=[FighterCategoryChoices.SPECIALIST, FighterCategoryChoices.CHAMPION],
+        proximal_demonstrative="This elite",
+        injury_singular="Wound",
+        injury_plural="Wounds",
     )
 
     # Create list fighters
     lst = List.objects.create(name="Test List", content_house=house)
 
-    list_fighter1 = ListFighter.objects.create(
-        list=lst, content_fighter=fighter1, name="Robot Fighter"
+    list_specialist = ListFighter.objects.create(
+        list=lst, content_fighter=specialist, name="Specialist Fighter"
     )
 
-    list_fighter2 = ListFighter.objects.create(
-        list=lst, content_fighter=fighter2, name="Cyborg Fighter"
+    list_champion = ListFighter.objects.create(
+        list=lst, content_fighter=champion, name="Champion Fighter"
     )
 
-    # Test that each has their own terms
-    assert list_fighter1.term_proximal_demonstrative() == "This unit"
-    assert list_fighter1.term_injury_singular() == "Malfunction"
-    assert list_fighter1.term_injury_plural() == "Malfunctions"
+    # Test that both use the same terms
+    assert list_specialist.term_proximal_demonstrative() == "This elite"
+    assert list_specialist.term_injury_singular() == "Wound"
+    assert list_specialist.term_injury_plural() == "Wounds"
 
-    assert list_fighter2.term_proximal_demonstrative() == "This operative"
-    assert list_fighter2.term_injury_singular() == "Glitch"
-    assert list_fighter2.term_injury_plural() == "Glitches"
+    assert list_champion.term_proximal_demonstrative() == "This elite"
+    assert list_champion.term_injury_singular() == "Wound"
+    assert list_champion.term_injury_plural() == "Wounds"
