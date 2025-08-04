@@ -10,10 +10,11 @@
             {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
             <div class="progress mb-1"
                  role="progressbar"
-                 aria-label="Basic example"
+                 aria-label="Step {{ current_step }} of {{ steps }}"
                  aria-valuenow="100"
                  aria-valuemin="0"
-                 aria-valuemax="100">
+                 aria-valuemax="100"
+                 aria-live="polite">
                 {# djlint:off #}
                 <div class="progress-bar" style="width: 100%">Step {{ current_step }} of {{ steps }}</div>
                 {# djlint:on #}
@@ -26,17 +27,20 @@
             <span class="badge text-bg-primary">{{ details.xp_cost }} XP</span>
             (+{{ details.cost_increase|default:"0" }}¢)?
         </div>
-        <div class="hstack gap-3">
+        <nav class="hstack gap-3" aria-label="Form navigation">
             <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}{% querystring campaign_action_id=details.campaign_action_id %}"
                class="icon-link">
                 <i class="bi-chevron-left"></i> Back
             </a>
             <form method="post" class="d-inline">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-success">
-                    <i class="bi-check-circle"></i> Confirm Advancement
+                <button type="submit"
+                        class="btn btn-success"
+                        aria-describedby="confirm-final-help">
+                    <i class="bi-check-circle" aria-hidden="true"></i> Confirm Advancement
                 </button>
             </form>
-        </div>
+            <span id="confirm-final-help" class="visually-hidden">Confirm and apply the advancement to the fighter</span>
+        </nav>
     </div>
 {% endblock content %}

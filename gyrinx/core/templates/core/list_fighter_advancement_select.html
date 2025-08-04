@@ -14,7 +14,8 @@
                      aria-label="Step {{ current_step }} of {{ steps }}"
                      aria-valuenow="100"
                      aria-valuemin="0"
-                     aria-valuemax="100">
+                     aria-valuemax="100"
+                     aria-live="polite">
                     {# djlint:off #}
                     <div class="progress-bar" style="width: 100%">Step {{ current_step }} of {{ steps }}</div>
                     {# djlint:on #}
@@ -26,7 +27,7 @@
                 </h3>
             </div>
         </div>
-        <form method="post" class="vstack gap-3">
+        <form method="post" class="vstack gap-3" aria-label="Choose skill form">
             {% csrf_token %}
             {% if is_random %}
                 <div>
@@ -46,15 +47,16 @@
                     {% if form.skill.errors %}<div class="invalid-feedback d-block">{{ form.skill.errors.0 }}</div>{% endif %}
                 </div>
             {% endif %}
-            <div class="hstack gap-3">
+            <nav class="hstack gap-3" aria-label="Form navigation">
                 <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                    class="icon-link">
                     <i class="bi-chevron-left"></i> Back
                 </a>
-                <button type="submit" class="btn btn-success">
-                    <i class="bi-check-circle"></i> Confirm Advancement
+                <button type="submit" class="btn btn-success" aria-describedby="confirm-help">
+                    <i class="bi-check-circle" aria-hidden="true"></i> Confirm Advancement
                 </button>
-            </div>
+                <span id="confirm-help" class="visually-hidden">Confirm and save the selected advancement</span>
+            </nav>
         </form>
     </div>
 {% endblock content %}
