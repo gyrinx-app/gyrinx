@@ -27,6 +27,7 @@ class EventNoun(models.TextChoices):
     CAMPAIGN_RESOURCE = "campaign_resource", "Campaign Resource"
     CAMPAIGN_ASSET = "campaign_asset", "Campaign Asset"
     BANNER = "banner", "Banner"
+    PRINT_CONFIG = "print_config", "Print Config"
 
 
 class EventVerb(models.TextChoices):

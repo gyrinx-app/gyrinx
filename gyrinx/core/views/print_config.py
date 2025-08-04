@@ -71,7 +71,7 @@ def print_config_create(request, list_id):
 
                 log_event(
                     user=request.user,
-                    noun=EventNoun.LIST,
+                    noun=EventNoun.PRINT_CONFIG,
                     verb=EventVerb.CREATE,
                     object=print_config,
                     request=request,
