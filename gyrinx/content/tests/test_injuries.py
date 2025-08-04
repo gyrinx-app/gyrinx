@@ -125,37 +125,43 @@ def test_injury_unique_name():
 
 @pytest.mark.django_db
 def test_injury_ordering():
-    """Test that injuries are ordered by group then name."""
+    """Test that injuries are ordered by injury_group then name."""
+    # Create injury groups
+    from gyrinx.content.models import ContentInjuryGroup
+
+    group_a = ContentInjuryGroup.objects.create(name="Group A")
+    group_b = ContentInjuryGroup.objects.create(name="Group B")
+
     # Create injuries in non-alphabetical order
     injury3 = ContentInjury.objects.create(
         name="Zebra Injury",
         phase=ContentInjuryDefaultOutcome.RECOVERY,
-        group="Group A",
+        injury_group=group_a,
     )
     injury1 = ContentInjury.objects.create(
         name="Alpha Injury",
         phase=ContentInjuryDefaultOutcome.RECOVERY,
-        group="Group A",
+        injury_group=group_a,
     )
     injury2 = ContentInjury.objects.create(
         name="Beta Injury",
         phase=ContentInjuryDefaultOutcome.ACTIVE,
-        group="Group B",
+        injury_group=group_b,
     )
     injury4 = ContentInjury.objects.create(
         name="Gamma Injury",
         phase=ContentInjuryDefaultOutcome.RECOVERY,
-        group="",  # No group
+        injury_group=None,  # No group
     )
 
     # Get all injuries in order
     injuries = list(ContentInjury.objects.all())
 
-    # Should be ordered by group (empty groups first), then by name
-    assert injuries[0] == injury4  # No group, Gamma
-    assert injuries[1] == injury1  # Group A, Alpha
-    assert injuries[2] == injury3  # Group A, Zebra
-    assert injuries[3] == injury2  # Group B, Beta
+    # Should be ordered by injury_group (null groups last), then by name
+    assert injuries[0] == injury1  # Group A, Alpha
+    assert injuries[1] == injury3  # Group A, Zebra
+    assert injuries[2] == injury2  # Group B, Beta
+    assert injuries[3] == injury4  # No group, Gamma
 
 
 @pytest.mark.django_db

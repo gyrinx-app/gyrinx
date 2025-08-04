@@ -471,6 +471,7 @@ class AddInjuryForm(forms.Form):
         super().__init__(*args, **kwargs)
         # Import here to avoid circular imports
         from django.db.models import Q
+
         from gyrinx.content.models import ContentInjury, ContentInjuryGroup
         from gyrinx.forms import group_select
 

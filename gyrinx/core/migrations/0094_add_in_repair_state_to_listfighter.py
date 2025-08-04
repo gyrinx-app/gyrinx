@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0092_alter_printconfig_help_texts"),
+        ("core", "0093_alter_event_noun"),
     ]
 
     operations = [
