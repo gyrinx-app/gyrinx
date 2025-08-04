@@ -13,7 +13,12 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
-from gyrinx.forms import fighter_group_key, group_select, group_sorter
+from gyrinx.forms import (
+    fighter_group_key,
+    group_select,
+    group_sorter,
+    template_form_with_terms,
+)
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -187,6 +192,13 @@ class ListFighterForm(forms.ModelForm):
             sort_groups_by=group_sorter(inst.list.content_house.name if inst else ""),
         )
 
+        # Only pass the fighter to template_form_with_terms if it's a saved instance
+        # with a content_fighter. New instances won't have content_fighter set yet.
+        template_form_with_terms(
+            self,
+            fighter=inst if (inst and inst.pk and inst.content_fighter_id) else None,
+        )
+
     class Meta:
         model = ListFighter
         fields = [
@@ -197,14 +209,14 @@ class ListFighterForm(forms.ModelForm):
         ]
         labels = {
             "name": "Name",
-            "content_fighter": "Fighter Type",
+            "content_fighter": "{term_singular} Type",
             "legacy_content_fighter": "Gang Legacy",
             "cost_override": "Manually Set Cost",
         }
         help_texts = {
-            "name": "The name you use to identify this Fighter. This may be public.",
+            "name": "The name you use to identify this {term_singular}. This may be public.",
             "legacy_content_fighter": "The Gang Legacy for this fighter.",
-            "cost_override": "Only change this if you want to override the default base cost of the Fighter.",
+            "cost_override": "Only change this if you want to override the default base cost of the {term_singular}.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -397,6 +409,11 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
 
 
 class EditListFighterNarrativeForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst = kwargs.get("instance", None)
+        template_form_with_terms(self, fighter=inst)
+
     class Meta:
         model = ListFighter
         fields = ["narrative"]
@@ -404,7 +421,7 @@ class EditListFighterNarrativeForm(forms.ModelForm):
             "narrative": "About",
         }
         help_texts = {
-            "narrative": "Narrative description of the Fighter: their history and how to play them.",
+            "narrative": "Narrative description of the {term_singular__lower}: their history and how to play them.",
         }
         widgets = {
             "narrative": TinyMCEWithUpload(
@@ -416,6 +433,11 @@ class EditListFighterNarrativeForm(forms.ModelForm):
 class EditListFighterInfoForm(forms.ModelForm):
     """Form for editing fighter info section (image, save, private notes)"""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst = kwargs.get("instance", None)
+        template_form_with_terms(self, fighter=inst)
+
     class Meta:
         model = ListFighter
         fields = ["image", "save_roll", "private_notes"]
@@ -426,12 +448,12 @@ class EditListFighterInfoForm(forms.ModelForm):
         }
         help_texts = {
             "image": "This image appears in Info section",
-            "save_roll": "Fighter's typical save roll",
-            "private_notes": "Notes about the fighter (only visible to you)",
+            "save_roll": "{term_singular}'s typical save roll",
+            "private_notes": "Notes about {term_proximal_demonstrative__lower} (only visible to you)",
         }
         widgets = {
             "save_roll": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "e.g. 5+ or 4+ inv"}
+                attrs={"class": "form-control", "placeholder": "e.g. 5+"}
             ),
             "private_notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
@@ -539,19 +561,7 @@ class AddInjuryForm(forms.Form):
 
         self.fields["fighter_state"].choices = choices
 
-        # Get the correct terminology for this fighter
-        terms = dict(
-            term_singular=fighter.term_singular if fighter else "Fighter",
-            term_injury_singular=fighter.term_injury_singular if fighter else "Injury",
-            term_injury_singular__lower=fighter.term_injury_singular.lower()
-            if fighter
-            else "injury",
-        )
-        for field in self.fields.values():
-            if hasattr(field, "help_text"):
-                field.help_text = field.help_text.format(**terms)
-            if hasattr(field, "label"):
-                field.label = field.label.format(**terms)
+        template_form_with_terms(self, fighter=fighter)
 
         # Set initial fighter state to the fighter's current state if provided
         if fighter and not self.is_bound:
@@ -561,8 +571,8 @@ class AddInjuryForm(forms.Form):
 class EditFighterStateForm(forms.Form):
     fighter_state = forms.ChoiceField(
         choices=[],  # Will be set in __init__
-        label="Fighter State",
-        help_text="Select the new state for this fighter.",
+        label="{term_singular} State",
+        help_text="Select the new state for {term_proximal_demonstrative__lower}.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     reason = forms.CharField(
@@ -593,6 +603,8 @@ class EditFighterStateForm(forms.Form):
                 (ListFighter.ACTIVE, "Active"),
                 (ListFighter.IN_REPAIR, "In Repair"),
             ]
+
+        template_form_with_terms(self, fighter=fighter)
 
         # Set initial value to current state
         if fighter and fighter.injury_state:

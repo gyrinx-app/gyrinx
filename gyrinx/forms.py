@@ -1,7 +1,11 @@
 from collections.abc import Callable
 from itertools import groupby
+from typing import Optional
+
+from django import forms
 
 from gyrinx.content.models import ContentFighter
+from gyrinx.core.models.list import ListFighter
 
 
 def group_select(form, field, key=lambda x: x, sort_groups_by=None):
@@ -64,3 +68,26 @@ def group_sorter(priority_name: str) -> Callable[[str], tuple]:
             return (1, group_name)  # Other houses alphabetically
 
     return sort_groups_key
+
+
+def template_form_with_terms(form: forms.Form, fighter: Optional[ListFighter] = None):
+    # Get the correct terminology for this fighter
+    terms = dict(
+        term_singular=fighter.term_singular if fighter else "Fighter",
+        term_singular__lower=fighter.term_singular.lower() if fighter else "fighter",
+        term_injury_singular=fighter.term_injury_singular if fighter else "Injury",
+        term_injury_singular__lower=fighter.term_injury_singular.lower()
+        if fighter
+        else "injury",
+        term_proximal_demonstrative__lower=fighter.term_proximal_demonstrative.lower()
+        if fighter
+        else "this fighter",
+        term_proximal_demonstrative=fighter.term_proximal_demonstrative
+        if fighter
+        else "This fighter",
+    )
+    for field in form.fields.values():
+        if hasattr(field, "help_text"):
+            field.help_text = field.help_text.format(**terms)
+        if hasattr(field, "label"):
+            field.label = field.label.format(**terms)

@@ -64,15 +64,15 @@
                     </table>
                 </div>
             {% else %}
-                <p class="text-muted mb-0">No advancements yet.</p>
+                <p class="text-muted">No advancements yet.</p>
             {% endif %}
             <div class="d-flex align-items-center">
-                <div class="ms-auto">
-                    <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
-                       class="btn btn-primary btn-sm">
-                        <i class="bi-plus-lg"></i> Add Advancement
-                    </a>
-                </div>
+                <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
+                   class="btn btn-primary">
+                    <i class="bi-plus-lg"></i> Add Advancement
+                </a>
+                <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+                   class="btn btn-link">Back to list</a>
             </div>
         </div>
     </div>

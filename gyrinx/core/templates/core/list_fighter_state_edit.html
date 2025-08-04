@@ -1,17 +1,17 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Update Fighter State - {{ fighter.name }} - {{ list.name }}
+    Update {{ fighter.term_singular }} State - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-lg-8 px-0 vstack gap-3">
-        <h1 class="h3">Update Fighter State: {{ fighter.name }}</h1>
+        <h1 class="h3">Update {{ fighter.term_singular }} State: {{ fighter.name }}</h1>
         <div class="card">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <strong>Fighter State:</strong>
+                        <strong>{{ fighter.term_singular }} State:</strong>
                         <span class="badge {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% else %}bg-success{% endif %} ms-2">
                             {{ fighter.get_injury_state_display }}
                         </span>
@@ -21,10 +21,11 @@
         </div>
         <div class="border rounded p-2 text-secondary">
             <i class="bi bi-info-circle me-1"></i>
-            Changing the fighter's state will automatically log this event to the campaign action log.
+            Changing {{ fighter.proximal_demonstrative|lower }}'s state will automatically log this event to the campaign action log.
         </div>
         <form action="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
-              method="post">
+              method="post"
+              class="vstack gap-3">
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">

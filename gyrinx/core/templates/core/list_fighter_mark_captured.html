@@ -6,13 +6,13 @@
 {% block content %}
     {% include "core/includes/back.html" with text=list.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Mark Fighter as Captured: {{ fighter.fully_qualified_name }}</h1>
+        <h1 class="h3">Mark as Captured: {{ fighter.fully_qualified_name }}</h1>
         <form action="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"
               method="post">
             {% csrf_token %}
             <div class="alert alert-warning">
                 <p class="mb-0">
-                    <strong>Important:</strong> Once captured, this fighter will not be able to participate in battles for {{ list.name }} until they are returned or sold to guilders.
+                    <strong>Important:</strong> Once captured, {{ fighter.term_proximal_demonstrative|lower }} will not be able to participate in battles for {{ list.name }} until they are returned or sold to guilders.
                 </p>
             </div>
             <p>
@@ -32,7 +32,9 @@
                     <option value="">Choose a gang...</option>
                     {% for gang in capturing_lists %}<option value="{{ gang.id }}">{{ gang.name }}</option>{% endfor %}
                 </select>
-                <div class="form-text">The selected gang will be able to sell this fighter to guilders or return them for ransom.</div>
+                <div class="form-text">
+                    The selected gang will be able to sell {{ fighter.term_proximal_demonstrative|lower }} to guilders or return them for ransom.
+                </div>
             </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-warning">

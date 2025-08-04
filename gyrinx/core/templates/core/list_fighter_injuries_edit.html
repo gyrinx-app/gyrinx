@@ -11,7 +11,7 @@
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <strong>Fighter State:</strong>
+                        <strong>{{ fighter.term_singular }} State:</strong>
                         <span class="badge {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% else %}bg-success{% endif %} ms-2">
                             {{ fighter.get_injury_state_display }}
                         </span>
@@ -19,7 +19,7 @@
                     <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
                        class="btn btn-secondary btn-sm">
                         <i class="bi bi-pencil"></i>
-                        Update Fighter State
+                        Update {{ fighter.term_singular }} State
                     </a>
                 </div>
             </div>
@@ -29,7 +29,7 @@
                 <div class="card-header">
                     <h5 class="mb-0">Current {{ fighter.term_injury_plural }}</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body mb-last-0">
                     <table class="table table-sm table-borderless">
                         <thead>
                             <tr>

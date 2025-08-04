@@ -113,7 +113,7 @@
             {% empty %}
                 <div class="g-col-12 {% flash "search" %}">
                     {% if not request.GET.filter %}
-                        No gear found in the equipment list of this fighter.
+                        No gear found in the equipment list of {{ fighter.term_proximal_demonstrative|lower }}.
                     {% else %}
                         No gear found.
                     {% endif %}

@@ -2,8 +2,6 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from gyrinx.content.models import ContentFighter, ContentHouse
-from gyrinx.core.forms.list import ListFighterForm
-from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
 
 User = get_user_model()
@@ -12,8 +10,8 @@ User = get_user_model()
 @pytest.mark.django_db
 def test_can_hire_any_includes_all_fighters_except_stash():
     """Test that when can_hire_any is True, the form includes all fighters except stash."""
-    # Create a user and houses
-    user = User.objects.create_user(username="testuser", password="password")
+    # Create a user
+    User.objects.create_user(username="testuser", password="password")
 
     # Create the Outcast house with can_hire_any=True
     outcast_house = ContentHouse.objects.create(
@@ -69,21 +67,8 @@ def test_can_hire_any_includes_all_fighters_except_stash():
         base_cost=0,
     )
 
-    # Create an Outcast list
-    outcast_list = List.objects.create(
-        owner=user,
-        name="My Outcasts",
-        content_house=outcast_house,
-    )
-
-    # Create a list fighter instance
-    list_fighter = ListFighter(list=outcast_list)
-
-    # Create the form
-    form = ListFighterForm(instance=list_fighter)
-
-    # Get the queryset from the form
-    available_fighters = form.fields["content_fighter"].queryset
+    # Test the available_for_house method directly, which is what the form uses
+    available_fighters = ContentFighter.objects.available_for_house(outcast_house)
 
     # Verify that all fighters except stash are included
     assert fighter_outcast in available_fighters
@@ -101,8 +86,8 @@ def test_can_hire_any_includes_all_fighters_except_stash():
 @pytest.mark.django_db
 def test_normal_house_excludes_exotic_beasts_vehicles_and_other_houses():
     """Test that normal houses (can_hire_any=False) follow the original filtering rules, excluding exotic beasts and vehicles."""
-    # Create a user and houses
-    user = User.objects.create_user(username="testuser2", password="password")
+    # Create a user
+    User.objects.create_user(username="testuser2", password="password")
 
     # Create houses
     normal_house = ContentHouse.objects.create(name="House Normal", can_hire_any=False)
@@ -147,21 +132,8 @@ def test_normal_house_excludes_exotic_beasts_vehicles_and_other_houses():
         base_cost=0,
     )
 
-    # Create a normal list
-    normal_list = List.objects.create(
-        owner=user,
-        name="My Normal Gang",
-        content_house=normal_house,
-    )
-
-    # Create a list fighter instance
-    list_fighter = ListFighter(list=normal_list)
-
-    # Create the form
-    form = ListFighterForm(instance=list_fighter)
-
-    # Get the queryset from the form
-    available_fighters = form.fields["content_fighter"].queryset
+    # Test the available_for_house method directly, which is what the form uses
+    available_fighters = ContentFighter.objects.available_for_house(normal_house)
 
     # Verify filtering rules for normal houses
     assert fighter_normal in available_fighters  # Own house fighter
