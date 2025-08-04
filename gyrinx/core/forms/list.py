@@ -14,6 +14,7 @@ from gyrinx.core.models.list import (
 )
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 from gyrinx.forms import fighter_group_key, group_select, group_sorter
+from gyrinx.models import FighterCategoryChoices
 
 
 class NewListForm(forms.ModelForm):
@@ -476,11 +477,27 @@ class AddInjuryForm(forms.Form):
         # Filter injuries based on fighter category if fighter is provided
         if fighter:
             fighter_category = fighter.content_fighter.category
+            fighter_house = fighter.list.content_house
 
-            # Get injury groups available to this fighter category
-            available_groups = ContentInjuryGroup.objects.filter(
-                Q(restricted_to__contains=fighter_category) | Q(restricted_to="")
-            ).exclude(unavailable_to__contains=fighter_category)
+            # Build query for injury groups available to this fighter
+            # Start with groups that have no category restrictions or include this category
+            group_query = (
+                Q(restricted_to__isnull=True)
+                | Q(restricted_to="")
+                | Q(restricted_to__contains=fighter_category)
+            )
+
+            # Exclude groups that are unavailable to this category
+            group_query &= ~Q(unavailable_to__contains=fighter_category)
+
+            # Apply house restrictions if present
+            if fighter_house:
+                # Include groups with no house restrictions or those restricted to this house
+                group_query &= Q(restricted_to_house__isnull=True) | Q(
+                    restricted_to_house=fighter_house
+                )
+
+            available_groups = ContentInjuryGroup.objects.filter(group_query)
 
             # Filter injuries by available groups
             self.fields["injury"].queryset = ContentInjury.objects.select_related(
@@ -510,8 +527,11 @@ class AddInjuryForm(forms.Form):
             (ListFighter.DEAD, "Dead"),
         ]
 
-        if fighter and fighter.content_fighter.category == "VEHICLE":
-            choices.append(("in_repair", "In Repair"))
+        if (
+            fighter
+            and fighter.content_fighter.category == FighterCategoryChoices.VEHICLE
+        ):
+            choices.append((ListFighter.IN_REPAIR, "In Repair"))
 
         self.fields["fighter_state"].choices = choices
 

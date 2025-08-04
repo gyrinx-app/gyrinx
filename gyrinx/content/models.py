@@ -2777,16 +2777,22 @@ class ContentInjuryGroup(Content):
         blank=True,
         help_text="If set, these fighter categories cannot receive injuries from this group.",
     )
+    restricted_to_house = models.ManyToManyField(
+        "ContentHouse",
+        blank=True,
+        help_text="If set, only these houses can use injuries from this group.",
+        related_name="injury_groups",
+    )
     history = HistoricalRecords()
 
     def is_available_to_fighter_category(self, fighter_category):
         """Check if this injury group is available to a specific fighter category."""
         # If restricted_to is set, the category must be in it
         if self.restricted_to:
-            return fighter_category in self.restricted_to
+            return fighter_category in list(self.restricted_to)
         # If unavailable_to is set, the category must not be in it
         if self.unavailable_to:
-            return fighter_category not in self.unavailable_to
+            return fighter_category not in list(self.unavailable_to)
         # If neither is set, it's available to all
         return True
 
