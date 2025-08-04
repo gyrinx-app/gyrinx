@@ -8,6 +8,6 @@
     {{ field }}
     {% if field.help_text %}
         <div class="helptext form-text"
-             {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</div>
+             {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
     {% endif %}
     {% if field.use_fieldset %}</fieldset>{% endif %}

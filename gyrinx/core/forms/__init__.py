@@ -2,6 +2,7 @@ from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
@@ -36,7 +37,9 @@ class SignupForm(SignupForm):
     tos_agreement = forms.BooleanField(
         required=True,
         label="Agree to the Terms of Use",
-        help_text='By signing up, you acknowledge that you have read and agree to be bound by our <a href="/terms/" target="_blank">Terms of Use</a>',
+        help_text=mark_safe(  # nosec B308 - HTML content required for TOS link
+            'By signing up, you acknowledge that you have read and agree to be bound by our <a href="/terms/" target="_blank">Terms of Use</a>'
+        ),
         error_messages={
             "required": "You must agree to the Terms of Use to create an account."
         },
