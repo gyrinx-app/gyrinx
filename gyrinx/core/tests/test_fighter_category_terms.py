@@ -1,4 +1,5 @@
 import pytest
+
 from gyrinx.content.models import (
     ContentFighter,
     ContentFighterCategoryTerms,
@@ -26,9 +27,10 @@ def test_fighter_default_terms(content_house):
     )
 
     # Test default terms
-    assert list_fighter.term_proximal_demonstrative() == "This fighter"
-    assert list_fighter.term_injury_singular() == "Injury"
-    assert list_fighter.term_injury_plural() == "Injuries"
+    assert list_fighter.term_singular == "Fighter"
+    assert list_fighter.term_proximal_demonstrative == "This fighter"
+    assert list_fighter.term_injury_singular == "Injury"
+    assert list_fighter.term_injury_plural == "Injuries"
 
     # Test backward compatibility
     assert list_fighter.proximal_demonstrative == "This fighter"
@@ -51,6 +53,7 @@ def test_vehicle_custom_terms():
     # Create custom terms for vehicles
     ContentFighterCategoryTerms.objects.create(
         categories=[FighterCategoryChoices.VEHICLE],
+        singular="Vehicle",
         proximal_demonstrative="The vehicle",
         injury_singular="Damage",
         injury_plural="Damage",
@@ -63,9 +66,10 @@ def test_vehicle_custom_terms():
     )
 
     # Test custom terms
-    assert list_fighter.term_proximal_demonstrative() == "The vehicle"
-    assert list_fighter.term_injury_singular() == "Damage"
-    assert list_fighter.term_injury_plural() == "Damage"
+    assert list_fighter.term_singular == "Vehicle"
+    assert list_fighter.term_proximal_demonstrative == "The vehicle"
+    assert list_fighter.term_injury_singular == "Damage"
+    assert list_fighter.term_injury_plural == "Damage"
 
 
 @pytest.mark.django_db
@@ -86,6 +90,7 @@ def test_stash_custom_terms():
     # Create custom terms for stash
     ContentFighterCategoryTerms.objects.create(
         categories=[FighterCategoryChoices.STASH],
+        singular="Stash",
         proximal_demonstrative="The stash",
         injury_singular="Wear",
         injury_plural="Wear",
@@ -98,9 +103,10 @@ def test_stash_custom_terms():
     )
 
     # Test custom terms override default stash logic
-    assert list_fighter.term_proximal_demonstrative() == "The stash"
-    assert list_fighter.term_injury_singular() == "Wear"
-    assert list_fighter.term_injury_plural() == "Wear"
+    assert list_fighter.term_singular == "Stash"
+    assert list_fighter.term_proximal_demonstrative == "The stash"
+    assert list_fighter.term_injury_singular == "Wear"
+    assert list_fighter.term_injury_plural == "Wear"
 
 
 @pytest.mark.django_db
@@ -124,9 +130,11 @@ def test_default_fallback_for_vehicle_without_terms():
     )
 
     # Test default fallback for vehicles
-    assert list_fighter.term_proximal_demonstrative() == "The vehicle"
-    assert list_fighter.term_injury_singular() == "Injury"
-    assert list_fighter.term_injury_plural() == "Injuries"
+    assert list_fighter.term_singular == "Fighter"
+    # This is the only one that should be different in the fallback case
+    assert list_fighter.term_proximal_demonstrative == "The vehicle"
+    assert list_fighter.term_injury_singular == "Injury"
+    assert list_fighter.term_injury_plural == "Injuries"
 
 
 @pytest.mark.django_db
@@ -151,9 +159,11 @@ def test_default_fallback_for_stash_without_terms():
     )
 
     # Test default fallback for stash
-    assert list_fighter.term_proximal_demonstrative() == "The stash"
-    assert list_fighter.term_injury_singular() == "Injury"
-    assert list_fighter.term_injury_plural() == "Injuries"
+    assert list_fighter.term_singular == "Fighter"
+    # This is the only one that should be different in the fallback case
+    assert list_fighter.term_proximal_demonstrative == "The stash"
+    assert list_fighter.term_injury_singular == "Injury"
+    assert list_fighter.term_injury_plural == "Injuries"
 
 
 @pytest.mark.django_db
@@ -179,6 +189,7 @@ def test_multiple_categories_can_share_terms():
     # Create shared terms for both specialists and champions
     ContentFighterCategoryTerms.objects.create(
         categories=[FighterCategoryChoices.SPECIALIST, FighterCategoryChoices.CHAMPION],
+        singular="Elite",
         proximal_demonstrative="This elite",
         injury_singular="Wound",
         injury_plural="Wounds",
@@ -196,10 +207,12 @@ def test_multiple_categories_can_share_terms():
     )
 
     # Test that both use the same terms
-    assert list_specialist.term_proximal_demonstrative() == "This elite"
-    assert list_specialist.term_injury_singular() == "Wound"
-    assert list_specialist.term_injury_plural() == "Wounds"
+    assert list_specialist.term_singular == "Elite"
+    assert list_specialist.term_proximal_demonstrative == "This elite"
+    assert list_specialist.term_injury_singular == "Wound"
+    assert list_specialist.term_injury_plural == "Wounds"
 
-    assert list_champion.term_proximal_demonstrative() == "This elite"
-    assert list_champion.term_injury_singular() == "Wound"
-    assert list_champion.term_injury_plural() == "Wounds"
+    assert list_champion.term_singular == "Elite"
+    assert list_champion.term_proximal_demonstrative == "This elite"
+    assert list_champion.term_injury_singular == "Wound"
+    assert list_champion.term_injury_plural == "Wounds"

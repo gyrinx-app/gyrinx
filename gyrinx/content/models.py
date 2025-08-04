@@ -1126,6 +1126,11 @@ class ContentFighterCategoryTerms(Content):
         blank=False,
         help_text="Fighter categories that use these terms",
     )
+    singular = models.CharField(
+        max_length=255,
+        default="Fighter",
+        help_text="Singular form of fighter (e.g., 'Fighter', 'Vehicle')",
+    )
     proximal_demonstrative = models.CharField(
         max_length=255,
         default="This fighter",

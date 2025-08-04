@@ -704,8 +704,24 @@ class ListFighter(AppBase):
         Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
         For backward compatibility, calls term_proximal_demonstrative.
         """
-        return self.term_proximal_demonstrative()
+        return self.term_proximal_demonstrative
 
+    @cached_property
+    def term_singular(self) -> str:
+        """
+        Returns the singular term for this fighter, using custom terms if available.
+        """
+        fighter_category = self.content_fighter_cached.category
+        category_terms = ContentFighterCategoryTerms.objects.filter(
+            categories__contains=fighter_category
+        ).first()
+        if category_terms:
+            return category_terms.singular
+
+        # Default to "fighter" if no custom term is found
+        return "Fighter"
+
+    @cached_property
     def term_proximal_demonstrative(self) -> str:
         """
         Returns the proximal demonstrative for this fighter, using custom terms if available.
@@ -730,6 +746,7 @@ class ListFighter(AppBase):
 
         return "This fighter"
 
+    @cached_property
     def term_injury_singular(self) -> str:
         """
         Returns the singular form of injury for this fighter, using custom terms if available.
@@ -748,6 +765,7 @@ class ListFighter(AppBase):
         # Default
         return "Injury"
 
+    @cached_property
     def term_injury_plural(self) -> str:
         """
         Returns the plural form of injury for this fighter, using custom terms if available.

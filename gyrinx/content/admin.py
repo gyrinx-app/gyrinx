@@ -26,6 +26,7 @@ from .models import (
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterCategoryTerms,
     ContentFighterDefaultAssignment,
     ContentFighterEquipmentCategoryLimit,
     ContentFighterEquipmentListItem,
@@ -882,3 +883,8 @@ class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
                         statline_type_stat=stat,
                         value="-",  # Default empty value
                     )
+
+
+@admin.register(ContentFighterCategoryTerms)
+class ContentFighterCategoryTermsAdmin(ContentAdmin):
+    pass

@@ -448,21 +448,21 @@ class EditListFighterInfoForm(forms.ModelForm):
 class AddInjuryForm(forms.Form):
     injury = forms.ModelChoiceField(
         queryset=None,  # Will be set in __init__
-        label="Select Injury",
-        help_text="Choose the lasting injury to apply to this fighter.",
+        label="Select {term_injury_singular}",
+        help_text="Choose the {term_injury_singular__lower} to apply to this fighter.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     fighter_state = forms.ChoiceField(
         choices=[],  # Will be set in __init__
-        label="Fighter State",
-        help_text="Select the state to put the fighter into. Defaults to the injury's phase.",
+        label="{term_singular} State",
+        help_text="Select the state to put the fighter into.",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     notes = forms.CharField(
         widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         required=False,
         label="Notes",
-        help_text="Optional notes about how this injury was received (will be included in campaign log).",
+        help_text="Optional notes about how this {term_injury_singular__lower} was received (will be included in campaign log).",
     )
 
     def __init__(self, *args, **kwargs):
@@ -538,6 +538,20 @@ class AddInjuryForm(forms.Form):
             ]
 
         self.fields["fighter_state"].choices = choices
+
+        # Get the correct terminology for this fighter
+        terms = dict(
+            term_singular=fighter.term_singular if fighter else "Fighter",
+            term_injury_singular=fighter.term_injury_singular if fighter else "Injury",
+            term_injury_singular__lower=fighter.term_injury_singular.lower()
+            if fighter
+            else "injury",
+        )
+        for field in self.fields.values():
+            if hasattr(field, "help_text"):
+                field.help_text = field.help_text.format(**terms)
+            if hasattr(field, "label"):
+                field.label = field.label.format(**terms)
 
         # Set initial fighter state to the fighter's current state if provided
         if fighter and not self.is_bound:
