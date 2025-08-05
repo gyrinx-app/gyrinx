@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import Case, Exists, OuterRef, Q, When
+from django.db.models import Case, Q, When
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -26,7 +26,6 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
     ContentSkill,
@@ -67,7 +66,6 @@ from gyrinx.core.models.list import (
     ListFighterPsykerPowerAssignment,
     ListFighterStatOverride,
     VirtualListFighterEquipmentAssignment,
-    VirtualListFighterPsykerPowerAssignment,
 )
 from gyrinx.core.utils import (
     build_safe_url,
@@ -1052,6 +1050,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_secondary_only = (
         request.GET.get("filter", "primary-secondary") == "primary-secondary"
     )
+    show_restricted = request.GET.get("restricted", "0") == "1"
 
     # Get current fighter skills
     current_skill_ids = set(fighter.skills.values_list("id", flat=True))
@@ -1065,7 +1064,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_category_ids = [cat.id for cat in primary_categories]
     secondary_category_ids = [cat.id for cat in secondary_categories]
 
-    skill_cats = ContentSkillCategory.objects.filter(restricted=False).annotate(
+    # Build skill categories query
+    skill_cats_query = ContentSkillCategory.objects.all()
+    if not show_restricted:
+        skill_cats_query = skill_cats_query.filter(restricted=False)
+
+    skill_cats = skill_cats_query.annotate(
         primary=Case(
             When(id__in=primary_category_ids, then=True),
             default=False,
@@ -1078,19 +1082,39 @@ def edit_list_fighter_skills(request, id, fighter_id):
         ),
     )
 
-    # Get special categories from the house
-    special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
-        primary=Case(
-            When(id__in=primary_category_ids, then=True),
-            default=False,
-            output_field=models.BooleanField(),
-        ),
-        secondary=Case(
-            When(id__in=secondary_category_ids, then=True),
-            default=False,
-            output_field=models.BooleanField(),
-        ),
-    )
+    # Get special categories
+    if show_restricted:
+        # When showing restricted, get all house-specific categories from all houses
+        special_cats = (
+            ContentSkillCategory.objects.filter(houses__isnull=False)
+            .distinct()
+            .annotate(
+                primary=Case(
+                    When(id__in=primary_category_ids, then=True),
+                    default=False,
+                    output_field=models.BooleanField(),
+                ),
+                secondary=Case(
+                    When(id__in=secondary_category_ids, then=True),
+                    default=False,
+                    output_field=models.BooleanField(),
+                ),
+            )
+        )
+    else:
+        # Default behavior: only show categories from the fighter's house
+        special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
+            primary=Case(
+                When(id__in=primary_category_ids, then=True),
+                default=False,
+                output_field=models.BooleanField(),
+            ),
+            secondary=Case(
+                When(id__in=secondary_category_ids, then=True),
+                default=False,
+                output_field=models.BooleanField(),
+            ),
+        )
 
     # Combine all categories
     all_categories = []
@@ -1150,6 +1174,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "categories": all_categories,
             "primary_secondary_only": primary_secondary_only,
             "search_query": search_query,
+            "show_restricted": show_restricted,
         },
     )
 
@@ -1258,13 +1283,17 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
     :template:`core/list_fighter_psyker_powers_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(
-        ListFighter.objects.with_related_data(),
-        id=fighter_id,
-        list=lst,
-        owner=lst.owner,
+    from .fighter_helpers import (
+        get_common_query_params,
+        build_virtual_psyker_power_assignments,
+        group_available_assignments,
+        get_fighter_powers,
+        FighterEditMixin,
     )
+
+    # Use helper to get fighter and list
+    helper = FighterEditMixin()
+    lst, fighter = helper.get_fighter_and_list(request, id, fighter_id)
 
     error_message = None
     if request.method == "POST":
@@ -1286,15 +1315,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 fighter.save()
 
                 # Log the power removal event
-                log_event(
-                    user=request.user,
-                    noun=EventNoun.LIST_FIGHTER,
-                    verb=EventVerb.UPDATE,
-                    object=fighter,
-                    request=request,
-                    fighter_name=fighter.name,
-                    list_id=str(lst.id),
-                    list_name=lst.name,
+                helper.log_fighter_event(
+                    request,
+                    fighter,
+                    lst,
+                    EventVerb.UPDATE,
                     field="psyker_powers",
                     action="remove_default_power",
                     power_name=default_assign.psyker_power.name,
@@ -1313,15 +1338,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 assign.delete()
 
                 # Log the power removal event
-                log_event(
-                    user=request.user,
-                    noun=EventNoun.LIST_FIGHTER,
-                    verb=EventVerb.UPDATE,
-                    object=fighter,
-                    request=request,
-                    fighter_name=fighter.name,
-                    list_id=str(lst.id),
-                    list_name=lst.name,
+                helper.log_fighter_event(
+                    request,
+                    fighter,
+                    lst,
+                    EventVerb.UPDATE,
                     field="psyker_powers",
                     action="remove_assigned_power",
                     power_name=power_name,
@@ -1332,6 +1353,30 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 )
             else:
                 error_message = "Invalid action."
+        elif request.POST.get("action") == "enable":
+            # Enable a disabled default power
+            default_assign = get_object_or_404(
+                ContentFighterPsykerPowerDefaultAssignment,
+                psyker_power=power_id,
+                fighter=fighter.content_fighter_cached,
+            )
+            fighter.disabled_pskyer_default_powers.remove(default_assign)
+            fighter.save()
+
+            # Log the power enable event
+            helper.log_fighter_event(
+                request,
+                fighter,
+                lst,
+                EventVerb.UPDATE,
+                field="psyker_powers",
+                action="enable_default_power",
+                power_name=default_assign.psyker_power.name,
+            )
+
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
+            )
         elif request.POST.get("action") == "add":
             power = get_object_or_404(
                 ContentPsykerPower,
@@ -1344,15 +1389,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
             assign.save()
 
             # Log the power add event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.UPDATE,
-                object=fighter,
-                request=request,
-                fighter_name=fighter.name,
-                list_id=str(lst.id),
-                list_name=lst.name,
+            helper.log_fighter_event(
+                request,
+                fighter,
+                lst,
+                EventVerb.UPDATE,
                 field="psyker_powers",
                 action="add_power",
                 power_name=power.name,
@@ -1362,73 +1403,39 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 reverse("core:list-fighter-powers-edit", args=(lst.id, fighter.id))
             )
 
-    # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
-    disabled_defaults = fighter.disabled_pskyer_default_powers.values("id")
+    # Get query parameters
+    params = get_common_query_params(request)
 
-    # Get available disciplines including equipment modifications
-    available_disciplines = fighter.get_available_psyker_disciplines()
+    # Get powers using helper
+    powers = get_fighter_powers(fighter, params["show_restricted"])
 
-    powers: QuerySetOf[ContentPsykerPower] = (
-        ContentPsykerPower.objects.filter(
-            # Get powers via disciplines that are available (including equipment mods), or are generic...
-            Q(
-                discipline__in=ContentPsykerDiscipline.objects.filter(
-                    Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True)
-                ).distinct()
-            )
-            # ...and get powers that are assigned to this fighter by default
-            | Q(
-                fighter_assignments__fighter=fighter.content_fighter_cached,
-            )
+    # Build assignments using helper
+    all_assigns = build_virtual_psyker_power_assignments(powers, fighter)
+
+    # Separate current powers (unfiltered) from available powers
+    # Include disabled defaults in current powers
+    current_powers = [
+        a
+        for a in all_assigns
+        if a.kind() in ["default", "assigned"] or getattr(a, "is_disabled", False)
+    ]
+
+    # Apply search filter only for the available powers grid
+    if params["search_query"]:
+        filtered_powers = powers.filter(
+            Q(name__icontains=params["search_query"])
+            | Q(discipline__name__icontains=params["search_query"])
         )
-        .distinct()
-        .prefetch_related("discipline")
-        .annotate(
-            assigned_direct=Exists(
-                ListFighterPsykerPowerAssignment.objects.filter(
-                    list_fighter=fighter,
-                    psyker_power=OuterRef("pk"),
-                ).values("psyker_power_id")
-            ),
-            assigned_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.filter(
-                    fighter=fighter.content_fighter_cached,
-                    psyker_power=OuterRef("pk"),
-                )
-                .exclude(id__in=disabled_defaults)
-                .values("psyker_power_id")
-            ),
-        )
-    )
+        assigns = build_virtual_psyker_power_assignments(filtered_powers, fighter)
+    else:
+        assigns = all_assigns
 
-    # TODO: Re-querying this is inefficient, but it's ok for now.
-    assigns = []
-    for power in powers:
-        if power.assigned_direct:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment.from_assignment(
-                    ListFighterPsykerPowerAssignment(
-                        list_fighter=fighter,
-                        psyker_power=power,
-                    ),
-                )
-            )
-        elif power.assigned_default:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment.from_default_assignment(
-                    ContentFighterPsykerPowerDefaultAssignment(
-                        fighter=fighter.content_fighter_cached,
-                        psyker_power=power,
-                    ),
-                    fighter=fighter,
-                )
-            )
-        else:
-            assigns.append(
-                VirtualListFighterPsykerPowerAssignment(
-                    fighter=fighter, psyker_power=power
-                )
-            )
+    # Group available powers by discipline using helper
+    available_disciplines = group_available_assignments(assigns, "disc")
+    # Rename 'group' to 'discipline' and 'items' to 'powers' for template compatibility
+    for disc_data in available_disciplines:
+        disc_data["discipline"] = disc_data.pop("group")
+        disc_data["powers"] = disc_data.pop("items")
 
     return render(
         request,
@@ -1438,7 +1445,10 @@ def edit_list_fighter_powers(request, id, fighter_id):
             "fighter": fighter,
             "powers": powers,
             "assigns": assigns,
+            "current_powers": current_powers,
+            "available_disciplines": available_disciplines,
             "error_message": error_message,
+            **params,  # Includes search_query and show_restricted
         },
     )
 

@@ -1,67 +1,116 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Psyker Powers - {{ fighter.name }} - {{ fighter.content_fighter_cached.name }} - {{ list.name }}
+    Psyker Powers - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
-    <div class="col-lg-12 px-0 vstack gap-3">
-        <h1 class="h3">{{ fighter.name }} - {{ fighter.content_fighter_cached.name }}</h1>
-        <div class="card col-12 col-lg-6">
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3">Psyker Powers: {{ fighter.fully_qualified_name }}</h1>
+        {# Current powers table #}
+        <div class="card">
             <div class="card-header p-2">
-                <h2 class="h5 mb-0">Psyker Powers</h2>
+                <h3 class="h5 mb-0">Current Psyker Powers</h3>
             </div>
             <div class="card-body p-0 p-sm-2">
-                <div class="table-responsive-sm">
-                    <table class="table table-sm table-borderless table-hover mb-0">
-                        {% regroup assigns|dictsort:"disc" by disc as disciplines %}
-                        {% for discipline, assigns in disciplines %}
-                            <tbody>
-                                <tr>
-                                    <th colspan="2">{{ discipline }}</th>
+                <div class="table-responsive">
+                    <table class="table table-borderless table-sm align-middle mb-0">
+                        <tbody>
+                            {% for assign in current_powers %}
+                                <tr class="{% if assign.is_disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                    <td>
+                                        {{ assign.psyker_power.name }}
+                                        {% if assign.kind == "default" %}<span class="badge bg-secondary ms-1">Default</span>{% endif %}
+                                    </td>
+                                    <td class="text-secondary">{{ assign.disc }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden"
+                                                   name="psyker_power_id"
+                                                   value="{{ assign.psyker_power.id }}">
+                                            <input type="hidden" name="assign_kind" value="{{ assign.kind }}">
+                                            {% if assign.is_disabled %}
+                                                <input type="hidden" name="action" value="enable">
+                                                <button type="submit" class="btn btn-link icon-link fs-7 link-success">
+                                                    <i class="bi-check-circle"></i> Enable
+                                                </button>
+                                            {% else %}
+                                                <input type="hidden" name="action" value="remove">
+                                                <button type="submit" class="btn btn-link icon-link fs-7 link-danger">
+                                                    <i class="bi-trash"></i>
+                                                    {% if assign.kind == "default" %}
+                                                        Disable
+                                                    {% else %}
+                                                        Remove
+                                                    {% endif %}
+                                                </button>
+                                            {% endif %}
+                                        </form>
+                                    </td>
                                 </tr>
-                                {% for assign in assigns %}
-                                    <tr class="align-middle">
-                                        <td>
-                                            {% if assign.kind == "default" %}
-                                                <span bs-tooltip
-                                                      data-bs-toggle="tooltip"
-                                                      class="tooltipped"
-                                                      title="This power assigned to the fighter by default.">
-                                                {% endif %}
-                                                {{ assign.psyker_power.name }}
-                                                {% if assign.kind == "default" %}</span>{% endif %}
-                                        </td>
-                                        <td class="text-end">
-                                            <form action="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}"
-                                                  method="post">
-                                                {% csrf_token %}
-                                                <input type="hidden"
-                                                       name="psyker_power_id"
-                                                       value="{{ assign.psyker_power.id }}">
-                                                <input type="hidden" name="assign_kind" value="{{ assign.kind }}">
-                                                {% if assign.kind == "default" or assign.kind == "assigned" %}
-                                                    <input type="hidden" name="action" value="remove">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                                                        <i class="bi-trash"></i>
-                                                        Remove {{ assign.psyker_power.name }}
-                                                    </button>
-                                                {% else %}
-                                                    <input type="hidden" name="action" value="add">
-                                                    <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                        <i class="bi-plus-lg"></i>
-                                                        Add {{ assign.psyker_power.name }}
-                                                    </button>
-                                                {% endif %}
-                                            </form>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        {% endfor %}
+                            {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-secondary">No psyker powers assigned to this fighter.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+        {# Filter bar #}
+        {% url 'core:list-fighter-powers-edit' list.id fighter.id as filter_action %}
+        {% include "core/includes/fighter_psyker_powers_filter.html" with action=filter_action %}
+        {# Powers grid #}
+        <div class="grid">
+            {% for discipline_data in available_disciplines %}
+                <div class="card g-col-12 g-col-md-6"
+                     id="discipline-{{ discipline_data.discipline|slugify }}">
+                    <div class="card-header p-2">
+                        <h3 class="h5 mb-0">{{ discipline_data.discipline }}</h3>
+                    </div>
+                    <div class="card-body p-0 p-sm-2">
+                        <div class="table-responsive">
+                            <table class="table table-borderless table-sm align-middle mb-0">
+                                <tbody>
+                                    {% for assign in discipline_data.powers %}
+                                        <tr>
+                                            <td>{{ assign.psyker_power.name }}</td>
+                                            <td class="text-end">
+                                                <form method="post"
+                                                      action="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}"
+                                                      class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden"
+                                                           name="psyker_power_id"
+                                                           value="{{ assign.psyker_power.id }}">
+                                                    <input type="hidden" name="assign_kind" value="{{ assign.kind }}">
+                                                    <input type="hidden" name="action" value="add">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi-plus-lg"></i> Add
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="g-col-12">
+                    {% if search_query %}
+                        No psyker powers found matching "{{ search_query }}".
+                        <a href="?">Clear your search</a>.
+                    {% else %}
+                        No available psyker powers found.
+                    {% endif %}
+                </div>
+            {% endfor %}
         </div>
     </div>
 {% endblock content %}

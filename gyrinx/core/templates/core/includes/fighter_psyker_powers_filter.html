@@ -1,6 +1,6 @@
 {% load allauth custom_tags %}
-{% comment %}Filter component for fighter skills.{% endcomment %}
-<form id="search-skills"
+{% comment %}Filter component for fighter psyker powers.{% endcomment %}
+<form id="search-powers"
       method="get"
       action="{{ action }}#search"
       class="row">
@@ -13,8 +13,8 @@
             </span>
             <input class="form-control"
                    type="search"
-                   placeholder="Search skills"
-                   aria-label="Search skills"
+                   placeholder="Search psyker powers"
+                   aria-label="Search psyker powers"
                    name="q"
                    value="{{ request.GET.q }}">
             <button class="btn btn-primary" type="submit">Search</button>
@@ -26,18 +26,6 @@
     </div>
     <div class="col-12 col-lg-6 hstack gap-3">
         <div class="form-check form-switch mb-0">
-            <input type="hidden" name="filter" value="all">
-            <input class="form-check-input"
-                   type="checkbox"
-                   role="switch"
-                   id="filter-switch"
-                   name="filter"
-                   value="primary-secondary"
-                   data-gy-toggle-submit="search-skills"
-                   {% if not request.GET.filter or request.GET.filter == "primary-secondary" %}checked{% endif %}>
-            <label class="form-check-label" for="filter-switch">Primary/Secondary Only</label>
-        </div>
-        <div class="form-check form-switch mb-0">
             <input type="hidden" name="restricted" value="0">
             <input class="form-check-input"
                    type="checkbox"
@@ -45,7 +33,7 @@
                    id="restricted-switch"
                    name="restricted"
                    value="1"
-                   data-gy-toggle-submit="search-skills"
+                   data-gy-toggle-submit="search-powers"
                    {% if request.GET.restricted == "1" %}checked{% endif %}>
             <label class="form-check-label" for="restricted-switch">Show Restricted</label>
         </div>
