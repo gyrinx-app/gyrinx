@@ -1068,6 +1068,10 @@ def edit_list_fighter_skills(request, id, fighter_id):
     skill_cats_query = ContentSkillCategory.objects.all()
     if not show_restricted:
         skill_cats_query = skill_cats_query.filter(restricted=False)
+    else:
+        # When showing restricted, exclude house-specific categories from regular categories
+        # They will be added separately as special categories
+        skill_cats_query = skill_cats_query.filter(houses__isnull=True)
 
     skill_cats = skill_cats_query.annotate(
         primary=Case(
