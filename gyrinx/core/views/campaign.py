@@ -1981,13 +1981,13 @@ def campaign_captured_fighters(request, id):
 
     :template:`core/campaign/campaign_captured_fighters.html`
     """
-    campaign = get_object_or_404(Campaign, id=id)
+    campaign = get_object_or_404(Campaign.objects.prefetch_related("lists"), id=id)
 
     # Check if user owns the campaign or any list in it
-    if (
-        campaign.owner != request.user
-        and not campaign.lists.filter(owner=request.user).exists()
-    ):
+    user_owns_list = any(
+        list.owner_id == request.user.id for list in campaign.lists.all()
+    )
+    if campaign.owner != request.user and not user_owns_list:
         messages.error(
             request,
             "You don't have permission to view this campaign's captured fighters.",
