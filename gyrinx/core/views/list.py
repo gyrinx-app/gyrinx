@@ -1390,6 +1390,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
             )
 
     # Get query parameters
+    search_query = request.GET.get("q", "").strip()
     show_restricted = request.GET.get("restricted", "0") == "1"
 
     # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
@@ -1438,10 +1439,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
     )
 
     # TODO: Re-querying this is inefficient, but it's ok for now.
-    assigns = []
+    # First, create assigns for ALL powers (unfiltered) to get current powers
+    all_assigns = []
     for power in powers:
         if power.assigned_direct:
-            assigns.append(
+            all_assigns.append(
                 VirtualListFighterPsykerPowerAssignment.from_assignment(
                     ListFighterPsykerPowerAssignment(
                         list_fighter=fighter,
@@ -1450,7 +1452,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 )
             )
         elif power.assigned_default:
-            assigns.append(
+            all_assigns.append(
                 VirtualListFighterPsykerPowerAssignment.from_default_assignment(
                     ContentFighterPsykerPowerDefaultAssignment(
                         fighter=fighter.content_fighter_cached,
@@ -1460,11 +1462,69 @@ def edit_list_fighter_powers(request, id, fighter_id):
                 )
             )
         else:
-            assigns.append(
+            all_assigns.append(
                 VirtualListFighterPsykerPowerAssignment(
                     fighter=fighter, psyker_power=power
                 )
             )
+
+    # Separate current powers (unfiltered) from available powers
+    current_powers = []
+    for assign in all_assigns:
+        if assign.kind() == "default" or assign.kind() == "assigned":
+            current_powers.append(assign)
+
+    # Apply search filter only for the available powers grid
+    if search_query:
+        filtered_powers = powers.filter(
+            Q(name__icontains=search_query)
+            | Q(discipline__name__icontains=search_query)
+        )
+        # Create assigns for filtered powers
+        assigns = []
+        for power in filtered_powers:
+            if power.assigned_direct:
+                assigns.append(
+                    VirtualListFighterPsykerPowerAssignment.from_assignment(
+                        ListFighterPsykerPowerAssignment(
+                            list_fighter=fighter,
+                            psyker_power=power,
+                        ),
+                    )
+                )
+            elif power.assigned_default:
+                assigns.append(
+                    VirtualListFighterPsykerPowerAssignment.from_default_assignment(
+                        ContentFighterPsykerPowerDefaultAssignment(
+                            fighter=fighter.content_fighter_cached,
+                            psyker_power=power,
+                        ),
+                        fighter=fighter,
+                    )
+                )
+            else:
+                assigns.append(
+                    VirtualListFighterPsykerPowerAssignment(
+                        fighter=fighter, psyker_power=power
+                    )
+                )
+    else:
+        assigns = all_assigns
+
+    # Group available powers by discipline
+    from collections import defaultdict
+
+    available_by_discipline = defaultdict(list)
+    for assign in assigns:
+        # Only include powers that are not already assigned
+        # Note: kind() is a method, not a property
+        if assign.kind() != "default" and assign.kind() != "assigned":
+            available_by_discipline[assign.disc].append(assign)
+
+    # Convert to list of dicts for template
+    available_disciplines = []
+    for discipline, powers in sorted(available_by_discipline.items()):
+        available_disciplines.append({"discipline": discipline, "powers": powers})
 
     return render(
         request,
@@ -1474,7 +1534,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
             "fighter": fighter,
             "powers": powers,
             "assigns": assigns,
+            "current_powers": current_powers,
+            "available_disciplines": available_disciplines,
             "error_message": error_message,
+            "search_query": search_query,
+            "show_restricted": show_restricted,
         },
     )
 
