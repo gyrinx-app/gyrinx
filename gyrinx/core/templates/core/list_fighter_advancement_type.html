@@ -13,7 +13,8 @@
                  aria-label="Step {{ current_step }} of {{ steps }}"
                  aria-valuenow="{{ progress }}"
                  aria-valuemin="0"
-                 aria-valuemax="100">
+                 aria-valuemax="100"
+                 aria-live="polite">
                 {# djlint:off #}
                 <div class="progress-bar" style="width: {{ progress }}%">Step {{ current_step }} of {{ steps }}</div>
                 {# djlint:on #}
@@ -36,7 +37,9 @@
                 </div>
             </div>
         {% endif %}
-        <form method="post" class="vstack gap-4">
+        <form method="post"
+              class="vstack gap-4"
+              aria-label="Select advancement form">
             {% csrf_token %}
             {{ form.campaign_action_id }}
             {% if form.non_field_errors %}
@@ -70,7 +73,7 @@
                     </div>
                 </div>
             </div>
-            <div class="vstack gap-3">
+            <nav class="vstack gap-3" aria-label="Form navigation">
                 <div class="hstack gap-3">
                     {% if step > 1 %}
                         <a href="{% url 'core:list-fighter-advancement-dice-choice' list.id fighter.id %}"
@@ -78,11 +81,12 @@
                             <i class="bi-chevron-left"></i> Back
                         </a>
                     {% endif %}
-                    <button type="submit" class="btn btn-primary">
-                        Next <i class="bi-arrow-right"></i>
+                    <button type="submit" class="btn btn-primary" aria-describedby="nav-help">
+                        Next <i class="bi-arrow-right" aria-hidden="true"></i>
                     </button>
                 </div>
-            </div>
+                <span id="nav-help" class="visually-hidden">Navigate to the next step of the advancement workflow</span>
+            </nav>
         </form>
     </div>
 {% endblock content %}

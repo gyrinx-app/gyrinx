@@ -13,7 +13,8 @@
                  aria-label="Step 1 of 3"
                  aria-valuenow="33"
                  aria-valuemin="0"
-                 aria-valuemax="100">
+                 aria-valuemax="100"
+                 aria-live="polite">
                 {# djlint:off #}
                 <div class="progress-bar" style="width: 33%">Step 1 of 3</div>
                 {# djlint:on #}
@@ -21,7 +22,9 @@
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
             <h3 class="h5 mb-0">Roll for Advancement?</h3>
         </div>
-        <form method="post" class="vstack gap-2">
+        <form method="post"
+              class="vstack gap-2"
+              aria-label="Roll for advancement form">
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
             <p>You can choose to roll 2D6 for your advancement.</p>
@@ -30,11 +33,14 @@
                 <i class="bi-info-circle"></i>
                 The roll will <em>immediately</em> be added to the campaign action log.
             </div>
-            <div class="hstack gap-3">
-                <button type="submit" class="btn btn-primary">Roll 2D6</button>
+            <nav class="hstack gap-3" aria-label="Form navigation">
+                <button type="submit" class="btn btn-primary" aria-describedby="roll-help">Roll 2D6</button>
                 <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
-                   class="btn btn-success">Spend XP</a>
-            </div>
+                   class="btn btn-success"
+                   aria-describedby="spend-help">Spend XP</a>
+                <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement</span>
+                <span id="spend-help" class="visually-hidden">Spend XP to choose your advancement</span>
+            </nav>
         </form>
     </div>
 {% endblock content %}
