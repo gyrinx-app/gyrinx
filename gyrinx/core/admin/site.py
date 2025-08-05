@@ -1,7 +1,9 @@
 from django.contrib import admin
+from django.contrib.contenttypes.models import ContentType
 from django.utils.html import format_html
 
 from gyrinx.core.models import Banner
+from gyrinx.core.models.events import Event, EventNoun, EventVerb
 
 
 @admin.register(Banner)
@@ -10,6 +12,7 @@ class BannerAdmin(admin.ModelAdmin):
         "get_banner_preview",
         "colour",
         "is_live",
+        "get_click_count",
         "created",
         "modified",
     ]
@@ -48,6 +51,19 @@ class BannerAdmin(admin.ModelAdmin):
         )
 
     get_banner_preview.short_description = "Banner"
+
+    def get_click_count(self, obj):
+        """Count the number of click events for this banner."""
+        content_type = ContentType.objects.get_for_model(Banner)
+        count = Event.objects.filter(
+            noun=EventNoun.BANNER,
+            verb=EventVerb.CLICK,
+            object_id=obj.id,
+            object_type=content_type,
+        ).count()
+        return count
+
+    get_click_count.short_description = "Banner Clicks"
 
     def save_model(self, request, obj, form, change):
         """Override to ensure owner is set on new banners."""
