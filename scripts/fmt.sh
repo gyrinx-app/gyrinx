@@ -15,5 +15,6 @@ npm run fmt
 # Run Django template formatter
 echo "Running djlint..."
 djlint --profile=django --reformat .
+djlint --profile=django --lint --check .
 
 echo "All formatters completed!"

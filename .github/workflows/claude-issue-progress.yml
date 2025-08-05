@@ -13,6 +13,7 @@ jobs:
       contents: read
       issues: write
       repository-projects: write
+      projects: write
     steps:
       - name: Move issue to In Progress
         uses: actions/github-script@v7
@@ -22,23 +23,39 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
+            console.log(`Processing issue #${issueNumber} in ${owner}/${repo}`);
+            console.log('Triggered by comment from:', github.event.comment.user.login);
+            console.log('Comment body:', github.event.comment.body);
+
             // First, we need to find the project and get the issue's project item
+            // Using ProjectsV2 API which is the current GitHub Projects
             const query = `
               query($owner: String!, $repo: String!, $issueNumber: Int!) {
                 repository(owner: $owner, name: $repo) {
                   issue(number: $issueNumber) {
-                    projectItems(first: 10) {
+                    projectsV2(first: 10) {
                       nodes {
                         id
-                        project {
-                          id
-                          title
-                          field(name: "Status") {
-                            ... on ProjectV2SingleSelectField {
-                              id
-                              options {
-                                id
-                                name
+                        title
+                        items(first: 100) {
+                          nodes {
+                            id
+                            fieldValues(first: 10) {
+                              nodes {
+                                ... on ProjectV2ItemFieldSingleSelectValue {
+                                  field {
+                                    ... on ProjectV2SingleSelectField {
+                                      id
+                                      name
+                                      options {
+                                        id
+                                        name
+                                      }
+                                    }
+                                  }
+                                  optionId
+                                  name
+                                }
                               }
                             }
                           }
@@ -56,22 +73,58 @@ jobs:
               issueNumber: issueNumber
             };
 
+            console.log('Executing GraphQL query with variables:', JSON.stringify(variables, null, 2));
+
             const result = await github.graphql(query, variables);
 
-            if (!result.repository.issue.projectItems.nodes.length) {
+            console.log('GraphQL query result:', JSON.stringify(result, null, 2));
+
+            if (!result.repository.issue.projectsV2.nodes.length) {
               console.log('Issue is not in any project');
+              console.log('Full issue data:', JSON.stringify(result.repository.issue, null, 2));
               return;
             }
 
             // Process each project the issue is in
-            for (const projectItem of result.repository.issue.projectItems.nodes) {
-              const project = projectItem.project;
-              const statusField = project.field;
+            console.log(`Found ${result.repository.issue.projectsV2.nodes.length} project(s) for this issue`);
+
+            for (const project of result.repository.issue.projectsV2.nodes) {
+              console.log(`Processing project: "${project.title}" (ID: ${project.id})`);
+
+              // Find the item for this issue in the project
+              const projectItem = project.items.nodes.find(item => {
+                // The item is for this issue (we already filtered by issue in the query)
+                return true;
+              });
+
+              if (!projectItem) {
+                console.log(`Issue not found in project "${project.title}"`);
+                continue;
+              }
+
+              console.log('Project item ID:', projectItem.id);
+
+              // Find the Status field
+              let statusField = null;
+              let currentOptionId = null;
+
+              for (const fieldValue of projectItem.fieldValues.nodes) {
+                if (fieldValue.field && fieldValue.field.name === 'Status') {
+                  statusField = fieldValue.field;
+                  currentOptionId = fieldValue.optionId;
+                  console.log(`Found Status field (ID: ${statusField.id})`);
+                  console.log(`Current status: "${fieldValue.name}" (Option ID: ${currentOptionId})`);
+                  break;
+                }
+              }
 
               if (!statusField || !statusField.options) {
                 console.log(`Project "${project.title}" does not have a Status field`);
+                console.log('Field values:', JSON.stringify(projectItem.fieldValues.nodes, null, 2));
                 continue;
               }
+
+              console.log('Available status options:', statusField.options.map(o => o.name).join(', '));
 
               // Find the "In Progress" option
               const inProgressOption = statusField.options.find(
@@ -82,6 +135,16 @@ jobs:
 
               if (!inProgressOption) {
                 console.log(`Project "${project.title}" does not have an "In Progress" status option`);
+                console.log('Looking for: "in progress", "in-progress", or "doing"');
+                console.log('Available options:', statusField.options.map(o => `"${o.name}"`).join(', '));
+                continue;
+              }
+
+              console.log(`Found "In Progress" option: "${inProgressOption.name}" (ID: ${inProgressOption.id})`)
+
+              // Check if already in progress
+              if (currentOptionId === inProgressOption.id) {
+                console.log(`Issue is already "In Progress" in project "${project.title}"`);
                 continue;
               }
 
@@ -110,10 +173,14 @@ jobs:
                 optionId: inProgressOption.id
               };
 
+              console.log('Executing update mutation with variables:', JSON.stringify(updateVariables, null, 2));
+
               try {
-                await github.graphql(updateMutation, updateVariables);
+                const updateResult = await github.graphql(updateMutation, updateVariables);
+                console.log('Update mutation result:', JSON.stringify(updateResult, null, 2));
                 console.log(`Successfully moved issue to "In Progress" in project "${project.title}"`);
               } catch (error) {
                 console.error(`Failed to update project "${project.title}":`, error.message);
+                console.error('Full error:', JSON.stringify(error, null, 2));
               }
             }
