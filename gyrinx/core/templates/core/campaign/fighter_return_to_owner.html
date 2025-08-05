@@ -47,7 +47,7 @@
                                id="ransom"
                                name="ransom"
                                min="0"
-                               max="{{ captured_fighter.fighter.list.credits_current }}"
+                               max="{% if captured_fighter.fighter.list.credits_current > 10000 %}10000{% else %}{{ captured_fighter.fighter.list.credits_current }}{% endif %}"
                                value="0"
                                placeholder="Enter ransom amount (optional)">
                         <div class="form-text">
