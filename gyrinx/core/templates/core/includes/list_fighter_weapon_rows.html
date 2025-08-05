@@ -123,4 +123,13 @@
             {% endif %}
         </td>
     </tr>
+{% elif assign.upgrades_display|length > 0 and mode != 'add' and mode != 'edit' %}
+    <tr>
+        <td colspan="9">
+            <i class="bi-dash"></i>
+            <i class="bi-arrow-up-circle"></i>
+            {{ assign.equipment.upgrade_stack_name }}:
+            <span class="text-muted fst-italic">None</span>
+        </td>
+    </tr>
 {% endif %}
