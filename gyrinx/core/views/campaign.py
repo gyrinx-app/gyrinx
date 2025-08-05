@@ -34,6 +34,10 @@ from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.utils import safe_redirect
 
+# Constants for transaction limits
+MAX_CREDITS = 10000
+MAX_RANSOM_CREDITS = 10000
+
 
 def get_campaign_resource_types_with_resources(campaign):
     """
@@ -2068,12 +2072,11 @@ def fighter_sell_to_guilders(request, id, fighter_id):
             credits = int(credits) if credits else 0
             if credits < 0:
                 raise ValueError("Credits cannot be negative")
-            if credits > 10000:
-                raise ValueError("Credits cannot exceed 10,000")
+            if credits > MAX_CREDITS:
+                raise ValueError(f"Credits cannot exceed {MAX_CREDITS:,}")
         except ValueError as e:
-            messages.error(
-                request, str(e) if "exceed" in str(e) else "Invalid credit amount."
-            )
+            # Use the error message directly since we control the ValueError messages
+            messages.error(request, str(e))
             # Redirect safely back to the form
             return safe_redirect(
                 request,
@@ -2174,12 +2177,11 @@ def fighter_return_to_owner(request, id, fighter_id):
             ransom = int(ransom) if ransom else 0
             if ransom < 0:
                 raise ValueError("Ransom cannot be negative")
-            if ransom > 10000:
-                raise ValueError("Ransom cannot exceed 10,000")
+            if ransom > MAX_RANSOM_CREDITS:
+                raise ValueError(f"Ransom cannot exceed {MAX_RANSOM_CREDITS:,}")
         except ValueError as e:
-            messages.error(
-                request, str(e) if "exceed" in str(e) else "Invalid ransom amount."
-            )
+            # Use the error message directly since we control the ValueError messages
+            messages.error(request, str(e))
             # Redirect safely back to the form
             return safe_redirect(
                 request,
