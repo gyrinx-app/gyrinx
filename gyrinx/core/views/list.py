@@ -1364,13 +1364,16 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
     # TODO: A fair bit of this logic should live in the model, or a manager method of some kind
     disabled_defaults = fighter.disabled_pskyer_default_powers.values("id")
+
+    # Get available disciplines including equipment modifications
+    available_disciplines = fighter.get_available_psyker_disciplines()
+
     powers: QuerySetOf[ContentPsykerPower] = (
         ContentPsykerPower.objects.filter(
-            # Get powers via disciplines that are are assigned, or are generic...
+            # Get powers via disciplines that are available (including equipment mods), or are generic...
             Q(
                 discipline__in=ContentPsykerDiscipline.objects.filter(
-                    Q(fighter_assignments__fighter=fighter.content_fighter_cached)
-                    | Q(generic=True)
+                    Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True)
                 ).distinct()
             )
             # ...and get powers that are assigned to this fighter by default

@@ -2674,6 +2674,40 @@ class ContentModSkillTreeAccess(ContentMod):
         ordering = ["skill_category__name", "mode"]
 
 
+class ContentModPsykerDisciplineAccess(ContentMod):
+    """
+    Modifies fighter psyker discipline access.
+    Allows adding or removing psyker discipline access to fighters.
+    """
+
+    help_text = "A modification to fighter psyker discipline access"
+
+    discipline = models.ForeignKey(
+        ContentPsykerDiscipline,
+        on_delete=models.CASCADE,
+        related_name="modified_by_psyker_discipline_access",
+        null=False,
+        blank=False,
+    )
+
+    mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("add", "Add Discipline"),
+            ("remove", "Remove Discipline"),
+        ],
+    )
+
+    def __str__(self):
+        choices = dict(self._meta.get_field("mode").choices)
+        return f"{choices[self.mode]} - {self.discipline}"
+
+    class Meta:
+        verbose_name = "Psyker Discipline Access Modifier"
+        verbose_name_plural = "Psyker Discipline Access Modifiers"
+        ordering = ["discipline__name", "mode"]
+
+
 @dataclass
 class VirtualWeaponProfile:
     """
