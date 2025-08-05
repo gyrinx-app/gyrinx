@@ -13,7 +13,6 @@ jobs:
       contents: read
       issues: write
       repository-projects: write
-      projects: write
     steps:
       - name: Move issue to In Progress
         uses: actions/github-script@v7
