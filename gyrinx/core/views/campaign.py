@@ -1177,7 +1177,7 @@ def campaign_asset_type_new(request, id):
         return redirect("core:campaign-assets", campaign.id)
 
     if request.method == "POST":
-        form = CampaignAssetTypeForm(request.POST)
+        form = CampaignAssetTypeForm(request.POST, campaign=campaign)
         if form.is_valid():
             asset_type = form.save(commit=False)
             asset_type.campaign = campaign
@@ -1204,7 +1204,7 @@ def campaign_asset_type_new(request, id):
                 reverse("core:campaign-assets", args=(campaign.id,))
             )
     else:
-        form = CampaignAssetTypeForm()
+        form = CampaignAssetTypeForm(campaign=campaign)
 
     return render(
         request,

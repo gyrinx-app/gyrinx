@@ -176,6 +176,38 @@ class CampaignAssetTypeForm(forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, **kwargs):
+        self.campaign = kwargs.pop("campaign", None)
+        super().__init__(*args, **kwargs)
+
+    def clean_name_singular(self):
+        """Validate that name_singular is unique for this campaign, excluding the current instance"""
+        name_singular = self.cleaned_data.get("name_singular")
+
+        # Determine which campaign to check against
+        campaign = None
+        if self.campaign:
+            # Campaign passed in during form creation (for new asset types)
+            campaign = self.campaign
+        elif self.instance and self.instance.campaign_id:
+            # Campaign from existing instance (for editing)
+            campaign = self.instance.campaign
+
+        if name_singular and campaign:
+            # Check for duplicate name_singular in the same campaign
+            existing = CampaignAssetType.objects.filter(
+                campaign=campaign, name_singular=name_singular
+            )
+            # Exclude the current instance if it's being updated
+            if self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+
+            if existing.exists():
+                raise forms.ValidationError(
+                    f"An asset type with the name '{name_singular}' already exists in this campaign."
+                )
+        return name_singular
+
 
 class CampaignAssetForm(forms.ModelForm):
     """Form for creating and editing campaign assets"""
