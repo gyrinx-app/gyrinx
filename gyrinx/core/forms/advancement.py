@@ -223,16 +223,14 @@ class SkillCategorySelectionForm(forms.Form):
             if "primary" in skill_type:
                 categories = fighter.get_primary_skill_categories()
                 # Convert set to queryset
-                category_ids = [cat.id for cat in categories]
                 self.fields["category"].queryset = ContentSkillCategory.objects.filter(
-                    id__in=category_ids
+                    id__in=categories
                 )
             elif "secondary" in skill_type:
                 categories = fighter.get_secondary_skill_categories()
                 # Convert set to queryset
-                category_ids = [cat.id for cat in categories]
                 self.fields["category"].queryset = ContentSkillCategory.objects.filter(
-                    id__in=category_ids
+                    id__in=categories
                 )
             else:
                 # For "any" skill type, show all categories
