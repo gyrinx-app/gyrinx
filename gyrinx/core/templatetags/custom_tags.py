@@ -11,6 +11,7 @@ from django.template.context import RequestContext
 from django.urls import resolve
 from django.urls.exceptions import Resolver404
 from django.utils.html import format_html
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
 
 from gyrinx.content.models import ContentPageRef
@@ -309,3 +310,33 @@ def cachebuster():
 @register.simple_tag
 def dot():
     return mark_safe("&nbsp;·&nbsp;")
+
+
+@register.simple_tag(takes_context=True)
+def safe_referer(context: RequestContext, fallback_url="/"):
+    """
+    Get a safe redirect URL from HTTP_REFERER.
+
+    This tag validates the referer header to prevent open redirect vulnerabilities.
+    If the referer is not safe or missing, returns the fallback URL.
+
+    Args:
+        context: The template context containing the request
+        fallback_url: The URL to use if referer is invalid (default: "/")
+
+    Returns:
+        A safe URL string that can be used for redirects
+    """
+    request = context["request"]
+    referer = request.META.get("HTTP_REFERER", "")
+
+    # Validate the referer URL is safe
+    if referer and url_has_allowed_host_and_scheme(
+        url=referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return referer
+
+    # Fall back to the provided fallback URL
+    return fallback_url
