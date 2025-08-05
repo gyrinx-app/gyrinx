@@ -125,10 +125,10 @@ jobs:
                [Specific, actionable suggestions for fixing the issue]
 
                ## Impact
-               - [**Area**: Which subsystem/feature is affected]
-               - [**Severity**: Low/Medium/High]
-               - [**Effort**: Small/Medium/Large]
-                - [**Confidence**: Low/Medium/High]
+               - **Area**: Which subsystem/feature is affected
+               - **Severity**: Low/Medium/High
+               - **Effort**: Small/Medium/Large
+               - **Confidence**: Low/Medium/High
 
                ## Files Affected
                - [List all files that would need changes]
