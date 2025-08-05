@@ -230,10 +230,74 @@ def test_disable_default_power(
     list_psyker.refresh_from_db()
     assert default_assignment in list_psyker.disabled_pskyer_default_powers.all()
 
-    # Verify it no longer shows as current power
+    # Verify it still shows as current power but disabled
     response = client.get(url)
     current_powers = response.context["current_powers"]
-    assert len(current_powers) == 0
+    assert len(current_powers) == 1
+    assert current_powers[0].is_disabled is True
+    assert current_powers[0].psyker_power == biomancy_power
+
+    # Check HTML for strikethrough and enable button
+    content = response.content.decode()
+    assert "text-decoration-line-through" in content
+    assert "Enable" in content
+
+
+@pytest.mark.django_db
+def test_enable_disabled_default_power(
+    client, psyker_list, list_psyker, biomancy_power, psyker_fighter
+):
+    """Test re-enabling a disabled default power."""
+    # Add default power assignment
+    default_assignment = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=psyker_fighter,
+        psyker_power=biomancy_power,
+    )
+
+    # First, disable it
+    list_psyker.disabled_pskyer_default_powers.add(default_assignment)
+
+    url = reverse(
+        "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
+    )
+
+    # Verify it shows as disabled
+    response = client.get(url)
+    current_powers = response.context["current_powers"]
+    assert len(current_powers) == 1
+    assert current_powers[0].is_disabled is True
+
+    # Enable the power
+    response = client.post(
+        url,
+        {
+            "action": "enable",
+            "psyker_power_id": biomancy_power.id,
+            "assign_kind": "default",
+        },
+    )
+
+    assert response.status_code == 302
+
+    # Check that the power is now enabled
+    list_psyker.refresh_from_db()
+    assert default_assignment not in list_psyker.disabled_pskyer_default_powers.all()
+
+    # Verify it shows as current power without disabled flag
+    response = client.get(url)
+    current_powers = response.context["current_powers"]
+    assert len(current_powers) == 1
+    assert (
+        not hasattr(current_powers[0], "is_disabled")
+        or current_powers[0].is_disabled is False
+    )
+    assert current_powers[0].psyker_power == biomancy_power
+    assert current_powers[0].kind() == "default"
+
+    # Check HTML does not have strikethrough
+    content = response.content.decode()
+    assert "text-decoration-line-through" not in content
+    assert "Disable" in content  # Should show disable button now
 
 
 # Power Assignment Tests

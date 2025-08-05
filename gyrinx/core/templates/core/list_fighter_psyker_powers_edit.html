@@ -17,7 +17,7 @@
                     <table class="table table-borderless table-sm align-middle mb-0">
                         <tbody>
                             {% for assign in current_powers %}
-                                <tr>
+                                <tr class="{% if assign.is_disabled %}text-decoration-line-through text-secondary{% endif %}">
                                     <td>
                                         {{ assign.psyker_power.name }}
                                         {% if assign.kind == "default" %}<span class="badge bg-secondary ms-1">Default</span>{% endif %}
@@ -32,15 +32,22 @@
                                                    name="psyker_power_id"
                                                    value="{{ assign.psyker_power.id }}">
                                             <input type="hidden" name="assign_kind" value="{{ assign.kind }}">
-                                            <input type="hidden" name="action" value="remove">
-                                            <button type="submit" class="btn btn-link icon-link fs-7 link-danger">
-                                                <i class="bi-trash"></i>
-                                                {% if assign.kind == "default" %}
-                                                    Disable
-                                                {% else %}
-                                                    Remove
-                                                {% endif %}
-                                            </button>
+                                            {% if assign.is_disabled %}
+                                                <input type="hidden" name="action" value="enable">
+                                                <button type="submit" class="btn btn-link icon-link fs-7 link-success">
+                                                    <i class="bi-check-circle"></i> Enable
+                                                </button>
+                                            {% else %}
+                                                <input type="hidden" name="action" value="remove">
+                                                <button type="submit" class="btn btn-link icon-link fs-7 link-danger">
+                                                    <i class="bi-trash"></i>
+                                                    {% if assign.kind == "default" %}
+                                                        Disable
+                                                    {% else %}
+                                                        Remove
+                                                    {% endif %}
+                                                </button>
+                                            {% endif %}
                                         </form>
                                     </td>
                                 </tr>
