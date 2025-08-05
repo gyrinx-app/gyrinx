@@ -398,8 +398,6 @@ def new_list(request):
         A NewListForm for entering the name and details of the new list.
     ``houses``
         A queryset of :model:`content.ContentHouse` objects, possibly used in the form display.
-    ``error_message``
-        None or a string describing a form error.
 
     **Template**
 
@@ -407,7 +405,6 @@ def new_list(request):
     """
     houses = ContentHouse.objects.all()
 
-    error_message = None
     if request.method == "POST":
         form = NewListForm(request.POST)
         if form.is_valid():
@@ -459,7 +456,7 @@ def new_list(request):
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses, "error_message": error_message},
+        {"form": form, "houses": houses},
     )
 
 
