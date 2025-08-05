@@ -2068,8 +2068,12 @@ def fighter_sell_to_guilders(request, id, fighter_id):
             credits = int(credits) if credits else 0
             if credits < 0:
                 raise ValueError("Credits cannot be negative")
-        except ValueError:
-            messages.error(request, "Invalid credit amount.")
+            if credits > 10000:
+                raise ValueError("Credits cannot exceed 10,000")
+        except ValueError as e:
+            messages.error(
+                request, str(e) if "exceed" in str(e) else "Invalid credit amount."
+            )
             # Redirect safely back to the form
             return safe_redirect(
                 request,
@@ -2170,8 +2174,12 @@ def fighter_return_to_owner(request, id, fighter_id):
             ransom = int(ransom) if ransom else 0
             if ransom < 0:
                 raise ValueError("Ransom cannot be negative")
-        except ValueError:
-            messages.error(request, "Invalid ransom amount.")
+            if ransom > 10000:
+                raise ValueError("Ransom cannot exceed 10,000")
+        except ValueError as e:
+            messages.error(
+                request, str(e) if "exceed" in str(e) else "Invalid ransom amount."
+            )
             # Redirect safely back to the form
             return safe_redirect(
                 request,
