@@ -1673,3 +1673,130 @@ def test_m2m_triggers_update_cost_cache(
     assert (
         lst.cost_int() == initial_list_cost + accessory.cost_int() + upgrade.cost_int()
     )
+
+
+@pytest.mark.django_db
+def test_fighter_category_override(content_fighter, make_list, make_list_fighter):
+    """Test that category_override overrides the fighter's content category."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    # Initially, should use content_fighter's category
+    assert fighter.get_category() == content_fighter.category
+
+    # Set a category override
+    fighter.category_override = FighterCategoryChoices.LEADER
+    fighter.save()
+
+    # Now should return the override
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+
+    # Clear the override
+    fighter.category_override = None
+    fighter.save()
+
+    # Should fall back to content_fighter's category
+    assert fighter.get_category() == content_fighter.category
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_fully_qualified_name(
+    content_fighter, make_list, make_list_fighter
+):
+    """Test that fully_qualified_name uses the category override."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Bob")
+
+    # Get the original fully qualified name
+    original_name = fighter.fully_qualified_name
+
+    # Set a category override to LEADER
+    fighter.category_override = FighterCategoryChoices.LEADER
+    fighter.save()
+
+    # Clear the cached property
+    del fighter.fully_qualified_name
+
+    # The fully qualified name should now use the overridden category
+    expected_name = f"Bob - {content_fighter.type} (Leader)"
+    assert fighter.fully_qualified_name == expected_name
+
+    # Clear the override
+    fighter.category_override = None
+    fighter.save()
+
+    # Clear the cached property
+    del fighter.fully_qualified_name
+
+    # Should be back to original
+    assert fighter.fully_qualified_name == original_name
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_sorting(content_house):
+    """Test that fighters are sorted by their overridden category."""
+    lst = List.objects.create(name="Test List", content_house=content_house)
+
+    # Create fighters with different categories
+    juve_fighter = ContentFighter.objects.create(
+        type="Test Juve",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=50,
+    )
+    ganger_fighter = ContentFighter.objects.create(
+        type="Test Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=60,
+    )
+
+    # Create list fighters
+    fighter1 = ListFighter.objects.create(
+        name="Fighter 1", content_fighter=juve_fighter, list=lst
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter 2", content_fighter=ganger_fighter, list=lst
+    )
+
+    # Initially, fighter2 (ganger) should come before fighter1 (juve) in sorting
+    fighters = ListFighter.objects.filter(list=lst).order_by("_category_order", "name")
+    assert list(fighters) == [fighter2, fighter1]
+
+    # Override fighter1's category to LEADER
+    fighter1.category_override = FighterCategoryChoices.LEADER
+    fighter1.save()
+
+    # Now fighter1 (overridden to leader) should come first
+    fighters = ListFighter.objects.filter(list=lst).order_by("_category_order", "name")
+    assert list(fighters) == [fighter1, fighter2]
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_vehicle_grouping(content_house):
+    """Test that vehicle grouping respects category override."""
+    lst = List.objects.create(name="Test List", content_house=content_house)
+
+    # Create a regular fighter that we'll override to be a vehicle
+    regular_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+
+    fighter = ListFighter.objects.create(
+        name="Fighter", content_fighter=regular_fighter, list=lst
+    )
+
+    # Initially, group_key should be the fighter's own ID
+    result = ListFighter.objects.with_group_keys().get(id=fighter.id)
+    assert result.group_key == fighter.id
+
+    # Override to VEHICLE category
+    fighter.category_override = FighterCategoryChoices.VEHICLE
+    fighter.save()
+
+    # Group key should still be the fighter's own ID when not linked
+    result = ListFighter.objects.with_group_keys().get(id=fighter.id)
+    assert result.group_key == fighter.id

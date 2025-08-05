@@ -36,6 +36,14 @@
                 </div>
             {% endif %}
             <div>
+                {{ form.category_override.label_tag }}
+                {{ form.category_override }}
+                {% if form.category_override.help_text %}
+                    <div class="form-text">{{ form.category_override.help_text }}</div>
+                {% endif %}
+                {% for error in form.category_override.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div>
                 {{ form.cost_override.label_tag }}
                 {{ form.cost_override }}
                 {% if form.cost_override.help_text %}<div class="form-text">{{ form.cost_override.help_text }}</div>{% endif %}

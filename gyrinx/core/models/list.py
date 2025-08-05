@@ -379,9 +379,20 @@ class ListFighterManager(models.Manager):
                 _category_order=Case(
                     *[
                         When(
+                            # Use category_override if set, otherwise use content_fighter__category
                             # Put linked fighters in the same category as their parent
-                            Q(content_fighter__category=category)
+                            Q(category_override=category)
                             | Q(
+                                category_override__isnull=True,
+                                content_fighter__category=category,
+                            )
+                            | Q(
+                                linked_fighter__list_fighter__category_override=category,
+                                # Only consider linked fighters that are not stash fighters
+                                linked_fighter__list_fighter__content_fighter__is_stash=False,
+                            )
+                            | Q(
+                                linked_fighter__list_fighter__category_override__isnull=True,
                                 linked_fighter__list_fighter__content_fighter__category=category,
                                 # Only consider linked fighters that are not stash fighters
                                 linked_fighter__list_fighter__content_fighter__is_stash=False,
@@ -404,15 +415,28 @@ class ListFighterManager(models.Manager):
                 ),
                 _sort_key=Case(
                     # If this is a beast linked to a fighter, sort after the owner
+                    # Check category_override first, then content_fighter__category
                     When(
-                        _is_linked=True,
-                        content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+                        Q(_is_linked=True)
+                        & (
+                            Q(category_override=FighterCategoryChoices.EXOTIC_BEAST)
+                            | Q(
+                                category_override__isnull=True,
+                                content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
+                            )
+                        ),
                         then=Concat("linked_fighter__list_fighter__name", Value("~2")),
                     ),
                     # If this is a vehicle linked to a fighter, sort with the parent but come first
                     When(
-                        _is_linked=True,
-                        content_fighter__category=FighterCategoryChoices.VEHICLE,
+                        Q(_is_linked=True)
+                        & (
+                            Q(category_override=FighterCategoryChoices.VEHICLE)
+                            | Q(
+                                category_override__isnull=True,
+                                content_fighter__category=FighterCategoryChoices.VEHICLE,
+                            )
+                        ),
                         then=Concat("linked_fighter__list_fighter__name", Value("~0")),
                     ),
                     # Default: regular fighters sort by their own name with a middle priority
@@ -452,17 +476,27 @@ class ListFighterManager(models.Manager):
             group_key=Case(
                 # If this fighter is linked to stash and is a vehicle, use own ID
                 When(
-                    linked_fighter__isnull=False,
-                    content_fighter__category=FighterCategoryChoices.VEHICLE,
-                    linked_fighter__list_fighter__content_fighter__is_stash=True,
+                    Q(linked_fighter__isnull=False)
+                    & (
+                        Q(category_override=FighterCategoryChoices.VEHICLE)
+                        | Q(
+                            category_override__isnull=True,
+                            content_fighter__category=FighterCategoryChoices.VEHICLE,
+                        )
+                    )
+                    & Q(linked_fighter__list_fighter__content_fighter__is_stash=True),
                     then=F("id"),
                 ),
                 # If this fighter is linked, and we are a vehicle, use the linked fighter's id
                 When(
-                    linked_fighter__isnull=False,
-                    # TODO: De-special-case this, so that we check something like
-                    #       content_fighter__category__groups_with_linked_fighter
-                    content_fighter__category=FighterCategoryChoices.VEHICLE,
+                    Q(linked_fighter__isnull=False)
+                    & (
+                        Q(category_override=FighterCategoryChoices.VEHICLE)
+                        | Q(
+                            category_override__isnull=True,
+                            content_fighter__category=FighterCategoryChoices.VEHICLE,
+                        )
+                    ),
                     then=F("linked_fighter__list_fighter__id"),
                 ),
                 # Default: use fighter's own ID
@@ -509,6 +543,13 @@ class ListFighter(AppBase):
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
     )
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
+    category_override = models.CharField(
+        max_length=255,
+        choices=FighterCategoryChoices.choices,
+        blank=True,
+        null=True,
+        help_text="Override the fighter's category without changing their type. Used for situations like elevating a hired gun to leader.",
+    )
 
     # Stat overrides
 
@@ -784,6 +825,21 @@ class ListFighter(AppBase):
         # Default
         return "Injuries"
 
+    def get_category(self):
+        """
+        Returns the effective category for this fighter, using override if set.
+        """
+        if self.category_override:
+            return self.category_override
+        return self.content_fighter_cached.category
+
+    def get_category_label(self):
+        """
+        Returns the label for the effective category.
+        """
+        category = self.get_category()
+        return FighterCategoryChoices[category].label
+
     @cached_property
     def fully_qualified_name(self) -> str:
         """
@@ -791,8 +847,16 @@ class ListFighter(AppBase):
         """
         if self.is_stash:
             return "Stash"
+
+        # Use overridden category if set
         cf = self.content_fighter_cached
-        return f"{self.name} - {cf.name()}"
+        if self.category_override:
+            # Format with overridden category
+            category_label = FighterCategoryChoices[self.category_override].label
+            return f"{self.name} - {cf.type} ({category_label})"
+        else:
+            # Use normal content fighter name
+            return f"{self.name} - {cf.name()}"
 
     @admin.display(description="Total Cost with Equipment")
     def cost_int(self):

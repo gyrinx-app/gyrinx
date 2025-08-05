@@ -205,17 +205,20 @@ class ListFighterForm(forms.ModelForm):
             "name",
             "content_fighter",
             "legacy_content_fighter",
+            "category_override",
             "cost_override",
         ]
         labels = {
             "name": "Name",
             "content_fighter": "{term_singular} Type",
             "legacy_content_fighter": "Gang Legacy",
+            "category_override": "Category Override",
             "cost_override": "Manually Set Cost",
         }
         help_texts = {
             "name": "The name you use to identify this {term_singular}. This may be public.",
             "legacy_content_fighter": "The Gang Legacy for this fighter.",
+            "category_override": "Override the {term_singular}'s category without changing their type.",
             "cost_override": "Only change this if you want to override the default base cost of the {term_singular}.",
         }
         widgets = {
@@ -223,6 +226,11 @@ class ListFighterForm(forms.ModelForm):
             "content_fighter": forms.Select(attrs={"class": "form-select"}),
             "legacy_content_fighter": forms.Select(
                 attrs={"class": "form-select"},
+            ),
+            "category_override": forms.Select(
+                attrs={"class": "form-select"},
+                choices=[("", "-- No Override --")]
+                + list(FighterCategoryChoices.choices),
             ),
             "cost_override": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}
