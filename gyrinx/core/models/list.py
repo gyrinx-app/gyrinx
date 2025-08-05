@@ -1523,12 +1523,29 @@ class ListFighter(AppBase):
         )
 
         # Don't clone equipment assignments that were converted from default assignments
+        # First, clone all assignments and build a mapping
+        equipment_clone_map = {}
         for assignment in self._direct_assignments():
             if assignment.from_default_assignment is not None:
                 # Skip assignments that were converted from default assignments
                 # The clone will get these as default assignments instead
                 continue
-            assignment.clone(list_fighter=clone)
+            cloned_assignment = assignment.clone(list_fighter=clone)
+            equipment_clone_map[assignment.id] = cloned_assignment
+
+        # Second pass: update linked_equipment_parent references for cloned assignments
+        for original_id, cloned_assignment in equipment_clone_map.items():
+            original_assignment = ListFighterEquipmentAssignment.objects.get(
+                id=original_id
+            )
+            if original_assignment.linked_equipment_parent:
+                # Find the cloned parent assignment
+                parent_clone = equipment_clone_map.get(
+                    original_assignment.linked_equipment_parent.id
+                )
+                if parent_clone:
+                    cloned_assignment.linked_equipment_parent = parent_clone
+                    cloned_assignment.save()
 
         # Clone psyker power assignments
         for power_assignment in self.psyker_powers.all():
