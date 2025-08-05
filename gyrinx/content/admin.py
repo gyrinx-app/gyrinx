@@ -230,6 +230,9 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             | mod_qs.instance_of(
                 ContentModSkillTreeAccess,
             )
+            | mod_qs.instance_of(
+                ContentModPsykerDisciplineAccess,
+            )
         )
 
         group_select(self, "category", key=lambda x: x.group)
