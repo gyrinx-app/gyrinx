@@ -222,13 +222,21 @@ class SkillCategorySelectionForm(forms.Form):
         if fighter and skill_type:
             if "primary" in skill_type:
                 categories = fighter.get_primary_skill_categories()
+                # Convert set to queryset
+                category_ids = [cat.id for cat in categories]
+                self.fields["category"].queryset = ContentSkillCategory.objects.filter(
+                    id__in=category_ids
+                )
             elif "secondary" in skill_type:
                 categories = fighter.get_secondary_skill_categories()
+                # Convert set to queryset
+                category_ids = [cat.id for cat in categories]
+                self.fields["category"].queryset = ContentSkillCategory.objects.filter(
+                    id__in=category_ids
+                )
             else:
                 # For "any" skill type, show all categories
-                categories = ContentSkillCategory.objects.all()
-
-            self.fields["category"].queryset = categories
+                self.fields["category"].queryset = ContentSkillCategory.objects.all()
 
 
 class RandomSkillForm(forms.Form):
