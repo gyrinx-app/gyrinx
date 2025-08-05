@@ -46,7 +46,7 @@ def test_equipment_can_add_psyker_discipline():
     )
 
     # Create content fighter with Biomancy discipline only
-    psyker_rule = ContentRule.objects.create(name="Psyker")
+    psyker_rule, _ = ContentRule.objects.get_or_create(name="Psyker")
     content_fighter = ContentFighter.objects.create(
         type="Test Psyker",
         house=house,
@@ -141,7 +141,7 @@ def test_equipment_can_remove_psyker_discipline():
     )
 
     # Create content fighter with both disciplines
-    psyker_rule = ContentRule.objects.create(name="Psyker2")
+    psyker_rule, _ = ContentRule.objects.get_or_create(name="Psyker")
     content_fighter = ContentFighter.objects.create(
         type="Test Psyker 2",
         house=house,
@@ -312,7 +312,7 @@ def test_generic_disciplines_always_available():
     )
 
     # Create psyker content fighter with no specific disciplines
-    psyker_rule = ContentRule.objects.create(name="Psyker4")
+    psyker_rule, _ = ContentRule.objects.get_or_create(name="Psyker")
     content_fighter = ContentFighter.objects.create(
         type="Test Psyker 4",
         house=house,

@@ -2377,7 +2377,7 @@ def update_list_cache_for_assignment(
 ):
     # Clear the fighter's cached properties that depend on assignments
     fighter = instance.list_fighter
-    for prop in ["cost_int_cached", "assignments_cached"]:
+    for prop in ["cost_int_cached", "assignments_cached", "_mods"]:
         if prop in fighter.__dict__:
             del fighter.__dict__[prop]
     # Update the list's cost cache (which also clears its cached property)
