@@ -11,7 +11,7 @@
                 <h2 class="mb-4">Page Not Found</h2>
                 <p data-test-id="the-joke" class="text-secondary mb-4">{% random_404_message %}</p>
                 <div class="hstack gap-3 justify-content-center align-items-center">
-                    <a href="{{ request.META.HTTP_REFERER|escape }}" class="icon-link">
+                    <a href="{% safe_referer '/' %}" class="icon-link">
                         <i class="bi-chevron-left"></i>Back</a>
                     or
                     <a href="{% url 'core:index' %}" class="btn btn-primary">

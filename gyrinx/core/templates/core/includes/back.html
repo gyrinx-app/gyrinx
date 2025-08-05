@@ -1,8 +1,9 @@
+{% load custom_tags %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item active" aria-current="page">
             <i class="bi-chevron-left"></i>
-            <a href="{% if url %}{{ url }}{% else %}{{ request.META.HTTP_REFERER|escape }}{% endif %}">
+            <a href="{% if url %}{{ url }}{% else %}{% safe_referer "/" %}{% endif %}">
                 {% if text %}
                     {{ text }}
                 {% else %}
