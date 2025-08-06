@@ -1879,7 +1879,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     )
 
     # Filter categories based on fighter category restrictions
-    fighter_category = fighter.content_fighter_cached.category
+    fighter_category = fighter.get_category()
     restricted_category_ids = []
     for category in categories:
         if not category.is_available_to_fighter_category(fighter_category):

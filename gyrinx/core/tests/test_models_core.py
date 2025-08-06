@@ -1673,3 +1673,276 @@ def test_m2m_triggers_update_cost_cache(
     assert (
         lst.cost_int() == initial_list_cost + accessory.cost_int() + upgrade.cost_int()
     )
+
+
+@pytest.mark.django_db
+def test_fighter_category_override(content_fighter, make_list, make_list_fighter):
+    """Test that category_override overrides the fighter's content category."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    # Initially, should use content_fighter's category
+    assert fighter.get_category() == content_fighter.category
+
+    # Set a category override
+    fighter.category_override = FighterCategoryChoices.LEADER
+    fighter.save()
+
+    # Now should return the override
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+
+    # Clear the override
+    fighter.category_override = None
+    fighter.save()
+
+    # Should fall back to content_fighter's category
+    assert fighter.get_category() == content_fighter.category
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_fully_qualified_name(
+    content_fighter, make_list, make_list_fighter
+):
+    """Test that fully_qualified_name uses the category override."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Bob")
+
+    # Get the original fully qualified name
+    original_name = fighter.fully_qualified_name
+
+    # Set a category override to LEADER
+    fighter.category_override = FighterCategoryChoices.LEADER
+    fighter.save()
+
+    # Clear the cached property
+    del fighter.fully_qualified_name
+
+    # The fully qualified name should now use the overridden category
+    expected_name = f"Bob - {content_fighter.type} (Leader)"
+    assert fighter.fully_qualified_name == expected_name
+
+    # Clear the override
+    fighter.category_override = None
+    fighter.save()
+
+    # Clear the cached property
+    del fighter.fully_qualified_name
+
+    # Should be back to original
+    assert fighter.fully_qualified_name == original_name
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_sorting(content_house):
+    """Test that fighters are sorted by their overridden category."""
+    lst = List.objects.create(name="Test List", content_house=content_house)
+
+    # Create fighters with different categories
+    juve_fighter = ContentFighter.objects.create(
+        type="Test Juve",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=50,
+    )
+    ganger_fighter = ContentFighter.objects.create(
+        type="Test Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=60,
+    )
+
+    # Create list fighters
+    fighter1 = ListFighter.objects.create(
+        name="Fighter 1", content_fighter=juve_fighter, list=lst
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter 2", content_fighter=ganger_fighter, list=lst
+    )
+
+    # Initially, fighter2 (ganger) should come before fighter1 (juve) in sorting
+    fighters = ListFighter.objects.filter(list=lst).order_by("_category_order", "name")
+    assert list(fighters) == [fighter2, fighter1]
+
+    # Override fighter1's category to LEADER
+    fighter1.category_override = FighterCategoryChoices.LEADER
+    fighter1.save()
+
+    # Now fighter1 (overridden to leader) should come first
+    fighters = ListFighter.objects.filter(list=lst).order_by("_category_order", "name")
+    assert list(fighters) == [fighter1, fighter2]
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_restricted_categories(content_house):
+    """Test that category override only allows specific categories."""
+    from gyrinx.core.models.list import (
+        ALLOWED_CATEGORY_OVERRIDES,
+        validate_category_override,
+    )
+
+    lst = List.objects.create(name="Test List", content_house=content_house)
+
+    # Create a regular fighter
+    regular_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+
+    fighter = ListFighter.objects.create(
+        name="Fighter", content_fighter=regular_fighter, list=lst
+    )
+
+    # Test that allowed overrides work
+    for category in ALLOWED_CATEGORY_OVERRIDES:
+        fighter.category_override = category
+        # Validate the category_override field directly
+        validate_category_override(category)  # Should not raise
+        fighter.save()
+        assert fighter.get_category() == category
+
+    # Test that disallowed categories raise validation error
+    disallowed_categories = [
+        FighterCategoryChoices.VEHICLE,
+        FighterCategoryChoices.STASH,
+        FighterCategoryChoices.EXOTIC_BEAST,
+        FighterCategoryChoices.BRUTE,
+        FighterCategoryChoices.HIRED_GUN,
+    ]
+
+    for category in disallowed_categories:
+        with pytest.raises(ValidationError):
+            validate_category_override(category)
+
+
+@pytest.mark.django_db
+def test_fighter_category_override_equipment_restrictions(content_house):
+    """Test that equipment category restrictions respect category overrides."""
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentEquipmentCategoryFighterRestriction,
+        ContentFighterEquipmentListItem,
+    )
+
+    lst = List.objects.create(name="Test List", content_house=content_house)
+
+    # Create a JUVE fighter
+    juve_fighter = ContentFighter.objects.create(
+        type="Test Juve",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=50,
+    )
+
+    # Create equipment categories with restrictions
+    leader_only_category = ContentEquipmentCategory.objects.create(
+        name="Leader Equipment", group="Equipment"
+    )
+    ContentEquipmentCategoryFighterRestriction.objects.create(
+        equipment_category=leader_only_category,
+        fighter_category=FighterCategoryChoices.LEADER,
+    )
+
+    all_fighters_category = ContentEquipmentCategory.objects.create(
+        name="Common Equipment", group="Equipment"
+    )
+    # No restrictions - available to all
+
+    juve_ganger_category = ContentEquipmentCategory.objects.create(
+        name="Juve/Ganger Equipment", group="Equipment"
+    )
+    ContentEquipmentCategoryFighterRestriction.objects.create(
+        equipment_category=juve_ganger_category,
+        fighter_category=FighterCategoryChoices.JUVE,
+    )
+    ContentEquipmentCategoryFighterRestriction.objects.create(
+        equipment_category=juve_ganger_category,
+        fighter_category=FighterCategoryChoices.GANGER,
+    )
+
+    # Create equipment in each category
+    leader_equipment = ContentEquipment.objects.create(
+        name="Leader Sword",
+        category=leader_only_category,
+        rarity="C",
+        cost="50",
+    )
+    common_equipment = ContentEquipment.objects.create(
+        name="Common Knife",
+        category=all_fighters_category,
+        rarity="C",
+        cost="10",
+    )
+    juve_equipment = ContentEquipment.objects.create(
+        name="Juve/Ganger Pistol",
+        category=juve_ganger_category,
+        rarity="C",
+        cost="20",
+    )
+
+    # Create the list fighter
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", content_fighter=juve_fighter, list=lst
+    )
+
+    # Add all equipment to the fighter's equipment list
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=juve_fighter, equipment=leader_equipment
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=juve_fighter, equipment=common_equipment
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=juve_fighter, equipment=juve_equipment
+    )
+
+    # Test 1: As a JUVE, should not have access to leader-only equipment
+    assert fighter.get_category() == FighterCategoryChoices.JUVE
+    assert not leader_only_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert all_fighters_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert juve_ganger_category.is_available_to_fighter_category(fighter.get_category())
+
+    # Test 2: Override to LEADER, should now have access to leader equipment
+    fighter.category_override = FighterCategoryChoices.LEADER
+    fighter.save()
+
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+    assert leader_only_category.is_available_to_fighter_category(fighter.get_category())
+    assert all_fighters_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert not juve_ganger_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+
+    # Test 3: Override to GANGER, should have access to juve/ganger equipment but not leader
+    fighter.category_override = FighterCategoryChoices.GANGER
+    fighter.save()
+
+    assert fighter.get_category() == FighterCategoryChoices.GANGER
+    assert not leader_only_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert all_fighters_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert juve_ganger_category.is_available_to_fighter_category(fighter.get_category())
+
+    # Test 4: Clear override, should revert to original JUVE restrictions
+    fighter.category_override = None
+    fighter.save()
+
+    assert fighter.get_category() == FighterCategoryChoices.JUVE
+    assert not leader_only_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert all_fighters_category.is_available_to_fighter_category(
+        fighter.get_category()
+    )
+    assert juve_ganger_category.is_available_to_fighter_category(fighter.get_category())

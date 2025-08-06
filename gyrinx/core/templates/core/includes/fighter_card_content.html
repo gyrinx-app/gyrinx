@@ -55,9 +55,20 @@
                     <div>
                         {% if not print %}
                             {% ref list.content_house.name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
-                            ({{ fighter.content_fighter_cached.cat }})
+                            {% if fighter.category_override %}
+                                (<span class="tooltipped"
+      data-bs-toggle="tooltip"
+      title="Category manually overridden from {{ fighter.content_fighter_cached.cat }}">{{ fighter.get_category_label }}</span>)
+                            {% else %}
+                                ({{ fighter.content_fighter_cached.cat }})
+                            {% endif %}
                         {% else %}
-                            {{ fighter.content_fighter_cached.type }} ({{ fighter.content_fighter_cached.cat }})
+                            {{ fighter.content_fighter_cached.type }}
+                            {% if fighter.category_override %}
+                                ({{ fighter.get_category_label }}*)
+                            {% else %}
+                                ({{ fighter.content_fighter_cached.cat }})
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
