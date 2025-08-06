@@ -156,6 +156,8 @@
                                     {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                     {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% empty %}
+                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
                                 {% endfor %}
                             {% endspaceless %}
                             {% if not print %}
@@ -186,6 +188,8 @@
                                     {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                     {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% empty %}
+                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
                                 {% endfor %}
                             {% endspaceless %}
                             {% if not print %}
