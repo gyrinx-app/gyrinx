@@ -1663,6 +1663,15 @@ class ListFighter(AppBase):
             advancement.campaign_action = None  # Clear campaign action reference
             advancement.save()
 
+        # Clone stat overrides (new ListFighterStatOverride model)
+        for stat_override in self.stat_overrides.all():
+            ListFighterStatOverride.objects.create(
+                list_fighter=clone,
+                content_stat=stat_override.content_stat,
+                value=stat_override.value,
+                owner=clone.owner,
+            )
+
         return clone
 
     @property
