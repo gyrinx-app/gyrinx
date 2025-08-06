@@ -230,7 +230,29 @@ class ListFighterForm(forms.ModelForm):
             "category_override": forms.Select(
                 attrs={"class": "form-select"},
                 choices=[("", "-- No Override --")]
-                + list(FighterCategoryChoices.choices),
+                + [
+                    (
+                        FighterCategoryChoices.LEADER,
+                        FighterCategoryChoices.LEADER.label,
+                    ),
+                    (
+                        FighterCategoryChoices.CHAMPION,
+                        FighterCategoryChoices.CHAMPION.label,
+                    ),
+                    (
+                        FighterCategoryChoices.GANGER,
+                        FighterCategoryChoices.GANGER.label,
+                    ),
+                    (FighterCategoryChoices.JUVE, FighterCategoryChoices.JUVE.label),
+                    (
+                        FighterCategoryChoices.PROSPECT,
+                        FighterCategoryChoices.PROSPECT.label,
+                    ),
+                    (
+                        FighterCategoryChoices.SPECIALIST,
+                        FighterCategoryChoices.SPECIALIST.label,
+                    ),
+                ],
             ),
             "cost_override": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}

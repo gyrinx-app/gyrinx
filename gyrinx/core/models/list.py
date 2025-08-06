@@ -59,6 +59,24 @@ from gyrinx.models import (
 logger = logging.getLogger(__name__)
 pylist = list
 
+# Define allowed category overrides
+ALLOWED_CATEGORY_OVERRIDES = [
+    FighterCategoryChoices.LEADER,
+    FighterCategoryChoices.CHAMPION,
+    FighterCategoryChoices.GANGER,
+    FighterCategoryChoices.JUVE,
+    FighterCategoryChoices.PROSPECT,
+    FighterCategoryChoices.SPECIALIST,
+]
+
+
+def validate_category_override(value):
+    """Validator to ensure category_override is in allowed list."""
+    if value and value not in ALLOWED_CATEGORY_OVERRIDES:
+        raise ValidationError(
+            f"Category override must be one of: {', '.join([c.label for c in ALLOWED_CATEGORY_OVERRIDES])}"
+        )
+
 
 ##
 ## Application Models
@@ -545,10 +563,11 @@ class ListFighter(AppBase):
     list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
     category_override = models.CharField(
         max_length=255,
-        choices=FighterCategoryChoices.choices,
+        choices=[(c, c.label) for c in ALLOWED_CATEGORY_OVERRIDES],
         blank=True,
         null=True,
-        help_text="Override the fighter's category without changing their type. Used for situations like elevating a hired gun to leader.",
+        validators=[validate_category_override],
+        help_text="Override the fighter's category without changing their type. Limited to Leader, Champion, Ganger, Juve, Prospect, and Specialist.",
     )
 
     # Stat overrides

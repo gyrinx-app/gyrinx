@@ -1773,11 +1773,16 @@ def test_fighter_category_override_sorting(content_house):
 
 
 @pytest.mark.django_db
-def test_fighter_category_override_vehicle_grouping(content_house):
-    """Test that vehicle grouping respects category override."""
+def test_fighter_category_override_restricted_categories(content_house):
+    """Test that category override only allows specific categories."""
+    from gyrinx.core.models.list import (
+        ALLOWED_CATEGORY_OVERRIDES,
+        validate_category_override,
+    )
+
     lst = List.objects.create(name="Test List", content_house=content_house)
 
-    # Create a regular fighter that we'll override to be a vehicle
+    # Create a regular fighter
     regular_fighter = ContentFighter.objects.create(
         type="Test Fighter",
         category=FighterCategoryChoices.GANGER,
@@ -1789,17 +1794,26 @@ def test_fighter_category_override_vehicle_grouping(content_house):
         name="Fighter", content_fighter=regular_fighter, list=lst
     )
 
-    # Initially, group_key should be the fighter's own ID
-    result = ListFighter.objects.with_group_keys().get(id=fighter.id)
-    assert result.group_key == fighter.id
+    # Test that allowed overrides work
+    for category in ALLOWED_CATEGORY_OVERRIDES:
+        fighter.category_override = category
+        # Validate the category_override field directly
+        validate_category_override(category)  # Should not raise
+        fighter.save()
+        assert fighter.get_category() == category
 
-    # Override to VEHICLE category
-    fighter.category_override = FighterCategoryChoices.VEHICLE
-    fighter.save()
+    # Test that disallowed categories raise validation error
+    disallowed_categories = [
+        FighterCategoryChoices.VEHICLE,
+        FighterCategoryChoices.STASH,
+        FighterCategoryChoices.EXOTIC_BEAST,
+        FighterCategoryChoices.BRUTE,
+        FighterCategoryChoices.HIRED_GUN,
+    ]
 
-    # Group key should still be the fighter's own ID when not linked
-    result = ListFighter.objects.with_group_keys().get(id=fighter.id)
-    assert result.group_key == fighter.id
+    for category in disallowed_categories:
+        with pytest.raises(ValidationError):
+            validate_category_override(category)
 
 
 @pytest.mark.django_db
