@@ -14,11 +14,12 @@ def copy_selected_to_fighter(self, request, queryset):
 
     if request.POST.get("post"):
         try:
-            for fighter_id in request.POST.getlist("to_fighters"):
-                for item in queryset:
-                    item.pk = None
-                    item.fighter_id = fighter_id
-                    item.save()
+            with transaction.atomic():
+                for fighter_id in request.POST.getlist("to_fighters"):
+                    for item in queryset:
+                        item.pk = None
+                        item.fighter_id = fighter_id
+                        item.save()
         except Exception as e:
             self.message_user(
                 request,
