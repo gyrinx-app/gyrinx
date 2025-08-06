@@ -705,11 +705,13 @@ class ContentFighterManager(models.Manager):
                                 "SPECIALIST",
                                 "GANGER",
                                 "JUVE",
-                                "GANG_TERRAIN",
                             ]
                         )
                     ],
-                    default=99,
+                    # Gang Terrain always sorts last
+                    When(category="GANG_TERRAIN", then=999),
+                    # Other categories (including ALLY) sort in the middle, undefined
+                    default=50,
                 )
             )
             .order_by(
@@ -739,11 +741,13 @@ class ContentFighterManager(models.Manager):
                                 "SPECIALIST",
                                 "GANGER",
                                 "JUVE",
-                                "GANG_TERRAIN",
                             ]
                         )
                     ],
-                    default=99,
+                    # Gang Terrain always sorts last
+                    When(category="GANG_TERRAIN", then=999),
+                    # Other categories (including ALLY) sort in the middle, undefined
+                    default=50,
                 )
             )
             .order_by(
