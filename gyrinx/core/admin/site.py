@@ -18,7 +18,7 @@ class BannerAdmin(admin.ModelAdmin):
     ]
     list_filter = ["is_live", "colour", "created"]
     search_fields = ["text", "cta_text"]
-    readonly_fields = ["created", "modified"]
+    readonly_fields = ["created", "modified", "get_click_count"]
 
     fieldsets = (
         ("Banner Content", {"fields": ("text", "icon", "colour")}),
@@ -32,7 +32,7 @@ class BannerAdmin(admin.ModelAdmin):
         (
             "Status",
             {
-                "fields": ("is_live",),
+                "fields": ("is_live", "get_click_count"),
                 "description": "Only one banner can be live at a time",
             },
         ),
