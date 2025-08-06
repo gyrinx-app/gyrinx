@@ -102,8 +102,14 @@ class ContentEquipmentCategoryFighterRestrictionInline(ContentTabularInline):
 
 
 class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
-    def init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
 
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
@@ -150,6 +156,11 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, **kwargs)
                     self.parent_instance = obj
+                    # Optimize the fighter queryset with select_related
+                    if "fighter" in self.fields:
+                        self.fields["fighter"].queryset = self.fields[
+                            "fighter"
+                        ].queryset.select_related("house")
                     group_select(
                         self,
                         "fighter",
@@ -301,6 +312,12 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
+
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
         )
@@ -313,12 +330,23 @@ class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
     form = ContentFighterEquipmentListItemAdminForm
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     actions = [copy_selected_to_fighter]
 
 
 class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
 
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
@@ -330,12 +358,23 @@ class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelA
     search_fields = ["fighter__type", "weapon_accessory__name"]
     form = ContentFighterEquipmentListWeaponAccessoryAdminForm
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     actions = [copy_selected_to_fighter]
 
 
 class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
 
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
@@ -373,6 +412,12 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
+
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
         )
@@ -384,6 +429,12 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
 class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profiles_field__name"]
     form = ContentFighterDefaultAssignmentAdminForm
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     actions = [copy_selected_to_fighter]
 
 
@@ -409,6 +460,11 @@ class ContentFighterPsykerDisciplineAssignmentInline(ContentTabularInline):
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Optimize the fighter queryset with select_related if the field exists
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 
@@ -533,6 +589,11 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Optimize the fighter queryset with select_related
+        if "fighter" in self.fields:
+            self.fields["fighter"].queryset = self.fields[
+                "fighter"
+            ].queryset.select_related("house")
         group_select(
             self, "fighter", key=lambda x: x.house.name if x.house else "No House"
         )
@@ -544,6 +605,11 @@ class ContentFighterPsykerPowerDefaultAssignmentAdmin(ContentAdmin):
     search_fields = ["fighter__type", "psyker_power__name"]
     list_filter = ["fighter__type", "psyker_power__discipline"]
     form = ContentFighterPsykerPowerDefaultAssignmentForm
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 class ContentFighterInline(ContentTabularInline):
@@ -565,14 +631,28 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Optimize the content_fighter queryset with select_related
+        if "content_fighter" in self.fields:
+            self.fields["content_fighter"].queryset = self.fields[
+                "content_fighter"
+            ].queryset.select_related("house")
         group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
+        group_select(
+            self,
+            "content_fighter",
+            key=lambda x: x.house.name if x.house else "No House",
+        )
 
 
 @admin.register(ContentEquipmentFighterProfile)
 class ContentEquipmentFighterProfileAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentFighterProfileAdminForm
     search_fields = ["equipment__name", "content_fighter__type"]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "content_fighter":
+            kwargs["queryset"] = ContentFighter.objects.select_related("house")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 class ContentEquipmentEquipmentProfileAdminForm(forms.ModelForm):
