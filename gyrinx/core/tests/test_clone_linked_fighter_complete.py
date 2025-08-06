@@ -12,10 +12,14 @@ from gyrinx.content.models import (
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
+    ContentStat,
+    ContentStatlineType,
+    ContentStatlineTypeStat,
 )
 from gyrinx.core.models.list import (
     ListFighterAdvancement,
     ListFighterEquipmentAssignment,
+    ListFighterStatOverride,
 )
 from gyrinx.models import FighterCategoryChoices
 
@@ -580,3 +584,154 @@ def test_clone_linked_fighter_with_nested_links(
     # Check gunner has equipment
     assert cloned_gunner.equipment.count() == 1
     assert cloned_gunner.equipment.first().name == "Gunner Armor"
+
+
+@pytest.mark.django_db
+def test_clone_linked_fighter_with_stat_overrides(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    """
+    Test that ListFighterStatOverride entries on linked fighters are cloned.
+    Uses existing models from test fixtures to simplify test setup.
+    """
+    # Setup
+    house = make_content_house("Test House")
+
+    # Create the main fighter
+    gang_member_cf = make_content_fighter(
+        type="Gang Member",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=100,
+    )
+
+    # Create a vehicle fighter
+    vehicle_cf = make_content_fighter(
+        type="Vehicle",
+        category=FighterCategoryChoices.VEHICLE,
+        house=house,
+        base_cost=200,
+    )
+
+    # Create equipment that generates the vehicle fighter
+    vehicle_equipment = make_equipment(
+        "Vehicle Key",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=150,
+    )
+
+    # Link the vehicle fighter to the equipment
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle_equipment,
+        content_fighter=vehicle_cf,
+    )
+
+    # Create the list and add the gang member
+    original_list = make_list("Original List", content_house=house, owner=user)
+    gang_member_lf = make_list_fighter(
+        original_list, "Gang Member", content_fighter=gang_member_cf, owner=user
+    )
+
+    # Assign the vehicle equipment to the gang member
+    vehicle_assignment = ListFighterEquipmentAssignment(
+        list_fighter=gang_member_lf,
+        content_equipment=vehicle_equipment,
+    )
+    vehicle_assignment.save()
+
+    # Get the auto-created vehicle
+    vehicle_lf = vehicle_assignment.linked_fighter
+    assert vehicle_lf is not None
+
+    # Create a minimal statline infrastructure for testing
+    # We'll use existing statline types if they exist, or create minimal ones
+    stat = ContentStat.objects.first()
+    if not stat:
+        stat = ContentStat.objects.create(
+            field_name="test_stat",
+            full_name="Test Stat",
+            short_name="TS",
+        )
+
+    statline_type = ContentStatlineType.objects.first()
+    if not statline_type:
+        statline_type = ContentStatlineType.objects.create(
+            name="Test Statline Type",
+        )
+
+    type_stat = ContentStatlineTypeStat.objects.filter(
+        statline_type=statline_type, stat=stat
+    ).first()
+    if not type_stat:
+        type_stat = ContentStatlineTypeStat.objects.create(
+            statline_type=statline_type,
+            stat=stat,
+            position=1,
+        )
+
+    # Add stat overrides to the vehicle
+    ListFighterStatOverride.objects.create(
+        list_fighter=vehicle_lf,
+        content_stat=type_stat,
+        value="10",
+        owner=user,
+    )
+
+    # Create another stat and override for testing multiple overrides
+    stat2 = ContentStat.objects.create(
+        field_name="test_stat_2",
+        full_name="Test Stat 2",
+        short_name="TS2",
+    )
+    type_stat2 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat2,
+        position=2,
+    )
+    ListFighterStatOverride.objects.create(
+        list_fighter=vehicle_lf,
+        content_stat=type_stat2,
+        value="5+",
+        owner=user,
+    )
+
+    # Verify the vehicle has the stat overrides
+    assert vehicle_lf.stat_overrides.count() == 2
+
+    # Clone the list
+    cloned_list = original_list.clone(name="Cloned List")
+
+    # Find the cloned vehicle
+    cloned_gang_member = (
+        cloned_list.fighters().filter(content_fighter=gang_member_cf).first()
+    )
+    cloned_vehicle_assignment = (
+        cloned_gang_member._direct_assignments()
+        .filter(content_equipment=vehicle_equipment)
+        .first()
+    )
+    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+
+    # Check that the stat overrides were cloned
+    assert cloned_vehicle.stat_overrides.count() == 2, (
+        f"Expected cloned vehicle to have 2 stat overrides, "
+        f"but found {cloned_vehicle.stat_overrides.count()}"
+    )
+
+    # Check the values of the cloned overrides
+    cloned_override1 = cloned_vehicle.stat_overrides.filter(
+        content_stat=type_stat
+    ).first()
+    assert cloned_override1 is not None
+    assert cloned_override1.value == "10"
+
+    cloned_override2 = cloned_vehicle.stat_overrides.filter(
+        content_stat=type_stat2
+    ).first()
+    assert cloned_override2 is not None
+    assert cloned_override2.value == "5+"

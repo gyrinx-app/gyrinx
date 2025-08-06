@@ -1561,6 +1561,15 @@ class ListFighter(AppBase):
                 owner=target_fighter.owner,
             )
 
+        # Copy stat overrides (new ListFighterStatOverride model)
+        for stat_override in self.stat_overrides.all():
+            ListFighterStatOverride.objects.create(
+                list_fighter=target_fighter,
+                content_stat=stat_override.content_stat,
+                value=stat_override.value,
+                owner=target_fighter.owner,
+            )
+
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
 
