@@ -446,14 +446,11 @@ class ListFighterManager(models.Manager):
                         then=Concat("linked_fighter__list_fighter__name", Value("~2")),
                     ),
                     # If this is a vehicle linked to a fighter, sort with the parent but come first
+                    # Note: Vehicle cannot be an override category, only content_fighter__category
                     When(
                         Q(_is_linked=True)
-                        & (
-                            Q(category_override=FighterCategoryChoices.VEHICLE)
-                            | Q(
-                                category_override__isnull=True,
-                                content_fighter__category=FighterCategoryChoices.VEHICLE,
-                            )
+                        & Q(
+                            content_fighter__category=FighterCategoryChoices.VEHICLE,
                         ),
                         then=Concat("linked_fighter__list_fighter__name", Value("~0")),
                     ),
@@ -493,14 +490,11 @@ class ListFighterManager(models.Manager):
         return self.get_queryset().annotate(
             group_key=Case(
                 # If this fighter is linked to stash and is a vehicle, use own ID
+                # Note: Vehicle cannot be an override category, only content_fighter__category
                 When(
                     Q(linked_fighter__isnull=False)
-                    & (
-                        Q(category_override=FighterCategoryChoices.VEHICLE)
-                        | Q(
-                            category_override__isnull=True,
-                            content_fighter__category=FighterCategoryChoices.VEHICLE,
-                        )
+                    & Q(
+                        content_fighter__category=FighterCategoryChoices.VEHICLE,
                     )
                     & Q(linked_fighter__list_fighter__content_fighter__is_stash=True),
                     then=F("id"),
@@ -508,12 +502,8 @@ class ListFighterManager(models.Manager):
                 # If this fighter is linked, and we are a vehicle, use the linked fighter's id
                 When(
                     Q(linked_fighter__isnull=False)
-                    & (
-                        Q(category_override=FighterCategoryChoices.VEHICLE)
-                        | Q(
-                            category_override__isnull=True,
-                            content_fighter__category=FighterCategoryChoices.VEHICLE,
-                        )
+                    & Q(
+                        content_fighter__category=FighterCategoryChoices.VEHICLE,
                     ),
                     then=F("linked_fighter__list_fighter__id"),
                 ),
