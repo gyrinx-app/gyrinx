@@ -106,6 +106,8 @@
                                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
+                                        {% empty %}
+                                            {% if list.owner_cached != user or print %}<span class="text-muted fst-italic">None</span>{% endif %}
                                         {% endfor %}
                                         {% if list.owner_cached == user and not print %}
                                             {% if line.assignments|length > 0 %}
@@ -197,6 +199,8 @@
                                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
+                                        {% empty %}
+                                            {% if list.owner_cached != user or print %}<span class="text-muted fst-italic">None</span>{% endif %}
                                         {% endfor %}
                                         {% if list.owner_cached == user and not print %}
                                             {% if line.assignments|length > 0 %}
