@@ -530,7 +530,7 @@ class AddInjuryForm(forms.Form):
         # Filter injuries based on fighter category if fighter is provided
         if fighter:
             fighter_category = fighter.content_fighter.category
-            fighter_house = fighter.list.content_house
+            fighter_house = fighter.equipment_list_fighter.house
 
             # Build query for injury groups available to this fighter
             # Start with groups that have no category restrictions or include this category
