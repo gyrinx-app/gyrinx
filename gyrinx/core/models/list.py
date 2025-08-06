@@ -1464,6 +1464,103 @@ class ListFighter(AppBase):
             cost_override=0,
         )
 
+    def copy_attributes_to(self, target_fighter, include_equipment=True):
+        """Copy attributes from this fighter to another fighter.
+
+        Args:
+            target_fighter: The fighter to copy attributes to
+            include_equipment: Whether to copy equipment assignments (default True)
+        """
+        # Copy stat overrides
+        target_fighter.cost_override = self.cost_override
+        target_fighter.movement_override = self.movement_override
+        target_fighter.weapon_skill_override = self.weapon_skill_override
+        target_fighter.ballistic_skill_override = self.ballistic_skill_override
+        target_fighter.strength_override = self.strength_override
+        target_fighter.toughness_override = self.toughness_override
+        target_fighter.wounds_override = self.wounds_override
+        target_fighter.initiative_override = self.initiative_override
+        target_fighter.attacks_override = self.attacks_override
+        target_fighter.leadership_override = self.leadership_override
+        target_fighter.cool_override = self.cool_override
+        target_fighter.willpower_override = self.willpower_override
+        target_fighter.intelligence_override = self.intelligence_override
+
+        # Copy XP
+        target_fighter.xp_current = self.xp_current
+        target_fighter.xp_total = self.xp_total
+
+        # Copy narrative
+        target_fighter.narrative = self.narrative
+
+        target_fighter.save()
+
+        # Copy ManyToMany relationships
+        target_fighter.skills.set(self.skills.all())
+        target_fighter.additional_rules.set(self.additional_rules.all())
+        target_fighter.disabled_rules.set(self.disabled_rules.all())
+        target_fighter.custom_rules.set(self.custom_rules.all())
+
+        # Copy disabled default assignments (considering conversions)
+        disabled_defaults_to_copy = []
+        for disabled_default in self.disabled_default_assignments.all():
+            # Check if this disabled default has been converted to a direct assignment
+            has_direct_assignment = (
+                self._direct_assignments()
+                .filter(
+                    content_equipment=disabled_default.equipment,
+                    from_default_assignment=disabled_default,
+                )
+                .exists()
+            )
+            if not has_direct_assignment:
+                disabled_defaults_to_copy.append(disabled_default)
+
+        target_fighter.disabled_default_assignments.set(disabled_defaults_to_copy)
+        target_fighter.disabled_pskyer_default_powers.set(
+            self.disabled_pskyer_default_powers.all()
+        )
+
+        if include_equipment:
+            # Copy equipment assignments that weren't converted from default assignments
+            for assignment in self._direct_assignments():
+                if assignment.from_default_assignment is not None:
+                    # Skip assignments that were converted from default assignments
+                    continue
+                cloned_assignment = assignment.clone(list_fighter=target_fighter)
+
+                # Handle nested linked fighters recursively
+                if assignment.linked_fighter:
+                    original_linked_fighter = assignment.linked_fighter
+                    cloned_linked_fighter = cloned_assignment.linked_fighter
+
+                    if cloned_linked_fighter:
+                        # Recursively copy all attributes to the nested linked fighter
+                        original_linked_fighter.copy_attributes_to(
+                            cloned_linked_fighter, include_equipment=True
+                        )
+
+        # Copy psyker power assignments
+        for power_assignment in self.psyker_powers.all():
+            ListFighterPsykerPowerAssignment.objects.create(
+                list_fighter=target_fighter,
+                psyker_power=power_assignment.psyker_power,
+            )
+
+        # Copy advancements
+        for advancement in self.advancements.all():
+            # Create a new advancement for the target fighter
+            ListFighterAdvancement.objects.create(
+                fighter=target_fighter,
+                advancement_type=advancement.advancement_type,
+                stat_increased=advancement.stat_increased,
+                skill=advancement.skill,
+                description=advancement.description,
+                xp_cost=advancement.xp_cost,
+                cost_increase=advancement.cost_increase,
+                owner=target_fighter.owner,
+            )
+
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
 
@@ -1528,7 +1625,19 @@ class ListFighter(AppBase):
                 # Skip assignments that were converted from default assignments
                 # The clone will get these as default assignments instead
                 continue
-            assignment.clone(list_fighter=clone)
+            cloned_assignment = assignment.clone(list_fighter=clone)
+
+            # If the original assignment has a linked fighter (e.g., vehicle, exotic beast),
+            # we need to copy all attributes from that linked fighter to the new linked fighter
+            if assignment.linked_fighter:
+                original_linked_fighter = assignment.linked_fighter
+                cloned_linked_fighter = cloned_assignment.linked_fighter
+
+                if cloned_linked_fighter:
+                    # Copy all attributes (including equipment) from the original linked fighter
+                    original_linked_fighter.copy_attributes_to(
+                        cloned_linked_fighter, include_equipment=True
+                    )
 
         # Clone psyker power assignments
         for power_assignment in self.psyker_powers.all():
