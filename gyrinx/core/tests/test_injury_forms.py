@@ -238,6 +238,105 @@ def test_add_injury_form_empty_choice():
 
 
 @pytest.mark.django_db
+def test_add_injury_form_uses_equipment_list_fighter_house():
+    """Test that AddInjuryForm uses the fighter's equipment_list_fighter house for filtering injuries."""
+    # Create test data
+    user = User.objects.create_user(username="testuser", password="testpass")
+
+    # Create two different houses
+    main_house = ContentHouse.objects.create(name="Main House")
+    legacy_house = ContentHouse.objects.create(name="Legacy House")
+
+    # Create fighters for each house
+    main_fighter = ContentFighter.objects.create(
+        type="Main Fighter",
+        category="GANGER",
+        house=main_house,
+    )
+    legacy_fighter = ContentFighter.objects.create(
+        type="Legacy Fighter",
+        category="GANGER",
+        house=legacy_house,
+        can_be_legacy=True,
+    )
+
+    # Create list with main house
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=main_house,
+    )
+
+    # Create a fighter with a legacy
+    fighter = ListFighter.objects.create(
+        name="Fighter with Legacy",
+        content_fighter=main_fighter,
+        legacy_content_fighter=legacy_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create injury groups specific to each house
+    from gyrinx.content.models import ContentInjuryGroup
+
+    main_group = ContentInjuryGroup.objects.create(
+        name="Main House Injuries",
+    )
+    main_group.restricted_to_house.set([main_house])
+
+    legacy_group = ContentInjuryGroup.objects.create(
+        name="Legacy House Injuries",
+    )
+    legacy_group.restricted_to_house.set([legacy_house])
+
+    # Create injuries for each group
+    main_injury = ContentInjury.objects.create(
+        name="Main House Injury",
+        injury_group=main_group,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+    )
+    legacy_injury = ContentInjury.objects.create(
+        name="Legacy House Injury",
+        injury_group=legacy_group,
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+    )
+    generic_injury = ContentInjury.objects.create(
+        name="Generic Injury",
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+    )
+
+    # Create form with fighter
+    form = AddInjuryForm(fighter=fighter)
+
+    # The form should use the legacy fighter's house since equipment_list_fighter
+    # returns legacy_content_fighter when it exists
+    available_injuries = list(form.fields["injury"].queryset)
+
+    # Should include legacy house injuries and generic injuries
+    assert legacy_injury in available_injuries
+    assert generic_injury in available_injuries
+    # Should NOT include main house injuries since we're using the legacy fighter's house
+    assert main_injury not in available_injuries
+
+    # Test without legacy fighter - should use main house
+    fighter_no_legacy = ListFighter.objects.create(
+        name="Fighter without Legacy",
+        content_fighter=main_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    form_no_legacy = AddInjuryForm(fighter=fighter_no_legacy)
+    available_injuries_no_legacy = list(form_no_legacy.fields["injury"].queryset)
+
+    # Should include main house injuries and generic injuries
+    assert main_injury in available_injuries_no_legacy
+    assert generic_injury in available_injuries_no_legacy
+    # Should NOT include legacy house injuries
+    assert legacy_injury not in available_injuries_no_legacy
+
+
+@pytest.mark.django_db
 def test_add_injury_form_defaults_to_fighter_current_state():
     """Test that the fighter_state field defaults to the fighter's current injury state."""
     # Create test data
