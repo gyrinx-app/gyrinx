@@ -25,6 +25,7 @@
 * [Psykers](psykers.md)
 * [Fighter Cost System Reference](fighter-cost-system-reference.md)
 * [Fighter Advancements](technical-reference/fighter-advancements.md)
+* [Admin Customizations](developing-gyrinx/admin-customizations.md)
 * [History Tracking](developing-gyrinx/history-tracking.md)
 * [Group-Based Features](developing-gyrinx/group-based-features.md)
 * [Deployment Environment Variables](deployment-environment-variables.md)
