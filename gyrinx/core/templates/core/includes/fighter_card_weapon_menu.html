@@ -4,6 +4,9 @@
         <div class="d-flex flex-wrap">
             <i class="bi-arrow-90deg-up text-secondary me-2"></i>
             {% if assign.kind == 'assigned' %}
+                <a href="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}"
+                   class="link-secondary">Edit</a>
+                {% dot %}
                 <a href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}"
                    class="link-secondary">Accessories</a>
                 {% dot %}

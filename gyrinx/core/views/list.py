@@ -31,6 +31,7 @@ from gyrinx.content.models import (
     ContentSkill,
     ContentSkillCategory,
     ContentWeaponAccessory,
+    ContentWeaponProfile,
 )
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
@@ -2451,6 +2452,173 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
             "filter": filter_mode,
             "search_query": search_query,
             "mode": "edit",
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def edit_single_weapon(request, id, fighter_id, assign_id):
+    """
+    Edit weapon profiles for a single :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be edited.
+    ``profiles``
+        A list of available :model:`content.ContentWeaponProfile` objects.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_fighter_weapon_edit.html`
+
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment.objects.with_related_data(),
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+
+    error_message = None
+
+    # Handle adding a new profile
+    if request.method == "POST" and "profile_id" in request.POST:
+        profile_id = request.POST.get("profile_id")
+        profile = get_object_or_404(
+            ContentWeaponProfile, pk=profile_id, equipment=assignment.content_equipment
+        )
+
+        # Add the profile to the assignment
+        assignment.weapon_profiles_field.add(profile)
+
+        # Redirect back to the same page
+        return HttpResponseRedirect(
+            reverse(
+                "core:list-fighter-weapon-edit",
+                args=(lst.id, fighter.id, assignment.id),
+            )
+        )
+
+    # Get all available profiles for this weapon
+    profiles_qs = ContentWeaponProfile.objects.filter(
+        equipment=assignment.content_equipment
+    ).order_by("cost", "name")
+
+    # Get already assigned profile IDs to filter them out from available profiles
+    existing_profile_ids = set(
+        assignment.weapon_profiles_field.values_list("id", flat=True)
+    )
+
+    # Build list of available profiles
+    profiles = []
+    for profile in profiles_qs:
+        if profile.id not in existing_profile_ids:
+            # Calculate the actual cost for this profile on this weapon assignment
+            cost_int = assignment.weapon_profile_cost_int(profile)
+            cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
+
+            profiles.append(
+                {
+                    "id": profile.id,
+                    "name": profile.name,
+                    "cost_int": cost_int,
+                    "cost_display": cost_display,
+                    "s_range": profile.s_range,
+                    "l_range": profile.l_range,
+                    "str": profile.str,
+                    "ap": profile.ap,
+                    "d": profile.d,
+                    "am": profile.am,
+                    "traits": profile.traits,
+                }
+            )
+
+    return render(
+        request,
+        "core/list_fighter_weapon_edit.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": VirtualListFighterEquipmentAssignment.from_assignment(assignment),
+            "profiles": profiles,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profile_id):
+    """
+    Remove a :model:`content.ContentWeaponProfile` from a fighter :model:`core.ListFighterEquipmentAssignment`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter``
+        The :model:`core.ListFighter` owning this equipment assignment.
+    ``assign``
+        The :model:`core.ListFighterEquipmentAssignment` to be edited.
+    ``profile``
+        The :model:`content.ContentWeaponProfile` to be removed.
+
+    **Template**
+
+    :template:`core/list_fighter_weapon_profile_delete.html`
+
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+    assignment = get_object_or_404(
+        ListFighterEquipmentAssignment.objects.with_related_data(),
+        pk=assign_id,
+        list_fighter=fighter,
+    )
+    profile = get_object_or_404(
+        ContentWeaponProfile,
+        pk=profile_id,
+    )
+
+    if request.method == "POST":
+        # Remove the profile from the assignment
+        assignment.weapon_profiles_field.remove(profile)
+
+        # Redirect back to the weapon edit page
+        return HttpResponseRedirect(
+            reverse(
+                "core:list-fighter-weapon-edit",
+                args=(lst.id, fighter.id, assignment.id),
+            )
+        )
+
+    return render(
+        request,
+        "core/list_fighter_weapon_profile_delete.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "assign": VirtualListFighterEquipmentAssignment.from_assignment(assignment),
+            "profile": profile,
         },
     )
 
