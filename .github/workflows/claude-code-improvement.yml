@@ -67,6 +67,8 @@ jobs:
       - name: Run Claude Code Improvement Analysis
         id: claude-improvement
         uses: anthropics/claude-code-action@beta
+        env:
+          ALLOWED_TOOLS: "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -75,7 +77,7 @@ jobs:
           mode: "agent"
 
           # Allow Claude to use necessary tools
-          allowed_tools: "Bash"
+          allowed_tools: "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
 
           # Direct prompt for automated code improvement
           direct_prompt: |
@@ -158,6 +160,13 @@ jobs:
 
           # Custom instructions for the project
           custom_instructions: |
+            The repo is gyrinx-app/gyrinx.
+
+            You can create issues using the `gh` CLI tool:
+            ```bash
+            gh issue create --repo gyrinx-app/gyrinx [ARGS]
+            ```
+
             Remember the Gyrinx-specific guidelines:
             - This is a Django project with server-rendered HTML, not an SPA
             - Mobile-first design principles
