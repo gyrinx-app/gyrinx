@@ -54,10 +54,6 @@ class ListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if hasattr(self.instance, "list"):
-            self.fields["additional_rules"].queryset = self.fields[
-                "additional_rules"
-            ].queryset.filter(tree__house=self.instance.list.content_house)
-
             self.fields["disabled_default_assignments"].queryset = self.fields[
                 "disabled_default_assignments"
             ].queryset.filter(fighter=self.instance.content_fighter)
@@ -77,7 +73,6 @@ class ListFighterForm(forms.ModelForm):
         group_select(self, "content_fighter", key=lambda x: x.cat())
         group_select(self, "legacy_content_fighter", key=lambda x: x.cat())
         group_select(self, "skills", key=lambda x: x.category.name)
-        group_select(self, "additional_rules", key=lambda x: x.tree.name)
 
 
 @admin.display(description="Weapon Profiles")
@@ -124,7 +119,6 @@ class ListFighterAdmin(BaseAdmin):
         "owner",
         "list",
         "skills",
-        "additional_rules",
         "cost_override",
         cost,
         "narrative",
