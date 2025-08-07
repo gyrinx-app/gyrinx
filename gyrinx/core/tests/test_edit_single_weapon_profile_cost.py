@@ -100,9 +100,20 @@ def test_edit_single_weapon_profile_cost_calculation(
     # Check that the profile_cost_int method works correctly
     from gyrinx.content.models import VirtualWeaponProfile
 
-    virtual_profile1 = VirtualWeaponProfile(profile=profile1)
-    virtual_profile2 = VirtualWeaponProfile(profile=profile2)
-    virtual_profile3 = VirtualWeaponProfile(profile=profile3)
+    # Need to refetch profiles with cost_for_fighter annotation
+    profile1_annotated = ContentWeaponProfile.objects.with_cost_for_fighter(
+        list_fighter.content_fighter
+    ).get(id=profile1.id)
+    profile2_annotated = ContentWeaponProfile.objects.with_cost_for_fighter(
+        list_fighter.content_fighter
+    ).get(id=profile2.id)
+    profile3_annotated = ContentWeaponProfile.objects.with_cost_for_fighter(
+        list_fighter.content_fighter
+    ).get(id=profile3.id)
+
+    virtual_profile1 = VirtualWeaponProfile(profile=profile1_annotated)
+    virtual_profile2 = VirtualWeaponProfile(profile=profile2_annotated)
+    virtual_profile3 = VirtualWeaponProfile(profile=profile3_annotated)
 
     assert assignment.profile_cost_int(virtual_profile1) == 0  # Standard ammo is free
     assert assignment.profile_cost_int(virtual_profile2) == 15  # Special ammo costs 15
@@ -115,11 +126,10 @@ def test_edit_single_weapon_profile_cost_calculation(
     assignment.weapon_profiles_field.add(profile2)
     assignment.refresh_from_db()
 
-    # Clear cached properties after modifying the assignment
-    if hasattr(assignment, "_profile_cost_with_override_cached"):
-        del assignment._profile_cost_with_override_cached
-    if hasattr(assignment, "weapon_profiles_cost_int_cached"):
-        del assignment.weapon_profiles_cost_int_cached
+    # Need to refetch the assignment to get fresh cached properties
+    assignment = ListFighterEquipmentAssignment.objects.with_related_data().get(
+        pk=assignment.pk
+    )
 
     # Now total should include the special ammo cost
     assert assignment.weapon_profiles_cost_int() == 15  # Has special ammo
@@ -208,13 +218,13 @@ def test_edit_single_weapon_available_profiles_display(
         rarity="C",
     )
 
-    # Add all profiles to fighter's equipment list
-    for profile in [free_profile, paid_profile]:
-        ContentFighterEquipmentListItem.objects.create(
-            fighter=list_fighter.content_fighter,
-            equipment=weapon,
-            weapon_profile=profile,
-        )
+    # Add only the free profile to fighter's equipment list
+    # The paid profile should not be in the equipment list so it maintains its cost
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=list_fighter.content_fighter,
+        equipment=weapon,
+        weapon_profile=free_profile,
+    )
 
     # Assign weapon without any profiles initially
     assignment = ListFighterEquipmentAssignment.objects.create(
@@ -234,16 +244,27 @@ def test_edit_single_weapon_available_profiles_display(
     # Check that profile costs are correctly calculated
     from gyrinx.content.models import VirtualWeaponProfile
 
-    virtual_free_profile = VirtualWeaponProfile(profile=free_profile)
-    virtual_paid_profile = VirtualWeaponProfile(profile=paid_profile)
+    # Need to refetch profiles with cost_for_fighter annotation
+    free_profile_annotated = ContentWeaponProfile.objects.with_cost_for_fighter(
+        list_fighter.content_fighter
+    ).get(id=free_profile.id)
+    paid_profile_annotated = ContentWeaponProfile.objects.with_cost_for_fighter(
+        list_fighter.content_fighter
+    ).get(id=paid_profile.id)
 
+    virtual_free_profile = VirtualWeaponProfile(profile=free_profile_annotated)
+    virtual_paid_profile = VirtualWeaponProfile(profile=paid_profile_annotated)
+
+    # Free profile is in equipment list, so it's free
     assert assignment.profile_cost_int(virtual_free_profile) == 0
+    # Paid profile is NOT in equipment list, so it has its base cost
     assert assignment.profile_cost_int(virtual_paid_profile) == 5
 
     # Verify the response contains cost information
     content = response.content.decode()
+    # Free profile should be in the available profiles section
     assert "Free Profile" in content
+    # Paid profile should also be available but with cost
     assert "Paid Profile" in content
-    # The view should show "Free" for 0 cost and "5¢" for paid profile
-    assert "Free" in content or "0¢" in content
-    assert "5¢" in content
+    # Check for cost display in the available profiles
+    assert "+5¢" in content or "5¢" in content

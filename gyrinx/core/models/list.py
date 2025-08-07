@@ -2378,7 +2378,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             return cost
 
         if hasattr(profile.profile, "cost_for_fighter"):
-            cost = profile.cost_for_fighter_int()
+            cost = profile.profile.cost_for_fighter_int()
             self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
                 cost
             )

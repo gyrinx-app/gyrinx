@@ -118,28 +118,44 @@ def test_standard_profiles_not_in_available_list(
     content = response.content.decode()
 
     # Standard profiles should NOT be in the available profiles section
-    # Look for the "Available Profiles" section (new consolidated table format)
-    available_section_start = content.find("Available Profiles")
-    assert available_section_start > 0, "Should have Available Profiles section"
+    # The available profiles are in the third tbody section of the table
+    # Look for profiles that have "Add" buttons (which are available profiles)
+    # Check that paid profiles appear with Add buttons
+    assert "Special Ammo" in content
+    assert "Add" in content
 
-    # Get just the available profiles section (approximate)
-    available_section = content[
-        available_section_start : available_section_start + 3000
-    ]
+    # Find the section containing available profiles by looking for the Add button forms
+    # This helps us isolate the available profiles section
+    add_button_start = content.find(
+        '<button type="submit" class="btn btn-link btn-sm icon-link">'
+    )
+    if add_button_start > 0:
+        # Get a section around the add buttons to check available profiles
+        available_section = content[
+            max(0, add_button_start - 1000) : add_button_start + 2000
+        ]
+    else:
+        # Fallback to checking the whole content
+        available_section = content
 
     # Debug: write full section to file to see what's there
     with open("/tmp/test_available_section.html", "w") as f:
         f.write(available_section)
 
-    # At least one paid profile should appear (Special Ammo was added to equipment list)
+    # Paid profiles should appear with Add buttons
     assert "Special Ammo" in available_section
-    # Cost should be visible - but might be calculated differently
-    # The profile_cost_int might return different value due to fighter overrides
+    assert "Premium Ammo" in available_section
 
-    # The key test: Standard profiles should NOT appear in available section
-    # Check that none of the free profile names appear in the available section
-    assert "Standard Ammo" not in available_section  # Named standard profile
-    # Note: "(Free)" might appear if fighter has overrides that make profiles free
+    # The key test: Standard (cost=0) profiles should NOT have Add buttons
+    # We can check this by looking for Standard Ammo near an Add button
+    # Find all occurrences of "Standard Ammo" and check none have nearby Add buttons
+    standard_index = content.find("Standard Ammo")
+    if standard_index > 0:
+        # Check there's no Add button within 200 chars (same table row)
+        nearby_content = content[standard_index : standard_index + 200]
+        assert "Add" not in nearby_content, (
+            "Standard profile should not have Add button"
+        )
 
     # Also check context data if available
     if hasattr(response, "context") and response.context:

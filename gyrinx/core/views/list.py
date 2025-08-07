@@ -1289,11 +1289,11 @@ def edit_list_fighter_powers(request, id, fighter_id):
     :template:`core/list_fighter_psyker_powers_edit.html`
     """
     from .fighter_helpers import (
-        get_common_query_params,
-        build_virtual_psyker_power_assignments,
-        group_available_assignments,
-        get_fighter_powers,
         FighterEditMixin,
+        build_virtual_psyker_power_assignments,
+        get_common_query_params,
+        get_fighter_powers,
+        group_available_assignments,
     )
 
     # Use helper to get fighter and list
@@ -2423,7 +2423,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         # TODO: this should probably be refactored to use a method on the assignment named
         #       something finishing `..._display`
         cost_int = assignment.accessory_cost_int(accessory)
-        cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
+        cost_display = f"{cost_int}¢" if cost_int != 0 else ""
 
         if accessory.id not in existing_accessory_ids:
             accessories.append(
@@ -2536,7 +2536,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             # Wrap the profile in VirtualWeaponProfile as expected by profile_cost_int
             virtual_profile = VirtualWeaponProfile(profile=profile)
             cost_int = assignment.profile_cost_int(virtual_profile)
-            cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
+            cost_display = f"{cost_int}¢" if cost_int != 0 else ""
 
             # Format traits as a comma-separated string
             traits_list = list(profile.traits.all())
