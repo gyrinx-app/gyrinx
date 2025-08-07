@@ -24,12 +24,6 @@ from .models import (
     ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
-    ContentEquipmentListExpansion,
-    ContentEquipmentListExpansionItem,
-    ContentEquipmentListExpansionRule,
-    ContentEquipmentListExpansionRuleByAttribute,
-    ContentEquipmentListExpansionRuleByFighterCategory,
-    ContentEquipmentListExpansionRuleByHouse,
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterCategoryTerms,
@@ -67,6 +61,14 @@ from .models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
+)
+from .models_.expansion import (
+    ContentEquipmentListExpansion,
+    ContentEquipmentListExpansionItem,
+    ContentEquipmentListExpansionRule,
+    ContentEquipmentListExpansionRuleByAttribute,
+    ContentEquipmentListExpansionRuleByFighterCategory,
+    ContentEquipmentListExpansionRuleByHouse,
 )
 
 
@@ -188,8 +190,19 @@ class ContentWeaponAccessoryInline(ContentTabularInline):
     extra = 0
 
 
+class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "content_fighter", key=lambda x: x.house.name)
+
+    class Meta:
+        model = ContentEquipmentFighterProfile
+        fields = "__all__"
+
+
 class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
+    form = ContentEquipmentFighterProfileAdminForm
     extra = 0
 
 

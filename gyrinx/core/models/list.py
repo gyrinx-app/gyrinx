@@ -1273,21 +1273,58 @@ class ListFighter(AppBase):
 
     @cached_property
     def has_house_additional_gear(self):
-        return (
-            self.content_fighter_cached.house.restricted_equipment_categories.exists()
+        """
+        Check if this fighter has access to house-restricted or expansion equipment categories.
+        This includes:
+        1. House restricted categories
+        2. Equipment from expansions
+        3. Actual assigned gear from restricted categories
+        """
+        # Check house restricted categories
+        if self.content_fighter_cached.house.restricted_equipment_categories.exists():
+            return True
+
+        # Check if any expansions apply that provide equipment
+        from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+
+        applicable_expansions = ContentEquipmentListExpansion.get_applicable_expansions(
+            self.list, self
         )
+        if len(applicable_expansions) > 0:
+            return True
+
+        # Check if fighter has actual assigned gear from restricted categories
+        for assignment in self.assignments_cached:
+            if assignment.is_house_additional:
+                return True
+
+        return False
 
     @cached_property
     def house_additional_gearline_display(self):
+        """
+        Get display info for house-restricted and expansion equipment categories.
+        Includes:
+        1. restricted_equipment_categories on the house
+        2. actual assigned gear categories
+        3. available categories as a result of expansions
+        """
+        from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+
         gearlines = []
+        seen_categories = set()
+
+        # 1. House restricted categories
         for (
             cat
         ) in self.content_fighter_cached.house.restricted_equipment_categories.all():
+            seen_categories.add(cat.id)
             assignments = self.house_additional_assignments(cat)
+
             # Check if this category should be visible
             if cat.visible_only_if_in_equipment_list:
                 # Only show if the fighter has equipment in this category
-                # Check both direct assignments and equipment list items
+                # Check direct assignments, equipment list items, and expansions
                 has_equipment_in_category = False
 
                 # Check if any assignments exist for this category
@@ -1304,6 +1341,16 @@ class ListFighter(AppBase):
                     if equipment_list_items:
                         has_equipment_in_category = True
 
+                    # Also check expansion equipment
+                    if not has_equipment_in_category:
+                        expansion_equipment = (
+                            ContentEquipmentListExpansion.get_expansion_equipment(
+                                self.list, self
+                            )
+                        )
+                        if expansion_equipment.filter(category=cat).exists():
+                            has_equipment_in_category = True
+
                 # Skip this category if no equipment found
                 if not has_equipment_in_category:
                     continue
@@ -1318,6 +1365,62 @@ class ListFighter(AppBase):
                     else "all",
                 }
             )
+
+        # 2. Categories from actual assigned gear
+        for assignment in self.assignments_cached:
+            if (
+                assignment.is_house_additional
+                and assignment.content_equipment.category_id not in seen_categories
+            ):
+                cat = assignment.content_equipment.category
+                seen_categories.add(cat.id)
+
+                # Get all assignments for this category
+                cat_assignments = self.house_additional_assignments(cat)
+
+                gearlines.append(
+                    {
+                        "category": cat.name,
+                        "id": cat.id,
+                        "assignments": cat_assignments,
+                        "filter": "equipment-list"
+                        if cat.visible_only_if_in_equipment_list
+                        else "all",
+                    }
+                )
+
+        # 3. Categories from expansions
+        expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
+            self.list, self
+        )
+        for equipment in expansion_equipment.select_related("category"):
+            cat = equipment.category
+            if cat.id not in seen_categories and cat.restricted_to.exists():
+                seen_categories.add(cat.id)
+
+                # Get assignments for this category (including expansion items)
+                assignments = self.house_additional_assignments(cat)
+
+                # For visible_only_if_in_equipment_list categories, check if equipment exists
+                if cat.visible_only_if_in_equipment_list:
+                    # Equipment from expansion counts as being in equipment list
+                    has_equipment_in_category = (
+                        True  # We know there's expansion equipment
+                    )
+
+                    if not assignments and not has_equipment_in_category:
+                        continue
+
+                gearlines.append(
+                    {
+                        "category": cat.name,
+                        "id": cat.id,
+                        "assignments": assignments,
+                        "filter": "equipment-list"
+                        if cat.visible_only_if_in_equipment_list
+                        else "all",
+                    }
+                )
 
         return gearlines
 

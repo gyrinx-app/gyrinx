@@ -86,7 +86,7 @@
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
-                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                    <span class="text-secondary">None</span>
                                                 {% endif %}
                                             </td>
                                         </tr>
@@ -118,7 +118,7 @@
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
-                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                    <span class="text-secondary">None</span>
                                                 {% endif %}
                                             {% endif %}
                                         {% endif %}
@@ -179,7 +179,7 @@
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
-                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                    <span class="text-secondary">None</span>
                                                 {% endif %}
                                             </td>
                                         </tr>
@@ -211,7 +211,7 @@
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
-                                                    <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no {{ line.category }}.</span>
+                                                    <span class="text-secondary">None</span>
                                                 {% endif %}
                                             {% endif %}
                                         {% endif %}
