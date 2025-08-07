@@ -183,17 +183,19 @@ class ContentEquipmentCategoryAdmin(ContentAdmin):
 class ContentWeaponProfileInline(ContentStackedInline):
     model = ContentWeaponProfile
     extra = 0
+    autocomplete_fields = ["traits"]
 
 
 class ContentWeaponAccessoryInline(ContentTabularInline):
     model = ContentWeaponAccessory
     extra = 0
+    autocomplete_fields = ["modifiers"]
 
 
 class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
+        # Removed group_select call since we're using autocomplete_fields
 
     class Meta:
         model = ContentEquipmentFighterProfile
@@ -204,17 +206,20 @@ class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
     form = ContentEquipmentFighterProfileAdminForm
     extra = 0
+    autocomplete_fields = ["content_fighter"]
 
 
 class ContentEquipmentEquipmentProfileInline(ContentTabularInline):
     model = ContentEquipmentEquipmentProfile
     extra = 0
     fk_name = "equipment"
+    autocomplete_fields = ["linked_equipment"]
 
 
 class ContentEquipmentUpgradeInline(ContentTabularInline):
     model = ContentEquipmentUpgrade
     extra = 0
+    autocomplete_fields = ["modifiers"]
 
 
 class ContentEquipmentAdminForm(forms.ModelForm):
@@ -263,6 +268,7 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 
     search_fields = ["name", "category__name", "contentweaponprofile__name"]
     list_filter = ["category"]
+    autocomplete_fields = ["category", "modifiers"]
 
     inlines = [
         ContentWeaponProfileInline,
@@ -320,17 +326,14 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "weapon_profile", key=lambda x: x.equipment.name)
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentFighterEquipmentListItem)
 class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
     form = ContentFighterEquipmentListItemAdminForm
+    autocomplete_fields = ["fighter", "equipment", "weapon_profile"]
 
     actions = [copy_selected_to_fighter]
 
@@ -339,15 +342,14 @@ class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
+        # Removed group_select call since we're using autocomplete_fields
 
 
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
     form = ContentFighterEquipmentListWeaponAccessoryAdminForm
+    autocomplete_fields = ["fighter", "weapon_accessory"]
 
     actions = [copy_selected_to_fighter]
 
@@ -356,10 +358,7 @@ class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "upgrade", key=lambda x: x.equipment.name)
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentFighterEquipmentListUpgrade)
@@ -367,6 +366,7 @@ class ContentFighterEquipmentListUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "upgrade__name", "upgrade__equipment__name"]
     list_filter = ["upgrade__equipment__upgrade_mode"]
     form = ContentFighterEquipmentListUpgradeAdminForm
+    autocomplete_fields = ["fighter", "upgrade"]
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "fighter":
@@ -392,49 +392,51 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentFighterDefaultAssignment)
 class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profiles_field__name"]
     form = ContentFighterDefaultAssignmentAdminForm
+    autocomplete_fields = ["fighter", "equipment", "weapon_profiles_field"]
     actions = [copy_selected_to_fighter]
 
 
 class ContentFighterEquipmentInline(ContentTabularInline):
     form = ContentFighterEquipmentListItemAdminForm
     model = ContentFighterEquipmentListItem
+    autocomplete_fields = ["equipment", "weapon_profile"]
 
 
 class ContentFighterDefaultAssignmentInline(ContentTabularInline):
     form = ContentFighterDefaultAssignmentAdminForm
     model = ContentFighterDefaultAssignment
+    autocomplete_fields = ["equipment", "weapon_profiles_field"]
 
 
 class ContentFighterHouseOverrideInline(ContentTabularInline):
     model = ContentFighterHouseOverride
+    autocomplete_fields = ["house"]
 
 
 class ContentFighterPsykerDisciplineAssignmentInline(ContentTabularInline):
     model = ContentFighterPsykerDisciplineAssignment
     extra = 0
+    autocomplete_fields = ["discipline"]
 
 
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "psyker_power", key=lambda x: x.discipline.name)
+        # Removed group_select call since we're using autocomplete_fields
 
 
 class ContentFighterPsykerPowerDefaultAssignmentInline(ContentTabularInline):
     model = ContentFighterPsykerPowerDefaultAssignment
     extra = 0
     form = ContentFighterPsykerPowerDefaultAssignmentForm
+    autocomplete_fields = ["psyker_power"]
 
 
 class ContentFighterEquipmentCategoryLimitForFighterForm(forms.ModelForm):
@@ -503,12 +505,14 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentFighterPsykerDisciplineAssignmentAdmin(ContentAdmin):
     search_fields = ["fighter__type", "discipline__name"]
     list_filter = ["fighter__type", "discipline__name"]
+    autocomplete_fields = ["fighter", "discipline"]
 
 
 @admin.register(ContentFighterHouseOverride)
 class ContentFighterHouseOverrideAdmin(ContentAdmin):
     search_fields = ["fighter__type", "house__name"]
     list_filter = ["fighter__type", "house"]
+    autocomplete_fields = ["fighter", "house"]
 
 
 @admin.register(ContentPolicy)
@@ -549,13 +553,16 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
     inlines = [ContentPsykerPowerInline]
 
 
+@admin.register(ContentPsykerPower)
+class ContentPsykerPowerAdmin(ContentAdmin):
+    search_fields = ["name", "discipline__name"]
+    autocomplete_fields = ["discipline"]
+
+
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "psyker_power", key=lambda x: x.discipline.name)
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentFighterPsykerPowerDefaultAssignment)
@@ -563,6 +570,7 @@ class ContentFighterPsykerPowerDefaultAssignmentAdmin(ContentAdmin):
     search_fields = ["fighter__type", "psyker_power__name"]
     list_filter = ["fighter__type", "psyker_power__discipline"]
     form = ContentFighterPsykerPowerDefaultAssignmentForm
+    autocomplete_fields = ["fighter", "psyker_power"]
 
 
 class ContentFighterInline(ContentTabularInline):
@@ -584,33 +592,33 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
 class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentEquipmentFighterProfile)
 class ContentEquipmentFighterProfileAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentFighterProfileAdminForm
     search_fields = ["equipment__name", "content_fighter__type"]
+    autocomplete_fields = ["equipment", "content_fighter"]
 
 
 class ContentEquipmentEquipmentProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "linked_equipment", key=lambda x: x.cat())
+        # Removed group_select calls since we're using autocomplete_fields
 
 
 @admin.register(ContentEquipmentEquipmentProfile)
 class ContentEquipmentEquipmentProfileAdmin(ContentAdmin):
     form = ContentEquipmentEquipmentProfileAdminForm
     search_fields = ["equipment__name", "linked_equipment__name"]
+    autocomplete_fields = ["equipment", "linked_equipment"]
 
 
 class ContentWeaponProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
+        # Removed group_select call since we're using autocomplete_fields
 
 
 @admin.register(ContentWeaponProfile)
@@ -618,6 +626,7 @@ class ContentWeaponProfileAdmin(ContentAdmin):
     form = ContentWeaponProfileAdminForm
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
+    autocomplete_fields = ["equipment"]
 
 
 def mods(obj):
@@ -627,6 +636,13 @@ def mods(obj):
 @admin.register(ContentWeaponAccessory)
 class ContentWeaponAccessoryAdmin(ContentAdmin):
     search_fields = ["name"]
+    autocomplete_fields = ["modifiers"]
+
+
+@admin.register(ContentEquipmentUpgrade)
+class ContentEquipmentUpgradeAdmin(ContentAdmin):
+    search_fields = ["name", "equipment__name"]
+    autocomplete_fields = ["equipment", "modifiers"]
 
 
 class ContentModChildAdmin(PolymorphicChildModelAdmin):
@@ -653,28 +669,32 @@ class ContentModTraitAdmin(ContentModChildAdmin):
 @admin.register(ContentModFighterRule)
 class ContentModFighterRuleAdmin(ContentModChildAdmin):
     base_model = ContentModFighterRule
+    autocomplete_fields = ["rule"]
 
 
 class ContentModFighterSkillAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "skill", key=lambda x: x.category.name)
+        # Removed group_select call since we're using autocomplete_fields
 
 
 @admin.register(ContentModFighterSkill)
 class ContentModFighterSkillAdmin(ContentModChildAdmin):
     base_model = ContentModFighterSkill
     form = ContentModFighterSkillAdminForm
+    autocomplete_fields = ["skill"]
 
 
 @admin.register(ContentModSkillTreeAccess)
 class ContentModSkillTreeAccessAdmin(ContentModChildAdmin):
     base_model = ContentModSkillTreeAccess
+    autocomplete_fields = ["skill_category"]
 
 
 @admin.register(ContentModPsykerDisciplineAccess)
 class ContentModPsykerDisciplineAccessAdmin(ContentModChildAdmin):
     base_model = ContentModPsykerDisciplineAccess
+    autocomplete_fields = ["discipline"]
 
 
 @admin.register(ContentMod)
@@ -690,6 +710,7 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModPsykerDisciplineAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
+    search_fields = ["name"]
 
 
 class ContentPageRefInline(ContentTabularInline):
@@ -890,6 +911,7 @@ class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
     list_display = ["content_fighter", "statline_type"]
     list_filter = ["statline_type"]
     list_display_links = ["content_fighter"]
+    autocomplete_fields = ["content_fighter", "statline_type"]
     inlines = [ContentStatlineStatInline]
 
     def save_related(self, request, form, formsets, change):
