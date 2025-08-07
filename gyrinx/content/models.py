@@ -470,6 +470,59 @@ class ContentEquipmentQuerySet(models.QuerySet):
             cost_for_fighter=Coalesce("cost_override", "cost_cast_int"),
         )
 
+    def with_expansion_cost_for_fighter(
+        self, content_fighter: "ContentFighter", rule_inputs
+    ) -> "ContentEquipmentQuerySet":
+        """
+        Annotates the queryset with fighter-specific cost overrides,
+        including those from equipment list expansions.
+        """
+        # Avoid circular import by importing models here
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ContentEquipmentListExpansionItem,
+        )
+
+        # Filter to only expansions that apply
+        expansion_ids = []
+        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+            "rules"
+        ).all():
+            if expansion.applies_to(rule_inputs):
+                expansion_ids.append(expansion.id)
+
+        # Get expansion item cost overrides
+        expansion_items = ContentEquipmentListExpansionItem.objects.filter(
+            expansion__in=expansion_ids,
+            equipment=OuterRef("pk"),
+        )
+
+        # Get normal equipment list cost overrides
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=content_fighter,
+            equipment=OuterRef("pk"),
+            weapon_profile__isnull=True,
+        )
+
+        return self.annotate(
+            # Cost from normal equipment list
+            equipment_list_cost=Subquery(
+                equipment_list_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            # Cost from expansion
+            expansion_cost=Subquery(
+                expansion_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            # Use expansion cost if available, otherwise equipment list cost, otherwise base cost
+            cost_for_fighter=Coalesce(
+                "expansion_cost", "equipment_list_cost", "cost_cast_int"
+            ),
+            # Track if this came from an expansion
+            from_expansion=Exists(expansion_items),
+        )
+
     def with_profiles_for_fighter(
         self, content_fighter: "ContentFighter"
     ) -> "ContentEquipmentQuerySet":

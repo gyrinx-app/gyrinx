@@ -62,6 +62,14 @@ from .models import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
+from .models_.expansion import (
+    ContentEquipmentListExpansion,
+    ContentEquipmentListExpansionItem,
+    ContentEquipmentListExpansionRule,
+    ContentEquipmentListExpansionRuleByAttribute,
+    ContentEquipmentListExpansionRuleByFighterCategory,
+    ContentEquipmentListExpansionRuleByHouse,
+)
 
 
 class ContentAdmin(admin.ModelAdmin):
@@ -182,8 +190,19 @@ class ContentWeaponAccessoryInline(ContentTabularInline):
     extra = 0
 
 
+class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_select(self, "content_fighter", key=lambda x: x.house.name)
+
+    class Meta:
+        model = ContentEquipmentFighterProfile
+        fields = "__all__"
+
+
 class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
+    form = ContentEquipmentFighterProfileAdminForm
     extra = 0
 
 
@@ -898,3 +917,84 @@ class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentFighterCategoryTerms)
 class ContentFighterCategoryTermsAdmin(ContentAdmin):
     pass
+
+
+##
+## Equipment List Expansion Admin
+##
+
+
+class ContentEquipmentListExpansionItemInline(ContentTabularInline):
+    model = ContentEquipmentListExpansionItem
+    extra = 1
+    autocomplete_fields = ["equipment"]
+    fields = ["equipment", "cost"]
+    verbose_name = "Expansion Item"
+    verbose_name_plural = "Expansion Items"
+
+
+@admin.register(ContentEquipmentListExpansion)
+class ContentEquipmentListExpansionAdmin(ContentAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "get_rule_count", "get_item_count"]
+    filter_horizontal = ["rules"]
+    inlines = [ContentEquipmentListExpansionItemInline]
+
+    def get_rule_count(self, obj):
+        return obj.rules.count()
+
+    get_rule_count.short_description = "Rules"
+
+    def get_item_count(self, obj):
+        return obj.items.count()
+
+    get_item_count.short_description = "Items"
+
+
+# Polymorphic admin for expansion rules
+class ContentEquipmentListExpansionRuleChildAdmin(PolymorphicChildModelAdmin):
+    base_model = ContentEquipmentListExpansionRule
+
+
+@admin.register(ContentEquipmentListExpansionRuleByAttribute)
+class ContentEquipmentListExpansionRuleByAttributeAdmin(
+    ContentEquipmentListExpansionRuleChildAdmin
+):
+    autocomplete_fields = ["attribute"]
+    filter_horizontal = ["attribute_values"]
+    list_display = ["__str__", "attribute"]
+    search_fields = ["attribute__name"]
+
+
+@admin.register(ContentEquipmentListExpansionRuleByHouse)
+class ContentEquipmentListExpansionRuleByHouseAdmin(
+    ContentEquipmentListExpansionRuleChildAdmin
+):
+    autocomplete_fields = ["house"]
+    list_display = ["__str__", "house"]
+    search_fields = ["house__name"]
+
+
+@admin.register(ContentEquipmentListExpansionRuleByFighterCategory)
+class ContentEquipmentListExpansionRuleByFighterCategoryAdmin(
+    ContentEquipmentListExpansionRuleChildAdmin
+):
+    list_display = ["__str__", "get_categories"]
+
+    def get_categories(self, obj):
+        return ", ".join(obj.fighter_categories[:3])
+
+    get_categories.short_description = "Categories"
+
+
+@admin.register(ContentEquipmentListExpansionRule)
+class ContentEquipmentListExpansionRuleParentAdmin(PolymorphicParentModelAdmin):
+    base_model = ContentEquipmentListExpansionRule
+    child_models = (
+        ContentEquipmentListExpansionRuleByAttribute,
+        ContentEquipmentListExpansionRuleByHouse,
+        ContentEquipmentListExpansionRuleByFighterCategory,
+    )
+    list_filter = [PolymorphicChildModelFilter]
+    list_display = ["__str__", "polymorphic_ctype"]
+    search_fields = []

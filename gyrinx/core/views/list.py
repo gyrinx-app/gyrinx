@@ -1856,18 +1856,27 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 )
 
     # Get the appropriate equipment
+    # Create expansion rule inputs for cost calculations
+    from gyrinx.content.models_.expansion import ExpansionRuleInputs
+
+    expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
+
     if is_weapon:
         equipment = (
             ContentEquipment.objects.weapons()
-            .with_cost_for_fighter(fighter.equipment_list_fighter)
+            .with_expansion_cost_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
+            )
             .with_profiles_for_fighter(fighter.equipment_list_fighter)
         )
         search_vector = SearchVector(
             "name", "category__name", "contentweaponprofile__name"
         )
     else:
-        equipment = ContentEquipment.objects.non_weapons().with_cost_for_fighter(
-            fighter.equipment_list_fighter
+        equipment = (
+            ContentEquipment.objects.non_weapons().with_expansion_cost_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
+            )
         )
         search_vector = SearchVector("name", "category__name")
 
@@ -1942,6 +1951,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         fighter__in=fighter.equipment_list_fighters
     ).values_list("equipment_id", flat=True)
 
+    # Also include equipment from applicable expansions
+    from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+
+    expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
+        expansion_inputs
+    )
+    expansion_equipment_ids = list(expansion_equipment.values_list("id", flat=True))
+
+    # Combine regular equipment list IDs with expansion equipment IDs
+    equipment_list_ids = list(equipment_list_ids) + expansion_equipment_ids
+
     if is_equipment_list:
         # When equipment list is toggled and no explicit availability filter is provided,
         # show all equipment from the fighter's equipment list regardless of availability
@@ -1966,12 +1986,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             )
 
             if is_weapon:
-                equipment = combined_equipment_qs.with_cost_for_fighter(
-                    fighter.equipment_list_fighter
+                equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
+                    fighter.equipment_list_fighter, expansion_inputs
                 ).with_profiles_for_fighter(fighter.equipment_list_fighter)
             else:
-                equipment = combined_equipment_qs.with_cost_for_fighter(
-                    fighter.equipment_list_fighter
+                equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
+                    fighter.equipment_list_fighter, expansion_inputs
                 )
 
     # Create assignment objects
