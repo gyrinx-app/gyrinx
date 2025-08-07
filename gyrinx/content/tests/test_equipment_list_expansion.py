@@ -213,14 +213,23 @@ def test_expansion_applies_with_multiple_rules():
     )
 
     # Test: Should apply for Malstrain Leader
-    assert expansion.applies_to(gang_list, leader) is True
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=leader))
+        is True
+    )
 
     # Test: Should NOT apply for Malstrain Ganger (wrong fighter category)
-    assert expansion.applies_to(gang_list, ganger) is False
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=ganger))
+        is False
+    )
 
     # Test: Should NOT apply for non-Malstrain Leader
     gang_list2 = List.objects.create(name="Normal Gang", content_house=outcasts)
-    assert expansion.applies_to(gang_list2, leader) is False
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list2, fighter=leader))
+        is False
+    )
 
 
 @pytest.mark.django_db
@@ -293,9 +302,18 @@ def test_example_1_malstrain_corrupted():
     )
 
     # Test expansion applies correctly
-    assert expansion.applies_to(gang_list, leader) is True
-    assert expansion.applies_to(gang_list, champion) is True
-    assert expansion.applies_to(gang_list, ganger) is False
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=leader))
+        is True
+    )
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=champion))
+        is True
+    )
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=ganger))
+        is False
+    )
 
     # Test getting expansion equipment
     applicable_expansions = ContentEquipmentListExpansion.get_applicable_expansions(
@@ -376,9 +394,17 @@ def test_example_2_water_guild_outcasts():
     )
 
     # Test expansion applies correctly
-    assert expansion.applies_to(gang_list, leader) is True
-    assert expansion.applies_to(gang_list, ganger) is True
-    assert expansion.applies_to(gang_list, juve) is False  # Juves don't get access
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=leader))
+        is True
+    )
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=ganger))
+        is True
+    )
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=gang_list, fighter=juve)) is False
+    )  # Juves don't get access
 
 
 @pytest.mark.django_db
@@ -439,9 +465,18 @@ def test_example_3_delaque_vehicles():
     )
 
     # Test expansion applies correctly
-    assert expansion.applies_to(delaque_gang, vehicle) is True  # Delaque vehicle
-    assert expansion.applies_to(delaque_gang, leader) is False  # Not a vehicle
-    assert expansion.applies_to(goliath_gang, vehicle) is False  # Wrong house
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=delaque_gang, fighter=vehicle))
+        is True
+    )  # Delaque vehicle
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=delaque_gang, fighter=leader))
+        is False
+    )  # Not a vehicle
+    assert (
+        expansion.applies_to(ExpansionRuleInputs(list=goliath_gang, fighter=vehicle))
+        is False
+    )  # Wrong house
 
     # Test getting expansion equipment for Delaque vehicle
     equipment = ContentEquipmentListExpansion.get_expansion_equipment(

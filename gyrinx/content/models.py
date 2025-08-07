@@ -11,6 +11,7 @@ import logging
 import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
+from typing import TYPE_CHECKING, Optional, Union
 
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -1403,12 +1404,18 @@ class ContentWeaponProfileQuerySet(models.QuerySet):
         )
 
 
+if TYPE_CHECKING:
+    from gyrinx.core.models import List, ListFighter
+
+
 @dataclass
 class ExpansionRuleInputs:
     """Inputs for evaluating equipment list expansion rules."""
 
-    list: object  # The List (gang) to evaluate - using object to avoid circular import
-    fighter: "ContentFighter" = None  # The fighter to evaluate (optional)
+    list: Optional["List"] = None  # The List (gang) to evaluate
+    fighter: Optional[Union["ListFighter", "ContentFighter"]] = (
+        None  # The fighter to evaluate (optional)
+    )
 
 
 @dataclass
@@ -3154,12 +3161,11 @@ class ContentEquipmentListExpansion(Content):
 
     history = HistoricalRecords()
 
-    def applies_to(self, list_obj, fighter=None) -> bool:
+    def applies_to(self, rule_inputs: ExpansionRuleInputs) -> bool:
         """
         Check if this expansion applies to the given list and fighter.
         All rules must match (AND logic).
         """
-        rule_inputs = ExpansionRuleInputs(list=list_obj, fighter=fighter)
 
         # All rules must match
         for rule in self.rules.all():
@@ -3174,10 +3180,11 @@ class ContentEquipmentListExpansion(Content):
         Get all expansions that apply to the given list and fighter.
         """
         applicable = []
+        rule_inputs = ExpansionRuleInputs(list=list_obj, fighter=fighter)
         for expansion in cls.objects.prefetch_related(
             "rules", "items__equipment"
         ).all():
-            if expansion.applies_to(list_obj, fighter):
+            if expansion.applies_to(rule_inputs):
                 applicable.append(expansion)
         return applicable
 
@@ -3193,7 +3200,12 @@ class ContentEquipmentListExpansion(Content):
         equipment_ids = []
         cost_overrides = {}
 
-        for expansion in expansions:
+        # Prefetch items to avoid N+1 queries
+        prefetched_expansions = cls.objects.filter(
+            id__in=[e.id for e in expansions]
+        ).prefetch_related("items")
+
+        for expansion in prefetched_expansions:
             for item in expansion.items.all():
                 equipment_ids.append(item.equipment_id)
                 if item.cost is not None:
@@ -3211,12 +3223,14 @@ class ContentEquipmentListExpansion(Content):
             equipment = equipment.annotate(
                 expansion_cost_override=Case(
                     *when_clauses,
-                    default="cost_cast_int",
+                    default=models.F("cost_cast_int"),
                     output_field=models.IntegerField(),
                 )
             )
         else:
-            equipment = equipment.annotate(expansion_cost_override="cost_cast_int")
+            equipment = equipment.annotate(
+                expansion_cost_override=models.F("cost_cast_int")
+            )
 
         return equipment
 
@@ -3394,7 +3408,18 @@ class ContentEquipmentListExpansionRuleByFighterCategory(
         fighter = rule_inputs.fighter
         if not fighter:
             return False
-        return fighter.category in self.fighter_categories
+
+        # Support both ContentFighter (has .category) and ListFighter (has .get_category())
+        if hasattr(fighter, "get_category"):
+            # This is a ListFighter
+            category = fighter.get_category()
+        elif hasattr(fighter, "category"):
+            # This is a ContentFighter
+            category = fighter.category
+        else:
+            return False
+
+        return category in self.fighter_categories
 
     def __str__(self):
         categories = ", ".join(
