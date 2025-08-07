@@ -428,7 +428,17 @@ class ListFighterManager(models.Manager):
                             ]
                         )
                     ],
-                    default=99,
+                    # Gang Terrain always sorts last
+                    When(
+                        Q(category_override=FighterCategoryChoices.GANG_TERRAIN)
+                        | Q(
+                            category_override__isnull=True,
+                            content_fighter__category=FighterCategoryChoices.GANG_TERRAIN,
+                        ),
+                        then=999,
+                    ),
+                    # Other categories (including ALLY) sort in the middle, undefined
+                    default=50,
                 ),
                 _sort_key=Case(
                     # If this is a beast linked to a fighter, sort after the owner

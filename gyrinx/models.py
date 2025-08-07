@@ -155,6 +155,7 @@ class FighterCategoryChoices(models.TextChoices):
     SPECIALIST = "SPECIALIST", "Specialist"
     STASH = "STASH", "Stash"
     VEHICLE = "VEHICLE", "Vehicle"
+    ALLY = "ALLY", "Ally"
     GANG_TERRAIN = "GANG_TERRAIN", "Gang Terrain"
 
 
