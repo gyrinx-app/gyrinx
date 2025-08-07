@@ -243,6 +243,16 @@ urlpatterns = [
         name="list-fighter-weapon-accessories-edit",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/edit",
+        list.edit_single_weapon,
+        name="list-fighter-weapon-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/profile/<profile_id>/delete",
+        list.delete_list_fighter_weapon_profile,
+        name="list-fighter-weapon-profile-delete",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/accessory/<accessory_id>/delete",
         list.delete_list_fighter_weapon_accessory,
         name="list-fighter-weapon-accessory-delete",
