@@ -28,7 +28,7 @@
             {% endif %}
         </div>
         {% if list.narrative %}
-            {{ list.narrative|safe }}
+            {{ list.narrative|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
             <div class="text-muted fst-italic">
                 No narrative added yet. <a href="{% url 'core:list-edit' list.id %}">Add one</a> to tell the story of your gang.
@@ -52,7 +52,7 @@
                             </div>
                         {% endif %}
                     </div>
-                    {{ fighter.narrative|safe }}
+                    {{ fighter.narrative|safe_rich_text|safe }}
                 </div>
             {% else %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">

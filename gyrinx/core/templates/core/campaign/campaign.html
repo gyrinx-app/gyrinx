@@ -115,13 +115,15 @@
                     {% endif %}
                 </div>
             </div>
-            {% if campaign.summary %}<div class="text-muted mt-2 mb-last-0">{{ campaign.summary|safe }}</div>{% endif %}
+            {% if campaign.summary %}
+                <div class="text-muted mt-2 mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>
+            {% endif %}
         </div>
         <div class="vstack gap-3">
             {% if campaign.narrative %}
                 <div class="card">
                     <div class="card-body">
-                        <div class="card-text mb-last-0">{{ campaign.narrative|safe }}</div>
+                        <div class="card-text mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
                     </div>
                 </div>
             {% endif %}
