@@ -48,6 +48,11 @@
                     </table>
                 </div>
             </div>
+            <div class="card-footer fs-7">
+                {% if list.owner_cached == user and not print %}
+                    {% include "core/includes/fighter_card_weapon_menu.html" with assign=assign fighter=fighter list=list %}
+                {% endif %}
+            </div>
         </div>
         <!-- Filter Bar -->
         <form id="search"

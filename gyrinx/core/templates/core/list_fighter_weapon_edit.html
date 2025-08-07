@@ -14,7 +14,7 @@
             </div>
         {% endif %}
         <!-- Unified Weapon Profiles Table -->
-        <div class="card col-12 col-md-10 col-lg-8">
+        <div class="card col-12 col-md-8 col-lg-6">
             <div class="card-header py-1 px-2 hstack justify-content-between align-items-center">
                 <h4 class="h5 mb-0">{{ assign.content_equipment.name }}</h4>
                 <div>
@@ -30,7 +30,11 @@
                     <table class="table table-sm table-borderless mb-0 fs-7">
                         <thead class="table-group-divider">
                             <tr>
-                                <th scope="col"></th>
+                                <th scope="col">
+                                    {% if assign.standard_profiles_cached|length == 0 %}
+                                        {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
+                                    {% endif %}
+                                </th>
                                 <th class="text-center" scope="col">S</th>
                                 <th class="text-center" scope="col">L</th>
                                 <th class="text-center border-start" scope="col">S</th>
@@ -39,7 +43,6 @@
                                 <th class="text-center" scope="col">Ap</th>
                                 <th class="text-center" scope="col">D</th>
                                 <th class="text-center" scope="col">Am</th>
-                                <th scope="col" class="text-end"></th>
                             </tr>
                         </thead>
                         <tbody class="table-group-divider">
@@ -47,7 +50,11 @@
                             {% for profile in assign.standard_profiles_cached %}
                                 <tr>
                                     <td>
-                                        {% if profile.name %}<i class="bi-dash"></i> {{ profile.name }}{% endif %}
+                                        {% if profile.name %}
+                                            <i class="bi-dash"></i> {{ profile.name }}
+                                        {% elif forloop.first %}
+                                            {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
+                                        {% endif %}
                                     </td>
                                     <td class="text-center">{{ profile.range_short|default:"-" }}</td>
                                     <td class="text-center">{{ profile.range_long|default:"-" }}</td>
@@ -57,7 +64,6 @@
                                     <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
                                     <td class="text-center">{{ profile.damage|default:"-" }}</td>
                                     <td class="text-center">{{ profile.ammo|default:"-" }}</td>
-                                    <td class="text-end"></td>
                                 </tr>
                                 {% if profile.traitline_cached %}
                                     <tr>
@@ -75,6 +81,10 @@
                                         {% if pd.cost_display != "0¢" and pd.cost_display != "" %}
                                             <span class="text-muted">({{ pd.cost_display }})</span>
                                         {% endif %}
+                                        <a href="{% url 'core:list-fighter-weapon-profile-delete' list.id fighter.id assign.id pd.profile.id %}"
+                                           class="btn btn-link btn-sm link-danger icon-link">
+                                            <i class="bi-trash"></i> Remove
+                                        </a>
                                     </td>
                                     <td class="text-center">{{ pd.profile.range_short|default:"-" }}</td>
                                     <td class="text-center">{{ pd.profile.range_long|default:"-" }}</td>
@@ -84,12 +94,6 @@
                                     <td class="text-center">{{ pd.profile.armour_piercing|default:"-" }}</td>
                                     <td class="text-center">{{ pd.profile.damage|default:"-" }}</td>
                                     <td class="text-center">{{ pd.profile.ammo|default:"-" }}</td>
-                                    <td class="text-end">
-                                        <a href="{% url 'core:list-fighter-weapon-profile-delete' list.id fighter.id assign.id pd.profile.id %}"
-                                           class="btn btn-sm btn-outline-danger">
-                                            <i class="bi-trash"></i> Remove
-                                        </a>
-                                    </td>
                                 </tr>
                                 {% if pd.profile.traitline_cached %}
                                     <tr>
@@ -108,6 +112,15 @@
                                             <i class="bi-dash"></i>
                                             {{ profile.name }}
                                             <span class="text-muted">(+{{ profile.cost_display }})</span>
+                                            <form action="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}"
+                                                  method="post"
+                                                  class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="profile_id" value="{{ profile.id }}">
+                                                <button type="submit" class="btn btn-link btn-sm icon-link">
+                                                    <i class="bi-plus-lg"></i> Add
+                                                </button>
+                                            </form>
                                         </td>
                                         <td class="text-center">{{ profile.range_short|default:"-" }}</td>
                                         <td class="text-center">{{ profile.range_long|default:"-" }}</td>
@@ -117,17 +130,7 @@
                                         <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
                                         <td class="text-center">{{ profile.damage|default:"-" }}</td>
                                         <td class="text-center">{{ profile.ammo|default:"-" }}</td>
-                                        <td class="text-end">
-                                            <form action="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}"
-                                                  method="post"
-                                                  class="d-inline">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="profile_id" value="{{ profile.id }}">
-                                                <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                    <i class="bi-plus"></i> Add for +{{ profile.cost_display }}
-                                                </button>
-                                            </form>
-                                        </td>
+                                        <td class="text-end"></td>
                                     </tr>
                                     {% if profile.traits %}
                                         <tr>
@@ -140,7 +143,14 @@
                         </tbody>
                     </table>
                 </div>
-                {% if not profiles %}<p class="text-muted mb-0 mt-3">No additional weapon profiles available to add.</p>{% endif %}
+                {% if not profiles %}
+                    <p class="text-muted mb-0 mt-3 fs-7">No additional weapon profiles available to add.</p>
+                {% endif %}
+            </div>
+            <div class="card-footer fs-7">
+                {% if list.owner_cached == user and not print %}
+                    {% include "core/includes/fighter_card_weapon_menu.html" with assign=assign fighter=fighter list=list %}
+                {% endif %}
             </div>
         </div>
     </div>
