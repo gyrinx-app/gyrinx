@@ -68,14 +68,11 @@ class ContentEquipmentListExpansion(Content):
         return True
 
     @classmethod
-    def get_applicable_expansions(
-        cls, list_obj: List, fighter: Optional["ListFighter"] = None
-    ):
+    def get_applicable_expansions(cls, rule_inputs: ExpansionRuleInputs):
         """
-        Get all expansions that apply to the given list and fighter.
+        Get all expansions that apply to the given rule inputs.
         """
         applicable = []
-        rule_inputs = ExpansionRuleInputs(list=list_obj, fighter=fighter)
         for expansion in cls.objects.prefetch_related(
             "rules", "items__equipment"
         ).all():
@@ -84,12 +81,12 @@ class ContentEquipmentListExpansion(Content):
         return applicable
 
     @classmethod
-    def get_expansion_equipment(cls, list_obj, fighter: Optional["ListFighter"] = None):
+    def get_expansion_equipment(cls, rule_inputs: ExpansionRuleInputs):
         """
-        Get all equipment available from expansions for a fighter.
+        Get all equipment available from expansions based on rule inputs.
         Returns a queryset of ContentEquipment with cost annotations.
         """
-        expansions = cls.get_applicable_expansions(list_obj, fighter)
+        expansions = cls.get_applicable_expansions(rule_inputs)
 
         # Get all equipment IDs from applicable expansions
         equipment_ids = []

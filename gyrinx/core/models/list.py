@@ -1285,10 +1285,14 @@ class ListFighter(AppBase):
             return True
 
         # Check if any expansions apply that provide equipment
-        from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ExpansionRuleInputs,
+        )
 
+        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
         applicable_expansions = ContentEquipmentListExpansion.get_applicable_expansions(
-            self.list, self
+            rule_inputs
         )
         if len(applicable_expansions) > 0:
             return True
@@ -1309,7 +1313,10 @@ class ListFighter(AppBase):
         2. actual assigned gear categories
         3. available categories as a result of expansions
         """
-        from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ExpansionRuleInputs,
+        )
 
         gearlines = []
         seen_categories = set()
@@ -1343,9 +1350,10 @@ class ListFighter(AppBase):
 
                     # Also check expansion equipment
                     if not has_equipment_in_category:
+                        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
                         expansion_equipment = (
                             ContentEquipmentListExpansion.get_expansion_equipment(
-                                self.list, self
+                                rule_inputs
                             )
                         )
                         if expansion_equipment.filter(category=cat).exists():
@@ -1390,8 +1398,9 @@ class ListFighter(AppBase):
                 )
 
         # 3. Categories from expansions
+        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
         expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-            self.list, self
+            rule_inputs
         )
         for equipment in expansion_equipment.select_related("category"):
             cat = equipment.category

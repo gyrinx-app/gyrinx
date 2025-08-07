@@ -350,8 +350,9 @@ def test_example_1_malstrain_corrupted():
     )
 
     # Test getting expansion equipment
+    rule_inputs = ExpansionRuleInputs(list=gang_list, fighter=lf_leader)
     applicable_expansions = ContentEquipmentListExpansion.get_applicable_expansions(
-        gang_list, lf_leader
+        rule_inputs
     )
     assert len(applicable_expansions) == 1
     assert applicable_expansions[0] == expansion
@@ -538,9 +539,8 @@ def test_example_3_delaque_vehicles():
     )  # Wrong house
 
     # Test getting expansion equipment for Delaque vehicle
-    equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-        delaque_gang, lf_vehicle
-    )
+    rule_inputs = ExpansionRuleInputs(list=delaque_gang, fighter=lf_vehicle)
+    equipment = ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
     equipment_names = list(equipment.values_list("name", flat=True))
     assert "Shadow Projector" in equipment_names
     assert "Ghost Drive" in equipment_names
@@ -584,7 +584,8 @@ def test_get_expansion_equipment_with_cost_overrides():
     gang_list = List.objects.create(name="Test Gang", content_house=house)
 
     # Get expansion equipment
-    equipment = ContentEquipmentListExpansion.get_expansion_equipment(gang_list)
+    rule_inputs = ExpansionRuleInputs(list=gang_list)
+    equipment = ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
     equipment_dict = {eq.name: eq for eq in equipment}
 
     # Check equipment is returned
@@ -630,11 +631,12 @@ def test_multiple_expansions_for_same_equipment():
     gang_list = List.objects.create(name="Test Gang", content_house=house)
 
     # Get applicable expansions
-    applicable = ContentEquipmentListExpansion.get_applicable_expansions(gang_list)
+    rule_inputs = ExpansionRuleInputs(list=gang_list)
+    applicable = ContentEquipmentListExpansion.get_applicable_expansions(rule_inputs)
     assert len(applicable) == 2
 
     # Get expansion equipment - should get both expansions' items
-    equipment_qs = ContentEquipmentListExpansion.get_expansion_equipment(gang_list)
+    equipment_qs = ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
 
     # The equipment should appear once, with one of the costs
     # (implementation detail - currently takes the last one found)

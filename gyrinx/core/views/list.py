@@ -1955,7 +1955,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
 
     expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-        lst, fighter
+        expansion_inputs
     )
     expansion_equipment_ids = list(expansion_equipment.values_list("id", flat=True))
 
