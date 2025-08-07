@@ -1058,12 +1058,16 @@ class ContentFighter(Content):
         - Equipment list items, weapon accessories, and upgrades
         - Default assignments with their weapon profiles and accessories
 
+        Note:
+            This method modifies the current instance in place to become the copy.
+            Uses Django's pattern of setting pk=None and saving to create a new database record.
+            After calling this method, self represents the new copy, not the original instance.
+
         Args:
             house: The ContentHouse instance to assign the copied fighter to.
 
         Returns:
-            ContentFighter: The newly created fighter instance with the new house assignment.
-            The original instance is modified in-place to become the copy.
+            ContentFighter: self, which has been modified to become the new copy with the new house assignment.
         """
         skills = self.skills.all()
         primary_skill_categories = self.primary_skill_categories.all()
