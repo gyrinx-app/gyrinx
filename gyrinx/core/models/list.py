@@ -33,7 +33,6 @@ from gyrinx.content.models import (
     ContentFighterHouseOverride,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentHouseAdditionalRule,
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
@@ -624,11 +623,6 @@ class ListFighter(AppBase):
     )
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
-    additional_rules = models.ManyToManyField(
-        ContentHouseAdditionalRule,
-        blank=True,
-        help_text="Additional rules for this fighter. Must be from the same house as the fighter.",
-    )
 
     # Rule overrides
     disabled_rules = models.ManyToManyField(
@@ -1570,7 +1564,6 @@ class ListFighter(AppBase):
 
         # Copy ManyToMany relationships
         target_fighter.skills.set(self.skills.all())
-        target_fighter.additional_rules.set(self.additional_rules.all())
         target_fighter.disabled_rules.set(self.disabled_rules.all())
         target_fighter.custom_rules.set(self.custom_rules.all())
 
@@ -1677,7 +1670,6 @@ class ListFighter(AppBase):
 
         # Clone ManyToMany relationships
         clone.skills.set(self.skills.all())
-        clone.additional_rules.set(self.additional_rules.all())
         clone.disabled_rules.set(self.disabled_rules.all())
         clone.custom_rules.set(self.custom_rules.all())
 

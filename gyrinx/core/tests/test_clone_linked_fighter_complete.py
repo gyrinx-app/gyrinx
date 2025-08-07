@@ -7,8 +7,6 @@ import pytest
 from gyrinx.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentFighterProfile,
-    ContentHouseAdditionalRule,
-    ContentHouseAdditionalRuleTree,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
@@ -77,17 +75,6 @@ def test_clone_linked_fighter_with_skills_and_rules(
         name="Expert Mechanic", category=skill_category
     )
 
-    # Create additional rules (house-specific)
-    rule_tree = ContentHouseAdditionalRuleTree.objects.create(
-        house=house, name="Vehicle Rules"
-    )
-    additional_rule1 = ContentHouseAdditionalRule.objects.create(
-        tree=rule_tree, name="Armored"
-    )
-    additional_rule2 = ContentHouseAdditionalRule.objects.create(
-        tree=rule_tree, name="All-Terrain"
-    )
-
     # Create custom and disabled rules (generic)
     custom_rule = ContentRule.objects.create(name="Turbo Boost")
     disabled_rule = ContentRule.objects.create(name="Fragile")
@@ -111,13 +98,11 @@ def test_clone_linked_fighter_with_skills_and_rules(
 
     # Add skills and rules to the vehicle
     vehicle_lf.skills.add(skill1, skill2)
-    vehicle_lf.additional_rules.add(additional_rule1, additional_rule2)
     vehicle_lf.custom_rules.add(custom_rule)
     vehicle_lf.disabled_rules.add(disabled_rule)
 
     # Verify the vehicle has the skills and rules
     assert vehicle_lf.skills.count() == 2
-    assert vehicle_lf.additional_rules.count() == 2
     assert vehicle_lf.custom_rules.count() == 1
     assert vehicle_lf.disabled_rules.count() == 1
 
@@ -141,15 +126,6 @@ def test_clone_linked_fighter_with_skills_and_rules(
         f"but found {cloned_vehicle.skills.count()}"
     )
     assert set(cloned_vehicle.skills.all()) == {skill1, skill2}
-
-    assert cloned_vehicle.additional_rules.count() == 2, (
-        f"Expected cloned vehicle to have 2 additional rules, "
-        f"but found {cloned_vehicle.additional_rules.count()}"
-    )
-    assert set(cloned_vehicle.additional_rules.all()) == {
-        additional_rule1,
-        additional_rule2,
-    }
 
     assert cloned_vehicle.custom_rules.count() == 1, (
         f"Expected cloned vehicle to have 1 custom rule, "
