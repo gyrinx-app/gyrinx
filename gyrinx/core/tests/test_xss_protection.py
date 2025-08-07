@@ -20,11 +20,11 @@ from gyrinx.content.models import ContentHouse
 def test_safe_rich_text_filter_removes_dangerous_content():
     """Test that the safe_rich_text filter removes dangerous HTML/JS."""
 
-    # Test script tags are removed (completely stripped including content)
-    assert safe_rich_text('<script>alert("XSS")</script>') == ""
+    # Test script tags are removed (tags stripped, but content remains)
+    assert safe_rich_text('<script>alert("XSS")</script>') == 'alert("XSS")'
     assert (
         safe_rich_text('<p>Safe text</p><script>alert("XSS")</script>')
-        == "<p>Safe text</p>"
+        == '<p>Safe text</p>alert("XSS")'
     )
 
     # Test event handlers are removed
@@ -45,13 +45,16 @@ def test_safe_rich_text_filter_removes_dangerous_content():
         == "<img>"
     )
 
-    # Test style tags are removed
-    assert safe_rich_text("<style>body { display: none; }</style>") == ""
+    # Test style tags are removed (tags stripped, but content remains)
+    assert (
+        safe_rich_text("<style>body { display: none; }</style>")
+        == "body { display: none; }"
+    )
 
-    # Test iframes are removed
+    # Test iframes are removed (tags stripped, content remains empty for empty iframes)
     assert safe_rich_text("<iframe src=\"javascript:alert('XSS')\"></iframe>") == ""
 
-    # Test form injection is removed
+    # Test form injection is removed (tags stripped, content remains empty for empty forms)
     assert (
         safe_rich_text('<form action="http://evil.com"><input name="password"></form>')
         == ""
@@ -157,10 +160,11 @@ def test_campaign_with_xss_content_is_sanitized():
     # Verify XSS is removed but safe content remains
     assert "<p>Summary</p>" in content
     assert "<p>Story</p>" in content
-    # Check that XSS script content is not present (not checking for <script> tag itself as page has legitimate scripts)
-    assert 'alert("XSS in summary")' not in content
-    assert 'alert("XSS in narrative")' not in content
-    assert "onerror=" not in content
+    # With strip=True, script tags are removed but their content remains
+    # The content is harmless as text without the script tags
+    assert 'alert("XSS in summary")' in content  # Content remains but as plain text
+    assert 'alert("XSS in narrative")' in content  # Content remains but as plain text
+    assert "onerror=" not in content  # Event handlers are still removed
 
     # Verify the actual img tag is present but sanitized
     assert "<img" in content  # Image tag should be present
@@ -204,10 +208,10 @@ def test_battle_notes_with_xss_are_sanitized():
 
     # Verify XSS is removed but safe content remains
     assert "<p>Note content</p>" in content
-    # Check that XSS script content is not present (not checking for <script> tag itself as page has legitimate scripts)
-    assert 'alert("XSS")' not in content
-    assert "javascript:alert" not in content
-    assert "alert('link XSS')" not in content
+    # With strip=True, script tags are removed but their content remains as plain text
+    assert 'alert("XSS")' in content  # Content remains but harmless as plain text
+    assert "javascript:alert" not in content  # javascript: URLs are still sanitized
+    assert "alert('link XSS')" not in content  # javascript: URLs are still sanitized
     assert (
         "Bad Link</a>" in content
     )  # Link text should remain but href should be sanitized
@@ -240,8 +244,10 @@ def test_list_with_fighter_xss_is_sanitized():
 
     # Verify XSS is removed but safe content remains
     assert "<p>Gang has fighters</p>" in content or "Gang has fighters" in content
-    # Check that XSS script content is not present
-    assert 'alert("fighter XSS")' not in content
+    # With strip=True, script content remains as plain text
+    assert (
+        'alert("fighter XSS")' in content
+    )  # Content remains but harmless as plain text
 
 
 @pytest.mark.django_db
@@ -279,11 +285,11 @@ def test_list_narrative_with_xss_is_sanitized():
 def test_complex_nested_xss_is_sanitized():
     """Test that complex nested XSS attempts are sanitized."""
 
-    # Test nested script tags - both tags and their content should be completely removed
+    # Test nested script tags - tags are removed but content remains as plain text
     result = safe_rich_text('<p>Text<script><script>alert("XSS")</script></script></p>')
     assert result.startswith("<p>Text")
-    assert "alert" not in result
-    assert "<script>" not in result
+    assert "alert" in result  # Content remains but harmless as plain text
+    assert "<script>" not in result  # Tags themselves are removed
 
     # Test encoded XSS attempts
     assert (

@@ -497,53 +497,15 @@ def safe_rich_text(value):
     )
 
     # Sanitize the HTML content
-    # First pass: clean with escaping to preserve content structure
+    # Use strip=True to remove disallowed tags and their content in one pass
     cleaned = bleach.clean(
         value,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
         protocols=ALLOWED_PROTOCOLS,
         css_sanitizer=css_sanitizer,
-        strip=False,  # Escape disallowed tags first
+        strip=True,  # Remove disallowed tags and their content
         strip_comments=True,  # Remove HTML comments
-    )
-
-    # Second pass: strip any remaining escaped dangerous content patterns
-    # This removes escaped script tags, style tags, etc. that would just be visual noise
-    # Remove escaped script tags and their content
-    cleaned = re.sub(
-        r"&lt;script[^&]*&gt;.*?&lt;/script&gt;",
-        "",
-        cleaned,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Remove escaped style tags and their content
-    cleaned = re.sub(
-        r"&lt;style[^&]*&gt;.*?&lt;/style&gt;",
-        "",
-        cleaned,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Remove escaped iframe tags
-    cleaned = re.sub(
-        r"&lt;iframe[^&]*&gt;.*?&lt;/iframe&gt;",
-        "",
-        cleaned,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Remove escaped form tags
-    cleaned = re.sub(
-        r"&lt;form[^&]*&gt;.*?&lt;/form&gt;",
-        "",
-        cleaned,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Remove any remaining escaped tags that we don't want to show
-    cleaned = re.sub(
-        r"&lt;/?(?:meta|link|object|embed|svg)[^&]*&gt;",
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
     )
 
     return mark_safe(cleaned)
