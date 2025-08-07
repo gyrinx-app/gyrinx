@@ -510,8 +510,6 @@ def safe_rich_text(value):
 
     # Second pass: strip any remaining escaped dangerous content patterns
     # This removes escaped script tags, style tags, etc. that would just be visual noise
-    import re
-
     # Remove escaped script tags and their content
     cleaned = re.sub(
         r"&lt;script[^&]*&gt;.*?&lt;/script&gt;",
