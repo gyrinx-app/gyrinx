@@ -41,7 +41,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <div class="mb-last-0 text-secondary">{{ campaign.summary|safe }}</div>
+                        <div class="mb-last-0 text-secondary">{{ campaign.summary|safe_rich_text|safe }}</div>
                         <div class="hstack column-gap-2 row-gap-1 flex-wrap fs-7 text-secondary">
                             {% if campaign.archived %}
                                 <div>

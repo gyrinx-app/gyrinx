@@ -245,7 +245,7 @@
                             {% if fighter.private_notes and user == list.owner %}
                                 <div class="mb-2">
                                     <strong>Notes:</strong>
-                                    <div class="mt-1">{{ fighter.private_notes|safe }}</div>
+                                    <div class="mt-1">{{ fighter.private_notes|safe_rich_text|safe }}</div>
                                 </div>
                             {% endif %}
                             {% if not fighter.image and not fighter.save_roll and not fighter.private_notes %}
@@ -269,7 +269,7 @@
                      aria-labelledby="lore-tab-{{ fighter.id }}"
                      tabindex="0">
                     {% if fighter.narrative %}
-                        {{ fighter.narrative|safe }}
+                        {{ fighter.narrative|safe_rich_text|safe }}
                         {% if can_edit %}
                             <div class="mt-2">
                                 <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"

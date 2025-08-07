@@ -2,6 +2,8 @@ import hashlib
 import random
 import re
 
+import bleach
+import bleach.css_sanitizer
 import qrcode
 import qrcode.image.svg
 from django import template
@@ -340,3 +342,210 @@ def safe_referer(context: RequestContext, fallback_url="/"):
 
     # Fall back to the provided fallback URL
     return fallback_url
+
+
+@register.filter
+def safe_rich_text(value):
+    """
+    Sanitize and render rich text content safely.
+
+    This filter sanitizes HTML content to prevent XSS attacks while preserving
+    formatting from TinyMCE. It allows safe HTML tags and attributes commonly
+    used in rich text editing but removes potentially dangerous content like
+    script tags, event handlers, and javascript: URLs.
+
+    Usage:
+        {{ content|safe_rich_text|safe }}
+
+    Note: The |safe filter is still needed after this to render the HTML,
+    but the content has been sanitized first.
+    """
+    if not value:
+        return ""
+
+    # Define allowed tags for rich text content
+    ALLOWED_TAGS = [
+        # Text formatting
+        "p",
+        "br",
+        "span",
+        "div",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "u",
+        "s",
+        "strike",
+        "sub",
+        "sup",
+        "mark",
+        # Headers
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        # Lists
+        "ul",
+        "ol",
+        "li",
+        # Quotes and code
+        "blockquote",
+        "pre",
+        "code",
+        "kbd",
+        "samp",
+        "var",
+        # Links and media
+        "a",
+        "img",
+        # Tables
+        "table",
+        "thead",
+        "tbody",
+        "tfoot",
+        "tr",
+        "th",
+        "td",
+        "caption",
+        "colgroup",
+        "col",
+        # Semantic HTML
+        "article",
+        "section",
+        "nav",
+        "aside",
+        "header",
+        "footer",
+        "address",
+        "time",
+        # Formatting
+        "hr",
+        "abbr",
+        "acronym",
+        "cite",
+        "q",
+        "del",
+        "ins",
+    ]
+
+    # Define allowed attributes for specific tags
+    ALLOWED_ATTRIBUTES = {
+        # Links - only allow href and title, no event handlers
+        "a": ["href", "title", "target", "rel"],
+        # Images - basic attributes only, no event handlers
+        "img": ["src", "alt", "title", "width", "height", "class"],
+        # Tables
+        "table": ["class", "border", "cellpadding", "cellspacing"],
+        "td": ["class", "colspan", "rowspan", "align", "valign"],
+        "th": ["class", "colspan", "rowspan", "align", "valign"],
+        # General styling (but no inline JS)
+        "*": ["class", "id", "style"],
+    }
+
+    # Define allowed CSS properties to prevent CSS-based attacks
+    ALLOWED_STYLES = [
+        "color",
+        "background-color",
+        "font-size",
+        "font-weight",
+        "font-style",
+        "text-decoration",
+        "text-align",
+        "vertical-align",
+        "margin",
+        "margin-top",
+        "margin-bottom",
+        "margin-left",
+        "margin-right",
+        "padding",
+        "padding-top",
+        "padding-bottom",
+        "padding-left",
+        "padding-right",
+        "border",
+        "border-width",
+        "border-color",
+        "border-style",
+        "width",
+        "height",
+        "max-width",
+        "max-height",
+        "min-width",
+        "min-height",
+        "display",
+        "float",
+        "clear",
+        "position",
+        "top",
+        "left",
+        "right",
+        "bottom",
+        "line-height",
+        "white-space",
+        "list-style-type",
+    ]
+
+    # Define allowed URL schemes to prevent javascript: and data: URLs
+    ALLOWED_PROTOCOLS = ["http", "https", "mailto", "tel", "/", "#"]
+
+    # Create CSS sanitizer for style attributes
+    css_sanitizer = bleach.css_sanitizer.CSSSanitizer(
+        allowed_css_properties=ALLOWED_STYLES
+    )
+
+    # Sanitize the HTML content
+    # First pass: clean with escaping to preserve content structure
+    cleaned = bleach.clean(
+        value,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        protocols=ALLOWED_PROTOCOLS,
+        css_sanitizer=css_sanitizer,
+        strip=False,  # Escape disallowed tags first
+        strip_comments=True,  # Remove HTML comments
+    )
+
+    # Second pass: strip any remaining escaped dangerous content patterns
+    # This removes escaped script tags, style tags, etc. that would just be visual noise
+    import re
+
+    # Remove escaped script tags and their content
+    cleaned = re.sub(
+        r"&lt;script[^&]*&gt;.*?&lt;/script&gt;",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Remove escaped style tags and their content
+    cleaned = re.sub(
+        r"&lt;style[^&]*&gt;.*?&lt;/style&gt;",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Remove escaped iframe tags
+    cleaned = re.sub(
+        r"&lt;iframe[^&]*&gt;.*?&lt;/iframe&gt;",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Remove escaped form tags
+    cleaned = re.sub(
+        r"&lt;form[^&]*&gt;.*?&lt;/form&gt;",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Remove any remaining escaped tags that we don't want to show
+    cleaned = re.sub(
+        r"&lt;/?(?:meta|link|object|embed|svg)[^&]*&gt;",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    return mark_safe(cleaned)

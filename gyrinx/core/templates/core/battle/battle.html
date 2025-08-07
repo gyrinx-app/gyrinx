@@ -102,7 +102,7 @@
                                             </a>
                                         {% endif %}
                                     </div>
-                                    <div class="mb-last-0">{{ note.content|safe }}</div>
+                                    <div class="mb-last-0">{{ note.content|safe_rich_text|safe }}</div>
                                 </div>
                             {% endfor %}
                         </div>
