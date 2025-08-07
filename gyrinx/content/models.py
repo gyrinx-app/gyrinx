@@ -315,6 +315,12 @@ class ContentFighterPsykerPowerDefaultAssignment(Content):
             )
 
     def name(self):
+        """
+        Returns a formatted display name combining the psyker power name and discipline.
+
+        Returns:
+            str: Formatted string in the pattern "Power Name (Discipline Name)".
+        """
         return f"{self.psyker_power.name} ({self.psyker_power.discipline})"
 
     def __str__(self):
@@ -627,6 +633,12 @@ class ContentEquipment(FighterCostMixin, Content):
 
     @cached_property
     def is_weapon_cached(self):
+        """
+        Cached version of is_weapon() method for performance optimization.
+
+        Returns:
+            bool: True if this equipment is a weapon, False otherwise.
+        """
         return self.is_weapon()
 
     @cached_property
@@ -1038,6 +1050,21 @@ class ContentFighter(Content):
         )
 
     def copy_to_house(self, house):
+        """
+        Creates a deep copy of this fighter and assigns it to a different house.
+
+        Duplicates the fighter instance along with all associated data including:
+        - Skills, skill categories, and rules relationships
+        - Equipment list items, weapon accessories, and upgrades
+        - Default assignments with their weapon profiles and accessories
+
+        Args:
+            house: The ContentHouse instance to assign the copied fighter to.
+
+        Returns:
+            ContentFighter: The newly created fighter instance with the new house assignment.
+            The original instance is modified in-place to become the copy.
+        """
         skills = self.skills.all()
         primary_skill_categories = self.primary_skill_categories.all()
         secondary_skill_categories = self.secondary_skill_categories.all()
@@ -1879,6 +1906,16 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
         return result
 
     def standard_profiles(self):
+        """
+        Returns virtual weapon profiles for zero-cost equipment profiles.
+
+        Filters weapon profiles associated with this equipment that have no cost
+        and wraps them with modifications applied.
+
+        Returns:
+            list[VirtualWeaponProfile]: List of virtual profiles with applied mods
+                for all zero-cost weapon profiles of the associated equipment.
+        """
         return [
             VirtualWeaponProfile(p, self._mods)
             for p in ContentWeaponProfile.objects.filter(
@@ -1891,6 +1928,16 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
         return list(self.standard_profiles())
 
     def weapon_profiles(self):
+        """
+        Returns virtual weapon profiles for specifically assigned weapon profiles.
+
+        Wraps the weapon profiles from weapon_profiles_field with applied modifications.
+        These are profiles that have been specifically assigned to this equipment item.
+
+        Returns:
+            list[VirtualWeaponProfile]: List of virtual profiles with applied mods
+                for all specifically assigned weapon profiles.
+        """
         return [
             VirtualWeaponProfile(p, self._mods)
             for p in self.weapon_profiles_field.all()
@@ -2719,16 +2766,40 @@ class VirtualWeaponProfile:
 
     @property
     def id(self):
+        """
+        Returns the ID of the underlying weapon profile.
+
+        Returns:
+            int: The primary key of the ContentWeaponProfile instance.
+        """
         return self.profile.id
 
     @property
     def name(self):
+        """
+        Returns the name of the underlying weapon profile.
+
+        Returns:
+            str: The name of the ContentWeaponProfile instance.
+        """
         return self.profile.name
 
     def cost_int(self):
+        """
+        Returns the integer cost of the weapon profile.
+
+        Returns:
+            int: The cost in credits as an integer value.
+        """
         return self.profile.cost_int()
 
     def cost_display(self):
+        """
+        Returns a formatted display string for the weapon profile cost.
+
+        Returns:
+            str: The cost formatted with the credit symbol (e.g., "50¢").
+        """
         return f"{self.cost_int()}¢"
 
     def _statmods(self, stat=None) -> list[ContentModStat]:
