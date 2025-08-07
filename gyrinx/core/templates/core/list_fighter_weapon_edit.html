@@ -13,11 +13,11 @@
                 <strong>Error:</strong> {{ error_message }}
             </div>
         {% endif %}
-        <!-- Weapon Details Section -->
-        <div class="card col-12 col-md-8 col-lg-6">
+        <!-- Unified Weapon Profiles Table -->
+        <div class="card col-12 col-md-10 col-lg-8">
             <div class="card-header py-1 px-2 hstack justify-content-between align-items-center">
                 <h4 class="h5 mb-0">{{ assign.content_equipment.name }}</h4>
-                <div class="mb-2">
+                <div>
                     {% if assign.has_total_cost_override %}
                         <span class="badge text-bg-secondary">{{ assign.total_cost_override }}¢</span>
                     {% else %}
@@ -26,7 +26,6 @@
                 </div>
             </div>
             <div class="card-body py-2 px-2">
-                <!-- Weapon Profiles Table -->
                 <div class="table-responsive">
                     <table class="table table-sm table-borderless mb-0 fs-7">
                         <thead class="table-group-divider">
@@ -40,86 +39,84 @@
                                 <th class="text-center" scope="col">Ap</th>
                                 <th class="text-center" scope="col">D</th>
                                 <th class="text-center" scope="col">Am</th>
-                                <th scope="col"></th>
+                                <th scope="col" class="text-end"></th>
                             </tr>
                         </thead>
                         <tbody class="table-group-divider">
+                            {% comment %} Section 1: Standard (free) profiles - these are the base weapon stats {% endcomment %}
+                            {% for profile in assign.standard_profiles_cached %}
+                                <tr>
+                                    <td>
+                                        {% if profile.name %}<i class="bi-dash"></i> {{ profile.name }}{% endif %}
+                                    </td>
+                                    <td class="text-center">{{ profile.range_short|default:"-" }}</td>
+                                    <td class="text-center">{{ profile.range_long|default:"-" }}</td>
+                                    <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
+                                    <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
+                                    <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
+                                    <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
+                                    <td class="text-center">{{ profile.damage|default:"-" }}</td>
+                                    <td class="text-center">{{ profile.ammo|default:"-" }}</td>
+                                    <td class="text-end"></td>
+                                </tr>
+                                {% if profile.traitline_cached %}
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="9">{{ profile.traitline_cached|join:", " }}</td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                            {% comment %} Section 2: Added paid profiles {% endcomment %}
                             {% for pd in assign.weapon_profiles_display %}
                                 <tr>
                                     <td>
+                                        <i class="bi-dash"></i>
                                         {{ pd.profile.name }}
-                                        {% if pd.cost_display != "0¢" and pd.cost_display != "Free" %}
+                                        {% if pd.cost_display != "0¢" and pd.cost_display != "" %}
                                             <span class="text-muted">({{ pd.cost_display }})</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-center">{{ pd.profile.s_range|default:"-" }}</td>
-                                    <td class="text-center">{{ pd.profile.l_range|default:"-" }}</td>
-                                    <td class="text-center border-start">{{ pd.profile.s|default:"-" }}</td>
-                                    <td class="text-center">{{ pd.profile.l|default:"-" }}</td>
-                                    <td class="text-center border-start">{{ pd.profile.str|default:"-" }}</td>
-                                    <td class="text-center">{{ pd.profile.ap|default:"-" }}</td>
-                                    <td class="text-center">{{ pd.profile.d|default:"-" }}</td>
-                                    <td class="text-center">{{ pd.profile.am|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.range_short|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.range_long|default:"-" }}</td>
+                                    <td class="text-center border-start">{{ pd.profile.accuracy_short|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.accuracy_long|default:"-" }}</td>
+                                    <td class="text-center border-start">{{ pd.profile.strength|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.armour_piercing|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.damage|default:"-" }}</td>
+                                    <td class="text-center">{{ pd.profile.ammo|default:"-" }}</td>
                                     <td class="text-end">
-                                        {% if pd.profile.cost > 0 %}
-                                            <a href="{% url 'core:list-fighter-weapon-profile-delete' list.id fighter.id assign.id pd.profile.id %}"
-                                               class="btn btn-sm btn-outline-danger">
-                                                <i class="bi-trash"></i>
-                                            </a>
-                                        {% endif %}
+                                        <a href="{% url 'core:list-fighter-weapon-profile-delete' list.id fighter.id assign.id pd.profile.id %}"
+                                           class="btn btn-sm btn-outline-danger">
+                                            <i class="bi-trash"></i> Remove
+                                        </a>
                                     </td>
                                 </tr>
-                                {% if pd.profile.traits %}
+                                {% if pd.profile.traitline_cached %}
                                     <tr>
-                                        <td colspan="10">
-                                            <small class="text-muted">{{ pd.profile.traits }}</small>
-                                        </td>
+                                        <td></td>
+                                        <td colspan="9">{{ pd.profile.traitline_cached|join:", " }}</td>
                                     </tr>
                                 {% endif %}
                             {% endfor %}
                         </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <!-- Available Weapon Profiles -->
-        <div class="card col-12 col-md-8 col-lg-6">
-            <div class="card-header p-1 p-sm-2">
-                <h4 class="h5 mb-0">Available Weapon Profiles</h4>
-            </div>
-            <div class="card-body p-1 p-sm-2">
-                {% if profiles %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-borderless mb-0 fs-7">
-                            <thead class="table-group-divider">
-                                <tr>
-                                    <th scope="col"></th>
-                                    <th class="text-center" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">Str</th>
-                                    <th class="text-center" scope="col">Ap</th>
-                                    <th class="text-center" scope="col">D</th>
-                                    <th class="text-center" scope="col">Am</th>
-                                    <th scope="col"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="table-group-divider">
+                        <tbody class="table-group-divider">
+                            {% comment %} Section 3: Available paid profiles (not yet added) {% endcomment %}
+                            {% if profiles %}
                                 {% for profile in profiles %}
                                     <tr>
                                         <td>
+                                            <i class="bi-dash"></i>
                                             {{ profile.name }}
-                                            <span class="text-muted">({{ profile.cost_display }})</span>
+                                            <span class="text-muted">(+{{ profile.cost_display }})</span>
                                         </td>
-                                        <td class="text-center">{{ profile.s_range|default:"-" }}</td>
-                                        <td class="text-center">{{ profile.l_range|default:"-" }}</td>
-                                        <td class="text-center border-start">{{ profile.s|default:"-" }}</td>
-                                        <td class="text-center">{{ profile.l|default:"-" }}</td>
-                                        <td class="text-center border-start">{{ profile.str|default:"-" }}</td>
-                                        <td class="text-center">{{ profile.ap|default:"-" }}</td>
-                                        <td class="text-center">{{ profile.d|default:"-" }}</td>
-                                        <td class="text-center">{{ profile.am|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.range_short|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.range_long|default:"-" }}</td>
+                                        <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
+                                        <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.damage|default:"-" }}</td>
+                                        <td class="text-center">{{ profile.ammo|default:"-" }}</td>
                                         <td class="text-end">
                                             <form action="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}"
                                                   method="post"
@@ -127,25 +124,23 @@
                                                 {% csrf_token %}
                                                 <input type="hidden" name="profile_id" value="{{ profile.id }}">
                                                 <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                    <i class="bi-plus"></i> Add
+                                                    <i class="bi-plus"></i> Add for +{{ profile.cost_display }}
                                                 </button>
                                             </form>
                                         </td>
                                     </tr>
                                     {% if profile.traits %}
                                         <tr>
-                                            <td colspan="10">
-                                                <small class="text-muted">{{ profile.traits }}</small>
-                                            </td>
+                                            <td></td>
+                                            <td colspan="9">{{ profile.traits }}</td>
                                         </tr>
                                     {% endif %}
                                 {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="text-muted mb-0">No additional weapon profiles available.</p>
-                {% endif %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not profiles %}<p class="text-muted mb-0 mt-3">No additional weapon profiles available to add.</p>{% endif %}
             </div>
         </div>
     </div>

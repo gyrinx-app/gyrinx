@@ -2514,9 +2514,12 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
         )
 
     # Get all available profiles for this weapon
-    profiles_qs = ContentWeaponProfile.objects.filter(
-        equipment=assignment.content_equipment
-    ).order_by("cost", "name")
+    # Exclude standard (free) profiles as they're automatically included
+    profiles_qs = (
+        ContentWeaponProfile.objects.filter(equipment=assignment.content_equipment)
+        .exclude(cost=0)
+        .order_by("cost", "name")
+    )
 
     # Get already assigned profile IDs to filter them out from available profiles
     existing_profile_ids = set(
@@ -2524,12 +2527,22 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     )
 
     # Build list of available profiles
+    from gyrinx.content.models import VirtualWeaponProfile
+
     profiles = []
     for profile in profiles_qs:
         if profile.id not in existing_profile_ids:
             # Calculate the actual cost for this profile on this weapon assignment
-            cost_int = assignment.weapon_profile_cost_int(profile)
+            # Wrap the profile in VirtualWeaponProfile as expected by profile_cost_int
+            virtual_profile = VirtualWeaponProfile(profile=profile)
+            cost_int = assignment.profile_cost_int(virtual_profile)
             cost_display = f"{cost_int}¢" if cost_int != 0 else "Free"
+
+            # Format traits as a comma-separated string
+            traits_list = list(profile.traits.all())
+            traits_str = (
+                ", ".join([trait.name for trait in traits_list]) if traits_list else ""
+            )
 
             profiles.append(
                 {
@@ -2537,13 +2550,16 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
                     "name": profile.name,
                     "cost_int": cost_int,
                     "cost_display": cost_display,
-                    "s_range": profile.s_range,
-                    "l_range": profile.l_range,
-                    "str": profile.str,
-                    "ap": profile.ap,
-                    "d": profile.d,
-                    "am": profile.am,
-                    "traits": profile.traits,
+                    # Use correct field names that VirtualWeaponProfile provides
+                    "range_short": profile.range_short,
+                    "range_long": profile.range_long,
+                    "accuracy_short": profile.accuracy_short,
+                    "accuracy_long": profile.accuracy_long,
+                    "strength": profile.strength,
+                    "armour_piercing": profile.armour_piercing,
+                    "damage": profile.damage,
+                    "ammo": profile.ammo,
+                    "traits": traits_str,
                 }
             )
 
