@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth.models import Group
 from django.contrib.flatpages.models import FlatPage
+from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sites.models import Site
 from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
@@ -172,6 +173,8 @@ def test_error_handlers_context():
 
     factory = RequestFactory()
     request = factory.get("/")
+    # Add session to the request to fix AttributeError
+    request.session = SessionStore()
 
     # Test 400 and 403 handlers (these use the generic error template)
     handlers = [

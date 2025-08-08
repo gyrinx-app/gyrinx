@@ -1,0 +1,54 @@
+{% load custom_tags %}
+{% if campaign.lists.all or pending_invitations %}
+    <div class="list-group list-group-flush">
+        {% for list in campaign.lists.all %}
+            <div class="list-group-item px-2 px-sm-3">
+                <div class="d-flex align-items-start">
+                    <a href="{% url 'core:list' list.id %}"
+                       class="text-decoration-none text-body flex-grow-1">
+                        {% include "core/campaign/includes/list_row.html" with list=list %}
+                    </a>
+                    {% if campaign.owner == user or list.owner == user %}
+                        {% if not campaign.is_post_campaign %}
+                            <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                               class="link-danger icon-link ms-2 fs-7"
+                               title="Remove from campaign"
+                               aria-label="Remove from campaign">
+                                <i class="bi-trash"></i> Remove
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+        {% if pending_invitations %}
+            {% if campaign.lists.all %}
+                <div class="list-group-item px-2 px-sm-3 bg-light">
+                    <small class="text-muted fw-bold">Invited</small>
+                </div>
+            {% endif %}
+            {% for invitation in pending_invitations %}
+                <div class="list-group-item px-2 px-sm-3">
+                    <div class="d-flex align-items-start">
+                        <a href="{% url 'core:list' invitation.list.id %}"
+                           class="text-decoration-none text-body flex-grow-1">
+                            {% include "core/campaign/includes/list_row.html" with list=invitation.list %}
+                        </a>
+                        <span class="badge text-bg-warning ms-2">Pending</span>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+{% else %}
+    <div class="p-3 text-center text-muted">
+        No gangs have been added to this campaign yet.
+        {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
+            <br>
+            <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+               class="btn btn-primary btn-sm mt-2">
+                <i class="bi-plus-circle"></i> Add Gangs
+            </a>
+        {% endif %}
+    </div>
+{% endif %}

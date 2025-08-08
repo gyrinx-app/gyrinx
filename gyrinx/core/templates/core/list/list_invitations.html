@@ -7,14 +7,15 @@
     <div class="col-12 col-xl-6">
         <div class="mb-3">{% include "core/includes/back_to_list.html" with list=list text="Back to list" %}</div>
         <h2 class="mb-3">Campaign Invitations</h2>
-        <p class="text-secondary">{{ list.name }}</p>
         {% if invitations %}
             <div class="mb-3">
                 {% for invitation in invitations %}
                     <div class="border rounded p-3 mb-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <h5 class="mb-1">{{ invitation.campaign.name }}</h5>
+                                <h5 class="mb-1">
+                                    <a href="{% url 'core:campaign' invitation.campaign.id %}" class="">{{ invitation.campaign.name }}</a>
+                                </h5>
                                 <p class="text-secondary mb-0">
                                     <small>From: {{ invitation.campaign.owner.username }}</small>
                                 </p>
@@ -33,16 +34,19 @@
                                   action="{% url 'core:invitation-decline' list.id invitation.id %}"
                                   class="d-inline ms-2">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-secondary btn-sm">Decline</button>
+                                <button type="submit" class="btn btn-link text-secondary btn-sm">Decline</button>
                             </form>
                         </div>
                     </div>
                 {% endfor %}
             </div>
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> No pending invitations
-            </div>
+            <p>
+                No pending invitations.
+                {% if list.is_list_building and list.active_campaign_clones.exists %}
+                    <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">See campaign gang versions of this list.</a>
+                {% endif %}
+            </p>
         {% endif %}
     </div>
 {% endblock content %}

@@ -42,6 +42,17 @@
                 </div>
             </div>
         {% endif %}
+        <!-- Current Gangs and Invitations -->
+        {% if current_lists or pending_invitations %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Campaign Gangs</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% include "core/campaign/includes/campaign_lists.html" with lists=current_lists pending_invitations=pending_invitations %}
+                </div>
+            </div>
+        {% endif %}
         <!-- Search and Filter Section -->
         <div>
             <form id="search"
@@ -65,10 +76,11 @@
                 </div>
                 <!-- Owner Filter -->
                 <div class="hstack gap-2">
-                    <label class="form-label mb-0">Filter by owner:</label>
+                    <label class="form-label mb-0 visually-hidden">Filter by owner:</label>
                     <div class="btn-group" role="group">
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-all"
                                value="all"
@@ -76,6 +88,7 @@
                         <label class="btn btn-outline-primary btn-sm" for="owner-all">All Gangs</label>
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-mine"
                                value="mine"
@@ -83,6 +96,7 @@
                         <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Gangs</label>
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-others"
                                value="others"
@@ -96,72 +110,10 @@
                 </div>
             </form>
         </div>
-        <!-- Current Gangs and Invitations -->
-        {% if current_lists or pending_invitations %}
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        Campaign Gangs
-                        <small class="text-muted">({{ current_lists.count|add:pending_invitations.count }} total)</small>
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        {% for list in current_lists %}
-                            <div class="list-group-item">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h6 class="mb-1">
-                                            <strong>{% list_with_theme list %}</strong>
-                                            {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
-                                        </h6>
-                                        <p class="mb-0 text-muted small">
-                                            <i class="bi-person"></i> {{ list.owner.username }}
-                                            • {{ list.cost_int_cached }}¢
-                                            • In campaign
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                        {% if pending_invitations %}
-                            {% if current_lists %}
-                                <div class="list-group-item bg-light">
-                                    <small class="text-muted fw-bold">Invited (Awaiting Response)</small>
-                                </div>
-                            {% endif %}
-                            {% for invitation in pending_invitations %}
-                                <div class="list-group-item">
-                                    <div class="row align-items-center">
-                                        <div class="col">
-                                            <h6 class="mb-1">
-                                                <strong>{% list_with_theme invitation.list %}</strong>
-                                                {% if invitation.list.content_house %}• {{ invitation.list.content_house.name }}{% endif %}
-                                                <span class="badge bg-warning text-dark ms-2">Pending</span>
-                                            </h6>
-                                            <p class="mb-0 text-muted small">
-                                                <i class="bi-person"></i> {{ invitation.list.owner.username }}
-                                                • {{ invitation.list.cost_int_cached }}¢
-                                                • Invited {{ invitation.created|timesince }} ago
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        {% endif %}
         <!-- Available Lists -->
         <div class="card {% flash "search" %}">
             <div class="card-header">
-                <h5 class="card-title mb-0">
-                    Available Gangs
-                    {% if page_obj.paginator.count > 0 %}
-                        <small class="text-muted">({{ page_obj.paginator.count }} total)</small>
-                    {% endif %}
-                </h5>
+                <h5 class="card-title mb-0">Available Lists</h5>
             </div>
             <div class="card-body p-0">
                 {% if lists %}

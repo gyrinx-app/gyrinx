@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -288,7 +288,7 @@ def campaign_add_lists(request, id):
                             # Show success message
                             messages.success(
                                 request,
-                                f"Invitation sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
+                                f"Invitation sent to {list_to_add.name}.",
                             )
                         else:
                             # Check if the invitation is still pending
@@ -310,7 +310,7 @@ def campaign_add_lists(request, id):
                                     invitation.save()
                                     messages.success(
                                         request,
-                                        f"Invitation re-sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
+                                        f"Invitation re-sent to {list_to_add.name}.",
                                     )
                             elif invitation.is_declined:
                                 # Reset declined invitation to pending
@@ -318,7 +318,7 @@ def campaign_add_lists(request, id):
                                 invitation.save()
                                 messages.success(
                                     request,
-                                    f"Invitation re-sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
+                                    f"Invitation re-sent to {list_to_add.name}.",
                                 )
                         # Redirect to the same page with the search params preserved
                         query_params = []
@@ -344,35 +344,26 @@ def campaign_add_lists(request, id):
         & models.Q(archived=False)
     )
 
-    # Exclude lists where the most recent invitation is pending or accepted
+    # When we show the set of available lists, we want to exclude those that are already
+    # in the campaign, and those that have pending/accepted invitations.
+
     # First, get the most recent invitation for each list to this campaign
 
     # Subquery to get the most recent invitation's ID for each list
     most_recent_invitation = (
-        CampaignInvitation.objects.filter(campaign=campaign, list=OuterRef("pk"))
+        CampaignInvitation.objects.filter(campaign=campaign, list=OuterRef("list_id"))
         .order_by("-created")
         .values("id")[:1]
     )
 
     # Get the list IDs where the most recent invitation is pending
-    # OR where it's accepted AND the list is still in the campaign
     pending_invitation_list_ids = CampaignInvitation.objects.filter(
         id__in=Subquery(most_recent_invitation),
         status=CampaignInvitation.PENDING,
     ).values_list("list_id", flat=True)
 
-    # Get lists that have accepted invitations AND are still in the campaign
-    accepted_and_in_campaign_ids = CampaignInvitation.objects.filter(
-        id__in=Subquery(most_recent_invitation),
-        status=CampaignInvitation.ACCEPTED,
-        list__in=campaign.lists.all(),
-    ).values_list("list_id", flat=True)
-
     # Exclude both pending invitations and lists that are already in the campaign
-    excluded_list_ids = list(pending_invitation_list_ids) + list(
-        accepted_and_in_campaign_ids
-    )
-    lists = lists.exclude(id__in=excluded_list_ids)
+    excluded_list_ids = list(pending_invitation_list_ids)
 
     # If the campaign has started, exclude lists that have been cloned into it
     if campaign.is_in_progress or campaign.is_post_campaign:
@@ -388,7 +379,7 @@ def campaign_add_lists(request, id):
         search_query = SearchQuery(request.GET.get("q"))
         lists = lists.annotate(
             search=SearchVector("name", "content_house__name", "owner__username")
-        ).filter(search=search_query)
+        ).filter(Q(search=search_query) | Q(name__icontains=request.GET.get("q")))
 
     # Filter by owner type
     owner_filter = request.GET.get("owner", "all")
@@ -398,8 +389,8 @@ def campaign_add_lists(request, id):
         # Only show public lists from other users
         lists = lists.filter(public=True).exclude(owner=request.user)
 
-    # Order by name
-    lists = lists.order_by("name")
+    # Exclude and order by name
+    lists = lists.exclude(id__in=excluded_list_ids).order_by("name")
 
     # Paginate the results
     paginator = Paginator(lists, 20)  # Show 20 lists per page

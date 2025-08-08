@@ -1,0 +1,9 @@
+{% load allauth custom_tags color_tags %}
+<h6 class="mb-1">
+    <strong>{% list_with_theme list %}</strong>
+    {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
+</h6>
+<p class="mb-0 text-muted small">
+    <i class="bi-person"></i> {{ list.owner.username }}
+    • {{ list.cost_int_cached }}¢
+</p>

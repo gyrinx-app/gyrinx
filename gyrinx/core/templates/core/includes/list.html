@@ -16,13 +16,7 @@
                 <h2 class="mb-0">{% list_with_theme list %}</h2>
                 <div class="ms-md-auto">
                     {{ list.content_house.name }}
-                    {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}
-                    {% if list.owner_cached == user and pending_invitations_count > 0 %}
-                        <a href="{% url 'core:list-invitations' list.id %}"
-                           class="text-decoration-none">
-                            <span class="badge bg-info">{{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}</span>
-                        </a>
-                    {% endif %}
+                    {% if list.is_campaign_mode %}<span class="badge bg-success">In Campaign</span>{% endif %}
                 </div>
                 <div class="h5 mb-0">
                     <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
@@ -102,6 +96,13 @@
             <div class="ms-sm-auto mt-2 mt-sm-0">
                 {% if not print %}
                     <div class="nav hstack gap-1 flex-nowrap">
+                        {% if list.owner_cached == user and pending_invitations_count > 0 %}
+                            <a href="{% url 'core:list-invitations' list.id %}"
+                               class="btn btn-info text-bg-info btn-sm">
+                                <i class="bi-award"></i>
+                                {{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}
+                            </a>
+                        {% endif %}
                         {% if list.owner_cached == user and not list.archived %}
                             <a href="{% url 'core:list-fighter-new' list.id %}"
                                class="btn btn-primary btn-sm"
