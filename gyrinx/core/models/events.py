@@ -17,6 +17,7 @@ class EventNoun(models.TextChoices):
     LIST = "list", "List"
     LIST_FIGHTER = "list_fighter", "List Fighter"
     CAMPAIGN = "campaign", "Campaign"
+    CAMPAIGN_INVITATION = "campaign_invitation", "Campaign Invitation"
     BATTLE = "battle", "Battle"
     EQUIPMENT_ASSIGNMENT = "equipment_assignment", "Equipment Assignment"
     SKILL_ASSIGNMENT = "skill_assignment", "Skill Assignment"

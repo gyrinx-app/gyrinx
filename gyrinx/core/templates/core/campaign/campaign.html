@@ -28,15 +28,7 @@
             <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
                 <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
                     <h1 class="mb-0">{{ campaign.name }}</h1>
-                    <div class="ms-md-auto">
-                        {% if campaign.is_pre_campaign %}
-                            <span class="fs-6 badge bg-secondary">Pre-Campaign</span>
-                        {% elif campaign.is_in_progress %}
-                            <span class="fs-6 badge bg-success">In Progress</span>
-                        {% else %}
-                            <span class="fs-6 badge bg-dark">Post-Campaign</span>
-                        {% endif %}
-                    </div>
+                    <div class="ms-md-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</div>
                 </div>
             </div>
             <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
@@ -144,51 +136,7 @@
                     {% endif %}
                 </div>
                 <div class="card-body p-0">
-                    {% if campaign.lists.all %}
-                        <div class="list-group list-group-flush">
-                            {% for list in campaign.lists.all %}
-                                <div class="list-group-item px-2 px-sm-3">
-                                    <div class="d-flex align-items-start">
-                                        <a href="{% url 'core:list' list.id %}"
-                                           class="text-decoration-none text-body flex-grow-1">
-                                            <div class="d-flex w-100 justify-content-between">
-                                                <h6 class="mb-1">
-                                                    <strong>{% list_with_theme list %}</strong>
-                                                    {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
-                                                </h6>
-                                                <small>{{ list.cost_int }}¢</small>
-                                            </div>
-                                            <p class="mb-0 text-muted small">
-                                                <i class="bi-person"></i> {{ list.owner.username }}
-                                                • {{ list.fighters.count }} fighter{{ list.fighters.count|pluralize }}
-                                            </p>
-                                        </a>
-                                        {% if campaign.owner == user or list.owner == user %}
-                                            {% if not campaign.is_post_campaign %}
-                                                <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                   class="link-danger ms-2"
-                                                   title="Remove from campaign"
-                                                   aria-label="Remove from campaign">
-                                                    <i class="bi-trash"></i>
-                                                </a>
-                                            {% endif %}
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="p-3 text-center text-muted">
-                            No gangs have been added to this campaign yet.
-                            {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
-                                <br>
-                                <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                                   class="btn btn-primary btn-sm mt-2">
-                                    <i class="bi-plus-circle"></i> Add Gangs
-                                </a>
-                            {% endif %}
-                        </div>
-                    {% endif %}
+                    {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations %}
                 </div>
             </div>
             <!-- Campaign Assets -->

@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
+from django.db.models import OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -31,6 +32,7 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
 )
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.utils import safe_redirect
 
@@ -188,6 +190,15 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Get pending invitations for the campaign
+        context["pending_invitations"] = (
+            CampaignInvitation.objects.filter(
+                campaign=campaign, status=CampaignInvitation.PENDING
+            )
+            .select_related("list", "list__owner")
+            .order_by("-created")
+        )
+
         # Get captured fighters for the campaign
         if campaign.is_in_progress:
             context["captured_fighters"] = (
@@ -237,11 +248,9 @@ def campaign_add_lists(request, id):
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     error_message = None
-    show_confirmation = False
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
-        confirm = request.POST.get("confirm") == "true"
 
         if list_id:
             try:
@@ -253,54 +262,64 @@ def campaign_add_lists(request, id):
                         error_message = (
                             "Lists in campaign mode cannot be added to other campaigns."
                         )
-                    # For in-progress campaigns, require confirmation
-                    elif campaign.is_in_progress and not confirm:
-                        show_confirmation = True
-                        # Don't redirect, show confirmation instead
                     else:
-                        # Use the new method to add the list
-                        added_list, was_added = campaign.add_list_to_campaign(
-                            list_to_add
+                        # Check if an invitation already exists
+                        invitation, created = CampaignInvitation.objects.get_or_create(
+                            campaign=campaign,
+                            list=list_to_add,
+                            defaults={"owner": request.user},
                         )
 
-                        if was_added:
-                            # Log the list addition event
+                        if created:
+                            # Log the invitation creation event
                             log_event(
                                 user=request.user,
-                                noun=EventNoun.CAMPAIGN,
-                                verb=EventVerb.ADD,
-                                object=campaign,
+                                noun=EventNoun.CAMPAIGN_INVITATION,
+                                verb=EventVerb.CREATE,
+                                object=invitation,
                                 request=request,
                                 campaign_name=campaign.name,
-                                list_added_id=str(added_list.id),
-                                list_added_name=added_list.name,
-                                list_owner=added_list.owner.username,
+                                list_invited_id=str(list_to_add.id),
+                                list_invited_name=list_to_add.name,
+                                list_owner=list_to_add.owner.username,
+                                action="invitation_sent",
                             )
 
                             # Show success message
                             messages.success(
                                 request,
-                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} has been added to the campaign.",
+                                f"Invitation sent to {list_to_add.name}.",
                             )
                         else:
-                            # Log that the list already existed
-                            log_event(
-                                user=request.user,
-                                noun=EventNoun.CAMPAIGN,
-                                verb=EventVerb.VIEW,
-                                object=campaign,
-                                request=request,
-                                campaign_name=campaign.name,
-                                list_already_exists_id=str(added_list.id),
-                                list_already_exists_name=added_list.name,
-                                action="list_already_in_campaign",
-                            )
-
-                            # Show info message that list already exists
-                            messages.info(
-                                request,
-                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} is already in the campaign.",
-                            )
+                            # Check if the invitation is still pending
+                            if invitation.is_pending:
+                                messages.info(
+                                    request,
+                                    f"An invitation for {list_to_add.name} is already pending.",
+                                )
+                            elif invitation.is_accepted:
+                                # Check if the list is actually in the campaign
+                                if list_to_add in campaign.lists.all():
+                                    messages.info(
+                                        request,
+                                        f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
+                                    )
+                                else:
+                                    # List was removed, reset invitation to pending
+                                    invitation.status = CampaignInvitation.PENDING
+                                    invitation.save()
+                                    messages.success(
+                                        request,
+                                        f"Invitation re-sent to {list_to_add.name}.",
+                                    )
+                            elif invitation.is_declined:
+                                # Reset declined invitation to pending
+                                invitation.status = CampaignInvitation.PENDING
+                                invitation.save()
+                                messages.success(
+                                    request,
+                                    f"Invitation re-sent to {list_to_add.name}.",
+                                )
                         # Redirect to the same page with the search params preserved
                         query_params = []
                         if request.GET.get("q"):
@@ -325,6 +344,27 @@ def campaign_add_lists(request, id):
         & models.Q(archived=False)
     )
 
+    # When we show the set of available lists, we want to exclude those that are already
+    # in the campaign, and those that have pending/accepted invitations.
+
+    # First, get the most recent invitation for each list to this campaign
+
+    # Subquery to get the most recent invitation's ID for each list
+    most_recent_invitation = (
+        CampaignInvitation.objects.filter(campaign=campaign, list=OuterRef("list_id"))
+        .order_by("-created")
+        .values("id")[:1]
+    )
+
+    # Get the list IDs where the most recent invitation is pending
+    pending_invitation_list_ids = CampaignInvitation.objects.filter(
+        id__in=Subquery(most_recent_invitation),
+        status=CampaignInvitation.PENDING,
+    ).values_list("list_id", flat=True)
+
+    # Exclude both pending invitations and lists that are already in the campaign
+    excluded_list_ids = list(pending_invitation_list_ids)
+
     # If the campaign has started, exclude lists that have been cloned into it
     if campaign.is_in_progress or campaign.is_post_campaign:
         # The campaign lists have original_list pointing to the source lists
@@ -339,7 +379,7 @@ def campaign_add_lists(request, id):
         search_query = SearchQuery(request.GET.get("q"))
         lists = lists.annotate(
             search=SearchVector("name", "content_house__name", "owner__username")
-        ).filter(search=search_query)
+        ).filter(Q(search=search_query) | Q(name__icontains=request.GET.get("q")))
 
     # Filter by owner type
     owner_filter = request.GET.get("owner", "all")
@@ -349,21 +389,27 @@ def campaign_add_lists(request, id):
         # Only show public lists from other users
         lists = lists.filter(public=True).exclude(owner=request.user)
 
-    # Order by name
-    lists = lists.order_by("name")
+    # Exclude and order by name
+    lists = lists.exclude(id__in=excluded_list_ids).order_by("name")
 
     # Paginate the results
     paginator = Paginator(lists, 20)  # Show 20 lists per page
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # If showing confirmation, get the list to confirm
-    list_to_confirm = None
-    if show_confirmation and list_id:
-        try:
-            list_to_confirm = List.objects.get(id=list_id)
-        except List.DoesNotExist:
-            pass
+    # Get current campaign lists for display
+    current_lists = campaign.lists.select_related("owner", "content_house").order_by(
+        "name"
+    )
+
+    # Get pending invitations for display
+    pending_invitations = (
+        CampaignInvitation.objects.filter(
+            campaign=campaign, status=CampaignInvitation.PENDING
+        )
+        .select_related("list", "list__owner", "list__content_house")
+        .order_by("-created")
+    )
 
     return render(
         request,
@@ -373,8 +419,8 @@ def campaign_add_lists(request, id):
             "lists": page_obj,  # Pass the page object instead of the full queryset
             "page_obj": page_obj,  # Also pass page_obj for pagination controls
             "error_message": error_message,
-            "show_confirmation": show_confirmation,
-            "list_to_confirm": list_to_confirm,
+            "current_lists": current_lists,
+            "pending_invitations": pending_invitations,
         },
     )
 

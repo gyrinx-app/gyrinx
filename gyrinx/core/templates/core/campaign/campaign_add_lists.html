@@ -42,6 +42,17 @@
                 </div>
             </div>
         {% endif %}
+        <!-- Current Gangs and Invitations -->
+        {% if current_lists or pending_invitations %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Campaign Gangs</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% include "core/campaign/includes/campaign_lists.html" with lists=current_lists pending_invitations=pending_invitations %}
+                </div>
+            </div>
+        {% endif %}
         <!-- Search and Filter Section -->
         <div>
             <form id="search"
@@ -65,10 +76,11 @@
                 </div>
                 <!-- Owner Filter -->
                 <div class="hstack gap-2">
-                    <label class="form-label mb-0">Filter by owner:</label>
+                    <label class="form-label mb-0 visually-hidden">Filter by owner:</label>
                     <div class="btn-group" role="group">
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-all"
                                value="all"
@@ -76,6 +88,7 @@
                         <label class="btn btn-outline-primary btn-sm" for="owner-all">All Gangs</label>
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-mine"
                                value="mine"
@@ -83,6 +96,7 @@
                         <label class="btn btn-outline-primary btn-sm" for="owner-mine">Your Gangs</label>
                         <input type="radio"
                                class="btn-check"
+                               data-gy-toggle-submit="search"
                                name="owner"
                                id="owner-others"
                                value="others"
@@ -99,12 +113,7 @@
         <!-- Available Lists -->
         <div class="card {% flash "search" %}">
             <div class="card-header">
-                <h5 class="card-title mb-0">
-                    Available Gangs
-                    {% if page_obj.paginator.count > 0 %}
-                        <small class="text-muted">({{ page_obj.paginator.count }} total)</small>
-                    {% endif %}
-                </h5>
+                <h5 class="card-title mb-0">Available Lists</h5>
             </div>
             <div class="card-body p-0">
                 {% if lists %}

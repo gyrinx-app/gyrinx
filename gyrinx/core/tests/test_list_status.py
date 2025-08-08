@@ -336,6 +336,8 @@ def test_regular_clone_preserves_public_flag():
 @pytest.mark.django_db
 def test_can_add_lists_to_in_progress_campaign(client):
     """Test that lists can be added to a campaign after it starts with confirmation."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     owner = User.objects.create_user(username="owner", password="password")
     house = ContentHouse.objects.create(name="Test House")
     client.login(username="owner", password="password")
@@ -373,22 +375,15 @@ def test_can_add_lists_to_in_progress_campaign(client):
     response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
     assert response.status_code == 200
 
-    # Try to POST a new list without confirmation - should show confirmation
+    # Try to POST a new list - should create invitation and redirect
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]), {"list_id": list2.id}
     )
-    assert response.status_code == 200  # Stays on page to show confirmation
+    assert response.status_code == 302  # Redirects after creating invitation
 
-    # Post with confirmation - should work
-    response = client.post(
-        reverse("core:campaign-add-lists", args=[campaign.id]),
-        {"list_id": list2.id, "confirm": "true"},
-    )
-    assert response.status_code == 302  # Redirects after success
-
-    # Verify list was cloned and added
-    campaign.refresh_from_db()
-    assert campaign.lists.count() == 2  # Original cloned list1 + new cloned list2
+    # Verify invitation was created
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=list2)
+    assert invitation.status == CampaignInvitation.PENDING
 
     # Check campaign view shows "Add Lists" button
     response = client.get(reverse("core:campaign", args=[campaign.id]))

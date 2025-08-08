@@ -16,7 +16,7 @@
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>List Name</th>
+                            <th>Name</th>
                             <th>Campaign</th>
                             <th>Campaign Owner</th>
                             <th>Status</th>
@@ -26,12 +26,11 @@
                         {% for clone in campaign_clones %}
                             <tr>
                                 <td>
-                                    <a href="{% url 'core:list' clone.id %}" class="link-primary">{% list_with_theme clone %}</a>
+                                    <a href="{% url 'core:list' clone.id %}" class="linked">{% list_with_theme clone %}</a>
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
-                                        <a href="{% url 'core:campaign' clone.campaign.id %}"
-                                           class="link-primary">{{ clone.campaign.name }}</a>
+                                        <a href="{% url 'core:campaign' clone.campaign.id %}" class="linked">{{ clone.campaign.name }}</a>
                                     {% else %}
                                         <span class="text-muted">No campaign</span>
                                     {% endif %}
@@ -46,13 +45,7 @@
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
-                                        {% if clone.campaign.is_pre_campaign %}
-                                            <span class="badge bg-secondary">Pre-Campaign</span>
-                                        {% elif clone.campaign.is_in_progress %}
-                                            <span class="badge bg-success">In Progress</span>
-                                        {% elif clone.campaign.is_post_campaign %}
-                                            <span class="badge bg-secondary">Post-Campaign</span>
-                                        {% endif %}
+                                        {% include "core/campaign/includes/status.html" with campaign=clone.campaign %}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}

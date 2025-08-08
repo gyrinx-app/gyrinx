@@ -31,13 +31,7 @@
                             </div>
                             <div>
                                 {% if not campaign.archived %}
-                                    {% if campaign.is_pre_campaign %}
-                                        <span class="badge bg-secondary">Pre-Campaign</span>
-                                    {% elif campaign.is_in_progress %}
-                                        <span class="badge bg-success">In Progress</span>
-                                    {% else %}
-                                        <span class="badge bg-dark">Post-Campaign</span>
-                                    {% endif %}
+                                    {% include "core/campaign/includes/status.html" with campaign=campaign %}
                                 {% endif %}
                             </div>
                         </div>
