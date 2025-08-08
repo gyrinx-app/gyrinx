@@ -189,6 +189,15 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Get pending invitations for the campaign
+        context["pending_invitations"] = (
+            CampaignInvitation.objects.filter(
+                campaign=campaign, status=CampaignInvitation.PENDING
+            )
+            .select_related("list", "list__owner")
+            .order_by("-created")
+        )
+
         # Get captured fighters for the campaign
         if campaign.is_in_progress:
             context["captured_fighters"] = (

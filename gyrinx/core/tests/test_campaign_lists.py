@@ -113,6 +113,8 @@ def test_campaign_add_lists_excludes_already_added():
 @pytest.mark.django_db
 def test_campaign_add_list_post():
     """Test adding a list to a campaign via POST."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -134,17 +136,19 @@ def test_campaign_add_list_post():
     assert response.status_code == 302
     assert response.url == reverse("core:campaign-add-lists", args=[campaign.id])
 
-    # List should be added to campaign
-    assert list_to_add in campaign.lists.all()
+    # Invitation should be created, not direct addition
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=list_to_add)
+    assert invitation.status == CampaignInvitation.PENDING
+
+    # List should NOT be added directly - needs acceptance
+    assert list_to_add not in campaign.lists.all()
 
     # Check for success message
     response = client.get(response.url)
     messages_list = list(response.context["messages"])
     assert len(messages_list) == 1
     assert messages_list[0].level == messages.SUCCESS
-    assert f"{list_to_add.name} ({house.name}) has been added to the campaign." in str(
-        messages_list[0]
-    )
+    assert f"Invitation sent to {list_to_add.name}" in str(messages_list[0])
 
 
 @pytest.mark.django_db
@@ -263,6 +267,8 @@ def test_campaign_detail_shows_add_lists_button_for_owner():
 @pytest.mark.django_db
 def test_add_list_to_in_progress_campaign_shows_confirmation():
     """Test that adding a list to an in-progress campaign shows a confirmation."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -284,19 +290,21 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
 
     client.login(username="testuser", password="testpass")
 
-    # Try to add the list - should show confirmation
+    # Try to add the list - should create invitation and redirect
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
         {"list_id": str(new_list.id)},
     )
 
-    # Should show the confirmation page, not redirect
-    assert response.status_code == 200
-    assert b"Confirm Add Gang to Active Campaign" in response.content
-    assert b"will immediately clone it for campaign use" in response.content
-    assert new_list.name.encode() in response.content
+    # Should redirect after creating invitation
+    assert response.status_code == 302
+
+    # Invitation should be created
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=new_list)
+    assert invitation.status == CampaignInvitation.PENDING
 
     # List should NOT be added yet
+    assert new_list not in campaign.lists.all()
 
 
 @pytest.mark.django_db
@@ -342,6 +350,8 @@ def test_cannot_add_campaign_mode_list_to_campaign():
 @pytest.mark.django_db
 def test_list_already_in_campaign_message():
     """Test that adding a list already in campaign shows appropriate message."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -358,7 +368,7 @@ def test_list_already_in_campaign_message():
 
     client.login(username="testuser", password="testpass")
 
-    # Add the list for the first time
+    # Send invitation for the first time
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
         {"list_id": str(test_list.id)},
@@ -367,9 +377,13 @@ def test_list_already_in_campaign_message():
 
     messages_list = list(messages.get_messages(response.wsgi_request))
     assert len(messages_list) == 1
-    assert "has been added to the campaign" in str(messages_list[0])
+    assert "Invitation sent to" in str(messages_list[0])
 
-    # Try to add the same list again
+    # Accept the invitation to add list to campaign
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=test_list)
+    invitation.accept()
+
+    # Try to add the same list again (should fail as it's already in campaign)
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
         {"list_id": str(test_list.id)},
@@ -378,7 +392,7 @@ def test_list_already_in_campaign_message():
 
     messages_list = list(messages.get_messages(response.wsgi_request))
     assert len(messages_list) == 1
-    assert "is already in the campaign" in str(messages_list[0])
+    assert "is in the campaign" in str(messages_list[0])
 
     # List should still only be added once
     assert campaign.lists.count() == 1
@@ -388,6 +402,8 @@ def test_list_already_in_campaign_message():
 @pytest.mark.django_db
 def test_confirm_add_list_to_in_progress_campaign():
     """Test confirming the addition of a list to an in-progress campaign."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -418,17 +434,16 @@ def test_confirm_add_list_to_in_progress_campaign():
 
     client.login(username="testuser", password="testpass")
 
-    # Confirm adding the list
+    # First, create an invitation
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
-        {
-            "list_id": str(new_list.id),
-            "confirm": "true",
-        },
+        {"list_id": str(new_list.id)},
     )
-
-    # Should redirect after successful addition
     assert response.status_code == 302
+
+    # Get the invitation and accept it
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=new_list)
+    invitation.accept()
 
     # Refresh the campaign
     campaign.refresh_from_db()
@@ -456,6 +471,8 @@ def test_confirm_add_list_to_in_progress_campaign():
 @pytest.mark.django_db
 def test_add_list_to_pre_campaign_no_cloning():
     """Test that adding a list to a pre-campaign doesn't clone it."""
+    from gyrinx.core.models.invitation import CampaignInvitation
+
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
@@ -465,7 +482,7 @@ def test_add_list_to_pre_campaign_no_cloning():
 
     client.login(username="testuser", password="testpass")
 
-    # Add the list (no confirmation needed for pre-campaign)
+    # Send invitation (even for pre-campaign)
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
         {"list_id": str(list_to_add.id)},
@@ -473,6 +490,12 @@ def test_add_list_to_pre_campaign_no_cloning():
 
     # Should redirect immediately
     assert response.status_code == 302
+
+    # Invitation should be created
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=list_to_add)
+
+    # Accept the invitation
+    invitation.accept()
 
     # List should be added directly (not cloned)
     assert list_to_add in campaign.lists.all()

@@ -144,7 +144,7 @@
                     {% endif %}
                 </div>
                 <div class="card-body p-0">
-                    {% if campaign.lists.all %}
+                    {% if campaign.lists.all or pending_invitations %}
                         <div class="list-group list-group-flush">
                             {% for list in campaign.lists.all %}
                                 <div class="list-group-item px-2 px-sm-3">
@@ -176,6 +176,34 @@
                                     </div>
                                 </div>
                             {% endfor %}
+                            {% if pending_invitations %}
+                                {% if campaign.lists.all %}
+                                    <div class="list-group-item px-2 px-sm-3 bg-light">
+                                        <small class="text-muted fw-bold">Invited (Awaiting Response)</small>
+                                    </div>
+                                {% endif %}
+                                {% for invitation in pending_invitations %}
+                                    <div class="list-group-item px-2 px-sm-3">
+                                        <div class="d-flex align-items-start">
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex w-100 justify-content-between">
+                                                    <h6 class="mb-1">
+                                                        <strong>{% list_with_theme invitation.list %}</strong>
+                                                        {% if invitation.list.content_house %}• {{ invitation.list.content_house.name }}{% endif %}
+                                                        <span class="badge bg-warning text-dark ms-2">Pending</span>
+                                                    </h6>
+                                                    <small>{{ invitation.list.cost_int }}¢</small>
+                                                </div>
+                                                <p class="mb-0 text-muted small">
+                                                    <i class="bi-person"></i> {{ invitation.list.owner.username }}
+                                                    • {{ invitation.list.fighters.count }} fighter{{ invitation.list.fighters.count|pluralize }}
+                                                    • Invited {{ invitation.created|timesince }} ago
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
                         </div>
                     {% else %}
                         <div class="p-3 text-center text-muted">
