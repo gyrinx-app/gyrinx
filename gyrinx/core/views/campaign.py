@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
+from django.db.models import OuterRef, Subquery
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -333,12 +334,23 @@ def campaign_add_lists(request, id):
         & models.Q(archived=False)
     )
 
-    # Exclude lists with pending or accepted invitations
-    invited_list_ids = CampaignInvitation.objects.filter(
-        campaign=campaign,
+    # Exclude lists where the most recent invitation is pending or accepted
+    # First, get the most recent invitation for each list to this campaign
+
+    # Subquery to get the most recent invitation's ID for each list
+    most_recent_invitation = (
+        CampaignInvitation.objects.filter(campaign=campaign, list=OuterRef("pk"))
+        .order_by("-created")
+        .values("id")[:1]
+    )
+
+    # Get the list IDs where the most recent invitation is pending or accepted
+    excluded_list_ids = CampaignInvitation.objects.filter(
+        id__in=Subquery(most_recent_invitation),
         status__in=[CampaignInvitation.PENDING, CampaignInvitation.ACCEPTED],
     ).values_list("list_id", flat=True)
-    lists = lists.exclude(id__in=invited_list_ids)
+
+    lists = lists.exclude(id__in=excluded_list_ids)
 
     # If the campaign has started, exclude lists that have been cloned into it
     if campaign.is_in_progress or campaign.is_post_campaign:
@@ -452,12 +464,6 @@ def campaign_remove_list(request, id, list_id):
 
         # Remove the list from the campaign
         campaign.lists.remove(list_to_remove)
-
-        # Delete the corresponding invitation if it exists
-        # This allows the list to be re-invited later
-        CampaignInvitation.objects.filter(
-            campaign=campaign, list=list_to_remove
-        ).delete()
 
         # If the list is in campaign mode, archive it
         archive_message = ""
