@@ -1,0 +1,7 @@
+{% if assign.active_upgrades_display %}
+    {% for up in assign.active_upgrades_display %}
+        <span class="text-nowrap">
+            <i class="bi-arrow-up-circle text-secondary"></i> {{ assign.equipment.upgrade_stack_name }}: {{ up.name }}
+        </span>
+    {% endfor %}
+{% endif %}

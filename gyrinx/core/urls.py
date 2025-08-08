@@ -152,6 +152,15 @@ urlpatterns = [
         name="list-fighter-equipment-sell",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade",
+        list.edit_list_fighter_weapon_upgrade,
+        name="list-fighter-gear-upgrade-edit",
+        kwargs=dict(
+            back_name="core:list-fighter-gear-edit",
+            action_name="core:list-fighter-gear-upgrade-edit",
+        ),
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade/<upgrade_id>/delete",
         list.delete_list_fighter_gear_upgrade,
         name="list-fighter-gear-upgrade-delete",

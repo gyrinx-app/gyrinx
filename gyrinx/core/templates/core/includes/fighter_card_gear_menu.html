@@ -1,0 +1,24 @@
+{% load custom_tags %}
+<br>
+{% if not assign.is_from_default_assignment %}
+    <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
+       class="link-secondary">Edit</a>
+    <span class="text-muted">·</span>
+{% endif %}
+{% if assign.upgrades_display|length > 0 %}
+    <a href="{% url 'core:list-fighter-gear-upgrade-edit' list.id fighter.id assign.id %}"
+       class="link-secondary">
+        <i class="bi-arrow-90deg-up text-secondary me-2"></i>{{ assign.equipment.upgrade_stack_name }}
+    </a>
+    <span class="text-muted">·</span>
+{% endif %}
+<a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
+   class="link-secondary">Reassign</a>
+<span class="text-muted">·</span>
+<a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
+   class="link-danger">Delete</a>
+{% if fighter.is_stash %}
+    <span class="text-muted">·</span>
+    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
+       class="link-warning">Sell</a>
+{% endif %}
