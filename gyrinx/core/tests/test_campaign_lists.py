@@ -105,9 +105,29 @@ def test_campaign_add_lists_excludes_already_added():
     response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
     assert response.status_code == 200
 
-    # Should not see list1 but should see list2
-    assert list1.name.encode() not in response.content
-    assert list2.name.encode() in response.content
+    # list1 should be shown in Campaign Gangs section, but not in Available Gangs section
+    # list2 should be in Available Gangs section
+
+    # Check that the page has both sections
+    assert b"Campaign Gangs" in response.content
+    assert b"Available Gangs" in response.content
+
+    # Check that list2 is available to add (has an "Add" button)
+    # The Available Gangs section has "Add" buttons, while Campaign Gangs section doesn't
+    content = response.content.decode()
+
+    # Find the Available Gangs section and check it contains list2 but not list1
+    available_gangs_start = content.find("Available Gangs")
+    assert available_gangs_start != -1
+
+    # Get content after "Available Gangs" header
+    available_section = content[available_gangs_start:]
+
+    # Check list2 is in the available section
+    assert list2.name in available_section
+
+    # Since list1 is already in the campaign, it should have "In campaign" text in Campaign Gangs section
+    assert "In campaign" in content
 
 
 @pytest.mark.django_db

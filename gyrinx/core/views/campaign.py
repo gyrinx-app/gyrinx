@@ -298,10 +298,20 @@ def campaign_add_lists(request, id):
                                     f"An invitation for {list_to_add.name} is already pending.",
                                 )
                             elif invitation.is_accepted:
-                                messages.info(
-                                    request,
-                                    f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
-                                )
+                                # Check if the list is actually in the campaign
+                                if list_to_add in campaign.lists.all():
+                                    messages.info(
+                                        request,
+                                        f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
+                                    )
+                                else:
+                                    # List was removed, reset invitation to pending
+                                    invitation.status = CampaignInvitation.PENDING
+                                    invitation.save()
+                                    messages.success(
+                                        request,
+                                        f"Invitation re-sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
+                                    )
                             elif invitation.is_declined:
                                 # Reset declined invitation to pending
                                 invitation.status = CampaignInvitation.PENDING
@@ -344,12 +354,24 @@ def campaign_add_lists(request, id):
         .values("id")[:1]
     )
 
-    # Get the list IDs where the most recent invitation is pending or accepted
-    excluded_list_ids = CampaignInvitation.objects.filter(
+    # Get the list IDs where the most recent invitation is pending
+    # OR where it's accepted AND the list is still in the campaign
+    pending_invitation_list_ids = CampaignInvitation.objects.filter(
         id__in=Subquery(most_recent_invitation),
-        status__in=[CampaignInvitation.PENDING, CampaignInvitation.ACCEPTED],
+        status=CampaignInvitation.PENDING,
     ).values_list("list_id", flat=True)
 
+    # Get lists that have accepted invitations AND are still in the campaign
+    accepted_and_in_campaign_ids = CampaignInvitation.objects.filter(
+        id__in=Subquery(most_recent_invitation),
+        status=CampaignInvitation.ACCEPTED,
+        list__in=campaign.lists.all(),
+    ).values_list("list_id", flat=True)
+
+    # Exclude both pending invitations and lists that are already in the campaign
+    excluded_list_ids = list(pending_invitation_list_ids) + list(
+        accepted_and_in_campaign_ids
+    )
     lists = lists.exclude(id__in=excluded_list_ids)
 
     # If the campaign has started, exclude lists that have been cloned into it
@@ -384,6 +406,20 @@ def campaign_add_lists(request, id):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    # Get current campaign lists for display
+    current_lists = campaign.lists.select_related("owner", "content_house").order_by(
+        "name"
+    )
+
+    # Get pending invitations for display
+    pending_invitations = (
+        CampaignInvitation.objects.filter(
+            campaign=campaign, status=CampaignInvitation.PENDING
+        )
+        .select_related("list", "list__owner", "list__content_house")
+        .order_by("-created")
+    )
+
     return render(
         request,
         "core/campaign/campaign_add_lists.html",
@@ -392,6 +428,8 @@ def campaign_add_lists(request, id):
             "lists": page_obj,  # Pass the page object instead of the full queryset
             "page_obj": page_obj,  # Also pass page_obj for pagination controls
             "error_message": error_message,
+            "current_lists": current_lists,
+            "pending_invitations": pending_invitations,
         },
     )
 
