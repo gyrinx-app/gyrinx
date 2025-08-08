@@ -212,8 +212,7 @@
                         {% spaceless %}
                             {% for assign in fighter.wargear %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
-                                <span>{{ assign.name }}</span>
-                                {% include "core/includes/gear_upgrades_display.html" with assign=assign %}
+                                {% include "core/includes/gear_assign_name.html" with assign=assign %}
                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                 {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
                             {% endfor %}
@@ -297,8 +296,7 @@
                         {% spaceless %}
                             {% for assign in fighter.wargear %}
                                 {% comment %} All this faff to avoid spaces {% endcomment %}
-                                <span>{{ assign.name }}</span>
-                                {% include "core/includes/gear_upgrades_display.html" with assign=assign %}
+                                {% include "core/includes/gear_assign_name.html" with assign=assign %}
                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                 {% if not forloop.last %}<span>,</span>{% endif %}
                             {% endfor %}

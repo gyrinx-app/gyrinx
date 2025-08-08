@@ -611,6 +611,13 @@ class ContentEquipment(FighterCostMixin, Content):
     def __str__(self):
         return self.name
 
+    @cached_property
+    def upgrade_stack_name_display(self):
+        """
+        Returns the upgrade stack name, or a default if not set.
+        """
+        return self.upgrade_stack_name or "Upgrade"
+
     def cat(self):
         """
         Returns the human-readable label of the equipment's category.
@@ -1832,7 +1839,7 @@ class ContentEquipmentUpgrade(CostMixin, Content):
         unique_together = ["equipment", "name"]
 
     def __str__(self):
-        return f"{self.equipment.upgrade_stack_name or 'Upgrade'} – {self.name}"
+        return f"{self.equipment.upgrade_stack_name_display} – {self.name}"
 
     objects = ContentEquipmentUpgradeManager.from_queryset(
         ContentEquipmentUpgradeQuerySet

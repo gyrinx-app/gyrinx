@@ -12,7 +12,7 @@
                 {% dot %}
                 {% if assign.upgrades_display|length > 0 %}
                     <a href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}"
-                       class="link-secondary">{{ assign.equipment.upgrade_stack_name }}</a>
+                       class="link-secondary">{{ assign.equipment.upgrade_stack_name_display }}</a>
                     {% dot %}
                 {% endif %}
                 {% if fighter.is_stash and list.status == 'campaign_mode' %}

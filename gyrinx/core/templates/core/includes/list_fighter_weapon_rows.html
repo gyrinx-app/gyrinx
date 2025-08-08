@@ -112,7 +112,7 @@
         <td colspan="9">
             <i class="bi-dash"></i>
             <i class="bi-arrow-up-circle"></i>
-            {{ assign.equipment.upgrade_stack_name }}:
+            {{ assign.equipment.upgrade_stack_name_display }}:
             {{ assign.active_upgrade_cached.name }}
             {% if not assign.has_total_cost_override %}
                 {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}

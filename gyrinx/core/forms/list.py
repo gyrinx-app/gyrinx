@@ -411,9 +411,9 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
 class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["upgrades_field"].label = (
-            self.instance.content_equipment.upgrade_stack_name or "Upgrade"
-        )
+        self.fields[
+            "upgrades_field"
+        ].label = self.instance.content_equipment.upgrade_stack_name_display
         self.fields[
             "upgrades_field"
         ].queryset = ContentEquipmentUpgrade.objects.with_cost_for_fighter(

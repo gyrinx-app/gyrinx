@@ -225,8 +225,7 @@
                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
                                                   title="This gear is assigned via the {{ assign.linked_parent.name }} and cannot be removed directly.">
                                             {% endif %}
-                                            {{ assign.name }}
-                                            {% include "core/includes/gear_upgrades_display.html" with assign=assign %}
+                                            {% include "core/includes/gear_assign_name.html" with assign=assign %}
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                         {% if assign.is_linked %}</span>{% endif %}
                                     {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
@@ -245,13 +244,20 @@
                     {% else %}
                         <!-- Wargear -->
                         <tr class="fs-7">
-                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Gear</th>
+                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">
+                                Gear
+                                {% if not print and gear_mode_default == "link" %}
+                                    {% if list.owner_cached == user %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
+                                           class="d-inline-block fw-normal">Edit</a>
+                                    {% endif %}
+                                {% endif %}
+                            </th>
                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                 {% spaceless %}
                                     {% for assign in fighter.wargear %}
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
-                                        <span>{{ assign.name }}</span>
-                                        {% include "core/includes/gear_upgrades_display.html" with assign=assign %}
+                                        {% include "core/includes/gear_assign_name.html" with assign=assign %}
                                         {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endfor %}
@@ -282,6 +288,16 @@
             </tbody>
         </table>
         {% firstof weapons_mode "edit" as weapons_mode_default %}
-        {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode=weapons_mode_default %}
+        {% if weapons_mode != "gear" %}
+            {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons mode=weapons_mode_default %}
+        {% endif %}
     </div>
+    {% if weapons_mode == "gear" %}
+        <div class="card-footer p-2 fs-7">
+            {% if list.owner_cached == user and not print %}
+                <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
+                   class="fw-normal">Edit weapons</a>
+            {% endif %}
+        </div>
+    {% endif %}
 </div>

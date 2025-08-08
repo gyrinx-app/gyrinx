@@ -1,5 +1,6 @@
 {% load custom_tags %}
 <br>
+<i class="bi-arrow-90deg-up text-secondary me-2"></i>
 {% if not assign.is_from_default_assignment %}
     <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
        class="link-secondary">Edit</a>
@@ -7,9 +8,7 @@
 {% endif %}
 {% if assign.upgrades_display|length > 0 %}
     <a href="{% url 'core:list-fighter-gear-upgrade-edit' list.id fighter.id assign.id %}"
-       class="link-secondary">
-        <i class="bi-arrow-90deg-up text-secondary me-2"></i>{{ assign.equipment.upgrade_stack_name }}
-    </a>
+       class="link-secondary">{{ assign.equipment.upgrade_stack_name_display }}</a>
     <span class="text-muted">·</span>
 {% endif %}
 <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
