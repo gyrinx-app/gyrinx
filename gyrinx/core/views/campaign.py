@@ -453,6 +453,12 @@ def campaign_remove_list(request, id, list_id):
         # Remove the list from the campaign
         campaign.lists.remove(list_to_remove)
 
+        # Delete the corresponding invitation if it exists
+        # This allows the list to be re-invited later
+        CampaignInvitation.objects.filter(
+            campaign=campaign, list=list_to_remove
+        ).delete()
+
         # If the list is in campaign mode, archive it
         archive_message = ""
         if list_to_remove.status == List.CAMPAIGN_MODE:
