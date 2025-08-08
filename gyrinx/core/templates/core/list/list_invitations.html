@@ -15,6 +15,7 @@
                             <div>
                                 <h5 class="mb-1">
                                     <a href="{% url 'core:campaign' invitation.campaign.id %}" class="">{{ invitation.campaign.name }}</a>
+                                    <span class="fs-7">{% include "core/campaign/includes/status.html" with campaign=invitation.campaign %}</span>
                                 </h5>
                                 <p class="text-secondary mb-0">
                                     <small>From: {{ invitation.campaign.owner.username }}</small>

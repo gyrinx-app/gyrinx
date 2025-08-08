@@ -28,15 +28,7 @@
             <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
                 <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
                     <h1 class="mb-0">{{ campaign.name }}</h1>
-                    <div class="ms-md-auto">
-                        {% if campaign.is_pre_campaign %}
-                            <span class="fs-6 badge bg-secondary">Pre-Campaign</span>
-                        {% elif campaign.is_in_progress %}
-                            <span class="fs-6 badge bg-success">In Progress</span>
-                        {% else %}
-                            <span class="fs-6 badge bg-dark">Post-Campaign</span>
-                        {% endif %}
-                    </div>
+                    <div class="ms-md-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</div>
                 </div>
             </div>
             <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">

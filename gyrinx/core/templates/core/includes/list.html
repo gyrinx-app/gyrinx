@@ -23,7 +23,7 @@
                 </div>
             </div>
         </div>
-        <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
+        <div class="d-flex flex-column flex-md-row row-gap-1 column-gap-2 align-items-md-center">
             <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
                 <div>
                     <i class="bi-person"></i>
@@ -73,13 +73,7 @@
                                    data-bs-title="Active in Campaign"></i>
                                 Active in
                                 <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
-                                {% if list.campaign.is_pre_campaign %}
-                                    <span class="badge bg-secondary ms-1">Pre-Campaign</span>
-                                {% elif list.campaign.is_in_progress %}
-                                    <span class="badge bg-success ms-1">In Progress</span>
-                                {% elif list.campaign.is_post_campaign %}
-                                    <span class="badge bg-secondary ms-1">Post-Campaign</span>
-                                {% endif %}
+                                {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
                             </div>
                         {% endif %}
                     {% endif %}
@@ -93,7 +87,7 @@
                     {% endif %}
                 {% endif %}
             </div>
-            <div class="ms-sm-auto mt-2 mt-sm-0">
+            <div class="flex-shrink-0 ms-md-auto mt-2 mt-md-0">
                 {% if not print %}
                     <div class="nav hstack gap-1 flex-nowrap">
                         {% if list.owner_cached == user and pending_invitations_count > 0 %}
