@@ -1711,157 +1711,114 @@ def list_fighter_stats_edit(request, id, fighter_id):
 
 
 @login_required
-@transaction.atomic
-def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
-    """
-    Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
+def _handle_equipment_assignment(request, lst, fighter, view_name, is_weapon=False):
+    """Handle POST request for equipment assignment."""
+    instance = ListFighterEquipmentAssignment(list_fighter=fighter)
+    form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
 
-    **Context**
+    if not form.is_valid():
+        return None, None
 
-    ``fighter``
-        The :model:`core.ListFighter` being edited.
-    ``equipment``
-        A filtered list of :model:`content.ContentEquipment` items.
-    ``categories``
-        Available equipment categories.
-    ``assigns``
-        A list of :class:`.VirtualListFighterEquipmentAssignment` objects.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-    ``error_message``
-        None or a string describing a form error.
-    ``is_weapon``
-        Boolean indicating if we're editing weapons or gear.
+    assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
-    **Template**
+    # Save the assignment and m2m relationships first
+    assign.save()
+    form.save_m2m()
 
-    :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
-    """
-    lst = get_object_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(
-        ListFighter.objects.with_related_data(),
-        id=fighter_id,
-        list=lst,
-        owner=lst.owner,
-    )
-    view_name = (
-        "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
-    )
-    template_name = (
-        "core/list_fighter_weapons_edit.html"
-        if is_weapon
-        else "core/list_fighter_gear_edit.html"
-    )
+    # Refetch to get the full cost including profiles, accessories, and upgrades
+    assign.refresh_from_db()
+    total_cost = assign.cost_int()
 
-    error_message = None
-    if request.method == "POST":
-        instance = ListFighterEquipmentAssignment(list_fighter=fighter)
-        form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
-        if form.is_valid():
-            assign: ListFighterEquipmentAssignment = form.save(commit=False)
+    # If this is in campaign, check if we have enough credits
+    if lst.campaign and total_cost > lst.credits_current:
+        # Not enough credits - delete the assignment
+        assign.delete()
+        return None, "Insufficient funds."
 
-            # Save the assignment and m2m relationships first
-            assign.save()
-            form.save_m2m()
+    with transaction.atomic():
+        description = f"Added {assign.content_equipment.name} to {fighter.name}"
 
-            # Refetch to get the full cost including profiles, accessories, and upgrades
-            assign.refresh_from_db()
-            total_cost = assign.cost_int()
+        if lst.campaign:
+            # If this is a stash, we need to take credits from the list
+            lst.credits_current -= total_cost
+            lst.save()
 
-            # If this is in campaign, check if we have enough credits
-            if lst.campaign and total_cost > lst.credits_current:
-                # Not enough credits - delete the assignment
-                assign.delete()
-                error_message = "Insufficient funds."
-            else:
-                with transaction.atomic():
-                    description = (
-                        f"Added {assign.content_equipment.name} to {fighter.name}"
-                    )
+            description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
 
-                    if lst.campaign:
-                        # If this is a stash, we need to take credits from the list
-                        lst.credits_current -= total_cost
-                        lst.save()
+            # Spend credits and create campaign action
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=description,
+                outcome=f"Credits remaining: {lst.credits_current}¢",
+            )
 
-                        description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
+        # Log the equipment assignment event
+        log_event(
+            user=request.user,
+            noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+            verb=EventVerb.CREATE,
+            object=assign,
+            request=request,
+            fighter_id=str(fighter.id),
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            equipment_name=assign.content_equipment.name,
+            equipment_type="weapon" if is_weapon else "gear",
+            cost=total_cost,
+            credits_remaining=lst.credits_current if lst.campaign else None,
+        )
 
-                        # Spend credits and create campaign action
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=description,
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
+        messages.success(request, description)
 
-                # Log the equipment assignment event
-                log_event(
-                    user=request.user,
-                    noun=EventNoun.EQUIPMENT_ASSIGNMENT,
-                    verb=EventVerb.CREATE,
-                    object=assign,
-                    request=request,
-                    fighter_id=str(fighter.id),
-                    fighter_name=fighter.name,
-                    list_id=str(lst.id),
-                    list_name=lst.name,
-                    equipment_name=assign.content_equipment.name,
-                    equipment_type="weapon" if is_weapon else "gear",
-                    cost=total_cost,
-                    credits_remaining=lst.credits_current if lst.campaign else None,
-                )
+        # Build query parameters, preserving filters from both POST and GET
+        query_dict = {}
+        query_dict["flash"] = assign.id
 
-                messages.success(request, description)
+        # From POST
+        if request.POST.get("filter"):
+            query_dict["filter"] = request.POST.get("filter")
+        if request.POST.get("q"):
+            query_dict["q"] = request.POST.get("q")
 
-                # Build query parameters, preserving filters from both POST and GET
-                query_dict = {}
-                query_dict["flash"] = assign.id
+        # From GET - category and availability filters
+        cat_list = request.GET.getlist("cat")
+        if cat_list:
+            # For lists, we need to use QueryDict to properly encode them
+            from django.http import QueryDict
 
-                # From POST
-                if request.POST.get("filter"):
-                    query_dict["filter"] = request.POST.get("filter")
-                if request.POST.get("q"):
-                    query_dict["q"] = request.POST.get("q")
+            qd = QueryDict(mutable=True)
+            for k, v in query_dict.items():
+                qd[k] = v
+            qd.setlist("cat", cat_list)
 
-                # From GET - category and availability filters
-                cat_list = request.GET.getlist("cat")
-                if cat_list:
-                    # For lists, we need to use QueryDict to properly encode them
-                    from django.http import QueryDict
+            al_list = request.GET.getlist("al")
+            if al_list:
+                qd.setlist("al", al_list)
 
-                    qd = QueryDict(mutable=True)
-                    for k, v in query_dict.items():
-                        qd[k] = v
-                    qd.setlist("cat", cat_list)
+            mal = request.GET.get("mal")
+            if mal:
+                qd["mal"] = mal
 
-                    al_list = request.GET.getlist("al")
-                    if al_list:
-                        qd.setlist("al", al_list)
+            query_params = qd.urlencode()
+        else:
+            # No lists, use simple approach
+            if request.GET.get("mal"):
+                query_dict["mal"] = request.GET.get("mal")
+            query_params = make_query_params_str(**query_dict)
 
-                    mal = request.GET.get("mal")
-                    if mal:
-                        qd["mal"] = mal
+        return HttpResponseRedirect(
+            reverse(view_name, args=(lst.id, fighter.id))
+            + f"?{query_params}"
+            + f"#{str(fighter.id)}"
+        ), None
 
-                    query_params = qd.urlencode()
-                else:
-                    # No lists, use simple approach
-                    if request.GET.get("mal"):
-                        query_dict["mal"] = request.GET.get("mal")
-                    query_params = make_query_params_str(**query_dict)
-                return HttpResponseRedirect(
-                    reverse(view_name, args=(lst.id, fighter.id))
-                    + f"?{query_params}"
-                    + f"#{str(fighter.id)}"
-                )
 
-    # Get the appropriate equipment
-    # Create expansion rule inputs for cost calculations
-    from gyrinx.content.models_.expansion import ExpansionRuleInputs
-
-    expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
-
+def _get_base_equipment_queryset(fighter, is_weapon, expansion_inputs):
+    """Get the base equipment queryset with appropriate annotations."""
     if is_weapon:
         equipment = (
             ContentEquipment.objects.weapons()
@@ -1881,6 +1838,11 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         )
         search_vector = SearchVector("name", "category__name")
 
+    return equipment, search_vector
+
+
+def _filter_categories_by_fighter(equipment, fighter):
+    """Filter categories based on fighter category restrictions."""
     # Get categories for this equipment type
     categories = (
         ContentEquipmentCategory.objects.filter(id__in=equipment.values("category_id"))
@@ -1900,6 +1862,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         categories = categories.exclude(id__in=restricted_category_ids)
         equipment = equipment.exclude(category_id__in=restricted_category_ids)
 
+    return categories, equipment
+
+
+def _apply_equipment_filters(
+    request, equipment, fighter, lst, is_weapon, search_vector, expansion_inputs
+):
+    """Apply search and filter logic to equipment queryset."""
     # Filter by category if specified
     cats = (
         [
@@ -1926,16 +1895,11 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     # Check if the house has can_buy_any flag
     house_can_buy_any = lst.content_house.can_buy_any
 
-    # Check if equipment list filter is active
     # Default to equipment-list when filter is not provided (matches template behavior)
     # But if house has can_buy_any and no filter is provided, redirect to filter=all
     if house_can_buy_any and "filter" not in request.GET:
-        # Redirect to the same URL with filter=all
-        query_dict = request.GET.copy()
-        query_dict["filter"] = "all"
-        return HttpResponseRedirect(
-            reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
-        )
+        # This should be handled in the main function for redirect
+        return None, None, None
 
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
@@ -1995,7 +1959,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     fighter.equipment_list_fighter, expansion_inputs
                 )
 
-    # Create assignment objects
+    return equipment, is_equipment_list, als
+
+
+def _create_virtual_assignments(
+    equipment, fighter, is_weapon, is_equipment_list, als, mal
+):
+    """Create virtual assignment objects for display."""
     assigns = []
     for item in equipment:
         if is_weapon:
@@ -2060,6 +2030,21 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 )
             )
 
+    return assigns
+
+
+def _prepare_context(
+    request,
+    lst,
+    fighter,
+    equipment,
+    categories,
+    assigns,
+    error_message,
+    is_weapon,
+    is_equipment_list,
+):
+    """Prepare template context."""
     context = {
         "fighter": fighter,
         "equipment": equipment,
@@ -2074,6 +2059,115 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     # Add weapons-specific context if needed
     if is_weapon:
         context["weapons"] = equipment
+
+    return context
+
+
+@transaction.atomic
+def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
+    """
+    Edit the equipment (weapons or gear) of an existing :model:`core.ListFighter`.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` being edited.
+    ``equipment``
+        A filtered list of :model:`content.ContentEquipment` items.
+    ``categories``
+        Available equipment categories.
+    ``assigns``
+        A list of :class:`.VirtualListFighterEquipmentAssignment` objects.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``error_message``
+        None or a string describing a form error.
+    ``is_weapon``
+        Boolean indicating if we're editing weapons or gear.
+
+    **Template**
+
+    :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
+    """
+    # Get list and fighter
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+
+    view_name = (
+        "core:list-fighter-weapons-edit" if is_weapon else "core:list-fighter-gear-edit"
+    )
+    template_name = (
+        "core/list_fighter_weapons_edit.html"
+        if is_weapon
+        else "core/list_fighter_gear_edit.html"
+    )
+
+    # Handle POST request
+    error_message = None
+    if request.method == "POST":
+        result, error_message = _handle_equipment_assignment(
+            request, lst, fighter, view_name, is_weapon
+        )
+        if result:
+            return result
+
+    # Create expansion rule inputs for cost calculations
+    from gyrinx.content.models_.expansion import ExpansionRuleInputs
+
+    expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
+
+    # Get base equipment queryset
+    equipment, search_vector = _get_base_equipment_queryset(
+        fighter, is_weapon, expansion_inputs
+    )
+
+    # Filter categories by fighter restrictions
+    categories, equipment = _filter_categories_by_fighter(equipment, fighter)
+
+    # Check for redirect needed for house can_buy_any
+    house_can_buy_any = lst.content_house.can_buy_any
+    if house_can_buy_any and "filter" not in request.GET:
+        # Redirect to the same URL with filter=all
+        query_dict = request.GET.copy()
+        query_dict["filter"] = "all"
+        return HttpResponseRedirect(
+            reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
+        )
+
+    # Apply search and filter logic
+    equipment, is_equipment_list, als = _apply_equipment_filters(
+        request, equipment, fighter, lst, is_weapon, search_vector, expansion_inputs
+    )
+
+    # Get mal value for profile filtering
+    mal = (
+        int(request.GET.get("mal"))
+        if request.GET.get("mal") and is_int(request.GET.get("mal"))
+        else None
+    )
+
+    # Create virtual assignments
+    assigns = _create_virtual_assignments(
+        equipment, fighter, is_weapon, is_equipment_list, als, mal
+    )
+
+    # Prepare and return context
+    context = _prepare_context(
+        request,
+        lst,
+        fighter,
+        equipment,
+        categories,
+        assigns,
+        error_message,
+        is_weapon,
+        is_equipment_list,
+    )
 
     return render(request, template_name, context)
 
