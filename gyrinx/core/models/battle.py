@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
@@ -49,7 +50,7 @@ class Battle(AppBase):
     def __str__(self):
         return self.name
 
-    @property
+    @cached_property
     def name(self):
         """Computed name for the battle."""
         battle_number = (
