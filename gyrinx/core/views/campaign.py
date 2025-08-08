@@ -31,6 +31,7 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
 )
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.utils import safe_redirect
 
@@ -237,11 +238,9 @@ def campaign_add_lists(request, id):
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     error_message = None
-    show_confirmation = False
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
-        confirm = request.POST.get("confirm") == "true"
 
         if list_id:
             try:
@@ -253,18 +252,16 @@ def campaign_add_lists(request, id):
                         error_message = (
                             "Lists in campaign mode cannot be added to other campaigns."
                         )
-                    # For in-progress campaigns, require confirmation
-                    elif campaign.is_in_progress and not confirm:
-                        show_confirmation = True
-                        # Don't redirect, show confirmation instead
                     else:
-                        # Use the new method to add the list
-                        added_list, was_added = campaign.add_list_to_campaign(
-                            list_to_add
+                        # Check if an invitation already exists
+                        invitation, created = CampaignInvitation.objects.get_or_create(
+                            campaign=campaign,
+                            list=list_to_add,
+                            defaults={"owner": request.user},
                         )
 
-                        if was_added:
-                            # Log the list addition event
+                        if created:
+                            # Log the invitation creation event
                             log_event(
                                 user=request.user,
                                 noun=EventNoun.CAMPAIGN,
@@ -272,35 +269,37 @@ def campaign_add_lists(request, id):
                                 object=campaign,
                                 request=request,
                                 campaign_name=campaign.name,
-                                list_added_id=str(added_list.id),
-                                list_added_name=added_list.name,
-                                list_owner=added_list.owner.username,
+                                list_invited_id=str(list_to_add.id),
+                                list_invited_name=list_to_add.name,
+                                list_owner=list_to_add.owner.username,
+                                action="invitation_sent",
                             )
 
                             # Show success message
                             messages.success(
                                 request,
-                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} has been added to the campaign.",
+                                f"Invitation sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
                             )
                         else:
-                            # Log that the list already existed
-                            log_event(
-                                user=request.user,
-                                noun=EventNoun.CAMPAIGN,
-                                verb=EventVerb.VIEW,
-                                object=campaign,
-                                request=request,
-                                campaign_name=campaign.name,
-                                list_already_exists_id=str(added_list.id),
-                                list_already_exists_name=added_list.name,
-                                action="list_already_in_campaign",
-                            )
-
-                            # Show info message that list already exists
-                            messages.info(
-                                request,
-                                f"{added_list.name}{f' ({added_list.content_house.name})' if added_list.content_house else ''} is already in the campaign.",
-                            )
+                            # Check if the invitation is still pending
+                            if invitation.is_pending:
+                                messages.info(
+                                    request,
+                                    f"An invitation for {list_to_add.name} is already pending.",
+                                )
+                            elif invitation.is_accepted:
+                                messages.info(
+                                    request,
+                                    f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
+                                )
+                            elif invitation.is_declined:
+                                # Reset declined invitation to pending
+                                invitation.status = CampaignInvitation.PENDING
+                                invitation.save()
+                                messages.success(
+                                    request,
+                                    f"Invitation re-sent to {list_to_add.name}{f' ({list_to_add.content_house.name})' if list_to_add.content_house else ''}.",
+                                )
                         # Redirect to the same page with the search params preserved
                         query_params = []
                         if request.GET.get("q"):
@@ -324,6 +323,13 @@ def campaign_add_lists(request, id):
         & models.Q(status=List.LIST_BUILDING)
         & models.Q(archived=False)
     )
+
+    # Exclude lists with pending or accepted invitations
+    invited_list_ids = CampaignInvitation.objects.filter(
+        campaign=campaign,
+        status__in=[CampaignInvitation.PENDING, CampaignInvitation.ACCEPTED],
+    ).values_list("list_id", flat=True)
+    lists = lists.exclude(id__in=invited_list_ids)
 
     # If the campaign has started, exclude lists that have been cloned into it
     if campaign.is_in_progress or campaign.is_post_campaign:
@@ -357,14 +363,6 @@ def campaign_add_lists(request, id):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # If showing confirmation, get the list to confirm
-    list_to_confirm = None
-    if show_confirmation and list_id:
-        try:
-            list_to_confirm = List.objects.get(id=list_id)
-        except List.DoesNotExist:
-            pass
-
     return render(
         request,
         "core/campaign/campaign_add_lists.html",
@@ -373,8 +371,6 @@ def campaign_add_lists(request, id):
             "lists": page_obj,  # Pass the page object instead of the full queryset
             "page_obj": page_obj,  # Also pass page_obj for pagination controls
             "error_message": error_message,
-            "show_confirmation": show_confirmation,
-            "list_to_confirm": list_to_confirm,
         },
     )
 

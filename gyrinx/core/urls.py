@@ -28,6 +28,17 @@ urlpatterns = [
     path("list/<id>/edit", list.edit_list, name="list-edit"),
     path("list/<id>/credits", list.edit_list_credits, name="list-credits-edit"),
     path("list/<id>/clone", list.clone_list, name="list-clone"),
+    path("list/<id>/invitations", list.list_invitations, name="list-invitations"),
+    path(
+        "list/<id>/invitations/<invitation_id>/accept",
+        list.accept_invitation,
+        name="invitation-accept",
+    ),
+    path(
+        "list/<id>/invitations/<invitation_id>/decline",
+        list.decline_invitation,
+        name="invitation-decline",
+    ),
     path("list/<id>/fighters/new", list.new_list_fighter, name="list-fighter-new"),
     path("list/<id>/vehicles/new", vehicle.new_vehicle, name="list-vehicle-new"),
     path(

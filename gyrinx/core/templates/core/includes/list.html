@@ -17,6 +17,12 @@
                 <div class="ms-md-auto">
                     {{ list.content_house.name }}
                     {% if list.is_campaign_mode %}<span class="badge bg-success">Campaign Mode</span>{% endif %}
+                    {% if list.owner_cached == user and pending_invitations_count > 0 %}
+                        <a href="{% url 'core:list-invitations' list.id %}"
+                           class="text-decoration-none">
+                            <span class="badge bg-info">{{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}</span>
+                        </a>
+                    {% endif %}
                 </div>
                 <div class="h5 mb-0">
                     <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
@@ -151,6 +157,15 @@
                                         </a>
                                     </li>
                                     {% if list.owner_cached == user %}
+                                        {% if pending_invitations_count > 0 %}
+                                            <li>
+                                                <a href="{% url 'core:list-invitations' list.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-envelope"></i> Invitations
+                                                    <span class="badge bg-info ms-1">{{ pending_invitations_count }}</span>
+                                                </a>
+                                            </li>
+                                        {% endif %}
                                         <li>
                                             {% if has_stash_fighter %}
                                                 <a href="#"
