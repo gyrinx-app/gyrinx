@@ -264,9 +264,9 @@ def campaign_add_lists(request, id):
                             # Log the invitation creation event
                             log_event(
                                 user=request.user,
-                                noun=EventNoun.CAMPAIGN,
-                                verb=EventVerb.ADD,
-                                object=campaign,
+                                noun=EventNoun.CAMPAIGN_INVITATION,
+                                verb=EventVerb.CREATE,
+                                object=invitation,
                                 request=request,
                                 campaign_name=campaign.name,
                                 list_invited_id=str(list_to_add.id),

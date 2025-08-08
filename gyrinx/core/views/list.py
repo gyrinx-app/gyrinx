@@ -5444,9 +5444,9 @@ def accept_invitation(request, id, invitation_id):
         # Log the acceptance event
         log_event(
             user=request.user,
-            noun=EventNoun.CAMPAIGN,
-            verb=EventVerb.UPDATE,
-            object=invitation.campaign,
+            noun=EventNoun.CAMPAIGN_INVITATION,
+            verb=EventVerb.APPROVE,
+            object=invitation,
             request=request,
             campaign_id=str(invitation.campaign.id),
             campaign_name=invitation.campaign.name,
@@ -5499,9 +5499,9 @@ def decline_invitation(request, id, invitation_id):
         # Log the decline event
         log_event(
             user=request.user,
-            noun=EventNoun.CAMPAIGN,
-            verb=EventVerb.UPDATE,
-            object=invitation.campaign,
+            noun=EventNoun.CAMPAIGN_INVITATION,
+            verb=EventVerb.REJECT,
+            object=invitation,
             request=request,
             campaign_id=str(invitation.campaign.id),
             campaign_name=invitation.campaign.name,
