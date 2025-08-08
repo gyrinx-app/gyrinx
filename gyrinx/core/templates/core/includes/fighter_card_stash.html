@@ -73,6 +73,7 @@
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
                                                     <br>
+                                                    <i class="bi-arrow-90deg-up text-secondary me-2"></i>
                                                     {% if not assign.is_from_default_assignment %}
                                                         <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
                                                            class="link-secondary">Edit</a>
@@ -143,7 +144,7 @@
                                     {% comment %} Show upgrades {% endcomment %}
                                     {% if assign.active_upgrade_cached %}
                                         <br>
-                                        <i class="bi-dash"></i> <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name }}: {{ assign.active_upgrade_cached.name }}
+                                        <i class="bi-dash"></i> <i class="bi-arrow-up-circle"></i> {{ assign.equipment.upgrade_stack_name_display }}: {{ assign.active_upgrade_cached.name }}
                                         {% if not assign.has_total_cost_override %}
                                             {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}
                                         {% endif %}

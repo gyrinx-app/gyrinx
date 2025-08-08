@@ -2759,9 +2759,7 @@ def edit_list_fighter_weapon_upgrade(
         )
         if form.is_valid():
             form.save()
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-            )
+            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
     else:
         form = ListFighterEquipmentAssignmentUpgradeForm(instance=assignment)
 
