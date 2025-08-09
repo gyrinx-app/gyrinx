@@ -540,6 +540,71 @@ class ContentEquipmentQuerySet(models.QuerySet):
             )
         )
 
+    def with_expansion_profiles_for_fighter(
+        self, content_fighter: "ContentFighter", rule_inputs
+    ) -> "ContentEquipmentQuerySet":
+        """
+        Annotates the queryset with weapon profiles for a given fighter,
+        including those from equipment list expansions.
+        """
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ContentEquipmentListExpansionItem,
+        )
+
+        # Filter to only expansions that apply
+        expansion_ids = []
+        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+            "rules"
+        ).all():
+            if expansion.applies_to(rule_inputs):
+                expansion_ids.append(expansion.id)
+
+        # Get expansion item profile cost overrides
+        expansion_profile_items = ContentEquipmentListExpansionItem.objects.filter(
+            expansion__in=expansion_ids,
+            equipment=OuterRef("equipment"),
+            weapon_profile=OuterRef("pk"),
+        )
+
+        # Get normal equipment list profile cost overrides
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=content_fighter,
+            equipment=OuterRef("equipment"),
+            weapon_profile=OuterRef("pk"),
+        )
+
+        # Create a queryset that includes both regular profiles and expansion profiles
+        profile_queryset = ContentWeaponProfile.objects.annotate(
+            # First priority: Expansion profile cost override
+            expansion_profile_cost=Subquery(
+                expansion_profile_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            # Second priority: Equipment list profile cost override
+            equipment_list_profile_cost=Subquery(
+                equipment_list_items.values("cost")[:1],
+                output_field=models.IntegerField(),
+            ),
+            # Use Coalesce to prioritize expansion > equipment list > base cost
+            cost_override=Coalesce(
+                "expansion_profile_cost",
+                "equipment_list_profile_cost",
+                output_field=models.IntegerField(),
+            ),
+            cost_for_fighter=Coalesce("cost_override", "cost"),
+            # Track if this profile came from an expansion
+            from_expansion=Exists(expansion_profile_items),
+        )
+
+        return self.prefetch_related(
+            models.Prefetch(
+                "contentweaponprofile_set",
+                queryset=profile_queryset,
+                to_attr="pre_profiles_for_fighter",
+            )
+        )
+
 
 class ContentEquipment(FighterCostMixin, Content):
     """
