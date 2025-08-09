@@ -83,6 +83,8 @@ jobs:
           # model: "claude-opus-4-20250514"
           model: "claude-opus-4-1-20250805"
 
+          timeout_minutes: 120
+
           # Optional: Allow Claude to run specific commands
           # allowed_tools: |
           # Bash(npm run lint)
