@@ -1061,7 +1061,21 @@ def edit_list_fighter_skills(request, id, fighter_id):
     )
     show_restricted = request.GET.get("restricted", "0") == "1"
 
-    # Get current fighter skills
+    # Get default skills from ContentFighter
+    default_skills = fighter.content_fighter.skills.all()
+    disabled_skill_ids = set(fighter.disabled_skills.values_list("id", flat=True))
+
+    # Build default skills with status
+    default_skills_display = []
+    for skill in default_skills:
+        default_skills_display.append(
+            {
+                "skill": skill,
+                "is_disabled": skill.id in disabled_skill_ids,
+            }
+        )
+
+    # Get current fighter skills (user-added)
     current_skill_ids = set(fighter.skills.values_list("id", flat=True))
 
     # Get all skill categories with annotations
@@ -1184,6 +1198,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
         {
             "fighter": fighter,
             "list": lst,
+            "default_skills_display": default_skills_display,
             "categories": all_categories,
             "primary_secondary_only": primary_secondary_only,
             "search_query": search_query,
@@ -5317,6 +5332,59 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
     messages.success(request, f"{rule.name} {action}")
     return HttpResponseRedirect(
         reverse("core:list-fighter-rules-edit", args=(lst.id, fighter.id))
+    )
+
+
+@login_required
+def toggle_list_fighter_skill(request, id, fighter_id, skill_id):
+    """
+    Toggle (enable/disable) a default skill for a :model:`core.ListFighter`.
+    """
+    if request.method != "POST":
+        raise Http404()
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+    skill = get_object_or_404(ContentSkill, id=skill_id)
+
+    # Ensure this is a default skill for the fighter
+    if not fighter.content_fighter.skills.filter(id=skill_id).exists():
+        messages.error(request, "This skill is not a default skill for this fighter.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-skills-edit", args=(lst.id, fighter.id))
+        )
+
+    # Toggle the disabled status
+    if fighter.disabled_skills.filter(id=skill_id).exists():
+        fighter.disabled_skills.remove(skill)
+        action = "enabled"
+    else:
+        fighter.disabled_skills.add(skill)
+        action = "disabled"
+
+    # Log the skill toggle event
+    log_event(
+        user=request.user,
+        noun=EventNoun.LIST_FIGHTER,
+        verb=EventVerb.UPDATE,
+        object=fighter,
+        request=request,
+        fighter_name=fighter.name,
+        list_id=str(lst.id),
+        list_name=lst.name,
+        field="skills",
+        action=f"{action}_skill",
+        skill_name=skill.name,
+    )
+
+    messages.success(request, f"{skill.name} {action}")
+    return HttpResponseRedirect(
+        reverse("core:list-fighter-skills-edit", args=(lst.id, fighter.id))
     )
 
 

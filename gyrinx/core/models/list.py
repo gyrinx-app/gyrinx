@@ -634,6 +634,14 @@ class ListFighter(AppBase):
 
     skills = models.ManyToManyField(ContentSkill, blank=True)
 
+    # Skill overrides
+    disabled_skills = models.ManyToManyField(
+        "content.ContentSkill",
+        blank=True,
+        related_name="disabled_for_fighters",
+        help_text="Default skills from the ContentFighter that have been disabled for this fighter.",
+    )
+
     # Rule overrides
     disabled_rules = models.ManyToManyField(
         "content.ContentRule",
@@ -1222,9 +1230,17 @@ class ListFighter(AppBase):
         return self.linked_fighter.exists()
 
     def skilline(self):
-        skills = set(
-            list(self.content_fighter_cached.skills.all()) + list(self.skills.all())
-        )
+        # Start with default skills from ContentFighter
+        default_skills = list(self.content_fighter_cached.skills.all())
+
+        # Remove disabled skills
+        disabled_skills_set = set(self.disabled_skills.all())
+        default_skills = [s for s in default_skills if s not in disabled_skills_set]
+
+        # Combine with user-added skills
+        skills = set(default_skills + list(self.skills.all()))
+
+        # Apply modifications from equipment/items
         for mod in self._skillmods:
             if mod.mode == "add" and mod.skill not in skills:
                 skills.add(mod.skill)
@@ -1686,6 +1702,7 @@ class ListFighter(AppBase):
 
         # Copy ManyToMany relationships
         target_fighter.skills.set(self.skills.all())
+        target_fighter.disabled_skills.set(self.disabled_skills.all())
         target_fighter.disabled_rules.set(self.disabled_rules.all())
         target_fighter.custom_rules.set(self.custom_rules.all())
 
@@ -1792,6 +1809,7 @@ class ListFighter(AppBase):
 
         # Clone ManyToMany relationships
         clone.skills.set(self.skills.all())
+        clone.disabled_skills.set(self.disabled_skills.all())
         clone.disabled_rules.set(self.disabled_rules.all())
         clone.custom_rules.set(self.custom_rules.all())
 
