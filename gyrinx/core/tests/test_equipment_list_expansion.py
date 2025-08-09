@@ -102,6 +102,116 @@ def test_expansion_rule_by_attribute_any_value():
 
 
 @pytest.mark.django_db
+def test_expansion_rule_by_attribute_ignores_archived_assignments():
+    """Test that archived ListAttributeAssignments are ignored by expansion rules."""
+    # Create attribute and values
+    affiliation = ContentAttribute.objects.create(
+        name="Affiliation", is_single_select=False
+    )
+    malstrain = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Malstrain Corrupted"
+    )
+    water_guild = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Water Guild"
+    )
+
+    # Create rule that matches Malstrain
+    rule = ContentEquipmentListExpansionRuleByAttribute.objects.create(
+        attribute=affiliation
+    )
+    rule.attribute_values.add(malstrain)
+
+    # Create a list with Malstrain affiliation
+    house = ContentHouse.objects.create(name="Outcasts")
+    gang_list = List.objects.create(name="Test Gang", content_house=house)
+    assignment = ListAttributeAssignment.objects.create(
+        list=gang_list, attribute_value=malstrain
+    )
+
+    # Test match when assignment is active
+    inputs = ExpansionRuleInputs(list=gang_list)
+    assert rule.match(inputs) is True
+
+    # Archive the assignment directly (bypass save validation)
+    ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=True)
+
+    # Refresh the assignment object
+    assignment.refresh_from_db()
+
+    # Test that rule no longer matches with archived assignment
+    assert rule.match(inputs) is False
+
+    # Add a new Water Guild assignment (active)
+    ListAttributeAssignment.objects.create(list=gang_list, attribute_value=water_guild)
+
+    # Test that rule still doesn't match (has Water Guild, not Malstrain)
+    assert rule.match(inputs) is False
+
+    # Unarchive the Malstrain assignment directly
+    ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=False)
+
+    # Refresh the assignment object
+    assignment.refresh_from_db()
+
+    # Now the rule should match again (has active Malstrain assignment)
+    assert rule.match(inputs) is True
+
+
+@pytest.mark.django_db
+def test_expansion_rule_by_attribute_any_value_ignores_archived():
+    """Test that archived assignments are ignored when matching 'any value' rules."""
+    # Create attribute and values (multi-select to allow multiple values)
+    affiliation = ContentAttribute.objects.create(
+        name="Affiliation", is_single_select=False
+    )
+    malstrain = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Malstrain Corrupted"
+    )
+    water_guild = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Water Guild"
+    )
+
+    # Create rule that matches any affiliation value (no specific values added)
+    rule = ContentEquipmentListExpansionRuleByAttribute.objects.create(
+        attribute=affiliation
+    )
+
+    # Create a list
+    house = ContentHouse.objects.create(name="Outcasts")
+    gang_list = List.objects.create(name="Test Gang", content_house=house)
+
+    # Create an assignment and immediately archive it
+    assignment = ListAttributeAssignment.objects.create(
+        list=gang_list, attribute_value=malstrain
+    )
+    ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=True)
+
+    # Test that rule doesn't match with only archived assignment
+    inputs = ExpansionRuleInputs(list=gang_list)
+    assert rule.match(inputs) is False
+
+    # Add an active Water Guild assignment
+    water_assignment = ListAttributeAssignment.objects.create(
+        list=gang_list, attribute_value=water_guild, archived=False
+    )
+
+    # Now rule should match (has an active assignment)
+    assert rule.match(inputs) is True
+
+    # Archive the Water Guild assignment too
+    ListAttributeAssignment.objects.filter(pk=water_assignment.pk).update(archived=True)
+
+    # Rule shouldn't match when all assignments are archived
+    assert rule.match(inputs) is False
+
+    # Unarchive the Malstrain assignment
+    ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=False)
+
+    # Rule should match again with active assignment
+    assert rule.match(inputs) is True
+
+
+@pytest.mark.django_db
 def test_expansion_rule_by_house():
     """Test house rule matching."""
     # Create houses
@@ -253,6 +363,75 @@ def test_expansion_applies_with_multiple_rules():
         expansion.applies_to(ExpansionRuleInputs(list=gang_list2, fighter=lf_leader))
         is False
     )
+
+
+@pytest.mark.django_db
+def test_expansion_with_archived_list_attribute_assignment():
+    """Test that expansions don't apply when list attributes are archived."""
+    # Setup attribute
+    affiliation = ContentAttribute.objects.create(
+        name="Affiliation", is_single_select=True
+    )
+    malstrain = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Malstrain Corrupted"
+    )
+
+    # Setup equipment
+    category = ContentEquipmentCategory.objects.create(name="Special")
+    special_item = ContentEquipment.objects.create(
+        name="Malstrain Item", category=category, cost=100
+    )
+
+    # Create expansion for Malstrain affiliation
+    expansion = ContentEquipmentListExpansion.objects.create(name="Malstrain Equipment")
+
+    # Add rule for Malstrain attribute
+    attr_rule = ContentEquipmentListExpansionRuleByAttribute.objects.create(
+        attribute=affiliation
+    )
+    attr_rule.attribute_values.add(malstrain)
+    expansion.rules.add(attr_rule)
+
+    # Add equipment to expansion
+    ContentEquipmentListExpansionItem.objects.create(
+        expansion=expansion,
+        equipment=special_item,
+        cost=75,  # Discounted
+    )
+
+    # Create gang with Malstrain affiliation
+    house = ContentHouse.objects.create(name="Test House")
+    gang_list = List.objects.create(name="Test Gang", content_house=house)
+    assignment = ListAttributeAssignment.objects.create(
+        list=gang_list, attribute_value=malstrain
+    )
+
+    # Create a fighter
+    leader = ContentFighter.objects.create(
+        type="Leader", category=FighterCategoryChoices.LEADER
+    )
+    lf_leader = ListFighter.objects.create(
+        list=gang_list, content_fighter=leader, name="Leader Fighter"
+    )
+
+    # Test expansion applies with active assignment
+    rule_inputs = ExpansionRuleInputs(list=gang_list, fighter=lf_leader)
+    assert expansion.applies_to(rule_inputs) is True
+
+    # Get expansion equipment - should include the special item
+    equipment = ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
+    equipment_names = list(equipment.values_list("name", flat=True))
+    assert "Malstrain Item" in equipment_names
+
+    # Archive the assignment
+    ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=True)
+
+    # Test expansion no longer applies with archived assignment
+    assert expansion.applies_to(rule_inputs) is False
+
+    # Get expansion equipment - should be empty now
+    equipment = ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
+    assert equipment.count() == 0
 
 
 @pytest.mark.django_db

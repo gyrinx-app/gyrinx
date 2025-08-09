@@ -227,7 +227,9 @@ class ContentEquipmentListExpansionRuleByAttribute(ContentEquipmentListExpansion
         list_obj: "List" = rule_inputs.list
 
         # Get the list's attribute values for this attribute
-        list_values = list_obj.attributes.filter(attribute=self.attribute)
+        list_values = list_obj.attributes.filter(
+            attribute=self.attribute, listattributeassignment__archived=False
+        )
 
         # If no list values, the rule doesn't match
         if not list_values.exists():

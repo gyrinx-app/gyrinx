@@ -7,6 +7,7 @@ from gyrinx.forms import group_select
 
 from ..models.list import (
     List,
+    ListAttributeAssignment,
     ListFighter,
     ListFighterEquipmentAssignment,
     ListFighterPsykerPowerAssignment,
@@ -22,6 +23,13 @@ class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
     fields = ["name", "owner", "content_fighter", "cost_override"]
+    show_change_link = True
+
+
+class ListAttributeAssignmentInline(admin.TabularInline):
+    model = ListAttributeAssignment
+    extra = 1
+    fields = ["attribute_value", "archived"]
     show_change_link = True
 
 
@@ -47,7 +55,7 @@ class ListAdmin(BaseAdmin):
     list_filter = ["status", "public", "content_house"]
     search_fields = ["name", "content_house__name", "campaign__name"]
 
-    inlines = [ListFighterInline]
+    inlines = [ListFighterInline, ListAttributeAssignmentInline]
 
 
 class ListFighterForm(forms.ModelForm):
