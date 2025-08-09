@@ -110,6 +110,13 @@ class ContentEquipmentCategoryFighterRestrictionInline(ContentTabularInline):
 
 
 class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
+    """
+    Form for managing fighter equipment category limits.
+
+    Validates that limits can only be set for categories with fighter restrictions.
+    Groups fighters by house for better UX in the admin interface.
+    """
+
     def init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -122,6 +129,12 @@ class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
         fields = "__all__"
 
     def clean(self):
+        """
+        Validate that equipment category limits are only set for restricted categories.
+
+        Raises:
+            ValidationError: If trying to set limits on unrestricted categories.
+        """
         cleaned_data = super().clean()
         equipment_category = cleaned_data.get("equipment_category")
 
@@ -149,12 +162,32 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
     verbose_name_plural = "Fighter Equipment Category Limits"
 
     def get_formset(self, request, obj=None, **kwargs):
+        """
+        Customize formset to pass parent instance to child forms.
+
+        This allows child forms to access the parent equipment category
+        for validation purposes.
+
+        Args:
+            request: The current HTTP request
+            obj: The parent ContentEquipmentCategory instance
+            **kwargs: Additional formset parameters
+
+        Returns:
+            Formset class with parent instance access
+        """
         formset = super().get_formset(request, obj, **kwargs)
         if obj:
             # Pass the parent instance to the form class
             original_form = formset.form
 
             class FormWithParentInstance(original_form):
+                """
+                Form wrapper that provides access to parent equipment category.
+
+                Used for validation against the parent category's restrictions.
+                """
+
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, **kwargs)
                     self.parent_instance = obj
@@ -218,6 +251,13 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
 
 
 class ContentEquipmentAdminForm(forms.ModelForm):
+    """
+    Custom form for equipment admin with enhanced filtering and grouping.
+
+    Orders equipment categories by predefined group order and filters modifiers
+    to only show those that affect fighters directly.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = self.fields["category"].queryset.order_by(
@@ -275,6 +315,16 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 
     @admin.action(description="Clone selected Equipment")
     def clone(self, request, queryset):
+        """
+        Create copies of selected equipment items with their weapon profiles.
+
+        Each cloned item gets "(Clone)" appended to its name and all associated
+        weapon profiles are also duplicated.
+
+        Args:
+            request: The current HTTP request
+            queryset: QuerySet of ContentEquipment items to clone
+        """
         try:
             for item in queryset:
                 with transaction.atomic():
@@ -304,6 +354,13 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 
 
 class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
+    """
+    Form for assigning equipment items to fighters.
+
+    Dynamically filters weapon profiles based on selected equipment and only
+    shows profiles with a cost greater than zero. Groups fields for better UX.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -369,6 +426,19 @@ class ContentFighterEquipmentListUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterEquipmentListUpgradeAdminForm
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Optimize fighter field queryset with select_related.
+
+        Preloads house data to avoid N+1 queries when displaying fighter options.
+
+        Args:
+            db_field: The foreign key field being rendered
+            request: The current HTTP request
+            **kwargs: Additional field parameters
+
+        Returns:
+            Modified form field with optimized queryset
+        """
         if db_field.name == "fighter":
             kwargs["queryset"] = ContentFighter.objects.select_related("house")
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
@@ -476,6 +546,19 @@ class ContentStatlineInline(ContentStackedInline):
     can_delete = True
 
     def has_add_permission(self, request, obj=None):
+        """
+        Control when new statlines can be added.
+
+        Only allows adding a statline if the fighter doesn't already have one,
+        enforcing a one-to-one relationship.
+
+        Args:
+            request: The current HTTP request
+            obj: The parent ContentFighter instance
+
+        Returns:
+            Boolean indicating if adding is permitted
+        """
         # Allow adding a statline if the fighter doesn't have one
         if obj and hasattr(obj, "custom_statline"):
             return False
@@ -621,6 +704,18 @@ class ContentWeaponProfileAdmin(ContentAdmin):
 
 
 def mods(obj):
+    """
+    Display comma-separated list of modifier names.
+
+    Helper function for admin list display to show all modifiers
+    associated with an object.
+
+    Args:
+        obj: Model instance with modifiers relation
+
+    Returns:
+        Comma-separated string of modifier names
+    """
     return ", ".join([mod.name for mod in obj.modifiers.all()])
 
 
@@ -698,6 +793,18 @@ class ContentPageRefInline(ContentTabularInline):
     fields = ["title", "book", "page", "category", "description"]
 
     def get_queryset(self, request):
+        """
+        Order page references by numeric page number.
+
+        Converts string page numbers to integers for proper ordering,
+        treating empty pages as 0.
+
+        Args:
+            request: The current HTTP request
+
+        Returns:
+            QuerySet ordered by numeric page value
+        """
         qs = super().get_queryset(request)
         return qs.annotate(
             page_int=Case(
@@ -868,6 +975,20 @@ class ContentStatlineStatInline(ContentTabularInline):
     readonly_fields = []
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Filter statline type stats based on parent statline.
+
+        Ensures only stats relevant to the current statline type are shown
+        when editing statline stats inline.
+
+        Args:
+            db_field: The foreign key field being rendered
+            request: The current HTTP request
+            **kwargs: Additional field parameters
+
+        Returns:
+            Modified form field with filtered queryset
+        """
         if db_field.name == "statline_type_stat":
             # Get the parent statline object if it exists
             if request.resolver_match.kwargs.get("object_id"):
@@ -893,6 +1014,18 @@ class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
     inlines = [ContentStatlineStatInline]
 
     def save_related(self, request, form, formsets, change):
+        """
+        Ensure all required stats exist for a statline after saving.
+
+        Creates missing ContentStatlineStat entries with default empty values
+        for any stats required by the statline type but not yet present.
+
+        Args:
+            request: The current HTTP request
+            form: The main model form
+            formsets: Related inline formsets
+            change: Boolean indicating if this is an edit (True) or create (False)
+        """
         super().save_related(request, form, formsets, change)
 
         # After saving, ensure all required stats exist
