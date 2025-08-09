@@ -333,9 +333,13 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
                     item.name = f"{item.name} (Clone)"
                     item.save()
                     for profile in profiles:
+                        # Store the original traits before clearing the pk
+                        original_traits = list(profile.traits.all())
                         profile.pk = None
                         profile.equipment = item
                         profile.save()
+                        # Copy the traits from the original profile
+                        profile.traits.set(original_traits)
 
         except Exception as e:
             self.message_user(
