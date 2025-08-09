@@ -2287,6 +2287,30 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
 
+    def _get_expansion_cost_override(
+        self, content_equipment, weapon_profile, expansion_inputs
+    ):
+        """Helper method to get expansion cost override for equipment or weapon profile."""
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ContentEquipmentListExpansionItem,
+        )
+
+        # Check if any expansions apply
+        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+            "rules"
+        ).all():
+            if expansion.applies_to(expansion_inputs):
+                # Check if this expansion has a cost override
+                expansion_item = ContentEquipmentListExpansionItem.objects.filter(
+                    expansion=expansion,
+                    equipment=content_equipment,
+                    weapon_profile=weapon_profile,
+                ).first()
+                if expansion_item and expansion_item.cost is not None:
+                    return expansion_item.cost
+        return None
+
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
         if self.cost_override is not None:
@@ -2302,6 +2326,23 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         # Get all fighters whose equipment lists we should check
         fighters = self.list_fighter.equipment_list_fighters
 
+        # Check for expansion cost overrides first
+        from gyrinx.content.models_.expansion import ExpansionRuleInputs
+
+        expansion_inputs = ExpansionRuleInputs(
+            list=self.list_fighter.list, fighter=self.list_fighter
+        )
+        expansion_cost = self._get_expansion_cost_override(
+            content_equipment=self.content_equipment,
+            weapon_profile=None,  # Base equipment cost, not profile
+            expansion_inputs=expansion_inputs,
+        )
+
+        # If expansion has cost override, use it
+        if expansion_cost is not None:
+            return expansion_cost
+
+        # Otherwise check normal equipment list overrides
         overrides = ContentFighterEquipmentListItem.objects.filter(
             # Check equipment lists from both legacy and base fighters
             fighter__in=fighters,
@@ -2379,6 +2420,26 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         if hasattr(profile.profile, "cost_for_fighter"):
             cost = profile.profile.cost_for_fighter_int()
+            self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
+                cost
+            )
+            return cost
+
+        # Check for expansion cost overrides first
+        from gyrinx.content.models_.expansion import ExpansionRuleInputs
+
+        expansion_inputs = ExpansionRuleInputs(
+            list=self.list_fighter.list, fighter=self.list_fighter
+        )
+        expansion_cost = self._get_expansion_cost_override(
+            content_equipment=self.content_equipment,
+            weapon_profile=profile.profile,
+            expansion_inputs=expansion_inputs,
+        )
+
+        # If expansion has cost override, use it
+        if expansion_cost is not None:
+            cost = expansion_cost
             self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
                 cost
             )

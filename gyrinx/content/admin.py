@@ -1064,8 +1064,8 @@ class ContentFighterCategoryTermsAdmin(ContentAdmin):
 class ContentEquipmentListExpansionItemInline(ContentTabularInline):
     model = ContentEquipmentListExpansionItem
     extra = 1
-    autocomplete_fields = ["equipment"]
-    fields = ["equipment", "cost"]
+    autocomplete_fields = ["equipment", "weapon_profile"]
+    fields = ["equipment", "weapon_profile", "cost"]
     verbose_name = "Expansion Item"
     verbose_name_plural = "Expansion Items"
 

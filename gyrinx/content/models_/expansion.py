@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, When
 from multiselectfield import MultiSelectField
@@ -85,29 +86,45 @@ class ContentEquipmentListExpansion(Content):
         """
         Get all equipment available from expansions based on rule inputs.
         Returns a queryset of ContentEquipment with cost annotations.
+        Also includes weapon profiles when specified.
         """
         expansions = cls.get_applicable_expansions(rule_inputs)
 
-        # Get all equipment IDs from applicable expansions
-        equipment_ids = []
-        cost_overrides = {}
+        # Get all equipment IDs and profile IDs from applicable expansions
+        equipment_data = {}  # Maps equipment_id -> {cost, profiles: {profile_id: cost}}
 
         # Prefetch items to avoid N+1 queries
         prefetched_expansions = cls.objects.filter(
             id__in=[e.id for e in expansions]
-        ).prefetch_related("items")
+        ).prefetch_related("items", "items__weapon_profile")
 
         for expansion in prefetched_expansions:
             for item in expansion.items.all():
-                equipment_ids.append(item.equipment_id)
-                if item.cost is not None:
-                    # Store the cost override for this equipment
-                    cost_overrides[item.equipment_id] = item.cost
+                eq_id = item.equipment_id
+
+                if eq_id not in equipment_data:
+                    equipment_data[eq_id] = {"cost": None, "profiles": {}}
+
+                if item.weapon_profile_id:
+                    # This is a specific weapon profile
+                    equipment_data[eq_id]["profiles"][item.weapon_profile_id] = (
+                        item.cost
+                    )
+                else:
+                    # This is base equipment
+                    equipment_data[eq_id]["cost"] = item.cost
 
         # Get the equipment and annotate with cost overrides
+        equipment_ids = list(equipment_data.keys())
         equipment = ContentEquipment.objects.filter(id__in=equipment_ids)
 
         # Apply cost overrides using Case/When
+        cost_overrides = {
+            eq_id: data["cost"]
+            for eq_id, data in equipment_data.items()
+            if data["cost"] is not None
+        }
+
         if cost_overrides:
             when_clauses = [
                 When(id=eq_id, then=cost) for eq_id, cost in cost_overrides.items()
@@ -152,6 +169,13 @@ class ContentEquipmentListExpansionItem(Content):
         on_delete=models.CASCADE,
         help_text="The equipment that becomes available",
     )
+    weapon_profile = models.ForeignKey(
+        "ContentWeaponProfile",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The weapon profile to use for this expansion item (e.g., specific ammo type)",
+    )
     cost = models.IntegerField(
         null=True,
         blank=True,
@@ -164,12 +188,22 @@ class ContentEquipmentListExpansionItem(Content):
         cost_str = (
             f" ({format_cost_display(self.cost)})" if self.cost is not None else ""
         )
-        return f"{self.equipment.name}{cost_str} in {self.expansion.name}"
+        profile_str = f" - {self.weapon_profile.name}" if self.weapon_profile else ""
+        return f"{self.equipment.name}{profile_str}{cost_str} in {self.expansion.name}"
+
+    def clean(self):
+        """
+        Validation to ensure that the weapon profile matches the correct equipment.
+        """
+        if self.weapon_profile and self.weapon_profile.equipment != self.equipment:
+            raise ValidationError(
+                {"weapon_profile": "Weapon profile must match the equipment selected."}
+            )
 
     class Meta:
         verbose_name = "Equipment List Expansion Item"
         verbose_name_plural = "Equipment List Expansion Items"
-        unique_together = ["expansion", "equipment"]
+        unique_together = ["expansion", "equipment", "weapon_profile"]
         ordering = ["expansion", "equipment__name"]
 
 
