@@ -2287,6 +2287,30 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
 
+    def _get_expansion_cost_override(
+        self, content_equipment, weapon_profile, expansion_inputs
+    ):
+        """Helper method to get expansion cost override for equipment or weapon profile."""
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ContentEquipmentListExpansionItem,
+        )
+
+        # Check if any expansions apply
+        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+            "rules"
+        ).all():
+            if expansion.applies_to(expansion_inputs):
+                # Check if this expansion has a cost override
+                expansion_item = ContentEquipmentListExpansionItem.objects.filter(
+                    expansion=expansion,
+                    equipment=content_equipment,
+                    weapon_profile=weapon_profile,
+                ).first()
+                if expansion_item and expansion_item.cost is not None:
+                    return expansion_item.cost
+        return None
+
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
         if self.cost_override is not None:
@@ -2303,32 +2327,16 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         fighters = self.list_fighter.equipment_list_fighters
 
         # Check for expansion cost overrides first
-        from gyrinx.content.models_.expansion import (
-            ContentEquipmentListExpansion,
-            ContentEquipmentListExpansionItem,
-            ExpansionRuleInputs,
-        )
+        from gyrinx.content.models_.expansion import ExpansionRuleInputs
 
-        # Create expansion rule inputs
         expansion_inputs = ExpansionRuleInputs(
             list=self.list_fighter.list, fighter=self.list_fighter
         )
-
-        # Check if any expansions apply
-        expansion_cost = None
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(expansion_inputs):
-                # Check if this expansion has a cost override for this equipment
-                expansion_item = ContentEquipmentListExpansionItem.objects.filter(
-                    expansion=expansion,
-                    equipment=self.content_equipment,
-                    weapon_profile=None,  # Base equipment cost, not profile
-                ).first()
-                if expansion_item and expansion_item.cost is not None:
-                    expansion_cost = expansion_item.cost
-                    break  # Use first matching expansion
+        expansion_cost = self._get_expansion_cost_override(
+            content_equipment=self.content_equipment,
+            weapon_profile=None,  # Base equipment cost, not profile
+            expansion_inputs=expansion_inputs,
+        )
 
         # If expansion has cost override, use it
         if expansion_cost is not None:
@@ -2418,32 +2426,16 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             return cost
 
         # Check for expansion cost overrides first
-        from gyrinx.content.models_.expansion import (
-            ContentEquipmentListExpansion,
-            ContentEquipmentListExpansionItem,
-            ExpansionRuleInputs,
-        )
+        from gyrinx.content.models_.expansion import ExpansionRuleInputs
 
-        # Create expansion rule inputs
         expansion_inputs = ExpansionRuleInputs(
             list=self.list_fighter.list, fighter=self.list_fighter
         )
-
-        # Check if any expansions apply
-        expansion_cost = None
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(expansion_inputs):
-                # Check if this expansion has a cost override for this profile
-                expansion_item = ContentEquipmentListExpansionItem.objects.filter(
-                    expansion=expansion,
-                    equipment=self.content_equipment,
-                    weapon_profile=profile.profile,
-                ).first()
-                if expansion_item and expansion_item.cost is not None:
-                    expansion_cost = expansion_item.cost
-                    break  # Use first matching expansion
+        expansion_cost = self._get_expansion_cost_override(
+            content_equipment=self.content_equipment,
+            weapon_profile=profile.profile,
+            expansion_inputs=expansion_inputs,
+        )
 
         # If expansion has cost override, use it
         if expansion_cost is not None:

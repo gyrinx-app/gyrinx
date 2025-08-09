@@ -1979,9 +1979,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             equipment = equipment.with_expansion_profiles_for_fighter(
                 fighter.equipment_list_fighter, expansion_inputs
             )
-        else:
-            # Non-weapons don't have profiles
-            pass
     else:
         # Apply availability filters (either explicit or default)
         als = request.GET.getlist("al", ["C", "R"])
