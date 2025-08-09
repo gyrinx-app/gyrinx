@@ -7,10 +7,49 @@
     {% include "core/includes/back_to_list.html" with list=list %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Skills: {{ fighter.fully_qualified_name }}</h1>
-        {# Current skills table #}
+        {# Default skills from ContentFighter #}
         <div class="card">
             <div class="card-header p-2">
-                <h3 class="h5 mb-0">Current Skills</h3>
+                <h3 class="h5 mb-0">Default Skills</h3>
+            </div>
+            <div class="card-body p-0 p-sm-2">
+                <div class="table-responsive">
+                    <table class="table table-borderless table-sm align-middle mb-0">
+                        <tbody>
+                            {% for skill_data in default_skills_display %}
+                                <tr class="{% if skill_data.is_disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                    <td>{{ skill_data.skill.name }}</td>
+                                    <td class="text-secondary">{{ skill_data.skill.category.name }}</td>
+                                    <td class="text-end">
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-skill-toggle' list.id fighter.id skill_data.skill.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-link icon-link fs-7 {% if skill_data.is_disabled %}link-success{% else %}link-danger{% endif %}">
+                                                {% if skill_data.is_disabled %}
+                                                    <i class="bi-check-circle"></i> Enable
+                                                {% else %}
+                                                    <i class="bi-x-circle"></i> Disable
+                                                {% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-secondary">No default skills for this fighter.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {# User-added skills table #}
+        <div class="card">
+            <div class="card-header p-2">
+                <h3 class="h5 mb-0">User-added Skills</h3>
             </div>
             <div class="card-body p-0 p-sm-2">
                 <div class="table-responsive">
@@ -33,7 +72,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="3" class="text-center text-secondary">No skills assigned to this fighter.</td>
+                                    <td colspan="3" class="text-center text-secondary">No user-added skills for this fighter.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
