@@ -491,10 +491,11 @@ class ContentEquipmentQuerySet(models.QuerySet):
             if expansion.applies_to(rule_inputs):
                 expansion_ids.append(expansion.id)
 
-        # Get expansion item cost overrides
+        # Get expansion item cost overrides (only for base equipment, not profiles)
         expansion_items = ContentEquipmentListExpansionItem.objects.filter(
             expansion__in=expansion_ids,
             equipment=OuterRef("pk"),
+            weapon_profile__isnull=True,  # Only base equipment costs, not profile-specific
         )
 
         # Get normal equipment list cost overrides

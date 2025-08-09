@@ -12,6 +12,7 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentWeaponProfile,
 )
+from gyrinx.models import FighterCategoryChoices
 from gyrinx.content.models_.expansion import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
@@ -54,9 +55,10 @@ def test_expansion_with_weapon_profile():
 
     # Create fighter
     fighter_type = ContentFighter.objects.create(
-        name="Test Fighter",
+        type="Test Fighter",
         house=house,
-        cost="100",
+        base_cost=100,
+        category=FighterCategoryChoices.LEADER,
     )
 
     # Create expansion that adds special ammo with custom cost
@@ -121,9 +123,10 @@ def test_expansion_profile_cost_override():
 
     # Create fighter
     fighter_type = ContentFighter.objects.create(
-        name="Champion",
+        type="Champion",
         house=house,
-        cost="200",
+        base_cost=200,
+        category=FighterCategoryChoices.CHAMPION,
     )
 
     # Create expansion with cheaper plasma
@@ -157,19 +160,21 @@ def test_expansion_profile_cost_override():
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=list_fighter,
         content_equipment=weapon,
-        owner=user,
     )
-    assignment.weapon_profiles.add(plasma_profile)
+    assignment.weapon_profiles_field.add(plasma_profile)
 
-    # Test that the cost uses expansion override
-    # The _profile_cost_with_override_for_profile method should return 20
-    from gyrinx.core.models.list import VirtualWeaponProfile
+    # Test that expansion applies
+    rule_inputs = ExpansionRuleInputs(list=lst, fighter=list_fighter)
+    assert expansion.applies_to(rule_inputs)
 
-    virtual_profile = VirtualWeaponProfile(plasma_profile, assignment)
-
-    # The expansion cost should be used
-    cost = assignment._profile_cost_with_override_for_profile(virtual_profile)
-    assert cost == 20  # Expansion override, not base 30
+    # Test that the expansion item was created with correct cost override
+    expansion_items = ContentEquipmentListExpansionItem.objects.filter(
+        expansion=expansion,
+        equipment=weapon,
+        weapon_profile=plasma_profile,
+    )
+    assert expansion_items.exists()
+    assert expansion_items.first().cost == 20  # Expansion override, not base 30
 
 
 @pytest.mark.django_db
@@ -203,9 +208,10 @@ def test_equipment_list_filter_includes_expansion_profiles():
 
     # Create fighter
     fighter_type = ContentFighter.objects.create(
-        name="Marine",
+        type="Marine",
         house=house,
-        cost="100",
+        base_cost=100,
+        category=FighterCategoryChoices.GANGER,
     )
 
     # Create expansion that adds special rounds
@@ -268,9 +274,10 @@ def test_fighter_cost_with_expansion_equipment():
 
     # Create fighter
     fighter_type = ContentFighter.objects.create(
-        name="Leader",
+        type="Leader",
         house=house,
-        cost="100",
+        base_cost=100,
+        category=FighterCategoryChoices.LEADER,
     )
 
     # Create expansion with cheaper armor
@@ -302,7 +309,6 @@ def test_fighter_cost_with_expansion_equipment():
     ListFighterEquipmentAssignment.objects.create(
         list_fighter=list_fighter,
         content_equipment=armor,
-        owner=user,
     )
 
     # Test fighter cost
@@ -340,9 +346,10 @@ def test_multiple_expansions_same_equipment_different_profiles():
 
     # Create fighter
     fighter_type = ContentFighter.objects.create(
-        name="Specialist",
+        type="Specialist",
         house=house,
-        cost="80",
+        base_cost=80,
+        category=FighterCategoryChoices.SPECIALIST,
     )
 
     # Create two expansions
@@ -461,7 +468,7 @@ def test_expansion_item_can_have_null_profile():
     ContentHouse.objects.create(name="Test House 7")
 
     # Create non-weapon equipment
-    category = ContentEquipmentCategory.objects.create(name="Armor")
+    category = ContentEquipmentCategory.objects.create(name="Test Armor Category")
     armor = ContentEquipment.objects.create(
         name="Flak Armor",
         category=category,
@@ -485,3 +492,92 @@ def test_expansion_item_can_have_null_profile():
 
     # Clean should pass
     expansion_item.clean()  # Should not raise
+
+
+@pytest.mark.django_db
+def test_expansion_profile_cost_does_not_affect_base_equipment():
+    """Test that expansion profile costs only affect the profile, not the base equipment."""
+    user = User.objects.create_user(username="testuser8", password="password")
+    house = ContentHouse.objects.create(name="Test House 8")
+
+    # Create weapon with base cost
+    category = ContentEquipmentCategory.objects.create(name="Special Weapon")
+    weapon = ContentEquipment.objects.create(
+        name="Lasgun",
+        category=category,
+        cost="10",  # Base cost is 10
+    )
+
+    # Create profiles
+    ContentWeaponProfile.objects.create(
+        equipment=weapon,
+        name="",  # Standard profile
+        cost=0,
+    )
+
+    hotshot = ContentWeaponProfile.objects.create(
+        equipment=weapon,
+        name="Hotshot",
+        cost=20,  # Hotshot normally costs 20
+    )
+
+    # Create fighter
+    fighter_type = ContentFighter.objects.create(
+        type="Trooper",
+        house=house,
+        base_cost=50,
+        category=FighterCategoryChoices.GANGER,
+    )
+
+    # Create expansion that makes hotshot cheaper but doesn't change base weapon cost
+    expansion = ContentEquipmentListExpansion.objects.create(name="Hotshot Discount")
+
+    rule = ContentEquipmentListExpansionRuleByHouse.objects.create(house=house)
+    expansion.rules.add(rule)
+
+    # Add ONLY the hotshot profile with discount, NOT the base weapon
+    ContentEquipmentListExpansionItem.objects.create(
+        expansion=expansion,
+        equipment=weapon,
+        weapon_profile=hotshot,
+        cost=5,  # Hotshot discounted to 5
+    )
+
+    # Test with_expansion_cost_for_fighter
+    rule_inputs = ExpansionRuleInputs(
+        list=List.objects.create(
+            name="Test List",
+            owner=user,
+            content_house=house,
+        ),
+        fighter=None,
+    )
+
+    equipment = ContentEquipment.objects.filter(
+        id=weapon.id
+    ).with_expansion_cost_for_fighter(fighter_type, rule_inputs)
+
+    eq = equipment.first()
+    # Base equipment cost should NOT be affected by profile-specific expansion
+    assert eq.cost_for_fighter == 10  # Still base cost, not 5
+
+    # Now test with_expansion_profiles_for_fighter
+    equipment = ContentEquipment.objects.filter(
+        id=weapon.id
+    ).with_expansion_profiles_for_fighter(fighter_type, rule_inputs)
+
+    eq = equipment.first()
+    profiles = eq.pre_profiles_for_fighter
+
+    # Find the profiles
+    standard_profile = next((p for p in profiles if p.name == ""), None)
+    hotshot_profile = next((p for p in profiles if p.name == "Hotshot"), None)
+
+    assert standard_profile is not None
+    assert hotshot_profile is not None
+
+    # Standard profile should have no cost override
+    assert standard_profile.cost_for_fighter == 0
+
+    # Hotshot profile should have expansion cost override
+    assert hotshot_profile.cost_for_fighter == 5  # Expansion discount applied

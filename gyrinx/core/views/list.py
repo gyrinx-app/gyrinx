@@ -2057,13 +2057,38 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     ).values_list("weapon_profile_id", flat=True)
                 )
 
+                # Also get weapon profiles from expansions
+                from gyrinx.content.models_.expansion import (
+                    ContentEquipmentListExpansion,
+                    ContentEquipmentListExpansionItem,
+                )
+
+                # Get applicable expansions using existing expansion_inputs
+                applicable_expansions = (
+                    ContentEquipmentListExpansion.get_applicable_expansions(
+                        expansion_inputs
+                    )
+                )
+
+                # Get weapon profiles from expansion items
+                expansion_profiles = ContentEquipmentListExpansionItem.objects.filter(
+                    expansion__in=applicable_expansions,
+                    equipment=item,
+                    weapon_profile__isnull=False,
+                ).values_list("weapon_profile_id", flat=True)
+
+                # Combine both sets of profiles
+                all_equipment_list_profiles = set(equipment_list_profiles) | set(
+                    expansion_profiles
+                )
+
                 profiles = [
                     profile
                     for profile in profiles
                     # Keep standard profiles (cost = 0)
                     if profile.cost == 0
                     # Or keep profiles that are specifically on the equipment list
-                    or profile.id in equipment_list_profiles
+                    or profile.id in all_equipment_list_profiles
                 ]
 
             assigns.append(
