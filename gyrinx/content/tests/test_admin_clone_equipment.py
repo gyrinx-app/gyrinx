@@ -97,5 +97,3 @@ def test_admin_clone_equipment_preserves_weapon_profile_traits():
     assert cloned_hot_shot.traits.count() == 2
     assert rapid_fire in cloned_hot_shot.traits.all()
     assert plentiful in cloned_hot_shot.traits.all()
-
-    print("Admin clone correctly preserves weapon profile traits!")
