@@ -457,7 +457,7 @@ class ContentFighterPsykerDisciplineAssignmentInline(ContentTabularInline):
     extra = 0
 
 
-class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
+class ContentFighterPsykerPowerDefaultAssignmentInlineForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Optimize the fighter queryset with select_related if the field exists
@@ -471,7 +471,7 @@ class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
 class ContentFighterPsykerPowerDefaultAssignmentInline(ContentTabularInline):
     model = ContentFighterPsykerPowerDefaultAssignment
     extra = 0
-    form = ContentFighterPsykerPowerDefaultAssignmentForm
+    form = ContentFighterPsykerPowerDefaultAssignmentInlineForm
 
 
 class ContentFighterEquipmentCategoryLimitForFighterForm(forms.ModelForm):
@@ -586,7 +586,7 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
     inlines = [ContentPsykerPowerInline]
 
 
-class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
+class ContentFighterPsykerPowerDefaultAssignmentAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Optimize the fighter queryset with select_related
@@ -604,7 +604,7 @@ class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
 class ContentFighterPsykerPowerDefaultAssignmentAdmin(ContentAdmin):
     search_fields = ["fighter__type", "psyker_power__name"]
     list_filter = ["fighter__type", "psyker_power__discipline"]
-    form = ContentFighterPsykerPowerDefaultAssignmentForm
+    form = ContentFighterPsykerPowerDefaultAssignmentAdminForm
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "fighter":
