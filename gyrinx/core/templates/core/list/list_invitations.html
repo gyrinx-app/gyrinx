@@ -44,7 +44,7 @@
         {% else %}
             <p>
                 No pending invitations.
-                {% if list.is_list_building and list.active_campaign_clones.exists %}
+                {% if list.is_list_building and list.active_campaign_clones|length %}
                     <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">See campaign gang versions of this list.</a>
                 {% endif %}
             </p>

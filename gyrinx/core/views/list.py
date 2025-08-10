@@ -228,7 +228,7 @@ class ListDetailView(generic.DetailView):
         Retrieve the :model:`core.List` by its `id`.
         """
         return get_object_or_404(
-            List.objects.with_related_data(),
+            List.objects.with_related_data(with_fighters=True),
             id=self.kwargs["id"],
         )
 
@@ -258,13 +258,10 @@ class ListDetailView(generic.DetailView):
             ).select_related("fighter", "fighter__list")
             context["captured_fighters"] = captured_fighters
 
-        # Get attributes and their values for this list
-        context["attributes"] = get_list_attributes(list_obj)
-
         # Get fighters with group keys for display grouping
-        # Optimize fighter queries with comprehensive prefetching
+        # Performance: it's critical that listfighter_set is pre-fetched with related data
+        fighters_with_groups = list_obj.listfighter_set.filter(archived=False)
         # We use list(...) to force evaluation of the queryset now
-        fighters_with_groups = list_obj.listfighter_set.exclude(archived=True)
         context["fighters_with_groups"] = list(fighters_with_groups)
         # Performance optimization: only fetch minimal fields for fighters when we offer embed links
         context["fighters_minimal"] = list(fighters_with_groups.values("id", "name"))
@@ -276,6 +273,25 @@ class ListDetailView(generic.DetailView):
             context["pending_invitations_count"] = CampaignInvitation.objects.filter(
                 list=list_obj, status=CampaignInvitation.PENDING
             ).count()
+
+        return context
+
+
+class ListPerformanceView(generic.DetailView):
+    template_name = "core/list_performance.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+        """
+        return get_object_or_404(
+            List.objects.with_related_data(with_fighters=True),
+            id=self.kwargs["id"],
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
 
         return context
 

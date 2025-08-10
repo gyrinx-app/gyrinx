@@ -1,9 +1,41 @@
-{% load allauth custom_tags humanize %}
-<div class="card g-col-12 {% if print %}g-col-sm-6 g-col-md-4 g-col-xl-3{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-    <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
-        <h3 class="h5 mb-0">Attributes</h3>
-    </div>
-    <div class="card-body {% if print %}p-0{% else %}p-2{% endif %}">
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ list.name }} | {{ list.owner_cached }}
+{% endblock head_title %}
+{% block content %}
+    <h2>List Details</h2>
+    <ul>
+        <li>{{ list.name }}</li>
+        <li>Archived? {{ list.archived|yesno:"Yes,No" }}</li>
+        <li>{{ list.owner_cached }}</li>
+        <li>{{ list.owner_cached.username }}</li>
+        <li>{{ list.content_house_name }}</li>
+        <li>{{ list.is_campaign_mode }}</li>
+        <li>
+            {% if list.public %}
+                Public
+            {% else %}
+                Private
+            {% endif %}
+        </li>
+        <li>
+            {% if list.owner_cached == user %}Owner{% endif %}
+        </li>
+        <li>{{ list.original_list }}</li>
+        <li>{{ list.campaign }}</li>
+        <li>Clones? {{ list.active_campaign_clones|length|yesno:"Yes,No" }}</li>
+    </ul>
+    <h2>List Attributes</h2>
+    <ul>
+        {% for attribute_assign in list.active_attributes_cached %}
+            <li>{{ attribute_assign.attribute_value.name }}: {{ attribute_assign.attribute_value.attribute }}</li>
+        {% empty %}
+            <li>No attributes assigned.</li>
+        {% endfor %}
+    </ul>
+    <h2>Available Attributes</h2>
+    <ul>
         {% if list.all_attributes %}
             <table class="table table-sm mb-0 fs-7">
                 <tbody>
@@ -40,5 +72,13 @@
         {% else %}
             <p class="text-muted fs-7 mb-0">No attributes available.</p>
         {% endif %}
-    </div>
-</div>
+    </ul>
+    <h2>List Fighters</h2>
+    <ul>
+        {% for fighter in list.active_fighters %}
+            <li>{{ fighter.name }} ({{ fighter.list.active_attributes_cached|join:", " }})</li>
+        {% empty %}
+            <li>No fighters in this list.</li>
+        {% endfor %}
+    </ul>
+{% endblock content %}

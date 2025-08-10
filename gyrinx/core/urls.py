@@ -22,6 +22,7 @@ urlpatterns = [
     path("lists/", list.ListsListView.as_view(), name="lists"),
     path("lists/new", list.new_list, name="lists-new"),
     path("list/<id>", list.ListDetailView.as_view(), name="list"),
+    path("list/<id>/perf", list.ListPerformanceView.as_view(), name="list-performance"),
     path("list/<id>/about", list.ListAboutDetailView.as_view(), name="list-about"),
     path("list/<id>/archive", list.archive_list, name="list-archive"),
     path("list/<id>/show-stash", list.show_stash, name="list-show-stash"),
