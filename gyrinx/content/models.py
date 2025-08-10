@@ -483,13 +483,24 @@ class ContentEquipmentQuerySet(models.QuerySet):
             ContentEquipmentListExpansionItem,
         )
 
-        # Filter to only expansions that apply
+        # First, check which equipment IDs are actually in any expansion
+        equipment_ids_in_expansions = set(
+            ContentEquipmentListExpansionItem.objects.filter(
+                weapon_profile__isnull=True  # Only base equipment, not profiles
+            )
+            .values_list("equipment_id", flat=True)
+            .distinct()
+        )
+
+        # Only check expansions if we have equipment that might be in them
         expansion_ids = []
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                expansion_ids.append(expansion.id)
+        if equipment_ids_in_expansions:
+            # Filter to only expansions that apply
+            for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+                "rules"
+            ).all():
+                if expansion.applies_to(rule_inputs):
+                    expansion_ids.append(expansion.id)
 
         # Get expansion item cost overrides (only for base equipment, not profiles)
         expansion_items = ContentEquipmentListExpansionItem.objects.filter(
@@ -553,13 +564,24 @@ class ContentEquipmentQuerySet(models.QuerySet):
             ContentEquipmentListExpansionItem,
         )
 
-        # Filter to only expansions that apply
+        # First, check which equipment IDs have profiles in any expansion
+        equipment_ids_with_expansion_profiles = set(
+            ContentEquipmentListExpansionItem.objects.filter(
+                weapon_profile__isnull=False  # Only items with profiles
+            )
+            .values_list("equipment_id", flat=True)
+            .distinct()
+        )
+
+        # Only check expansions if we have equipment with profiles in them
         expansion_ids = []
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                expansion_ids.append(expansion.id)
+        if equipment_ids_with_expansion_profiles:
+            # Filter to only expansions that apply
+            for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
+                "rules"
+            ).all():
+                if expansion.applies_to(rule_inputs):
+                    expansion_ids.append(expansion.id)
 
         # Get expansion item profile cost overrides
         expansion_profile_items = ContentEquipmentListExpansionItem.objects.filter(

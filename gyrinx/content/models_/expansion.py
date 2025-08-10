@@ -131,6 +131,16 @@ class ContentEquipmentListExpansion(Content):
         Return expansion items for the specified equipment (and optional weapon profile)
         that are available due to applicable expansions for the given rule inputs.
         """
+        # First check if this equipment/profile combination exists in any expansion
+        exists_in_expansion = ContentEquipmentListExpansionItem.objects.filter(
+            equipment=equipment,
+            weapon_profile=weapon_profile,
+        ).exists()
+
+        # If not in any expansion, return empty queryset to avoid expansion checks
+        if not exists_in_expansion:
+            return ContentEquipmentListExpansionItem.objects.none()
+
         # Filter expansions that include the specified equipment and optionally weapon profile
         return ContentEquipmentListExpansionItem.objects.filter(
             equipment=equipment,
