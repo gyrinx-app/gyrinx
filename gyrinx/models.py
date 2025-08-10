@@ -1,9 +1,11 @@
 import uuid
-from typing import List, TypeVar, Union
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Tuple, TypeVar, Union
 from uuid import UUID
 
-from django.db import models
+from django.db import connections, models
 from django.db.models import QuerySet
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 
@@ -357,3 +359,44 @@ class FighterCostMixin(CostMixin):
         raise AttributeError(
             "cost_for_fighter not available. Use with_cost_for_fighter()"
         )
+
+
+@dataclass
+class QueryInfo:
+    count: int
+    total_time: float
+    queries: List[Dict[str, str]]  # each has "sql" and "time" (string seconds)
+
+
+def capture_queries(
+    func: Callable[[], Any], *, using: str = "default"
+) -> Tuple[Any, QueryInfo]:
+    """
+    Run `func` with query capture enabled and return (result, QueryInfo).
+    Uses Django's CaptureQueriesContext under the hood.
+
+    Works even if DEBUG=False because the context forces a debug cursor temporarily.
+    """
+    conn = connections[using]
+    with CaptureQueriesContext(conn) as ctx:
+        result = func()
+
+    # ctx.captured_queries is a list of {"sql": "...", "time": "..."} (time as string seconds)
+    total_time = sum(float(q.get("time") or 0.0) for q in ctx.captured_queries)
+
+    info = QueryInfo(
+        count=len(ctx.captured_queries),
+        total_time=total_time,
+        queries=ctx.captured_queries,
+    )
+    return result, info
+
+
+def with_query_capture(using="default"):
+    def deco(fn):
+        def inner(*args, **kwargs):
+            return capture_queries(lambda: fn(*args, **kwargs), using=using)
+
+        return inner
+
+    return deco

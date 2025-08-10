@@ -4,7 +4,7 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, When
+from django.db.models import Case, Q, When
 from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
@@ -15,6 +15,7 @@ from gyrinx.content.models import (
     ContentAttributeValue,
     ContentEquipment,
     ContentHouse,
+    ContentWeaponProfile,
 )
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import (
@@ -73,13 +74,61 @@ class ContentEquipmentListExpansion(Content):
         """
         Get all expansions that apply to the given rule inputs.
         """
-        applicable = []
-        for expansion in cls.objects.prefetch_related(
-            "rules", "items__equipment"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                applicable.append(expansion)
-        return applicable
+
+        input_list = rule_inputs.list
+        input_fighter = rule_inputs.fighter
+
+        list_rules = Q(
+            ContentEquipmentListExpansionRuleByAttribute___attribute_values__in=input_list.active_attributes_cached
+        ) | Q(ContentEquipmentListExpansionRuleByHouse___house=input_list.content_house)
+
+        fighter_rules = (
+            Q(
+                ContentEquipmentListExpansionRuleByFighterCategory___fighter_categories__contains=input_fighter.get_category()
+            )
+            if input_fighter
+            else Q()
+        )
+
+        applicable_rules = ContentEquipmentListExpansionRule.objects.filter(
+            list_rules | fighter_rules
+        ).distinct()
+
+        applicable_expansions = (
+            cls.objects.annotate(
+                applicable_rules=models.Exists(
+                    applicable_rules.filter(expansions=models.OuterRef("id"))
+                )
+            )
+            .filter(applicable_rules=True)
+            .prefetch_related(
+                "rules",
+                "items__equipment",
+                "items__weapon_profile",
+            )
+        )
+
+        return applicable_expansions
+
+    @classmethod
+    def get_applicable_expansion_items_for_equipment(
+        cls,
+        rule_inputs: ExpansionRuleInputs,
+        equipment: ContentEquipment,
+        weapon_profile: Optional[ContentWeaponProfile] = None,
+        **kwargs,
+    ):
+        """
+        Return expansion items for the specified equipment (and optional weapon profile)
+        that are available due to applicable expansions for the given rule inputs.
+        """
+        # Filter expansions that include the specified equipment and optionally weapon profile
+        return ContentEquipmentListExpansionItem.objects.filter(
+            equipment=equipment,
+            weapon_profile=weapon_profile,
+            expansion__in=cls.get_applicable_expansions(rule_inputs),
+            **kwargs,
+        )
 
     @classmethod
     def get_expansion_equipment(cls, rule_inputs: ExpansionRuleInputs):
