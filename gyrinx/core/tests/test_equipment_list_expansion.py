@@ -426,6 +426,14 @@ def test_expansion_with_archived_list_attribute_assignment():
     # Archive the assignment
     ListAttributeAssignment.objects.filter(pk=assignment.pk).update(archived=True)
 
+    # Clear cached property and refresh the list
+    if "active_attributes_cached" in gang_list.__dict__:
+        del gang_list.__dict__["active_attributes_cached"]
+    gang_list.refresh_from_db()
+
+    # Create new rule_inputs with refreshed list
+    rule_inputs = ExpansionRuleInputs(list=gang_list, fighter=lf_leader)
+
     # Test expansion no longer applies with archived assignment
     assert expansion.applies_to(rule_inputs) is False
 
@@ -1154,9 +1162,11 @@ def test_has_house_additional_gear_with_expansions():
         expansion=expansion, equipment=restricted_equipment, cost=80
     )
 
-    # Clear cached property to force re-evaluation
-    if "has_house_additional_gear" in list_fighter2.__dict__:
-        del list_fighter2.__dict__["has_house_additional_gear"]
+    # Refresh the list to ensure it has the latest attribute assignments
+    gang_list2 = List.objects.with_related_data(with_fighters=True).get(
+        id=gang_list2.id
+    )
+    list_fighter2 = ListFighter.objects.with_related_data().get(id=list_fighter2.id)
 
     # Now should have house additional gear from expansion
     assert list_fighter2.has_house_additional_gear is True
@@ -1293,9 +1303,9 @@ def test_house_additional_gearline_display_with_expansions():
         expansion=expansion, equipment=visible_equipment, cost=60
     )
 
-    # Clear cached property
-    if "house_additional_gearline_display" in list_fighter.__dict__:
-        del list_fighter.__dict__["house_additional_gearline_display"]
+    # Refresh the list to ensure it has the latest attribute assignments
+    gang_list = List.objects.with_related_data(with_fighters=True).get(id=gang_list.id)
+    list_fighter = ListFighter.objects.with_related_data().get(id=list_fighter.id)
 
     # Test 3: Expansion category now appears
     gearlines = list_fighter.house_additional_gearline_display

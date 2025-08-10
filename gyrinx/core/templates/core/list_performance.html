@@ -4,8 +4,10 @@
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
+    <h2>List Details</h2>
     <ul>
         <li>{{ list.name }}</li>
+        <li>Archived? {{ list.archived|yesno:"Yes,No" }}</li>
         <li>{{ list.owner_cached }}</li>
         <li>{{ list.owner_cached.username }}</li>
         <li>{{ list.content_house_name }}</li>
@@ -23,5 +25,60 @@
         <li>{{ list.original_list }}</li>
         <li>{{ list.campaign }}</li>
         <li>Clones? {{ list.active_campaign_clones|length|yesno:"Yes,No" }}</li>
+    </ul>
+    <h2>List Attributes</h2>
+    <ul>
+        {% for attribute_assign in list.active_attributes_cached %}
+            <li>{{ attribute_assign.attribute_value.name }}: {{ attribute_assign.attribute_value.attribute }}</li>
+        {% empty %}
+            <li>No attributes assigned.</li>
+        {% endfor %}
+    </ul>
+    <h2>Available Attributes</h2>
+    <ul>
+        {% if list.all_attributes %}
+            <table class="table table-sm mb-0 fs-7">
+                <tbody>
+                    {% for attribute in list.all_attributes %}
+                        <tr>
+                            <td>{{ attribute.name }}</td>
+                            <td>
+                                {% if attribute.assignments %}
+                                    {{ attribute.assignments|join:", " }}
+                                {% else %}
+                                    <span class="text-muted">Not set</span>
+                                {% endif %}
+                            </td>
+                            {% if not print %}
+                                <td class="text-end">
+                                    {% if list.owner_cached == user and not list.archived %}
+                                        <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
+                                           class="icon-link link-secondary link-sm">
+                                            <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
+                                               aria-hidden="true"></i>
+                                            {% if attribute.assignments %}
+                                                Edit
+                                            {% else %}
+                                                Add
+                                            {% endif %}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-muted fs-7 mb-0">No attributes available.</p>
+        {% endif %}
+    </ul>
+    <h2>List Fighters</h2>
+    <ul>
+        {% for fighter in list.active_fighters %}
+            <li>{{ fighter.name }} ({{ fighter.list.active_attributes_cached|join:", " }})</li>
+        {% empty %}
+            <li>No fighters in this list.</li>
+        {% endfor %}
     </ul>
 {% endblock content %}

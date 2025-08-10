@@ -4,10 +4,10 @@
         <h3 class="h5 mb-0">Attributes</h3>
     </div>
     <div class="card-body {% if print %}p-0{% else %}p-2{% endif %}">
-        {% if attributes %}
+        {% if list.all_attributes %}
             <table class="table table-sm mb-0 fs-7">
                 <tbody>
-                    {% for attribute in attributes %}
+                    {% for attribute in list.all_attributes %}
                         <tr>
                             <td>{{ attribute.name }}</td>
                             <td>

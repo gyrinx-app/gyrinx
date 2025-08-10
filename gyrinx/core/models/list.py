@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Union
 
@@ -17,6 +18,7 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx import settings
 from gyrinx.content.models import (
+    ContentAttribute,
     ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -85,18 +87,24 @@ def validate_category_override(value):
 
 
 class ListQuerySet(models.QuerySet):
-    def with_related_data(self):
+    def with_related_data(self, with_fighters=False):
         """
         Optimize queries by selecting related content_house and owner,
         and prefetching fighters with their related data.
         """
-        return self.select_related(
+        qs = self.select_related(
             "content_house",
             "owner",
             "campaign",
             "original_list",
         ).prefetch_related(
-            "attributes",
+            Prefetch(
+                "listattributeassignment_set",
+                queryset=ListAttributeAssignment.objects.filter(
+                    archived=False
+                ).select_related("attribute_value", "attribute_value__attribute"),
+                to_attr="active_attribute_assignments",
+            ),
             Prefetch(
                 "campaign_clones",
                 queryset=List.objects.filter(
@@ -104,6 +112,18 @@ class ListQuerySet(models.QuerySet):
                 ),
                 to_attr="active_campaign_clones",
             ),
+        )
+
+        if with_fighters:
+            qs = qs.with_fighter_data()
+
+        return qs
+
+    def with_fighter_data(self):
+        """
+        Prefetch related fighter data for each list.
+        """
+        return self.prefetch_related(
             Prefetch(
                 "listfighter_set",
                 queryset=ListFighter.objects.with_group_keys().with_related_data(),
@@ -278,7 +298,46 @@ class List(AppBase):
 
     @cached_property
     def active_attributes_cached(self):
-        return self.attributes.filter(listattributeassignment__archived=False)
+        if hasattr(self, "active_attribute_assignments"):
+            return self.active_attribute_assignments
+
+        # If not prefetched, filter directly
+        return self.listattributeassignment_set.filter(archived=False).select_related(
+            "attribute_value", "attribute_value__attribute"
+        )
+
+    @cached_property
+    def all_attributes(self):
+        # Build a map of attribute_id to value names
+
+        assignment_map = defaultdict(list)
+        # Performance: upstream of this, active_attribute_assignments has been prefetched
+        # so we can iterate directly without hitting the database again.
+        for attribute_assign in self.active_attributes_cached:
+            attr_id = attribute_assign.attribute_value.attribute_id
+            assignment_map[attr_id].append(attribute_assign.attribute_value.name)
+
+        # Get all available attributes in a single query using values to avoid object queries
+        available_attributes = list(
+            ContentAttribute.objects.filter(
+                Q(restricted_to__isnull=True) | Q(restricted_to=self.content_house)
+            )
+            .distinct()
+            .order_by("name")
+            .values("id", "name")
+        )
+
+        # Build result as list of dicts to prevent template object access
+        attributes = []
+        for attribute in available_attributes:
+            attr_data = {
+                "id": attribute["id"],
+                "name": attribute["name"],
+                "assignments": assignment_map.get(attribute["id"], []),
+            }
+            attributes.append(attr_data)
+
+        return attributes
 
     def cost_cache_key(self):
         return f"list_cost_{self.id}"
@@ -607,6 +666,11 @@ class ListFighterQuerySet(models.QuerySet):
             "content_fighter__house",
             # Prefetch linked fighter data
             "linked_fighter",
+            Prefetch(
+                "list",
+                # DO NOT add with_fighters=True here, it will cause infinite recursion
+                queryset=List.objects.with_related_data(),
+            ),
         )
 
 

@@ -4,7 +4,7 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, Q, When
+from django.db.models import Case, Count, F, Q, When
 from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
@@ -78,8 +78,11 @@ class ContentEquipmentListExpansion(Content):
         input_list = rule_inputs.list
         input_fighter = rule_inputs.fighter
 
+        # First we find all the rules that match the list and fighter
         list_rules = Q(
-            ContentEquipmentListExpansionRuleByAttribute___attribute_values__in=input_list.active_attributes_cached
+            ContentEquipmentListExpansionRuleByAttribute___attribute_values__in=[
+                aa.attribute_value.id for aa in input_list.active_attributes_cached
+            ]
         ) | Q(ContentEquipmentListExpansionRuleByHouse___house=input_list.content_house)
 
         fighter_rules = (
@@ -87,20 +90,26 @@ class ContentEquipmentListExpansion(Content):
                 ContentEquipmentListExpansionRuleByFighterCategory___fighter_categories__contains=input_fighter.get_category()
             )
             if input_fighter
-            else Q()
+            else None
         )
 
+        # This gets us all the rules that match the inputs
         applicable_rules = ContentEquipmentListExpansionRule.objects.filter(
-            list_rules | fighter_rules
+            (list_rules | fighter_rules) if fighter_rules else list_rules
         ).distinct()
 
+        # Then we need to find expansions that have _all_ these rules matching, and only these
         applicable_expansions = (
-            cls.objects.annotate(
-                applicable_rules=models.Exists(
-                    applicable_rules.filter(expansions=models.OuterRef("id"))
-                )
+            ContentEquipmentListExpansion.objects
+            # Count how many of this expansion's rules are in applicable_rules
+            .annotate(
+                matched=Count(
+                    "rules", filter=Q(rules__in=applicable_rules), distinct=True
+                ),
+                total=Count("rules", distinct=True),
             )
-            .filter(applicable_rules=True)
+            .filter(matched=F("total"))
+            .exclude(total=0)
             .prefetch_related(
                 "rules",
                 "items__equipment",
