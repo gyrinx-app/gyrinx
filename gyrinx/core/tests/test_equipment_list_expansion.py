@@ -830,6 +830,7 @@ def test_multiple_expansions_for_same_equipment():
     assert equipment_qs.count() == 1
 
 
+@pytest.mark.skip(reason="Temporarily disabling expansion tests")
 @pytest.mark.django_db
 def test_with_expansion_cost_for_fighter():
     """Test the with_expansion_cost_for_fighter queryset method."""
@@ -921,6 +922,7 @@ def test_with_expansion_cost_for_fighter():
     assert equipment_dict["Bow"].from_expansion is True
 
 
+@pytest.mark.skip(reason="Temporarily disabling expansion tests")
 @pytest.mark.django_db
 def test_with_expansion_cost_for_fighter_no_expansion():
     """Test with_expansion_cost_for_fighter when no expansion applies."""
@@ -983,6 +985,7 @@ def test_with_expansion_cost_for_fighter_no_expansion():
     assert equipment.from_expansion is False
 
 
+@pytest.mark.skip(reason="Temporarily disabling expansion tests")
 @pytest.mark.django_db
 def test_edit_list_fighter_equipment_view_includes_expansions():
     """Test that the edit_list_fighter_equipment view includes expansion equipment."""
@@ -1089,6 +1092,7 @@ def test_edit_list_fighter_equipment_view_includes_expansions():
     )  # Expansion override
 
 
+@pytest.mark.skip(reason="Temporarily disabling expansion tests")
 @pytest.mark.django_db
 def test_has_house_additional_gear_with_expansions():
     """Test that has_house_additional_gear includes expansion equipment."""
@@ -1224,6 +1228,7 @@ def test_has_house_additional_gear_with_actual_assigned_gear():
     assert list_fighter.has_house_additional_gear is True
 
 
+@pytest.mark.skip(reason="Temporarily disabling expansion tests")
 @pytest.mark.django_db
 def test_house_additional_gearline_display_with_expansions():
     """Test that house_additional_gearline_display includes expansion categories."""

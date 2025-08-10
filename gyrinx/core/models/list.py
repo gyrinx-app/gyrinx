@@ -1444,17 +1444,19 @@ class ListFighter(AppBase):
             return True
 
         # Check if any expansions apply that provide equipment
-        from gyrinx.content.models_.expansion import (
-            ContentEquipmentListExpansion,
-            ExpansionRuleInputs,
-        )
+        # TODO: Turn expansions back on when performance issues are fixed
+        if False:
+            from gyrinx.content.models_.expansion import (
+                ContentEquipmentListExpansion,
+                ExpansionRuleInputs,
+            )
 
-        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-        applicable_expansions = ContentEquipmentListExpansion.get_applicable_expansions(
-            rule_inputs
-        )
-        if len(applicable_expansions) > 0:
-            return True
+            rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
+            applicable_expansions = (
+                ContentEquipmentListExpansion.get_applicable_expansions(rule_inputs)
+            )
+            if len(applicable_expansions) > 0:
+                return True
 
         # Check if fighter has actual assigned gear from restricted categories
         for assignment in self.assignments_cached:
@@ -1508,15 +1510,19 @@ class ListFighter(AppBase):
                         has_equipment_in_category = True
 
                     # Also check expansion equipment
-                    if not has_equipment_in_category:
-                        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-                        expansion_equipment = (
-                            ContentEquipmentListExpansion.get_expansion_equipment(
-                                rule_inputs
+                    # TODO: Turn expansions back on when performance issues are fixed
+                    if False:
+                        if not has_equipment_in_category:
+                            rule_inputs = ExpansionRuleInputs(
+                                list=self.list, fighter=self
                             )
-                        )
-                        if expansion_equipment.filter(category=cat).exists():
-                            has_equipment_in_category = True
+                            expansion_equipment = (
+                                ContentEquipmentListExpansion.get_expansion_equipment(
+                                    rule_inputs
+                                )
+                            )
+                            if expansion_equipment.filter(category=cat).exists():
+                                has_equipment_in_category = True
 
                 # Skip this category if no equipment found
                 if not has_equipment_in_category:
@@ -1557,38 +1563,40 @@ class ListFighter(AppBase):
                 )
 
         # 3. Categories from expansions
-        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-        expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-            rule_inputs
-        )
-        for equipment in expansion_equipment.select_related("category"):
-            cat = equipment.category
-            if cat.id not in seen_categories and cat.restricted_to.exists():
-                seen_categories.add(cat.id)
+        # TODO: Turn expansions back on when performance issues are fixed
+        if False:
+            rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
+            expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
+                rule_inputs
+            )
+            for equipment in expansion_equipment.select_related("category"):
+                cat = equipment.category
+                if cat.id not in seen_categories and cat.restricted_to.exists():
+                    seen_categories.add(cat.id)
 
-                # Get assignments for this category (including expansion items)
-                assignments = self.house_additional_assignments(cat)
+                    # Get assignments for this category (including expansion items)
+                    assignments = self.house_additional_assignments(cat)
 
-                # For visible_only_if_in_equipment_list categories, check if equipment exists
-                if cat.visible_only_if_in_equipment_list:
-                    # Equipment from expansion counts as being in equipment list
-                    has_equipment_in_category = (
-                        True  # We know there's expansion equipment
+                    # For visible_only_if_in_equipment_list categories, check if equipment exists
+                    if cat.visible_only_if_in_equipment_list:
+                        # Equipment from expansion counts as being in equipment list
+                        has_equipment_in_category = (
+                            True  # We know there's expansion equipment
+                        )
+
+                        if not assignments and not has_equipment_in_category:
+                            continue
+
+                    gearlines.append(
+                        {
+                            "category": cat.name,
+                            "id": cat.id,
+                            "assignments": assignments,
+                            "filter": "equipment-list"
+                            if cat.visible_only_if_in_equipment_list
+                            else "all",
+                        }
                     )
-
-                    if not assignments and not has_equipment_in_category:
-                        continue
-
-                gearlines.append(
-                    {
-                        "category": cat.name,
-                        "id": cat.id,
-                        "assignments": assignments,
-                        "filter": "equipment-list"
-                        if cat.visible_only_if_in_equipment_list
-                        else "all",
-                    }
-                )
 
         return gearlines
 
@@ -2442,6 +2450,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         self, content_equipment, weapon_profile, expansion_inputs
     ):
         """Helper method to get expansion cost override for equipment or weapon profile."""
+
+        # TODO: Turn expansions back on when performance issues are fixed
+        if True:
+            return None
+
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
         )
@@ -2476,20 +2489,22 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         fighters = self.list_fighter.equipment_list_fighters
 
         # Check for expansion cost overrides first
-        from gyrinx.content.models_.expansion import ExpansionRuleInputs
+        # TODO: Turn expansions back on when performance issues are fixed
+        if False:
+            from gyrinx.content.models_.expansion import ExpansionRuleInputs
 
-        expansion_inputs = ExpansionRuleInputs(
-            list=self.list_fighter.list, fighter=self.list_fighter
-        )
-        expansion_cost = self._get_expansion_cost_override(
-            content_equipment=self.content_equipment,
-            weapon_profile=None,  # Base equipment cost, not profile
-            expansion_inputs=expansion_inputs,
-        )
+            expansion_inputs = ExpansionRuleInputs(
+                list=self.list_fighter.list, fighter=self.list_fighter
+            )
+            expansion_cost = self._get_expansion_cost_override(
+                content_equipment=self.content_equipment,
+                weapon_profile=None,  # Base equipment cost, not profile
+                expansion_inputs=expansion_inputs,
+            )
 
-        # If expansion has cost override, use it
-        if expansion_cost is not None:
-            return expansion_cost
+            # If expansion has cost override, use it
+            if expansion_cost is not None:
+                return expansion_cost
 
         # Otherwise check normal equipment list overrides
         overrides = ContentFighterEquipmentListItem.objects.filter(

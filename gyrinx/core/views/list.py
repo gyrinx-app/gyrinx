@@ -2089,24 +2089,29 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 )
 
                 # Also get weapon profiles from expansions
-                from gyrinx.content.models_.expansion import (
-                    ContentEquipmentListExpansion,
-                    ContentEquipmentListExpansionItem,
-                )
-
-                # Get applicable expansions using existing expansion_inputs
-                applicable_expansions = (
-                    ContentEquipmentListExpansion.get_applicable_expansions(
-                        expansion_inputs
+                # TODO: Turn expansions back on when performance issues are fixed
+                expansion_profiles = []
+                if False:
+                    from gyrinx.content.models_.expansion import (
+                        ContentEquipmentListExpansion,
+                        ContentEquipmentListExpansionItem,
                     )
-                )
 
-                # Get weapon profiles from expansion items
-                expansion_profiles = ContentEquipmentListExpansionItem.objects.filter(
-                    expansion__in=applicable_expansions,
-                    equipment=item,
-                    weapon_profile__isnull=False,
-                ).values_list("weapon_profile_id", flat=True)
+                    # Get applicable expansions using existing expansion_inputs
+                    applicable_expansions = (
+                        ContentEquipmentListExpansion.get_applicable_expansions(
+                            expansion_inputs
+                        )
+                    )
+
+                    # Get weapon profiles from expansion items
+                    expansion_profiles = (
+                        ContentEquipmentListExpansionItem.objects.filter(
+                            expansion__in=applicable_expansions,
+                            equipment=item,
+                            weapon_profile__isnull=False,
+                        ).values_list("weapon_profile_id", flat=True)
+                    )
 
                 # Combine both sets of profiles
                 all_equipment_list_profiles = set(equipment_list_profiles) | set(

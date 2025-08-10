@@ -477,6 +477,10 @@ class ContentEquipmentQuerySet(models.QuerySet):
         Annotates the queryset with fighter-specific cost overrides,
         including those from equipment list expansions.
         """
+        # TODO: Turn expansions back on when performance issues are fixed
+        if True:
+            return self.with_cost_for_fighter(content_fighter)
+
         # Avoid circular import by importing models here
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
@@ -548,6 +552,11 @@ class ContentEquipmentQuerySet(models.QuerySet):
         Annotates the queryset with weapon profiles for a given fighter,
         including those from equipment list expansions.
         """
+
+        # TODO: Turn expansions back on when performance issues are fixed
+        if True:
+            return self.with_profiles_for_fighter(content_fighter)
+
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
             ContentEquipmentListExpansionItem,
