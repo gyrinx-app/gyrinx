@@ -260,9 +260,7 @@ class ListDetailView(generic.DetailView):
 
         # Get fighters with group keys for display grouping
         # Performance: it's critical that listfighter_set is pre-fetched with related data
-        fighters_with_groups = list_obj.listfighter_set.filter(
-            list=list_obj, archived=False
-        )
+        fighters_with_groups = list_obj.listfighter_set.filter(archived=False)
         # We use list(...) to force evaluation of the queryset now
         context["fighters_with_groups"] = list(fighters_with_groups)
         # Performance optimization: only fetch minimal fields for fighters when we offer embed links

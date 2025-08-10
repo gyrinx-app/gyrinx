@@ -100,7 +100,7 @@ class ContentEquipmentListExpansion(Content):
 
         # Then we need to find expansions that have _all_ these rules matching, and only these
         applicable_expansions = (
-            ContentEquipmentListExpansion.objects
+            cls.objects
             # Count how many of this expansion's rules are in applicable_rules
             .annotate(
                 matched=Count(
