@@ -280,6 +280,20 @@ class ListDetailView(generic.DetailView):
         return context
 
 
+class ListPerformanceView(generic.DetailView):
+    template_name = "core/list_performance.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+        """
+        return get_object_or_404(
+            List.objects.with_related_data(),
+            id=self.kwargs["id"],
+        )
+
+
 class ListAboutDetailView(generic.DetailView):
     """
     Display a narrative view of a single :model:`core.List` object.

@@ -1,0 +1,27 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ list.name }} | {{ list.owner_cached }}
+{% endblock head_title %}
+{% block content %}
+    <ul>
+        <li>{{ list.name }}</li>
+        <li>{{ list.owner_cached }}</li>
+        <li>{{ list.owner_cached.username }}</li>
+        <li>{{ list.content_house_name }}</li>
+        <li>{{ list.is_campaign_mode }}</li>
+        <li>
+            {% if list.public %}
+                Public
+            {% else %}
+                Private
+            {% endif %}
+        </li>
+        <li>
+            {% if list.owner_cached == user %}Owner{% endif %}
+        </li>
+        <li>{{ list.original_list }}</li>
+        <li>{{ list.campaign }}</li>
+        <li>Clones? {{ list.active_campaign_clones|length|yesno:"Yes,No" }}</li>
+    </ul>
+{% endblock content %}

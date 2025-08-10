@@ -77,7 +77,7 @@
                             </div>
                         {% endif %}
                     {% endif %}
-                    {% if list.is_list_building and list.active_campaign_clones.exists %}
+                    {% if list.is_list_building and list.active_campaign_clones|length %}
                         <div>
                             <i class="bi-award"
                                data-bs-toggle="tooltip"

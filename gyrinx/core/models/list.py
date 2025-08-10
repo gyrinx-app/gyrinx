@@ -46,6 +46,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.models import (
@@ -90,9 +91,19 @@ class ListQuerySet(models.QuerySet):
         and prefetching fighters with their related data.
         """
         return self.select_related(
-            "content_house", "owner", "campaign"
+            "content_house",
+            "owner",
+            "campaign",
+            "original_list",
         ).prefetch_related(
             "attributes",
+            Prefetch(
+                "campaign_clones",
+                queryset=List.objects.filter(
+                    status=List.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
+                ),
+                to_attr="active_campaign_clones",
+            ),
             Prefetch(
                 "listfighter_set",
                 queryset=ListFighter.objects.with_group_keys().with_related_data(),
@@ -264,15 +275,6 @@ class List(AppBase):
     @property
     def is_campaign_mode(self):
         return self.status == self.CAMPAIGN_MODE
-
-    @property
-    def active_campaign_clones(self):
-        """Get campaign clones that are in active (in-progress) campaigns."""
-        from .campaign import Campaign
-
-        return self.campaign_clones.filter(
-            status=self.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
-        )
 
     @cached_property
     def active_attributes_cached(self):
