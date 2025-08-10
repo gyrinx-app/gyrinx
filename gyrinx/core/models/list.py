@@ -233,6 +233,10 @@ class List(AppBase):
             status=self.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
         )
 
+    @cached_property
+    def active_attributes_cached(self):
+        return self.attributes.filter(listattributeassignment__archived=False)
+
     def cost_cache_key(self):
         return f"list_cost_{self.id}"
 
@@ -2311,22 +2315,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         """Helper method to get expansion cost override for equipment or weapon profile."""
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
-            ContentEquipmentListExpansionItem,
         )
 
-        # Check if any expansions apply
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(expansion_inputs):
-                # Check if this expansion has a cost override
-                expansion_item = ContentEquipmentListExpansionItem.objects.filter(
-                    expansion=expansion,
-                    equipment=content_equipment,
-                    weapon_profile=weapon_profile,
-                ).first()
-                if expansion_item and expansion_item.cost is not None:
-                    return expansion_item.cost
+        found_items = (
+            ContentEquipmentListExpansion.get_applicable_expansion_items_for_equipment(
+                expansion_inputs,
+                content_equipment,
+                weapon_profile,
+                cost__isnull=False,
+            )
+        )
+
+        if found_items and found_items[0].cost is not None:
+            return found_items[0].cost
+
         return None
 
     def _equipment_cost_with_override(self):
