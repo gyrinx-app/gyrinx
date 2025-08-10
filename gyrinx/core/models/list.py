@@ -231,7 +231,7 @@ class List(AppBase):
 
     @cached_property
     def fighters_minimal_cached(self):
-        return self.listfighter_set.values("id", "name")
+        return self.listfighter_set.filter(archived=False).values("id", "name")
 
     @cached_property
     def active_fighters(self) -> QuerySetOf["ListFighter"]:
