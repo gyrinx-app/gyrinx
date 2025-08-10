@@ -6,7 +6,7 @@
 {% block content %}
     <div id="content" class="p-2">
         <div class="col px-0 vstack gap-5">
-            {% include "core/includes/list.html" with list=list print=True %}
+            {% include "core/includes/list.html" with list=list print=True print_config=print_config %}
             <div id="qr" class="card card-body gap-2 align-items-center">
                 {% url 'core:list-print' list.id as list_url %}
                 {% fullurl list_url as full_list_url %}
