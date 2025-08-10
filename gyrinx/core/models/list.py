@@ -3629,6 +3629,15 @@ class ListAttributeAssignment(Base, Archived):
 
     history = HistoricalRecords()
 
+    def delete(self, *args, **kwargs):
+        """Clear expansion caches when list attributes are deleted."""
+        super().delete(*args, **kwargs)
+        # Invalidate expansion caches
+        import time
+        from django.core.cache import cache
+
+        cache.set("expansion_cache_version", time.time(), None)
+
     class Meta:
         verbose_name = "List Attribute Assignment"
         verbose_name_plural = "List Attribute Assignments"
@@ -3658,9 +3667,14 @@ class ListAttributeAssignment(Base, Archived):
                     )
 
     def save(self, *args, **kwargs):
-        """Override save to call full_clean() for validation."""
+        """Override save to call full_clean() for validation and clear expansion caches."""
         self.full_clean()
         super().save(*args, **kwargs)
+        # Invalidate expansion caches since attributes affect expansion rules
+        import time
+        from django.core.cache import cache
+
+        cache.set("expansion_cache_version", time.time(), None)
 
 
 class CapturedFighter(AppBase):

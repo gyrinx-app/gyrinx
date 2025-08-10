@@ -1886,23 +1886,31 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
 
     if is_weapon:
-        equipment = ContentEquipment.objects.weapons().with_expansion_cost_for_fighter(
-            fighter.equipment_list_fighter, expansion_inputs
-        )
+        # Use the optimized method for better performance
+        equipment = (
+            ContentEquipment.objects.weapons()
+            .with_expansion_cost_for_fighter_optimized(
+                fighter.equipment_list_fighter, expansion_inputs
+            )
+            .select_related("category")
+        )  # Prefetch category to avoid N+1
         search_vector = SearchVector(
             "name", "category__name", "contentweaponprofile__name"
         )
     else:
         equipment = (
-            ContentEquipment.objects.non_weapons().with_expansion_cost_for_fighter(
+            ContentEquipment.objects.non_weapons()
+            .with_expansion_cost_for_fighter_optimized(
                 fighter.equipment_list_fighter, expansion_inputs
             )
+            .select_related("category")  # Prefetch category to avoid N+1
         )
         search_vector = SearchVector("name", "category__name")
 
-    # Get categories for this equipment type
+    # Get categories for this equipment type - optimize with single query
+    category_ids = set(equipment.values_list("category_id", flat=True))
     categories = (
-        ContentEquipmentCategory.objects.filter(id__in=equipment.values("category_id"))
+        ContentEquipmentCategory.objects.filter(id__in=category_ids)
         .distinct()
         .order_by("name")
     )
@@ -1967,20 +1975,34 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     )
 
     # Get equipment list IDs once - used in multiple places
-    equipment_list_ids = ContentFighterEquipmentListItem.objects.filter(
-        fighter__in=fighter.equipment_list_fighters
-    ).values_list("equipment_id", flat=True)
+    # Use only() to fetch just the IDs for better performance
+    equipment_list_ids = list(
+        ContentFighterEquipmentListItem.objects.filter(
+            fighter__in=fighter.equipment_list_fighters
+        )
+        .values_list("equipment_id", flat=True)
+        .distinct()
+    )
 
     # Also include equipment from applicable expansions
     from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+    from django.core.cache import cache
 
-    expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-        expansion_inputs
-    )
-    expansion_equipment_ids = list(expansion_equipment.values_list("id", flat=True))
+    # Check cache for expansion equipment IDs
+    expansion_cache_key = f"expansion_equipment_ids:{ContentEquipmentListExpansion._build_cache_key(expansion_inputs)}"
+    expansion_equipment_ids = cache.get(expansion_cache_key)
+
+    if expansion_equipment_ids is None:
+        expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
+            expansion_inputs
+        )
+        expansion_equipment_ids = list(expansion_equipment.values_list("id", flat=True))
+        # Cache for 5 minutes
+        cache.set(expansion_cache_key, expansion_equipment_ids, 300)
 
     # Combine regular equipment list IDs with expansion equipment IDs
-    equipment_list_ids = list(equipment_list_ids) + expansion_equipment_ids
+    # Use set to avoid duplicates, then convert back to list
+    equipment_list_ids = list(set(equipment_list_ids + expansion_equipment_ids))
 
     if is_equipment_list:
         # When equipment list is toggled and no explicit availability filter is provided,

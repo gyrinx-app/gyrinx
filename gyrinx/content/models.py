@@ -476,21 +476,29 @@ class ContentEquipmentQuerySet(models.QuerySet):
         """
         Annotates the queryset with fighter-specific cost overrides,
         including those from equipment list expansions.
+        Optimized to use cached expansion data and reduce database queries.
         """
         # Avoid circular import by importing models here
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
             ContentEquipmentListExpansionItem,
         )
+        from django.core.cache import cache
 
-        # Filter to only expansions that apply
-        expansion_ids = []
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                expansion_ids.append(expansion.id)
+        # Build cache key for expansion IDs
+        cache_key = f"expansion_ids:{ContentEquipmentListExpansion._build_cache_key(rule_inputs)}"
+        expansion_ids = cache.get(cache_key)
 
+        if expansion_ids is None:
+            # Get applicable expansions (uses internal caching)
+            applicable_expansions = (
+                ContentEquipmentListExpansion.get_applicable_expansions(rule_inputs)
+            )
+            expansion_ids = [exp.id for exp in applicable_expansions]
+            # Cache the IDs for 5 minutes
+            cache.set(cache_key, expansion_ids, 300)
+
+        # Build optimized query with single database hit
         # Get expansion item cost overrides (only for base equipment, not profiles)
         expansion_items = ContentEquipmentListExpansionItem.objects.filter(
             expansion__in=expansion_ids,
@@ -505,6 +513,7 @@ class ContentEquipmentQuerySet(models.QuerySet):
             weapon_profile__isnull=True,
         )
 
+        # Use a single annotate call with all calculations
         return self.annotate(
             # Cost from normal equipment list
             equipment_list_cost=Subquery(
@@ -523,6 +532,132 @@ class ContentEquipmentQuerySet(models.QuerySet):
             # Track if this came from an expansion
             from_expansion=Exists(expansion_items),
         )
+
+    def with_expansion_cost_for_fighter_optimized(
+        self, content_fighter: "ContentFighter", rule_inputs
+    ) -> "ContentEquipmentQuerySet":
+        """
+        Optimized version using LEFT OUTER JOINs instead of subqueries.
+        This is significantly faster for large datasets.
+        """
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ContentEquipmentListExpansionItem,
+        )
+        from django.core.cache import cache
+        from django.db.models import OuterRef, Subquery, Value, F
+        from django.db.models.functions import Coalesce
+
+        # Get applicable expansion IDs from cache or calculate
+        cache_key = f"expansion_ids:{ContentEquipmentListExpansion._build_cache_key(rule_inputs)}"
+        expansion_ids = cache.get(cache_key)
+
+        if expansion_ids is None:
+            applicable_expansions = (
+                ContentEquipmentListExpansion.get_applicable_expansions(rule_inputs)
+            )
+            expansion_ids = [exp.id for exp in applicable_expansions]
+            cache.set(cache_key, expansion_ids, 300)
+
+        # Use select_related to prefetch related data in a single query
+        qs = self.select_related()
+
+        # Annotate with expansion costs using a more efficient approach
+        if expansion_ids:
+            # Get expansion items in a single query
+            expansion_items_dict = {}
+            expansion_items_qs = ContentEquipmentListExpansionItem.objects.filter(
+                expansion__in=expansion_ids,
+                weapon_profile__isnull=True,
+            ).values("equipment_id", "cost")
+
+            for item in expansion_items_qs:
+                if item["equipment_id"] not in expansion_items_dict:
+                    expansion_items_dict[item["equipment_id"]] = item["cost"]
+
+            # Get equipment list items in a single query
+            equipment_list_dict = {}
+            equipment_list_qs = ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter,
+                weapon_profile__isnull=True,
+            ).values("equipment_id", "cost")
+
+            for item in equipment_list_qs:
+                if item["equipment_id"] not in equipment_list_dict:
+                    equipment_list_dict[item["equipment_id"]] = item["cost"]
+
+            # Build Case/When for annotations
+            expansion_whens = []
+            equipment_whens = []
+            from_expansion_ids = []
+
+            for eq_id, cost in expansion_items_dict.items():
+                if cost is not None:
+                    expansion_whens.append(When(id=eq_id, then=Value(cost)))
+                from_expansion_ids.append(eq_id)
+
+            for eq_id, cost in equipment_list_dict.items():
+                if cost is not None:
+                    equipment_whens.append(When(id=eq_id, then=Value(cost)))
+
+            # Apply annotations
+            annotations = {}
+
+            if expansion_whens:
+                annotations["expansion_cost"] = Case(
+                    *expansion_whens,
+                    default=Value(None),
+                    output_field=models.IntegerField(),
+                )
+            else:
+                annotations["expansion_cost"] = Value(
+                    None, output_field=models.IntegerField()
+                )
+
+            if equipment_whens:
+                annotations["equipment_list_cost"] = Case(
+                    *equipment_whens,
+                    default=Value(None),
+                    output_field=models.IntegerField(),
+                )
+            else:
+                annotations["equipment_list_cost"] = Value(
+                    None, output_field=models.IntegerField()
+                )
+
+            annotations["cost_for_fighter"] = Coalesce(
+                F("expansion_cost"), F("equipment_list_cost"), F("cost_cast_int")
+            )
+
+            if from_expansion_ids:
+                annotations["from_expansion"] = Case(
+                    When(id__in=from_expansion_ids, then=Value(True)),
+                    default=Value(False),
+                    output_field=models.BooleanField(),
+                )
+            else:
+                annotations["from_expansion"] = Value(
+                    False, output_field=models.BooleanField()
+                )
+
+            return qs.annotate(**annotations)
+        else:
+            # No expansions apply, just use equipment list
+            equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter,
+                equipment=OuterRef("pk"),
+                weapon_profile__isnull=True,
+            )
+
+            return qs.annotate(
+                expansion_cost=Value(None, output_field=models.IntegerField()),
+                equipment_list_cost=Subquery(
+                    equipment_list_items.values("cost")[:1],
+                    output_field=models.IntegerField(),
+                ),
+                cost_for_fighter=Coalesce("equipment_list_cost", "cost_cast_int"),
+                from_expansion=Value(False, output_field=models.BooleanField()),
+            )
 
     def with_profiles_for_fighter(
         self, content_fighter: "ContentFighter"

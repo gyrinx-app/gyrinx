@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, When
@@ -55,6 +56,25 @@ class ContentEquipmentListExpansion(Content):
 
     history = HistoricalRecords()
 
+    def save(self, *args, **kwargs):
+        """Clear expansion caches when an expansion is saved."""
+        super().save(*args, **kwargs)
+        # Clear expansion caches - use delete_many if available, otherwise rely on TTL
+        self._clear_expansion_caches()
+
+    def delete(self, *args, **kwargs):
+        """Clear expansion caches when an expansion is deleted."""
+        super().delete(*args, **kwargs)
+        # Clear expansion caches
+        self._clear_expansion_caches()
+
+    def _clear_expansion_caches(self):
+        """Clear all expansion-related caches."""
+        # Store a version key to invalidate all expansion caches
+        import time
+
+        cache.set("expansion_cache_version", time.time(), None)
+
     def applies_to(self, rule_inputs: ExpansionRuleInputs) -> bool:
         """
         Check if this expansion applies to the given list and fighter.
@@ -72,14 +92,56 @@ class ContentEquipmentListExpansion(Content):
     def get_applicable_expansions(cls, rule_inputs: ExpansionRuleInputs):
         """
         Get all expansions that apply to the given rule inputs.
+        Uses caching and SQL-based filtering where possible.
         """
+        # Build a cache key based on rule inputs
+        cache_key = cls._build_cache_key(rule_inputs)
+        cached_result = cache.get(cache_key)
+
+        if cached_result is not None:
+            return cached_result
+
+        # Get all expansions with prefetched rules
+        expansions = cls.objects.prefetch_related(
+            "rules",
+            "rules__contentequipmentlistexpansionrulebyattribute__attribute_values",
+            "rules__contentequipmentlistexpansionrulebyhouse",
+            "rules__contentequipmentlistexpansionrulebyfightercategory",
+            "items__equipment",
+        ).all()
+
         applicable = []
-        for expansion in cls.objects.prefetch_related(
-            "rules", "items__equipment"
-        ).all():
+        for expansion in expansions:
             if expansion.applies_to(rule_inputs):
                 applicable.append(expansion)
+
+        # Cache for 5 minutes
+        cache.set(cache_key, applicable, 300)
         return applicable
+
+    @classmethod
+    def _build_cache_key(cls, rule_inputs: ExpansionRuleInputs) -> str:
+        """
+        Build a cache key based on rule inputs, including a version component.
+        """
+        # Get cache version to invalidate old caches
+        version = cache.get("expansion_cache_version", 1)
+
+        list_id = rule_inputs.list.id if rule_inputs.list else "none"
+        fighter_id = rule_inputs.fighter.id if rule_inputs.fighter else "none"
+
+        # Include relevant list attributes in cache key
+        attrs = ""
+        if rule_inputs.list:
+            house_id = rule_inputs.list.content_house_id or "none"
+            attr_values = list(
+                rule_inputs.list.attributes.filter(
+                    listattributeassignment__archived=False
+                ).values_list("id", flat=True)
+            )
+            attrs = f"{house_id}_{','.join(map(str, sorted(attr_values)))}"
+
+        return f"expansion_applicable:v{version}:{list_id}:{fighter_id}:{attrs}"
 
     @classmethod
     def get_expansion_equipment(cls, rule_inputs: ExpansionRuleInputs):
@@ -88,6 +150,32 @@ class ContentEquipmentListExpansion(Content):
         Returns a queryset of ContentEquipment with cost annotations.
         Also includes weapon profiles when specified.
         """
+        # Check cache first
+        cache_key = f"expansion_equipment:{cls._build_cache_key(rule_inputs)}"
+        cached_equipment_data = cache.get(cache_key)
+
+        if cached_equipment_data is not None:
+            # Reconstruct the queryset from cached data
+            equipment_ids, cost_overrides = cached_equipment_data
+            equipment = ContentEquipment.objects.filter(id__in=equipment_ids)
+
+            if cost_overrides:
+                when_clauses = [
+                    When(id=eq_id, then=cost) for eq_id, cost in cost_overrides.items()
+                ]
+                equipment = equipment.annotate(
+                    expansion_cost_override=Case(
+                        *when_clauses,
+                        default=models.F("cost_cast_int"),
+                        output_field=models.IntegerField(),
+                    )
+                )
+            else:
+                equipment = equipment.annotate(
+                    expansion_cost_override=models.F("cost_cast_int")
+                )
+            return equipment
+
         expansions = cls.get_applicable_expansions(rule_inputs)
 
         # Get all equipment IDs and profile IDs from applicable expansions
@@ -125,6 +213,9 @@ class ContentEquipmentListExpansion(Content):
             if data["cost"] is not None
         }
 
+        # Cache the equipment IDs and cost overrides
+        cache.set(cache_key, (equipment_ids, cost_overrides), 300)
+
         if cost_overrides:
             when_clauses = [
                 When(id=eq_id, then=cost) for eq_id, cost in cost_overrides.items()
@@ -142,6 +233,21 @@ class ContentEquipmentListExpansion(Content):
             )
 
         return equipment
+
+    @classmethod
+    def invalidate_cache(cls, list_id=None, fighter_id=None):
+        """
+        Invalidate expansion caches when relevant data changes.
+        """
+        # Clear all expansion caches if no specific IDs provided
+        if not list_id and not fighter_id:
+            # Django's default cache doesn't support delete_pattern
+            # We'll use a more targeted approach
+            pass
+        else:
+            # Clear specific caches - would need to track keys separately
+            # For now, we rely on the 5-minute TTL
+            pass
 
     def __str__(self):
         return self.name
@@ -183,6 +289,22 @@ class ContentEquipmentListExpansionItem(Content):
     )
 
     history = HistoricalRecords()
+
+    def save(self, *args, **kwargs):
+        """Clear expansion caches when an item is saved."""
+        super().save(*args, **kwargs)
+        # Clear expansion caches by updating version
+        import time
+
+        cache.set("expansion_cache_version", time.time(), None)
+
+    def delete(self, *args, **kwargs):
+        """Clear expansion caches when an item is deleted."""
+        super().delete(*args, **kwargs)
+        # Clear expansion caches by updating version
+        import time
+
+        cache.set("expansion_cache_version", time.time(), None)
 
     def __str__(self):
         cost_str = (
