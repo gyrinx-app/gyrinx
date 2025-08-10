@@ -17,7 +17,7 @@
 {% endif %}
 <div class="card {{ card_classes }} {% flash fighter.id %}"
      id="{{ fighter.id }}">
-    <div class="card-header p-2 {% if fighter.is_stash %}bg-secondary-subtle text-secondary-emphasis{% elif fighter.is_dead %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
+    <div class="card-header p-2 {% if fighter.is_dead %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
         <div class="vstack gap-1">
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
@@ -45,34 +45,30 @@
                             </a>
                         </div>
                     {% endif %}
-                    {% if not fighter.is_stash or can_edit %}
-                        {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
+                    {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
+                </div>
+            </div>
+            <div class="hstack gap-2">
+                <div>
+                    {% if not print %}
+                        {% ref list.content_house_name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
+                        {% if fighter.category_override %}
+                            (<span class="tooltipped"
+      data-bs-toggle="tooltip"
+      title="Category manually overridden from {{ fighter.content_fighter_cached.cat }}">{{ fighter.get_category_label }}</span>)
+                        {% else %}
+                            ({{ fighter.content_fighter_cached.cat }})
+                        {% endif %}
+                    {% else %}
+                        {{ fighter.content_fighter_cached.type }}
+                        {% if fighter.category_override %}
+                            ({{ fighter.get_category_label }}*)
+                        {% else %}
+                            ({{ fighter.content_fighter_cached.cat }})
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
-            {% if not fighter.is_stash %}
-                <div class="hstack gap-2">
-                    <div>
-                        {% if not print %}
-                            {% ref list.content_house_name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
-                            {% if fighter.category_override %}
-                                (<span class="tooltipped"
-      data-bs-toggle="tooltip"
-      title="Category manually overridden from {{ fighter.content_fighter_cached.cat }}">{{ fighter.get_category_label }}</span>)
-                            {% else %}
-                                ({{ fighter.content_fighter_cached.cat }})
-                            {% endif %}
-                        {% else %}
-                            {{ fighter.content_fighter_cached.type }}
-                            {% if fighter.category_override %}
-                                ({{ fighter.get_category_label }}*)
-                            {% else %}
-                                ({{ fighter.content_fighter_cached.cat }})
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
-            {% endif %}
             {% if fighter.legacy_content_fighter_cached %}
                 <div class="hstack gap-2">
                     <div class="text-muted fs-7">
@@ -89,7 +85,7 @@
                     </div>
                 {% endif %}
             {% endif %}
-            {% if not print and not fighter.is_stash %}
+            {% if not print %}
                 <div class="hstack align-items-center gap-2">
                     <!-- Tab navigation -->
                     <ul class="nav nav-tabs flex-grow-1 px-1"
@@ -211,7 +207,7 @@
         </div>
     </div>
     <div class="card-body p-0">
-        {% if not print and not fighter.is_stash %}
+        {% if not print %}
             <!-- Tab content -->
             <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
                 <!-- Details tab -->
@@ -294,7 +290,7 @@
                 </div>
             </div>
         {% else %}
-            <!-- No tabs in print mode or stash -->
+            <!-- No tabs in print mode -->
             <div class="vstack {{ body_classes_ }}">
                 {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit print=print body_classes_=body_classes_ %}
             </div>
