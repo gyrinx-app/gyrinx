@@ -119,7 +119,8 @@ class ContentEquipmentListExpansion(Content):
         **kwargs,
     ):
         """
-        Get all expansions that apply to the given rule inputs.
+        Return expansion items for the specified equipment (and optional weapon profile)
+        that are available due to applicable expansions for the given rule inputs.
         """
         # Filter expansions that include the specified equipment and optionally weapon profile
         return ContentEquipmentListExpansionItem.objects.filter(
