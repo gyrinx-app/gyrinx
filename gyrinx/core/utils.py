@@ -73,29 +73,45 @@ def get_list_attributes(list_obj):
         list_obj: The List instance
 
     Returns:
-        dict: Mapping of ContentAttribute to list of assigned value names
+        list: List of dicts with attribute info to avoid object access in templates
     """
     from gyrinx.content.models import ContentAttribute
     from gyrinx.core.models.list import ListAttributeAssignment
 
-    attributes = {}
-    # Filter attributes to only those available to this house
-    available_attributes = (
+    # Get all assignments for this list in a single query
+    all_assignments = list(
+        ListAttributeAssignment.objects.filter(list=list_obj, archived=False)
+        .select_related("attribute_value", "attribute_value__attribute")
+        .values("attribute_value__attribute_id", "attribute_value__name")
+    )
+
+    # Build a map of attribute_id to value names
+    assignment_map = {}
+    for assignment in all_assignments:
+        attr_id = assignment["attribute_value__attribute_id"]
+        if attr_id not in assignment_map:
+            assignment_map[attr_id] = []
+        assignment_map[attr_id].append(assignment["attribute_value__name"])
+
+    # Get all available attributes in a single query using values to avoid object queries
+    available_attributes = list(
         ContentAttribute.objects.filter(
             Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house)
         )
         .distinct()
         .order_by("name")
+        .values("id", "name")
     )
 
+    # Build result as list of dicts to prevent template object access
+    attributes = []
     for attribute in available_attributes:
-        assignments = ListAttributeAssignment.objects.filter(
-            list=list_obj, attribute_value__attribute=attribute, archived=False
-        ).select_related("attribute_value")
-
-        # Get the value names
-        value_names = [a.attribute_value.name for a in assignments]
-        attributes[attribute] = value_names
+        attr_data = {
+            "id": attribute["id"],
+            "name": attribute["name"],
+            "assignments": assignment_map.get(attribute["id"], []),
+        }
+        attributes.append(attr_data)
 
     return attributes
 

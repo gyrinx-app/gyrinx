@@ -7,12 +7,12 @@
         {% if attributes %}
             <table class="table table-sm mb-0 fs-7">
                 <tbody>
-                    {% for attribute, assignments in attributes.items %}
+                    {% for attribute in attributes %}
                         <tr>
                             <td>{{ attribute.name }}</td>
                             <td>
-                                {% if assignments %}
-                                    {{ assignments|join:", " }}
+                                {% if attribute.assignments %}
+                                    {{ attribute.assignments|join:", " }}
                                 {% else %}
                                     <span class="text-muted">Not set</span>
                                 {% endif %}
@@ -22,9 +22,9 @@
                                     {% if list.owner_cached == user and not list.archived %}
                                         <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
                                            class="icon-link link-secondary link-sm">
-                                            <i class="bi-{% if assignments %}pencil{% else %}plus{% endif %}"
+                                            <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
                                                aria-hidden="true"></i>
-                                            {% if assignments %}
+                                            {% if attribute.assignments %}
                                                 Edit
                                             {% else %}
                                                 Add

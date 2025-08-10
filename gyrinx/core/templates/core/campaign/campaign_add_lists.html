@@ -124,7 +124,7 @@
                                     <div class="col">
                                         <h6 class="mb-1">
                                             <strong>{% list_with_theme list %}</strong>
-                                            {% if list.content_house %}• {{ list.content_house.name }}{% endif %}
+                                            {% if list.content_house %}• {{ list.content_house_name }}{% endif %}
                                         </h6>
                                         <p class="mb-0 text-muted small">
                                             {% if list.owner == request.user %}
