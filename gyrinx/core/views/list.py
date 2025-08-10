@@ -227,7 +227,10 @@ class ListDetailView(generic.DetailView):
         """
         Retrieve the :model:`core.List` by its `id`.
         """
-        return get_object_or_404(List, id=self.kwargs["id"])
+        return get_object_or_404(
+            List.objects.with_related_data(),
+            id=self.kwargs["id"],
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -259,12 +262,12 @@ class ListDetailView(generic.DetailView):
         context["attributes"] = get_list_attributes(list_obj)
 
         # Get fighters with group keys for display grouping
-        from gyrinx.core.models.list import ListFighter
-
-        fighters_with_groups = ListFighter.objects.with_group_keys().filter(
-            list=list_obj, archived=False
-        )
-        context["fighters_with_groups"] = fighters_with_groups
+        # Optimize fighter queries with comprehensive prefetching
+        # We use list(...) to force evaluation of the queryset now
+        fighters_with_groups = list_obj.listfighter_set.exclude(archived=True)
+        context["fighters_with_groups"] = list(fighters_with_groups)
+        # Performance optimization: only fetch minimal fields for fighters when we offer embed links
+        context["fighters_minimal"] = list(fighters_with_groups.values("id", "name"))
 
         # Get pending invitation count for this list (only for owner)
         if self.request.user.is_authenticated and list_obj.owner == self.request.user:

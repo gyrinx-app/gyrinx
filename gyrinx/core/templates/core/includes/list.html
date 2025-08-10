@@ -15,7 +15,7 @@
             <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
                 <h2 class="mb-0">{% list_with_theme list %}</h2>
                 <div class="ms-md-auto">
-                    {{ list.content_house.name }}
+                    {{ list.content_house_name }}
                     {% if list.is_campaign_mode %}<span class="badge bg-success">In Campaign</span>{% endif %}
                 </div>
                 <div class="h5 mb-0">
@@ -262,24 +262,6 @@
                     {% endif %}
                 </div>
             {% endif %}
-        {% else %}
-            {% for fighter in list.fighters_cached %}
-                {% if fighter.is_stash %}
-                    {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
-                {% else %}
-                    {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
-                {% endif %}
-            {% empty %}
-                <div class="g-col-12 py-2 hstack gap-2 align-items-center">
-                    This List is empty.
-                    {% if not print and list.owner_cached == user and not list.archived %}
-                        <a href="{% url 'core:list-fighter-new' list.id %}"
-                           class="btn btn-primary"><i class="bi-person-add"></i> Add a fighter</a>
-                        <a href="{% url 'core:list-vehicle-new' list.id %}"
-                           class="btn btn-primary"><i class="bi-truck"></i> Add a vehicle</a>
-                    {% endif %}
-                </div>
-            {% endfor %}
         {% endif %}
     </div>
     <div class="offcanvas offcanvas-end"
@@ -302,7 +284,7 @@
                 <p>
                     Add <code>?theme=light</code> or <code>?theme=dark</code> to the URL to force a particular theme.
                 </p>
-                {% for fighter in list.fighters_cached %}
+                {% for fighter in fighters_minimal %}
                     <li class="list-group-item vstack gap-2">
                         <h3 class="h6 mb-0">{{ fighter.name }}</h3>
                         {% url 'core:list-fighter-embed' list.id fighter.id as embed_url %}

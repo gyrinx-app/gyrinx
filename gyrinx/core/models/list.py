@@ -8,7 +8,7 @@ from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, F, Q, Value, When
+from django.db.models import Case, F, Prefetch, Q, Value, When
 from django.db.models.functions import Concat
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
 from django.dispatch import receiver
@@ -46,6 +46,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.models import (
     Archived,
@@ -80,6 +81,27 @@ def validate_category_override(value):
 ##
 ## Application Models
 ##
+
+
+class ListQuerySet(models.QuerySet):
+    def with_related_data(self):
+        """
+        Optimize queries by selecting related content_house and owner,
+        and prefetching fighters with their related data.
+        """
+        return self.select_related(
+            "content_house", "owner", "campaign"
+        ).prefetch_related(
+            "attributes",
+            Prefetch(
+                "listfighter_set",
+                queryset=ListFighter.objects.with_group_keys().with_related_data(),
+            ),
+        )
+
+
+class ListManager(HistoryAwareManager):
+    pass
 
 
 class List(AppBase):
@@ -194,10 +216,10 @@ class List(AppBase):
         return format_cost_display(self.cost_int_cached)
 
     def fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.filter(archived=False)
+        return self.listfighter_set.with_related_data().filter(archived=False)
 
     def archived_fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.filter(archived=True)
+        return self.listfighter_set.with_related_data().filter(archived=True)
 
     @cached_property
     def fighters_cached(self) -> QuerySetOf["ListFighter"]:
@@ -208,13 +230,32 @@ class List(AppBase):
         return self.archived_fighters()
 
     @cached_property
+    def fighters_minimal_cached(self):
+        return self.listfighter_set.values("id", "name")
+
+    @cached_property
     def active_fighters(self) -> QuerySetOf["ListFighter"]:
         """Get all fighters that could participate in a battle."""
-        return self.fighters().filter(archived=False, content_fighter__is_stash=False)
+        return self.fighters().exclude(content_fighter__is_stash=True)
 
     @cached_property
     def owner_cached(self):
         return self.owner
+
+    @cached_property
+    def content_house_cached(self):
+        """Cache the content_house object to prevent repeated queries."""
+        return self.content_house
+
+    @cached_property
+    def content_house_name(self):
+        """Cache the house name which is frequently accessed in templates."""
+        return self.content_house.name if self.content_house_id else ""
+
+    @cached_property
+    def content_house_id_cached(self):
+        """Cache the house ID to prevent object access."""
+        return self.content_house_id
 
     @property
     def is_list_building(self):
@@ -372,6 +413,8 @@ class List(AppBase):
 
     def __str__(self):
         return self.name
+
+    objects = ListManager.from_queryset(ListQuerySet)()
 
 
 @receiver(
@@ -540,8 +583,28 @@ class ListFighterQuerySet(models.QuerySet):
         This is the standard optimization pattern used throughout views
         to reduce N+1 query issues.
         """
-        return self.select_related("content_fighter", "list").prefetch_related(
-            "injuries", "listfighterequipmentassignment_set"
+        return self.select_related(
+            "content_fighter",
+            "content_fighter__house",
+            "legacy_content_fighter",
+            "legacy_content_fighter__house",
+            "capture_info",
+            "capture_info__capturing_list",
+        ).prefetch_related(
+            "injuries",
+            "skills",
+            "disabled_skills",
+            "disabled_rules",
+            "disabled_default_assignments",
+            "advancements",
+            # Prefetch equipment assignments with their related data
+            "listfighterequipmentassignment_set",
+            # Prefetch default assignments
+            "content_fighter__skills",
+            "content_fighter__rules",
+            "content_fighter__house",
+            # Prefetch linked fighter data
+            "linked_fighter",
         )
 
 

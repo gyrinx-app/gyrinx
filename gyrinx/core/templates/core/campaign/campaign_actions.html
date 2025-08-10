@@ -61,7 +61,7 @@
                                     <option value="{{ list.id }}"
                                             {% if request.GET.gang == list.id|stringformat:"s" %}selected{% endif %}>
                                         {{ list.name }}
-                                        {% if list.content_house %}({{ list.content_house.name }}){% endif %}
+                                        {% if list.content_house %}({{ list.content_house_name }}){% endif %}
                                         - {{ list.owner.username }}
                                     </option>
                                 {% endfor %}

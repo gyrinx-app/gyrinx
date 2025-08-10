@@ -697,7 +697,7 @@ class ContentEquipment(FighterCostMixin, Content):
         """
         if hasattr(self, "has_weapon_profiles"):
             return self.has_weapon_profiles
-        return ContentWeaponProfile.objects.filter(equipment=self).exists()
+        return self.contentweaponprofile_set.exists()
 
     @cached_property
     def is_weapon_cached(self):
