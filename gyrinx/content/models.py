@@ -484,16 +484,13 @@ class ContentEquipmentQuerySet(models.QuerySet):
         )
 
         # Filter to only expansions that apply
-        expansion_ids = []
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                expansion_ids.append(expansion.id)
+        expansion_ids = ContentEquipmentListExpansion.get_applicable_expansions(
+            rule_inputs
+        ).values("id")
 
         # Get expansion item cost overrides (only for base equipment, not profiles)
         expansion_items = ContentEquipmentListExpansionItem.objects.filter(
-            expansion__in=expansion_ids,
+            expansion__in=Subquery(expansion_ids),
             equipment=OuterRef("pk"),
             weapon_profile__isnull=True,  # Only base equipment costs, not profile-specific
         )
@@ -554,16 +551,13 @@ class ContentEquipmentQuerySet(models.QuerySet):
         )
 
         # Filter to only expansions that apply
-        expansion_ids = []
-        for expansion in ContentEquipmentListExpansion.objects.prefetch_related(
-            "rules"
-        ).all():
-            if expansion.applies_to(rule_inputs):
-                expansion_ids.append(expansion.id)
+        expansion_ids = ContentEquipmentListExpansion.get_applicable_expansions(
+            rule_inputs
+        ).values("id")
 
         # Get expansion item profile cost overrides
         expansion_profile_items = ContentEquipmentListExpansionItem.objects.filter(
-            expansion__in=expansion_ids,
+            expansion__in=Subquery(expansion_ids),
             equipment=OuterRef("equipment"),
             weapon_profile=OuterRef("pk"),
         )
