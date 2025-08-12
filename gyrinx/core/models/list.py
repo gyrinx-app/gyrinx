@@ -9,8 +9,8 @@ from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, F, Prefetch, Q, Value, When
-from django.db.models.functions import Concat
+from django.db.models import Case, F, OuterRef, Prefetch, Q, Subquery, Value, When
+from django.db.models.functions import Concat, JSONObject
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils.functional import cached_property
@@ -644,33 +644,62 @@ class ListFighterQuerySet(models.QuerySet):
         This is the standard optimization pattern used throughout views
         to reduce N+1 query issues.
         """
-        return self.select_related(
-            "content_fighter",
-            "content_fighter__house",
-            "legacy_content_fighter",
-            "legacy_content_fighter__house",
-            "capture_info",
-            "capture_info__capturing_list",
-        ).prefetch_related(
-            "injuries",
-            "skills",
-            "disabled_skills",
-            "disabled_rules",
-            "disabled_default_assignments",
-            "advancements",
-            # Prefetch equipment assignments with their related data
-            "listfighterequipmentassignment_set",
-            # Prefetch default assignments
-            "content_fighter__skills",
-            "content_fighter__rules",
-            "content_fighter__house",
-            # Prefetch linked fighter data
-            "linked_fighter",
-            Prefetch(
-                "list",
-                # DO NOT add with_fighters=True here, it will cause infinite recursion
-                queryset=List.objects.with_related_data(),
-            ),
+        return (
+            self.select_related(
+                "content_fighter",
+                "content_fighter__house",
+                "legacy_content_fighter",
+                "legacy_content_fighter__house",
+                "capture_info",
+                "capture_info__capturing_list",
+            )
+            .prefetch_related(
+                "injuries",
+                "skills",
+                "disabled_skills",
+                "disabled_rules",
+                "disabled_default_assignments",
+                "advancements",
+                # Prefetch equipment assignments with their related data
+                "listfighterequipmentassignment_set",
+                # Prefetch default assignments
+                "content_fighter__skills",
+                "content_fighter__rules",
+                "content_fighter__house",
+                # Prefetch linked fighter data
+                "linked_fighter",
+                "linked_fighter__list_fighter",
+                Prefetch(
+                    "list",
+                    # DO NOT add with_fighters=True here, it will cause infinite recursion
+                    queryset=List.objects.with_related_data(),
+                ),
+            )
+            .annotate(
+                annotated_category_terms=Subquery(
+                    ListFighter.objects.sq_category_terms()
+                ),
+            )
+        )
+
+    def sq_category_terms(self):
+        """
+        Subquery to get category terms for this fighter.
+        This is used to annotate the main queryset with category terms.
+        """
+        return (
+            ContentFighterCategoryTerms.objects.filter(
+                categories__contains=OuterRef("content_fighter__category")
+            )
+            .annotate(
+                obj=JSONObject(
+                    singular=F("singular"),
+                    proximal_demonstrative=F("proximal_demonstrative"),
+                    injury_singular=F("injury_singular"),
+                    injury_plural=F("injury_plural"),
+                )
+            )
+            .values("obj")[:1]
         )
 
 
@@ -894,6 +923,19 @@ class ListFighter(AppBase):
         return self.content_fighter_cached.is_vehicle
 
     @cached_property
+    def _category_terms(self):
+        if not hasattr(self, "annotated_category_terms"):
+            return ContentFighterCategoryTerms.objects.filter(
+                categories__contains=self.content_fighter_cached.category
+            ).first()
+
+        return (
+            ContentFighterCategoryTerms(**self.annotated_category_terms)
+            if self.annotated_category_terms
+            else None
+        )
+
+    @cached_property
     def proximal_demonstrative(self) -> str:
         """
         Returns a user-friendly proximal demonstrative for this fighter (e.g., "this" or "that").
@@ -906,12 +948,8 @@ class ListFighter(AppBase):
         """
         Returns the singular term for this fighter, using custom terms if available.
         """
-        fighter_category = self.content_fighter_cached.category
-        category_terms = ContentFighterCategoryTerms.objects.filter(
-            categories__contains=fighter_category
-        ).first()
-        if category_terms:
-            return category_terms.singular
+        if self._category_terms:
+            return self._category_terms.singular
 
         # Default to "fighter" if no custom term is found
         return "Fighter"
@@ -924,13 +962,8 @@ class ListFighter(AppBase):
         # Import here to avoid circular imports
 
         # Check if this fighter's category has custom terms
-        fighter_category = self.content_fighter_cached.category
-        category_terms = ContentFighterCategoryTerms.objects.filter(
-            categories__contains=fighter_category
-        ).first()
-
-        if category_terms:
-            return category_terms.proximal_demonstrative
+        if self._category_terms:
+            return self._category_terms.proximal_demonstrative
 
         # Fall back to default logic
         if self.is_stash:
@@ -949,13 +982,8 @@ class ListFighter(AppBase):
         # Import here to avoid circular imports
 
         # Check if this fighter's category has custom terms
-        fighter_category = self.content_fighter_cached.category
-        category_terms = ContentFighterCategoryTerms.objects.filter(
-            categories__contains=fighter_category
-        ).first()
-
-        if category_terms:
-            return category_terms.injury_singular
+        if self._category_terms:
+            return self._category_terms.injury_singular
 
         # Default
         return "Injury"
@@ -968,13 +996,8 @@ class ListFighter(AppBase):
         # Import here to avoid circular imports
 
         # Check if this fighter's category has custom terms
-        fighter_category = self.content_fighter_cached.category
-        category_terms = ContentFighterCategoryTerms.objects.filter(
-            categories__contains=fighter_category
-        ).first()
-
-        if category_terms:
-            return category_terms.injury_plural
+        if self._category_terms:
+            return self._category_terms.injury_plural
 
         # Default
         return "Injuries"
@@ -1360,7 +1383,30 @@ class ListFighter(AppBase):
 
     @cached_property
     def has_linked_fighter(self: "ListFighter") -> bool:
+        """
+        Check if this fighter has a linked fighter.
+
+        The relation self.linked_fighter is a related name from the assignment, so has_linked_fighter
+        is true for the *child* fighter, not the parent.
+        """
         return self.linked_fighter.exists()
+
+    @cached_property
+    def linked_list_fighter(self):
+        """
+        Returns the actual linked fighter object for this fighter, if it exists.
+
+        This is uses from the *child* fighter's perspective, so it returns the parent
+        ListFighter that is linked to this fighter via the ListFighterEquipmentAssignment.
+        """
+        # Performance: This MUST use .all() to avoid hitting the database: we are using
+        # prefetch_related in the queryset to load linked_fighter.
+        # If we use .first() or .get(), it will hit the database again.
+        linked_fighters = self.linked_fighter.all()
+        if linked_fighters:
+            # Return the first linked fighter, assuming only one is linked
+            return linked_fighters[0].list_fighter
+        return None
 
     def skilline(self):
         # Start with default skills from ContentFighter
@@ -1757,10 +1803,6 @@ class ListFighter(AppBase):
 
     def has_overriden_cost(self):
         return self.cost_override is not None or self.should_have_zero_cost
-
-    @cached_property
-    def linked_list_fighter(self):
-        return self.linked_fighter.get().list_fighter
 
     def toggle_default_assignment(
         self, assign: ContentFighterDefaultAssignment, enable=False

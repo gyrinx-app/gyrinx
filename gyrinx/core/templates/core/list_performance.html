@@ -1,9 +1,9 @@
-{% extends "core/layouts/base.html" %}
+{% extends "core/layouts/foundation.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
-{% block content %}
+{% block base %}
     <h2>List Details</h2>
     <ul>
         <li>{{ list.name }}</li>
@@ -35,50 +35,56 @@
         {% endfor %}
     </ul>
     <h2>Available Attributes</h2>
-    <ul>
-        {% if list.all_attributes %}
-            <table class="table table-sm mb-0 fs-7">
-                <tbody>
-                    {% for attribute in list.all_attributes %}
-                        <tr>
-                            <td>{{ attribute.name }}</td>
-                            <td>
-                                {% if attribute.assignments %}
-                                    {{ attribute.assignments|join:", " }}
-                                {% else %}
-                                    <span class="text-muted">Not set</span>
-                                {% endif %}
-                            </td>
-                            {% if not print %}
-                                <td class="text-end">
-                                    {% if list.owner_cached == user and not list.archived %}
-                                        <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
-                                           class="icon-link link-secondary link-sm">
-                                            <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
-                                               aria-hidden="true"></i>
-                                            {% if attribute.assignments %}
-                                                Edit
-                                            {% else %}
-                                                Add
-                                            {% endif %}
-                                        </a>
-                                    {% endif %}
-                                </td>
+    {% if list.all_attributes %}
+        <table class="table table-sm mb-0 fs-7">
+            <tbody>
+                {% for attribute in list.all_attributes %}
+                    <tr>
+                        <td>{{ attribute.name }}</td>
+                        <td>
+                            {% if attribute.assignments %}
+                                {{ attribute.assignments|join:", " }}
+                            {% else %}
+                                <span class="text-muted">Not set</span>
                             {% endif %}
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="text-muted fs-7 mb-0">No attributes available.</p>
-        {% endif %}
-    </ul>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="text-muted fs-7 mb-0">No attributes available.</p>
+    {% endif %}
     <h2>List Fighters</h2>
-    <ul>
-        {% for fighter in list.active_fighters %}
-            <li>{{ fighter.name }} ({{ fighter.list.active_attributes_cached|join:", " }})</li>
-        {% empty %}
-            <li>No fighters in this list.</li>
-        {% endfor %}
-    </ul>
-{% endblock content %}
+    <table class="table table-sm mb-0 fs-7">
+        <tbody>
+            <tr>
+                <th>Name</th>
+                <th>Injury State</th>
+                <th>Captured / Sold to Guilders</th>
+                <th>Linked Fighter</th>
+            </tr>
+            {% for fighter in list.active_fighters %}
+                <tr>
+                    <td>{{ fighter.name }}</td>
+                    <td>{{ fighter.get_injury_state_display }}</td>
+                    <td>
+                        {{ fighter.is_captured |yesno:"Captured,Not Captured" }} / {{ fighter.is_sold_to_guilders |yesno:"Sold to Guilders,Not Sold" }}
+                    </td>
+                    <td>
+                        {% if fighter.has_linked_fighter %}
+                            {{ fighter.term_proximal_demonstrative }} is linked
+                            to {{ fighter.linked_list_fighter.name }}
+                        </td>
+                    {% else %}
+                        <span class="text-muted">No linked fighter</span>
+                    {% endif %}
+                </tr>
+            {% empty %}
+                <tr>
+                    <td>No fighters in this list.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock base %}
