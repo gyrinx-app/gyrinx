@@ -1230,6 +1230,7 @@ class ContentFighterCategoryTerms(Content):
     class Meta:
         verbose_name = "Fighter Category Terms"
         verbose_name_plural = "Fighter Category Terms"
+        unique_together = ["categories"]
 
 
 class ContentFighterEquipmentListItem(CostMixin, Content):
