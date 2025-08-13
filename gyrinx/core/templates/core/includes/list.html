@@ -244,7 +244,10 @@
                     {% else %}
                         {% for fighter in group.list %}
                             {% if fighter.is_stash %}
-                                {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                                {% comment %} Only show stash if not in print mode, or if print_config allows it {% endcomment %}
+                                {% if not print or not print_config or print_config.include_stash %}
+                                    {% include "core/includes/fighter_card_stash.html" with fighter=fighter list=list print=print %}
+                                {% endif %}
                             {% else %}
                                 {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print %}
                             {% endif %}
