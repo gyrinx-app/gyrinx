@@ -1113,11 +1113,16 @@ class ListFighter(AppBase):
         if hasattr(self, "annotated_house_cost_override"):
             cost_override = self.annotated_house_cost_override
         else:
-            cost_override = ContentFighterHouseOverride.objects.filter(
-                fighter=self.content_fighter_cached,
-                house=self.list.content_house,
-                cost__isnull=False,
-            ).values("cost")[:1]
+            cost_override_qs = (
+                ContentFighterHouseOverride.objects.filter(
+                    fighter=self.content_fighter_cached,
+                    house=self.list.content_house,
+                    cost__isnull=False,
+                )
+                .values("cost")
+                .first()
+            )
+            cost_override = cost_override_qs
 
         if cost_override:
             return cost_override["cost"]
@@ -1842,7 +1847,7 @@ class ListFighter(AppBase):
         """Check if this fighter should contribute 0 to gang total cost."""
         return self.is_captured or self.is_sold_to_guilders
 
-    def has_overriden_cost(self):
+    def has_overridden_cost(self):
         return self.cost_override is not None or self.should_have_zero_cost
 
     def toggle_default_assignment(
