@@ -4,6 +4,7 @@ import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
+from django.core.cache import cache
 
 from gyrinx.content.models import (
     ContentBook,
@@ -15,6 +16,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
@@ -28,6 +30,9 @@ def django_test_settings():
     settings.STORAGES["staticfiles"]["BACKEND"] = (
         "django.contrib.staticfiles.storage.StaticFilesStorage"
     )
+
+    # This prevents the banner query being fired in tests
+    cache.set(BANNER_CACHE_KEY, False, None)
 
 
 @pytest.fixture(scope="session")

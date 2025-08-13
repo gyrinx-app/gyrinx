@@ -9,8 +9,18 @@ from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, F, OuterRef, Prefetch, Q, Subquery, Value, When
-from django.db.models.functions import Concat, JSONObject
+from django.db.models import (
+    Case,
+    F,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce, Concat, JSONObject
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils.functional import cached_property
@@ -679,6 +689,12 @@ class ListFighterQuerySet(models.QuerySet):
                 annotated_category_terms=Subquery(
                     ListFighter.objects.sq_category_terms()
                 ),
+                annotated_house_cost_override=Subquery(
+                    ListFighter.objects.sq_house_cost_override()
+                ),
+                annotated_advancement_total_cost=Coalesce(
+                    Sum("advancements__cost_increase"), Value(0)
+                ),
             )
         )
 
@@ -699,6 +715,17 @@ class ListFighterQuerySet(models.QuerySet):
                     injury_plural=F("injury_plural"),
                 )
             )
+            .values("obj")[:1]
+        )
+
+    def sq_house_cost_override(self):
+        return (
+            ContentFighterHouseOverride.objects.filter(
+                fighter_id=OuterRef("content_fighter_id"),
+                house=OuterRef("list__content_house"),
+                cost__isnull=False,
+            )
+            .annotate(obj=JSONObject(cost=F("cost")))
             .values("obj")[:1]
         )
 
@@ -1057,13 +1084,9 @@ class ListFighter(AppBase):
         if self.should_have_zero_cost:
             return 0
 
-        # Include advancement cost increases
-        advancement_cost = (
-            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
-        )
         return (
             self._base_cost_int
-            + advancement_cost
+            + self._advancement_cost_int
             + sum([e.cost_int() for e in self.assignments_cached])
         )
 
@@ -1086,13 +1109,18 @@ class ListFighter(AppBase):
     def _base_cost_before_override(self):
         # Or by the house...
         # Is this an override? Yes, but not set on the fighter itself.
-        cost_override = ContentFighterHouseOverride.objects.filter(
-            fighter=self.content_fighter_cached,
-            house=self.list.content_house,
-            cost__isnull=False,
-        ).first()
+        cost_override = None
+        if hasattr(self, "annotated_house_cost_override"):
+            cost_override = self.annotated_house_cost_override
+        else:
+            cost_override = ContentFighterHouseOverride.objects.filter(
+                fighter=self.content_fighter_cached,
+                house=self.list.content_house,
+                cost__isnull=False,
+            ).values("cost")[:1]
+
         if cost_override:
-            return cost_override.cost
+            return cost_override["cost"]
 
         # But if neither of those are set, we just use the base cost from the content fighter
         return self.content_fighter_cached.cost_int()
@@ -1102,6 +1130,19 @@ class ListFighter(AppBase):
 
     def base_cost_before_override_display(self):
         return format_cost_display(self._base_cost_before_override())
+
+    @cached_property
+    def _advancement_cost_int(self):
+        if hasattr(self, "annotated_advancement_total_cost"):
+            return self.annotated_advancement_total_cost
+
+        return (
+            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+        )
+
+    @cached_property
+    def advancement_cost_display(self):
+        return format_cost_display(self._advancement_cost_int)
 
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)

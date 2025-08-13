@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import Case, Q, When
@@ -33,6 +34,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,
@@ -292,6 +294,9 @@ class ListPerformanceView(generic.DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # This prevents the banner query being fired in tests
+        cache.set(BANNER_CACHE_KEY, False, None)
 
         return context
 

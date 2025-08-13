@@ -60,13 +60,18 @@
         <tbody>
             <tr>
                 <th>Name</th>
+                <th>Base Cost</th>
+                <th>Advancement Cost</th>
                 <th>Injury State</th>
                 <th>Captured / Sold to Guilders</th>
                 <th>Linked Fighter</th>
+                <th>Cost Override</th>
             </tr>
             {% for fighter in list.active_fighters %}
                 <tr>
                     <td>{{ fighter.name }}</td>
+                    <td>{{ fighter.base_cost_display }}</td>
+                    <td>{{ fighter.advancement_cost_display }}</td>
                     <td>{{ fighter.get_injury_state_display }}</td>
                     <td>
                         {{ fighter.is_captured |yesno:"Captured,Not Captured" }} / {{ fighter.is_sold_to_guilders |yesno:"Sold to Guilders,Not Sold" }}
@@ -75,10 +80,11 @@
                         {% if fighter.has_linked_fighter %}
                             {{ fighter.term_proximal_demonstrative }} is linked
                             to {{ fighter.linked_list_fighter.name }}
-                        </td>
-                    {% else %}
-                        <span class="text-muted">No linked fighter</span>
-                    {% endif %}
+                        {% else %}
+                            <span class="text-muted">No linked fighter</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ fighter.has_overriden_cost |yesno:"Cost overridden,No override" }}</td>
                 </tr>
             {% empty %}
                 <tr>

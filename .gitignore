@@ -11,6 +11,7 @@ venv/
 css/
 gyrinx/core/static/core/css/styles.css
 gyrinx/core/static/core/css/styles.css.map
+performance_view_queries_latest.json
 dist/
 /node_modules/
 ui_archive/
