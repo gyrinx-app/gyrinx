@@ -74,7 +74,7 @@
                                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
@@ -102,11 +102,11 @@
                                         {% if list.owner_cached == user and not print %}
                                             {% if line.assignments|length > 0 %}
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Edit</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Edit</a>
                                                 {% endif %}
                                             {% else %}
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter=all&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
