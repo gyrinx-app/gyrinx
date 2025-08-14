@@ -1,7 +1,7 @@
 import logging
 
 from django.core.cache import cache
-from django.db import DatabaseError, OperationalError, InterfaceError
+from django.db import DatabaseError, InterfaceError, OperationalError
 
 from gyrinx.core.models import Banner
 
@@ -13,7 +13,11 @@ BANNER_CACHE_TIMEOUT = 300  # 5 minutes
 
 
 def site_banner(request):
-    """Add the current live banner to the context, if any exists and hasn't been dismissed."""
+    """
+    Add the current live banner to the context, if any exists and hasn't been dismissed.
+
+    Note that this is disabled in tests by directly setting BANNER_CACHE_KEY to False
+    """
     context = {"banner": None}
 
     # Try to get banner from cache first
