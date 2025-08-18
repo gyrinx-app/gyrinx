@@ -696,6 +696,7 @@ class ListFighterQuerySet(models.QuerySet):
                     Sum("advancements__cost_increase"), Value(0)
                 ),
                 annotated_content_fighter_statline=self.sq_content_fighter_statline(),
+                annotated_stat_overrides=self.sq_stat_overrides(),
             )
         )
 
@@ -753,6 +754,21 @@ class ListFighterQuerySet(models.QuerySet):
                 ),
             ),
             default=Value(None),
+        )
+
+    def sq_stat_overrides(self):
+        return Case(
+            When(
+                Q(content_fighter__custom_statline__isnull=False)
+                & Q(stat_overrides__isnull=False),
+                then=ArrayAgg(
+                    JSONObject(
+                        field_name=F("stat_overrides__content_stat__stat__field_name"),
+                        value=F("stat_overrides__value"),
+                    ),
+                    distinct=True,
+                ),
+            )
         )
 
 
@@ -1333,10 +1349,19 @@ class ListFighter(AppBase):
 
         # Get stat overrides for this fighter
         stat_overrides = {}
-        if has_custom_statline and self.stat_overrides.exists():
+        # Performance: use the annotated version if it exists
+        if (
+            hasattr(self, "annotated_stat_overrides")
+            and self.annotated_stat_overrides is not None
+        ):
+            stat_overrides = {
+                override["field_name"]: override["value"]
+                for override in self.annotated_stat_overrides
+            }
+        elif has_custom_statline and self.stat_overrides.exists():
             stat_overrides = {
                 override.content_stat.field_name: override.value
-                for override in self.stat_overrides
+                for override in self.stat_overrides.all()
             }
 
         for stat in self.content_fighter_statline:

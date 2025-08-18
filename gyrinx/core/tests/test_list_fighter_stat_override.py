@@ -453,15 +453,6 @@ def test_statline_annotation_with_custom_statline(list_obj):
     # ... then refetch with all related data
     lf = ListFighter.objects.with_related_data().get(id=lf.id)
 
-    """
-    {
-                        "field_name": stat_def.field_name,
-                        "name": stat_def.short_name,
-                        "value": value,
-                        "highlight": stat_def.is_highlighted,
-                        "classes": "border-start" if stat_def.is_first_of_group else "",
-                    }
-                    """
     assert lf.annotated_content_fighter_statline == [
         {
             "field_name": "stat1",
@@ -476,5 +467,85 @@ def test_statline_annotation_with_custom_statline(list_obj):
             "value": "2",
             "highlight": False,
             "first_of_group": False,
+        },
+    ]
+
+
+@pytest.mark.django_db
+def test_statline_override_annotation_with_custom_statline(list_obj):
+    fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=list_obj.content_house,
+        category="GANGER",  # Add required category
+    )
+
+    # Create statline type with stats
+    statline_type = ContentStatlineType.objects.create(name="Test Type")
+
+    # Create stat definitions
+    stat1_def = ContentStat.objects.create(
+        field_name="stat1",
+        short_name="S1",
+        full_name="Stat 1",
+    )
+
+    stat2_def = ContentStat.objects.create(
+        field_name="stat2",
+        short_name="S2",
+        full_name="Stat 2",
+    )
+
+    # Create statline type stats
+    s1 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat1_def,
+        position=1,
+    )
+
+    s2 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat2_def,
+        position=2,
+    )
+
+    # Create statline without all required stats
+    statline = ContentStatline.objects.create(
+        content_fighter=fighter,
+        statline_type=statline_type,
+    )
+
+    # Add some values
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s1,
+        value="1",
+    )
+
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s2,
+        value="2",
+    )
+
+    # Make a ListFighter from the ContentFighter
+    lf = ListFighter.objects.create(
+        content_fighter=fighter,
+        list=list_obj,
+    )
+
+    # And override the stat
+    ListFighterStatOverride.objects.create(
+        list_fighter=lf,
+        content_stat=s1,
+        value="3",
+    )
+
+    # ... then refetch with all related data
+    lf = ListFighter.objects.with_related_data().get(id=lf.id)
+
+    assert lf.annotated_stat_overrides == [
+        {
+            "field_name": "stat1",
+            "value": "3",
         },
     ]
