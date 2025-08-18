@@ -23,3 +23,6 @@ media/
 # Ignore the latest content data export file
 latest.json
 .DS_Store
+
+# Ignore Pycharm project files
+.idea/
