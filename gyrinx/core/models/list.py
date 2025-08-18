@@ -672,13 +672,11 @@ class ListFighterQuerySet(models.QuerySet):
                 "disabled_rules",
                 "disabled_default_assignments",
                 "advancements",
-                # Prefetch equipment assignments with their related data
+                "stat_overrides",
                 "listfighterequipmentassignment_set",
-                # Prefetch default assignments
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
-                # Prefetch linked fighter data
                 "linked_fighter",
                 "linked_fighter__list_fighter",
                 Prefetch(
@@ -1338,7 +1336,7 @@ class ListFighter(AppBase):
         if has_custom_statline and self.stat_overrides.exists():
             stat_overrides = {
                 override.content_stat.field_name: override.value
-                for override in self.stat_overrides.select_related("content_stat")
+                for override in self.stat_overrides
             }
 
         for stat in self.content_fighter_statline:
