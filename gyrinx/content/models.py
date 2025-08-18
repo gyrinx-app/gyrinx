@@ -1030,6 +1030,9 @@ class ContentFighter(Content):
         """
         Returns a list of dictionaries describing the fighter's core stats,
         with additional styling indicators. Prefers custom statline if available.
+
+        Performance: Note that this method is expensive and is entirely skipped if the statline is prefecthed
+        by ListFighter with_related_data.
         """
         # Check for custom statline first
         if not ignore_custom and hasattr(self, "custom_statline"):
@@ -1048,7 +1051,7 @@ class ContentFighter(Content):
                         "name": stat_def.short_name,
                         "value": value,
                         "highlight": stat_def.is_highlighted,
-                        "classes": "border-start" if stat_def.is_first_of_group else "",
+                        "first_of_group": stat_def.is_first_of_group,
                     }
                 )
             return stats
@@ -1085,7 +1088,7 @@ class ContentFighter(Content):
                 "highlight": bool(
                     field.name in ["leadership", "cool", "willpower", "intelligence"]
                 ),
-                "classes": ("border-start" if field.name in ["leadership"] else ""),
+                "first_of_group": field.name in ["leadership"],
             }
             for f, field in stats
         ]
@@ -1952,11 +1955,12 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
         return result
 
     def standard_profiles(self):
+        # Performance: this is better in Python because it avoids additional database queries when
+        # prefetched.
         return [
             VirtualWeaponProfile(p, self._mods)
-            for p in ContentWeaponProfile.objects.filter(
-                equipment=self.equipment, cost=0
-            )
+            for p in self.equipment.contentweaponprofile_set.all()
+            if p.cost == 0
         ]
 
     @cached_property

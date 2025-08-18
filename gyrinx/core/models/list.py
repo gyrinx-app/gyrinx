@@ -673,10 +673,11 @@ class ListFighterQuerySet(models.QuerySet):
                 "disabled_default_assignments",
                 "advancements",
                 "stat_overrides",
-                "listfighterequipmentassignment_set",
+                "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
+                "content_fighter__default_assignments__equipment__contentweaponprofile_set",
                 "linked_fighter",
                 "linked_fighter__list_fighter",
                 Prefetch(
@@ -686,6 +687,7 @@ class ListFighterQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
+                prefetched=Value(True),
                 annotated_category_terms=Subquery(
                     ListFighter.objects.sq_category_terms()
                 ),
@@ -1225,9 +1227,7 @@ class ListFighter(AppBase):
         # Add injury mods if in campaign mode
         injury_mods = []
         if self.list.is_campaign_mode:
-            for injury in self.injuries.select_related("injury").prefetch_related(
-                "injury__modifiers"
-            ):
+            for injury in self.injuries.all():
                 injury_mods.extend(injury.injury.modifiers.all())
 
         return equipment_mods + injury_mods
@@ -1378,11 +1378,13 @@ class ListFighter(AppBase):
                     input_value = value_override
 
             # Apply the mods
+            statmods = self._statmods(stat["field_name"])
             value = self._apply_mods(
                 stat["field_name"],
                 input_value,
-                self._statmods(stat["field_name"]),
+                statmods,
             )
+
             modded = value != stat["value"]
             sd = StatlineDisplay(
                 name=stat["name"],
@@ -1403,20 +1405,23 @@ class ListFighter(AppBase):
 
         Performance: we try to use the annotated version if it exists, which is added by `get_related_data`.
         """
-        if (
-            hasattr(self, "annotated_content_fighter_statline")
-            and self.annotated_content_fighter_statline is not None
-        ):
-            return [
-                {**stat, "classes": "border-start" if stat["first_of_group"] else ""}
-                for stat in self.annotated_content_fighter_statline
-            ]
-
-        # Performance: we don't want to repeat look-for the custom statline, so we force-skip
-        # this check on the fallback call.
-        return self.content_fighter_cached.statline(
-            ignore_custom=hasattr(self, "annotated_content_fighter_statline")
+        stats = (
+            self.annotated_content_fighter_statline
+            if (
+                hasattr(self, "annotated_content_fighter_statline")
+                and self.annotated_content_fighter_statline is not None
+            )
+            # Performance: we don't want to repeat look-for the custom statline, so we force-skip
+            # this check on the fallback call.
+            else self.content_fighter_cached.statline(
+                ignore_custom=hasattr(self, "annotated_content_fighter_statline")
+            )
         )
+
+        return [
+            {**stat, "classes": "border-start" if stat["first_of_group"] else ""}
+            for stat in stats
+        ]
 
     @cached_property
     def ruleline(self):
@@ -1492,18 +1497,22 @@ class ListFighter(AppBase):
         return assign
 
     def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
-        return self.equipment.through.objects.filter(list_fighter=self)
+        return self.listfighterequipmentassignment_set.all()
 
     @cached_property
     def _default_assignments(self):
-        return self.content_fighter_cached.default_assignments.exclude(
-            Q(pk__in=self.disabled_default_assignments.all())
-        )
+        # Performance: this is done in Python because when we prefetch these, these queries are
+        # already optimized and won't hit the database again.
+        return [
+            a
+            for a in self.content_fighter_cached.default_assignments.all()
+            if a not in self.disabled_default_assignments.all()
+        ]
 
     def assignments(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
-            for a in self._direct_assignments().order_by("list_fighter__name")
+            for a in self._direct_assignments()
         ] + [
             VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
             for a in self._default_assignments
@@ -2498,7 +2507,6 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     def all_profiles(self) -> list["VirtualWeaponProfile"]:
         """Return all profiles for the equipment, including the default profiles."""
-
         standard_profiles = self.standard_profiles_cached
         weapon_profiles = self.weapon_profiles_cached
 
@@ -2515,11 +2523,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return self.all_profiles()
 
     def standard_profiles(self):
+        # TODO: There is nothing in the prefetch cache here
         return [
             VirtualWeaponProfile(p, self._mods)
-            for p in ContentWeaponProfile.objects.filter(
-                equipment=self.content_equipment, cost=0
-            )
+            for p in self.content_equipment.contentweaponprofile_set.all()
+            if p.cost == 0
         ]
 
     @cached_property
@@ -3138,6 +3146,7 @@ class VirtualListFighterEquipmentAssignment:
         return cls(
             fighter=assignment.list_fighter_cached,
             equipment=assignment.content_equipment_cached,
+            # TODO: Expensive!
             profiles=assignment.all_profiles_cached,
             _assignment=assignment,
         )
