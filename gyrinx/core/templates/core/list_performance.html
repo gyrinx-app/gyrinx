@@ -4,6 +4,17 @@
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block base %}
+    <div class="border rounded m-2 mb-3 p-2 mb-last-0 text-muted">
+        Stuff that is not here yet, but could later be optimised:
+        <ul>
+            <li>
+                <em>Cost</em> — this is the big one. Currently around 14 queries per fighter, which is a lot.
+            </li>
+            <li>
+                <em>Refs</em> — using the ref tag. These are already fairly optimised and cached.
+            </li>
+        </ul>
+    </div>
     <h2>List Details</h2>
     <ul>
         <li>{{ list.name }}</li>
@@ -59,7 +70,8 @@
     <table class="table table-sm mb-0 fs-7">
         <tbody>
             <tr>
-                <th>Name</th>
+                <th rowspan="2">Name</th>
+                <th>Category Label / CF Cat / Override</th>
                 <th>Base Cost</th>
                 <th>Advancement Cost</th>
                 <th>Injury State</th>
@@ -67,9 +79,20 @@
                 <th>Linked Fighter</th>
                 <th>Cost Override</th>
             </tr>
+            <tr>
+                <th>Legacy House / Takes Legacy</th>
+                <th colspan="2"></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+            </tr>
             {% for fighter in list.active_fighters %}
                 <tr>
-                    <td>{{ fighter.name }}</td>
+                    <td rowspan="2">{{ fighter.name }}</td>
+                    <td>{{ fighter.get_category_label }} / {{ fighter.content_fighter_cached.cat }} / {{ fighter.category_override }}</td>
                     <td>{{ fighter.base_cost_display }}</td>
                     <td>{{ fighter.advancement_cost_display }}</td>
                     <td>{{ fighter.get_injury_state_display }}</td>
@@ -81,10 +104,28 @@
                             {{ fighter.term_proximal_demonstrative }} is linked
                             to {{ fighter.linked_list_fighter.name }}
                         {% else %}
-                            <span class="text-muted">No linked fighter</span>
+                            <span class="text-muted fst-italic">No linked fighter</span>
                         {% endif %}
                     </td>
                     <td>{{ fighter.has_overridden_cost |yesno:"Cost overridden,No override" }}</td>
+                </tr>
+                <tr>
+                    <td>
+                        {% if fighter.legacy_content_fighter_cached %}
+                            {{ fighter.legacy_content_fighter_cached.house.name }}
+                        {% else %}
+                            <span class="text-muted fst-italic">No legacy</span>
+                        {% endif %}
+                        / {{ fighter.can_take_legacy |yesno:"Yes,No" }}
+                    </td>
+                    <td colspan="2">
+                        <small>
+                            {% for stat in fighter.statline %}
+                                {{ stat.name }}: {{ stat.value }}
+                                {% if not forloop.last %}|{% endif %}
+                            {% endfor %}
+                        </small>
+                    </td>
                 </tr>
             {% empty %}
                 <tr>
