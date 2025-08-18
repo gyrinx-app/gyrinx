@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from django.contrib import admin
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -50,6 +51,7 @@ from gyrinx.content.models import (
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
+    ContentStatline,
     ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -695,6 +697,7 @@ class ListFighterQuerySet(models.QuerySet):
                 annotated_advancement_total_cost=Coalesce(
                     Sum("advancements__cost_increase"), Value(0)
                 ),
+                annotated_content_fighter_statline=ListFighter.objects.sq_content_fighter_statline(),
             )
         )
 
@@ -727,6 +730,27 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .annotate(obj=JSONObject(cost=F("cost")))
             .values("obj")[:1]
+        )
+
+    def sq_content_fighter_statline(self):
+        return (
+            ContentStatline.objects.filter(
+                content_fighter=OuterRef("content_fighter_id")
+            )
+            .annotate(
+                stat_values=ArrayAgg(
+                    JSONObject(
+                        field_name=F("stats__statline_type_stat__stat__field_name"),
+                        name=F("stats__statline_type_stat__stat__short_name"),
+                        value=F("stats__value"),
+                        highlight=F("stats__statline_type_stat__is_highlighted"),
+                        first_of_group=F(
+                            "stats__statline_type_stat__is_first_of_group"
+                        ),
+                    )
+                )
+            )
+            .values("stat_values")
         )
 
 
@@ -1286,6 +1310,19 @@ class ListFighter(AppBase):
     def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
+
+        There are two statline systems:
+        1. one simple, legacy version that has a base list of stats on the content fighter, and `_override` fields
+           for each stat on the list fighter
+        2. a more complex, newer version that allows custom statline types to be created and assigned to content
+           fighters, with overrides stored separately, and with specific underlying stats reused across statline types
+
+        In either case, the flow goes something like this:
+        1. Get the statline for the underlying content fighter
+        2. Apply any overrides from the list fighter
+        3. Apply any mods from the list fighter
+
+        The more complex system is, without optimisation, massively more expensive to compute.
         """
         stats = []
 
@@ -1300,7 +1337,7 @@ class ListFighter(AppBase):
                 for override in self.stat_overrides.select_related("content_stat")
             }
 
-        for stat in self.content_fighter_cached.statline():
+        for stat in self.content_fighter_statline:
             input_value = stat["value"]
 
             # Check for overrides
@@ -1331,6 +1368,28 @@ class ListFighter(AppBase):
             stats.append(sd)
 
         return stats
+
+    @cached_property
+    def content_fighter_statline(self):
+        """
+        Get the base statline for the content fighter.
+
+        Performance: we try to use the annotated version if it exists, which is added by `get_related_data`.
+        """
+        if (
+            hasattr(self, "annotated_content_fighter_statline")
+            and self.annotated_content_fighter_statline is not None
+        ):
+            return [
+                {**stat, "classes": "border-start" if stat["first_of_group"] else ""}
+                for stat in self.annotated_content_fighter_statline
+            ]
+
+        # Performance: we don't want to repeat look-for the custom statline, so we force-skip
+        # this check on the fallback call.
+        return self.content_fighter_cached.statline(
+            ignore_custom=hasattr(self, "annotated_content_fighter_statline")
+        )
 
     @cached_property
     def ruleline(self):

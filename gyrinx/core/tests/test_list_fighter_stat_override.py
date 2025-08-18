@@ -354,3 +354,127 @@ def test_edit_fighter_stats_form_initialization_with_overrides(
 
     # Check initial value
     assert form.fields[f"stat_{vehicle_stats[0].id}"].initial == '10"'
+
+
+@pytest.mark.django_db
+def test_statline_annotation_with_legacy_statline(list_obj):
+    fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=list_obj.content_house,
+        category="GANGER",
+        movement="1",
+        weapon_skill="1",
+        ballistic_skill="1",
+        strength="1",
+        toughness="1",
+        wounds="1",
+        initiative="1",
+        attacks="1",
+        leadership="1",
+        cool="1",
+        willpower="1",
+        intelligence="1",
+    )
+
+    # Make a ListFighter from the ContentFighter
+    lf = ListFighter.objects.create(
+        content_fighter=fighter,
+        list=list_obj,
+    )
+
+    # ... then refetch with all related data
+    lf = ListFighter.objects.with_related_data().get(id=lf.id)
+
+    assert lf.annotated_content_fighter_statline is None
+
+
+@pytest.mark.django_db
+def test_statline_annotation_with_custom_statline(list_obj):
+    fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=list_obj.content_house,
+        category="GANGER",  # Add required category
+    )
+
+    # Create statline type with stats
+    statline_type = ContentStatlineType.objects.create(name="Test Type")
+
+    # Create stat definitions
+    stat1_def = ContentStat.objects.create(
+        field_name="stat1",
+        short_name="S1",
+        full_name="Stat 1",
+    )
+
+    stat2_def = ContentStat.objects.create(
+        field_name="stat2",
+        short_name="S2",
+        full_name="Stat 2",
+    )
+
+    # Create statline type stats
+    s1 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat1_def,
+        position=1,
+    )
+
+    s2 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat2_def,
+        position=2,
+    )
+
+    # Create statline without all required stats
+    statline = ContentStatline.objects.create(
+        content_fighter=fighter,
+        statline_type=statline_type,
+    )
+
+    # Add some values
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s1,
+        value="1",
+    )
+
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s2,
+        value="2",
+    )
+
+    # Make a ListFighter from the ContentFighter
+    lf = ListFighter.objects.create(
+        content_fighter=fighter,
+        list=list_obj,
+    )
+
+    # ... then refetch with all related data
+    lf = ListFighter.objects.with_related_data().get(id=lf.id)
+
+    """
+    {
+                        "field_name": stat_def.field_name,
+                        "name": stat_def.short_name,
+                        "value": value,
+                        "highlight": stat_def.is_highlighted,
+                        "classes": "border-start" if stat_def.is_first_of_group else "",
+                    }
+                    """
+    assert lf.annotated_content_fighter_statline == [
+        {
+            "field_name": "stat1",
+            "name": "S1",
+            "value": "1",
+            "highlight": False,
+            "first_of_group": False,
+        },
+        {
+            "field_name": "stat2",
+            "name": "S2",
+            "value": "2",
+            "highlight": False,
+            "first_of_group": False,
+        },
+    ]

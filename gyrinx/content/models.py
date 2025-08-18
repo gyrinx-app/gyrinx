@@ -1026,13 +1026,13 @@ class ContentFighter(Content):
 
         return self.cost_int()
 
-    def statline(self):
+    def statline(self, ignore_custom=False):
         """
         Returns a list of dictionaries describing the fighter's core stats,
         with additional styling indicators. Prefers custom statline if available.
         """
         # Check for custom statline first
-        if hasattr(self, "custom_statline"):
+        if not ignore_custom and hasattr(self, "custom_statline"):
             statline = self.custom_statline
             stats = []
             # Get all stat values for this statline
