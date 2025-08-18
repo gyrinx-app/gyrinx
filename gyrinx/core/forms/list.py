@@ -218,7 +218,7 @@ class ListFighterForm(forms.ModelForm):
         help_texts = {
             "name": "The name you use to identify this {term_singular}. This may be public.",
             "legacy_content_fighter": "The Gang Legacy for this fighter.",
-            "category_override": "Override the {term_singular}'s category without changing their type.",
+            "category_override": "Override the {term_singular}'s category without changing their type or special rules.",
             "cost_override": "Only change this if you want to override the default base cost of the {term_singular}.",
         }
         widgets = {
