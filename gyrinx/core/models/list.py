@@ -51,7 +51,6 @@ from gyrinx.content.models import (
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
-    ContentStatline,
     ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -660,6 +659,7 @@ class ListFighterQuerySet(models.QuerySet):
             self.select_related(
                 "content_fighter",
                 "content_fighter__house",
+                "content_fighter__custom_statline",
                 "legacy_content_fighter",
                 "legacy_content_fighter__house",
                 "capture_info",
@@ -697,7 +697,7 @@ class ListFighterQuerySet(models.QuerySet):
                 annotated_advancement_total_cost=Coalesce(
                     Sum("advancements__cost_increase"), Value(0)
                 ),
-                annotated_content_fighter_statline=ListFighter.objects.sq_content_fighter_statline(),
+                annotated_content_fighter_statline=self.sq_content_fighter_statline(),
             )
         )
 
@@ -733,24 +733,28 @@ class ListFighterQuerySet(models.QuerySet):
         )
 
     def sq_content_fighter_statline(self):
-        return (
-            ContentStatline.objects.filter(
-                content_fighter=OuterRef("content_fighter_id")
-            )
-            .annotate(
-                stat_values=ArrayAgg(
+        return Case(
+            When(
+                Q(content_fighter__custom_statline__isnull=False),
+                then=ArrayAgg(
                     JSONObject(
-                        field_name=F("stats__statline_type_stat__stat__field_name"),
-                        name=F("stats__statline_type_stat__stat__short_name"),
-                        value=F("stats__value"),
-                        highlight=F("stats__statline_type_stat__is_highlighted"),
+                        field_name=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__stat__field_name"
+                        ),
+                        name=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__stat__short_name"
+                        ),
+                        value=F("content_fighter__custom_statline__stats__value"),
+                        highlight=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__is_highlighted"
+                        ),
                         first_of_group=F(
-                            "stats__statline_type_stat__is_first_of_group"
+                            "content_fighter__custom_statline__stats__statline_type_stat__is_first_of_group"
                         ),
                     )
-                )
-            )
-            .values("stat_values")
+                ),
+            ),
+            default=Value(None),
         )
 
 
