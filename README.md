@@ -2,7 +2,7 @@
 
 ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
 
-This repository contains the Gynrix Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
+This repository contains the Gyrinx Django application. The code for this application is in the [`gyrinx`](./gyrinx/) directory.
 
 See the [design](./design/) directory or the [Google Doc](https://docs.google.com/document/d/1seKmLBz2L4bGPeHfUxjgl39BJ27-O1Fb0MlJWfmLQFE/edit?tab=t.5q9jh7it524z) for technical discussions. Access to the Google Doc is limited to contributors and admins.
 
