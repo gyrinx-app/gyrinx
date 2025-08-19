@@ -205,13 +205,19 @@
         {% elif print %}
             {% comment %} In print mode, show cards based on print configuration {% endcomment %}
             {% if recent_actions %}
-                {% include "core/includes/list_campaign_actions.html" with list=list recent_actions=recent_actions print=True %}
+                {% if not print_config or print_config.include_actions %}
+                    {% include "core/includes/list_campaign_actions.html" with list=list recent_actions=recent_actions print=True %}
+                {% endif %}
             {% endif %}
             {% if campaign_resources or held_assets %}
-                {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets print=True %}
+                {% if not print_config or print_config.include_assets %}
+                    {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets print=True %}
+                {% endif %}
             {% endif %}
             {% if list.all_attributes %}
-                {% include "core/includes/list_attributes.html" with list=list print=True %}
+                {% if not print_config or print_config.include_attributes %}
+                    {% include "core/includes/list_attributes.html" with list=list print=True %}
+                {% endif %}
             {% endif %}
         {% endif %}
         {% if print %}
