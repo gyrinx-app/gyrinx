@@ -30,6 +30,7 @@
 * [Group-Based Features](developing-gyrinx/group-based-features.md)
 * [Deployment Environment Variables](deployment-environment-variables.md)
 * [Security Baseline](security-baseline.md)
+* [Statlines](technical-reference/statlines.md)
 
 ## Explanation
 

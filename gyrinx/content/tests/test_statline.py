@@ -180,7 +180,7 @@ def test_content_fighter_statline_method():
 
     assert statline[4]["name"] == "HP"
     assert statline[4]["value"] == "3"
-    assert statline[4]["classes"] == "border-start"
+    assert statline[4]["first_of_group"] is True
 
     assert statline[5]["name"] == "Hnd"
     assert statline[5]["value"] == "6+"
