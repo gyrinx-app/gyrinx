@@ -752,7 +752,11 @@ class ListFighterQuerySet(models.QuerySet):
                         first_of_group=F(
                             "content_fighter__custom_statline__stats__statline_type_stat__is_first_of_group"
                         ),
-                    )
+                    ),
+                    # Cannot use distinct here due to order_by
+                    order_by=F(
+                        "content_fighter__custom_statline__stats__statline_type_stat__position"
+                    ),
                 ),
             ),
             default=Value(None),
@@ -1967,11 +1971,10 @@ class ListFighter(AppBase):
         """
         Convert a default assignment to a direct assignment.
         """
-        try:
-            assignment: ContentFighterDefaultAssignment = self._default_assignments.get(
-                id=assign.id
-            )
-        except ContentFighterDefaultAssignment.DoesNotExist:
+        assignment: ContentFighterDefaultAssignment = next(
+            (da for da in self._default_assignments if da.id == assign.id), None
+        )
+        if assignment is None:
             raise ValueError(
                 f"Default assignment {assign} not found on {self.content_fighter}"
             )
