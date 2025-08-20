@@ -155,7 +155,9 @@ def test_multiple_accessories_with_custom_weapon_cost():
 
 
 @pytest.mark.django_db
-def test_ui_displays_custom_weapon_cost_with_calculated_accessory():
+def test_ui_displays_custom_weapon_cost_with_calculated_accessory(
+    content_equipment_categories,
+):
     """Test that accessory selection and cost calculation work with custom weapon costs."""
     # Create required content
     house = ContentHouse.objects.create(name="Test House")

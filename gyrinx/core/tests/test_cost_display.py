@@ -70,7 +70,7 @@ class TestModelCostDisplay:
         accessory = ContentWeaponAccessory(name="Discount Accessory", cost=-5)
         assert accessory.cost_display() == "-5¢"
 
-    def test_equipment_list_override_display(self):
+    def test_equipment_list_override_display(self, content_equipment_categories):
         """Test the specific case from test_weapon_cost_equipment_list_override."""
         category = FighterCategoryChoices.JUVE
         house = ContentHouse.objects.create(name="Test House")
