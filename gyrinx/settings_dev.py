@@ -36,7 +36,6 @@ if USE_REAL_EMAIL_IN_DEV:
 logs_dir = BASE_DIR / "logs"
 try:
     logs_dir.mkdir(exist_ok=True)
-    raise OSError("Logs directory created successfully.")
 except OSError:
     logs_dir = Path(tempfile.gettempdir()) / "gyrinx_logs"
     logs_dir.mkdir(exist_ok=True)
