@@ -2250,6 +2250,15 @@ class ListFighter(AppBase):
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
 
+        indexes = [
+            # Postgres partial index to help with active fighter queries
+            models.Index(
+                name="idx_listfighter_list_active",
+                fields=["list_id", "id"],
+                condition=Q(archived=False),
+            ),
+        ]
+
     def __str__(self):
         cf = self.content_fighter
         return f"{self.name} – {cf.type} ({cf.category})"
