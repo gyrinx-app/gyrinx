@@ -166,7 +166,7 @@ class List(AppBase):
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
     )
     public = models.BooleanField(
-        default=True, help_text="Public lists are visible to all users."
+        default=True, help_text="Public lists are visible to all users.", db_index=True
     )
     narrative = models.TextField(
         "about",
@@ -178,6 +178,7 @@ class List(AppBase):
         choices=STATUS_CHOICES,
         default=LIST_BUILDING,
         help_text="Current status of the list.",
+        db_index=True,
     )
 
     # Track the original list if this is a campaign clone
@@ -786,7 +787,7 @@ class ListFighter(AppBase):
         max_length=255, validators=[validators.MinLengthValidator(1)]
     )
     content_fighter = models.ForeignKey(
-        ContentFighter, on_delete=models.CASCADE, null=False, blank=False
+        ContentFighter, on_delete=models.CASCADE, null=False, blank=False, db_index=True
     )
     legacy_content_fighter = models.ForeignKey(
         ContentFighter,
@@ -796,7 +797,9 @@ class ListFighter(AppBase):
         related_name="list_fighter_legacy",
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
     )
-    list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
+    list = models.ForeignKey(
+        List, on_delete=models.CASCADE, null=False, blank=False, db_index=True
+    )
     category_override = models.CharField(
         max_length=255,
         choices=[(c, c.label) for c in ALLOWED_CATEGORY_OVERRIDES],
@@ -2247,6 +2250,15 @@ class ListFighter(AppBase):
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
 
+        indexes = [
+            # Postgres partial index to help with active fighter queries
+            models.Index(
+                name="idx_listfighter_list_active",
+                fields=["list_id", "id"],
+                condition=Q(archived=False),
+            ),
+        ]
+
     def __str__(self):
         cf = self.content_fighter
         return f"{self.name} – {cf.type} ({cf.category})"
@@ -2367,6 +2379,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         blank=False,
         verbose_name="Fighter",
         help_text="The ListFighter that this equipment assignment is linked to.",
+        db_index=True,
     )
     content_equipment = models.ForeignKey(
         ContentEquipment,

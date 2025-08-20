@@ -18,9 +18,11 @@ class Battle(AppBase):
         on_delete=models.CASCADE,
         related_name="battles",
         help_text="The campaign this battle belongs to",
+        db_index=True,
     )
     date = models.DateField(
         help_text="The date the battle took place",
+        db_index=True,
     )
     mission = models.CharField(
         max_length=200,
