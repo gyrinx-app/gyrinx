@@ -1,4 +1,12 @@
 {% load allauth allauth_bootstrap %}
+{% if attrs.form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">
+        {% for error in attrs.form.non_field_errors %}
+            {{ error }}
+            {% if not forloop.last %}<br>{% endif %}
+        {% endfor %}
+    </div>
+{% endif %}
 {% for field in attrs.form %}
     <div class="mb-3">
         {% if field|is_checkbox %}
