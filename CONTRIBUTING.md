@@ -21,6 +21,8 @@ Before contributing, read our [Code of Conduct](./CODE-OF-CONDUCT.md) — by
 joining the community, you're agreeing to adhere to the contents of that
 document.
 
+- **Do not open up a GitHub issue if the bug is a security vulnerability
+  in Gyrinx**, and instead [email hello@gyrinx.app](mailto:hello@gyrinx.app) or submit a [Security Advisory](https://github.com/gyrinx-app/gyrinx/security/advisories/new).
 ### Did you find a bug?
 
 - **Do not open up a GitHub issue if the bug is a security vulnerability in
@@ -34,26 +36,23 @@ document.
 
 ### Did you write a patch that fixes a bug?
 
+Thanks for fixing the bug!
+
 - Open a new GitHub pull request with the patch.
-- Ensure the PR description clearly describes the problem and solution. Include
-  the relevant issue number if applicable.
+- Ensure the PR description clearly describes the problem and solution. Include the relevant issue number if applicable.
+- Ideally, include tests that cover the change.
 
 ### Do you intend to add a new feature or change an existing one?
 
-- Suggest your change in the
-  [#core](https://discord.com/channels/1337524316987985963/1337860878782955590)
-  channel on [our Discord](https://discord.gg/jamrJPYC) and start writing code.
-- Do not open an issue on GitHub until you have collected positive feedback
-  about the change. GitHub issues are primarily intended for bug reports and
-  fixes.
+- Join [our Discord](https://discord.gg/NjMVRSEMAz)
+- Suggest your change in the `💡-ideas` channel
+- Start writing code
 
-### Do you have questions about the source code or content?
+Ideally, don't open an issue on GitHub until you have collected positive feedback about the change. GitHub issues are 
+primarily intended for bug reports and fixes.
 
-- Ask any question about Gyrinx code & internals on the
-  [#core](https://discord.com/channels/1337524316987985963/1337860878782955590)
-  channel.
-- For questions about content, head to the
-  [#content](https://discord.com/channels/1337524316987985963/1337526710911897651)
-  channel.
+#### Do you have questions about the source code or content?
+
+Ask away on [our Discord](https://discord.gg/NjMVRSEMAz)
 
 Thanks! :heart:

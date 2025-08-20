@@ -1,8 +1,16 @@
+import logging
 import os
+import tempfile
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from django.db import connections
 
 from .settings import *  # noqa: F403
+from .settings import BASE_DIR, STORAGES
 from .settings import LOGGING as BASE_LOGGING
-from .settings import STORAGES
+
+logger = logging.getLogger(__name__)
 
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
@@ -24,17 +32,111 @@ if USE_REAL_EMAIL_IN_DEV:
     EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 
+# Ensure logs dir exists (fallback to tmp if not writable)
+logs_dir = BASE_DIR / "logs"
+try:
+    logs_dir.mkdir(exist_ok=True)
+except OSError:
+    logs_dir = Path(tempfile.gettempdir()) / "gyrinx_logs"
+    logs_dir.mkdir(exist_ok=True)
+    print(f"SQL_DEBUG: {logs_dir}")
+
+
+# --- Custom filter: only keep queries above a duration threshold ---
+class SlowQueryFilter(logging.Filter):
+    def filter(self, record):
+        # Django attaches record.duration (seconds) on django.db.backends logs
+        try:
+            threshold = float(os.getenv("SQL_MIN_DURATION", "0.01"))  # default 10 ms
+        except ValueError:
+            threshold = 0.1
+        return getattr(record, "duration", 0.0) >= threshold
+
+
+# --- Custom handler: write slow queries + EXPLAIN plan to file ---
+class ExplainFileHandler(RotatingFileHandler):
+    """
+    Writes slow SQL records and appends an EXPLAIN plan.
+    - Only runs for SELECT statements (to avoid accidental mutations).
+    - Uses the configured DB alias (default 'default').
+    - By default uses plain EXPLAIN; set SQL_EXPLAIN_ANALYZE=True to include ANALYZE (executes the query!).
+    """
+
+    def emit(self, record):
+        try:
+            base_msg = self.format(record)
+
+            sql = getattr(record, "sql", None)
+            explain_lines = []
+            # Skip EXPLAIN queries themselves to avoid recursion
+            if isinstance(sql, str) and sql.strip().upper().startswith("EXPLAIN"):
+                explain_lines.append("[EXPLAIN SKIPPED: recursive EXPLAIN]")
+            elif isinstance(sql, str) and sql.strip().upper().startswith("SELECT"):
+                alias = os.getenv("SQL_EXPLAIN_DB_ALIAS", "default")
+                analyze = os.getenv("SQL_EXPLAIN_ANALYZE", "False") == "True"
+                # USE ANALYZE WITH CARE: it will execute the SELECT.
+                prefix = "EXPLAIN ANALYZE " if analyze else "EXPLAIN "
+                try:
+                    with connections[alias].cursor() as cur:
+                        # Django's logging already substitutes params into the SQL string
+                        # The SQL we receive has literal values, not %s placeholders
+                        # So we can directly execute EXPLAIN + sql
+                        cur.execute(prefix + sql)
+                        rows = cur.fetchall()
+                        # Postgres returns one text column per line; MySQL returns tabular rows
+                        for row in rows:
+                            explain_lines.append(" | ".join(str(col) for col in row))
+                except Exception as ex:
+                    explain_lines.append(f"[EXPLAIN ERROR: {ex}]")
+            else:
+                explain_lines.append("[EXPLAIN SKIPPED: non-SELECT or no SQL]")
+
+            combined = (
+                base_msg + "\n" + "\n".join(explain_lines) + "\n" + ("-" * 80) + "\n"
+            )
+            # Write combined message
+            if self.stream is None:
+                self.stream = self._open()
+            self.stream.write(combined)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 LOGGING = {
     **BASE_LOGGING,
+    "filters": {
+        **BASE_LOGGING.get("filters", {}),
+        "slow_sql": {"()": SlowQueryFilter},
+    },
     "handlers": {
         **BASE_LOGGING["handlers"],
+        # All-SQL rotating file (keeps a full archive)
+        "sql_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": logs_dir / "sql.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+        },
+        # Slow-SQL file with EXPLAIN
+        "slow_sql_file": {
+            "()": ExplainFileHandler,  # custom handler defined above
+            "filename": logs_dir / "slow_sql.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "filters": ["slow_sql"],  # only records >= SQL_MIN_DURATION
+        },
     },
     "loggers": {
         **BASE_LOGGING["loggers"],
+        # Django SQL logger
         "django.db.backends": {
-            "handlers": ["console"],
+            # Always log to files only, no console output
+            "handlers": ["sql_file", "slow_sql_file"],
             "level": "DEBUG" if os.getenv("SQL_DEBUG") == "True" else "INFO",
-            "propagate": False,
+            "propagate": False,  # don't bubble into root
         },
         "gyrinx": {
             "handlers": ["console"],

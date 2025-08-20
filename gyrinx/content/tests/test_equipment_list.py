@@ -15,7 +15,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_equipment():
+def test_equipment(content_equipment_categories):
     # Create some equipment, a equipment list, and a fighter and
     # write a query to get the equipment list for the fighter
 
@@ -46,7 +46,7 @@ def test_equipment():
 
 
 @pytest.mark.django_db
-def test_equipment_weapon_profile_mismatch():
+def test_equipment_weapon_profile_mismatch(content_equipment_categories):
     # Create some equipment
     equipment1 = ContentEquipment.objects.create(
         name="Wooden Spoon",
@@ -85,7 +85,7 @@ def test_equipment_weapon_profile_mismatch():
 
 
 @pytest.mark.django_db
-def test_content_equipment_manager():
+def test_content_equipment_manager(content_equipment_categories):
     # Create some equipment
     spoon = ContentEquipment.objects.create(
         name="Wooden Spoon",

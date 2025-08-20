@@ -1914,7 +1914,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             fighter.equipment_list_fighter, expansion_inputs
         )
         search_vector = SearchVector(
-            "name", "category__name", "contentweaponprofile__name"
+            "name",
+            "category__name",
+            "contentweaponprofile__name",
+            "contentweaponprofile__traits__name",
         )
     else:
         equipment = (

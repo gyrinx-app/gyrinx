@@ -1,11 +1,17 @@
 import pytest
+
 from gyrinx.content.models import ContentEquipmentCategory
 from gyrinx.core.models.list import ListFighter
 
 
 @pytest.mark.django_db
 def test_assignment_deletion_cost_recalculation(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+    content_equipment_categories,
 ):
     """Test that deleting an assignment correctly recalculates the list cost."""
     # Create equipment with a cost
@@ -60,8 +66,14 @@ def test_assignment_deletion_cost_recalculation(
 
 
 @pytest.mark.django_db
+@pytest.mark.with_cost_cache
 def test_assignment_deletion_cached_cost_recalculation(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+    content_equipment_categories,
 ):
     """Test that deleting an assignment correctly recalculates the cached list cost."""
     from gyrinx.core.models.list import List
@@ -119,7 +131,12 @@ def test_assignment_deletion_cached_cost_recalculation(
 
 @pytest.mark.django_db
 def test_assignment_deletion_with_accessories_cost(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     """Test deletion of assignment with accessories correctly updates cost."""
     from gyrinx.content.models import ContentWeaponAccessory
@@ -161,7 +178,12 @@ def test_assignment_deletion_with_accessories_cost(
 
 @pytest.mark.django_db
 def test_assignment_deletion_immediate_cached_property_update(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     """Test that cached properties are updated immediately after deletion without refetch_from_db."""
     # Create equipment with a cost
@@ -206,8 +228,14 @@ def test_assignment_deletion_immediate_cached_property_update(
 
 
 @pytest.mark.django_db
+@pytest.mark.with_cost_cache
 def test_assignment_deletion_cached_property_with_multiple_assignments(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     """Test cached property updates when deleting one of multiple assignments."""
     # Create multiple equipment items

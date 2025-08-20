@@ -1,8 +1,8 @@
 # gyrinx
 
-![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
+[![GitBook](https://img.shields.io/static/v1?message=Documented%20on%20GitBook&logo=gitbook&logoColor=ffffff&label=%20&labelColor=5c5c5c&color=3F89A1)](https://www.gitbook.com/preview?utm_source=gitbook_readme_badge&utm_medium=organic&utm_campaign=preview_documentation&utm_content=link) ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
 
-This repository contains the Gynrix Django application. The code for this
+This repository contains the Gyrinx Django application. The code for this
 application is in the [`gyrinx`](./gyrinx) directory.
 
 See the [docs](./docs) directory or the [Google Doc](https://docs.google.com/document/d/1seKmLBz2L4bGPeHfUxjgl39BJ27-O1Fb0MlJWfmLQFE/edit?tab=t.5q9jh7it524z)

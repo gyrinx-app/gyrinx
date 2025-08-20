@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from django.contrib import admin
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -165,7 +166,7 @@ class List(AppBase):
         ContentHouse, on_delete=models.CASCADE, null=False, blank=False
     )
     public = models.BooleanField(
-        default=True, help_text="Public lists are visible to all users."
+        default=True, help_text="Public lists are visible to all users.", db_index=True
     )
     narrative = models.TextField(
         "about",
@@ -177,6 +178,7 @@ class List(AppBase):
         choices=STATUS_CHOICES,
         default=LIST_BUILDING,
         help_text="Current status of the list.",
+        db_index=True,
     )
 
     # Track the original list if this is a campaign clone
@@ -658,6 +660,7 @@ class ListFighterQuerySet(models.QuerySet):
             self.select_related(
                 "content_fighter",
                 "content_fighter__house",
+                "content_fighter__custom_statline",
                 "legacy_content_fighter",
                 "legacy_content_fighter__house",
                 "capture_info",
@@ -670,13 +673,12 @@ class ListFighterQuerySet(models.QuerySet):
                 "disabled_rules",
                 "disabled_default_assignments",
                 "advancements",
-                # Prefetch equipment assignments with their related data
-                "listfighterequipmentassignment_set",
-                # Prefetch default assignments
+                "stat_overrides",
+                "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
-                # Prefetch linked fighter data
+                "content_fighter__default_assignments__equipment__contentweaponprofile_set",
                 "linked_fighter",
                 "linked_fighter__list_fighter",
                 Prefetch(
@@ -686,6 +688,7 @@ class ListFighterQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
+                prefetched=Value(True),
                 annotated_category_terms=Subquery(
                     ListFighter.objects.sq_category_terms()
                 ),
@@ -695,6 +698,8 @@ class ListFighterQuerySet(models.QuerySet):
                 annotated_advancement_total_cost=Coalesce(
                     Sum("advancements__cost_increase"), Value(0)
                 ),
+                annotated_content_fighter_statline=self.sq_content_fighter_statline(),
+                annotated_stat_overrides=self.sq_stat_overrides(),
             )
         )
 
@@ -729,6 +734,50 @@ class ListFighterQuerySet(models.QuerySet):
             .values("obj")[:1]
         )
 
+    def sq_content_fighter_statline(self):
+        return Case(
+            When(
+                Q(content_fighter__custom_statline__isnull=False),
+                then=ArrayAgg(
+                    JSONObject(
+                        field_name=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__stat__field_name"
+                        ),
+                        name=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__stat__short_name"
+                        ),
+                        value=F("content_fighter__custom_statline__stats__value"),
+                        highlight=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__is_highlighted"
+                        ),
+                        first_of_group=F(
+                            "content_fighter__custom_statline__stats__statline_type_stat__is_first_of_group"
+                        ),
+                    ),
+                    # Cannot use distinct here due to order_by
+                    order_by=F(
+                        "content_fighter__custom_statline__stats__statline_type_stat__position"
+                    ),
+                ),
+            ),
+            default=Value(None),
+        )
+
+    def sq_stat_overrides(self):
+        return Case(
+            When(
+                Q(content_fighter__custom_statline__isnull=False)
+                & Q(stat_overrides__isnull=False),
+                then=ArrayAgg(
+                    JSONObject(
+                        field_name=F("stat_overrides__content_stat__stat__field_name"),
+                        value=F("stat_overrides__value"),
+                    ),
+                    distinct=True,
+                ),
+            )
+        )
+
 
 class ListFighter(AppBase):
     """A Fighter is a member of a List."""
@@ -738,7 +787,7 @@ class ListFighter(AppBase):
         max_length=255, validators=[validators.MinLengthValidator(1)]
     )
     content_fighter = models.ForeignKey(
-        ContentFighter, on_delete=models.CASCADE, null=False, blank=False
+        ContentFighter, on_delete=models.CASCADE, null=False, blank=False, db_index=True
     )
     legacy_content_fighter = models.ForeignKey(
         ContentFighter,
@@ -748,7 +797,9 @@ class ListFighter(AppBase):
         related_name="list_fighter_legacy",
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
     )
-    list = models.ForeignKey(List, on_delete=models.CASCADE, null=False, blank=False)
+    list = models.ForeignKey(
+        List, on_delete=models.CASCADE, null=False, blank=False, db_index=True
+    )
     category_override = models.CharField(
         max_length=255,
         choices=[(c, c.label) for c in ALLOWED_CATEGORY_OVERRIDES],
@@ -1183,9 +1234,7 @@ class ListFighter(AppBase):
         # Add injury mods if in campaign mode
         injury_mods = []
         if self.list.is_campaign_mode:
-            for injury in self.injuries.select_related("injury").prefetch_related(
-                "injury__modifiers"
-            ):
+            for injury in self.injuries.all():
                 injury_mods.extend(injury.injury.modifiers.all())
 
         return equipment_mods + injury_mods
@@ -1286,6 +1335,19 @@ class ListFighter(AppBase):
     def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
+
+        There are two statline systems:
+        1. one simple, legacy version that has a base list of stats on the content fighter, and `_override` fields
+           for each stat on the list fighter
+        2. a more complex, newer version that allows custom statline types to be created and assigned to content
+           fighters, with overrides stored separately, and with specific underlying stats reused across statline types
+
+        In either case, the flow goes something like this:
+        1. Get the statline for the underlying content fighter
+        2. Apply any overrides from the list fighter
+        3. Apply any mods from the list fighter
+
+        The more complex system is, without optimisation, massively more expensive to compute.
         """
         stats = []
 
@@ -1294,13 +1356,22 @@ class ListFighter(AppBase):
 
         # Get stat overrides for this fighter
         stat_overrides = {}
-        if has_custom_statline and self.stat_overrides.exists():
+        # Performance: use the annotated version if it exists
+        if (
+            hasattr(self, "annotated_stat_overrides")
+            and self.annotated_stat_overrides is not None
+        ):
+            stat_overrides = {
+                override["field_name"]: override["value"]
+                for override in self.annotated_stat_overrides
+            }
+        elif has_custom_statline and self.stat_overrides.exists():
             stat_overrides = {
                 override.content_stat.field_name: override.value
-                for override in self.stat_overrides.select_related("content_stat")
+                for override in self.stat_overrides.all()
             }
 
-        for stat in self.content_fighter_cached.statline():
+        for stat in self.content_fighter_statline:
             input_value = stat["value"]
 
             # Check for overrides
@@ -1314,11 +1385,13 @@ class ListFighter(AppBase):
                     input_value = value_override
 
             # Apply the mods
+            statmods = self._statmods(stat["field_name"])
             value = self._apply_mods(
                 stat["field_name"],
                 input_value,
-                self._statmods(stat["field_name"]),
+                statmods,
             )
+
             modded = value != stat["value"]
             sd = StatlineDisplay(
                 name=stat["name"],
@@ -1331,6 +1404,31 @@ class ListFighter(AppBase):
             stats.append(sd)
 
         return stats
+
+    @cached_property
+    def content_fighter_statline(self):
+        """
+        Get the base statline for the content fighter.
+
+        Performance: we try to use the annotated version if it exists, which is added by `get_related_data`.
+        """
+        stats = (
+            self.annotated_content_fighter_statline
+            if (
+                hasattr(self, "annotated_content_fighter_statline")
+                and self.annotated_content_fighter_statline is not None
+            )
+            # Performance: we don't want to repeat look-for the custom statline, so we force-skip
+            # this check on the fallback call.
+            else self.content_fighter_cached.statline(
+                ignore_custom=hasattr(self, "annotated_content_fighter_statline")
+            )
+        )
+
+        return [
+            {**stat, "classes": "border-start" if stat["first_of_group"] else ""}
+            for stat in stats
+        ]
 
     @cached_property
     def ruleline(self):
@@ -1406,18 +1504,22 @@ class ListFighter(AppBase):
         return assign
 
     def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
-        return self.equipment.through.objects.filter(list_fighter=self)
+        return self.listfighterequipmentassignment_set.all()
 
     @cached_property
     def _default_assignments(self):
-        return self.content_fighter_cached.default_assignments.exclude(
-            Q(pk__in=self.disabled_default_assignments.all())
-        )
+        # Performance: this is done in Python because when we prefetch these, these queries are
+        # already optimized and won't hit the database again.
+        return [
+            a
+            for a in self.content_fighter_cached.default_assignments.all()
+            if a not in self.disabled_default_assignments.all()
+        ]
 
     def assignments(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
-            for a in self._direct_assignments().order_by("list_fighter__name")
+            for a in self._direct_assignments()
         ] + [
             VirtualListFighterEquipmentAssignment.from_default_assignment(a, self)
             for a in self._default_assignments
@@ -1872,11 +1974,10 @@ class ListFighter(AppBase):
         """
         Convert a default assignment to a direct assignment.
         """
-        try:
-            assignment: ContentFighterDefaultAssignment = self._default_assignments.get(
-                id=assign.id
-            )
-        except ContentFighterDefaultAssignment.DoesNotExist:
+        assignment: ContentFighterDefaultAssignment = next(
+            (da for da in self._default_assignments if da.id == assign.id), None
+        )
+        if assignment is None:
             raise ValueError(
                 f"Default assignment {assign} not found on {self.content_fighter}"
             )
@@ -2149,6 +2250,15 @@ class ListFighter(AppBase):
         verbose_name = "List Fighter"
         verbose_name_plural = "List Fighters"
 
+        indexes = [
+            # Postgres partial index to help with active fighter queries
+            models.Index(
+                name="idx_listfighter_list_active",
+                fields=["list_id", "id"],
+                condition=Q(archived=False),
+            ),
+        ]
+
     def __str__(self):
         cf = self.content_fighter
         return f"{self.name} – {cf.type} ({cf.category})"
@@ -2269,6 +2379,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         blank=False,
         verbose_name="Fighter",
         help_text="The ListFighter that this equipment assignment is linked to.",
+        db_index=True,
     )
     content_equipment = models.ForeignKey(
         ContentEquipment,
@@ -2412,7 +2523,6 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     def all_profiles(self) -> list["VirtualWeaponProfile"]:
         """Return all profiles for the equipment, including the default profiles."""
-
         standard_profiles = self.standard_profiles_cached
         weapon_profiles = self.weapon_profiles_cached
 
@@ -2429,11 +2539,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return self.all_profiles()
 
     def standard_profiles(self):
+        # TODO: There is nothing in the prefetch cache here
         return [
             VirtualWeaponProfile(p, self._mods)
-            for p in ContentWeaponProfile.objects.filter(
-                equipment=self.content_equipment, cost=0
-            )
+            for p in self.content_equipment.contentweaponprofile_set.all()
+            if p.cost == 0
         ]
 
     @cached_property
@@ -3052,6 +3162,7 @@ class VirtualListFighterEquipmentAssignment:
         return cls(
             fighter=assignment.list_fighter_cached,
             equipment=assignment.content_equipment_cached,
+            # TODO: Expensive!
             profiles=assignment.all_profiles_cached,
             _assignment=assignment,
         )

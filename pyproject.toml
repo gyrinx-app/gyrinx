@@ -17,6 +17,9 @@ manage = "scripts.manage:main"
 addopts = "--import-mode=importlib -p no:warnings"
 DJANGO_SETTINGS_MODULE = "gyrinx.settings_dev"
 python_files = "tests.py test_*.py *_tests.py"
+markers = [
+    "with_cost_cache: Enable real cost cache updates for this test (normally mocked for performance)",
+]
 
 [tool.setuptools.packages]
 find = {}

@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: ["main"]
+  merge_group:
 
 permissions:
   id-token: write
@@ -16,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -42,7 +43,7 @@ jobs:
           echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
       - name: Run tests in parallel
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: ./scripts/test.sh --parallel --durations=20 -v
 
       - name: Run Bandit security scan

@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation Guidelines
+
+- **`.claude/notes/`** - Internal documentation and plans created by Claude to help with its work
+- **`docs/`** - Documentation for humans (user guides, API docs, etc.)
+- When creating analysis documents, optimization plans, or working notes, place them in `.claude/notes/`
+- Only create user-facing documentation in `docs/` when explicitly requested
+
 ## Quick Reference (Most Important)
 
 **Critical Commands:**

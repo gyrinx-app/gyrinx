@@ -4,13 +4,13 @@ from gyrinx.content.models import ContentBook, ContentPageRef
 
 
 @pytest.mark.django_db
-def test_pageref_books():
+def test_pageref_books(content_books):
     assert len(list(ContentBook.objects.all())) == 8
     assert len(list(ContentBook.objects.filter(obsolete=False))) == 7
 
 
 @pytest.mark.django_db
-def test_pageref_refs():
+def test_pageref_refs(content_page_refs_full):
     assert len(list(ContentPageRef.objects.all())) == 566
     assert ContentPageRef.objects.filter(title="Agility").count() == 1
     agility = ContentPageRef.objects.get(title="Agility")

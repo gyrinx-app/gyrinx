@@ -57,7 +57,7 @@ class ContentHouse(Content):
     """
 
     help_text = "The Content House identifies the house or faction of a fighter."
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     skill_categories = models.ManyToManyField(
         "ContentSkillCategory",
         blank=True,
@@ -124,7 +124,7 @@ class ContentSkill(Content):
     Represents a skill that fighters may possess.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     category = models.ForeignKey(
         ContentSkillCategory,
         on_delete=models.CASCADE,
@@ -132,6 +132,7 @@ class ContentSkill(Content):
         blank=False,
         related_name="skills",
         verbose_name="tree",
+        db_index=True,
     )
     history = HistoricalRecords()
 
@@ -607,13 +608,14 @@ class ContentEquipment(FighterCostMixin, Content):
     Can be a weapon or other piece of gear. Cost and rarity are tracked.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     category = models.ForeignKey(
         ContentEquipmentCategory,
         on_delete=models.CASCADE,
         null=True,
         blank=False,
         related_name="equipment",
+        db_index=True,
     )
 
     cost = models.CharField(
@@ -636,6 +638,7 @@ class ContentEquipment(FighterCostMixin, Content):
         default="C",
         help_text="Use 'E' to exclude this equipment from the Trading Post. Use 'U' for equipment that is unique to a fighter.",
         verbose_name="Availability",
+        db_index=True,
     )
     rarity_roll = models.IntegerField(
         blank=True, null=True, verbose_name="Availability Level"
@@ -1026,13 +1029,16 @@ class ContentFighter(Content):
 
         return self.cost_int()
 
-    def statline(self):
+    def statline(self, ignore_custom=False):
         """
         Returns a list of dictionaries describing the fighter's core stats,
         with additional styling indicators. Prefers custom statline if available.
+
+        Performance: Note that this method is expensive and is entirely skipped if the statline is prefecthed
+        by ListFighter with_related_data.
         """
         # Check for custom statline first
-        if hasattr(self, "custom_statline"):
+        if not ignore_custom and hasattr(self, "custom_statline"):
             statline = self.custom_statline
             stats = []
             # Get all stat values for this statline
@@ -1048,7 +1054,7 @@ class ContentFighter(Content):
                         "name": stat_def.short_name,
                         "value": value,
                         "highlight": stat_def.is_highlighted,
-                        "classes": "border-start" if stat_def.is_first_of_group else "",
+                        "first_of_group": stat_def.is_first_of_group,
                     }
                 )
             return stats
@@ -1085,7 +1091,7 @@ class ContentFighter(Content):
                 "highlight": bool(
                     field.name in ["leadership", "cool", "willpower", "intelligence"]
                 ),
-                "classes": ("border-start" if field.name in ["leadership"] else ""),
+                "first_of_group": field.name in ["leadership"],
             }
             for f, field in stats
         ]
@@ -1565,7 +1571,11 @@ class ContentWeaponProfile(FighterCostMixin, Content):
         max_length=12, blank=True, null=False, default="", verbose_name="Am"
     )
 
-    traits = models.ManyToManyField(ContentWeaponTrait, blank=True)
+    traits = models.ManyToManyField(
+        ContentWeaponTrait,
+        blank=True,
+        db_index=True,  # Add index for better search performance
+    )
     history = HistoricalRecords()
 
     def __str__(self):
@@ -1952,11 +1962,12 @@ class ContentFighterDefaultAssignment(CostMixin, Content):
         return result
 
     def standard_profiles(self):
+        # Performance: this is better in Python because it avoids additional database queries when
+        # prefetched.
         return [
             VirtualWeaponProfile(p, self._mods)
-            for p in ContentWeaponProfile.objects.filter(
-                equipment=self.equipment, cost=0
-            )
+            for p in self.equipment.contentweaponprofile_set.all()
+            if p.cost == 0
         ]
 
     @cached_property

@@ -30,7 +30,9 @@ class Campaign(AppBase):
         max_length=255, validators=[validators.MinLengthValidator(3)]
     )
     public = models.BooleanField(
-        default=True, help_text="Public Campaigns are visible to all users."
+        default=True,
+        help_text="Public Campaigns are visible to all users.",
+        db_index=True,
     )
     summary = models.TextField(
         blank=True,
@@ -52,6 +54,7 @@ class Campaign(AppBase):
         choices=STATUS_CHOICES,
         default=PRE_CAMPAIGN,
         help_text="Current status of the campaign.",
+        db_index=True,
     )
     budget = models.PositiveIntegerField(
         default=1500,
@@ -270,12 +273,14 @@ class CampaignAction(AppBase):
         on_delete=models.CASCADE,
         related_name="actions",
         help_text="The campaign this action belongs to",
+        db_index=True,
     )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="campaign_actions",
         help_text="The user who performed this action",
+        db_index=True,
     )
     list = models.ForeignKey(
         "List",
@@ -284,6 +289,7 @@ class CampaignAction(AppBase):
         blank=True,
         related_name="campaign_actions",
         help_text="The list this action is related to",
+        db_index=True,
     )
     battle = models.ForeignKey(
         "Battle",
@@ -292,6 +298,7 @@ class CampaignAction(AppBase):
         blank=True,
         related_name="actions",
         help_text="The battle this action is related to",
+        db_index=True,
     )
     description = models.TextField(
         help_text="Description of the action taken",

@@ -94,7 +94,7 @@ def is_valid_uuid(uuid_to_test, version=4):
 class Archived(models.Model):
     """An Archived object is no longer in use."""
 
-    archived = models.BooleanField(default=False)
+    archived = models.BooleanField(default=False, db_index=True)
     archived_at = models.DateTimeField(null=True, blank=True)
 
     def archive(self):
@@ -123,7 +123,7 @@ class Owned(models.Model):
     """An Owned object is owned by a User."""
 
     owner = models.ForeignKey(
-        "auth.User", on_delete=models.CASCADE, null=True, blank=False
+        "auth.User", on_delete=models.CASCADE, null=True, blank=False, db_index=True
     )
 
     class Meta:
@@ -132,8 +132,8 @@ class Owned(models.Model):
 
 class Base(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    modified = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         abstract = True

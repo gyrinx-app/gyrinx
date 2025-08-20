@@ -24,7 +24,7 @@ class PolicyCase:
 
 
 @pytest.mark.django_db
-def test_equipment_policy():
+def test_equipment_policy(content_equipment_categories):
     # Create a fighter, some equipment, and a set of policies
     # Check that the policies are applied correctly
 

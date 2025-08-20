@@ -30,18 +30,21 @@ class CampaignInvitation(AppBase):
         on_delete=models.CASCADE,
         related_name="invitations",
         help_text="The campaign this invitation is for",
+        db_index=True,
     )
     list = models.ForeignKey(
         "List",
         on_delete=models.CASCADE,
         related_name="campaign_invitations",
         help_text="The list being invited to the campaign",
+        db_index=True,
     )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default=PENDING,
         help_text="Current status of the invitation",
+        db_index=True,
     )
     message = models.TextField(
         blank=True,
