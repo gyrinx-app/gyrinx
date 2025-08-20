@@ -1565,7 +1565,11 @@ class ContentWeaponProfile(FighterCostMixin, Content):
         max_length=12, blank=True, null=False, default="", verbose_name="Am"
     )
 
-    traits = models.ManyToManyField(ContentWeaponTrait, blank=True)
+    traits = models.ManyToManyField(
+        ContentWeaponTrait,
+        blank=True,
+        db_index=True,  # Add index for better search performance
+    )
     history = HistoricalRecords()
 
     def __str__(self):
