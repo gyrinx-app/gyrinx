@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0142_add_database_indexes"),
+        ("content", "0142_alter_contentweaponprofile_traits"),
         ("core", "0101_add_database_indexes"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
