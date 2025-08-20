@@ -51,21 +51,23 @@
             </tr>
         {% endif %}
         {% comment %} XP{% endcomment %}
-        <tr class="fs-7">
-            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
-            <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
-                {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                    <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
-                        {% if fighter.xp_current == 0 %}
-                            Add XP
-                        {% else %}
-                            Edit XP
-                        {% endif %}
-                    </a>
-                {% endif %}
-            </td>
-        </tr>
+        {% if not fighter.is_vehicle %}
+            <tr class="fs-7">
+                <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
+                <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                    <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
+                    {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                        <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
+                            {% if fighter.xp_current == 0 %}
+                                Add XP
+                            {% else %}
+                                Edit XP
+                            {% endif %}
+                        </a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endif %}
         {% if not fighter.content_fighter.hide_skills %}
             {% if fighter.skilline_cached|length > 0 %}
                 <tr class="fs-7">
@@ -246,25 +248,27 @@
             </tr>
         {% endif %}
         {% comment %} Advancements {% endcomment %}
-        <tr class="fs-7">
-            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Advancements</th>
-            <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                {% with advancement_count=fighter.advancements.count %}
-                    {% if advancement_count == 0 %}
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Add advancements</a>
+        {% if not fighter.is_vehicle %}
+            <tr class="fs-7">
+                <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Advancements</th>
+                <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                    {% with advancement_count=fighter.advancements.count %}
+                        {% if advancement_count == 0 %}
+                            {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Add advancements</a>
+                            {% else %}
+                                <span class="text-muted fst-italic">None</span>
+                            {% endif %}
                         {% else %}
-                            <span class="text-muted fst-italic">None</span>
+                            <span class="badge text-bg-success">{{ advancement_count }}</span>
+                            {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
+                            {% endif %}
                         {% endif %}
-                    {% else %}
-                        <span class="badge text-bg-success">{{ advancement_count }}</span>
-                        {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Edit</a>
-                        {% endif %}
-                    {% endif %}
-                {% endwith %}
-            </td>
-        </tr>
+                    {% endwith %}
+                </td>
+            </tr>
+        {% endif %}
     </tbody>
 </table>
 {% comment %} Wargear {% endcomment %}
