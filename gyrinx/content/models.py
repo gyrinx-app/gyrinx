@@ -57,7 +57,7 @@ class ContentHouse(Content):
     """
 
     help_text = "The Content House identifies the house or faction of a fighter."
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     skill_categories = models.ManyToManyField(
         "ContentSkillCategory",
         blank=True,
@@ -124,7 +124,7 @@ class ContentSkill(Content):
     Represents a skill that fighters may possess.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     category = models.ForeignKey(
         ContentSkillCategory,
         on_delete=models.CASCADE,
@@ -132,6 +132,7 @@ class ContentSkill(Content):
         blank=False,
         related_name="skills",
         verbose_name="tree",
+        db_index=True,
     )
     history = HistoricalRecords()
 
@@ -607,13 +608,14 @@ class ContentEquipment(FighterCostMixin, Content):
     Can be a weapon or other piece of gear. Cost and rarity are tracked.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     category = models.ForeignKey(
         ContentEquipmentCategory,
         on_delete=models.CASCADE,
         null=True,
         blank=False,
         related_name="equipment",
+        db_index=True,
     )
 
     cost = models.CharField(
@@ -636,6 +638,7 @@ class ContentEquipment(FighterCostMixin, Content):
         default="C",
         help_text="Use 'E' to exclude this equipment from the Trading Post. Use 'U' for equipment that is unique to a fighter.",
         verbose_name="Availability",
+        db_index=True,
     )
     rarity_roll = models.IntegerField(
         blank=True, null=True, verbose_name="Availability Level"
