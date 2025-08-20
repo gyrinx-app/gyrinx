@@ -1551,9 +1551,15 @@ def test_multi_equipment_upgrades(
 
 @pytest.mark.django_db
 def test_m2m_triggers_update_cost_cache(
-    content_fighter, make_list, make_equipment, make_list_fighter
+    content_fighter,
+    make_list,
+    make_equipment,
+    make_list_fighter,
+    disable_cost_cache_in_tests,
 ):
     """Test that M2M field changes trigger cost cache updates."""
+    # Re-enable cost cache updates for this specific test
+    disable_cost_cache_in_tests.stop()
     # Create test data
     weapon = make_equipment(
         "Test Weapon",

@@ -1,4 +1,5 @@
 from typing import Callable
+from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -33,6 +34,22 @@ def django_test_settings():
 
     # This prevents the banner query being fired in tests
     cache.set(BANNER_CACHE_KEY, False, None)
+
+
+@pytest.fixture(autouse=True)
+def disable_cost_cache_in_tests():
+    """
+    Disable expensive cost cache updates in all tests by default.
+
+    The cost cache updates are expensive operations that recalculate
+    the entire list cost on every save. This is unnecessary for most
+    tests and significantly slows down test execution.
+
+    Tests that specifically need to test cost calculations can
+    re-enable this by mocking it differently.
+    """
+    with patch("gyrinx.core.models.list.List.update_cost_cache"):
+        yield
 
 
 @pytest.fixture(scope="session")
@@ -143,9 +160,22 @@ def content_page_refs(django_db_setup, django_db_blocker, content_books):
         for ref_data in refs_data:
             ContentPageRef.objects.get_or_create(**ref_data)
 
+        return ContentPageRef.objects.all()
+
+
+@pytest.fixture(scope="session")
+def content_page_refs_full(django_db_setup, django_db_blocker, content_page_refs):
+    """Create full set of ContentPageRef objects (566) for tests that need them.
+
+    Only use this fixture in tests that specifically require a large dataset.
+    Most tests should use the basic content_page_refs fixture instead.
+    """
+    with django_db_blocker.unblock():
+        core_book = ContentBook.objects.get(shortname="Core")
+
         # Create additional refs to reach the expected count (566)
-        # This is a simplified approach - in reality you might want to create more realistic data
-        for i in range(4, 566):
+        existing_count = ContentPageRef.objects.count()
+        for i in range(existing_count, 566):
             ContentPageRef.objects.get_or_create(
                 title=f"Test Ref {i}",
                 book=core_book,
@@ -156,10 +186,8 @@ def content_page_refs(django_db_setup, django_db_blocker, content_books):
         return ContentPageRef.objects.all()
 
 
-@pytest.fixture(autouse=True)
-def ensure_test_data(content_books, content_equipment_categories, content_page_refs):
-    """Ensure test data is available for all tests."""
-    pass
+# Removed autouse fixture - tests should explicitly request the fixtures they need
+# This was loading 566+ database records for EVERY test, even those that don't need them
 
 
 @pytest.fixture
@@ -265,7 +293,9 @@ def make_list_fighter(user, content_fighter) -> Callable[[List, str], ListFighte
 
 
 @pytest.fixture
-def make_equipment():
+def make_equipment(content_equipment_categories):
+    """Make equipment fixture that ensures categories are available."""
+
     def make_equipment_(name, **kwargs) -> Callable[[str], ContentEquipment]:
         # If category is provided as a string, get or create the category
         if "category" in kwargs and isinstance(kwargs["category"], str):
