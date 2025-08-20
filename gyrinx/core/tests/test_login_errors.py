@@ -7,8 +7,17 @@ User = get_user_model()
 
 
 @pytest.mark.django_db
-def test_login_shows_error_for_incorrect_username():
+def test_login_shows_error_for_incorrect_username(monkeypatch):
     """Test that login page shows error message for incorrect username."""
+
+    # Mock the reCAPTCHA validation to always pass
+    def mock_validate(self, value):
+        return True
+
+    monkeypatch.setattr(
+        "django_recaptcha.fields.ReCaptchaField.validate", mock_validate
+    )
+
     client = Client()
 
     # Create a test user
@@ -17,7 +26,7 @@ def test_login_shows_error_for_incorrect_username():
     # Try to login with wrong username
     response = client.post(
         reverse("account_login"),
-        {"login": "wronguser", "password": "testpass123"},
+        {"login": "wronguser", "password": "testpass123", "captcha": "dummy"},
     )
 
     # Check that we stay on the login page
@@ -35,8 +44,17 @@ def test_login_shows_error_for_incorrect_username():
 
 
 @pytest.mark.django_db
-def test_login_shows_error_for_incorrect_password():
+def test_login_shows_error_for_incorrect_password(monkeypatch):
     """Test that login page shows error message for incorrect password."""
+
+    # Mock the reCAPTCHA validation to always pass
+    def mock_validate(self, value):
+        return True
+
+    monkeypatch.setattr(
+        "django_recaptcha.fields.ReCaptchaField.validate", mock_validate
+    )
+
     client = Client()
 
     # Create a test user
@@ -45,7 +63,7 @@ def test_login_shows_error_for_incorrect_password():
     # Try to login with wrong password
     response = client.post(
         reverse("account_login"),
-        {"login": "testuser", "password": "wrongpass"},
+        {"login": "testuser", "password": "wrongpass", "captcha": "dummy"},
     )
 
     # Check that we stay on the login page
@@ -63,14 +81,23 @@ def test_login_shows_error_for_incorrect_password():
 
 
 @pytest.mark.django_db
-def test_login_shows_error_for_nonexistent_user():
+def test_login_shows_error_for_nonexistent_user(monkeypatch):
     """Test that login page shows error message for non-existent user."""
+
+    # Mock the reCAPTCHA validation to always pass
+    def mock_validate(self, value):
+        return True
+
+    monkeypatch.setattr(
+        "django_recaptcha.fields.ReCaptchaField.validate", mock_validate
+    )
+
     client = Client()
 
     # Try to login with non-existent user
     response = client.post(
         reverse("account_login"),
-        {"login": "nonexistent", "password": "somepass"},
+        {"login": "nonexistent", "password": "somepass", "captcha": "dummy"},
     )
 
     # Check that we stay on the login page
@@ -88,8 +115,17 @@ def test_login_shows_error_for_nonexistent_user():
 
 
 @pytest.mark.django_db
-def test_login_successful_redirects():
+def test_login_successful_redirects(monkeypatch):
     """Test that successful login redirects properly."""
+
+    # Mock the reCAPTCHA validation to always pass
+    def mock_validate(self, value):
+        return True
+
+    monkeypatch.setattr(
+        "django_recaptcha.fields.ReCaptchaField.validate", mock_validate
+    )
+
     client = Client()
 
     # Create a test user
@@ -98,7 +134,7 @@ def test_login_successful_redirects():
     # Login with correct credentials
     response = client.post(
         reverse("account_login"),
-        {"login": "testuser", "password": "testpass123"},
+        {"login": "testuser", "password": "testpass123", "captcha": "dummy"},
         follow=False,
     )
 
