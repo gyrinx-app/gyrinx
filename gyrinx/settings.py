@@ -116,6 +116,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -421,3 +422,9 @@ DISABLED_CONTENT_SECURITY_POLICY = {
         "block-all-mixed-content": True,
     }
 }
+
+# SqlCommenter configuration
+SQLCOMMENTER_WITH_CONTROLLER = True
+SQLCOMMENTER_WITH_FRAMEWORK = True
+SQLCOMMENTER_WITH_ROUTE = True
+SQLCOMMENTER_WITH_APP_NAME = True
