@@ -9,7 +9,7 @@ from gyrinx.content.models import (
 
 
 @pytest.mark.django_db
-def test_basic_weapon():
+def test_basic_weapon(content_equipment_categories):
     t_blaze, _ = ContentWeaponTrait.objects.get_or_create(name="Blaze")
     t_rapid_fire_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
     t_shock, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
@@ -55,7 +55,7 @@ def test_basic_weapon():
 
 
 @pytest.mark.django_db
-def test_special_ammo_weapon():
+def test_special_ammo_weapon(content_equipment_categories):
     t_limited, _ = ContentWeaponTrait.objects.get_or_create(name="Limited")
     t_s_b, _ = ContentWeaponTrait.objects.get_or_create(name="Shield Breaker")
     t_s, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
@@ -134,7 +134,7 @@ def test_special_ammo_weapon():
 
 
 @pytest.mark.django_db
-def test_two_standard_stats():
+def test_two_standard_stats(content_equipment_categories):
     t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
     t_rapid_fire_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
     t_scattershot, _ = ContentWeaponTrait.objects.get_or_create(name="Scattershot")
@@ -265,7 +265,7 @@ def test_two_standard_stats():
 
 
 @pytest.mark.django_db
-def test_combi_weapon():
+def test_combi_weapon(content_equipment_categories):
     autopistol_combi_pistol_hand_flamer, _ = ContentEquipment.objects.get_or_create(
         name="Autopistol Combi-Pistol Hand flamer",
         category=ContentEquipmentCategory.objects.get(name="Pistols"),
@@ -386,7 +386,7 @@ def test_combi_weapon():
 
 
 @pytest.mark.django_db
-def test_autogun_combi_weapon():
+def test_autogun_combi_weapon(content_equipment_categories):
     autogun_combi_flamer, _ = ContentEquipment.objects.get_or_create(
         name="Autogun Combi-Flamer",
         category=ContentEquipmentCategory.objects.get(name="Special Weapons"),
@@ -527,7 +527,7 @@ def test_autogun_combi_weapon():
 
 
 @pytest.mark.django_db
-def test_two_modes():
+def test_two_modes(content_equipment_categories):
     t_esoteric, _ = ContentWeaponTrait.objects.get_or_create(name="Esoteric")
     t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
     t_plentiful, _ = ContentWeaponTrait.objects.get_or_create(name="Plentiful")
@@ -588,7 +588,7 @@ def test_two_modes():
 
 
 @pytest.mark.django_db
-def test_grenades():
+def test_grenades(content_equipment_categories):
     t_blast_5, _ = ContentWeaponTrait.objects.get_or_create(name='Blast (5")')
     t_grenade, _ = ContentWeaponTrait.objects.get_or_create(name="Grenade")
     t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
