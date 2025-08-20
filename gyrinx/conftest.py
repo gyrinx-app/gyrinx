@@ -192,10 +192,6 @@ def content_page_refs_full(django_db_setup, django_db_blocker, content_page_refs
         return ContentPageRef.objects.all()
 
 
-# Removed autouse fixture - tests should explicitly request the fixtures they need
-# This was loading 566+ database records for EVERY test, even those that don't need them
-
-
 @pytest.fixture
 def make_user(django_user_model) -> Callable[[str, str], object]:
     def make_user_(username: str, password: str) -> object:
