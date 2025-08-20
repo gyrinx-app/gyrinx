@@ -23,7 +23,12 @@ from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 @pytest.mark.django_db
 def test_fighter_with_default_spoon_weapon_assignment(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     spoon = make_equipment(
         "Wooden Spoon",
@@ -47,7 +52,12 @@ def test_fighter_with_default_spoon_weapon_assignment(
 
 @pytest.mark.django_db
 def test_fighter_disable_default_assignment(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     spoon = make_equipment(
         "Wooden Spoon",
@@ -81,7 +91,12 @@ def test_fighter_disable_default_assignment(
 
 @pytest.mark.django_db
 def test_fighter_multiple_default_assigns_of_same_equipment(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     spoon = make_equipment(
         "Wooden Spoon",
@@ -400,6 +415,7 @@ def test_assign_accessory_stat_mod(
 @pytest.mark.django_db
 def test_default_assignment_accessory_stat_mod(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -732,6 +748,7 @@ def test_equipment_fighter_stat_mod(
 @pytest.mark.django_db
 def test_fighter_with_default_spoon_scope_assignment(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -771,6 +788,7 @@ def test_fighter_with_default_spoon_scope_assignment(
 @pytest.mark.django_db
 def test_fighter_default_assignment_conversion_to_full(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -823,6 +841,7 @@ def test_fighter_default_assignment_conversion_to_full(
 @pytest.mark.django_db
 def test_fighter_clone_default_assignment_conversion_to_full(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -877,6 +896,7 @@ def test_fighter_clone_default_assignment_conversion_to_full(
 @pytest.mark.django_db
 def test_negative_cost_item(
     content_fighter: ContentFighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,

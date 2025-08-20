@@ -566,7 +566,9 @@ def test_list_fighter_with_spoon_and_not_other_assignments(
 
 
 @pytest.mark.django_db
-def test_profile_validation_standard_profile_non_zero_cost():
+def test_profile_validation_standard_profile_non_zero_cost(
+    content_equipment_categories,
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -593,7 +595,9 @@ def test_profile_validation_standard_profile_non_zero_cost():
 
 
 @pytest.mark.django_db
-def test_weapon_cost_equipment_list_override(content_house, content_fighter):
+def test_weapon_cost_equipment_list_override(
+    content_equipment_categories, content_house, content_fighter
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -627,7 +631,7 @@ def test_weapon_cost_equipment_list_override(content_house, content_fighter):
 
 @pytest.mark.django_db
 def test_weapon_cost_equipment_list_override_with_profile(
-    content_house, content_fighter
+    content_equipment_categories, content_house, content_fighter
 ):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
@@ -707,6 +711,7 @@ def test_weapon_cost_equipment_list_override_with_profile(
 @pytest.mark.django_db
 def test_fighter_with_equipment_list_accessory(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -756,7 +761,7 @@ def test_fighter_with_equipment_list_accessory(
 
 @pytest.mark.django_db
 def test_list_fighter_with_same_equipment_different_profiles(
-    content_house, content_fighter
+    content_house, content_fighter, content_equipment_categories
 ):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
@@ -835,7 +840,11 @@ def test_list_fighter_with_same_equipment_different_profiles(
 
 
 @pytest.mark.django_db
-def test_weapon_with_multiple_profiles(content_house, content_fighter):
+def test_weapon_with_multiple_profiles(
+    content_equipment_categories,
+    content_house,
+    content_fighter,
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -921,7 +930,9 @@ def test_weapon_with_multiple_profiles(content_house, content_fighter):
 
 
 @pytest.mark.django_db
-def test_weapon_with_multiple_costed_profiles(content_house, content_fighter):
+def test_weapon_with_multiple_costed_profiles(
+    content_equipment_categories, content_house, content_fighter
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -1092,7 +1103,7 @@ def test_list_fighter_legacy(make_list, make_content_house, make_content_fighter
 
 @pytest.mark.django_db
 def test_weapon_cost_legacy_equipment_list_override(
-    make_content_house, make_content_fighter
+    content_equipment_categories, make_content_house, make_content_fighter
 ):
     """
     This is testing that fighters can have a "legacy" association with a different
@@ -1158,7 +1169,7 @@ def test_weapon_cost_legacy_equipment_list_override(
 
 @pytest.mark.django_db
 def test_weapon_cost_legacy_equipment_list_override_with_profile(
-    make_content_house, make_content_fighter
+    content_equipment_categories, make_content_house, make_content_fighter
 ):
     """
     This is testing that fighters can have a "legacy" association with a different
@@ -1265,7 +1276,11 @@ def test_weapon_cost_legacy_equipment_list_override_with_profile(
 
 @pytest.mark.django_db
 def test_weapon_cost_legacy_equipment_list_override_with_accessory(
-    make_content_house, make_content_fighter, make_equipment, make_weapon_profile
+    content_equipment_categories,
+    make_content_house,
+    make_content_fighter,
+    make_equipment,
+    make_weapon_profile,
 ):
     """
     This is testing that fighters can have a "legacy" association with a different
@@ -1403,7 +1418,11 @@ def test_virtual_assignments(
 
 @pytest.mark.django_db
 def test_weapon_equipment_match(
-    content_fighter, make_list, make_equipment, make_list_fighter
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_equipment,
+    make_list_fighter,
 ):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
@@ -1509,7 +1528,11 @@ def test_invalid_equipment_upgrade(
 
 @pytest.mark.django_db
 def test_multi_equipment_upgrades(
-    content_fighter, make_list, make_equipment, make_list_fighter
+    content_fighter,
+    content_equipment_categories,
+    make_list,
+    make_equipment,
+    make_list_fighter,
 ):
     spoon = make_equipment(
         "Catborn",
@@ -1562,6 +1585,7 @@ def test_multi_equipment_upgrades(
 @pytest.mark.with_cost_cache
 def test_m2m_triggers_update_cost_cache(
     content_fighter,
+    content_equipment_categories,
     make_list,
     make_equipment,
     make_list_fighter,
