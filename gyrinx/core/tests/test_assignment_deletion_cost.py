@@ -65,8 +65,14 @@ def test_assignment_deletion_cost_recalculation(
 
 
 @pytest.mark.django_db
+@pytest.mark.with_cost_cache
 def test_assignment_deletion_cached_cost_recalculation(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+    content_equipment_categories,
 ):
     """Test that deleting an assignment correctly recalculates the cached list cost."""
     from gyrinx.core.models.list import List
@@ -211,8 +217,14 @@ def test_assignment_deletion_immediate_cached_property_update(
 
 
 @pytest.mark.django_db
+@pytest.mark.with_cost_cache
 def test_assignment_deletion_cached_property_with_multiple_assignments(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+    content_equipment_categories,
 ):
     """Test cached property updates when deleting one of multiple assignments."""
     # Create multiple equipment items

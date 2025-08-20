@@ -11,7 +11,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_basic_default_assignment():
+def test_basic_default_assignment(content_equipment_categories):
     house, _ = ContentHouse.objects.get_or_create(
         name="Spoonlickers",
     )
@@ -31,7 +31,7 @@ def test_basic_default_assignment():
 
 
 @pytest.mark.django_db
-def test_default_assignment_with_weapon_profile():
+def test_default_assignment_with_weapon_profile(content_equipment_categories):
     house, _ = ContentHouse.objects.get_or_create(
         name="Spoonlickers",
     )

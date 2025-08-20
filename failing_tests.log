@@ -1,0 +1,1171 @@
+==================================================================== test session starts =====================================================================
+platform darwin -- Python 3.12.7, pytest-8.4.1, pluggy-1.6.0
+django: version: 5.2.5, settings: gyrinx.settings_dev (from ini)
+rootdir: /Users/tom/code/gyrinx/gyrinx-2
+configfile: pyproject.toml
+plugins: anyio-4.9.0, xdist-3.8.0, django-4.11.1
+12 workers [847 items]
+..............................F.......F...............................F.F.FF.F.....F........F...F.....F....F...F...................................... [ 17%]
+.......................................................sssssss........................................................................................ [ 35%]
+..........................................................................................................................F........................... [ 53%]
+...................................................................................................................................................... [ 70%]
+..................F........................................F.......................................................................................... [ 88%]
+..F.FFF...................F......................................................................                                                      [100%]
+========================================================================== FAILURES ==========================================================================
+_______________________________________________________________ test_basic_default_assignment ________________________________________________________________
+[gw3] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_basic_default_assignment():
+        house, _ = ContentHouse.objects.get_or_create(
+            name="Spoonlickers",
+        )
+        fighter, _ = ContentFighter.objects.get_or_create(
+            type="Sporker", category=FighterCategoryChoices.JUVE, house=house
+        )
+        holster, _ = ContentEquipment.objects.get_or_create(
+            name="Holster",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/content/tests/test_default_assignment.py:23:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+___________________________________________________________________ test_equipment_policy ____________________________________________________________________
+[gw7] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_equipment_policy():
+        # Create a fighter, some equipment, and a set of policies
+        # Check that the policies are applied correctly
+
+        # Load the policy.schema.json file so we can check created policies
+        # against it
+        file = (
+            Path(__file__).parent
+            / "../../../content/necromunda-2018/schema/policy.schema.json"
+        )
+        with file.open() as f:
+            policy_schema = json.load(f)
+
+        registry = Resource.from_contents(policy_schema) @ Registry()
+
+        big_gun = ContentEquipment.objects.create(
+            name="Big Gun",
+>           category=ContentEquipmentCategory.objects.get(name="Heavy Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+
+gyrinx/content/tests/test_policy.py:44:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Heavy Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+________________________________________________________ test_default_assignment_with_weapon_profile _________________________________________________________
+[gw4] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_default_assignment_with_weapon_profile():
+        house, _ = ContentHouse.objects.get_or_create(
+            name="Spoonlickers",
+        )
+        fighter, _ = ContentFighter.objects.get_or_create(
+            type="Sporker", category=FighterCategoryChoices.JUVE, house=house
+        )
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/content/tests/test_default_assignment.py:43:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+------------------------------------------------------------------- Captured stdout setup --------------------------------------------------------------------
+No correctly spelled equipment found. Skipping migration.
+------------------------------------------------------------------- Captured stderr setup --------------------------------------------------------------------
+Got an error creating the test database: database "test_postgres_gw4" already exists
+
+INFO 2025-08-20 08:50:10,248 0088_auto_20250731_1146 94125 8350441664 Fixed 0 fighters with movement advancements
+INFO 2025-08-20 08:50:10,248 0088_auto_20250731_1146 94125 8350441664 Fixed 0 fighters with movement advancements
+--------------------------------------------------------------------- Captured log setup ---------------------------------------------------------------------
+INFO     gyrinx.core.migrations.0088_auto_20250731_1146:0088_auto_20250731_1146.py:56 Fixed 0 fighters with movement advancements
+_______________________________________________________________________ test_equipment _______________________________________________________________________
+[gw4] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_equipment():
+        # Create some equipment, a equipment list, and a fighter and
+        # write a query to get the equipment list for the fighter
+
+        # Create some equipment
+        equipment = ContentEquipment.objects.create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+
+gyrinx/content/tests/test_equipment_list.py:25:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+___________________________________________________________ test_equipment_weapon_profile_mismatch ___________________________________________________________
+[gw4] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_equipment_weapon_profile_mismatch():
+        # Create some equipment
+        equipment1 = ContentEquipment.objects.create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+
+gyrinx/content/tests/test_equipment_list.py:53:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_____________________________________________________________________ test_basic_weapon ______________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_basic_weapon():
+        t_blaze, _ = ContentWeaponTrait.objects.get_or_create(name="Blaze")
+        t_rapid_fire_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
+        t_shock, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
+        arc_rifle, _ = ContentEquipment.objects.get_or_create(
+            name="Arc rifle",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            defaults=dict(cost=100),
+        )
+
+gyrinx/content/tests/test_weapons.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_______________________________________________________________ test_content_equipment_manager _______________________________________________________________
+[gw4] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_content_equipment_manager():
+        # Create some equipment
+        spoon = ContentEquipment.objects.create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost="5",
+        )
+
+gyrinx/content/tests/test_equipment_list.py:92:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+__________________________________________________________________ test_special_ammo_weapon __________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_special_ammo_weapon():
+        t_limited, _ = ContentWeaponTrait.objects.get_or_create(name="Limited")
+        t_s_b, _ = ContentWeaponTrait.objects.get_or_create(name="Shield Breaker")
+        t_s, _ = ContentWeaponTrait.objects.get_or_create(name="Shock")
+        t_r_f_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
+        t_cursed, _ = ContentWeaponTrait.objects.get_or_create(name="Cursed")
+        t_s_s, _ = ContentWeaponTrait.objects.get_or_create(name="Single Shot")
+
+        autogun, _ = ContentEquipment.objects.get_or_create(
+            name="Autogun",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=15,
+        )
+
+gyrinx/content/tests/test_weapons.py:68:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+__________________________________________________________________ test_two_standard_stats ___________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_two_standard_stats():
+        t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
+        t_rapid_fire_1, _ = ContentWeaponTrait.objects.get_or_create(name="Rapid Fire (1)")
+        t_scattershot, _ = ContentWeaponTrait.objects.get_or_create(name="Scattershot")
+        t_template, _ = ContentWeaponTrait.objects.get_or_create(name="Template")
+        t_blaze, _ = ContentWeaponTrait.objects.get_or_create(name="Blaze")
+        t_limited, _ = ContentWeaponTrait.objects.get_or_create(name="Limited")
+        t_gas, _ = ContentWeaponTrait.objects.get_or_create(name="Gas")
+        t_blast_3, _ = ContentWeaponTrait.objects.get_or_create(name='Blast (3")')
+        t_single_shot, _ = ContentWeaponTrait.objects.get_or_create(name="Single Shot")
+
+        combat_shotgun, _ = ContentEquipment.objects.get_or_create(
+            name="Combat shotgun",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=70,
+            rarity="R",
+            rarity_roll=7,
+        )
+
+gyrinx/content/tests/test_weapons.py:150:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_____________________________________________________________________ test_combi_weapon ______________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_combi_weapon():
+        autopistol_combi_pistol_hand_flamer, _ = ContentEquipment.objects.get_or_create(
+            name="Autopistol Combi-Pistol Hand flamer",
+>           category=ContentEquipmentCategory.objects.get(name="Pistols"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=65,
+            rarity="R",
+            rarity_roll=10,
+        )
+
+gyrinx/content/tests/test_weapons.py:271:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Pistols'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_________________________________________________________________ test_autogun_combi_weapon __________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_autogun_combi_weapon():
+        autogun_combi_flamer, _ = ContentEquipment.objects.get_or_create(
+            name="Autogun Combi-Flamer",
+>           category=ContentEquipmentCategory.objects.get(name="Special Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=110,
+            rarity="R",
+            rarity_roll=10,
+        )
+
+gyrinx/content/tests/test_weapons.py:392:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Special Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_______________________________________________________________________ test_two_modes _______________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_two_modes():
+        t_esoteric, _ = ContentWeaponTrait.objects.get_or_create(name="Esoteric")
+        t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
+        t_plentiful, _ = ContentWeaponTrait.objects.get_or_create(name="Plentiful")
+        t_disarm, _ = ContentWeaponTrait.objects.get_or_create(name="Disarm")
+        t_melee, _ = ContentWeaponTrait.objects.get_or_create(name="Melee")
+        t_versatile, _ = ContentWeaponTrait.objects.get_or_create(name="Versatile")
+
+        kroot_long_rifle, _ = ContentEquipment.objects.get_or_create(
+            name="Kroot long rifle",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=30,
+            rarity="R",
+            rarity_roll=10,
+        )
+
+gyrinx/content/tests/test_weapons.py:540:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_______________________________________________________________________ test_grenades ________________________________________________________________________
+[gw8] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+    @pytest.mark.django_db
+    def test_grenades():
+        t_blast_5, _ = ContentWeaponTrait.objects.get_or_create(name='Blast (5")')
+        t_grenade, _ = ContentWeaponTrait.objects.get_or_create(name="Grenade")
+        t_knockback, _ = ContentWeaponTrait.objects.get_or_create(name="Knockback")
+
+        blasting_charge, _ = ContentEquipment.objects.get_or_create(
+            name="Blasting charge",
+>           category=ContentEquipmentCategory.objects.get(name="Grenades"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=35,
+            rarity="R",
+            rarity_roll=8,
+        )
+
+gyrinx/content/tests/test_weapons.py:598:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Grenades'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+_____________________________________________________ test_assignment_deletion_cached_cost_recalculation _____________________________________________________
+[gw9] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>, make_list = <function make_list.<locals>.make_list_ at 0x11a757ce0>
+make_list_fighter = <function make_list_fighter.<locals>.make_list_fighter_ at 0x11a757c40>
+make_equipment = <function make_equipment.<locals>.make_equipment_ at 0x11a757ec0>
+make_weapon_profile = <function make_weapon_profile.<locals>.make_weapon_profile_ at 0x11a757d80>
+
+    @pytest.mark.django_db
+    def test_assignment_deletion_cached_cost_recalculation(
+        content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    ):
+        """Test that deleting an assignment correctly recalculates the cached list cost."""
+        from gyrinx.core.models.list import List
+
+        # Create equipment with a cost
+        spoon = make_equipment(
+            "Wooden Spoon",
+            category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+            cost=50,  # Cost of the equipment
+        )
+        spoon_profile = make_weapon_profile(spoon)
+
+        # Create list and fighter
+        lst = make_list("Test List")
+        fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+        # Initial cached cost
+        initial_fighter_cost_cached = fighter.cost_int_cached
+        initial_list_cost_cached = lst.cost_int_cached
+
+        # Assign the equipment to the fighter
+        assignment = fighter.assign(
+            spoon, weapon_profiles=[spoon_profile], weapon_accessories=[]
+        )
+
+        # Get fresh instances to bypass cached properties
+        fighter = ListFighter.objects.get(pk=fighter.pk)
+        lst = List.objects.get(pk=lst.pk)
+
+        # Cached cost should now include the equipment
+        cost_with_equipment_cached = fighter.cost_int_cached
+        list_cost_with_equipment_cached = lst.cost_int_cached
+
+        assert cost_with_equipment_cached == initial_fighter_cost_cached + 50
+>       assert list_cost_with_equipment_cached == initial_list_cost_cached + 50
+E       assert 100 == (100 + 50)
+
+gyrinx/core/tests/test_assignment_deletion_cost.py:104: AssertionError
+_____________________________________________ test_assignment_deletion_cached_property_with_multiple_assignments _____________________________________________
+[gw9] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>, make_list = <function make_list.<locals>.make_list_ at 0x11a7634c0>
+make_list_fighter = <function make_list_fighter.<locals>.make_list_fighter_ at 0x11a7637e0>
+make_equipment = <function make_equipment.<locals>.make_equipment_ at 0x11a763880>
+make_weapon_profile = <function make_weapon_profile.<locals>.make_weapon_profile_ at 0x11a763920>
+
+    @pytest.mark.django_db
+    def test_assignment_deletion_cached_property_with_multiple_assignments(
+        content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    ):
+        """Test cached property updates when deleting one of multiple assignments."""
+        # Create multiple equipment items
+        weapon1 = make_equipment(
+            "Weapon 1",
+            category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+            cost=50,
+        )
+        weapon1_profile = make_weapon_profile(weapon1)
+
+        weapon2 = make_equipment(
+            "Weapon 2",
+            category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+            cost=75,
+        )
+        weapon2_profile = make_weapon_profile(weapon2)
+
+        # Create list and fighter
+        lst = make_list("Test List")
+        fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
+
+        initial_cost = lst.cost_int_cached
+
+        # Assign both weapons
+        assignment1 = fighter.assign(
+            weapon1, weapon_profiles=[weapon1_profile], weapon_accessories=[]
+        )
+        # We need assignment2 to ensure the cost properly reflects remaining equipment after deletion
+        assignment2 = fighter.assign(  # noqa: F841
+            weapon2, weapon_profiles=[weapon2_profile], weapon_accessories=[]
+        )
+
+        # Access cached properties to populate them
+        _ = fighter.cost_int_cached
+        _ = lst.cost_int_cached
+
+        # Delete first assignment
+        assignment1.delete()
+
+        # Check that cached cost now reflects only the second weapon
+        expected_cost = initial_cost + 75  # Only weapon2's cost remains
+>       assert lst.cost_int_cached == expected_cost, (
+            f"List cached cost after deleting first assignment ({lst.cost_int_cached}) "
+            f"!= expected cost ({expected_cost})"
+        )
+E       AssertionError: List cached cost after deleting first assignment (100) != expected cost (175)
+E       assert 100 == 175
+E        +  where 100 = <List: Test List>.cost_int_cached
+
+gyrinx/core/tests/test_assignment_deletion_cost.py:257: AssertionError
+____________________________________________________________ test_m2m_triggers_update_cost_cache _____________________________________________________________
+[gw6] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>, make_list = <function make_list.<locals>.make_list_ at 0x10d13a700>
+make_equipment = <function make_equipment.<locals>.make_equipment_ at 0x10d13b420>
+make_list_fighter = <function make_list_fighter.<locals>.make_list_fighter_ at 0x10d13bb00>, disable_cost_cache_in_tests = None
+
+    @pytest.mark.django_db
+    def test_m2m_triggers_update_cost_cache(
+        content_fighter,
+        make_list,
+        make_equipment,
+        make_list_fighter,
+        disable_cost_cache_in_tests,
+    ):
+        """Test that M2M field changes trigger cost cache updates."""
+        # Re-enable cost cache updates for this specific test
+>       disable_cost_cache_in_tests.stop()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'stop'
+
+gyrinx/core/tests/test_models_core.py:1562: AttributeError
+________________________________________________________________ test_list_fighter_with_spoon ________________________________________________________________
+[gw3] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_house = <ContentHouse: Squat Prospectors>, content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>
+
+    @pytest.mark.django_db
+    def test_list_fighter_with_spoon(content_house, content_fighter):
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/core/tests/test_models_core.py:373:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+____________________________________________________________ test_list_fighter_with_spoon_weapon _____________________________________________________________
+[gw3] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_house = <ContentHouse: Squat Prospectors>, content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>
+
+    @pytest.mark.django_db
+    def test_list_fighter_with_spoon_weapon(content_house, content_fighter):
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/core/tests/test_models_core.py:397:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+______________________________________________________ test_fighter_with_spoon_weapon_profile_with_cost ______________________________________________________
+[gw3] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_house = <ContentHouse: Squat Prospectors>, content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>
+
+    @pytest.mark.django_db
+    def test_fighter_with_spoon_weapon_profile_with_cost(content_house, content_fighter):
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/core/tests/test_models_core.py:445:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+___________________________________________________ test_list_fighter_with_spoon_and_not_other_assignments ___________________________________________________
+[gw3] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_house = <ContentHouse: Squat Prospectors>, content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>
+
+    @pytest.mark.django_db
+    def test_list_fighter_with_spoon_and_not_other_assignments(
+        content_house, content_fighter
+    ):
+        # This test was introduced to fix a bug where the cost of a fighter was
+        # including all equipment assignments, not just the ones for that fighter.
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Wooden Spoon",
+>           category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            cost=10,
+        )
+
+gyrinx/core/tests/test_models_core.py:502:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/django/db/models/manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <QuerySet []>, args = (), kwargs = {'name': 'Basic Weapons'}, clone = <QuerySet []>, limit = 21, num = 0
+
+    def get(self, *args, **kwargs):
+        """
+        Perform the query and return a single object matching the given
+        keyword arguments.
+        """
+        if self.query.combinator and (args or kwargs):
+            raise NotSupportedError(
+                "Calling QuerySet.get(...) with filters after %s() is not "
+                "supported." % self.query.combinator
+            )
+        clone = self._chain() if self.query.combinator else self.filter(*args, **kwargs)
+        if self.query.can_filter() and not self.query.distinct_fields:
+            clone = clone.order_by()
+        limit = None
+        if (
+            not clone.query.select_for_update
+            or connections[clone.db].features.supports_select_for_update_with_limit
+        ):
+            limit = MAX_GET_RESULTS
+            clone.query.set_limits(high=limit)
+        num = len(clone)
+        if num == 1:
+            return clone._result_cache[0]
+        if not num:
+>           raise self.model.DoesNotExist(
+                "%s matching query does not exist." % self.model._meta.object_name
+            )
+E           gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+
+.venv/lib/python3.12/site-packages/django/db/models/query.py:633: DoesNotExist
+____________________________________________________________________ test_list_cost_cache ____________________________________________________________________
+[gw9] darwin -- Python 3.12.7 /Users/tom/code/gyrinx/gyrinx-2/.venv/bin/python3
+
+content_house = <ContentHouse: Squat Prospectors>, content_fighter = <ContentFighter: Squat Prospectors Prospector Digger (Juve)>
+
+    @pytest.mark.django_db
+    def test_list_cost_cache(content_house, content_fighter):
+        spoon, _ = ContentEquipment.objects.get_or_create(
+            name="Wooden Spoon",
+            category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+            cost=10,
+        )
+
+        lst = List.objects.create(name="Test List", content_house=content_house)
+        fighter = ListFighter.objects.create(
+            name="Test Fighter", list=lst, content_fighter=content_fighter
+        )
+
+        assert fighter.cost_int() == content_fighter.cost_int()
+        assert lst.cost_int() == fighter.cost_int()
+
+        assert lst.cost_int_cached == fighter.cost_int()
+
+        cache = caches["core_list_cache"]
+        assert cache.has_key(lst.cost_cache_key())
+        assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
+
+        fighter.cost_override = 50
+        fighter.save()
+
+        # Refresh the objects from the database... because caching!
+        fighter = ListFighter.objects.get(pk=fighter.pk)
+        lst = List.objects.get(pk=lst.pk)
+
+>       assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
+E       AssertionError: assert 100 == 50
+E        +  where 100 = get('list_cost_916e20f7-d811-4ad2-91ee-f716cb9a2dd9')
+E        +    where get = <django.core.cache.backends.locmem.LocMemCache object at 0x119560980>.get
+E        +    and   'list_cost_916e20f7-d811-4ad2-91ee-f716cb9a2dd9' = cost_cache_key()
+E        +      where cost_cache_key = <List: Test List>.cost_cache_key
+E        +  and   50 = cost_int()
+E        +    where cost_int = <ListFighter: Test Fighter – Prospector Digger (JUVE)>.cost_int
+
+gyrinx/core/tests/test_models_core.py:291: AssertionError
+================================================================== short test summary info ===================================================================
+FAILED gyrinx/content/tests/test_default_assignment.py::test_basic_default_assignment - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_policy.py::test_equipment_policy - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_default_assignment.py::test_default_assignment_with_weapon_profile - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_equipment_list.py::test_equipment - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_equipment_list.py::test_equipment_weapon_profile_mismatch - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_basic_weapon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_equipment_list.py::test_content_equipment_manager - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_special_ammo_weapon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_two_standard_stats - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_combi_weapon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_autogun_combi_weapon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_two_modes - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/content/tests/test_weapons.py::test_grenades - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/core/tests/test_assignment_deletion_cost.py::test_assignment_deletion_cached_cost_recalculation - assert 100 == (100 + 50)
+FAILED gyrinx/core/tests/test_assignment_deletion_cost.py::test_assignment_deletion_cached_property_with_multiple_assignments - AssertionError: List cached cost after deleting first assignment (100) != expected cost (175)
+FAILED gyrinx/core/tests/test_models_core.py::test_m2m_triggers_update_cost_cache - AttributeError: 'NoneType' object has no attribute 'stop'
+FAILED gyrinx/core/tests/test_models_core.py::test_list_fighter_with_spoon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/core/tests/test_models_core.py::test_list_fighter_with_spoon_weapon - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/core/tests/test_models_core.py::test_fighter_with_spoon_weapon_profile_with_cost - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/core/tests/test_models_core.py::test_list_fighter_with_spoon_and_not_other_assignments - gyrinx.content.models.ContentEquipmentCategory.DoesNotExist: ContentEquipmentCategory matching query does not exist.
+FAILED gyrinx/core/tests/test_models_core.py::test_list_cost_cache - AssertionError: assert 100 == 50
+=================================================== 21 failed, 819 passed, 7 skipped in 149.44s (0:02:29) ====================================================

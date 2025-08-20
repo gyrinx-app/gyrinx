@@ -37,7 +37,7 @@ def django_test_settings():
 
 
 @pytest.fixture(autouse=True)
-def disable_cost_cache_in_tests():
+def disable_cost_cache_in_tests(request):
     """
     Disable expensive cost cache updates in all tests by default.
 
@@ -46,10 +46,16 @@ def disable_cost_cache_in_tests():
     tests and significantly slows down test execution.
 
     Tests that specifically need to test cost calculations can
-    re-enable this by mocking it differently.
+    re-enable this by using the 'with_cost_cache' marker.
     """
-    with patch("gyrinx.core.models.list.List.update_cost_cache"):
+    # Check if the test has the 'with_cost_cache' marker
+    if request.node.get_closest_marker("with_cost_cache"):
+        # Don't mock for this test
         yield
+    else:
+        # Mock the cost cache update for performance
+        with patch("gyrinx.core.models.list.List.update_cost_cache"):
+            yield
 
 
 @pytest.fixture(scope="session")

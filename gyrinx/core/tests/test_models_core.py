@@ -260,7 +260,8 @@ def test_list_cost_variable(content_house, content_fighter):
 
 
 @pytest.mark.django_db
-def test_list_cost_cache(content_house, content_fighter):
+@pytest.mark.with_cost_cache
+def test_list_cost_cache(content_house, content_fighter, content_equipment_categories):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -367,7 +368,9 @@ def test_list_cost_with_fighter_cost_override(content_house, content_fighter):
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_spoon(content_house, content_fighter):
+def test_list_fighter_with_spoon(
+    content_house, content_fighter, content_equipment_categories
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -391,7 +394,9 @@ def test_list_fighter_with_spoon(content_house, content_fighter):
 
 
 @pytest.mark.django_db
-def test_list_fighter_with_spoon_weapon(content_house, content_fighter):
+def test_list_fighter_with_spoon_weapon(
+    content_house, content_fighter, content_equipment_categories
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -439,7 +444,9 @@ def test_list_fighter_with_spoon_weapon(content_house, content_fighter):
 
 
 @pytest.mark.django_db
-def test_fighter_with_spoon_weapon_profile_with_cost(content_house, content_fighter):
+def test_fighter_with_spoon_weapon_profile_with_cost(
+    content_house, content_fighter, content_equipment_categories
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -493,7 +500,7 @@ def test_fighter_with_spoon_weapon_profile_with_cost(content_house, content_figh
 
 @pytest.mark.django_db
 def test_list_fighter_with_spoon_and_not_other_assignments(
-    content_house, content_fighter
+    content_house, content_fighter, content_equipment_categories
 ):
     # This test was introduced to fix a bug where the cost of a fighter was
     # including all equipment assignments, not just the ones for that fighter.
@@ -1318,7 +1325,9 @@ def test_weapon_cost_legacy_equipment_list_override_with_accessory(
 
 
 @pytest.mark.django_db
-def test_virtual_assignments(content_house, content_fighter):
+def test_virtual_assignments(
+    content_house, content_fighter, content_equipment_categories
+):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
         category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
@@ -1550,16 +1559,15 @@ def test_multi_equipment_upgrades(
 
 
 @pytest.mark.django_db
+@pytest.mark.with_cost_cache
 def test_m2m_triggers_update_cost_cache(
     content_fighter,
     make_list,
     make_equipment,
     make_list_fighter,
-    disable_cost_cache_in_tests,
 ):
     """Test that M2M field changes trigger cost cache updates."""
-    # Re-enable cost cache updates for this specific test
-    disable_cost_cache_in_tests.stop()
+    # This test needs real cost cache updates, not mocked ones
     # Create test data
     weapon = make_equipment(
         "Test Weapon",
