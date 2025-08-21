@@ -15,7 +15,7 @@
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
     {% firstof body_classes 'p-0 p-sm-2' as body_classes_ %}
 {% endif %}
-<div class="card {{ card_classes }} {% flash fighter.id %}"
+<div class="card {{ card_classes }} break-inside-avoid {% flash fighter.id %}"
      id="{{ fighter.id }}">
     <div class="card-header p-2 {% if fighter.is_dead %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
         <div class="vstack gap-1">

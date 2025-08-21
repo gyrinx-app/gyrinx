@@ -4,7 +4,8 @@
 {% else %}
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
 {% endif %}
-<div class="card {{ card_classes }}" id="{{ fighter.id }}">
+<div class="card {{ card_classes }} break-inside-avoid"
+     id="{{ fighter.id }}">
     <div class="card-header p-2">
         <div class="vstack gap-1">
             <div class="hstack align-items-center">
