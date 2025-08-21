@@ -60,6 +60,17 @@ def normalize_sql_uuids(sql):
     return re.sub(uuid_pattern, replace_uuid, sql, flags=re.IGNORECASE)
 
 
+def strip_sql_comments(sql):
+    """Strip SQL comments from the end of queries.
+
+    Removes sqlcommenter-style comments like:
+    /*app_name='core',controller='core%3Alist-performance',framework='django%3A5.2.4',route='list/%3Cid%3E/perf'*/
+    """
+    # Pattern to match /* ... */ style comments
+    comment_pattern = r"/\*[^*]*\*/"
+    return re.sub(comment_pattern, "", sql).strip()
+
+
 @pytest.fixture
 def performance_test_data(db):
     """Set up test data for performance testing."""
@@ -278,7 +289,7 @@ def test_performance_view_query_count(performance_test_data):
 
     latest_queries = [
         {
-            "sql": normalize_sql_uuids(query["sql"]),
+            "sql": normalize_sql_uuids(strip_sql_comments(query["sql"])),
             "time": str(query["time"]),
         }
         for query in context.captured_queries
