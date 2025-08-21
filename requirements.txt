@@ -19,6 +19,7 @@ djlint==1.36.4
 docutils==0.22
 fido2==2.0.0
 google-cloud-logging==3.12.1
+google-cloud-sqlcommenter==2.0.0
 jsonschema==4.25.0
 jupyter==1.1.1
 nbstripout==0.8.1

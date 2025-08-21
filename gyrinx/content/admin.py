@@ -13,7 +13,7 @@ from polymorphic.admin import (
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from gyrinx.forms import group_select
-from gyrinx.models import equipment_category_choices
+from gyrinx.models import equipment_category_groups
 
 from .models import (
     ContentAttribute,
@@ -267,7 +267,7 @@ class ContentEquipmentAdminForm(forms.ModelForm):
                         group=group,
                         then=i,
                     )
-                    for i, group in enumerate(equipment_category_choices.keys())
+                    for i, group in enumerate(equipment_category_groups)
                 ],
                 default=99,
             ),
