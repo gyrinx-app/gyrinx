@@ -328,3 +328,9 @@ $em-sizes: (
 .auto-flow-dense {
     grid-auto-flow: row dense;
 }
+
+// Print
+
+.break-inside-avoid {
+    break-inside: avoid;
+}

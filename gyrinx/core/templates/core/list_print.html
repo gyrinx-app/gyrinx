@@ -7,7 +7,8 @@
     <div id="content" class="p-2">
         <div class="col px-0 vstack gap-5">
             {% include "core/includes/list.html" with list=list print=True print_config=print_config %}
-            <div id="qr" class="card card-body gap-2 align-items-center">
+            <div id="qr"
+                 class="card card-body col-12 col-md-6 col-xl-4 gap-2 mx-auto align-items-center break-inside-avoid">
                 {% url 'core:list-print' list.id as list_url %}
                 {% fullurl list_url as full_list_url %}
                 <div id="qr-code" class="col-4 col-sm-3 col-md-2">{% qr_svg full_list_url %}</div>
