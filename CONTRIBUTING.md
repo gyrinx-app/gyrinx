@@ -23,6 +23,7 @@ document.
 
 - **Do not open up a GitHub issue if the bug is a security vulnerability
   in Gyrinx**, and instead [email hello@gyrinx.app](mailto:hello@gyrinx.app) or submit a [Security Advisory](https://github.com/gyrinx-app/gyrinx/security/advisories/new).
+
 ### Did you find a bug?
 
 - **Do not open up a GitHub issue if the bug is a security vulnerability in
@@ -48,7 +49,7 @@ Thanks for fixing the bug!
 - Suggest your change in the `💡-ideas` channel
 - Start writing code
 
-Ideally, don't open an issue on GitHub until you have collected positive feedback about the change. GitHub issues are 
+Ideally, don't open an issue on GitHub until you have collected positive feedback about the change. GitHub issues are
 primarily intended for bug reports and fixes.
 
 #### Do you have questions about the source code or content?

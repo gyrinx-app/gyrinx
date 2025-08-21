@@ -1,6 +1,12 @@
 # gyrinx
 
-[![GitBook](https://img.shields.io/static/v1?message=Documented%20on%20GitBook&logo=gitbook&logoColor=ffffff&label=%20&labelColor=5c5c5c&color=3F89A1)](https://www.gitbook.com/preview?utm_source=gitbook_readme_badge&utm_medium=organic&utm_campaign=preview_documentation&utm_content=link) ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
+[![GitBook][gitbook-badge]][gitbook-link]
+[![Tests][tests-badge]][tests-link]
+
+[gitbook-badge]: https://img.shields.io/static/v1?message=Documented%20on%20GitBook&logo=gitbook&logoColor=ffffff&label=%20&labelColor=5c5c5c&color=3F89A1
+[gitbook-link]: https://www.gitbook.com/preview?utm_source=gitbook_readme_badge&utm_medium=organic&utm_campaign=preview_documentation&utm_content=link
+[tests-badge]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg
+[tests-link]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml
 
 This repository contains the Gyrinx Django application. The code for this
 application is in the [`gyrinx`](./gyrinx) directory.
@@ -20,7 +26,6 @@ and admins.
 - [New data migration](#new-data-migration)
 - [Debugging SQL](#debugging-sql)
 - [Content library for development](#content-library-for-development)
-- [Markdown Linting Rules](#markdown-linting-rules)
 
 ## Technical Overview
 
@@ -69,116 +74,116 @@ To set up the development environment, follow these steps:
 
 1. Clone the repository:
 
-   ```bash
-   git clone git@github.com:gyrinx-app/gyrinx.git
-   cd gyrinx
-   ```
+    ```bash
+    git clone git@github.com:gyrinx-app/gyrinx.git
+    cd gyrinx
+    ```
 
 2. Make sure you're using the right Python version:
 
-   ```bash
-   python --version # should be >= 3.12
-   ```
+    ```bash
+    python --version # should be >= 3.12
+    ```
 
-   If you use `pyenv`, we have a `.python-version` file. If you have pyenv active
-   in your environment, this file will automatically activate this version for you.
+    If you use `pyenv`, we have a `.python-version` file. If you have pyenv active
+    in your environment, this file will automatically activate this version for you.
 
 3. Create and activate a virtual environment:
 
-   ```bash
-   python -m venv .venv && . .venv/bin/activate
-   ```
+    ```bash
+    python -m venv .venv && . .venv/bin/activate
+    ```
 
 4. Install the project in editable mode so you can use the `manage` command:
 
-   ```bash
-   pip install --editable .
-   ```
+    ```bash
+    pip install --editable .
+    ```
 
-   `setuptools` will handle installing dependencies.
+    `setuptools` will handle installing dependencies.
 
 5. You should then be able to run Django `manage` commands. This one will set up
    your `.env` file:
 
-   ```bash
-   manage setupenv
-   ```
+    ```bash
+    manage setupenv
+    ```
 
-   With that run, you'll have a `.env` file with a random and unique
-   `SECRET_KEY` and `DJANGO_SUPERUSER_PASSWORD`:
+    With that run, you'll have a `.env` file with a random and unique
+    `SECRET_KEY` and `DJANGO_SUPERUSER_PASSWORD`:
 
-   ```bash
-   cat .env
-   ```
+    ```bash
+    cat .env
+    ```
 
 6. Next, set up the frontend toolchain:
 
-   Get `nodeenv` (installed by `pip` earlier) to install
-   [node](https://nodejs.org/en) and [npm](https://www.npmjs.com/) in the
-   virtual env.
+    Get `nodeenv` (installed by `pip` earlier) to install
+    [node](https://nodejs.org/en) and [npm](https://www.npmjs.com/) in the
+    virtual env.
 
-   ```bash
-   nodeenv -p
-   ```
+    ```bash
+    nodeenv -p
+    ```
 
-   Check it has worked (you might need to `deactivate` then
-   `. .venv/bin/activate`):
+    Check it has worked (you might need to `deactivate` then
+    `. .venv/bin/activate`):
 
-   ```bash
-   which node # should be /path/to/repo/.venv/bin/node
-   which npm # should be /path/to/repo/.venv/bin/npm
-   ```
+    ```bash
+    which node # should be /path/to/repo/.venv/bin/node
+    which npm # should be /path/to/repo/.venv/bin/npm
+    ```
 
 7. Install the frontend dependencies:
 
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
 8. Build the frontend:
 
-   ```bash
-   npm run build
-   ```
+    ```bash
+    npm run build
+    ```
 
 9. Install the pre-commit hooks:
 
-   Before making any changes, make sure you've got pre-commit hooks installed.
+    Before making any changes, make sure you've got pre-commit hooks installed.
 
-   `pre-commit` is installed by pip.
+    `pre-commit` is installed by pip.
 
-   ```bash
-   pre-commit install
-   ```
+    ```bash
+    pre-commit install
+    ```
 
 ## Running the Django application
 
 1. Make sure your virtual environment is active & `pip` has up-to-date
    dependencies:
 
-   ```bash
-   . .venv/bin/activate
-   pip install --editable .
-   ```
+    ```bash
+    . .venv/bin/activate
+    pip install --editable .
+    ```
 
 2. Start the database ([Postgres](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/#Using-Docker-Compose))
    and [pgadmin](https://www.pgadmin.org/):
 
-   ```bash
-   docker compose up -d
-   ```
+    ```bash
+    docker compose up -d
+    ```
 
 3. Run the migrations:
 
-   ```bash
-   manage migrate
-   ```
+    ```bash
+    manage migrate
+    ```
 
 4. Run the application:
 
-   ```bash
-   manage runserver
-   ```
+    ```bash
+    manage runserver
+    ```
 
 You can also run the application itself within Docker Compose by passing
 `--profile app`, but this will not auto-reload the static files.
