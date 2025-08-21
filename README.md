@@ -1,6 +1,12 @@
 # gyrinx
 
-[![GitBook](https://img.shields.io/static/v1?message=Documented%20on%20GitBook&logo=gitbook&logoColor=ffffff&label=%20&labelColor=5c5c5c&color=3F89A1)](https://www.gitbook.com/preview?utm_source=gitbook_readme_badge&utm_medium=organic&utm_campaign=preview_documentation&utm_content=link) ![Tests](https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg)
+[![GitBook][gitbook-badge]][gitbook-link]
+[![Tests][tests-badge]][tests-link]
+
+[gitbook-badge]: https://img.shields.io/static/v1?message=Documented%20on%20GitBook&logo=gitbook&logoColor=ffffff&label=%20&labelColor=5c5c5c&color=3F89A1
+[gitbook-link]: https://www.gitbook.com/preview?utm_source=gitbook_readme_badge&utm_medium=organic&utm_campaign=preview_documentation&utm_content=link
+[tests-badge]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg
+[tests-link]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml
 
 This repository contains the Gyrinx Django application. The code for this
 application is in the [`gyrinx`](./gyrinx) directory.
@@ -20,7 +26,6 @@ and admins.
 - [New data migration](#new-data-migration)
 - [Debugging SQL](#debugging-sql)
 - [Content library for development](#content-library-for-development)
-- [Markdown Linting Rules](#markdown-linting-rules)
 
 ## Technical Overview
 
