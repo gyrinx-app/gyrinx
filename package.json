@@ -8,7 +8,7 @@
     "build": "npm run css",
     "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules gyrinx/core/static/core/scss/:gyrinx/core/static/core/css/",
     "css-lint": "stylelint gyrinx/core/static/core/scss/",
-    "css-prefix": "postcss --replace gyrinx/core/static/core/css/styles.css --use autoprefixer --map",
+    "css-prefix": "postcss --replace gyrinx/core/static/core/css/*.css --use autoprefixer --map",
     "css": "npm-run-all css-compile css-prefix",
     "server": "sirv --dev --no-clear --port 3000",
     "start": "npm-run-all --parallel watch server",

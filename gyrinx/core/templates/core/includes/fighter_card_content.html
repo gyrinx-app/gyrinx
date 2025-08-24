@@ -9,7 +9,7 @@
     - classes: Optional CSS classes for the card
 {% endcomment %}
 {% if print %}
-    {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-4 g-col-xl-3' as card_classes %}
+    {% firstof classes 'g-col-12 g-col-md-3 g-col-xl-2' as card_classes %}
     {% firstof body_classes 'p-0' as body_classes_ %}
 {% else %}
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
