@@ -65,7 +65,9 @@
         <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-        <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
+        {% block stylesheet %}
+            <link rel="stylesheet" href="{% static 'core/css/screen.css' %}">
+        {% endblock stylesheet %}
         {% comment %} TODO: use tag manager env variable {% endcomment %}
         <!-- Google Tag Manager -->
         <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
