@@ -1,6 +1,6 @@
 asgiref==3.9.1
 bandit==1.8.6
-beautifulsoup4==4.13.4
+beautifulsoup4==4.13.5
 bleach==6.2.0
 click==8.2.1
 daphne==4.2.1
@@ -20,7 +20,7 @@ docutils==0.22
 fido2==2.0.0
 google-cloud-logging==3.12.1
 google-cloud-sqlcommenter==2.0.0
-jsonschema==4.25.0
+jsonschema==4.25.1
 jupyter==1.1.1
 nbstripout==0.8.1
 nodeenv==1.9.1
@@ -38,7 +38,7 @@ pytest-xdist==3.8.0
 python-dotenv==1.1.1
 qrcode==8.2
 referencing==0.36.2
-ruff==0.12.9
+ruff==0.12.10
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.3
