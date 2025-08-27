@@ -91,11 +91,11 @@
                         {% endif %}
                     </td>
                 </tr>
-            {% else %}
+            {% elif not print %}
                 <tr class="fs-7">
                     <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Skills</th>
                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                        {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add skills</a>
                         {% else %}
                             <span class="text-muted fst-italic">None</span>
@@ -131,62 +131,66 @@
         {% endif %}
         {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
             {% for line in fighter.house_additional_gearline_display %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
-                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                        {% spaceless %}
-                            {% for assign in line.assignments %}
-                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
-                                {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                            {% empty %}
-                                {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
-                            {% endfor %}
-                        {% endspaceless %}
-                        {% if not print %}
-                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                {% if line.assignments|length > 0 %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Edit</a>
-                                {% else %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
+                {% if line.assignments|length > 0 or not print %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                        <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                            {% spaceless %}
+                                {% for assign in line.assignments %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
+                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% empty %}
+                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                {% endfor %}
+                            {% endspaceless %}
+                            {% if not print %}
+                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    {% if line.assignments|length > 0 %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Edit</a>
+                                    {% else %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
+                                    {% endif %}
                                 {% endif %}
                             {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
+                        </td>
+                    </tr>
+                {% endif %}
             {% endfor %}
         {% endif %}
         {% comment %} Category Restricted Gear {% endcomment %}
         {% if fighter.has_category_restricted_gear %}
             {% for line in fighter.category_restricted_gearline_display %}
-                <tr class="fs-7">
-                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">
-                        {{ line.category }}
-                        {% if line.category_limit %}<span class="fw-normal">{{ line.category_limit }}</span>{% endif %}
-                    </th>
-                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                        {% spaceless %}
-                            {% for assign in line.assignments %}
-                                {% comment %} All this faff to avoid spaces {% endcomment %}
-                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
-                                {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
-                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                            {% empty %}
-                                {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
-                            {% endfor %}
-                        {% endspaceless %}
-                        {% if not print %}
-                            {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                {% if line.assignments|length > 0 %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Edit</a>
-                                {% else %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
+                {% if line.assignments|length > 0 or not print %}
+                    <tr class="fs-7">
+                        <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">
+                            {{ line.category }}
+                            {% if line.category_limit %}<span class="fw-normal">{{ line.category_limit }}</span>{% endif %}
+                        </th>
+                        <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                            {% spaceless %}
+                                {% for assign in line.assignments %}
+                                    {% comment %} All this faff to avoid spaces {% endcomment %}
+                                    {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
+                                    {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% empty %}
+                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                {% endfor %}
+                            {% endspaceless %}
+                            {% if not print %}
+                                {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    {% if line.assignments|length > 0 %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Edit</a>
+                                    {% else %}
+                                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category|lower }}</a>
+                                    {% endif %}
                                 {% endif %}
                             {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
+                        </td>
+                    </tr>
+                {% endif %}
             {% endfor %}
         {% endif %}
         {% if fighter.wargearline_cached|length > 0 %}
@@ -235,11 +239,11 @@
                     {% endif %}
                 </td>
             </tr>
-        {% elif list.is_campaign_mode %}
+        {% elif list.is_campaign_mode and not print %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                    {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add {{ fighter.term_injury_plural|lower }}</a>
                     {% else %}
                         <span class="text-muted fst-italic">None</span>
