@@ -51,7 +51,7 @@
             </tr>
         {% endif %}
         {% comment %} XP{% endcomment %}
-        {% if not fighter.is_vehicle %}
+        {% if not fighter.is_vehicle and not print %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
@@ -248,7 +248,7 @@
             </tr>
         {% endif %}
         {% comment %} Advancements {% endcomment %}
-        {% if not fighter.is_vehicle %}
+        {% if not fighter.is_vehicle and not print %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Advancements</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
