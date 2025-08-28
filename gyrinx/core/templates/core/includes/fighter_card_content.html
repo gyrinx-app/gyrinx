@@ -36,19 +36,7 @@
                 <div class="ms-auto hstack gap-2 flex-wrap">
                     {% if not print %}
                         {% if fighter.has_linked_fighter %}
-                            <div class="fs-7 fst-italic">
-                                <i class="bi-person"></i>
-                                {% if print %}
-                                    {{ fighter.linked_list_fighter.name }}
-                                {% else %}
-                                    <a href="#{{ fighter.linked_list_fighter.id }}"
-                                       data-bs-toggle="tooltip"
-                                       class="tooltipped"
-                                       title="{{ fighter.term_proximal_demonstrative }} is linked to {{ fighter.linked_list_fighter.name }} via gear">
-                                        {{ fighter.linked_list_fighter.name }}
-                                    </a>
-                                {% endif %}
-                            </div>
+                            {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
                         {% endif %}
                         {% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}
                     {% endif %}
@@ -217,19 +205,7 @@
             <div>
                 <div class="hstack gap-2 align-items-baseline justify-content-end">
                     {% if fighter.has_linked_fighter %}
-                        <div class="fs-7 fst-italic">
-                            <i class="bi-person"></i>
-                            {% if print %}
-                                {{ fighter.linked_list_fighter.name }}
-                            {% else %}
-                                <a href="#{{ fighter.linked_list_fighter.id }}"
-                                   data-bs-toggle="tooltip"
-                                   class="tooltipped"
-                                   title="{{ fighter.term_proximal_demonstrative }} is linked to {{ fighter.linked_list_fighter.name }} via gear">
-                                    {{ fighter.linked_list_fighter.name }}
-                                </a>
-                            {% endif %}
-                        </div>
+                        {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
                     {% endif %}
                     <div class="fs-3">{% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}</div>
                 </div>
