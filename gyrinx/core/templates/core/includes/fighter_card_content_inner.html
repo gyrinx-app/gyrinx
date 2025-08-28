@@ -105,29 +105,36 @@
             {% endif %}
         {% endif %}
         {% if fighter.is_psyker %}
-            <tr class="fs-7">
-                <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Powers</th>
-                <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    {% spaceless %}
-                        {% for assign in fighter.powers_cached %}
-                            {% comment %} All this faff to avoid spaces {% endcomment %}
-                            <span>{{ assign.name }}</span>
-                            {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                        {% empty %}
+            {% if fighter.powers_cached|length > 0 %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Powers</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        {% spaceless %}
+                            {% for assign in fighter.powers_cached %}
+                                {% comment %} All this faff to avoid spaces {% endcomment %}
+                                <span>{{ assign.name }}</span>
+                                {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                            {% endfor %}
+                        {% endspaceless %}
+                        {% if not print %}
                             {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
-                            {% else %}
-                                <span class="text-muted fst-italic">None</span>
+                                <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
                             {% endif %}
-                        {% endfor %}
-                    {% endspaceless %}
-                    {% if fighter.powers_cached|length > 0 and not print %}
-                        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                            <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Edit powers</a>
                         {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
+                    </td>
+                </tr>
+            {% elif not print %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Powers</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                            <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add powers</a>
+                        {% else %}
+                            <span class="text-muted fst-italic">None</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
         {% endif %}
         {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
             {% for line in fighter.house_additional_gearline_display %}
