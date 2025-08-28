@@ -1,6 +1,6 @@
 {% load allauth custom_tags %}
 {% if print %}
-    {% firstof classes 'g-col-12 g-col-md-3 g-col-xl-2' as card_classes %}
+    {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2' as card_classes %}
 {% else %}
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
 {% endif %}

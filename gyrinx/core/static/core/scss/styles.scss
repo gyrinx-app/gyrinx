@@ -333,3 +333,22 @@ $em-sizes: (
 .break-inside-avoid {
     break-inside: avoid;
 }
+
+// Font-Size Box
+
+.sq-1 {
+    height: 1em;
+    width: 1em;
+}
+
+.sq-2 {
+    height: 2em;
+    width: 2em;
+}
+
+@each $size in (1, 2, 3, 4, 5, 6) {
+    .sq-#{$size} {
+        height: #{$size}em;
+        width: #{$size}em;
+    }
+}
