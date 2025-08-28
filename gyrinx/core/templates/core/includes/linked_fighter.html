@@ -1,0 +1,13 @@
+<div class="fs-7 fst-italic">
+    <i class="bi-person"></i>
+    {% if print %}
+        {{ fighter.linked_list_fighter.name }}
+    {% else %}
+        <a href="#{{ fighter.linked_list_fighter.id }}"
+           data-bs-toggle="tooltip"
+           class="tooltipped"
+           title="{{ fighter.term_proximal_demonstrative }} is linked to {{ fighter.linked_list_fighter.name }} via gear">
+            {{ fighter.linked_list_fighter.name }}
+        </a>
+    {% endif %}
+</div>

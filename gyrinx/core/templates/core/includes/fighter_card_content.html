@@ -9,7 +9,7 @@
     - classes: Optional CSS classes for the card
 {% endcomment %}
 {% if print %}
-    {% firstof classes 'g-col-12 g-col-md-3 g-col-xl-2' as card_classes %}
+    {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2' as card_classes %}
     {% firstof body_classes 'p-0' as body_classes_ %}
 {% else %}
     {% firstof classes 'g-col-12 g-col-md-6 g-col-xl-4' as card_classes %}
@@ -17,7 +17,7 @@
 {% endif %}
 <div class="card {{ card_classes }} break-inside-avoid {% flash fighter.id %}"
      id="{{ fighter.id }}">
-    <div class="card-header p-2 {% if fighter.is_dead %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
+    <div class="card-header p-2 hstack align-items-start {% if fighter.is_dead %}bg-danger-subtle{% elif fighter.is_captured or fighter.is_sold_to_guilders %}bg-warning-subtle{% endif %}">
         <div class="vstack gap-1">
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
@@ -34,18 +34,12 @@
                     <span class="badge ms-2 bg-secondary">Sold to Guilders</span>
                 {% endif %}
                 <div class="ms-auto hstack gap-2 flex-wrap">
-                    {% if fighter.has_linked_fighter %}
-                        <div class="fs-7 fst-italic">
-                            <i class="bi-person"></i>
-                            <a href="#{{ fighter.linked_list_fighter.id }}"
-                               data-bs-toggle="tooltip"
-                               class="tooltipped"
-                               title="{{ fighter.term_proximal_demonstrative }} is linked to {{ fighter.linked_list_fighter.name }} via gear">
-                                {{ fighter.linked_list_fighter.name }}
-                            </a>
-                        </div>
+                    {% if not print %}
+                        {% if fighter.has_linked_fighter %}
+                            {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
+                        {% endif %}
+                        {% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}
                     {% endif %}
-                    {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
                 </div>
             </div>
             <div class="hstack gap-2">
@@ -53,9 +47,11 @@
                     {% if not print %}
                         {% ref list.content_house_name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
                         {% if fighter.category_override %}
+                            {# djlint:off #}
                             (<span class="tooltipped"
-      data-bs-toggle="tooltip"
-      title="Category manually overridden from {{ fighter.content_fighter_cached.cat }}">{{ fighter.get_category_label }}</span>)
+                                   data-bs-toggle="tooltip"
+                                   title="Category manually overridden from {{ fighter.content_fighter_cached.cat }}">{{ fighter.get_category_label }}</span>)
+                            {# djlint:on #}
                         {% else %}
                             ({{ fighter.content_fighter_cached.cat }})
                         {% endif %}
@@ -205,6 +201,16 @@
                 </div>
             {% endif %}
         </div>
+        {% if print %}
+            <div>
+                <div class="hstack gap-2 align-items-baseline justify-content-end">
+                    {% if fighter.has_linked_fighter %}
+                        {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
+                    {% endif %}
+                    <div class="fs-3">{% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}</div>
+                </div>
+            </div>
+        {% endif %}
     </div>
     <div class="card-body p-0">
         {% if not print %}

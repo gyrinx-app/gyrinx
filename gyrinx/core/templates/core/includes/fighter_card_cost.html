@@ -1,15 +1,22 @@
+{% if print %}
+    {% firstof cost_classes 'text-body border fw-normal' as badge_classes %}
+    {% firstof cost_alt_classes 'text-body border fw-normal' as badge_alt_classes %}
+{% else %}
+    {% firstof cost_classes 'text-bg-secondary bg-secondary' as badge_classes %}
+    {% firstof cost_alt_classes 'text-bg-warning bg-warning' as badge_alt_classes %}
+{% endif %}
 {% if fighter.has_overridden_cost %}
     <div data-bs-toggle="tooltip"
          title="The base cost of {{ fighter.term_proximal_demonstrative|lower }} is modified (was {{ fighter.base_cost_before_override_display }})"
-         class="badge text-bg-warning bg-warning">{{ fighter.cost_display }}</div>
+         class="badge {{ badge_alt_classes }}">{{ fighter.cost_display }}</div>
 {% elif fighter.has_linked_fighter %}
     <div data-bs-toggle="tooltip"
          title="The base cost is zero because {{ fighter.term_proximal_demonstrative|lower }} is linked to {{ fighter.linked_list_fighter.name }} via gear (was {{ fighter.base_cost_before_override_display }})"
-         class="badge text-bg-warning bg-warning">{{ fighter.cost_display }}</div>
+         class="badge {{ badge_alt_classes }}">{{ fighter.cost_display }}</div>
 {% elif fighter.is_stash %}
-    <div class="badge text-bg-secondary bg-secondary">{{ fighter.list.credits_current }}¢</div>
+    <div class="badge {{ badge_classes }}">{{ fighter.list.credits_current }}¢</div>
     <i class="bi-plus"></i>
-    <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
+    <div class="badge {{ badge_classes }}">{{ fighter.cost_display }}</div>
 {% else %}
-    <div class="badge text-bg-secondary bg-secondary">{{ fighter.cost_display }}</div>
+    <div class="badge {{ badge_classes }}">{{ fighter.cost_display }}</div>
 {% endif %}
