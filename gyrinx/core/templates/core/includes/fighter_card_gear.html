@@ -62,6 +62,10 @@
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
+                                                    <i class="bi-arrow-90deg-up text-secondary me-2"></i>
+                                                    <a href="{% url 'core:list-fighter-gear-default-convert' list.id fighter.id assign.id %}"
+                                                       class="link-secondary">Modify from default</a>
+                                                    <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
                                                        class="link-danger">Delete</a>
                                                 {% endif %}
@@ -145,6 +149,10 @@
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
+                                                    <i class="bi-arrow-90deg-up text-secondary me-2"></i>
+                                                    <a href="{% url 'core:list-fighter-gear-default-convert' list.id fighter.id assign.id %}"
+                                                       class="link-secondary">Modify from default</a>
+                                                    <span class="text-muted">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
                                                        class="link-danger">Delete</a>
                                                 {% endif %}
