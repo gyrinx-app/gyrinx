@@ -95,6 +95,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+  - repo: local
+    hooks:
+      - id: markdownlint
+        name: markdownlint
+        entry: npx markdownlint-cli "*.md" --fix --ignore "CHANGELOG.md" --config .markdownlint.json
+        language: system
+        files: \.md$
+
   # Skipped becuase they take too long
   # - repo: local
   #   hooks:
