@@ -74,7 +74,7 @@
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
                                                     <br>
-                                                    <i class="bi-arrow-90deg-up text-secondary me-2"></i>
+                                                    <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                                                     {% if not assign.is_from_default_assignment %}
                                                         <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
                                                            class="link-secondary">Edit</a>
@@ -92,7 +92,7 @@
                                                        class="link-danger">Delete</a>
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
-                                                    <i class="bi-arrow-90deg-up text-secondary me-2"></i>
+                                                    <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                                                     <a href="{% url 'core:list-fighter-gear-default-convert' list.id fighter.id assign.id %}"
                                                        class="link-secondary">Modify from default</a>
                                                     <span class="text-muted">·</span>

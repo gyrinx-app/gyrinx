@@ -1,0 +1,13 @@
+{% load allauth custom_tags color_tags %}
+<div class="hstack gap-2 mb-2 align-items-start align-items-md-center break-inside-avoid">
+    <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
+        <h2 class="mb-0">{% list_with_theme list %}</h2>
+        <div class="ms-md-auto">{{ list.content_house_name }}</div>
+        <div class="h5 mb-0 btn-group">
+            {% if list.is_campaign_mode %}<div class="btn btn-success">In Campaign</div>{% endif %}
+            <div class="btn btn-secondary">Rating: {{ list.cost_int_cached }}¢</div>
+            <div class="btn btn-secondary">Credits: {{ list.credits_current }}¢</div>
+            <div class="btn btn-secondary">Wealth: {{ list.credits_current|add:list.cost_int_cached }}¢</div>
+        </div>
+    </div>
+</div>
