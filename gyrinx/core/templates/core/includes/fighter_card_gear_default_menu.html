@@ -1,0 +1,8 @@
+{% load custom_tags %}
+<br>
+<i class="bi-arrow-90deg-up text-secondary me-1"></i>
+<a href="{% url 'core:list-fighter-gear-default-convert' list.id fighter.id assign.id %}"
+   class="link-secondary">Modify from default</a>
+{% dot %}
+<a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
+   class="link-danger">Delete</a>
