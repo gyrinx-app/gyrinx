@@ -25,7 +25,7 @@ class NewCampaignForm(forms.ModelForm):
             "name": "The name you use to identify this Campaign. This may be public.",
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
-            "public": "If checked, this campaign will be visible to all users of Gyrinx. You can edit this later.",
+            "public": "If checked, this campaign will be visible to all users of Gyrinx. If unchecked, it will be unlisted. You can edit this later.",
             "budget": "Starting budget for each gang in credits.",
         }
         widgets = {
