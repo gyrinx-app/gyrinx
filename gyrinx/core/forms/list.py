@@ -59,7 +59,7 @@ class NewListForm(forms.ModelForm):
         help_texts = {
             "name": "The name you use to identify this List. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
-            "public": "If checked, this list will be visible to all users of Gyrinx. You can edit this later.",
+            "public": "If checked, this list will be visible to all users of Gyrinx. If unchecked, it will be unlisted. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -83,7 +83,7 @@ class CloneListForm(forms.ModelForm):
         help_texts = {
             "name": "The name you use to identify this List. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
-            "public": "If checked, this List will be visible to all users of Gyrinx. You can edit this later.",
+            "public": "If checked, this List will be visible to all users of Gyrinx. If unchecked, it will be unlisted. You can edit this later.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -107,7 +107,7 @@ class EditListForm(forms.ModelForm):
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
-            "public": "If checked, this list will be visible to all users.",
+            "public": "If checked, this list will be visible to all users. If unchecked, it will be unlisted.",
             "theme_color": "Select a theme color for your gang. Used in campaign views.",
         }
         widgets = {
