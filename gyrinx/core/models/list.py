@@ -1240,9 +1240,16 @@ class ListFighter(AppBase):
         return equipment_mods + injury_mods
 
     def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
+        current_value = value
         for mod in mods:
-            value = mod.apply(value)
-        return value
+            try:
+                current_value = mod.apply(current_value)
+            except (ValueError, TypeError) as e:
+                logger.exception(
+                    f"Error applying mod {mod} (mode={mod.mode}, value={mod.value}) "
+                    f"to {stat}={current_value}: {e}"
+                )
+        return current_value
 
     def get_primary_skill_categories(self):
         """
