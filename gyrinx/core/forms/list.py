@@ -19,7 +19,7 @@ from gyrinx.forms import (
     group_sorter,
     template_form_with_terms,
 )
-from gyrinx.models import FighterCategoryChoices
+from gyrinx.models import SMART_QUOTES, FighterCategoryChoices
 
 
 class NewListForm(forms.ModelForm):
@@ -914,12 +914,7 @@ class EditListFighterStatsForm(forms.Form):
         cleaned_data = super().clean()
 
         # Smart quotes to check for
-        smart_quotes = [
-            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
-            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
-            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
-            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
-        ]
+        smart_quotes = SMART_QUOTES.values()
 
         for field_name, value in cleaned_data.items():
             if (

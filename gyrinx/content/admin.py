@@ -13,7 +13,7 @@ from polymorphic.admin import (
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from gyrinx.forms import group_select
-from gyrinx.models import equipment_category_groups
+from gyrinx.models import SMART_QUOTES, equipment_category_groups
 
 from .models import (
     ContentAttribute,
@@ -708,12 +708,7 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
         cleaned_data = super().clean()
 
         # Smart quotes to check for
-        smart_quotes = [
-            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
-            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
-            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
-            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
-        ]
+        smart_quotes = SMART_QUOTES.values()
 
         # Fields to check for smart quotes
         stat_fields = [
@@ -1023,12 +1018,7 @@ class ContentStatlineStatForm(forms.ModelForm):
         value = self.cleaned_data.get("value")
 
         # Smart quotes to check for
-        smart_quotes = [
-            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
-            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
-            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
-            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
-        ]
+        smart_quotes = SMART_QUOTES.values()
 
         if (
             value

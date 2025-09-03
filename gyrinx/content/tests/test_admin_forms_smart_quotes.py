@@ -3,6 +3,7 @@
 import pytest
 
 from gyrinx.content.admin import ContentStatlineStatForm, ContentWeaponProfileAdminForm
+from gyrinx.models import SMART_QUOTES
 
 
 @pytest.mark.django_db
@@ -10,13 +11,13 @@ def test_content_weapon_profile_admin_form_rejects_smart_quotes(
     content_books, make_equipment
 ):
     """Test that ContentWeaponProfileAdminForm rejects smart quotes in stat fields."""
-    equipment = make_equipment("Test Equipment")
+    equipment = make_equipment("Test Equipment", category="Test Category")
     # Test with left double smart quote
     form_data = {
         "equipment": equipment.id,
         "name": "Test Weapon",
         "cost": "100",
-        "range_short": '12"',  # Smart quote (left double)
+        "range_short": f"12{SMART_QUOTES['LEFT_DOUBLE']}",  # Smart quote (left double)
         "range_long": '24"',
         "accuracy_short": "+1",
         "accuracy_long": "-1",
@@ -32,19 +33,25 @@ def test_content_weapon_profile_admin_form_rejects_smart_quotes(
     assert "Smart quotes are not allowed" in str(form.errors["range_short"])
 
     # Test with right double smart quote
-    form_data["range_short"] = '12"'  # Smart quote (right double)
+    form_data["range_short"] = (
+        f"12{SMART_QUOTES['RIGHT_DOUBLE']}"  # Smart quote (right double)
+    )
     form = ContentWeaponProfileAdminForm(data=form_data)
     assert not form.is_valid()
     assert "range_short" in form.errors
 
     # Test with left single smart quote
-    form_data["range_short"] = "12'"  # Smart quote (left single)
+    form_data["range_short"] = (
+        f"12{SMART_QUOTES['LEFT_SINGLE']}"  # Smart quote (left single)
+    )
     form = ContentWeaponProfileAdminForm(data=form_data)
     assert not form.is_valid()
     assert "range_short" in form.errors
 
     # Test with right single smart quote
-    form_data["range_short"] = "12'"  # Smart quote (right single)
+    form_data["range_short"] = (
+        f"12{SMART_QUOTES['RIGHT_SINGLE']}"  # Smart quote (right single)
+    )
     form = ContentWeaponProfileAdminForm(data=form_data)
     assert not form.is_valid()
     assert "range_short" in form.errors
@@ -55,7 +62,7 @@ def test_content_weapon_profile_admin_form_accepts_simple_quotes(
     content_books, make_equipment
 ):
     """Test that ContentWeaponProfileAdminForm accepts simple quotes."""
-    equipment = make_equipment("Test Equipment")
+    equipment = make_equipment("Test Equipment", category="Test Category")
     form_data = {
         "equipment": equipment.id,
         "name": "Test Weapon",
@@ -84,7 +91,7 @@ def test_content_weapon_profile_admin_form_checks_multiple_fields(
     content_books, make_equipment
 ):
     """Test that all stat fields are checked for smart quotes."""
-    equipment = make_equipment("Test Equipment")
+    equipment = make_equipment("Test Equipment", category="Test Category")
     fields_to_check = [
         "range_short",
         "range_long",
@@ -112,7 +119,9 @@ def test_content_weapon_profile_admin_form_checks_multiple_fields(
             "traits": [],
         }
         # Add smart quote to specific field
-        form_data[field_name] = '"test"'  # Using smart quotes
+        form_data[field_name] = (
+            f"{SMART_QUOTES['LEFT_DOUBLE']}test{SMART_QUOTES['RIGHT_DOUBLE']}"
+        )
         form = ContentWeaponProfileAdminForm(data=form_data)
         assert not form.is_valid()
         assert field_name in form.errors
@@ -124,7 +133,7 @@ def test_content_weapon_profile_admin_form_handles_non_string_values(
     content_books, make_equipment
 ):
     """Test that form handles non-string values without crashing."""
-    equipment = make_equipment("Test Equipment")
+    equipment = make_equipment("Test Equipment", category="Test Category")
     form_data = {
         "equipment": equipment.id,
         "name": "Test Weapon",
@@ -149,7 +158,7 @@ def test_content_statline_stat_form_rejects_smart_quotes():
     """Test that ContentStatlineStatForm rejects smart quotes in value field."""
     # Test with left double smart quote
     form_data = {
-        "value": '6"',  # Smart quote (left double)
+        "value": f"6{SMART_QUOTES['LEFT_DOUBLE']}",  # Smart quote (left double)
     }
     form = ContentStatlineStatForm(data=form_data)
     form.is_valid()
@@ -157,19 +166,23 @@ def test_content_statline_stat_form_rejects_smart_quotes():
     assert "Smart quotes are not allowed" in str(form.errors["value"])
 
     # Test with right double smart quote
-    form_data["value"] = '6"'  # Smart quote (right double)
+    form_data["value"] = (
+        f"6{SMART_QUOTES['RIGHT_DOUBLE']}"  # Smart quote (right double)
+    )
     form = ContentStatlineStatForm(data=form_data)
     form.is_valid()
     assert "value" in form.errors
 
     # Test with left single smart quote
-    form_data["value"] = "6'"  # Smart quote (left single)
+    form_data["value"] = f"6{SMART_QUOTES['LEFT_SINGLE']}"  # Smart quote (left single)
     form = ContentStatlineStatForm(data=form_data)
     form.is_valid()
     assert "value" in form.errors
 
     # Test with right single smart quote
-    form_data["value"] = "6'"  # Smart quote (right single)
+    form_data["value"] = (
+        f"6{SMART_QUOTES['RIGHT_SINGLE']}'"  # Smart quote (right single)
+    )
     form = ContentStatlineStatForm(data=form_data)
     form.is_valid()
     assert "value" in form.errors
