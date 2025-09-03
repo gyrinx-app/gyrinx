@@ -235,11 +235,22 @@ class List(AppBase):
 
     history = HistoricalRecords()
 
-    @admin.display(description="Cost")
+    #
+    # Wealth, Cost, Rating
+    #
+
+    @admin.display(description="Cost / Wealth")
     def cost_int(self):
-        fighters_cost = sum([f.cost_int() for f in self.fighters()])
-        # Include current credits in total cost
-        return fighters_cost + self.credits_current
+        # Note: we do _not_ want to used cached versions here because this method
+        # can be used to calculate the cost in real-time, reflecting any changes
+        # made to the fighters or their attributes.
+        rating = sum(
+            [f.cost_int() for f in self.fighters() if not f.content_fighter.is_stash]
+        )
+        stash_fighter_cost_int = (
+            self.stash_fighter.cost_int() if self.stash_fighter else 0
+        )
+        return rating + stash_fighter_cost_int + self.credits_current
 
     @cached_property
     def cost_int_cached(self):
@@ -249,14 +260,37 @@ class List(AppBase):
         if cached:
             return cached
 
-        fighters_cost = sum([f.cost_int_cached for f in self.fighters_cached])
-        # Include current credits in total cost
-        cost = fighters_cost + self.credits_current
+        rating = sum([f.cost_int_cached for f in self.active_fighters])
+        cost = rating + self.stash_fighter_cost_int + self.credits_current
         cache.set(cache_key, cost, settings.CACHE_LIST_TTL)
         return cost
 
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
+
+    @cached_property
+    def rating(self):
+        return sum([f.cost_int_cached for f in self.active_fighters])
+
+    @cached_property
+    def rating_display(self):
+        return format_cost_display(self.rating)
+
+    @cached_property
+    def stash_fighter_cost_int(self):
+        return self.stash_fighter.cost_int() if self.stash_fighter else 0
+
+    @cached_property
+    def stash_fighter_cost_display(self):
+        return format_cost_display(self.stash_fighter_cost_int)
+
+    @cached_property
+    def credits_current_display(self):
+        return format_cost_display(self.credits_current)
+
+    #
+    # Fighter & other properties
+    #
 
     def fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.with_related_data().filter(archived=False)
@@ -280,6 +314,11 @@ class List(AppBase):
     def active_fighters(self) -> QuerySetOf["ListFighter"]:
         """Get all fighters that could participate in a battle."""
         return self.fighters().exclude(content_fighter__is_stash=True)
+
+    @cached_property
+    def stash_fighter(self):
+        """Get the stash fighter for this list, if it exists."""
+        return self.fighters().filter(content_fighter__is_stash=True).first()
 
     @cached_property
     def owner_cached(self):

@@ -1,13 +1,70 @@
 {% load allauth custom_tags color_tags %}
 <div class="hstack gap-2 mb-2 align-items-start align-items-md-center break-inside-avoid">
-    <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-        <h2 class="mb-0">{% list_with_theme list %}</h2>
-        <div class="ms-md-auto">{{ list.content_house_name }}</div>
-        <div class="h5 mb-0 btn-group">
-            {% if list.is_campaign_mode %}<div class="btn btn-success">In Campaign</div>{% endif %}
-            <div class="btn btn-secondary">Rating: {{ list.cost_int_cached }}¢</div>
-            <div class="btn btn-secondary">Credits: {{ list.credits_current }}¢</div>
-            <div class="btn btn-secondary">Wealth: {{ list.credits_current|add:list.cost_int_cached }}¢</div>
+    <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
+        <div class="vstack">
+            <h2 class="mb-0 order-2 h3">{% list_with_theme list %}</h2>
+            <div class="fs-7 text-muted order-1">
+                <i class="bi-person"></i>
+                {% if print %}
+                    {{ list.owner_cached }}
+                {% else %}
+                    <a class="linked"
+                       href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
+            <div>{{ list.content_house_name }}</div>
+            {% if list.is_campaign_mode %}
+                <div>
+                    {% if print %}
+                        <i class="bi-award"></i> {{ list.campaign.name }}
+                        {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
+                    {% else %}
+                        <a href="{% url 'core:campaign' list.campaign.id %}"
+                           class="icon-link linked">
+                            <i class="bi-award"></i> {{ list.campaign.name }}
+                            {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="flex-shrink border-start-md ps-md-2">
+            <table class="table table-sm table-borderless table-responsive text-center mb-0">
+                <thead>
+                    <tr class="fs-7 align-middle">
+                        <th class="py-0 bg-transparent"
+                            bs-tooltip
+                            data-bs-toggle="tooltip"
+                            title="Rating"
+                            aria-label="Rating">R</th>
+                        <th class="py-0 bg-transparent"
+                            bs-tooltip
+                            data-bs-toggle="tooltip"
+                            title="Credits"
+                            aria-label="Credits">Cr</th>
+                        <th class="py-0 bg-transparent"
+                            bs-tooltip
+                            data-bs-toggle="tooltip"
+                            title="Stash"
+                            aria-label="Stash">St</th>
+                        <th class="py-0 bg-transparent"
+                            bs-tooltip
+                            data-bs-toggle="tooltip"
+                            title="Wealth"
+                            aria-label="Wealth">W</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="fs-6 align-middle">
+                        <td class="py-0 bg-transparent">{{ list.rating_display }}</td>
+                        <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
+                        <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
+                        <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

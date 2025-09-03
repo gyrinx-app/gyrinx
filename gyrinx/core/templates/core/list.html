@@ -4,15 +4,6 @@
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
-    {% if list.campaign %}
-        {% url 'core:campaign' list.campaign.id as campaign_url %}
-        {% include "core/includes/back.html" with url=campaign_url text=list.campaign.name %}
-    {% elif list.owner_cached == request.user %}
-        {% include "core/includes/home.html" %}
-    {% else %}
-        {% url 'core:lists' as lists_url %}
-        {% include "core/includes/back.html" with url=lists_url text="All Lists" %}
-    {% endif %}
     <div class="col-lg-12 px-0 vstack gap-5">
         {% include "core/includes/list.html" with list=list campaign_resources=campaign_resources held_assets=held_assets has_stash_fighter=has_stash_fighter %}
     </div>
