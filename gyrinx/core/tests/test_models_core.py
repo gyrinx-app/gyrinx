@@ -1984,3 +1984,250 @@ def test_fighter_category_override_equipment_restrictions(content_house):
         fighter.get_category()
     )
     assert juve_ganger_category.is_available_to_fighter_category(fighter.get_category())
+
+
+@pytest.mark.django_db
+@pytest.mark.with_cost_cache
+def test_list_rating_calculation(
+    content_house, make_list, make_list_fighter, make_content_fighter, user
+):
+    """Test that rating only includes active fighters."""
+    # Create a list with multiple fighters
+    lst = make_list("Test Gang")
+
+    # Create regular fighters with different costs
+    fighter1_template = make_content_fighter(
+        type="Fighter 1",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    fighter2_template = make_content_fighter(
+        type="Fighter 2",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=100,
+    )
+    fighter3_template = make_content_fighter(
+        type="Fighter 3",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=30,
+    )
+
+    # Create list fighters
+    ListFighter.objects.create(
+        list=lst,
+        name="Fighter 1",
+        content_fighter=fighter1_template,
+        owner=user,
+    )
+    fighter2 = ListFighter.objects.create(
+        list=lst,
+        name="Fighter 2",
+        content_fighter=fighter2_template,
+        owner=user,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Fighter 3",
+        content_fighter=fighter3_template,
+        owner=user,
+    )
+
+    # Clear the cached property if it exists
+    if "rating" in lst.__dict__:
+        del lst.__dict__["rating"]
+
+    # Rating should be the sum of active fighters only (50 + 100 + 30)
+    assert lst.rating == 180
+    assert lst.rating_display == "180¢"
+
+    # Add a stash fighter - it should NOT count towards rating
+    stash_fighter_template, _ = ContentFighter.objects.get_or_create(
+        house=content_house,
+        is_stash=True,
+        defaults={
+            "type": "Stash",
+            "category": FighterCategoryChoices.STASH,
+            "base_cost": 0,
+        },
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Stash",
+        content_fighter=stash_fighter_template,
+        owner=user,
+    )
+
+    # Clear the cached property if it exists
+    if "rating" in lst.__dict__:
+        del lst.__dict__["rating"]
+
+    # Rating should still be 180 (stash not included)
+    assert lst.rating == 180
+
+    # Archive one fighter - it should no longer count towards rating
+    fighter2.archived = True
+    fighter2.save()
+
+    # Clear the cached properties
+    if "active_fighters" in lst.__dict__:
+        del lst.__dict__["active_fighters"]
+    if "rating" in lst.__dict__:
+        del lst.__dict__["rating"]
+
+    # Rating should now be 50 + 30 = 80
+    assert lst.rating == 80
+    assert lst.rating_display == "80¢"
+
+
+@pytest.mark.django_db
+@pytest.mark.with_cost_cache
+def test_stash_fighter_cost_calculation(
+    content_house, make_list, user, content_equipment_categories
+):
+    """Test stash fighter cost is calculated correctly."""
+    lst = make_list("Test Gang")
+
+    # Initially no stash, cost should be 0
+    assert lst.stash_fighter_cost_int == 0
+    assert lst.stash_fighter_cost_display == "0¢"
+
+    # Create a stash fighter
+    stash_fighter_template, _ = ContentFighter.objects.get_or_create(
+        house=content_house,
+        is_stash=True,
+        defaults={
+            "type": "Stash",
+            "category": FighterCategoryChoices.STASH,
+            "base_cost": 0,
+        },
+    )
+    stash_fighter = ListFighter.objects.create(
+        list=lst,
+        name="Stash",
+        content_fighter=stash_fighter_template,
+        owner=user,
+    )
+
+    # Clear cached properties
+    if "stash_fighter" in lst.__dict__:
+        del lst.__dict__["stash_fighter"]
+    if "stash_fighter_cost_int" in lst.__dict__:
+        del lst.__dict__["stash_fighter_cost_int"]
+
+    # Stash fighter base cost should still be 0
+    assert lst.stash_fighter_cost_int == 0
+
+    # Add equipment to the stash
+    weapon = ContentEquipment.objects.create(
+        name="Test Weapon",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=25,
+    )
+    armor = ContentEquipment.objects.create(
+        name="Test Armor",
+        category=ContentEquipmentCategory.objects.get(name="Armor"),
+        cost=50,
+    )
+
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash_fighter,
+        content_equipment=weapon,
+    )
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash_fighter,
+        content_equipment=armor,
+    )
+
+    # Clear cached properties
+    if "stash_fighter" in lst.__dict__:
+        del lst.__dict__["stash_fighter"]
+    if "stash_fighter_cost_int" in lst.__dict__:
+        del lst.__dict__["stash_fighter_cost_int"]
+    if "cost_int_cached" in stash_fighter.__dict__:
+        del stash_fighter.__dict__["cost_int_cached"]
+
+    # Stash fighter cost should now be 25 + 50 = 75
+    assert lst.stash_fighter_cost_int == 75
+    assert lst.stash_fighter_cost_display == "75¢"
+
+
+@pytest.mark.django_db
+@pytest.mark.with_cost_cache
+def test_wealth_breakdown_display(
+    content_house, make_list, make_list_fighter, make_content_fighter, user
+):
+    """Test the display formatting methods."""
+    lst = make_list("Test Gang", credits_current=250)
+
+    # Create a fighter
+    fighter_template = make_content_fighter(
+        type="Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=100,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Test Fighter",
+        content_fighter=fighter_template,
+        owner=user,
+    )
+
+    # Create a stash fighter
+    stash_fighter_template, _ = ContentFighter.objects.get_or_create(
+        house=content_house,
+        is_stash=True,
+        defaults={
+            "type": "Stash",
+            "category": FighterCategoryChoices.STASH,
+            "base_cost": 0,
+        },
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Stash",
+        content_fighter=stash_fighter_template,
+        owner=user,
+    )
+
+    # Test display methods
+    assert lst.credits_current_display == "250¢"
+
+    # Clear cached properties
+    if "rating" in lst.__dict__:
+        del lst.__dict__["rating"]
+    if "rating_display" in lst.__dict__:
+        del lst.__dict__["rating_display"]
+    if "stash_fighter_cost_int" in lst.__dict__:
+        del lst.__dict__["stash_fighter_cost_int"]
+    if "cost_int_cached" in lst.__dict__:
+        del lst.__dict__["cost_int_cached"]
+
+    # Rating should be 100 (from fighter)
+    assert lst.rating == 100
+    assert lst.rating_display == "100¢"
+
+    # Stash fighter cost should be 0 (no equipment)
+    assert lst.stash_fighter_cost_int == 0
+    assert lst.stash_fighter_cost_display == "0¢"
+
+    # Total wealth (cost_int) should be rating + stash + credits = 100 + 0 + 250 = 350
+    assert lst.cost_int() == 350
+    assert lst.cost_display() == "350¢"
+
+    # Test with larger numbers
+    lst.credits_current = 1500
+    lst.save()
+
+    # Clear cached properties
+    if "credits_current_display" in lst.__dict__:
+        del lst.__dict__["credits_current_display"]
+    if "cost_int_cached" in lst.__dict__:
+        del lst.__dict__["cost_int_cached"]
+
+    assert lst.credits_current_display == "1,500¢"
+    assert lst.cost_int() == 1600
+    assert lst.cost_display() == "1,600¢"
