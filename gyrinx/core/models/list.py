@@ -241,7 +241,16 @@ class List(AppBase):
 
     @admin.display(description="Cost / Wealth")
     def cost_int(self):
-        return self.rating + self.stash_fighter.cost_int() + self.credits_current
+        # Note: we do _not_ want to used cached versions here becuase this method
+        # can be used to calculate the cost in real-time, reflecting any changes
+        # made to the fighters or their attributes.
+        rating = sum(
+            [f.cost_int() for f in self.fighters() if not f.content_fighter.is_stash]
+        )
+        stash_fighter_cost_int = (
+            self.stash_fighter.cost_int() if self.stash_fighter else 0
+        )
+        return rating + stash_fighter_cost_int + self.credits_current
 
     @cached_property
     def cost_int_cached(self):
