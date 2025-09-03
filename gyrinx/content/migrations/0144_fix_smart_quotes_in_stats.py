@@ -15,58 +15,191 @@ def fix_smart_quotes(apps, schema_editor):
         chr(0x2019): "'",  # U+2019 RIGHT SINGLE QUOTATION MARK
     }
 
-    # Fix ContentWeaponProfile
-    ContentWeaponProfile = apps.get_model("content", "ContentWeaponProfile")
-    fields = [
-        "range_short",
-        "range_long",
-        "accuracy_short",
-        "accuracy_long",
-        "strength",
-        "armour_piercing",
-        "damage",
-        "ammo",
-    ]
+    # Counter for changes and errors
+    total_changes = 0
+    errors = []
 
-    for profile in ContentWeaponProfile.objects.all():
-        modified = False
-        for field in fields:
-            value = getattr(profile, field)
-            if value:
-                new_value = value
-                for smart, simple in smart_quote_replacements.items():
-                    if smart in new_value:
-                        new_value = new_value.replace(smart, simple)
-                        modified = True
-                if new_value != value:
-                    setattr(profile, field, new_value)
-        if modified:
-            profile.save()
+    # Fix ContentWeaponProfile
+    try:
+        ContentWeaponProfile = apps.get_model("content", "ContentWeaponProfile")
+        fields = [
+            "range_short",
+            "range_long",
+            "accuracy_short",
+            "accuracy_long",
+            "strength",
+            "armour_piercing",
+            "damage",
+            "ammo",
+        ]
+
+        weapon_profile_changes = 0
+        for profile in ContentWeaponProfile.objects.all():
+            try:
+                modified = False
+                changed_fields = []
+                for field in fields:
+                    value = getattr(profile, field)
+                    if value:
+                        new_value = value
+                        for smart, simple in smart_quote_replacements.items():
+                            if smart in new_value:
+                                new_value = new_value.replace(smart, simple)
+                                modified = True
+                        if new_value != value:
+                            changed_fields.append(
+                                f"{field}: '{value}' -> '{new_value}'"
+                            )
+                            setattr(profile, field, new_value)
+                if modified:
+                    profile.save()
+                    weapon_profile_changes += 1
+                    print(
+                        f"ContentWeaponProfile {profile.id}: {', '.join(changed_fields)}"
+                    )
+            except Exception as e:
+                errors.append(
+                    f"Error processing ContentWeaponProfile {profile.id}: {e}"
+                )
+                print(f"ERROR: ContentWeaponProfile {profile.id}: {e}")
+
+        if weapon_profile_changes:
+            print(f"Updated {weapon_profile_changes} ContentWeaponProfile records")
+            total_changes += weapon_profile_changes
+    except Exception as e:
+        errors.append(f"Error processing ContentWeaponProfile model: {e}")
+        print(f"ERROR: Unable to process ContentWeaponProfile: {e}")
 
     # Fix ContentStatlineStat
-    ContentStatlineStat = apps.get_model("content", "ContentStatlineStat")
-    for stat in ContentStatlineStat.objects.all():
-        if stat.value:
-            new_value = stat.value
-            for smart, simple in smart_quote_replacements.items():
-                new_value = new_value.replace(smart, simple)
-            if new_value != stat.value:
-                stat.value = new_value
-                stat.save()
+    try:
+        ContentStatlineStat = apps.get_model("content", "ContentStatlineStat")
+        statline_changes = 0
+        for stat in ContentStatlineStat.objects.all():
+            try:
+                if stat.value:
+                    old_value = stat.value
+                    new_value = old_value
+                    for smart, simple in smart_quote_replacements.items():
+                        new_value = new_value.replace(smart, simple)
+                    if new_value != old_value:
+                        stat.value = new_value
+                        stat.save()
+                        statline_changes += 1
+                        print(
+                            f"ContentStatlineStat {stat.id}: value '{old_value}' -> '{new_value}'"
+                        )
+            except Exception as e:
+                errors.append(f"Error processing ContentStatlineStat {stat.id}: {e}")
+                print(f"ERROR: ContentStatlineStat {stat.id}: {e}")
+
+        if statline_changes:
+            print(f"Updated {statline_changes} ContentStatlineStat records")
+            total_changes += statline_changes
+    except Exception as e:
+        errors.append(f"Error processing ContentStatlineStat model: {e}")
+        print(f"ERROR: Unable to process ContentStatlineStat: {e}")
 
     # Fix ListFighterStatOverride
-    ListFighterStatOverride = apps.get_model("core", "ListFighterStatOverride")
-    for override in ListFighterStatOverride.objects.all():
-        if override.value:
-            new_value = override.value
-            for smart, simple in smart_quote_replacements.items():
-                new_value = new_value.replace(smart, simple)
-            if new_value != override.value:
-                override.value = new_value
-                override.save()
+    try:
+        ListFighterStatOverride = apps.get_model("core", "ListFighterStatOverride")
+        stat_override_changes = 0
+        for override in ListFighterStatOverride.objects.all():
+            try:
+                if override.value:
+                    old_value = override.value
+                    new_value = old_value
+                    for smart, simple in smart_quote_replacements.items():
+                        new_value = new_value.replace(smart, simple)
+                    if new_value != old_value:
+                        override.value = new_value
+                        override.save()
+                        stat_override_changes += 1
+                        print(
+                            f"ListFighterStatOverride {override.id}: value '{old_value}' -> '{new_value}'"
+                        )
+            except Exception as e:
+                errors.append(
+                    f"Error processing ListFighterStatOverride {override.id}: {e}"
+                )
+                print(f"ERROR: ListFighterStatOverride {override.id}: {e}")
+
+        if stat_override_changes:
+            print(f"Updated {stat_override_changes} ListFighterStatOverride records")
+            total_changes += stat_override_changes
+    except Exception as e:
+        errors.append(f"Error processing ListFighterStatOverride model: {e}")
+        print(f"ERROR: Unable to process ListFighterStatOverride: {e}")
+
+    # Fix ListFighter direct override fields
+    try:
+        ListFighter = apps.get_model("core", "ListFighter")
+        override_fields = [
+            "movement_override",
+            "weapon_skill_override",
+            "ballistic_skill_override",
+            "strength_override",
+            "toughness_override",
+            "wounds_override",
+            "initiative_override",
+            "attacks_override",
+            "leadership_override",
+            "cool_override",
+            "willpower_override",
+            "intelligence_override",
+        ]
+
+        list_fighter_changes = 0
+        for fighter in ListFighter.objects.all():
+            try:
+                modified = False
+                changed_fields = []
+                for field in override_fields:
+                    value = getattr(fighter, field)
+                    if value:
+                        new_value = value
+                        for smart, simple in smart_quote_replacements.items():
+                            if smart in new_value:
+                                new_value = new_value.replace(smart, simple)
+                                modified = True
+                        if new_value != value:
+                            changed_fields.append(
+                                f"{field}: '{value}' -> '{new_value}'"
+                            )
+                            setattr(fighter, field, new_value)
+                if modified:
+                    fighter.save()
+                    list_fighter_changes += 1
+                    print(
+                        f"ListFighter {fighter.id} ({fighter.name}): {', '.join(changed_fields)}"
+                    )
+            except Exception as e:
+                errors.append(
+                    f"Error processing ListFighter {fighter.id} ({fighter.name}): {e}"
+                )
+                print(f"ERROR: ListFighter {fighter.id}: {e}")
+
+        if list_fighter_changes:
+            print(f"Updated {list_fighter_changes} ListFighter records")
+            total_changes += list_fighter_changes
+    except Exception as e:
+        errors.append(f"Error processing ListFighter model: {e}")
+        print(f"ERROR: Unable to process ListFighter: {e}")
+
+    # Print summary
+    if total_changes == 0:
+        print("No smart quotes found in any stat fields.")
+    else:
+        print(f"Smart quotes fixed: {total_changes} records updated")
+
+    if errors:
+        print(f"\n{len(errors)} errors occurred during migration:")
+        for error in errors[:10]:  # Show first 10 errors
+            print(f"  - {error}")
+        if len(errors) > 10:
+            print(f"  ... and {len(errors) - 10} more errors")
 
 
-def reverse_fix_smart_quotes(apps, schema_editor):
+def reverse_fix_smart_quotes(apps, schema_editor):  # noqa: ARG001
     """
     Reversing this migration doesn't do anything since we don't want to
     re-introduce smart quotes.
