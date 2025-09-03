@@ -12,29 +12,9 @@
     {% endif %}
     <div class="hstack">
         <div class="vstack flex-grow-1 gap-0 mb-2">
-            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center break-inside-avoid">
-                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h2 class="mb-0">{% list_with_theme list %}</h2>
-                    <div class="ms-md-auto">
-                        {{ list.content_house_name }}
-                        {% if list.is_campaign_mode %}<span class="badge bg-success">In Campaign</span>{% endif %}
-                    </div>
-                    <div class="h5 mb-0">
-                        <div class="badge text-bg-primary">{{ list.cost_int_cached }}¢</div>
-                    </div>
-                </div>
-            </div>
+            {% include "core/includes/list_common_header.html" with list=list %}
             <div class="d-flex flex-column flex-md-row row-gap-1 column-gap-2 align-items-md-center">
-                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
-                    <div>
-                        <i class="bi-person"></i>
-                        {% if print %}
-                            {{ list.owner_cached }}
-                        {% else %}
-                            <a class="linked"
-                               href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
-                        {% endif %}
-                    </div>
+                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2 fs-7">
                     {% if not print %}
                         <div>
                             {% if list.public %}
@@ -71,16 +51,6 @@
                                    data-bs-title="This list was created via cloning"></i>
                                 Cloned from <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
                             </div>
-                            {% if list.campaign %}
-                                <div>
-                                    <i class="bi-award"
-                                       data-bs-toggle="tooltip"
-                                       data-bs-title="Active in Campaign"></i>
-                                    Active in
-                                    <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
-                                    {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
-                                </div>
-                            {% endif %}
                         {% endif %}
                         {% if list.is_list_building and list.active_campaign_clones|length %}
                             <div>

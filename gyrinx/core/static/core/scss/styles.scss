@@ -273,6 +273,27 @@ $em-sizes: (
             border-left: none !important;
         }
 
+        .border-#{$bp} {
+            border: var(--bs-border-width) var(--bs-border-style)
+                var(--bs-border-color);
+        }
+        .border-top-#{$bp} {
+            border-top: var(--bs-border-width) var(--bs-border-style)
+                var(--bs-border-color);
+        }
+        .border-bottom-#{$bp} {
+            border-bottom: var(--bs-border-width) var(--bs-border-style)
+                var(--bs-border-color);
+        }
+        .border-end-#{$bp} {
+            border-right: var(--bs-border-width) var(--bs-border-style)
+                var(--bs-border-color);
+        }
+        .border-start-#{$bp} {
+            border-left: var(--bs-border-width) var(--bs-border-style)
+                var(--bs-border-color);
+        }
+
         .rounded-#{$bp}-0 {
             border-radius: 0 !important;
         }
