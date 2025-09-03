@@ -695,6 +695,10 @@ class ContentEquipmentEquipmentProfileAdmin(ContentAdmin):
 
 
 class ContentWeaponProfileAdminForm(forms.ModelForm):
+    class Meta:
+        model = ContentWeaponProfile
+        fields = "__all__"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         group_select(self, "equipment", key=lambda x: x.cat())
@@ -704,7 +708,12 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
         cleaned_data = super().clean()
 
         # Smart quotes to check for
-        smart_quotes = ['"', '"', """, """]
+        smart_quotes = [
+            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
+            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
+            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
+            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
+        ]
 
         # Fields to check for smart quotes
         stat_fields = [
@@ -720,7 +729,11 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
 
         for field in stat_fields:
             value = cleaned_data.get(field)
-            if value and any(quote in value for quote in smart_quotes):
+            if (
+                value
+                and isinstance(value, str)
+                and any(quote in value for quote in smart_quotes)
+            ):
                 raise forms.ValidationError(
                     {
                         field: 'Smart quotes are not allowed. Please use simple quotes (") instead.'
@@ -1010,9 +1023,18 @@ class ContentStatlineStatForm(forms.ModelForm):
         value = self.cleaned_data.get("value")
 
         # Smart quotes to check for
-        smart_quotes = ['"', '"', """, """]
+        smart_quotes = [
+            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
+            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
+            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
+            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
+        ]
 
-        if value and any(quote in value for quote in smart_quotes):
+        if (
+            value
+            and isinstance(value, str)
+            and any(quote in value for quote in smart_quotes)
+        ):
             raise forms.ValidationError(
                 'Smart quotes are not allowed. Please use simple quotes (") instead.'
             )

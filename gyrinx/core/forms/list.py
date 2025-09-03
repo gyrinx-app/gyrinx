@@ -914,10 +914,19 @@ class EditListFighterStatsForm(forms.Form):
         cleaned_data = super().clean()
 
         # Smart quotes to check for
-        smart_quotes = ['"', '"', """, """]
+        smart_quotes = [
+            chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
+            chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
+            chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
+            chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
+        ]
 
         for field_name, value in cleaned_data.items():
-            if value and any(quote in value for quote in smart_quotes):
+            if (
+                value
+                and isinstance(value, str)
+                and any(quote in value for quote in smart_quotes)
+            ):
                 # Get a more user-friendly field label
                 if hasattr(self.fields[field_name], "full_name"):
                     field_label = self.fields[field_name].full_name
