@@ -908,3 +908,28 @@ class EditListFighterStatsForm(forms.Form):
 
         self.fighter = fighter
         self.has_custom_statline = has_custom_statline
+
+    def clean(self):
+        """Validate that no smart quotes are used in stat values."""
+        cleaned_data = super().clean()
+
+        # Smart quotes to check for
+        smart_quotes = ['"', '"', """, """]
+
+        for field_name, value in cleaned_data.items():
+            if value and any(quote in value for quote in smart_quotes):
+                # Get a more user-friendly field label
+                if hasattr(self.fields[field_name], "full_name"):
+                    field_label = self.fields[field_name].full_name
+                elif hasattr(self.fields[field_name], "label"):
+                    field_label = self.fields[field_name].label
+                else:
+                    field_label = field_name
+
+                raise forms.ValidationError(
+                    {
+                        field_name: f'Smart quotes are not allowed in {field_label}. Please use simple quotes (") instead.'
+                    }
+                )
+
+        return cleaned_data

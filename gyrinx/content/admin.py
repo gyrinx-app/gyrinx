@@ -699,6 +699,36 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         group_select(self, "equipment", key=lambda x: x.cat())
 
+    def clean(self):
+        """Validate that no smart quotes are used in stat fields."""
+        cleaned_data = super().clean()
+
+        # Smart quotes to check for
+        smart_quotes = ['"', '"', """, """]
+
+        # Fields to check for smart quotes
+        stat_fields = [
+            "range_short",
+            "range_long",
+            "accuracy_short",
+            "accuracy_long",
+            "strength",
+            "armour_piercing",
+            "damage",
+            "ammo",
+        ]
+
+        for field in stat_fields:
+            value = cleaned_data.get(field)
+            if value and any(quote in value for quote in smart_quotes):
+                raise forms.ValidationError(
+                    {
+                        field: 'Smart quotes are not allowed. Please use simple quotes (") instead.'
+                    }
+                )
+
+        return cleaned_data
+
 
 @admin.register(ContentWeaponProfile)
 class ContentWeaponProfileAdmin(ContentAdmin):
@@ -972,8 +1002,31 @@ class ContentStatlineTypeAdmin(ContentAdmin, admin.ModelAdmin):
     get_stat_count.short_description = "Stats"
 
 
+class ContentStatlineStatForm(forms.ModelForm):
+    """Form for ContentStatlineStat with smart quote validation."""
+
+    def clean_value(self):
+        """Validate that no smart quotes are used in stat value."""
+        value = self.cleaned_data.get("value")
+
+        # Smart quotes to check for
+        smart_quotes = ['"', '"', """, """]
+
+        if value and any(quote in value for quote in smart_quotes):
+            raise forms.ValidationError(
+                'Smart quotes are not allowed. Please use simple quotes (") instead.'
+            )
+
+        return value
+
+    class Meta:
+        model = ContentStatlineStat
+        fields = "__all__"
+
+
 class ContentStatlineStatInline(ContentTabularInline):
     model = ContentStatlineStat
+    form = ContentStatlineStatForm
     extra = 0
     fields = ["statline_type_stat", "value"]
     readonly_fields = []
