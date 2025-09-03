@@ -241,7 +241,7 @@ class List(AppBase):
 
     @admin.display(description="Cost / Wealth")
     def cost_int(self):
-        # Note: we do _not_ want to used cached versions here becuase this method
+        # Note: we do _not_ want to used cached versions here because this method
         # can be used to calculate the cost in real-time, reflecting any changes
         # made to the fighters or their attributes.
         rating = sum(
