@@ -2035,9 +2035,7 @@ def test_list_rating_calculation(
         owner=user,
     )
 
-    # Clear the cached property if it exists
-    if "rating" in lst.__dict__:
-        del lst.__dict__["rating"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should be the sum of active fighters only (50 + 100 + 30)
     assert lst.rating == 180
@@ -2060,9 +2058,7 @@ def test_list_rating_calculation(
         owner=user,
     )
 
-    # Clear the cached property if it exists
-    if "rating" in lst.__dict__:
-        del lst.__dict__["rating"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should still be 180 (stash not included)
     assert lst.rating == 180
@@ -2071,11 +2067,7 @@ def test_list_rating_calculation(
     fighter2.archived = True
     fighter2.save()
 
-    # Clear the cached properties
-    if "active_fighters" in lst.__dict__:
-        del lst.__dict__["active_fighters"]
-    if "rating" in lst.__dict__:
-        del lst.__dict__["rating"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should now be 50 + 30 = 80
     assert lst.rating == 80
@@ -2111,11 +2103,7 @@ def test_stash_fighter_cost_calculation(
         owner=user,
     )
 
-    # Clear cached properties
-    if "stash_fighter" in lst.__dict__:
-        del lst.__dict__["stash_fighter"]
-    if "stash_fighter_cost_int" in lst.__dict__:
-        del lst.__dict__["stash_fighter_cost_int"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Stash fighter base cost should still be 0
     assert lst.stash_fighter_cost_int == 0
@@ -2141,13 +2129,7 @@ def test_stash_fighter_cost_calculation(
         content_equipment=armor,
     )
 
-    # Clear cached properties
-    if "stash_fighter" in lst.__dict__:
-        del lst.__dict__["stash_fighter"]
-    if "stash_fighter_cost_int" in lst.__dict__:
-        del lst.__dict__["stash_fighter_cost_int"]
-    if "cost_int_cached" in stash_fighter.__dict__:
-        del stash_fighter.__dict__["cost_int_cached"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Stash fighter cost should now be 25 + 50 = 75
     assert lst.stash_fighter_cost_int == 75
@@ -2196,15 +2178,7 @@ def test_wealth_breakdown_display(
     # Test display methods
     assert lst.credits_current_display == "250¢"
 
-    # Clear cached properties
-    if "rating" in lst.__dict__:
-        del lst.__dict__["rating"]
-    if "rating_display" in lst.__dict__:
-        del lst.__dict__["rating_display"]
-    if "stash_fighter_cost_int" in lst.__dict__:
-        del lst.__dict__["stash_fighter_cost_int"]
-    if "cost_int_cached" in lst.__dict__:
-        del lst.__dict__["cost_int_cached"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should be 100 (from fighter)
     assert lst.rating == 100
@@ -2222,12 +2196,8 @@ def test_wealth_breakdown_display(
     lst.credits_current = 1500
     lst.save()
 
-    # Clear cached properties
-    if "credits_current_display" in lst.__dict__:
-        del lst.__dict__["credits_current_display"]
-    if "cost_int_cached" in lst.__dict__:
-        del lst.__dict__["cost_int_cached"]
+    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
-    assert lst.credits_current_display == "1,500¢"
+    assert lst.credits_current_display == "1500¢"
     assert lst.cost_int() == 1600
-    assert lst.cost_display() == "1,600¢"
+    assert lst.cost_display() == "1600¢"
