@@ -4,10 +4,11 @@ This file provides guidance specific to the analytics app.
 
 ## Important Notes
 
-- **ALWAYS look up model definitions before using their fields or properties** - do not assume field names or choices. Use the Read tool to check the actual model definition in the models.py file before writing queries or filters.
+- **ALWAYS look up model definitions before using their fields or properties** - do not assume field names or choices.
+  Use the Read tool to check the actual model definition in the `models.py` file before writing queries or filters.
 - The analytics app uses hard-coded graphs, not configurable ones
 - All graph data methods should use Django ORM, not raw SQL
-- The dashboard supports time scale filtering (7d, 30d, 90d, 1y)
+- The dashboard supports timescale filtering (7d, 30d, 90d, 1y)
 
 ## Graph Types
 
@@ -24,5 +25,5 @@ When working with the analytics queries:
 
 - Use `TruncDate` for date grouping
 - Use `Count` for aggregations
-- Remember to filter by start_date for time scale support
+- Remember to filter by start_date for timescale support
 - Format dates as strings using `strftime("%Y-%m-%d")` for Chart.js compatibility

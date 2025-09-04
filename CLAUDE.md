@@ -178,11 +178,11 @@ SQL_DEBUG=True
 ### Base Model Architecture
 
 - **`AppBase`** - Abstract base model for all app models, provides:
-    - UUID primary key (from `Base`)
-    - Owner tracking (from `Owned`)
-    - Archive functionality (from `Archived`)
-    - History tracking with user information (from `HistoryMixin`)
-    - History-aware manager for better user tracking
+  - UUID primary key (from `Base`)
+  - Owner tracking (from `Owned`)
+  - Archive functionality (from `Archived`)
+  - History tracking with user information (from `HistoryMixin`)
+  - History-aware manager for better user tracking
 - All models inherit from `AppBase` to get consistent behavior
 - Models already define `history = HistoricalRecords()` for SimpleHistory integration
 
@@ -198,7 +198,8 @@ SQL_DEBUG=True
 - **Not an SPA**: Server-rendered HTML with form submissions, not React/API
 - **Mobile-first**: Design for mobile, scale up to desktop
 - **Make it work; make it right; make it fast**: Ship functionality first, optimize later
-- **Security**: Always validate return URLs using `safe_redirect` when accepting redirect URLs from user input to prevent open redirect vulnerabilities
+- **Security**: Always validate return URLs using `safe_redirect` when accepting redirect URLs from user input to
+  prevent open redirect vulnerabilities
 
 ### Settings Configuration
 
@@ -303,10 +304,12 @@ SQL_DEBUG=True
 - `gyrinx/core/tests/` - Core app tests
 - `gyrinx/content/tests/` - Content app tests
 
-# important-instruction-reminders
+## important-instruction-reminders
 
 - Do what has been asked; nothing more, nothing less.
 - NEVER create files unless they're absolutely necessary for achieving your goal.
 - ALWAYS prefer editing an existing file to creating a new one.
-- NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
-- ALWAYS look up model definitions before using their fields or properties - do not assume field names or choices. Use the Read tool to check the actual model definition in the models.py file.
+- NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly
+  requested by the User.
+- ALWAYS look up model definitions before using their fields or properties - do not assume field names or choices. Use
+  the Read tool to check the actual model definition in the models.py file.
