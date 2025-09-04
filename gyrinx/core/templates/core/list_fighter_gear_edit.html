@@ -4,7 +4,7 @@
     Gear - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back_to_list.html" with list=list %}
+    {% include "core/includes/list_common_header.html" with list=list link_list=True %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Gear: {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
