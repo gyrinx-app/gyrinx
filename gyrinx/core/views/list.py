@@ -3611,8 +3611,10 @@ def list_fighter_add_injury(request, id, fighter_id):
 
                 # Log to campaign action
                 if lst.campaign:
+                    # Use the correct injury/damage term based on fighter category
+                    injury_term = "Damage" if fighter.is_vehicle else "Injury"
                     description = (
-                        f"Injury: {fighter.name} suffered {injury.injury.name}"
+                        f"{injury_term}: {fighter.name} suffered {injury.injury.name}"
                     )
                     if form.cleaned_data.get("notes"):
                         description += f" - {form.cleaned_data['notes']}"
@@ -3723,12 +3725,14 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
             # Log to campaign action
             if lst.campaign:
+                # Use the correct injury/damage term based on fighter category
+                injury_term = "Repair" if fighter.is_vehicle else "Recovery"
                 CampaignAction.objects.create(
                     user=request.user,
                     owner=request.user,
                     campaign=lst.campaign,
                     list=lst,
-                    description=f"Recovery: {fighter.name} recovered from {injury_name}",
+                    description=f"{injury_term}: {fighter.name} recovered from {injury_name}",
                     outcome=outcome,
                 )
 
