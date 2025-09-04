@@ -421,3 +421,36 @@ def test_prevent_duplicate_list_in_campaign(client):
 
     # Original list should not be available since it's already added
     assert original_list not in response.context["lists"]
+
+
+@pytest.mark.django_db
+def test_list_with_campaign_mode_but_no_campaign(client):
+    """Test that a list with campaign mode but no campaign doesn't cause errors."""
+    user = User.objects.create_user(username="testuser", password="password")
+    house = ContentHouse.objects.create(name="Test House")
+    client.login(username="testuser", password="password")
+
+    # Create a list with campaign mode status but no associated campaign
+    # This simulates the error condition from the issue
+    campaign_list = List.objects.create_with_user(
+        user=user,
+        name="Campaign List without Campaign",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        # Intentionally not setting campaign=... here
+    )
+
+    # Verify the list is in campaign mode but has no campaign
+    assert campaign_list.is_campaign_mode
+    assert campaign_list.campaign is None
+
+    # Access the list detail page - this should NOT cause an error
+    response = client.get(reverse("core:list", args=[campaign_list.id]))
+    assert response.status_code == 200
+
+    # The page should render successfully and contain the list name
+    assert b"Campaign List without Campaign" in response.content
+
+    # Should NOT show campaign info since there's no campaign
+    assert b"bi-award" not in response.content  # Campaign icon should not appear

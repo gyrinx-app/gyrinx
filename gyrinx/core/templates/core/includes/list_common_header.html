@@ -21,7 +21,7 @@
         </div>
         <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
             <div>{{ list.content_house_name }}</div>
-            {% if list.is_campaign_mode %}
+            {% if list.campaign %}
                 <div>
                     {% if print %}
                         <i class="bi-award"></i> {{ list.campaign.name }}
