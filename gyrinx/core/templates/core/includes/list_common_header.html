@@ -2,7 +2,13 @@
 <div class="hstack gap-2 mb-2 align-items-start align-items-md-center break-inside-avoid">
     <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
         <div class="vstack">
-            <h2 class="mb-0 order-2 h3">{% list_with_theme list %}</h2>
+            <h2 class="mb-0 order-2 h3">
+                {% if link_list %}
+                    <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
+                {% else %}
+                    {% list_with_theme list %}
+                {% endif %}
+            </h2>
             <div class="fs-7 text-muted order-1">
                 <i class="bi-person"></i>
                 {% if print %}
