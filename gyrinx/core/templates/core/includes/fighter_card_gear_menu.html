@@ -3,7 +3,7 @@
 <i class="bi-arrow-90deg-up text-secondary me-1"></i>
 {% if not assign.is_from_default_assignment %}
     <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
-       class="link-secondary">Edit</a>
+       class="link-secondary">Cost</a>
     {% dot %}
 {% endif %}
 {% if assign.upgrades_display|length > 0 %}
