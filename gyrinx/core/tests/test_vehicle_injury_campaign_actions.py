@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 
 from gyrinx.content.models import (
     ContentFighter,
+    ContentFighterCategoryTerms,
     ContentHouse,
     ContentInjury,
     FighterCategoryChoices,
@@ -22,6 +23,15 @@ def test_data(db):
     """Create test data for vehicle injury tests."""
     user = User.objects.create_user(username="test_user", password="test_password")
     house = ContentHouse.objects.create(name="Test House")
+
+    # Create terminology for vehicles
+    ContentFighterCategoryTerms.objects.create(
+        categories=[FighterCategoryChoices.VEHICLE],
+        singular="Vehicle",
+        proximal_demonstrative="The vehicle",
+        injury_singular="Damage",
+        injury_plural="Damage",
+    )
 
     # Create a vehicle fighter
     vehicle = ContentFighter.objects.create(
