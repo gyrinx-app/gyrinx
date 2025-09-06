@@ -3722,11 +3722,8 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
             # Log to campaign action
             if lst.campaign:
-                # Use the correct recovery term based on the fighter's injury terminology
-                # For vehicles with "Damage" terminology, use "Repair", otherwise "Recovery"
-                recovery_term = (
-                    "Repair" if fighter.term_injury_singular == "Damage" else "Recovery"
-                )
+                # Use the fighter's recovery terminology
+                recovery_term = fighter.term_recovery_singular
                 CampaignAction.objects.create(
                     user=request.user,
                     owner=request.user,

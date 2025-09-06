@@ -31,6 +31,7 @@ def test_data(db):
         proximal_demonstrative="The vehicle",
         injury_singular="Damage",
         injury_plural="Damage",
+        recovery_singular="Repair",
     )
 
     # Create a vehicle fighter
