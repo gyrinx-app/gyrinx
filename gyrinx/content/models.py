@@ -1224,6 +1224,11 @@ class ContentFighterCategoryTerms(Content):
         default="Injuries",
         help_text="Plural form of injury (e.g., 'Injuries', 'Damage')",
     )
+    recovery_singular = models.CharField(
+        max_length=255,
+        default="Recovery",
+        help_text="Singular form of recovery (e.g., 'Recovery', 'Repair')",
+    )
 
     history = HistoricalRecords()
 

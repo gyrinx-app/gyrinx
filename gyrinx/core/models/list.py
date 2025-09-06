@@ -757,6 +757,7 @@ class ListFighterQuerySet(models.QuerySet):
                     proximal_demonstrative=F("proximal_demonstrative"),
                     injury_singular=F("injury_singular"),
                     injury_plural=F("injury_plural"),
+                    recovery_singular=F("recovery_singular"),
                 )
             )
             .values("obj")[:1]
@@ -1118,6 +1119,18 @@ class ListFighter(AppBase):
 
         # Default
         return "Injuries"
+
+    @cached_property
+    def term_recovery_singular(self) -> str:
+        """
+        Returns the singular form of recovery for this fighter, using custom terms if available.
+        """
+        # Check if this fighter's category has custom terms
+        if self._category_terms:
+            return self._category_terms.recovery_singular
+
+        # Default
+        return "Recovery"
 
     def get_category(self):
         """
