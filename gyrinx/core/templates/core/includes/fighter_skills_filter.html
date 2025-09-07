@@ -24,31 +24,20 @@
             {% endif %}
         </div>
     </div>
-    <div class="col-12 col-lg-6 hstack gap-3">
-        <div class="form-check form-switch mb-0">
-            <input type="hidden" name="filter" value="all">
-            <input class="form-check-input"
-                   type="checkbox"
-                   role="switch"
-                   id="filter-switch"
-                   name="filter"
-                   value="primary-secondary"
-                   data-gy-toggle-submit="search-skills"
-                   {% if not request.GET.filter or request.GET.filter == "primary-secondary" %}checked{% endif %}>
-            <label class="form-check-label" for="filter-switch">Primary/Secondary Only</label>
-        </div>
-        <div class="form-check form-switch mb-0">
-            <input type="hidden" name="restricted" value="0">
-            <input class="form-check-input"
-                   type="checkbox"
-                   role="switch"
-                   id="restricted-switch"
-                   name="restricted"
-                   value="1"
-                   data-gy-toggle-submit="search-skills"
-                   {% if request.GET.restricted == "1" %}checked{% endif %}>
-            <label class="form-check-label" for="restricted-switch">Show Restricted</label>
-        </div>
+    <div class="col-12 col-lg-6">
+        <label for="skill-filter-select" class="form-label">Show</label>
+        <select class="form-select"
+                id="filter-select"
+                name="filter"
+                data-gy-toggle-submit="search-skills">
+            <option value="primary-secondary-only"
+                    {% if not request.GET.filter or request.GET.filter == "primary-secondary-only" %}selected{% endif %}>
+                Primary/secondary only
+            </option>
+            <option value="all" {% if request.GET.filter == "all" %}selected{% endif %}>All</option>
+            <option value="all-with-restricted"
+                    {% if request.GET.filter == "all-with-restricted" %}selected{% endif %}>All + restricted</option>
+        </select>
         <div class="ms-sm-auto">
             <button class="btn btn-link icon-link btn-sm"
                     type="submit"
