@@ -1063,8 +1063,10 @@ def edit_list_fighter_skills(request, id, fighter_id):
         The :model:`core.List` that owns this fighter.
     ``categories``
         All skill categories with their skills.
-    ``primary_secondary_only``
-        Whether to show only primary/secondary categories.
+    ``category_filter``
+        The current filter applied to the skill categories,
+        one of "primary-secondary-only" (default), "all" or
+        "all-with-restricted".
 
     **Template**
 
@@ -1080,12 +1082,11 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
-    filter = request.GET.get("filter", "primary-secondary-only")
+    category_filter = request.GET.get("category_filter")
 
     # Create boolean flags based on value of filter parameter
-    show_primary_secondary_only = filter == "primary-secondary-only"
-    # show_all = filter == "all"
-    show_restricted = filter == "all-with-restricted"
+    show_primary_secondary_only = category_filter == "primary-secondary-only"
+    show_restricted = category_filter == "all-with-restricted"
 
     # Get default skills from ContentFighter
     default_skills = fighter.content_fighter.skills.all()
@@ -1228,7 +1229,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "default_skills_display": default_skills_display,
             "categories": all_categories,
             "search_query": search_query,
-            "filter": filter,
+            "category_filter": category_filter,
         },
     )
 
