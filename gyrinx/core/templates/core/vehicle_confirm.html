@@ -3,10 +3,9 @@
     Confirm Vehicle - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list=True %}
     <div class="col-12 col-lg-8 col-xl-6">
         <div class="vstack gap-1">
-            {% url "core:list-vehicle-crew" list.id as back_url %}
-            {% include "core/includes/back.html" %}
             <div class="progress mb-1"
                  role="progressbar"
                  aria-label="Step 3 of 3"
@@ -17,7 +16,7 @@
                 <div class="progress-bar" style="width: 100%">Step 3 of 3</div>
                 {# djlint:on #}
             </div>
-            <h1 class="h2 mb-0">Add Vehicle to {{ list.name }}</h1>
+            <h1 class="h2 mb-0">Add Vehicle</h1>
             <h3 class="h5 mb-0">Confirm vehicle and crew</h3>
         </div>
         <div class="vstack gap-4 mt-3">

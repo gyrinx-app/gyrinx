@@ -8,6 +8,13 @@ from django.db.models import QuerySet
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+SMART_QUOTES = {
+    "LEFT_DOUBLE": chr(0x201C),  # " LEFT DOUBLE QUOTATION MARK
+    "RIGHT_DOUBLE": chr(0x201D),  # " RIGHT DOUBLE QUOTATION MARK
+    "LEFT_SINGLE": chr(0x2018),  # ' LEFT SINGLE QUOTATION MARK
+    "RIGHT_SINGLE": chr(0x2019),  # ' RIGHT SINGLE QUOTATION MARK
+}
+
 
 def is_int(value):
     """Check if a value is a number."""

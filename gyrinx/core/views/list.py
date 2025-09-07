@@ -3614,9 +3614,8 @@ def list_fighter_add_injury(request, id, fighter_id):
 
                 # Log to campaign action
                 if lst.campaign:
-                    description = (
-                        f"Injury: {fighter.name} suffered {injury.injury.name}"
-                    )
+                    # Use the correct injury/damage term from the fighter's terminology
+                    description = f"{fighter.term_injury_singular}: {fighter.name} suffered {injury.injury.name}"
                     if form.cleaned_data.get("notes"):
                         description += f" - {form.cleaned_data['notes']}"
 
@@ -3726,12 +3725,14 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
             # Log to campaign action
             if lst.campaign:
+                # Use the fighter's recovery terminology
+                recovery_term = fighter.term_recovery_singular
                 CampaignAction.objects.create(
                     user=request.user,
                     owner=request.user,
                     campaign=lst.campaign,
                     list=lst,
-                    description=f"Recovery: {fighter.name} recovered from {injury_name}",
+                    description=f"{recovery_term}: {fighter.name} recovered from {injury_name}",
                     outcome=outcome,
                 )
 
