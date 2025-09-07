@@ -1084,7 +1084,8 @@ def edit_list_fighter_skills(request, id, fighter_id):
     search_query = request.GET.get("q", "").strip()
     category_filter = request.GET.get("category_filter", "primary-secondary-only")
 
-    # Create boolean flags based on value of filter parameter
+    # Create boolean flags based on value of filter parameter.
+    # Note that we don't explicitly handle `all` because it's the default query behaviour.
     show_primary_secondary_only = category_filter == "primary-secondary-only"
     show_restricted = category_filter == "all-with-restricted"
 
