@@ -34,7 +34,7 @@
                            id="primary-secondary-only"
                            value="primary-secondary-only"
                            data-gy-toggle-submit="search-skills"
-                           {% if not request.GET.category_filter or request.GET.category_filter == "primary-secondary-only" %}checked{% endif %}>
+                           {% if request.GET.category_filter == "primary-secondary-only" %}checked{% endif %}>
                     <label class="form-check-label mb-0" for="primary-secondary-only">Primary/secondary only</label>
                 </div>
                 <div class="form-check form-check-inline mb-0">

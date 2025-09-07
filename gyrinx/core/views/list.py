@@ -1082,7 +1082,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
-    category_filter = request.GET.get("category_filter")
+    category_filter = request.GET.get("category_filter", "primary-secondary-only")
 
     # Create boolean flags based on value of filter parameter
     show_primary_secondary_only = category_filter == "primary-secondary-only"
