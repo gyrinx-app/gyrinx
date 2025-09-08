@@ -1063,8 +1063,10 @@ def edit_list_fighter_skills(request, id, fighter_id):
         The :model:`core.List` that owns this fighter.
     ``categories``
         All skill categories with their skills.
-    ``primary_secondary_only``
-        Whether to show only primary/secondary categories.
+    ``category_filter``
+        The current filter applied to the skill categories,
+        one of "primary-secondary-only" (default), "all" or
+        "all-with-restricted".
 
     **Template**
 
@@ -1080,10 +1082,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
-    primary_secondary_only = (
-        request.GET.get("filter", "primary-secondary") == "primary-secondary"
-    )
-    show_restricted = request.GET.get("restricted", "0") == "1"
+    category_filter = request.GET.get("category_filter", "primary-secondary-only")
+
+    # Create boolean flags based on value of filter parameter.
+    # Note that we don't explicitly handle `all` because it's the default query behaviour.
+    show_primary_secondary_only = category_filter == "primary-secondary-only"
+    show_restricted = category_filter == "all-with-restricted"
 
     # Get default skills from ContentFighter
     default_skills = fighter.content_fighter.skills.all()
@@ -1113,12 +1117,13 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Build skill categories query
     skill_cats_query = ContentSkillCategory.objects.all()
-    if not show_restricted:
-        skill_cats_query = skill_cats_query.filter(restricted=False)
-    else:
+    if show_restricted:
         # When showing restricted, exclude house-specific categories from regular categories
         # They will be added separately as special categories
         skill_cats_query = skill_cats_query.filter(houses__isnull=True)
+    else:
+        # Otherwise, exclude restricted categories
+        skill_cats_query = skill_cats_query.filter(restricted=False)
 
     skill_cats = skill_cats_query.annotate(
         primary=Case(
@@ -1172,7 +1177,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Process regular categories
     for cat in skill_cats:
-        if primary_secondary_only and not (cat.primary or cat.secondary):
+        if show_primary_secondary_only and not (cat.primary or cat.secondary):
             continue
 
         # Get skills for this category that fighter doesn't have
@@ -1195,7 +1200,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Process special categories
     for cat in special_cats:
-        if primary_secondary_only and not (cat.primary or cat.secondary):
+        if show_primary_secondary_only and not (cat.primary or cat.secondary):
             continue
 
         # Get skills for this category that fighter doesn't have
@@ -1224,9 +1229,8 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "list": lst,
             "default_skills_display": default_skills_display,
             "categories": all_categories,
-            "primary_secondary_only": primary_secondary_only,
             "search_query": search_query,
-            "show_restricted": show_restricted,
+            "category_filter": category_filter,
         },
     )
 

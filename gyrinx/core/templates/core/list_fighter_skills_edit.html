@@ -83,27 +83,6 @@
         {# Table of contents #}
         <div>
             <h3 class="h5 mb-1">Skill Categories</h3>
-            <div class="table-responsive">
-                <table class="table table-borderless table-sm align-middle mb-0">
-                    <tbody>
-                        {% for cat_data in categories %}
-                            <tr>
-                                <td class="ps-2">
-                                    <a href="#category-{{ cat_data.category.id }}"
-                                       class="text-decoration-none">{{ cat_data.category.name }}</a>
-                                </td>
-                                <td class="pe-2 text-secondary text-end">
-                                    {% if cat_data.primary %}
-                                        <span class="badge bg-primary">Primary</span>
-                                    {% elif cat_data.secondary %}
-                                        <span class="badge bg-secondary">Secondary</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
         </div>
         {# Filter bar #}
         {% url 'core:list-fighter-skills-edit' list.id fighter.id as filter_action %}
