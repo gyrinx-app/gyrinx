@@ -2486,10 +2486,30 @@ class ContentModStatApplyMixin:
         if self.mode == "set":
             return self.value
 
+        # Check if we have a ContentStat object with the new fields
+        content_stat = None
+        try:
+            content_stat = ContentStat.objects.get(field_name=self.stat)
+        except ContentStat.DoesNotExist:
+            pass
+
+        # Set flags based on ContentStat or fallback to hardcoded values
+        if content_stat and hasattr(content_stat, "is_inverted"):
+            is_inverted_stat = content_stat.is_inverted
+            is_inch_stat = content_stat.is_inches
+            is_modifier_stat = content_stat.is_modifier
+            is_target_stat = content_stat.is_target
+        else:
+            # Fallback to hardcoded values for backwards compatibility
+            is_inverted_stat = self.stat in self.inverted_stats
+            is_inch_stat = self.stat in self.inch_stats
+            is_modifier_stat = self.stat in self.modifier_stats
+            is_target_stat = self.stat in self.target_roll_stats
+
         direction = 1 if self.mode == "improve" else -1
         # For some stats, we need to reverse the direction
         # e.g. if the stat is a target roll value
-        if self.stat in self.inverted_stats:
+        if is_inverted_stat:
             direction = -direction
 
         # Stats can be:
@@ -2546,15 +2566,15 @@ class ContentModStatApplyMixin:
             return f"{''.join(join)}{sign}{output_value}"
         elif output_str == "0":
             return ""
-        elif self.stat in self.inch_stats:
+        elif is_inch_stat:
             # Inches
             return f'{output_str}"'
-        elif self.stat in self.modifier_stats:
+        elif is_modifier_stat:
             # Modifier
             if mod_value > 0:
                 return f"+{output_str}"
             return f"{output_str}"
-        elif self.stat in self.target_roll_stats:
+        elif is_target_stat:
             # Target roll
             return f"{output_str}+"
 
@@ -3025,6 +3045,22 @@ class ContentStat(Content):
     full_name = models.CharField(
         max_length=50,
         help_text="Full display name (e.g., 'Movement', 'Front Toughness')",
+    )
+    is_inverted = models.BooleanField(
+        default=False,
+        help_text='If inverted, "improving" this stat means decreasing the number e.g. Cool 4+ to 3+',
+    )
+    is_inches = models.BooleanField(
+        default=False,
+        help_text='This stat represents a distance measured in inches and gets a quote-mark when displayed e.g. Movement 3"',
+    )
+    is_modifier = models.BooleanField(
+        default=False,
+        help_text="This stat modifies a roll and gets a plus prefix when displayed, e.g. Acc S +3",
+    )
+    is_target = models.BooleanField(
+        default=False,
+        help_text="This stat is a target of a roll and gets a plus suffix when displayed, e.g. WS 3+",
     )
 
     history = HistoricalRecords()
