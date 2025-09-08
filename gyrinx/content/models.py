@@ -2619,7 +2619,8 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
 
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
-        return f"{mode_choices[self.mode]} fighter {self.stat} by {self.value}"
+        stat = ContentStat.objects.filter(field_name=self.stat).first()
+        return f"{mode_choices[self.mode]} fighter {stat.full_name if stat else f'`{self.stat}`'} by {self.value}"
 
     class Meta:
         verbose_name = "Fighter Stat Modifier"
