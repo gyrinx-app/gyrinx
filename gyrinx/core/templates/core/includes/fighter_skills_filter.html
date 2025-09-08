@@ -4,6 +4,7 @@
       method="get"
       action="{{ action }}#search"
       class="vstack gap-3">
+    {# Category filter #}
     <div>
         <div class="form-check form-check-inline mb-0">
             <input class="form-check-input"
@@ -36,8 +37,9 @@
             <label class="form-check-label mb-0" for="all-with-restricted">All + Restricted</label>
         </div>
     </div>
-    <div class="table-responsive">
-        <table class="table table-borderless table-sm align-middle mb-0">
+    {# Category list for quick navigation on large screens #}
+    <div class="table-responsive d-none d-lg-block">
+        <table class="table table-borderless table-sm align-middle mb-0 hidden-sm">
             <tbody>
                 {% for cat_data in categories %}
                     <tr>
@@ -57,6 +59,27 @@
             </tbody>
         </table>
     </div>
+    {# Category dropdown for mobile #}
+    <div class="d-lg-none mb-2">
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown">Jump to category...</button>
+            <ul class="dropdown-menu">
+                {% for cat_data in categories %}
+                    <li>
+                        <a class="dropdown-item" href="#category-{{ cat_data.category.id }}">
+                            {{ cat_data.category.name }}
+                            {% if cat_data.primary %}
+                                <span class="badge bg-primary">Primary</span>
+                            {% elif cat_data.secondary %}
+                                <span class="badge bg-secondary">Secondary</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {# Search individual skill names #}
     <div class="row">
         <div class="col-12 col-lg-6 mb-2 mb-lg-0">
             <input type="hidden" name="flash" value="search">
