@@ -12,11 +12,10 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # We can't run this on dependabot-generated PRs because GitHub secrets are not available
+    # You _can_ amend and force-push dependabot PRs back up to force this to run.
+    if: |
+      github.actor != 'dependabot[bot]'
 
     runs-on: ubuntu-latest
     permissions:
@@ -40,7 +39,7 @@ jobs:
           allowed_bots: "dependabot,claude"
 
           # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          model: "claude-opus-4-1-20250805"
+          model: "claude-opus-4-20250514"
 
           # Direct prompt for automated review (no @claude mention needed)
           direct_prompt: |

@@ -31,12 +31,12 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
 
@@ -87,7 +87,7 @@ jobs:
             actions: read
 
           # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          model: "claude-opus-4-1-20250805"
+          model: "claude-opus-4-20250514"
 
           # Optional: Specify timeout in minutes (default is 30 minutes)
           timeout_minutes: 60

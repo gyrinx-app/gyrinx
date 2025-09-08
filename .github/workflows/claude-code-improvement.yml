@@ -24,12 +24,12 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
 
@@ -73,7 +73,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           # Use Claude Opus for thorough analysis
-          model: "claude-opus-4-1-20250805"
+          model: "claude-opus-4-20250514"
           mode: "agent"
 
           # Allow Claude to use necessary tools

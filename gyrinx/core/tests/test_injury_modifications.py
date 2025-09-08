@@ -6,12 +6,13 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentInjury,
     ContentInjuryDefaultOutcome,
-    ContentModFighterStat,
     ContentModFighterRule,
     ContentModFighterSkill,
+    ContentModFighterStat,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
+    ContentStat,
 )
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
@@ -389,7 +390,13 @@ def test_injury_phase_display():
 @pytest.mark.django_db
 def test_injury_stat_mod_display():
     """Test the string representation of injury stat modifiers."""
-    # Create stat modifiers and check their string representation
+    # Create stat modifiers and check their string representation with and without a ContentStat existing
+    ContentStat.objects.get_or_create(
+        field_name="strength",
+        short_name="Str",
+        full_name="Strength",
+    )
+
     worsen_mod = ContentModFighterStat.objects.create(
         stat="strength",
         mode="worsen",
@@ -402,11 +409,11 @@ def test_injury_stat_mod_display():
         mode="improve",
         value="1",
     )
-    assert str(improve_mod) == "Improve fighter Ballistic Skill by 1"
+    assert str(improve_mod) == "Improve fighter `ballistic_skill` by 1"
 
     set_mod = ContentModFighterStat.objects.create(
         stat="wounds",
         mode="set",
         value="3",
     )
-    assert str(set_mod) == "Set fighter Wounds by 3"
+    assert str(set_mod) == "Set fighter `wounds` by 3"

@@ -2599,32 +2599,17 @@ class ContentModStat(ContentMod, ContentModStatApplyMixin):
 
 class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     """
-    Fighter stat modifier
+    Fighter stat modifier.
+
+    Note: The choices for the `stat` field are auto-generated dynamically in the admin form
+    from ContentStat objects to ensure consistency across the system.
     """
 
     help_text = "A modification to a specific value in a fighter statline"
     stat = models.CharField(
         max_length=50,
-        choices=[
-            ("movement", "Movement"),
-            ("weapon_skill", "Weapon Skill"),
-            ("ballistic_skill", "Ballistic Skill"),
-            ("strength", "Strength"),
-            ("toughness", "Toughness"),
-            ("wounds", "Wounds"),
-            ("initiative", "Initiative"),
-            ("attacks", "Attacks"),
-            ("leadership", "Leadership"),
-            ("cool", "Cool"),
-            ("willpower", "Willpower"),
-            ("intelligence", "Intelligence"),
-            ("front", "Front"),
-            ("side", "Side"),
-            ("rear", "Rear"),
-            ("hull_points", "Hull Points"),
-            ("handling", "Handling"),
-            ("save", "Save"),
-        ],
+        # Choices are dynamically generated in ContentModFighterStatAdminForm
+        # from ContentStat objects to ensure all defined stats are available
     )
     mode = models.CharField(
         max_length=10,
@@ -2634,13 +2619,22 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
 
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
-        stat_choices = dict(self._meta.get_field("stat").choices)
-        return f"{mode_choices[self.mode]} fighter {stat_choices[self.stat]} by {self.value}"
+        stat = ContentStat.objects.filter(field_name=self.stat).first()
+        return f"{mode_choices[self.mode]} fighter {stat.full_name if stat else f'`{self.stat}`'} by {self.value}"
 
     class Meta:
         verbose_name = "Fighter Stat Modifier"
         verbose_name_plural = "Fighter Stat Modifiers"
         ordering = ["stat"]
+
+    def clean(self):
+        # Check that there isn't a duplicate of this already
+        duplicate = ContentModFighterStat.objects.filter(
+            stat=self.stat, mode=self.mode, value=self.value
+        ).exists()
+
+        if duplicate:
+            raise ValidationError("This fighter stat modifier already exists.")
 
 
 class ContentModTrait(ContentMod):
