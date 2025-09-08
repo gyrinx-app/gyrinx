@@ -2478,6 +2478,33 @@ class ContentModStatApplyMixin:
         "save",
     ]
 
+    def _get_stat_configuration(self):
+        """
+        Get stat configuration from ContentStat or fallback to hardcoded values.
+        Returns a tuple of (is_inverted, is_inches, is_modifier, is_target).
+        """
+        # Check if we have a ContentStat object with the new fields
+        try:
+            content_stat = ContentStat.objects.get(field_name=self.stat)
+            if content_stat:
+                # Use ContentStat fields if available
+                return (
+                    content_stat.is_inverted,
+                    content_stat.is_inches,
+                    content_stat.is_modifier,
+                    content_stat.is_target,
+                )
+        except ContentStat.DoesNotExist:
+            pass
+
+        # Fallback to hardcoded values for backwards compatibility
+        return (
+            self.stat in self.inverted_stats,
+            self.stat in self.inch_stats,
+            self.stat in self.modifier_stats,
+            self.stat in self.target_roll_stats,
+        )
+
     def apply(self, input_value: str) -> str:
         """
         Apply the modification to a given value.
@@ -2486,25 +2513,10 @@ class ContentModStatApplyMixin:
         if self.mode == "set":
             return self.value
 
-        # Check if we have a ContentStat object with the new fields
-        content_stat = None
-        try:
-            content_stat = ContentStat.objects.get(field_name=self.stat)
-        except ContentStat.DoesNotExist:
-            pass
-
-        # Set flags based on ContentStat or fallback to hardcoded values
-        if content_stat and hasattr(content_stat, "is_inverted"):
-            is_inverted_stat = content_stat.is_inverted
-            is_inch_stat = content_stat.is_inches
-            is_modifier_stat = content_stat.is_modifier
-            is_target_stat = content_stat.is_target
-        else:
-            # Fallback to hardcoded values for backwards compatibility
-            is_inverted_stat = self.stat in self.inverted_stats
-            is_inch_stat = self.stat in self.inch_stats
-            is_modifier_stat = self.stat in self.modifier_stats
-            is_target_stat = self.stat in self.target_roll_stats
+        # Get stat configuration
+        is_inverted_stat, is_inch_stat, is_modifier_stat, is_target_stat = (
+            self._get_stat_configuration()
+        )
 
         direction = 1 if self.mode == "improve" else -1
         # For some stats, we need to reverse the direction
