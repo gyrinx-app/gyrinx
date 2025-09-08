@@ -2599,32 +2599,17 @@ class ContentModStat(ContentMod, ContentModStatApplyMixin):
 
 class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     """
-    Fighter stat modifier
+    Fighter stat modifier.
+
+    Note: The choices for the `stat` field are auto-generated dynamically in the admin form
+    from ContentStat objects to ensure consistency across the system.
     """
 
     help_text = "A modification to a specific value in a fighter statline"
     stat = models.CharField(
         max_length=50,
-        choices=[
-            ("movement", "Movement"),
-            ("weapon_skill", "Weapon Skill"),
-            ("ballistic_skill", "Ballistic Skill"),
-            ("strength", "Strength"),
-            ("toughness", "Toughness"),
-            ("wounds", "Wounds"),
-            ("initiative", "Initiative"),
-            ("attacks", "Attacks"),
-            ("leadership", "Leadership"),
-            ("cool", "Cool"),
-            ("willpower", "Willpower"),
-            ("intelligence", "Intelligence"),
-            ("front", "Front"),
-            ("side", "Side"),
-            ("rear", "Rear"),
-            ("hull_points", "Hull Points"),
-            ("handling", "Handling"),
-            ("save", "Save"),
-        ],
+        # Choices are dynamically generated in ContentModFighterStatAdminForm
+        # from ContentStat objects to ensure all defined stats are available
     )
     mode = models.CharField(
         max_length=10,
