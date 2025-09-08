@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0145_add_recovery_singular_term"),
+        ("content", "0146_remove_hardcoded_choices_from_contentmodfighterstat"),
     ]
 
     operations = [
