@@ -777,9 +777,25 @@ class ContentModStatAdmin(ContentModChildAdmin):
     base_model = ContentModStat
 
 
+class ContentModFighterStatAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Generate choices from ContentStat objects
+        stat_choices = [
+            (stat.field_name, stat.full_name)
+            for stat in ContentStat.objects.all().order_by("full_name")
+        ]
+        self.fields["stat"].choices = stat_choices
+
+    class Meta:
+        model = ContentModFighterStat
+        fields = "__all__"
+
+
 @admin.register(ContentModFighterStat)
 class ContentModFighterStatAdmin(ContentModChildAdmin):
     base_model = ContentModFighterStat
+    form = ContentModFighterStatAdminForm
 
 
 @admin.register(ContentModTrait)
