@@ -778,6 +778,10 @@ class ContentModStatAdmin(ContentModChildAdmin):
 
 
 class ContentModFighterStatAdminForm(forms.ModelForm):
+    stat = forms.CharField(
+        max_length=50, widget=forms.Select(attrs={"class": "form-select"})
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Generate choices from ContentStat objects
@@ -785,11 +789,11 @@ class ContentModFighterStatAdminForm(forms.ModelForm):
             (stat.field_name, stat.full_name)
             for stat in ContentStat.objects.all().order_by("full_name")
         ]
-        self.fields["stat"].choices = stat_choices
+        self.fields["stat"].widget.choices = stat_choices
 
     class Meta:
         model = ContentModFighterStat
-        fields = "__all__"
+        fields = ["stat", "mode", "value"]
 
 
 @admin.register(ContentModFighterStat)

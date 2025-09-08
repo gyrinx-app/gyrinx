@@ -2619,13 +2619,21 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
 
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
-        stat_choices = dict(self._meta.get_field("stat").choices)
-        return f"{mode_choices[self.mode]} fighter {stat_choices[self.stat]} by {self.value}"
+        return f"{mode_choices[self.mode]} fighter {self.stat} by {self.value}"
 
     class Meta:
         verbose_name = "Fighter Stat Modifier"
         verbose_name_plural = "Fighter Stat Modifiers"
         ordering = ["stat"]
+
+    def clean(self):
+        # Check that there isn't a duplicate of this already
+        duplicate = ContentModFighterStat.objects.filter(
+            stat=self.stat, mode=self.mode, value=self.value
+        ).exists()
+
+        if duplicate:
+            raise ValidationError("This fighter stat modifier already exists.")
 
 
 class ContentModTrait(ContentMod):
