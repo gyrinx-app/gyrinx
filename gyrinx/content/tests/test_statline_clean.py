@@ -30,12 +30,12 @@ def test_content_statline_clean_during_creation():
     )
 
     # Create stat definitions
-    movement_stat = ContentStat.objects.create(
+    movement_stat, _ = ContentStat.objects.get_or_create(
         field_name="movement",
         short_name="M",
         full_name="Movement",
     )
-    toughness_stat = ContentStat.objects.create(
+    toughness_stat, _ = ContentStat.objects.get_or_create(
         field_name="toughness",
         short_name="T",
         full_name="Toughness",

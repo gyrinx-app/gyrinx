@@ -20,6 +20,8 @@ from gyrinx.content.models import (
     ContentEquipmentCategory,
     ContentFighter,
     ContentHouse,
+    ContentModFighterStat,
+    ContentStat,
     ContentWeaponProfile,
 )
 from gyrinx.content.models_.expansion import (
@@ -105,8 +107,13 @@ def performance_test_data(db):
     )
 
     # Create equipment category
-    equipment_category = ContentEquipmentCategory.objects.create(
+    weapons_category = ContentEquipmentCategory.objects.create(
         name="Weapons",
+        group="EQUIPMENT",  # Need to provide a valid group choice
+    )
+
+    gear_category = ContentEquipmentCategory.objects.create(
+        name="Gear",
         group="EQUIPMENT",  # Need to provide a valid group choice
     )
 
@@ -114,19 +121,25 @@ def performance_test_data(db):
     equipment1 = ContentEquipment.objects.create(
         name="Lasgun",
         cost=15,
-        category=equipment_category,
+        category=weapons_category,
     )
 
     equipment2 = ContentEquipment.objects.create(
         name="Autogun",
         cost=10,
-        category=equipment_category,
+        category=weapons_category,
     )
 
     equipment3 = ContentEquipment.objects.create(
         name="Chainsword",
         cost=25,
-        category=equipment_category,
+        category=weapons_category,
+    )
+
+    equipment4 = ContentEquipment.objects.create(
+        name="Jetpack",
+        cost=50,
+        category=gear_category,
     )
 
     # Create weapon profiles for equipment
@@ -160,13 +173,35 @@ def performance_test_data(db):
         cost=0,
     )
 
+    # Create stats that we will modify
+    ContentStat.objects.get_or_create(
+        field_name="movement",
+        defaults={
+            "short_name": "M",
+            "full_name": "Movement",
+            "is_inverted": False,
+            "is_inches": True,
+            "is_modifier": False,
+            "is_target": False,
+        },
+    )
+
+    # Add modifiers to the equipment
+    mod_mv = ContentModFighterStat.objects.create(
+        stat="movement",
+        mode="improve",
+        value="1",
+    )
+
+    equipment4.modifiers.set([mod_mv])
+
     # Create fighter template
     fighter_template = ContentFighter.objects.create(
         type="Ganger",
         house=house,
         category=FighterCategoryChoices.GANGER,
         base_cost=50,
-        movement="5",
+        movement='5"',
         weapon_skill="4+",
         ballistic_skill="4+",
         strength="3",
@@ -215,6 +250,11 @@ def performance_test_data(db):
         content_equipment=equipment3,
     )
 
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter3,
+        content_equipment=equipment4,
+    )
+
     # Create expansion that applies to the house and attribute
     # First create rules
     house_rule = ContentEquipmentListExpansionRuleByHouse.objects.create(house=house)
@@ -241,7 +281,7 @@ def performance_test_data(db):
         "user": user,
         "list": gang_list,
         "fighters": [fighter1, fighter2, fighter3],
-        "equipment": [equipment1, equipment2, equipment3],
+        "equipment": [equipment1, equipment2, equipment3, equipment4],
         "expansion": expansion,
     }
 

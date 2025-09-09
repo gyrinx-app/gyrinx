@@ -27,13 +27,13 @@ def test_content_statline_stat_model():
     statline_type = ContentStatlineType.objects.create(name="Vehicle")
 
     # Create stat definitions
-    movement_stat_def = ContentStat.objects.create(
+    movement_stat_def, _ = ContentStat.objects.get_or_create(
         field_name="movement",
         short_name="M",
         full_name="Movement",
     )
 
-    front_stat_def = ContentStat.objects.create(
+    front_stat_def, _ = ContentStat.objects.get_or_create(
         field_name="front",
         short_name="Fr",
         full_name="Front",

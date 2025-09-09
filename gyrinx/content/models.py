@@ -11,6 +11,7 @@ import logging
 import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
+from typing import Optional
 
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -24,6 +25,7 @@ from simple_history.models import HistoricalRecords
 from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.models.util import ModContext
 from gyrinx.models import (
     Base,
     CostMixin,
@@ -2478,7 +2480,44 @@ class ContentModStatApplyMixin:
         "save",
     ]
 
-    def apply(self, input_value: str) -> str:
+    def _get_stat_configuration(self, all_stats: Optional[dict[str, dict]] = None):
+        """
+        Get stat configuration from ContentStat or fallback to hardcoded values.
+        Returns a tuple of (is_inverted, is_inches, is_modifier, is_target).
+        """
+        # all_stats is an optimisation to reduce the N+1 query problem from
+        # fetching ContentStat objects individually
+        if all_stats:
+            content_stat = all_stats.get(self.stat, {})
+            return (
+                content_stat.get("is_inverted", False),
+                content_stat.get("is_inches", False),
+                content_stat.get("is_modifier", False),
+                content_stat.get("is_target", False),
+            )
+        # Check if we have a ContentStat object with the new fields
+        try:
+            content_stat = ContentStat.objects.get(field_name=self.stat)
+            if content_stat:
+                # Use ContentStat fields if available
+                return (
+                    content_stat.is_inverted,
+                    content_stat.is_inches,
+                    content_stat.is_modifier,
+                    content_stat.is_target,
+                )
+        except ContentStat.DoesNotExist:
+            pass
+
+        # Fallback to hardcoded values for backwards compatibility
+        return (
+            self.stat in self.inverted_stats,
+            self.stat in self.inch_stats,
+            self.stat in self.modifier_stats,
+            self.stat in self.target_roll_stats,
+        )
+
+    def apply(self, input_value: str, mod_ctx: Optional[ModContext] = None) -> str:
         """
         Apply the modification to a given value.
         """
@@ -2486,10 +2525,17 @@ class ContentModStatApplyMixin:
         if self.mode == "set":
             return self.value
 
+        # Get stat configuration
+        is_inverted_stat, is_inch_stat, is_modifier_stat, is_target_stat = (
+            self._get_stat_configuration(
+                all_stats=mod_ctx.all_stats if mod_ctx else None
+            )
+        )
+
         direction = 1 if self.mode == "improve" else -1
         # For some stats, we need to reverse the direction
         # e.g. if the stat is a target roll value
-        if self.stat in self.inverted_stats:
+        if is_inverted_stat:
             direction = -direction
 
         # Stats can be:
@@ -2546,15 +2592,15 @@ class ContentModStatApplyMixin:
             return f"{''.join(join)}{sign}{output_value}"
         elif output_str == "0":
             return ""
-        elif self.stat in self.inch_stats:
+        elif is_inch_stat:
             # Inches
             return f'{output_str}"'
-        elif self.stat in self.modifier_stats:
+        elif is_modifier_stat:
             # Modifier
-            if mod_value > 0:
+            if output_value > 0:
                 return f"+{output_str}"
             return f"{output_str}"
-        elif self.stat in self.target_roll_stats:
+        elif is_target_stat:
             # Target roll
             return f"{output_str}+"
 
@@ -2620,7 +2666,8 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
         stat = ContentStat.objects.filter(field_name=self.stat).first()
-        return f"{mode_choices[self.mode]} fighter {stat.full_name if stat else f'`{self.stat}`'} by {self.value}"
+        verb = "to" if self.mode == "set" else "by"
+        return f"{mode_choices[self.mode]} fighter {stat.full_name if stat else f'`{self.stat}`'} {verb} {self.value}"
 
     class Meta:
         verbose_name = "Fighter Stat Modifier"
@@ -3025,6 +3072,22 @@ class ContentStat(Content):
     full_name = models.CharField(
         max_length=50,
         help_text="Full display name (e.g., 'Movement', 'Front Toughness')",
+    )
+    is_inverted = models.BooleanField(
+        default=False,
+        help_text='If inverted, "improving" this stat means decreasing the number e.g. Cool 4+ to 3+',
+    )
+    is_inches = models.BooleanField(
+        default=False,
+        help_text='This stat represents a distance measured in inches and gets a quote-mark when displayed e.g. Movement 3"',
+    )
+    is_modifier = models.BooleanField(
+        default=False,
+        help_text="This stat modifies a roll and gets a plus prefix when displayed, e.g. Acc S +3",
+    )
+    is_target = models.BooleanField(
+        default=False,
+        help_text="This stat is a target of a roll and gets a plus suffix when displayed, e.g. WS 3+",
     )
 
     history = HistoricalRecords()
