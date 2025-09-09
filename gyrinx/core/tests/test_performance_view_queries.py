@@ -174,14 +174,16 @@ def performance_test_data(db):
     )
 
     # Create stats that we will modify
-    ContentStat.objects.create(
+    ContentStat.objects.get_or_create(
         field_name="movement",
-        short_name="M",
-        full_name="Movement",
-        is_inverted=False,
-        is_inches=True,
-        is_modifier=False,
-        is_target=False,
+        defaults={
+            "short_name": "M",
+            "full_name": "Movement",
+            "is_inverted": False,
+            "is_inches": True,
+            "is_modifier": False,
+            "is_target": False,
+        },
     )
 
     # Add modifiers to the equipment

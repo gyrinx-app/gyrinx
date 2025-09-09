@@ -391,6 +391,7 @@ def test_injury_phase_display():
 def test_injury_stat_mod_display():
     """Test the string representation of injury stat modifiers."""
     # Create stat modifiers and check their string representation with and without a ContentStat existing
+    # Note that there is a migration that creates ContentStats that are required to exist
     ContentStat.objects.get_or_create(
         field_name="strength",
         short_name="Str",
@@ -405,15 +406,15 @@ def test_injury_stat_mod_display():
     assert str(worsen_mod) == "Worsen fighter Strength by 1"
 
     improve_mod = ContentModFighterStat.objects.create(
-        stat="ballistic_skill",
+        stat="does_not_exist",
         mode="improve",
         value="1",
     )
-    assert str(improve_mod) == "Improve fighter `ballistic_skill` by 1"
+    assert str(improve_mod) == "Improve fighter `does_not_exist` by 1"
 
     set_mod = ContentModFighterStat.objects.create(
-        stat="wounds",
+        stat="does_not_exist",
         mode="set",
         value="3",
     )
-    assert str(set_mod) == "Set fighter `wounds` by 3"
+    assert str(set_mod) == "Set fighter `does_not_exist` to 3"
