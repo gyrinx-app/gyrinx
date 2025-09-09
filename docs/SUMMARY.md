@@ -12,6 +12,7 @@
 * [Icon Usage](icon-usage.md)
 * [Manual Testing Guide](manual-testing-guide.md)
 * [SQL Debugging Guide](sql-debugging.md)
+* [Query Debugging Utilities](query-debugging-utilities.md)
 * [GCS CDN Setup](gcs-cdn-setup.md)
 * [Analytics Graph Configuration](how-to-guides/analytics-graph-configuration.md)
 * [Useful Scripts](useful-scripts.md)

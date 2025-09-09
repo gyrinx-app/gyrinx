@@ -714,6 +714,9 @@ class ListFighterQuerySet(models.QuerySet):
                 "advancements",
                 "stat_overrides",
                 "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
+                "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
+                "listfighterequipmentassignment_set__content_equipment__modifiers",
+                "listfighterequipmentassignment_set__upgrades_field__modifiers",
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
@@ -2634,11 +2637,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         - accessories
         - upgrades
         """
-        accessories = self.weapon_accessories_cached
-        mods = [m for a in accessories for m in a.modifiers.all()]
+        mods = [m for a in self.weapon_accessories_cached for m in a.modifiers.all()]
         mods += list(self.content_equipment_cached.modifiers.all())
-        for upgrade in self.upgrades_field.all():
-            mods += list(upgrade.modifiers.all())
+        mods += [m for u in self.upgrades_field.all() for m in u.modifiers.all()]
         return mods
 
     # Costs
