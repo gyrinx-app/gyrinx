@@ -11,6 +11,7 @@ import logging
 import math
 from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
+from typing import Optional
 
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -24,6 +25,7 @@ from simple_history.models import HistoricalRecords
 from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.models.util import ModContext
 from gyrinx.models import (
     Base,
     CostMixin,
@@ -2478,11 +2480,21 @@ class ContentModStatApplyMixin:
         "save",
     ]
 
-    def _get_stat_configuration(self):
+    def _get_stat_configuration(self, all_stats: Optional[dict[str, dict]] = None):
         """
         Get stat configuration from ContentStat or fallback to hardcoded values.
         Returns a tuple of (is_inverted, is_inches, is_modifier, is_target).
         """
+        # all_stats is an optimisation to reduce the N+1 query problem from
+        # fetching ContentStat objects individually
+        if all_stats:
+            content_stat = all_stats.get(self.stat, {})
+            return (
+                content_stat.get("is_inverted", False),
+                content_stat.get("is_inches", False),
+                content_stat.get("is_modifier", False),
+                content_stat.get("is_target", False),
+            )
         # Check if we have a ContentStat object with the new fields
         try:
             content_stat = ContentStat.objects.get(field_name=self.stat)
@@ -2505,7 +2517,7 @@ class ContentModStatApplyMixin:
             self.stat in self.target_roll_stats,
         )
 
-    def apply(self, input_value: str) -> str:
+    def apply(self, input_value: str, mod_ctx: Optional[ModContext] = None) -> str:
         """
         Apply the modification to a given value.
         """
@@ -2515,7 +2527,9 @@ class ContentModStatApplyMixin:
 
         # Get stat configuration
         is_inverted_stat, is_inch_stat, is_modifier_stat, is_target_stat = (
-            self._get_stat_configuration()
+            self._get_stat_configuration(
+                all_stats=mod_ctx.all_stats if mod_ctx else None
+            )
         )
 
         direction = 1 if self.mode == "improve" else -1

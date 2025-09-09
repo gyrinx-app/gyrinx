@@ -2,7 +2,7 @@ import logging
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Union
+from typing import Optional, Union
 
 from django.contrib import admin
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -51,6 +51,7 @@ from gyrinx.content.models import (
     ContentModFighterStat,
     ContentPsykerPower,
     ContentSkill,
+    ContentStat,
     ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -62,6 +63,7 @@ from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
+from gyrinx.core.models.util import ModContext
 from gyrinx.models import (
     Archived,
     Base,
@@ -1294,11 +1296,17 @@ class ListFighter(AppBase):
 
         return equipment_mods + injury_mods
 
-    def _apply_mods(self, stat: str, value: str, mods: pylist[ContentModFighterStat]):
+    def _apply_mods(
+        self,
+        stat: str,
+        value: str,
+        mods: pylist[ContentModFighterStat],
+        mod_ctx: Optional[ModContext] = None,
+    ):
         current_value = value
         for mod in mods:
             try:
-                current_value = mod.apply(current_value)
+                current_value = mod.apply(current_value, mod_ctx=mod_ctx)
             except (ValueError, TypeError) as e:
                 logger.exception(
                     f"Error applying mod {mod} (mode={mod.mode}, value={mod.value}) "
@@ -1433,6 +1441,14 @@ class ListFighter(AppBase):
                 for override in self.stat_overrides.all()
             }
 
+        # Prefetch all stats because we're going to use them later
+        # This is better than querying each stat individually
+        mod_ctx = ModContext(
+            all_stats={
+                stat["field_name"]: stat for stat in ContentStat.objects.all().values()
+            }
+        )
+
         for stat in self.content_fighter_statline:
             input_value = stat["value"]
 
@@ -1452,6 +1468,7 @@ class ListFighter(AppBase):
                 stat["field_name"],
                 input_value,
                 statmods,
+                mod_ctx,
             )
 
             modded = value != stat["value"]
