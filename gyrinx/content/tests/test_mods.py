@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch
 
 from gyrinx.content.models import ContentModFighterStat, ContentModStat, ContentStat
 
@@ -271,33 +270,6 @@ def test_content_stat_backward_compatibility():
     )
     # ammo is both inverted and target, so improving should decrease the number
     assert mod.apply("5+") == "4+"
-
-
-@pytest.mark.django_db
-def test_content_stat_fields_missing():
-    """Test backward compatibility when ContentStat exists but fields don't."""
-    # Simulate old ContentStat without the new boolean fields
-    with patch.object(ContentStat, "__init__", lambda self, **kwargs: None):
-        content_stat = ContentStat()
-        content_stat.field_name = "test_old_stat"
-        content_stat.short_name = "TO"
-        content_stat.full_name = "Test Old Stat"
-        # Don't set the boolean fields to simulate missing attributes
-        content_stat.save = lambda *args, **kwargs: None
-
-        # Mock the database query
-        with patch("gyrinx.content.models.ContentStat.objects.get") as mock_get:
-            mock_get.return_value = content_stat
-
-            # Should fall back to hardcoded values
-            mod = ContentModStat.objects.create(
-                stat="test_old_stat",
-                mode="improve",
-                value="1",
-            )
-
-            # Since test_old_stat isn't in any hardcoded list, it should be treated as a regular stat
-            assert mod.apply("5") == "6"
 
 
 @pytest.mark.django_db

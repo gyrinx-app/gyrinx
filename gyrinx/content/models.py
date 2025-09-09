@@ -2583,7 +2583,7 @@ class ContentModStatApplyMixin:
             return f'{output_str}"'
         elif is_modifier_stat:
             # Modifier
-            if mod_value > 0:
+            if output_value > 0:
                 return f"+{output_str}"
             return f"{output_str}"
         elif is_target_stat:
