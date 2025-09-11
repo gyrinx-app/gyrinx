@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any, Optional
@@ -45,11 +46,9 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
     if labels:
         payload["labels"] = labels
 
-    if _use_cloud_logging and _logger:
+    if _use_cloud_logging:
         # Google Cloud Logging
         _logger.log_struct(payload, severity="INFO")
     else:
         # Local JSON logging
-        import json
-
         _fallback_logger.info(json.dumps(payload))
