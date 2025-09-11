@@ -26,6 +26,7 @@ from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.util import ModContext
+from gyrinx.tracker import track
 from gyrinx.models import (
     Base,
     CostMixin,
@@ -2507,6 +2508,12 @@ class ContentModStatApplyMixin:
                     content_stat.is_target,
                 )
         except ContentStat.DoesNotExist:
+            # Track that we're using fallback values
+            track(
+                "stat_config_fallback_used",
+                stat_name=self.stat,
+                model_class=self.__class__.__name__,
+            )
             pass
 
         # Fallback to hardcoded values for backwards compatibility
