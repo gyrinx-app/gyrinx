@@ -177,7 +177,10 @@ class Event(AppBase):
         try:
             # Track user event
             track(
-                "user_event",
+                f"event_{self.verb}_{self.noun}",
+                n=1,
+                value=None,
+                id=str(self.id),
                 noun=self.noun,
                 verb=self.verb,
                 user_id=str(self.owner_id) if self.owner_id else None,
@@ -187,7 +190,7 @@ class Event(AppBase):
                 ip_address=self.ip_address,
                 session_id=self.session_id,
                 field=self.field,
-                **self.context,  # Spread the context dictionary as additional labels
+                context=self.context,
             )
         except Exception:
             # If logging fails, don't crash - just log the error

@@ -1,4 +1,3 @@
-import json
 from unittest.mock import Mock, patch
 
 import pytest
@@ -147,8 +146,8 @@ def test_log_event_with_request_no_session():
 
 
 @pytest.mark.django_db
-@patch("gyrinx.core.models.events.logger")
-def test_event_logging_to_stream(mock_logger):
+@patch("gyrinx.core.models.events.track")
+def test_event_logging_to_stream(mock_track):
     """Test that events are logged to the log stream."""
     user = User.objects.create_user(username="testuser")
 
@@ -162,14 +161,15 @@ def test_event_logging_to_stream(mock_logger):
     )
 
     # Check that logger.info was called
-    mock_logger.info.assert_called_once()
+    mock_track.assert_called_once()
 
     # Verify the log message
-    call_args = mock_logger.info.call_args
-    assert call_args[0][0] == "USER_EVENT: create list"
+    call_args = mock_track.call_args.args
+    call_kwargs = mock_track.call_args.kwargs
+    assert call_args[0] == "event_create_list"
 
     # Verify the extra data contains JSON
-    event_data = json.loads(call_args[1]["extra"]["event_data"])
+    event_data = dict(call_kwargs)
     assert event_data["id"] == str(event.id)
     assert event_data["username"] == "testuser"
     assert event_data["noun"] == EventNoun.LIST
@@ -299,13 +299,14 @@ def test_log_event_error_handling(mock_create):
 
 
 @pytest.mark.django_db
+@patch("gyrinx.core.models.events.track")
 @patch("gyrinx.core.models.events.logger")
-def test_event_save_logging_error_handling(mock_logger):
+def test_event_save_logging_error_handling(mock_logger, mock_track):
     """Test that Event.save handles logging errors gracefully."""
     user = User.objects.create_user(username="testuser")
 
     # Make json.dumps fail by causing logger.info to raise
-    mock_logger.info.side_effect = Exception("Logging error")
+    mock_track.side_effect = Exception("Logging error")
 
     # This should not raise an exception
     event = Event.objects.create(
