@@ -15,6 +15,7 @@
 * [Query Debugging Utilities](query-debugging-utilities.md)
 * [GCS CDN Setup](gcs-cdn-setup.md)
 * [Analytics Graph Configuration](how-to-guides/analytics-graph-configuration.md)
+* [Tracking and Metrics](tracking.md)
 * [Useful Scripts](useful-scripts.md)
 
 ## Technical Reference

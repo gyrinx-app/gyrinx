@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -174,25 +175,22 @@ class Event(AppBase):
         super().save(*args, **kwargs)
 
         try:
-            # Log the event as JSON
-            event_data = {
-                "id": str(self.id),
-                "timestamp": self.created.isoformat(),
-                "user_id": str(self.owner_id) if self.owner_id else None,
-                "username": self.owner.username if self.owner else None,
-                "noun": self.noun,
-                "verb": self.verb,
-                "object_id": str(self.object_id) if self.object_id else None,
-                "object_type": self.object_type.model if self.object_type else None,
-                "ip_address": self.ip_address,
-                "session_id": self.session_id,
-                "field": self.field,
-                "context": self.context,
-            }
-
-            logger.info(
-                f"USER_EVENT: {self.verb} {self.noun}",
-                extra={"event_data": json.dumps(event_data)},
+            # Track user event
+            track(
+                f"event_{self.verb}_{self.noun}",
+                n=1,
+                value=None,
+                id=str(self.id),
+                noun=self.noun,
+                verb=self.verb,
+                user_id=str(self.owner_id) if self.owner_id else None,
+                username=self.owner.username if self.owner else None,
+                object_id=str(self.object_id) if self.object_id else None,
+                object_type=self.object_type.model if self.object_type else None,
+                ip_address=self.ip_address,
+                session_id=self.session_id,
+                field=self.field,
+                context=self.context,
             )
         except Exception:
             # If logging fails, don't crash - just log the error
