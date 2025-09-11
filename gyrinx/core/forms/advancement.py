@@ -6,7 +6,7 @@ from typing import Optional
 from django import forms
 from django.core.exceptions import ValidationError
 
-from gyrinx.content.models import ContentSkill, ContentSkillCategory
+from gyrinx.content.models import ContentSkill, ContentSkillCategory, ContentStat
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.forms import group_select
 
@@ -26,18 +26,7 @@ class AdvancementTypeForm(forms.Form):
 
     ADVANCEMENT_CHOICES = [
         # Stat improvements
-        ("stat_movement", "Movement"),
-        ("stat_weapon_skill", "Weapon Skill"),
-        ("stat_ballistic_skill", "Ballistic Skill"),
-        ("stat_strength", "Strength"),
-        ("stat_toughness", "Toughness"),
-        ("stat_wounds", "Wounds"),
-        ("stat_attacks", "Attacks"),
-        ("stat_initiative", "Initiative"),
-        ("stat_leadership", "Leadership"),
-        ("stat_cool", "Cool"),
-        ("stat_willpower", "Willpower"),
-        ("stat_intelligence", "Intelligence"),
+        # ... are dynamically generated based on fighter statline
         # Skill options
         ("skill_primary_random", "Random Primary Skill"),
         ("skill_primary_chosen", "Chosen Primary Skill"),
@@ -78,6 +67,7 @@ class AdvancementTypeForm(forms.Form):
     }
 
     advancement_choice = forms.ChoiceField(
+        # Note that these choices are overridden by __init__()
         choices=ADVANCEMENT_CHOICES,
         widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Select the type of advancement for this fighter.",
@@ -103,6 +93,48 @@ class AdvancementTypeForm(forms.Form):
     def __init__(self, *args, fighter=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
+
+        # Dynamically generate stat choices for advancement_choice based on the fighter's statline
+        all_stat_choices = AdvancementTypeForm.all_stat_choices()
+        initial_advancement_choices = self.fields["advancement_choice"].choices
+        additional_advancement_choices = []
+        if fighter:
+            statline_stats = [
+                (f"stat_{stat['field_name']}", stat)
+                for stat in fighter.content_fighter_statline
+            ]
+            additional_advancement_choices = [
+                (
+                    opt_val,
+                    all_stat_choices.get(opt_val, stat["field_name"].title()),
+                )
+                for opt_val, stat in statline_stats
+            ]
+        else:
+            additional_advancement_choices = [
+                (opt_val, full_name) for opt_val, full_name in all_stat_choices.items()
+            ]
+
+        self.fields["advancement_choice"].choices = (
+            additional_advancement_choices + initial_advancement_choices
+        )
+
+    @classmethod
+    def all_stat_choices(cls) -> dict[str, str]:
+        """
+        Get a dictionary mapping stat field names to their full names.
+        """
+        return dict(
+            (f"stat_{s['field_name']}", s["full_name"])
+            for s in ContentStat.objects.all().order_by("full_name").values()
+        )
+
+    @classmethod
+    def all_advancement_choices(cls) -> dict[str, str]:
+        """
+        Get a dictionary mapping advancement choice keys to their full names.
+        """
+        return cls.all_stat_choices() | dict(cls.ADVANCEMENT_CHOICES)
 
     def clean(self):
         cleaned_data = super().clean()

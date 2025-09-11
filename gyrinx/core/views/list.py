@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import generic
 from django.views.decorators.clickjacking import xframe_options_exempt
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -3921,7 +3921,6 @@ def list_fighter_advancements(request, id, fighter_id):
 
     :template:`core/list_fighter_advancements.html`
     """
-    from gyrinx.core.models import ListFighterAdvancement
 
     lst = get_object_or_404(List, id=id)
     fighter = get_object_or_404(
@@ -4062,8 +4061,8 @@ class AdvancementFlowParams(AdvancementBaseParams):
     @field_validator("advancement_choice")
     @classmethod
     def validate_advancement_choice(cls, value: str) -> str:
-        if value not in dict(AdvancementTypeForm.ADVANCEMENT_CHOICES).keys():
-            raise ValueError("Invalid advancement type choice.")
+        if value not in AdvancementTypeForm.all_advancement_choices().keys():
+            raise ValidationError("Invalid advancement type choice.")
         return value
 
     def is_stat_advancement(self) -> bool:
@@ -4146,8 +4145,8 @@ class AdvancementFlowParams(AdvancementBaseParams):
         Get the description for the advancement based on the choice.
         """
         if self.is_stat_advancement():
-            return dict(AdvancementTypeForm.ADVANCEMENT_CHOICES).get(
-                self.advancement_choice, ""
+            return AdvancementTypeForm.all_stat_choices().get(
+                self.advancement_choice, "Unknown"
             )
 
         raise ValueError("Invalid advancement type for description.")
@@ -4488,7 +4487,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
             raise ValueError("Only skill advancements allowed at the target stage")
 
         skill_type = params.skill_category_from_choice()
-    except ValueError as e:
+    except ValidationError as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))

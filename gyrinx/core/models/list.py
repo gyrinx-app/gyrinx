@@ -1485,7 +1485,7 @@ class ListFighter(AppBase):
         return stats
 
     @cached_property
-    def content_fighter_statline(self):
+    def content_fighter_statline(self) -> pylist[dict]:
         """
         Get the base statline for the content fighter.
 
@@ -3853,21 +3853,6 @@ class ListFighterAdvancement(AppBase):
         (ADVANCEMENT_OTHER, "Other"),
     ]
 
-    STAT_CHOICES = [
-        ("movement", "Movement"),
-        ("weapon_skill", "Weapon Skill"),
-        ("ballistic_skill", "Ballistic Skill"),
-        ("strength", "Strength"),
-        ("toughness", "Toughness"),
-        ("wounds", "Wounds"),
-        ("initiative", "Initiative"),
-        ("attacks", "Attacks"),
-        ("leadership", "Leadership"),
-        ("cool", "Cool"),
-        ("willpower", "Willpower"),
-        ("intelligence", "Intelligence"),
-    ]
-
     fighter = models.ForeignKey(
         ListFighter,
         on_delete=models.CASCADE,
@@ -3886,7 +3871,7 @@ class ListFighterAdvancement(AppBase):
         max_length=20,
         blank=True,
         null=True,
-        choices=STAT_CHOICES,
+        # Choices will be dynamically generated in the form
         help_text="For stat increases, which characteristic was improved.",
     )
 
