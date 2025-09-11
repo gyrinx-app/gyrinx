@@ -10,6 +10,7 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.forms.advancement import AdvancementTypeForm
 from gyrinx.core.models import ListFighter
+from gyrinx.core.views.list import AdvancementFlowParams
 
 
 @pytest.mark.django_db
@@ -262,8 +263,6 @@ def test_advancement_validation_with_stat_choice():
         },
     )
 
-    from gyrinx.core.views.list import AdvancementFlowParams
-
     # This should validate successfully
     params = AdvancementFlowParams(
         list_id="00000000-0000-0000-0000-000000000000",
@@ -281,44 +280,78 @@ def test_advancement_validation_with_stat_choice():
 @pytest.mark.django_db
 def test_advancement_validation_with_skill_choice():
     """Test validation should accept skill advancement choices."""
-    from gyrinx.core.views.list import AdvancementFlowParams
+    params = AdvancementFlowParams(
+        list_id="00000000-0000-0000-0000-000000000000",
+        fighter_id="00000000-0000-0000-0000-000000000000",
+        advancement_choice="skill_primary_chosen",
+        xp_cost=3,
+        cost_increase=5,
+    )
 
-    # NOTE: The current validation logic has a bug - it only checks stat choices
-    # This test will fail until the validation is fixed
-
-    # This should validate successfully but currently fails
-    with pytest.raises(Exception):  # Currently raises validation error
-        AdvancementFlowParams(
-            list_id="00000000-0000-0000-0000-000000000000",
-            fighter_id="00000000-0000-0000-0000-000000000000",
-            advancement_choice="skill_primary_chosen",
-            xp_cost=3,
-            cost_increase=5,
-        )
+    assert params.is_skill_advancement()
+    assert not params.is_stat_advancement()
 
 
 @pytest.mark.django_db
-def test_advancement_choice_fallback_display():
+def test_advancement_choice_fallback_display(
+    user, content_house, make_list, monkeypatch
+):
     """Test the fallback display name when stat is not in all_stat_choices."""
-    # Create a fighter with a custom stat not in ContentStat
-    vehicle_type = ContentStatlineType.objects.create(name="CustomType")
+    # Create a custom statline type and stat
+    custom_type = ContentStatlineType.objects.create(name="CustomType")
 
-    # Create a stat that won't be in ContentStat initially
     custom_stat = ContentStat.objects.create(
         field_name="custom_stat",
         short_name="CS",
         full_name="Custom Stat",
     )
 
-    ContentStatlineTypeStat.objects.create(
-        statline_type=vehicle_type,
+    type_stat = ContentStatlineTypeStat.objects.create(
+        statline_type=custom_type,
         stat=custom_stat,
         position=1,
     )
 
-    # Delete the stat to simulate missing from all_stat_choices
-    custom_stat.delete()
+    # Create a fighter and assign a statline with the custom stat
+    fighter_template = ContentFighter.objects.create(
+        type="Test Custom",
+        house=content_house,
+        category="CREW",
+    )
 
-    # Now the form should use the fallback title() method
-    # This tests the fallback logic in line 109 of advancement.py
-    # where it uses stat["field_name"].title() as fallback
+    custom_statline = ContentStatline.objects.create(
+        content_fighter=fighter_template,
+        statline_type=custom_type,
+    )
+
+    ContentStatlineStat.objects.create(
+        statline=custom_statline,
+        statline_type_stat=type_stat,
+        value="1",
+    )
+
+    # Create a list and list fighter
+    lst = make_list("Test List", content_house=content_house)
+    list_fighter = ListFighter.objects.create(
+        list=lst,
+        name="Test Fighter",
+        owner=user,
+        content_fighter=fighter_template,
+    )
+
+    # Monkeypatch all_stat_choices to simulate missing from the global choices map
+    monkeypatch.setattr(
+        AdvancementTypeForm, "all_stat_choices", classmethod(lambda cls: {})
+    )
+
+    # Build the form and extract choices
+    form = AdvancementTypeForm(fighter=list_fighter)
+    choices = dict(form.fields["advancement_choice"].choices)
+
+    # The fallback should be used for the custom stat
+    assert "stat_custom_stat" in choices, "Custom stat key missing from choices"
+    # Accept either 'Custom Stat' or 'Custom_Stat' depending on implementation
+    label = choices["stat_custom_stat"]
+    assert label.replace("_", " ") == "Custom Stat", (
+        f"Unexpected fallback label: {label}"
+    )

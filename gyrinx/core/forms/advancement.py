@@ -129,6 +129,13 @@ class AdvancementTypeForm(forms.Form):
             for s in ContentStat.objects.all().order_by("full_name").values()
         )
 
+    @classmethod
+    def all_advancement_choices(cls) -> dict[str, str]:
+        """
+        Get a dictionary mapping advancement choice keys to their full names.
+        """
+        return cls.all_stat_choices() | dict(cls.ADVANCEMENT_CHOICES)
+
     def clean(self):
         cleaned_data = super().clean()
         xp_cost = cleaned_data.get("xp_cost", 0)

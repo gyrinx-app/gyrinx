@@ -4061,7 +4061,7 @@ class AdvancementFlowParams(AdvancementBaseParams):
     @field_validator("advancement_choice")
     @classmethod
     def validate_advancement_choice(cls, value: str) -> str:
-        if value not in AdvancementTypeForm.all_stat_choices().keys():
+        if value not in AdvancementTypeForm.all_advancement_choices().keys():
             raise ValidationError("Invalid advancement type choice.")
         return value
 
