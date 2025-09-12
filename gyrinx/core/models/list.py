@@ -487,7 +487,8 @@ class List(AppBase):
         for fighter in self.fighters():
             # Skip if this fighter is linked to an equipment assignment
             is_linked = (
-                hasattr(fighter, "linked_fighter") and fighter.linked_fighter.exists()
+                hasattr(fighter, "source_assignment")
+                and fighter.source_assignment.exists()
             )
             # Skip if this is a stash fighter
             is_stash = fighter.content_fighter.is_stash
@@ -551,7 +552,7 @@ class ListFighterManager(models.Manager):
             .get_queryset()
             .annotate(
                 _is_linked=Case(
-                    When(linked_fighter__isnull=False, then=True),
+                    When(source_assignment__isnull=False, then=True),
                     default=False,
                 ),
                 _category_order=Case(
@@ -565,15 +566,15 @@ class ListFighterManager(models.Manager):
                                 content_fighter__category=category,
                             )
                             | Q(
-                                linked_fighter__list_fighter__category_override=category,
+                                source_assignment__list_fighter__category_override=category,
                                 # Only consider linked fighters that are not stash fighters
-                                linked_fighter__list_fighter__content_fighter__is_stash=False,
+                                source_assignment__list_fighter__content_fighter__is_stash=False,
                             )
                             | Q(
-                                linked_fighter__list_fighter__category_override__isnull=True,
-                                linked_fighter__list_fighter__content_fighter__category=category,
+                                source_assignment__list_fighter__category_override__isnull=True,
+                                source_assignment__list_fighter__content_fighter__category=category,
                                 # Only consider linked fighters that are not stash fighters
-                                linked_fighter__list_fighter__content_fighter__is_stash=False,
+                                source_assignment__list_fighter__content_fighter__is_stash=False,
                             ),
                             then=index,
                         )
@@ -613,7 +614,9 @@ class ListFighterManager(models.Manager):
                                 content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
                             )
                         ),
-                        then=Concat("linked_fighter__list_fighter__name", Value("~2")),
+                        then=Concat(
+                            "source_assignment__list_fighter__name", Value("~2")
+                        ),
                     ),
                     # If this is a vehicle linked to a fighter, sort with the parent but come first
                     # Note: Vehicle cannot be an override category, only content_fighter__category
@@ -622,7 +625,9 @@ class ListFighterManager(models.Manager):
                         & Q(
                             content_fighter__category=FighterCategoryChoices.VEHICLE,
                         ),
-                        then=Concat("linked_fighter__list_fighter__name", Value("~0")),
+                        then=Concat(
+                            "source_assignment__list_fighter__name", Value("~0")
+                        ),
                     ),
                     # Default: regular fighters sort by their own name with a middle priority
                     default=Concat(F("name"), Value("~1")),
@@ -662,20 +667,22 @@ class ListFighterManager(models.Manager):
                 # If this fighter is linked to stash and is a vehicle, use own ID
                 # Note: Vehicle cannot be an override category, only content_fighter__category
                 When(
-                    Q(linked_fighter__isnull=False)
+                    Q(source_assignment__isnull=False)
                     & Q(
                         content_fighter__category=FighterCategoryChoices.VEHICLE,
                     )
-                    & Q(linked_fighter__list_fighter__content_fighter__is_stash=True),
+                    & Q(
+                        source_assignment__list_fighter__content_fighter__is_stash=True
+                    ),
                     then=F("id"),
                 ),
                 # If this fighter is linked, and we are a vehicle, use the linked fighter's id
                 When(
-                    Q(linked_fighter__isnull=False)
+                    Q(source_assignment__isnull=False)
                     & Q(
                         content_fighter__category=FighterCategoryChoices.VEHICLE,
                     ),
-                    then=F("linked_fighter__list_fighter__id"),
+                    then=F("source_assignment__list_fighter__id"),
                 ),
                 # Default: use fighter's own ID
                 default=F("id"),
@@ -723,8 +730,8 @@ class ListFighterQuerySet(models.QuerySet):
                 "content_fighter__rules",
                 "content_fighter__house",
                 "content_fighter__default_assignments__equipment__contentweaponprofile_set",
-                "linked_fighter",
-                "linked_fighter__list_fighter",
+                "source_assignment",
+                "source_assignment__list_fighter",
                 Prefetch(
                     "list",
                     # DO NOT add with_fighters=True here, it will cause infinite recursion
@@ -1208,8 +1215,8 @@ class ListFighter(AppBase):
         if self.cost_override is not None:
             return self.cost_override
 
-        # Or if it's linked...
-        if self.has_linked_fighter:
+        # Or if it's linked to a parent via an assignment...
+        if self.is_child_fighter:
             return 0
 
         return self._base_cost_before_override()
@@ -1609,30 +1616,30 @@ class ListFighter(AppBase):
         return self.assignments()
 
     @cached_property
-    def has_linked_fighter(self: "ListFighter") -> bool:
+    def is_child_fighter(self: "ListFighter") -> bool:
         """
-        Check if this fighter has a linked fighter.
+        Check if this fighter is a child fighter (spawned by an equipment assignment).
 
-        The relation self.linked_fighter is a related name from the assignment, so has_linked_fighter
+        The relation self.source_assignment is a related name from the assignment, so is_child_fighter
         is true for the *child* fighter, not the parent.
         """
-        return self.linked_fighter.exists()
+        return self.source_assignment.exists()
 
     @cached_property
-    def linked_list_fighter(self):
+    def parent_list_fighter(self):
         """
-        Returns the actual linked fighter object for this fighter, if it exists.
+        Returns the actual parent fighter object for this child fighter, if it exists.
 
-        This is uses from the *child* fighter's perspective, so it returns the parent
+        This is used from the *child* fighter's perspective, so it returns the parent
         ListFighter that is linked to this fighter via the ListFighterEquipmentAssignment.
         """
         # Performance: This MUST use .all() to avoid hitting the database: we are using
-        # prefetch_related in the queryset to load linked_fighter.
+        # prefetch_related in the queryset to load source_assignment.
         # If we use .first() or .get(), it will hit the database again.
-        linked_fighters = self.linked_fighter.all()
-        if linked_fighters:
-            # Return the first linked fighter, assuming only one is linked
-            return linked_fighters[0].list_fighter
+        source_assignments = self.source_assignment.all()
+        if source_assignments:
+            # Return the first assignment's list_fighter, assuming only one is linked
+            return source_assignments[0].list_fighter
         return None
 
     def skilline(self):
@@ -2136,14 +2143,14 @@ class ListFighter(AppBase):
                 cloned_assignment = assignment.clone(list_fighter=target_fighter)
 
                 # Handle nested linked fighters recursively
-                if assignment.linked_fighter:
-                    original_linked_fighter = assignment.linked_fighter
-                    cloned_linked_fighter = cloned_assignment.linked_fighter
+                if assignment.child_fighter:
+                    original_child_fighter = assignment.child_fighter
+                    cloned_child_fighter = cloned_assignment.child_fighter
 
-                    if cloned_linked_fighter:
+                    if cloned_child_fighter:
                         # Recursively copy all attributes to the nested linked fighter
-                        original_linked_fighter.copy_attributes_to(
-                            cloned_linked_fighter, include_equipment=True
+                        original_child_fighter.copy_attributes_to(
+                            cloned_child_fighter, include_equipment=True
                         )
 
         # Copy psyker power assignments
@@ -2244,14 +2251,14 @@ class ListFighter(AppBase):
 
             # If the original assignment has a linked fighter (e.g., vehicle, exotic beast),
             # we need to copy all attributes from that linked fighter to the new linked fighter
-            if assignment.linked_fighter:
-                original_linked_fighter = assignment.linked_fighter
-                cloned_linked_fighter = cloned_assignment.linked_fighter
+            if assignment.child_fighter:
+                original_child_fighter = assignment.child_fighter
+                cloned_child_fighter = cloned_assignment.child_fighter
 
-                if cloned_linked_fighter:
+                if cloned_child_fighter:
                     # Copy all attributes (including equipment) from the original linked fighter
-                    original_linked_fighter.copy_attributes_to(
-                        cloned_linked_fighter, include_equipment=True
+                    original_child_fighter.copy_attributes_to(
+                        cloned_child_fighter, include_equipment=True
                     )
 
         # Clone psyker power assignments
@@ -2282,7 +2289,7 @@ class ListFighter(AppBase):
 
     @property
     def archive_with(self):
-        return ListFighter.objects.filter(linked_fighter__list_fighter=self)
+        return ListFighter.objects.filter(source_assignment__list_fighter=self)
 
     @property
     def is_captured(self):
@@ -2514,12 +2521,12 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         help_text="The upgrades that this equipment assignment has.",
     )
 
-    linked_fighter = models.ForeignKey(
+    child_fighter = models.ForeignKey(
         ListFighter,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name="linked_fighter",
+        related_name="source_assignment",
         help_text="The ListFighter that this Equipment assignment is linked to (e.g. Exotic Beast, Vehicle).",
     )
 
@@ -3096,7 +3103,7 @@ def create_related_objects(sender, instance, **kwargs):
         equipment=instance.content_equipment,
     )
     # If there is a profile and we aren't already linked
-    if equipment_fighter_profile.exists() and not instance.linked_fighter:
+    if equipment_fighter_profile.exists() and not instance.child_fighter:
         if equipment_fighter_profile.count() > 1:
             raise ValueError(
                 f"Equipment {instance.content_equipment} has multiple fighter profiles"
@@ -3115,7 +3122,7 @@ def create_related_objects(sender, instance, **kwargs):
             list=instance.list_fighter.list,
             owner=instance.list_fighter.list.owner,
         )
-        instance.linked_fighter = lf
+        instance.child_fighter = lf
         lf.save()
         instance.save()
 
@@ -3162,8 +3169,8 @@ def delete_related_objects_pre_delete(sender, instance, **kwargs):
     dispatch_uid="delete_related_objects_post_delete",
 )
 def delete_related_objects_post_delete(sender, instance, **kwargs):
-    if instance.linked_fighter:
-        instance.linked_fighter.delete()
+    if instance.child_fighter:
+        instance.child_fighter.delete()
 
 
 @receiver(

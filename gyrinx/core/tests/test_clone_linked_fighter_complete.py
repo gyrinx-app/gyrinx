@@ -23,7 +23,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_skills_and_rules(
+def test_clone_child_fighter_with_skills_and_rules(
     user,
     make_list,
     make_content_house,
@@ -93,7 +93,7 @@ def test_clone_linked_fighter_with_skills_and_rules(
     vehicle_assignment.save()
 
     # Get the auto-created vehicle
-    vehicle_lf = vehicle_assignment.linked_fighter
+    vehicle_lf = vehicle_assignment.child_fighter
     assert vehicle_lf is not None
 
     # Add skills and rules to the vehicle
@@ -118,7 +118,7 @@ def test_clone_linked_fighter_with_skills_and_rules(
         .filter(content_equipment=vehicle_equipment)
         .first()
     )
-    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+    cloned_vehicle = cloned_vehicle_assignment.child_fighter
 
     # THESE SHOULD PASS: The cloned vehicle should have the same skills and rules
     assert cloned_vehicle.skills.count() == 2, (
@@ -141,7 +141,7 @@ def test_clone_linked_fighter_with_skills_and_rules(
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_xp_and_overrides(
+def test_clone_child_fighter_with_xp_and_overrides(
     user,
     make_list,
     make_content_house,
@@ -198,7 +198,7 @@ def test_clone_linked_fighter_with_xp_and_overrides(
     beast_assignment.save()
 
     # Get the auto-created beast
-    beast_lf = beast_assignment.linked_fighter
+    beast_lf = beast_assignment.child_fighter
     assert beast_lf is not None
 
     # Set XP and stat overrides on the beast
@@ -223,7 +223,7 @@ def test_clone_linked_fighter_with_xp_and_overrides(
         .filter(content_equipment=beast_equipment)
         .first()
     )
-    cloned_beast = cloned_beast_assignment.linked_fighter
+    cloned_beast = cloned_beast_assignment.child_fighter
 
     # THESE SHOULD PASS: The cloned beast should have the same XP and overrides
     assert cloned_beast.xp_current == 10, (
@@ -241,7 +241,7 @@ def test_clone_linked_fighter_with_xp_and_overrides(
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_advancements(
+def test_clone_child_fighter_with_advancements(
     user,
     make_list,
     make_content_house,
@@ -304,7 +304,7 @@ def test_clone_linked_fighter_with_advancements(
     vehicle_assignment.save()
 
     # Get the auto-created vehicle
-    vehicle_lf = vehicle_assignment.linked_fighter
+    vehicle_lf = vehicle_assignment.child_fighter
     assert vehicle_lf is not None
 
     # Add advancements to the vehicle
@@ -350,7 +350,7 @@ def test_clone_linked_fighter_with_advancements(
         .filter(content_equipment=vehicle_equipment)
         .first()
     )
-    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+    cloned_vehicle = cloned_vehicle_assignment.child_fighter
 
     # THESE SHOULD PASS: The cloned vehicle should have the same advancements
     assert cloned_vehicle.advancements.count() == 3, (
@@ -408,7 +408,7 @@ def test_clone_linked_fighter_with_advancements(
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_nested_links(
+def test_clone_child_fighter_with_nested_links(
     user,
     make_list,
     make_content_house,
@@ -486,7 +486,7 @@ def test_clone_linked_fighter_with_nested_links(
     vehicle_assignment.save()
 
     # Get the auto-created vehicle
-    vehicle_lf = vehicle_assignment.linked_fighter
+    vehicle_lf = vehicle_assignment.child_fighter
     assert vehicle_lf is not None
 
     # Add the mounted gun to the vehicle (which should create a gunner)
@@ -497,7 +497,7 @@ def test_clone_linked_fighter_with_nested_links(
     gun_assignment.save()
 
     # Get the auto-created gunner
-    gunner_lf = gun_assignment.linked_fighter
+    gunner_lf = gun_assignment.child_fighter
     assert gunner_lf is not None
 
     # Add some equipment to the gunner
@@ -535,7 +535,7 @@ def test_clone_linked_fighter_with_nested_links(
         .filter(content_equipment=vehicle_equipment)
         .first()
     )
-    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+    cloned_vehicle = cloned_vehicle_assignment.child_fighter
 
     # Find the cloned gunner through the vehicle's mounted gun
     cloned_gun_assignment = (
@@ -543,7 +543,7 @@ def test_clone_linked_fighter_with_nested_links(
         .filter(content_equipment=mounted_gun)
         .first()
     )
-    cloned_gunner = cloned_gun_assignment.linked_fighter
+    cloned_gunner = cloned_gun_assignment.child_fighter
 
     # THESE SHOULD PASS: Check the entire chain is properly cloned
     assert cloned_vehicle is not None, "Cloned vehicle not found"
@@ -563,7 +563,7 @@ def test_clone_linked_fighter_with_nested_links(
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_stat_overrides(
+def test_clone_child_fighter_with_stat_overrides(
     user,
     make_list,
     make_content_house,
@@ -621,7 +621,7 @@ def test_clone_linked_fighter_with_stat_overrides(
     vehicle_assignment.save()
 
     # Get the auto-created vehicle
-    vehicle_lf = vehicle_assignment.linked_fighter
+    vehicle_lf = vehicle_assignment.child_fighter
     assert vehicle_lf is not None
 
     # Create a minimal statline infrastructure for testing
@@ -691,7 +691,7 @@ def test_clone_linked_fighter_with_stat_overrides(
         .filter(content_equipment=vehicle_equipment)
         .first()
     )
-    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+    cloned_vehicle = cloned_vehicle_assignment.child_fighter
 
     # Check that the stat overrides were cloned
     assert cloned_vehicle.stat_overrides.count() == 2, (

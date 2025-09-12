@@ -12,11 +12,11 @@
               method="post">
             {% csrf_token %}
             <p>Are you sure you want to delete the {{ assign.content_equipment.name }} from {{ fighter.name }}?</p>
-            {% if assign.linked_fighter %}
+            {% if assign.child_fighter %}
                 <div class="alert alert-danger mb-last-0" role="alert">
                     <p>
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>Warning:</strong> This will also <strong>delete {{ assign.linked_fighter.fully_qualified_name }}</strong>, including any modifications, gear, weapons and upgrades.
+                        <strong>Warning:</strong> This will also <strong>delete {{ assign.child_fighter.fully_qualified_name }}</strong>, including any modifications, gear, weapons and upgrades.
                     </p>
                     <p>This action cannot be undone.</p>
                 </div>

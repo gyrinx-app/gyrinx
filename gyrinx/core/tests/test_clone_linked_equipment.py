@@ -9,7 +9,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_clone_list_with_linked_fighter(
+def test_clone_list_with_child_fighter(
     user,
     make_list,
     make_content_house,
@@ -57,8 +57,8 @@ def test_clone_list_with_linked_fighter(
 
     # Verify setup
     assert lst.fighters().count() == 2
-    assert assign.linked_fighter is not None
-    assert assign.linked_fighter.name == "Beast"
+    assert assign.child_fighter is not None
+    assert assign.child_fighter.name == "Beast"
     assert lst.cost_int() == 150  # 100 + 50, beast fighter cost ignored
 
     # Clone the list
@@ -77,10 +77,10 @@ def test_clone_list_with_linked_fighter(
     assert cloned_assignments.count() == 1
     cloned_assign = cloned_assignments.first()
 
-    # This is the key test - the cloned assignment should have a linked_fighter
-    assert cloned_assign.linked_fighter is not None
-    assert cloned_assign.linked_fighter == cloned_beast
-    assert cloned_assign.linked_fighter.name == "Beast"
+    # This is the key test - the cloned assignment should have a child_fighter
+    assert cloned_assign.child_fighter is not None
+    assert cloned_assign.child_fighter == cloned_beast
+    assert cloned_assign.child_fighter.name == "Beast"
 
     # Verify cost is correct
     assert cloned_list.cost_int() == 150
@@ -135,7 +135,7 @@ def test_clone_fighter_with_linked_equipment(
 
     # Verify setup
     assert lst.fighters().count() == 2
-    assert assign.linked_fighter is not None
+    assert assign.child_fighter is not None
 
     # Clone just the fighter
     cloned_owner = owner_lf.clone(name="Cloned Owner")
@@ -149,7 +149,7 @@ def test_clone_fighter_with_linked_equipment(
     cloned_assign = cloned_assignments.first()
 
     # The cloned assignment should have its own linked fighter
-    assert cloned_assign.linked_fighter is not None
-    assert cloned_assign.linked_fighter != assign.linked_fighter  # Different instances
-    assert cloned_assign.linked_fighter.name == "Beast"
-    assert cloned_assign.linked_fighter.list == lst
+    assert cloned_assign.child_fighter is not None
+    assert cloned_assign.child_fighter != assign.child_fighter  # Different instances
+    assert cloned_assign.child_fighter.name == "Beast"
+    assert cloned_assign.child_fighter.list == lst

@@ -9,7 +9,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_clone_linked_fighter_with_additional_equipment(
+def test_clone_child_fighter_with_additional_equipment(
     user,
     make_list,
     make_content_house,
@@ -81,7 +81,7 @@ def test_clone_linked_fighter_with_additional_equipment(
 
     # Verify the vehicle was created
     assert original_list.fighters().count() == 2
-    vehicle_lf = vehicle_assignment.linked_fighter
+    vehicle_lf = vehicle_assignment.child_fighter
     assert vehicle_lf is not None
     assert vehicle_lf.name == "Vehicle"
 
@@ -116,7 +116,7 @@ def test_clone_linked_fighter_with_additional_equipment(
         .first()
     )
     assert cloned_vehicle_assignment is not None
-    cloned_vehicle = cloned_vehicle_assignment.linked_fighter
+    cloned_vehicle = cloned_vehicle_assignment.child_fighter
     assert cloned_vehicle is not None
 
     # THIS IS THE KEY TEST: The cloned vehicle should have the armor equipment

@@ -35,8 +35,8 @@
                 {% endif %}
                 <div class="ms-auto hstack gap-2 flex-wrap">
                     {% if not print %}
-                        {% if fighter.has_linked_fighter %}
-                            {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
+                        {% if fighter.is_child_fighter %}
+                            {% include "core/includes/parent_fighter_link.html" with fighter=fighter print=print %}
                         {% endif %}
                         {% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}
                     {% endif %}
@@ -138,7 +138,7 @@
                                 <span class="visually-hidden">Toggle Dropdown</span>
                             </button>
                             <ul class="dropdown-menu">
-                                {% if fighter.has_linked_fighter %}
+                                {% if fighter.is_child_fighter %}
                                     {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                         <li>
                                             <a class="dropdown-item"
@@ -204,8 +204,8 @@
         {% if print %}
             <div>
                 <div class="hstack gap-2 align-items-baseline justify-content-end">
-                    {% if fighter.has_linked_fighter %}
-                        {% include "core/includes/linked_fighter.html" with fighter=fighter print=print %}
+                    {% if fighter.is_child_fighter %}
+                        {% include "core/includes/parent_fighter_link.html" with fighter=fighter print=print %}
                     {% endif %}
                     <div class="fs-3">{% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}</div>
                 </div>

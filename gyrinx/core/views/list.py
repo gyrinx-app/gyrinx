@@ -3488,7 +3488,7 @@ def mark_fighter_captured(request, id, fighter_id):
             with transaction.atomic():
                 # Check if this fighter is linked to equipment assignments and unlink them
                 linked_assignments = ListFighterEquipmentAssignment.objects.filter(
-                    linked_fighter=fighter
+                    child_fighter=fighter
                 )
 
                 # Create the capture record first
@@ -3508,7 +3508,7 @@ def mark_fighter_captured(request, id, fighter_id):
                             f"Removed {assignment.content_equipment.name} from {assignment.list_fighter.name} as {fighter.name} was captured.",
                         )
                         # Unlink the fighter first to prevent cascade delete
-                        assignment.linked_fighter = None
+                        assignment.child_fighter = None
                         assignment.save()
                         # Now delete the assignment
                         assignment.delete()

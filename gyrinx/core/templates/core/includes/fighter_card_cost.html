@@ -9,9 +9,9 @@
     <div data-bs-toggle="tooltip"
          title="The base cost of {{ fighter.term_proximal_demonstrative|lower }} is modified (was {{ fighter.base_cost_before_override_display }})"
          class="badge {{ badge_alt_classes }}">{{ fighter.cost_display }}</div>
-{% elif fighter.has_linked_fighter %}
+{% elif fighter.is_child_fighter %}
     <div data-bs-toggle="tooltip"
-         title="The base cost is zero because {{ fighter.term_proximal_demonstrative|lower }} is linked to {{ fighter.linked_list_fighter.name }} via gear (was {{ fighter.base_cost_before_override_display }})"
+         title="The base cost is zero because {{ fighter.term_proximal_demonstrative|lower }} is linked to {{ fighter.parent_list_fighter.name }} via gear (was {{ fighter.base_cost_before_override_display }})"
          class="badge {{ badge_alt_classes }}">{{ fighter.cost_display }}</div>
 {% elif fighter.is_stash %}
     <div class="badge {{ badge_classes }}">{{ fighter.list.credits_current }}¢</div>
