@@ -20,6 +20,7 @@ from gyrinx.models import (
 )
 
 from .models import (
+    ContentAdvancementAssignment,
     ContentAdvancementEquipment,
     ContentAttribute,
     ContentAttributeValue,
@@ -673,6 +674,29 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
 
 
+@admin.register(ContentAdvancementAssignment)
+class ContentAdvancementAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "equipment__name"]
+    list_display = ["name", "equipment", "get_upgrade_count"]
+    list_filter = ["equipment__category"]
+    filter_horizontal = ["upgrades_field"]
+    fieldsets = (
+        (None, {"fields": ("name", "equipment")}),
+        (
+            "Upgrades",
+            {
+                "fields": ("upgrades_field",),
+                "description": "Select the upgrades that come with this equipment assignment.",
+            },
+        ),
+    )
+
+    def get_upgrade_count(self, obj):
+        return obj.upgrades_field.count()
+
+    get_upgrade_count.short_description = "Upgrades"
+
+
 class ContentAdvancementEquipmentAdminForm(forms.ModelForm):
     restricted_to_fighter_categories = forms.MultipleChoiceField(
         choices=FighterCategoryChoices.choices,
@@ -711,14 +735,14 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         "get_restrictions",
     ]
     list_filter = ["enable_chosen", "enable_random", "restricted_to_houses"]
-    filter_horizontal = ["equipment", "restricted_to_houses"]
+    filter_horizontal = ["equipment", "assignments", "restricted_to_houses"]
     fieldsets = (
         (None, {"fields": ("name", "xp_cost", "cost_increase")}),
         (
             "Equipment Selection",
             {
-                "fields": ("equipment", "enable_chosen", "enable_random"),
-                "description": "Select the equipment available through this advancement. At least one selection type (chosen/random) must be enabled.",
+                "fields": ("assignments", "enable_chosen", "enable_random"),
+                "description": "Select the equipment assignments available through this advancement. At least one selection type (chosen/random) must be enabled.",
             },
         ),
         (
@@ -735,7 +759,7 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     )
 
     def get_equipment_count(self, obj):
-        return obj.equipment.count()
+        return obj.assignments.count()
 
     get_equipment_count.short_description = "Equipment Options"
 

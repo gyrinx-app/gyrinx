@@ -6,6 +6,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
+    ContentAdvancementAssignment,
     ContentAdvancementEquipment,
     ContentEquipment,
     ContentSkill,
@@ -372,7 +373,7 @@ class OtherAdvancementForm(forms.Form):
 
 
 class EquipmentSelectionForm(forms.Form):
-    """Form for selecting a specific equipment from an advancement."""
+    """Form for selecting a specific equipment from an advancement (legacy)."""
 
     equipment = forms.ModelChoiceField(
         queryset=ContentEquipment.objects.none(),
@@ -390,8 +391,27 @@ class EquipmentSelectionForm(forms.Form):
             )
 
 
+class EquipmentAssignmentSelectionForm(forms.Form):
+    """Form for selecting a specific equipment assignment from an advancement."""
+
+    assignment = forms.ModelChoiceField(
+        queryset=ContentAdvancementAssignment.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Select equipment configuration for this fighter.",
+    )
+
+    def __init__(self, *args, advancement=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if advancement:
+            # Show all assignments from the advancement
+            self.fields["assignment"].queryset = advancement.assignments.all().order_by(
+                "name"
+            )
+
+
 class RandomEquipmentForm(forms.Form):
-    """Form for confirming a randomly selected equipment."""
+    """Form for confirming a randomly selected equipment (legacy)."""
 
     equipment_id = forms.IntegerField(
         widget=forms.HiddenInput(),
@@ -415,3 +435,30 @@ class RandomEquipmentForm(forms.Form):
                 random_equipment = available_equipment.order_by("?").first()
                 self.initial["equipment_id"] = random_equipment.id
                 self.equipment = random_equipment
+
+
+class RandomEquipmentAssignmentForm(forms.Form):
+    """Form for confirming a randomly selected equipment assignment."""
+
+    assignment_id = forms.IntegerField(
+        widget=forms.HiddenInput(),
+    )
+
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        label="Accept this equipment",
+    )
+
+    def __init__(self, *args, advancement=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.assignment = None  # Store the assignment object for display
+
+        if not self.is_bound and advancement:
+            # Select a random assignment from the advancement
+            available_assignments = advancement.assignments.all()
+
+            if available_assignments.exists():
+                random_assignment = available_assignments.order_by("?").first()
+                self.initial["assignment_id"] = random_assignment.id
+                self.assignment = random_assignment

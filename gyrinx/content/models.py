@@ -3280,16 +3280,59 @@ class ContentStatlineStat(Content):
         ordering = ["statline_type_stat__position"]
 
 
+class ContentAdvancementAssignment(Content):
+    """
+    Represents a specific equipment configuration (with upgrades)
+    that can be gained through advancement.
+    """
+
+    # Custom name for this configuration
+    name = models.CharField(max_length=255)
+
+    # The base equipment
+    equipment = models.ForeignKey(
+        ContentEquipment,
+        on_delete=models.CASCADE,
+        related_name="advancement_assignments",
+    )
+
+    # Equipment upgrades
+    upgrades_field = models.ManyToManyField(
+        ContentEquipmentUpgrade,
+        blank=True,
+        related_name="advancement_assignments",
+        help_text="Upgrades that come with this equipment assignment",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Advancement Assignment"
+        verbose_name_plural = "Advancement Assignments"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class ContentAdvancementEquipment(Content):
     """
     Defines equipment that can be acquired through fighter advancement.
-    Links equipment to advancement costs and restrictions.
+    Links equipment assignments to advancement costs and restrictions.
     """
 
     equipment = models.ManyToManyField(
         ContentEquipment,
         related_name="advancement_options",
-        help_text="Equipment that can be gained through advancement - fighter chooses one from this list",
+        help_text="Equipment that can be gained through advancement - fighter chooses one from this list (deprecated, use assignments instead)",
+        blank=True,
+    )
+
+    assignments = models.ManyToManyField(
+        ContentAdvancementAssignment,
+        related_name="advancement_options",
+        help_text="Equipment assignments that can be gained through advancement - fighter chooses one from this list",
+        blank=True,
     )
 
     name = models.CharField(

@@ -1,6 +1,36 @@
 {# Equipment advancement form partial #}
 {% if is_random %}
-    {% if form.equipment %}
+    {% if form.assignment %}
+        {# New assignment form #}
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ form.assignment.name }}</h5>
+                <p class="card-text text-muted">
+                    Equipment: {{ form.assignment.equipment.name }} ({{ form.assignment.equipment.category.name }})
+                    {% if form.assignment.equipment.cost %}| Cost: {{ form.assignment.equipment.cost }}{% endif %}
+                </p>
+                {% if form.assignment.upgrades_field.exists %}
+                    <h6 class="card-subtitle mb-2 text-muted">Included Upgrades:</h6>
+                    <ul class="list-unstyled mb-0">
+                        {% for upgrade in form.assignment.upgrades_field.all %}<li>{{ upgrade.name }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+                {% if form.assignment.equipment.contentweaponprofile_set.exists %}
+                    <h6 class="card-subtitle mb-2 text-muted">Weapon Profiles:</h6>
+                    <ul class="list-unstyled mb-0">
+                        {% for profile in form.assignment.equipment.contentweaponprofile_set.all %}<li>{{ profile.name }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+        {{ form.assignment_id }}
+        <div class="form-check">
+            {{ form.confirm }}
+            <label class="form-check-label" for="{{ form.confirm.id_for_label }}">{{ form.confirm.label }}</label>
+            {% if form.confirm.errors %}<div class="invalid-feedback d-block">{{ form.confirm.errors.0 }}</div>{% endif %}
+        </div>
+    {% elif form.equipment %}
+        {# Legacy equipment form #}
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">{{ form.equipment.name }}</h5>
@@ -28,9 +58,18 @@
     </div>
 {% else %}
     <div>
-        <label for="{{ form.equipment.id_for_label }}" class="form-label">Select Equipment</label>
-        {{ form.equipment }}
-        <div class="form-text">{{ form.equipment.help_text }}</div>
-        {% if form.equipment.errors %}<div class="invalid-feedback d-block">{{ form.equipment.errors.0 }}</div>{% endif %}
+        {% if form.assignment %}
+            {# New assignment form #}
+            <label for="{{ form.assignment.id_for_label }}" class="form-label">Select Equipment Configuration</label>
+            {{ form.assignment }}
+            <div class="form-text">{{ form.assignment.help_text }}</div>
+            {% if form.assignment.errors %}<div class="invalid-feedback d-block">{{ form.assignment.errors.0 }}</div>{% endif %}
+        {% else %}
+            {# Legacy equipment form #}
+            <label for="{{ form.equipment.id_for_label }}" class="form-label">Select Equipment</label>
+            {{ form.equipment }}
+            <div class="form-text">{{ form.equipment.help_text }}</div>
+            {% if form.equipment.errors %}<div class="invalid-feedback d-block">{{ form.equipment.errors.0 }}</div>{% endif %}
+        {% endif %}
     </div>
 {% endif %}

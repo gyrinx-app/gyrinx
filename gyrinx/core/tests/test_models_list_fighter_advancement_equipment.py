@@ -168,8 +168,9 @@ def test_list_fighter_advancement_equipment_validation(
     )
     with pytest.raises(ValidationError) as exc_info:
         advancement.full_clean()
-    assert "Equipment advancement requires equipment to be selected" in str(
-        exc_info.value
+    assert (
+        "Equipment advancement requires equipment or equipment assignment to be selected"
+        in str(exc_info.value)
     )
 
     # Equipment advancement with skill (invalid)
