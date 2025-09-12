@@ -1,0 +1,19 @@
+{# Skill advancement form partial #}
+{% if is_random %}
+    <div>
+        <label for="{{ form.category.id_for_label }}" class="form-label">Select Skill Set</label>
+        {{ form.category }}
+        <div class="form-text">{{ form.category.help_text }}</div>
+        {% if form.category.errors %}<div class="invalid-feedback d-block">{{ form.category.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="alert alert-warning p-2 fs-7">
+        <i class="bi-exclamation-triangle"></i> The skill will be chosen <em>automatically</em> when you click Confirm Advancement.
+    </div>
+{% else %}
+    <div>
+        <label for="{{ form.skill.id_for_label }}" class="form-label">Select Skill</label>
+        {{ form.skill }}
+        <div class="form-text">{{ form.skill.help_text }}</div>
+        {% if form.skill.errors %}<div class="invalid-feedback d-block">{{ form.skill.errors.0 }}</div>{% endif %}
+    </div>
+{% endif %}

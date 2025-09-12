@@ -13,9 +13,14 @@ from polymorphic.admin import (
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from gyrinx.forms import group_select
-from gyrinx.models import SMART_QUOTES, equipment_category_groups
+from gyrinx.models import (
+    SMART_QUOTES,
+    FighterCategoryChoices,
+    equipment_category_groups,
+)
 
 from .models import (
+    ContentAdvancementEquipment,
     ContentAttribute,
     ContentAttributeValue,
     ContentBook,
@@ -666,6 +671,87 @@ class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentWeaponTrait)
 class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+
+
+class ContentAdvancementEquipmentAdminForm(forms.ModelForm):
+    restricted_to_fighter_categories = forms.MultipleChoiceField(
+        choices=FighterCategoryChoices.choices,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select fighter categories that can take this advancement",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Group equipment by category
+        group_select(self, "equipment", key=lambda x: x.cat())
+
+        # Set initial value for fighter categories from JSON field
+        if self.instance and self.instance.pk:
+            self.fields["restricted_to_fighter_categories"].initial = (
+                self.instance.restricted_to_fighter_categories or []
+            )
+
+    def clean_restricted_to_fighter_categories(self):
+        # Convert the form field back to a list for the JSON field
+        return self.cleaned_data.get("restricted_to_fighter_categories", [])
+
+
+@admin.register(ContentAdvancementEquipment)
+class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentAdvancementEquipmentAdminForm
+    search_fields = ["name"]
+    list_display = [
+        "name",
+        "xp_cost",
+        "cost_increase",
+        "enable_chosen",
+        "enable_random",
+        "get_equipment_count",
+        "get_restrictions",
+    ]
+    list_filter = ["enable_chosen", "enable_random", "restricted_to_houses"]
+    filter_horizontal = ["equipment", "restricted_to_houses"]
+    fieldsets = (
+        (None, {"fields": ("name", "xp_cost", "cost_increase")}),
+        (
+            "Equipment Selection",
+            {
+                "fields": ("equipment", "enable_chosen", "enable_random"),
+                "description": "Select the equipment available through this advancement. At least one selection type (chosen/random) must be enabled.",
+            },
+        ),
+        (
+            "Restrictions",
+            {
+                "fields": (
+                    "restricted_to_houses",
+                    "restricted_to_fighter_categories",
+                ),
+                "classes": ("collapse",),
+                "description": "Optional restrictions on which fighters can take this advancement.",
+            },
+        ),
+    )
+
+    def get_equipment_count(self, obj):
+        return obj.equipment.count()
+
+    get_equipment_count.short_description = "Equipment Options"
+
+    def get_restrictions(self, obj):
+        restrictions = []
+        if obj.restricted_to_houses.exists():
+            restrictions.append(
+                f"Houses: {', '.join(h.name for h in obj.restricted_to_houses.all()[:2])}"
+            )
+        if obj.restricted_to_fighter_categories:
+            restrictions.append(
+                f"Categories: {', '.join(obj.restricted_to_fighter_categories[:2])}"
+            )
+        return " | ".join(restrictions) if restrictions else "-"
+
+    get_restrictions.short_description = "Restrictions"
 
 
 class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):

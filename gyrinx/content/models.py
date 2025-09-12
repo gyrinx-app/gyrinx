@@ -26,7 +26,6 @@ from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.util import ModContext
-from gyrinx.tracker import track
 from gyrinx.models import (
     Base,
     CostMixin,
@@ -36,6 +35,7 @@ from gyrinx.models import (
     equipment_category_group_choices,
     format_cost_display,
 )
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -3278,3 +3278,90 @@ class ContentStatlineStat(Content):
         verbose_name_plural = "Statline Stats"
         unique_together = ["statline", "statline_type_stat"]
         ordering = ["statline_type_stat__position"]
+
+
+class ContentAdvancementEquipment(Content):
+    """
+    Defines equipment that can be acquired through fighter advancement.
+    Links equipment to advancement costs and restrictions.
+    """
+
+    equipment = models.ManyToManyField(
+        ContentEquipment,
+        related_name="advancement_options",
+        help_text="Equipment that can be gained through advancement - fighter chooses one from this list",
+    )
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Name for this advancement (e.g., 'Legendary Name')",
+    )
+
+    xp_cost = models.PositiveIntegerField(
+        help_text="XP cost to acquire this equipment through advancement"
+    )
+
+    cost_increase = models.IntegerField(
+        default=0, help_text="Fighter cost increase when this equipment is gained"
+    )
+
+    # Restriction options
+    restricted_to_houses = models.ManyToManyField(
+        ContentHouse,
+        blank=True,
+        related_name="advancement_equipment",
+        help_text="If set, only these houses can gain this equipment via advancement",
+    )
+
+    restricted_to_fighter_categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of fighter categories that can gain this equipment (e.g., ['GANGER', 'CHAMPION'])",
+    )
+
+    # Selection type flags
+    enable_random = models.BooleanField(
+        default=False, help_text="Allow random selection from the equipment list"
+    )
+
+    enable_chosen = models.BooleanField(
+        default=False, help_text="Allow player to choose from the equipment list"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Advancement Equipment"
+        verbose_name_plural = "Advancement Equipment"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name}"
+
+    def is_available_to_fighter(self, list_fighter):
+        """Check if this advancement equipment is available to a specific fighter."""
+        # Check house restrictions
+        if self.restricted_to_houses.exists():
+            if list_fighter.list.content_house not in self.restricted_to_houses.all():
+                return False
+
+        # Check fighter category restrictions
+        if (
+            self.restricted_to_fighter_categories
+            and len(self.restricted_to_fighter_categories) > 0
+        ):
+            if (
+                list_fighter.content_fighter.category
+                not in self.restricted_to_fighter_categories
+            ):
+                return False
+
+        return True
+
+    def clean(self):
+        """Validate that at least one selection type is enabled."""
+        super().clean()
+        if not self.enable_random and not self.enable_chosen:
+            raise ValidationError(
+                "At least one selection type (random or chosen) must be enabled."
+            )

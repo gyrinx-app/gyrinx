@@ -18,6 +18,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from pydantic import BaseModel, ValidationError, field_validator
 
 from gyrinx.content.models import (
+    ContentAdvancementEquipment,
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
@@ -4084,6 +4085,35 @@ class AdvancementFlowParams(AdvancementBaseParams):
             "skill_any_random",
         ]
 
+    def is_equipment_advancement(self) -> bool:
+        """
+        Check if this is an equipment advancement.
+        """
+        return self.advancement_choice.startswith("equipment_")
+
+    def is_equipment_random_advancement(self) -> bool:
+        """
+        Check if this is a random equipment advancement.
+        """
+        return self.advancement_choice.startswith("equipment_random_")
+
+    def is_equipment_chosen_advancement(self) -> bool:
+        """
+        Check if this is a chosen equipment advancement.
+        """
+        return self.advancement_choice.startswith("equipment_chosen_")
+
+    def get_equipment_advancement_id(self) -> str:
+        """
+        Extract the equipment advancement ID from the choice.
+        """
+        if self.is_equipment_advancement():
+            # Format is "equipment_[random|chosen]_<uuid>"
+            parts = self.advancement_choice.split("_", 2)
+            if len(parts) >= 3:
+                return parts[2]
+        raise ValueError("Not an equipment advancement choice.")
+
     def is_other_advancement(self) -> bool:
         """
         Check if this is an 'other' free text advancement.
@@ -4149,7 +4179,15 @@ class AdvancementFlowParams(AdvancementBaseParams):
                 self.advancement_choice, "Unknown"
             )
 
-        raise ValueError("Invalid advancement type for description.")
+        if self.is_equipment_advancement():
+            return AdvancementTypeForm.all_equipment_choices().get(
+                self.advancement_choice, "Unknown"
+            )
+
+        # For other advancement types, use the full list
+        return AdvancementTypeForm.all_advancement_choices().get(
+            self.advancement_choice, "Unknown"
+        )
 
 
 @login_required
@@ -4209,8 +4247,19 @@ def list_fighter_advancement_type(request, id, fighter_id):
                 return HttpResponseRedirect(
                     f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
                 )
+            elif (
+                next_params.is_equipment_advancement()
+                and "_random_" in next_params.advancement_choice
+            ):
+                # For random equipment advancements, go straight to confirm
+                url = reverse(
+                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+                )
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
+                )
             else:
-                # For skills, still need selection step
+                # For skills and chosen equipment, still need selection step
                 url = reverse(
                     "core:list-fighter-advancement-select", args=(lst.id, fighter.id)
                 )
@@ -4258,7 +4307,6 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_confirm.html`
     """
-
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
@@ -4266,13 +4314,21 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     is_campaign_mode = lst.status == List.CAMPAIGN_MODE
 
-    # Get and sanitize parameters from query string, and make sure only stat or other advancements
-    # reach this stage. Then build the details object.
+    # Get and sanitize parameters from query string
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
-        if not (params.is_stat_advancement() or params.is_other_advancement()):
+        # Allow stat, other, and random equipment advancements at confirm stage
+        is_random_equipment = (
+            params.is_equipment_advancement()
+            and "_random_" in params.advancement_choice
+        )
+        if not (
+            params.is_stat_advancement()
+            or params.is_other_advancement()
+            or is_random_equipment
+        ):
             raise ValueError(
-                "Only stat or other advancements allowed at the confirm stage"
+                "Only stat, other, or random equipment advancements allowed at the confirm stage"
             )
 
         if params.is_stat_advancement():
@@ -4281,6 +4337,10 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         elif params.is_other_advancement():
             stat = None
             stat_desc = params.description
+        elif is_random_equipment:
+            # For random equipment, prepare the details
+            stat = None
+            stat_desc = params.description_from_choice()
     except ValueError as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
@@ -4308,6 +4368,40 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     description=stat_desc,
                 )
                 outcome = f"Gained {stat_desc}"
+            elif is_random_equipment:
+                # Handle random equipment advancement
+                # Get the equipment advancement
+                try:
+                    advancement_id = params.get_equipment_advancement_id()
+                    equipment_advancement = ContentAdvancementEquipment.objects.get(
+                        id=advancement_id
+                    )
+
+                    # Randomly select equipment
+                    available_equipment = equipment_advancement.equipment.all()
+                    if not available_equipment.exists():
+                        raise ValueError("No equipment available in this advancement")
+
+                    selected_equipment = random.choice(available_equipment)
+
+                    # Create the advancement
+                    advancement = ListFighterAdvancement(
+                        fighter=fighter,
+                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                        equipment=selected_equipment,
+                        xp_cost=params.xp_cost,
+                        cost_increase=params.cost_increase,
+                        description=f"Random {equipment_advancement.name}: {selected_equipment.name}",
+                    )
+                    outcome = f"Gained {selected_equipment.name}"
+                except (ValueError, ContentAdvancementEquipment.DoesNotExist) as e:
+                    messages.error(request, f"Invalid equipment advancement: {e}")
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-advancement-type",
+                            args=(lst.id, fighter.id),
+                        )
+                    )
 
             if params.campaign_action_id:
                 # Add outcome to campaign action if exists
@@ -4357,7 +4451,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
         messages.success(
             request,
-            f"Advanced: {fighter.name} has improved {stat_desc}",
+            f"Advanced: {fighter.name} - {outcome}",
         )
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
@@ -4366,21 +4460,38 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
     if not is_campaign_mode and not params.is_other_advancement():
         steps = 2
 
+    # Prepare context based on advancement type
+    context = {
+        "fighter": fighter,
+        "list": lst,
+        "details": {
+            **params.model_dump(),
+            "stat": stat,
+            "description": stat_desc,
+        },
+        "is_campaign_mode": is_campaign_mode,
+        "steps": steps,
+        "current_step": steps,
+    }
+
+    # Add equipment-specific context for random equipment
+    if is_random_equipment:
+        context["advancement_type"] = "equipment"
+        context["is_random"] = True
+        # Get the equipment advancement name for display
+        try:
+            advancement_id = params.get_equipment_advancement_id()
+            equipment_advancement = ContentAdvancementEquipment.objects.get(
+                id=advancement_id
+            )
+            context["advancement_name"] = equipment_advancement.name
+        except (ValueError, ContentAdvancementEquipment.DoesNotExist):
+            context["advancement_name"] = "Equipment"
+
     return render(
         request,
         "core/list_fighter_advancement_confirm.html",
-        {
-            "fighter": fighter,
-            "list": lst,
-            "details": {
-                **params.model_dump(),
-                "stat": stat,
-                "description": stat_desc,
-            },
-            "is_campaign_mode": is_campaign_mode,
-            "steps": steps,
-            "current_step": steps,
-        },
+        context,
     )
 
 
@@ -4479,21 +4590,105 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
     is_campaign_mode = lst.status == List.CAMPAIGN_MODE
 
-    # Get and sanitize parameters from query string, and make sure only stat advancements
+    # Get and sanitize parameters from query string, and make sure only skill or equipment advancements
     # reach this stage. Then build the details object.
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
-        if not params.is_skill_advancement():
-            raise ValueError("Only skill advancements allowed at the target stage")
+        if not (params.is_skill_advancement() or params.is_equipment_advancement()):
+            raise ValueError(
+                "Only skill or equipment advancements allowed at the target stage"
+            )
 
-        skill_type = params.skill_category_from_choice()
+        skill_type = (
+            params.skill_category_from_choice()
+            if params.is_skill_advancement()
+            else None
+        )
     except ValidationError as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
 
-    if params.is_chosen_skill_advancement():
+    if params.is_equipment_advancement():
+        # Handle equipment advancement
+        from gyrinx.core.forms.advancement import (
+            EquipmentSelectionForm,
+            RandomEquipmentForm,
+        )
+
+        # Get the equipment advancement
+        try:
+            advancement_id = params.get_equipment_advancement_id()
+            advancement = ContentAdvancementEquipment.objects.get(id=advancement_id)
+        except (ValueError, ContentAdvancementEquipment.DoesNotExist):
+            messages.error(request, "Invalid equipment advancement.")
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+            )
+
+        # Check if it's chosen or random
+        is_random = "_random_" in params.advancement_choice
+
+        if is_random:
+            # Random equipment selection
+            if request.method == "POST":
+                form = RandomEquipmentForm(request.POST, advancement=advancement)
+                if form.is_valid():
+                    equipment_id = form.cleaned_data["equipment_id"]
+                    equipment = ContentEquipment.objects.get(id=equipment_id)
+
+                    # Create the advancement
+                    advancement_obj = ListFighterAdvancement.objects.create(
+                        fighter=fighter,
+                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                        equipment=equipment,
+                        xp_cost=params.xp_cost,
+                        cost_increase=params.cost_increase,
+                        description=f"Random {advancement.name}: {equipment.name}",
+                    )
+
+                    # Apply it
+                    advancement_obj.apply_advancement()
+
+                    messages.success(
+                        request,
+                        f"Advanced: {fighter.name} has gained {equipment.name}",
+                    )
+
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            else:
+                form = RandomEquipmentForm(advancement=advancement)
+        else:
+            # Chosen equipment selection
+            if request.method == "POST":
+                form = EquipmentSelectionForm(request.POST, advancement=advancement)
+                if form.is_valid():
+                    equipment = form.cleaned_data["equipment"]
+
+                    # Create the advancement
+                    advancement_obj = ListFighterAdvancement.objects.create(
+                        fighter=fighter,
+                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                        equipment=equipment,
+                        xp_cost=params.xp_cost,
+                        cost_increase=params.cost_increase,
+                        description=f"Chosen {advancement.name}: {equipment.name}",
+                    )
+
+                    # Apply it
+                    advancement_obj.apply_advancement()
+
+                    messages.success(
+                        request,
+                        f"Advanced: {fighter.name} has gained {equipment.name}",
+                    )
+
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            else:
+                form = EquipmentSelectionForm(advancement=advancement)
+
+    elif params.is_chosen_skill_advancement():
         # Chosen skill
         if request.method == "POST":
             form = SkillSelectionForm(
@@ -4566,19 +4761,39 @@ def list_fighter_advancement_select(request, id, fighter_id):
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
 
+    # Prepare context based on advancement type
+    context = {
+        "form": form,
+        "fighter": fighter,
+        "list": lst,
+        "is_campaign_mode": is_campaign_mode,
+        "steps": 3 if is_campaign_mode else 2,
+        "current_step": 3 if is_campaign_mode else 2,
+    }
+
+    if params.is_equipment_advancement():
+        context.update(
+            {
+                "advancement_type": "equipment",
+                "is_random": is_random,
+                "advancement_name": advancement.name
+                if "advancement" in locals()
+                else None,
+            }
+        )
+    else:
+        context.update(
+            {
+                "advancement_type": "skill",
+                "skill_type": skill_type,
+                "is_random": params.is_random_skill_advancement(),
+            }
+        )
+
     return render(
         request,
         "core/list_fighter_advancement_select.html",
-        {
-            "form": form,
-            "fighter": fighter,
-            "list": lst,
-            "skill_type": skill_type,
-            "is_random": params.is_random_skill_advancement(),
-            "is_campaign_mode": is_campaign_mode,
-            "steps": 3 if is_campaign_mode else 2,
-            "current_step": 3 if is_campaign_mode else 2,
-        },
+        context,
     )
 
 

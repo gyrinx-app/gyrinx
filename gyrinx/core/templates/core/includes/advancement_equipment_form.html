@@ -1,0 +1,36 @@
+{# Equipment advancement form partial #}
+{% if is_random %}
+    {% if form.equipment %}
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ form.equipment.name }}</h5>
+                <p class="card-text text-muted">
+                    Category: {{ form.equipment.category.name }}
+                    {% if form.equipment.cost %}| Cost: {{ form.equipment.cost }}{% endif %}
+                </p>
+                {% if form.equipment.contentweaponprofile_set.exists %}
+                    <h6 class="card-subtitle mb-2 text-muted">Weapon Profiles:</h6>
+                    <ul class="list-unstyled mb-0">
+                        {% for profile in form.equipment.contentweaponprofile_set.all %}<li>{{ profile.name }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+        {{ form.equipment_id }}
+        <div class="form-check">
+            {{ form.confirm }}
+            <label class="form-check-label" for="{{ form.confirm.id_for_label }}">{{ form.confirm.label }}</label>
+            {% if form.confirm.errors %}<div class="invalid-feedback d-block">{{ form.confirm.errors.0 }}</div>{% endif %}
+        </div>
+    {% endif %}
+    <div class="alert alert-warning p-2 fs-7">
+        <i class="bi-exclamation-triangle"></i> Equipment has been <em>randomly</em> selected from {{ advancement_name }}.
+    </div>
+{% else %}
+    <div>
+        <label for="{{ form.equipment.id_for_label }}" class="form-label">Select Equipment</label>
+        {{ form.equipment }}
+        <div class="form-text">{{ form.equipment.help_text }}</div>
+        {% if form.equipment.errors %}<div class="invalid-feedback d-block">{{ form.equipment.errors.0 }}</div>{% endif %}
+    </div>
+{% endif %}

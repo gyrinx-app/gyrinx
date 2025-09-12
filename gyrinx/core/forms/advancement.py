@@ -6,7 +6,13 @@ from typing import Optional
 from django import forms
 from django.core.exceptions import ValidationError
 
-from gyrinx.content.models import ContentSkill, ContentSkillCategory, ContentStat
+from gyrinx.content.models import (
+    ContentAdvancementEquipment,
+    ContentEquipment,
+    ContentSkill,
+    ContentSkillCategory,
+    ContentStat,
+)
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.forms import group_select
 
@@ -115,8 +121,30 @@ class AdvancementTypeForm(forms.Form):
                 (opt_val, full_name) for opt_val, full_name in all_stat_choices.items()
             ]
 
+        # Generate equipment advancement choices
+        equipment_choices = []
+        if fighter:
+            # Get all available equipment advancements for this fighter
+            available_equipment = ContentAdvancementEquipment.objects.select_related()
+
+            for adv_equipment in available_equipment:
+                if adv_equipment.is_available_to_fighter(fighter):
+                    # Add chosen option if enabled
+                    if adv_equipment.enable_chosen:
+                        choice_key = f"equipment_chosen_{adv_equipment.id}"
+                        choice_label = f"Chosen {adv_equipment.name}"
+                        equipment_choices.append((choice_key, choice_label))
+
+                    # Add random option if enabled
+                    if adv_equipment.enable_random:
+                        choice_key = f"equipment_random_{adv_equipment.id}"
+                        choice_label = f"Random {adv_equipment.name}"
+                        equipment_choices.append((choice_key, choice_label))
+
         self.fields["advancement_choice"].choices = (
-            additional_advancement_choices + initial_advancement_choices
+            additional_advancement_choices
+            + equipment_choices
+            + initial_advancement_choices
         )
 
     @classmethod
@@ -130,11 +158,30 @@ class AdvancementTypeForm(forms.Form):
         )
 
     @classmethod
+    def all_equipment_choices(cls) -> dict[str, str]:
+        """
+        Get a dictionary mapping equipment advancement choice keys to their full names.
+        """
+        equipment_choices = {}
+        for adv_equipment in ContentAdvancementEquipment.objects.all():
+            if adv_equipment.enable_chosen:
+                choice_key = f"equipment_chosen_{adv_equipment.id}"
+                equipment_choices[choice_key] = f"Chosen {adv_equipment.name}"
+            if adv_equipment.enable_random:
+                choice_key = f"equipment_random_{adv_equipment.id}"
+                equipment_choices[choice_key] = f"Random {adv_equipment.name}"
+        return equipment_choices
+
+    @classmethod
     def all_advancement_choices(cls) -> dict[str, str]:
         """
         Get a dictionary mapping advancement choice keys to their full names.
         """
-        return cls.all_stat_choices() | dict(cls.ADVANCEMENT_CHOICES)
+        return (
+            cls.all_stat_choices()
+            | cls.all_equipment_choices()
+            | dict(cls.ADVANCEMENT_CHOICES)
+        )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -284,14 +331,12 @@ class RandomSkillForm(forms.Form):
         label="Accept this skill",
     )
 
-    # Store the skill object for display
-    _skill = None
-
     def __init__(
         self, *args, fighter=None, skill_type=None, category_id=None, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
+        self.skill = None  # Store the skill object for display
 
         if not self.is_bound and fighter and category_id:
             # Select a random skill from the specified category
@@ -305,7 +350,7 @@ class RandomSkillForm(forms.Form):
             if available_skills.exists():
                 random_skill = random.choice(available_skills)
                 self.initial["skill_id"] = random_skill.id
-                self._skill = random_skill
+                self.skill = random_skill
 
 
 class OtherAdvancementForm(forms.Form):
@@ -323,3 +368,49 @@ class OtherAdvancementForm(forms.Form):
         if not description:
             raise ValidationError("Please enter a description for the advancement.")
         return description
+
+
+class EquipmentSelectionForm(forms.Form):
+    """Form for selecting a specific equipment from an advancement."""
+
+    equipment = forms.ModelChoiceField(
+        queryset=ContentEquipment.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Select equipment for this fighter.",
+    )
+
+    def __init__(self, *args, advancement=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if advancement:
+            # Show all equipment from the advancement
+            self.fields["equipment"].queryset = advancement.equipment.all().order_by(
+                "name"
+            )
+
+
+class RandomEquipmentForm(forms.Form):
+    """Form for confirming a randomly selected equipment."""
+
+    equipment_id = forms.IntegerField(
+        widget=forms.HiddenInput(),
+    )
+
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        label="Accept this equipment",
+    )
+
+    def __init__(self, *args, advancement=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.equipment = None  # Store the equipment object for display
+
+        if not self.is_bound and advancement:
+            # Select a random equipment from the advancement
+            available_equipment = advancement.equipment.all()
+
+            if available_equipment.exists():
+                random_equipment = random.choice(available_equipment)
+                self.initial["equipment_id"] = random_equipment.id
+                self.equipment = random_equipment
