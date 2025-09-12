@@ -4382,7 +4382,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     if not available_equipment.exists():
                         raise ValueError("No equipment available in this advancement")
 
-                    selected_equipment = random.choice(available_equipment)
+                    selected_equipment = available_equipment.order_by("?").first()
 
                     # Create the advancement
                     advancement = ListFighterAdvancement(
@@ -4636,7 +4636,16 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 form = RandomEquipmentForm(request.POST, advancement=advancement)
                 if form.is_valid():
                     equipment_id = form.cleaned_data["equipment_id"]
-                    equipment = ContentEquipment.objects.get(id=equipment_id)
+                    try:
+                        equipment = ContentEquipment.objects.get(id=equipment_id)
+                    except ContentEquipment.DoesNotExist:
+                        messages.error(request, "Invalid equipment selected.")
+                        return HttpResponseRedirect(
+                            reverse(
+                                "core:list-fighter-advancement-type",
+                                args=(lst.id, fighter.id),
+                            )
+                        )
 
                     # Create the advancement
                     advancement_obj = ListFighterAdvancement.objects.create(
@@ -4730,7 +4739,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
                 if available_skills.exists():
                     # Pick a random skill from the available ones
-                    random_skill = random.choice(available_skills)
+                    random_skill = available_skills.order_by("?").first()
 
                     apply_skill_advancement(
                         request,

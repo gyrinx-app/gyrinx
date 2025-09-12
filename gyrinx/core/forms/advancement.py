@@ -1,6 +1,5 @@
 """Forms for fighter advancement system."""
 
-import random
 from typing import Optional
 
 from django import forms
@@ -125,7 +124,9 @@ class AdvancementTypeForm(forms.Form):
         equipment_choices = []
         if fighter:
             # Get all available equipment advancements for this fighter
-            available_equipment = ContentAdvancementEquipment.objects.select_related()
+            available_equipment = ContentAdvancementEquipment.objects.prefetch_related(
+                "equipment", "restricted_to_houses"
+            )
 
             for adv_equipment in available_equipment:
                 if adv_equipment.is_available_to_fighter(fighter):
@@ -348,7 +349,7 @@ class RandomSkillForm(forms.Form):
             )
 
             if available_skills.exists():
-                random_skill = random.choice(available_skills)
+                random_skill = available_skills.order_by("?").first()
                 self.initial["skill_id"] = random_skill.id
                 self.skill = random_skill
 
@@ -411,6 +412,6 @@ class RandomEquipmentForm(forms.Form):
             available_equipment = advancement.equipment.all()
 
             if available_equipment.exists():
-                random_equipment = random.choice(available_equipment)
+                random_equipment = available_equipment.order_by("?").first()
                 self.initial["equipment_id"] = random_equipment.id
                 self.equipment = random_equipment
