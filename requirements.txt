@@ -38,6 +38,7 @@ pytest-xdist==3.8.0
 python-dotenv==1.1.1
 qrcode==8.2
 referencing==0.36.2
+rich==14.1.0
 ruff==0.12.12
 setuptools==80.9.0
 simpleeval==1.0.3

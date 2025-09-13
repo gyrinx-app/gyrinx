@@ -37,6 +37,7 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from gyrinx.models import FighterCategoryChoices
+from gyrinx.util import print_word_diff
 
 User = get_user_model()
 
@@ -352,15 +353,20 @@ def test_performance_view_query_count(performance_test_data):
             (i for i, match in enumerate(matches) if not match), None
         )
         if first_mismatch_index is not None:
+            new = latest_queries[first_mismatch_index]["sql"]
+            old = existing_snapshot["queries"][first_mismatch_index]["sql"]
             print(f"\nFirst mismatch at index {first_mismatch_index}:")
-            print(f"Latest: {latest_queries[first_mismatch_index]}")
-            print(f"Expected: {existing_snapshot['queries'][first_mismatch_index]}")
+            print(f"Latest:\n{new}")
+            print(f"Expected:\n{old}")
+            print("\nDiff:\n")
+            print_word_diff(old, new)
 
     # Try to read existing snapshot
     if not existing_snapshot or not all(matches):
         # Write new snapshot
         with open(snapshot_file_latest, "w") as f:
             json.dump(query_snapshot, f, indent=2)
+            f.write("\n")  # Ensure newline at end of file
         print(f"\nCreated updated query snapshot with {actual_query_count} queries")
         print(f"Snapshot written to {snapshot_file_latest}")
         print(
