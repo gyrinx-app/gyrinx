@@ -17,9 +17,6 @@ def test_advancement_type_form_includes_equipment_choices(
     """Test that equipment advancements appear in AdvancementTypeForm choices."""
     house = make_content_house("Test House")
 
-    equipment1 = make_equipment("Plasma Gun", cost=100, rarity="R")
-    equipment2 = make_equipment("Power Sword", cost=50, rarity="C")
-
     # Create equipment advancement with both options enabled
     advancement_both = ContentAdvancementEquipment.objects.create(
         name="Elite Weapons",
@@ -27,7 +24,6 @@ def test_advancement_type_form_includes_equipment_choices(
         enable_chosen=True,
         enable_random=True,
     )
-    advancement_both.equipment.set([equipment1, equipment2])
 
     # Create equipment advancement with only chosen enabled
     advancement_chosen = ContentAdvancementEquipment.objects.create(
@@ -36,7 +32,6 @@ def test_advancement_type_form_includes_equipment_choices(
         enable_chosen=True,
         enable_random=False,
     )
-    advancement_chosen.equipment.add(equipment1)
 
     # Create equipment advancement with only random enabled
     advancement_random = ContentAdvancementEquipment.objects.create(
@@ -45,7 +40,6 @@ def test_advancement_type_form_includes_equipment_choices(
         enable_chosen=False,
         enable_random=True,
     )
-    advancement_random.equipment.add(equipment2)
 
     # Create fighter
     fighter_type = make_content_fighter(
@@ -97,15 +91,12 @@ def test_advancement_type_form_respects_house_restrictions(
     house1 = make_content_house("House 1")
     house2 = make_content_house("House 2")
 
-    equipment = make_equipment("House Special", cost=100, rarity="R")
-
     # Create house-restricted advancement
     advancement = ContentAdvancementEquipment.objects.create(
         name="House 1 Special",
         xp_cost=25,
         enable_chosen=True,
     )
-    advancement.equipment.add(equipment)
     advancement.restricted_to_houses.add(house1)
 
     # Create fighter from house1
@@ -155,8 +146,6 @@ def test_advancement_type_form_respects_category_restrictions(
     """Test that equipment advancements respect fighter category restrictions."""
     house = make_content_house("Test House")
 
-    equipment = make_equipment("Champion Gear", cost=100, rarity="R")
-
     # Create category-restricted advancement
     advancement = ContentAdvancementEquipment.objects.create(
         name="Elite Equipment",
@@ -164,7 +153,6 @@ def test_advancement_type_form_respects_category_restrictions(
         restricted_to_fighter_categories=["CHAMPION", "LEADER"],
         enable_random=True,
     )
-    advancement.equipment.add(equipment)
 
     # Create ganger
     ganger_type = make_content_fighter(

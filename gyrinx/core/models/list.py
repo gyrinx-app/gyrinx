@@ -3896,15 +3896,6 @@ class ListFighterAdvancement(AppBase):
     )
 
     # For equipment advancements
-    equipment = models.ForeignKey(
-        "content.ContentEquipment",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        help_text="For equipment advancements, which equipment was gained.",
-    )
-
-    # For equipment advancement assignments (new)
     equipment_assignment = models.ForeignKey(
         "content.ContentAdvancementAssignment",
         on_delete=models.CASCADE,
@@ -3955,8 +3946,6 @@ class ListFighterAdvancement(AppBase):
         elif self.advancement_type == self.ADVANCEMENT_EQUIPMENT:
             if self.equipment_assignment:
                 return f"{self.fighter.name} - {self.equipment_assignment.name}"
-            elif self.equipment:
-                return f"{self.fighter.name} - {self.equipment.name}"
         elif self.advancement_type == self.ADVANCEMENT_OTHER and self.description:
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
@@ -4017,12 +4006,6 @@ class ListFighterAdvancement(AppBase):
                 assignment.upgrades_field.set(
                     self.equipment_assignment.upgrades_field.all()
                 )
-            elif self.equipment:
-                # Legacy support for direct equipment assignment without upgrades
-                ListFighterEquipmentAssignment.objects.create(
-                    list_fighter=self.fighter,
-                    content_equipment=self.equipment,
-                )
         elif self.advancement_type == self.ADVANCEMENT_OTHER:
             # For "other" advancements, nothing specific to apply
             # The description is just stored for display purposes
@@ -4040,24 +4023,23 @@ class ListFighterAdvancement(AppBase):
             raise ValidationError("Skill advancement requires a skill to be selected.")
         if (
             self.advancement_type == self.ADVANCEMENT_EQUIPMENT
-            and not self.equipment
             and not self.equipment_assignment
         ):
             raise ValidationError(
-                "Equipment advancement requires equipment or equipment assignment to be selected."
+                "Equipment advancement requires equipment assignment to be selected."
             )
         if self.advancement_type == self.ADVANCEMENT_OTHER and not self.description:
             raise ValidationError("Other advancement requires a description.")
 
         # Ensure only appropriate fields are set
         if self.advancement_type == self.ADVANCEMENT_STAT and (
-            self.skill or self.equipment or self.equipment_assignment
+            self.skill or self.equipment_assignment
         ):
             raise ValidationError(
                 "Stat advancement should not have skill or equipment selected."
             )
         if self.advancement_type == self.ADVANCEMENT_SKILL and (
-            self.stat_increased or self.equipment or self.equipment_assignment
+            self.stat_increased or self.equipment_assignment
         ):
             raise ValidationError(
                 "Skill advancement should not have stat or equipment selected."
@@ -4069,13 +4051,10 @@ class ListFighterAdvancement(AppBase):
                 "Equipment advancement should not have stat or skill selected."
             )
         if self.advancement_type == self.ADVANCEMENT_OTHER and (
-            self.stat_increased
-            or self.skill
-            or self.equipment
-            or self.equipment_assignment
+            self.stat_increased or self.skill or self.equipment_assignment
         ):
             raise ValidationError(
-                "Other advancement should not have a stat, skill, or equipment selected."
+                "Other advancement should not have stat, skill, or equipment selected."
             )
 
 

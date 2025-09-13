@@ -8,7 +8,6 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentAdvancementAssignment,
     ContentAdvancementEquipment,
-    ContentEquipment,
     ContentSkill,
     ContentSkillCategory,
     ContentStat,
@@ -126,7 +125,7 @@ class AdvancementTypeForm(forms.Form):
         if fighter:
             # Get all available equipment advancements for this fighter
             available_equipment = ContentAdvancementEquipment.objects.prefetch_related(
-                "equipment", "restricted_to_houses"
+                "assignments", "restricted_to_houses"
             )
 
             for adv_equipment in available_equipment:
@@ -372,25 +371,6 @@ class OtherAdvancementForm(forms.Form):
         return description
 
 
-class EquipmentSelectionForm(forms.Form):
-    """Form for selecting a specific equipment from an advancement (legacy)."""
-
-    equipment = forms.ModelChoiceField(
-        queryset=ContentEquipment.objects.none(),
-        widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Select equipment for this fighter.",
-    )
-
-    def __init__(self, *args, advancement=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if advancement:
-            # Show all equipment from the advancement
-            self.fields["equipment"].queryset = advancement.equipment.all().order_by(
-                "name"
-            )
-
-
 class EquipmentAssignmentSelectionForm(forms.Form):
     """Form for selecting a specific equipment assignment from an advancement."""
 
@@ -408,33 +388,6 @@ class EquipmentAssignmentSelectionForm(forms.Form):
             self.fields["assignment"].queryset = advancement.assignments.all().order_by(
                 "name"
             )
-
-
-class RandomEquipmentForm(forms.Form):
-    """Form for confirming a randomly selected equipment (legacy)."""
-
-    equipment_id = forms.IntegerField(
-        widget=forms.HiddenInput(),
-    )
-
-    confirm = forms.BooleanField(
-        required=True,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        label="Accept this equipment",
-    )
-
-    def __init__(self, *args, advancement=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.equipment = None  # Store the equipment object for display
-
-        if not self.is_bound and advancement:
-            # Select a random equipment from the advancement
-            available_equipment = advancement.equipment.all()
-
-            if available_equipment.exists():
-                random_equipment = available_equipment.order_by("?").first()
-                self.initial["equipment_id"] = random_equipment.id
-                self.equipment = random_equipment
 
 
 class RandomEquipmentAssignmentForm(forms.Form):

@@ -11,16 +11,6 @@ from gyrinx.models import FighterCategoryChoices
 @pytest.mark.django_db
 def test_content_advancement_equipment_creation(make_equipment):
     """Test basic creation of ContentAdvancementEquipment."""
-    equipment1 = make_equipment(
-        name="Plasma Gun",
-        cost=120,
-        rarity="R",
-    )
-    equipment2 = make_equipment(
-        name="Power Sword",
-        cost=40,
-        rarity="C",
-    )
 
     advancement = ContentAdvancementEquipment.objects.create(
         name="Legendary Weapons",
@@ -28,14 +18,10 @@ def test_content_advancement_equipment_creation(make_equipment):
         cost_increase=50,
         enable_chosen=True,
     )
-    advancement.equipment.set([equipment1, equipment2])
 
     assert advancement.name == "Legendary Weapons"
     assert advancement.xp_cost == 20
     assert advancement.cost_increase == 50
-    assert advancement.equipment.count() == 2
-    assert equipment1 in advancement.equipment.all()
-    assert equipment2 in advancement.equipment.all()
     assert str(advancement) == "Legendary Weapons"
     assert advancement.enable_chosen is True
     assert advancement.enable_random is False
@@ -103,18 +89,11 @@ def test_content_advancement_equipment_house_restrictions(
     house1 = make_content_house("House 1")
     house2 = make_content_house("House 2")
 
-    equipment = make_equipment(
-        name="Special Gun",
-        cost=100,
-        rarity="R",
-    )
-
     advancement = ContentAdvancementEquipment.objects.create(
         name="House Special",
         xp_cost=15,
         enable_chosen=True,
     )
-    advancement.equipment.add(equipment)
     advancement.restricted_to_houses.add(house1)
 
     # Create fighters from different houses
@@ -169,19 +148,12 @@ def test_content_advancement_equipment_category_restrictions(
         base_cost=100,
     )
 
-    equipment = make_equipment(
-        name="Champion Weapon",
-        cost=80,
-        rarity="R",
-    )
-
     advancement = ContentAdvancementEquipment.objects.create(
         name="Elite Equipment",
         xp_cost=25,
         restricted_to_fighter_categories=["CHAMPION", "LEADER"],
         enable_random=True,
     )
-    advancement.equipment.add(equipment)
 
     # Create list fighters
     gang_list = make_list("Test Gang", content_house=house)
@@ -270,15 +242,12 @@ def test_content_advancement_equipment_combined_restrictions(
         base_cost=50,
     )
 
-    equipment = make_equipment(name="Elite House Weapon", cost=100, rarity="R")
-
     advancement = ContentAdvancementEquipment.objects.create(
         name="House Elite Special",
         xp_cost=30,
         restricted_to_fighter_categories=["CHAMPION", "LEADER"],
         enable_random=True,
     )
-    advancement.equipment.add(equipment)
     advancement.restricted_to_houses.add(house1)
 
     # Create test cases

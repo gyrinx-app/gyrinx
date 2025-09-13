@@ -3321,13 +3321,6 @@ class ContentAdvancementEquipment(Content):
     Links equipment assignments to advancement costs and restrictions.
     """
 
-    equipment = models.ManyToManyField(
-        ContentEquipment,
-        related_name="advancement_options",
-        help_text="Equipment that can be gained through advancement - fighter chooses one from this list (deprecated, use assignments instead)",
-        blank=True,
-    )
-
     assignments = models.ManyToManyField(
         ContentAdvancementAssignment,
         related_name="advancement_options",

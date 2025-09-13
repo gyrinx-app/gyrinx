@@ -735,7 +735,7 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         "get_restrictions",
     ]
     list_filter = ["enable_chosen", "enable_random", "restricted_to_houses"]
-    filter_horizontal = ["equipment", "assignments", "restricted_to_houses"]
+    filter_horizontal = ["assignments", "restricted_to_houses"]
     fieldsets = (
         (None, {"fields": ("name", "xp_cost", "cost_increase")}),
         (
@@ -761,7 +761,7 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     def get_equipment_count(self, obj):
         return obj.assignments.count()
 
-    get_equipment_count.short_description = "Equipment Options"
+    get_equipment_count.short_description = "Assignment Options"
 
     def get_restrictions(self, obj):
         restrictions = []
