@@ -1,5 +1,10 @@
+# Security Policy
+
 ## Reporting Security Issues
 
-We appreciate your efforts to responsibly disclose your findings, and will make every effort to acknowledge your contributions.
+We appreciate your efforts to responsibly disclose your findings, and will make
+every effort to acknowledge your contributions.
 
-To report a security issue, please use the GitHub Security Advisory ["Report a Vulnerability"](https://github.com/gyrinx-app/gyrinx/security/advisories/new) page.
+To report a security issue, please use the GitHub Security Advisory
+["Report a Vulnerability"](https://github.com/gyrinx-app/gyrinx/security/advisories/new)
+page.
