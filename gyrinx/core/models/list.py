@@ -2168,7 +2168,6 @@ class ListFighter(AppBase):
                 advancement_type=advancement.advancement_type,
                 stat_increased=advancement.stat_increased,
                 skill=advancement.skill,
-                equipment=advancement.equipment,
                 equipment_assignment=advancement.equipment_assignment,
                 description=advancement.description,
                 xp_cost=advancement.xp_cost,
@@ -3945,7 +3944,7 @@ class ListFighterAdvancement(AppBase):
             return f"{self.fighter.name} - {self.skill.name}"
         elif self.advancement_type == self.ADVANCEMENT_EQUIPMENT:
             if self.equipment_assignment:
-                return f"{self.fighter.name} - {self.equipment_assignment.name}"
+                return f"{self.fighter.name} - {str(self.equipment_assignment)}"
         elif self.advancement_type == self.ADVANCEMENT_OTHER and self.description:
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"

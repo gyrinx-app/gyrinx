@@ -2,6 +2,7 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
+    ContentAdvancementAssignment,
     ContentAdvancementEquipment,
 )
 from gyrinx.core.models import ListFighterEquipmentAssignment
@@ -192,7 +193,19 @@ def test_content_advancement_equipment_multiple_equipment_choices(
         xp_cost=15,
         enable_chosen=True,
     )
-    advancement.equipment.set([equipment1, equipment2, equipment3])
+    # Create assignments for each equipment option
+    ContentAdvancementAssignment.objects.create(
+        advancement=advancement,
+        equipment=equipment1,
+    )
+    ContentAdvancementAssignment.objects.create(
+        advancement=advancement,
+        equipment=equipment2,
+    )
+    ContentAdvancementAssignment.objects.create(
+        advancement=advancement,
+        equipment=equipment3,
+    )
 
     fighter_type = make_content_fighter(
         type="Ganger",

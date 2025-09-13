@@ -382,37 +382,50 @@ class EquipmentAssignmentSelectionForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         self.advancement = kwargs.pop("advancement", None)
+        self.fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
+        self._no_options_available = False
+        self._no_options_error_message = None
 
         if self.advancement:
-            # Show all assignments from the advancement
-            self.fields["assignment"].queryset = self.advancement.assignments.all()
+            # Get all assignments from the advancement
+            queryset = self.advancement.assignments.all()
+
+            # If fighter is provided, exclude assignments with duplicate upgrades
+            if self.fighter:
+                from gyrinx.core.models import ListFighterEquipmentAssignment
+
+                # Get all upgrade IDs from the fighter's existing equipment assignments
+                existing_upgrade_ids = set(
+                    ListFighterEquipmentAssignment.objects.filter(
+                        list_fighter=self.fighter, archived=False
+                    ).values_list("upgrades_field", flat=True)
+                )
+                # Remove None values if any
+                existing_upgrade_ids.discard(None)
+
+                # Filter out assignments that have any upgrade matching existing upgrades
+                if existing_upgrade_ids:
+                    # Exclude assignments that have any of the existing upgrades
+                    queryset = queryset.exclude(
+                        upgrades_field__in=existing_upgrade_ids
+                    ).distinct()
+
+            self.fields["assignment"].queryset = queryset
+
+            # Check if there are no available assignments
+            if not queryset.exists():
+                self.fields["assignment"].widget.attrs["disabled"] = True
+                self._no_options_available = True
+                self._no_options_error_message = (
+                    f"No available options from {self.advancement.name}. "
+                    f"All equipment combinations have upgrades that {self.fighter.name} already possesses."
+                )
 
         self.fields["assignment"].label_from_instance = lambda obj: str(obj)
 
-
-class RandomEquipmentAssignmentForm(forms.Form):
-    """Form for confirming a randomly selected equipment assignment."""
-
-    assignment_id = forms.IntegerField(
-        widget=forms.HiddenInput(),
-    )
-
-    confirm = forms.BooleanField(
-        required=True,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        label="Accept this equipment",
-    )
-
-    def __init__(self, *args, advancement=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.assignment = None  # Store the assignment object for display
-
-        if not self.is_bound and advancement:
-            # Select a random assignment from the advancement
-            available_assignments = advancement.assignments.all()
-
-            if available_assignments.exists():
-                random_assignment = available_assignments.order_by("?").first()
-                self.initial["assignment_id"] = random_assignment.id
-                self.assignment = random_assignment
+    def clean(self):
+        cleaned_data = super().clean()
+        if self._no_options_available:
+            raise ValidationError(self._no_options_error_message)
+        return cleaned_data

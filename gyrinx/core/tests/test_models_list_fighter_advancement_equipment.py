@@ -2,6 +2,8 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
+    ContentAdvancementAssignment,
+    ContentAdvancementEquipment,
     ContentSkill,
     ContentSkillCategory,
 )
@@ -42,20 +44,32 @@ def test_list_fighter_advancement_equipment_creation(
         gang_list, "Test Fighter", content_fighter=fighter_type, xp_current=50
     )
 
+    # Create advancement equipment and assignment
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Advanced Weapon Advancement",
+        xp_cost=20,
+        enable_chosen=True,
+    )
+    assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment,
+        equipment=equipment,
+    )
+
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=20,
         cost_increase=30,
         owner=user,
     )
 
     assert advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_EQUIPMENT
-    assert advancement.equipment == equipment
+    assert advancement.equipment_assignment == assignment
+    assert advancement.equipment_assignment.equipment == equipment
     assert advancement.xp_cost == 20
     assert advancement.cost_increase == 30
-    assert str(advancement) == f"{fighter.name} - {equipment.name}"
+    assert str(advancement) == f"{fighter.name} - {str(assignment)}"
 
 
 @pytest.mark.django_db
@@ -97,10 +111,21 @@ def test_list_fighter_advancement_equipment_apply(
         content_equipment=equipment,
     ).exists()
 
+    # Create advancement equipment and assignment
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Power Armor Advancement",
+        xp_cost=25,
+        enable_chosen=True,
+    )
+    assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment,
+        equipment=equipment,
+    )
+
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=25,
         cost_increase=40,
         owner=user,
@@ -149,11 +174,22 @@ def test_list_fighter_advancement_equipment_validation(
     gang_list = make_list("Test Gang", content_house=house)
     fighter = make_list_fighter(gang_list, "Test Fighter", content_fighter=fighter_type)
 
+    # Create advancement equipment and assignment for valid test
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Test Gun Advancement",
+        xp_cost=15,
+        enable_chosen=True,
+    )
+    assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment,
+        equipment=equipment,
+    )
+
     # Valid equipment advancement
     advancement = ListFighterAdvancement(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=15,
         owner=user,
     )
@@ -176,7 +212,7 @@ def test_list_fighter_advancement_equipment_validation(
     advancement = ListFighterAdvancement(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         skill=skill,
         xp_cost=15,
         owner=user,
@@ -191,7 +227,7 @@ def test_list_fighter_advancement_equipment_validation(
     advancement = ListFighterAdvancement(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         stat_increased="weapon_skill",
         xp_cost=15,
         owner=user,
@@ -233,11 +269,22 @@ def test_list_fighter_advancement_equipment_multiple_assignments(
         gang_list, "Test Fighter", content_fighter=fighter_type, xp_current=100
     )
 
+    # Create advancement equipment and assignment
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Stub Gun Advancement",
+        xp_cost=10,
+        enable_chosen=True,
+    )
+    assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment,
+        equipment=equipment,
+    )
+
     # First advancement
     advancement1 = ListFighterAdvancement.objects.create(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=10,
         owner=user,
     )
@@ -247,7 +294,7 @@ def test_list_fighter_advancement_equipment_multiple_assignments(
     advancement2 = ListFighterAdvancement.objects.create(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=10,
         owner=user,
     )
@@ -289,6 +336,17 @@ def test_list_fighter_advancement_other_types_dont_have_equipment(
 
     equipment = make_equipment(name="Test Equipment", cost=20, rarity="C")
 
+    # Create advancement equipment and assignment
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Test Equipment Advancement",
+        xp_cost=10,
+        enable_chosen=True,
+    )
+    assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment,
+        equipment=equipment,
+    )
+
     fighter_type = make_content_fighter(
         type="Ganger",
         category=FighterCategoryChoices.GANGER,
@@ -304,7 +362,7 @@ def test_list_fighter_advancement_other_types_dont_have_equipment(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
         stat_increased="weapon_skill",
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=10,
         owner=user,
     )
@@ -321,7 +379,7 @@ def test_list_fighter_advancement_other_types_dont_have_equipment(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
         skill=skill,
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=10,
         owner=user,
     )
@@ -336,13 +394,13 @@ def test_list_fighter_advancement_other_types_dont_have_equipment(
         fighter=fighter,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
         description="Some other advancement",
-        equipment=equipment,
+        equipment_assignment=assignment,
         xp_cost=10,
         owner=user,
     )
     with pytest.raises(ValidationError) as exc_info:
         advancement.full_clean()
     assert (
-        "Other advancement should not have a stat, skill, or equipment selected"
+        "Other advancement should not have stat, skill, or equipment selected"
         in str(exc_info.value)
     )

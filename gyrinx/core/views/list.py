@@ -18,7 +18,6 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from pydantic import BaseModel, ValidationError, field_validator
 
 from gyrinx.content.models import (
-    ContentAdvancementAssignment,
     ContentAdvancementEquipment,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -4045,6 +4044,42 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
     )
 
 
+def filter_equipment_assignments_for_duplicates(equipment_advancement, fighter):
+    """
+    Filter equipment advancement assignments to exclude those with upgrades
+    that the fighter already has on their equipment.
+
+    Args:
+        equipment_advancement: ContentAdvancementEquipment instance
+        fighter: ListFighter instance
+
+    Returns:
+        QuerySet of ContentAdvancementAssignment objects that don't have duplicate upgrades
+    """
+    from gyrinx.core.models import ListFighterEquipmentAssignment
+
+    # Get all assignments from the advancement
+    available_assignments = equipment_advancement.assignments.all()
+
+    # Get all upgrade IDs from the fighter's existing equipment assignments
+    existing_upgrade_ids = set(
+        ListFighterEquipmentAssignment.objects.filter(
+            list_fighter=fighter, archived=False
+        ).values_list("upgrades_field", flat=True)
+    )
+    # Remove None values if any
+    existing_upgrade_ids.discard(None)
+
+    # Filter out assignments that have any upgrade matching existing upgrades
+    if existing_upgrade_ids:
+        # Exclude assignments that have any of the existing upgrades
+        available_assignments = available_assignments.exclude(
+            upgrades_field__in=existing_upgrade_ids
+        ).distinct()
+
+    return available_assignments
+
+
 class AdvancementBaseParams(BaseModel):
     # UUID of the campaign action if dice were rolled
     campaign_action_id: Optional[uuid.UUID] = None
@@ -4378,12 +4413,16 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                         id=advancement_id
                     )
 
-                    # Randomly select assignment
-                    available_assignments = equipment_advancement.assignments.all()
+                    # Randomly select assignment, filtering out duplicates
+                    available_assignments = filter_equipment_assignments_for_duplicates(
+                        equipment_advancement, fighter
+                    )
                     if not available_assignments.exists():
-                        raise ValueError(
-                            "No equipment assignments available in this advancement"
+                        error_msg = (
+                            f"No available options from {equipment_advancement.name}. "
                         )
+                        error_msg += f"All equipment combinations have upgrades that {fighter.name} already possesses."
+                        raise ValueError(error_msg)
 
                     selected_assignment = available_assignments.order_by("?").first()
 
@@ -4614,11 +4653,9 @@ def list_fighter_advancement_select(request, id, fighter_id):
         )
 
     if params.is_equipment_advancement():
-        # Handle equipment advancement
-        from gyrinx.core.forms.advancement import (
-            EquipmentAssignmentSelectionForm,
-            RandomEquipmentAssignmentForm,
-        )
+        # Handle chosen equipment advancement
+        # Note: Random equipment advancements are redirected to confirm view from type view
+        from gyrinx.core.forms.advancement import EquipmentAssignmentSelectionForm
 
         # Get the equipment advancement
         try:
@@ -4630,83 +4667,37 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
             )
 
-        # Check if it's chosen or random
-        is_random = "_random_" in params.advancement_choice
+        # Chosen equipment selection
+        if request.method == "POST":
+            form = EquipmentAssignmentSelectionForm(
+                request.POST, advancement=advancement, fighter=fighter
+            )
+            if form.is_valid():
+                assignment = form.cleaned_data["assignment"]
 
-        if is_random:
-            # Random equipment selection
-            if request.method == "POST":
-                form = RandomEquipmentAssignmentForm(
-                    request.POST, advancement=advancement
+                # Create the advancement
+                advancement_obj = ListFighterAdvancement.objects.create(
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                    equipment_assignment=assignment,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    description=f"Chosen {advancement.name}: {assignment}",
                 )
-                if form.is_valid():
-                    assignment_id = form.cleaned_data["assignment_id"]
-                    try:
-                        assignment = ContentAdvancementAssignment.objects.get(
-                            id=assignment_id
-                        )
-                    except ContentAdvancementAssignment.DoesNotExist:
-                        messages.error(
-                            request, "Invalid equipment assignment selected."
-                        )
-                        return HttpResponseRedirect(
-                            reverse(
-                                "core:list-fighter-advancement-type",
-                                args=(lst.id, fighter.id),
-                            )
-                        )
 
-                    # Create the advancement
-                    advancement_obj = ListFighterAdvancement.objects.create(
-                        fighter=fighter,
-                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                        equipment_assignment=assignment,
-                        xp_cost=params.xp_cost,
-                        cost_increase=params.cost_increase,
-                        description=f"Random {advancement.name}: {assignment}",
-                    )
+                # Apply it
+                advancement_obj.apply_advancement()
 
-                    # Apply it
-                    advancement_obj.apply_advancement()
+                messages.success(
+                    request,
+                    f"Advanced: {fighter.name} has gained {assignment}",
+                )
 
-                    messages.success(
-                        request,
-                        f"Advanced: {fighter.name} has gained {assignment}",
-                    )
-
-                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-            else:
-                form = RandomEquipmentAssignmentForm(advancement=advancement)
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
         else:
-            # Chosen equipment selection
-            if request.method == "POST":
-                form = EquipmentAssignmentSelectionForm(
-                    request.POST, advancement=advancement
-                )
-                if form.is_valid():
-                    assignment = form.cleaned_data["assignment"]
-
-                    # Create the advancement
-                    advancement_obj = ListFighterAdvancement.objects.create(
-                        fighter=fighter,
-                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                        equipment_assignment=assignment,
-                        xp_cost=params.xp_cost,
-                        cost_increase=params.cost_increase,
-                        description=f"Chosen {advancement.name}: {assignment}",
-                    )
-
-                    # Apply it
-                    advancement_obj.apply_advancement()
-
-                    messages.success(
-                        request,
-                        f"Advanced: {fighter.name} has gained {assignment}",
-                    )
-
-                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-            else:
-                form = EquipmentAssignmentSelectionForm(advancement=advancement)
+            form = EquipmentAssignmentSelectionForm(
+                advancement=advancement, fighter=fighter
+            )
 
     elif params.is_chosen_skill_advancement():
         # Chosen skill
@@ -4795,7 +4786,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
         context.update(
             {
                 "advancement_type": "equipment",
-                "is_random": is_random,
+                "is_random": False,  # Random equipment goes to confirm, not here
                 "advancement_name": advancement.name
                 if "advancement" in locals()
                 else None,
