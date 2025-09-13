@@ -377,17 +377,18 @@ class EquipmentAssignmentSelectionForm(forms.Form):
     assignment = forms.ModelChoiceField(
         queryset=ContentAdvancementAssignment.objects.none(),
         widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Select equipment configuration for this fighter.",
+        help_text="Select an option for this fighter to gain.",
     )
 
-    def __init__(self, *args, advancement=None, **kwargs):
+    def __init__(self, *args, **kwargs):
+        self.advancement = kwargs.pop("advancement", None)
         super().__init__(*args, **kwargs)
 
-        if advancement:
+        if self.advancement:
             # Show all assignments from the advancement
-            self.fields["assignment"].queryset = advancement.assignments.all().order_by(
-                "name"
-            )
+            self.fields["assignment"].queryset = self.advancement.assignments.all()
+
+        self.fields["assignment"].label_from_instance = lambda obj: str(obj)
 
 
 class RandomEquipmentAssignmentForm(forms.Form):

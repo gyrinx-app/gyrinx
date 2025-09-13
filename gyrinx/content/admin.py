@@ -674,14 +674,31 @@ class ContentWeaponTraitAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
 
 
+class ContentAdvancementAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = ContentAdvancementAssignment
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.equipment_id:
+            # Restrict upgrades to those available for the selected equipment
+            self.fields[
+                "upgrades_field"
+            ].queryset = ContentEquipmentUpgrade.objects.filter(
+                equipment=self.instance.equipment
+            )
+
+
 @admin.register(ContentAdvancementAssignment)
 class ContentAdvancementAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
-    search_fields = ["name", "equipment__name"]
-    list_display = ["name", "equipment", "get_upgrade_count"]
-    list_filter = ["equipment__category"]
+    form = ContentAdvancementAssignmentForm
+    search_fields = ["equipment__name", "advancement__name"]
+    list_display = ["equipment", "get_upgrade_count", "advancement"]
+    list_filter = ["equipment__category", "advancement"]
     filter_horizontal = ["upgrades_field"]
     fieldsets = (
-        (None, {"fields": ("name", "equipment")}),
+        (None, {"fields": ("equipment", "advancement")}),
         (
             "Upgrades",
             {
@@ -708,7 +725,6 @@ class ContentAdvancementEquipmentAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Group equipment by category
-        group_select(self, "equipment", key=lambda x: x.cat())
 
         # Set initial value for fighter categories from JSON field
         if self.instance and self.instance.pk:
@@ -719,6 +735,16 @@ class ContentAdvancementEquipmentAdminForm(forms.ModelForm):
     def clean_restricted_to_fighter_categories(self):
         # Convert the form field back to a list for the JSON field
         return self.cleaned_data.get("restricted_to_fighter_categories", [])
+
+
+class ContentAdvancementAssignmentInline(admin.TabularInline):
+    model = ContentAdvancementAssignment
+    form = ContentAdvancementAssignmentForm
+    extra = 1
+    fields = ["equipment", "upgrades_field"]
+    filter_horizontal = ["upgrades_field"]
+    fk_name = "advancement"
+    autocomplete_fields = ["equipment"]
 
 
 @admin.register(ContentAdvancementEquipment)
@@ -735,14 +761,15 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         "get_restrictions",
     ]
     list_filter = ["enable_chosen", "enable_random", "restricted_to_houses"]
-    filter_horizontal = ["assignments", "restricted_to_houses"]
+    filter_horizontal = ["restricted_to_houses"]
+    inlines = [ContentAdvancementAssignmentInline]
     fieldsets = (
         (None, {"fields": ("name", "xp_cost", "cost_increase")}),
         (
-            "Equipment Selection",
+            "Assignment Selection",
             {
-                "fields": ("assignments", "enable_chosen", "enable_random"),
-                "description": "Select the equipment assignments available through this advancement. At least one selection type (chosen/random) must be enabled.",
+                "fields": ("enable_chosen", "enable_random"),
+                "description": "At least one selection type (chosen/random) must be enabled. Use the inline form below to add equipment assignments.",
             },
         ),
         (

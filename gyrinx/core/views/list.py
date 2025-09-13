@@ -4394,9 +4394,9 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                         equipment_assignment=selected_assignment,
                         xp_cost=params.xp_cost,
                         cost_increase=params.cost_increase,
-                        description=f"Random {equipment_advancement.name}: {selected_assignment.name}",
+                        description=f"Random {equipment_advancement.name}: {selected_assignment}",
                     )
-                    outcome = f"Gained {selected_assignment.name}"
+                    outcome = f"Gained {selected_assignment}"
                 except (ValueError, ContentAdvancementEquipment.DoesNotExist) as e:
                     messages.error(request, f"Invalid equipment advancement: {e}")
                     return HttpResponseRedirect(
@@ -4663,7 +4663,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
                         equipment_assignment=assignment,
                         xp_cost=params.xp_cost,
                         cost_increase=params.cost_increase,
-                        description=f"Random {advancement.name}: {assignment.name}",
+                        description=f"Random {advancement.name}: {assignment}",
                     )
 
                     # Apply it
@@ -4671,7 +4671,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
                     messages.success(
                         request,
-                        f"Advanced: {fighter.name} has gained {assignment.name}",
+                        f"Advanced: {fighter.name} has gained {assignment}",
                     )
 
                     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
@@ -4693,7 +4693,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
                         equipment_assignment=assignment,
                         xp_cost=params.xp_cost,
                         cost_increase=params.cost_increase,
-                        description=f"Chosen {advancement.name}: {assignment.name}",
+                        description=f"Chosen {advancement.name}: {assignment}",
                     )
 
                     # Apply it
@@ -4701,7 +4701,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
                     messages.success(
                         request,
-                        f"Advanced: {fighter.name} has gained {assignment.name}",
+                        f"Advanced: {fighter.name} has gained {assignment}",
                     )
 
                     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))

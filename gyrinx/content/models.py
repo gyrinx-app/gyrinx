@@ -3286,8 +3286,15 @@ class ContentAdvancementAssignment(Content):
     that can be gained through advancement.
     """
 
-    # Custom name for this configuration
-    name = models.CharField(max_length=255)
+    # Link to advancement equipment
+    advancement = models.ForeignKey(
+        "ContentAdvancementEquipment",
+        on_delete=models.CASCADE,
+        related_name="assignments",
+        null=True,
+        blank=True,
+        help_text="The equipment advancement this assignment belongs to",
+    )
 
     # The base equipment
     equipment = models.ForeignKey(
@@ -3307,26 +3314,25 @@ class ContentAdvancementAssignment(Content):
     history = HistoricalRecords()
 
     class Meta:
-        verbose_name = "Advancement Assignment"
-        verbose_name_plural = "Advancement Assignments"
-        ordering = ["name"]
+        verbose_name = "Equipment Advancement Assignment"
+        verbose_name_plural = "Equipment Advancement Assignments"
+        ordering = ["advancement__name", "equipment__name"]
 
     def __str__(self):
-        return self.name
+        upgrade_names = ", ".join(
+            str(upgrade.name) for upgrade in self.upgrades_field.all()
+        )
+        if upgrade_names:
+            return f"{self.equipment} ({upgrade_names})"
+        return str(self.equipment)
 
 
 class ContentAdvancementEquipment(Content):
     """
-    Defines equipment that can be acquired through fighter advancement.
+    Defines advancements that allow a fighter to acquire equipment.
+
     Links equipment assignments to advancement costs and restrictions.
     """
-
-    assignments = models.ManyToManyField(
-        ContentAdvancementAssignment,
-        related_name="advancement_options",
-        help_text="Equipment assignments that can be gained through advancement - fighter chooses one from this list",
-        blank=True,
-    )
 
     name = models.CharField(
         max_length=255,
@@ -3367,8 +3373,8 @@ class ContentAdvancementEquipment(Content):
     history = HistoricalRecords()
 
     class Meta:
-        verbose_name = "Advancement Equipment"
-        verbose_name_plural = "Advancement Equipment"
+        verbose_name = "Equipment Advancement"
+        verbose_name_plural = "Equipment Advancements"
         ordering = ["name"]
 
     def __str__(self):
