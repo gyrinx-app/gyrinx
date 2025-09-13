@@ -13,13 +13,15 @@
     <thead>
         <tr>
             {% for stat in fighter.statline %}
-                <th class="text-center border-bottom fs-7 {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                <th class="text-center border-bottom {% if print %}fs-10{% else %}fs-7{% endif %} {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
                     scope="col">{{ stat.name }}</th>
             {% endfor %}
         </tr>
     </thead>
     <tbody>
-        <tr class="table-nowrap">{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+        <tr class="table-nowrap">
+            {% include "core/includes/list_fighter_statline.html" with fighter=fighter, print=print %}
+        </tr>
     </tbody>
     <tbody class="table-group-divider">
         {% if fighter.ruleline|length > 0 %}
