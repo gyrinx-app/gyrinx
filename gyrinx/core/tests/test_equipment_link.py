@@ -62,9 +62,9 @@ def test_basic_fighter_link(
     # i.e. the cost of the fighter plus equipment only
     assert lst.cost_int() == 150
     assert lst.fighters().count() == 2
-    assert assign.linked_fighter.name == beast_cf.type
+    assert assign.child_fighter.name == beast_cf.type
 
-    linked_lf = ListFighter.objects.get(pk=assign.linked_fighter.pk)
+    linked_lf = ListFighter.objects.get(pk=assign.child_fighter.pk)
     assert linked_lf._is_linked
 
     assign.delete()
@@ -237,7 +237,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     vehicle4_lf = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.VEHICLE,
-        linked_fighter__list_fighter=fighter4_lf,
+        source_assignment__list_fighter=fighter4_lf,
     )
 
     # Add beast to the vehicle
@@ -250,7 +250,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     beast1 = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
-        linked_fighter__list_fighter=fighter1_lf,
+        source_assignment__list_fighter=fighter1_lf,
     )
     beast1.name = "Beast1"
     beast1.save()
@@ -258,7 +258,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     vehicle2 = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.VEHICLE,
-        linked_fighter__list_fighter=fighter2_lf,
+        source_assignment__list_fighter=fighter2_lf,
     )
     vehicle2.name = "Vehicle2"
     vehicle2.save()
@@ -266,7 +266,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     vehicle3 = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.VEHICLE,
-        linked_fighter__list_fighter=fighter3_lf,
+        source_assignment__list_fighter=fighter3_lf,
     )
     vehicle3.name = "Vehicle3"
     vehicle3.save()
@@ -274,7 +274,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     beast3 = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
-        linked_fighter__list_fighter=fighter3_lf,
+        source_assignment__list_fighter=fighter3_lf,
     )
     beast3.name = "Beast3"
     beast3.save()
@@ -285,7 +285,7 @@ def test_comprehensive_sorting_with_vehicles_and_beasts(
     beast4 = ListFighter.objects.get(
         list=lst,
         content_fighter__category=FighterCategoryChoices.EXOTIC_BEAST,
-        linked_fighter__list_fighter=vehicle4_lf,
+        source_assignment__list_fighter=vehicle4_lf,
     )
     beast4.name = "Beast4"
     beast4.save()

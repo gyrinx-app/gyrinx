@@ -88,8 +88,8 @@ def test_vehicle_and_crew_have_same_group_key():
     assignment.save()
 
     # The save should have created a linked fighter (the vehicle)
-    assert assignment.linked_fighter is not None
-    vehicle_lf = assignment.linked_fighter
+    assert assignment.child_fighter is not None
+    vehicle_lf = assignment.child_fighter
 
     # Get fighters with group keys
     fighters_with_groups = ListFighter.objects.with_group_keys().filter(list=test_list)
@@ -324,14 +324,14 @@ def test_stash_vehicles_have_unique_group_keys():
         content_equipment=vehicle1_ce,
     )
     assignment1.save()
-    vehicle1_lf = assignment1.linked_fighter
+    vehicle1_lf = assignment1.child_fighter
 
     assignment2 = ListFighterEquipmentAssignment(
         list_fighter=stash_lf,
         content_equipment=vehicle2_ce,
     )
     assignment2.save()
-    vehicle2_lf = assignment2.linked_fighter
+    vehicle2_lf = assignment2.child_fighter
 
     # Get fighters with group keys
     fighters_with_groups = ListFighter.objects.with_group_keys().filter(list=test_list)

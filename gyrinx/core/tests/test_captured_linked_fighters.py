@@ -20,7 +20,7 @@ from gyrinx.core.models.list import (
 
 
 @pytest.mark.django_db
-def test_linked_fighter_can_be_captured():
+def test_child_fighter_can_be_captured():
     """Test that linked fighters can be captured and the equipment is properly unlinked."""
     # Create test data
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -34,7 +34,7 @@ def test_linked_fighter_can_be_captured():
         base_cost=100,
     )
 
-    linked_fighter_type = ContentFighter.objects.create(
+    child_fighter_type = ContentFighter.objects.create(
         type="Exotic Beast",
         category="SPECIALIST",
         house=house,
@@ -56,7 +56,7 @@ def test_linked_fighter_can_be_captured():
     # Create fighter profile link
     ContentEquipmentFighterProfile.objects.create(
         equipment=beast_equipment,
-        content_fighter=linked_fighter_type,
+        content_fighter=child_fighter_type,
     )
 
     # Create campaign and lists
@@ -100,12 +100,12 @@ def test_linked_fighter_can_be_captured():
     assignment.refresh_from_db()
 
     # The assignment should have created a linked fighter
-    assert assignment.linked_fighter is not None
-    linked_fighter = assignment.linked_fighter
-    assert linked_fighter.name == "Exotic Beast"
-    assert linked_fighter.list == list1
-    assert linked_fighter.owner == user, (
-        f"Expected owner {user}, got {linked_fighter.owner}"
+    assert assignment.child_fighter is not None
+    child_fighter = assignment.child_fighter
+    assert child_fighter.name == "Exotic Beast"
+    assert child_fighter.list == list1
+    assert child_fighter.owner == user, (
+        f"Expected owner {user}, got {child_fighter.owner}"
     )
 
     # Test that linked fighter can be captured
@@ -113,17 +113,17 @@ def test_linked_fighter_can_be_captured():
     client.login(username="testuser", password="testpass")
 
     # Check that the linked fighter exists and belongs to the right list
-    assert ListFighter.objects.filter(id=linked_fighter.id, list=list1).exists()
+    assert ListFighter.objects.filter(id=child_fighter.id, list=list1).exists()
 
     # First GET the page to ensure it loads correctly
     get_response = client.get(
-        reverse("core:list-fighter-mark-captured", args=[list1.id, linked_fighter.id])
+        reverse("core:list-fighter-mark-captured", args=[list1.id, child_fighter.id])
     )
     assert get_response.status_code == 200
 
     # Mark the linked fighter as captured
     response = client.post(
-        reverse("core:list-fighter-mark-captured", args=[list1.id, linked_fighter.id]),
+        reverse("core:list-fighter-mark-captured", args=[list1.id, child_fighter.id]),
         {"capturing_list": list2.id},
     )
 
@@ -132,18 +132,18 @@ def test_linked_fighter_can_be_captured():
     assert response.url == reverse("core:list", args=[list1.id])
 
     # Verify the fighter is captured
-    linked_fighter.refresh_from_db()
+    child_fighter.refresh_from_db()
 
     # Check if the capture record exists
-    capture_record = CapturedFighter.objects.filter(fighter=linked_fighter).first()
+    capture_record = CapturedFighter.objects.filter(fighter=child_fighter).first()
     assert capture_record is not None, "No capture record found"
     assert capture_record.capturing_list == list2
     assert not capture_record.sold_to_guilders
 
     # Check the property works
-    assert hasattr(linked_fighter, "capture_info")
-    assert linked_fighter.capture_info.capturing_list == list2
-    assert not linked_fighter.capture_info.sold_to_guilders
+    assert hasattr(child_fighter, "capture_info")
+    assert child_fighter.capture_info.capturing_list == list2
+    assert not child_fighter.capture_info.sold_to_guilders
 
     # Verify the equipment assignment was deleted
     assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
@@ -153,7 +153,7 @@ def test_linked_fighter_can_be_captured():
 
 
 @pytest.mark.django_db
-def test_captured_linked_fighter_shows_correct_status():
+def test_captured_child_fighter_shows_correct_status():
     """Test that captured linked fighters show the correct status in templates."""
     # Create test data
     user = User.objects.create_user(username="testuser2", password="testpass")
@@ -189,7 +189,7 @@ def test_captured_linked_fighter_shows_correct_status():
     )
 
     # Create a linked fighter
-    linked_fighter = ListFighter.objects.create(
+    child_fighter = ListFighter.objects.create(
         name="Pet Beast",
         content_fighter=fighter_type,
         list=list1,
@@ -198,16 +198,16 @@ def test_captured_linked_fighter_shows_correct_status():
 
     # Create capture record
     CapturedFighter.objects.create(
-        fighter=linked_fighter,
+        fighter=child_fighter,
         capturing_list=list2,
         owner=user,
     )
 
     # Test fighter properties
-    assert linked_fighter.is_captured
-    assert not linked_fighter.is_sold_to_guilders
-    assert linked_fighter.captured_state == "captured"
-    assert not linked_fighter.can_participate()
+    assert child_fighter.is_captured
+    assert not child_fighter.is_sold_to_guilders
+    assert child_fighter.captured_state == "captured"
+    assert not child_fighter.can_participate()
 
     # Test that the fighter shows as captured in the list view
     client = Client()
@@ -220,7 +220,7 @@ def test_captured_linked_fighter_shows_correct_status():
 
 
 @pytest.mark.django_db
-def test_sold_linked_fighter_contributes_zero_to_gang_cost():
+def test_sold_child_fighter_contributes_zero_to_gang_cost():
     """Test that linked fighters sold to guilders contribute 0 to gang cost."""
     # Create test data
     user = User.objects.create_user(username="testuser3", password="testpass")
@@ -256,7 +256,7 @@ def test_sold_linked_fighter_contributes_zero_to_gang_cost():
     )
 
     # Create a linked fighter
-    linked_fighter = ListFighter.objects.create(
+    child_fighter = ListFighter.objects.create(
         name="Pet Cyber-Mastiff",
         content_fighter=fighter_type,
         list=list1,
@@ -264,13 +264,13 @@ def test_sold_linked_fighter_contributes_zero_to_gang_cost():
     )
 
     # Record initial costs
-    fighter_cost = linked_fighter.cost_int()
+    fighter_cost = child_fighter.cost_int()
     assert fighter_cost > 0
     initial_gang_cost = list1.cost_int()
 
     # Capture the linked fighter
     capture = CapturedFighter.objects.create(
-        fighter=linked_fighter,
+        fighter=child_fighter,
         capturing_list=list2,
         owner=user,
     )
@@ -279,8 +279,8 @@ def test_sold_linked_fighter_contributes_zero_to_gang_cost():
     capture.sell_to_guilders(credits=30)
 
     # Test fighter cost is now 0
-    assert linked_fighter.cost_int() == 0
-    assert linked_fighter.cost_int_cached == 0
+    assert child_fighter.cost_int() == 0
+    assert child_fighter.cost_int_cached == 0
 
     # Test gang total cost is reduced by the fighter's cost
     new_gang_cost = list1.cost_int()

@@ -167,10 +167,10 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 **Equipment-Fighter Links (Pets/Exotic Beasts)**
 
 * Some equipment creates additional fighters when assigned (e.g., Cyber-mastiff creates a fighter)
-* Linked fighters appear in gang roster with special "linked" indicator
-* Linked fighters cannot be independently edited or removed
-* Removing the parent equipment removes the linked fighter
-* Linked fighters count toward gang rating and cost
+* Child fighters appear in gang roster with special "child" indicator
+* Child fighters cannot be independently edited or removed
+* Removing the parent equipment removes the child fighter
+* Child fighters count toward gang rating and cost
 
 **Equipment-Equipment Links**
 
@@ -206,7 +206,7 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 | Default equipment conversion | Fighter with default gear, convert to purchasable | Equipment now costs credits, can be sold          |
 | Equipment creates fighter    | Add Cyber-mastiff to fighter                      | New mastiff fighter appears linked to equipment   |
 | Equipment creates equipment  | Add weapon with built-in accessory                | Both items appear, linked equipment not removable |
-| Remove linked fighter parent | Delete equipment that created fighter             | Linked fighter also removed from gang             |
+| Remove child fighter parent | Delete equipment that created fighter             | Child fighter also removed from gang             |
 | Cascade equipment links      | Add equipment A that creates B that creates C     | All three items present, removing A removes all   |
 | Default equipment disable    | Disable default weapon on fighter                 | Weapon removed, fighter cost unchanged            |
 | Multiple accessories         | Add telescopic sight + suspensor to weapon        | Both show, costs stack correctly                  |

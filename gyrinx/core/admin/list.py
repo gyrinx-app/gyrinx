@@ -183,23 +183,23 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "content_equipment",
         "weapon_profiles_field",
         "weapon_accessories_field",
-        "linked_fighter",
+        "child_fighter",
         "upgrades_field",
         cost,
     ]
-    readonly_fields = ["linked_fighter", cost]
+    readonly_fields = ["child_fighter", cost]
     list_display = [
         "list_fighter",
         "list_fighter__list__name",
         "content_equipment",
         weapon_profiles_list,
         weapon_accessories_list,
-        "linked_fighter",
+        "child_fighter",
     ]
     search_fields = [
         "list_fighter__name",
         "content_equipment__name",
         "weapon_profiles_field__name",
         "weapon_accessories_field__name",
-        "linked_fighter__name",
+        "child_fighter__name",
     ]

@@ -36,7 +36,7 @@ Implementation: `ListFighter.cost_int()` in `gyrinx/core/models/list.py:543`
 
 The base cost follows this priority hierarchy:
 1. **User Override**: `ListFighter.cost_override` (if set)
-2. **Linked Fighter**: 0 (if fighter is linked to another)
+2. **Child Fighter**: 0 (if fighter is child of another)
 3. **House Override**: `ContentFighterHouseOverride.cost` (if exists)
 4. **Content Fighter**: `ContentFighter.base_cost`
 
@@ -142,7 +142,7 @@ Implementation: `ListFighter.equipment_list_fighter` property
 - **Stash Fighters**: Must have `base_cost = 0`
 - **Default Assignments**: Always cost 0
 - **Linked Equipment**: Child equipment in linked relationships cost 0
-- **Linked Fighters**: Fighters linked to equipment profiles cost 0
+- **Child Fighters**: Fighters created by equipment profiles cost 0
 
 ### Cost Display
 All costs are displayed with the ¢ symbol using `format_cost_display()`:
@@ -194,7 +194,7 @@ cost = assignment.cost_int_cached  # Includes all overrides and sub-costs
 # Fighter level
 if fighter.has_cost_override:
     # User has manually set the cost
-    
+
 # Assignment level
 if assignment.has_total_cost_override():
     # Total cost is manually overridden
@@ -220,19 +220,19 @@ The cost system provides reusable mixins to standardize cost calculation behavio
 class CostMixin(models.Model):
     """
     Mixin for models that have cost calculation logic.
-    
+
     Attributes
     ----------
     cost_field_name : str
         The name of the field that stores the cost. Defaults to 'cost'.
         Can be overridden in subclasses if the field has a different name.
     """
-    
+
     cost_field_name = "cost"
-    
+
     def cost_int(self):
         """Returns the integer cost of this item."""
-        
+
     def cost_display(self, show_sign=False):
         """Returns a readable cost string with currency symbol."""
 ```
@@ -260,7 +260,7 @@ class FighterCostMixin(CostMixin):
     """
     Extended cost mixin for models that have fighter-specific cost overrides.
     """
-    
+
     def cost_for_fighter_int(self):
         """Returns the fighter-specific cost if available."""
 ```

@@ -100,9 +100,9 @@
                         {{ fighter.is_captured |yesno:"Captured,Not Captured" }} / {{ fighter.is_sold_to_guilders |yesno:"Sold to Guilders,Not Sold" }}
                     </td>
                     <td>
-                        {% if fighter.has_linked_fighter %}
+                        {% if fighter.is_child_fighter %}
                             {{ fighter.term_proximal_demonstrative }} is linked
-                            to {{ fighter.linked_list_fighter.name }}
+                            to {{ fighter.parent_list_fighter.name }}
                         {% else %}
                             <span class="text-muted fst-italic">No linked fighter</span>
                         {% endif %}
