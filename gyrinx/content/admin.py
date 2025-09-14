@@ -580,6 +580,7 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentFighterForm
     search_fields = ["type", "category", "house__name"]
     list_filter = ["category", "house", "psyker_disciplines__discipline"]
+    autocomplete_fields = ["house"]
     inlines = [
         ContentStatlineInline,
         # ContentFighterHouseOverrideInline,
@@ -594,12 +595,14 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
 
 @admin.register(ContentFighterPsykerDisciplineAssignment)
 class ContentFighterPsykerDisciplineAssignmentAdmin(ContentAdmin):
+    autocomplete_fields = ["fighter", "discipline"]
     search_fields = ["fighter__type", "discipline__name"]
     list_filter = ["fighter__type", "discipline__name"]
 
 
 @admin.register(ContentFighterHouseOverride)
 class ContentFighterHouseOverrideAdmin(ContentAdmin):
+    autocomplete_fields = ["fighter", "house"]
     search_fields = ["fighter__type", "house__name"]
     list_filter = ["fighter__type", "house"]
 
@@ -947,6 +950,7 @@ class ContentModTraitAdmin(ContentModChildAdmin):
 @admin.register(ContentModFighterRule)
 class ContentModFighterRuleAdmin(ContentModChildAdmin):
     base_model = ContentModFighterRule
+    autocomplete_fields = ["rule"]
 
 
 class ContentModFighterSkillAdminForm(forms.ModelForm):
@@ -1234,6 +1238,7 @@ class ContentStatlineStatInline(ContentTabularInline):
 @admin.register(ContentStatline)
 class ContentStatlineAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["content_fighter__type", "statline_type__name"]
+    autocomplete_fields = ["content_fighter"]
     list_display = ["content_fighter", "statline_type"]
     list_filter = ["statline_type"]
     list_display_links = ["content_fighter"]
