@@ -4421,7 +4421,6 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                         error_msg = (
                             f"No available options from {equipment_advancement.name}. "
                         )
-                        error_msg += f"All equipment combinations have upgrades that {fighter.name} already possesses."
                         raise ValueError(error_msg)
 
                     selected_assignment = available_assignments.order_by("?").first()

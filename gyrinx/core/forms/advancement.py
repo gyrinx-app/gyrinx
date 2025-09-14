@@ -418,11 +418,13 @@ class EquipmentAssignmentSelectionForm(forms.Form):
                 self.fields["assignment"].widget.attrs["disabled"] = True
                 self._no_options_available = True
                 self._no_options_error_message = (
-                    f"No available options from {self.advancement.name}. "
-                    f"All equipment combinations have upgrades that {self.fighter.name} already possesses."
+                    f"No available options from {self.advancement.name}."
                 )
 
-        self.fields["assignment"].label_from_instance = lambda obj: str(obj)
+    @property
+    def no_options_error_message(self):
+        """Public property to access the no options error message for display."""
+        return self._no_options_error_message
 
     def clean(self):
         cleaned_data = super().clean()

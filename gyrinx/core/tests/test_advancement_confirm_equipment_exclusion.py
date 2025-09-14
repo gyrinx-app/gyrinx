@@ -191,7 +191,6 @@ def test_random_equipment_confirm_shows_error_when_all_excluded(
     error_message = str(messages[0])
     assert "No available options" in error_message
     assert advancement.name in error_message
-    assert fighter.name in error_message
 
     # No advancement should have been created
     assert not ListFighterAdvancement.objects.filter(fighter=fighter).exists()
