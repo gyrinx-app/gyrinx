@@ -32,7 +32,7 @@ def content_fighter(house):
         cool="7",
         willpower="7",
         intelligence="7",
-        category="ganger",
+        category="GANGER",
         base_cost=50,
     )
 
