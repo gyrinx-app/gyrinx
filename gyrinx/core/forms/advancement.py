@@ -58,6 +58,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=3,
             cost_increase=5,
             roll=8,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_intelligence": AdvancementConfig(
             name="stat_intelligence",
@@ -65,6 +66,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=3,
             cost_increase=5,
             roll=9,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_leadership": AdvancementConfig(
             name="stat_leadership",
@@ -72,6 +74,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=4,
             cost_increase=10,
             roll=10,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_cool": AdvancementConfig(
             name="stat_cool",
@@ -79,6 +82,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=4,
             cost_increase=10,
             roll=11,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_initiative": AdvancementConfig(
             name="stat_initiative",
@@ -92,6 +96,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=5,
             cost_increase=10,
             roll=7,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_weapon_skill": AdvancementConfig(
             name="stat_weapon_skill",
@@ -99,6 +104,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=3,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_ballistic_skill": AdvancementConfig(
             name="stat_ballistic_skill",
@@ -106,6 +112,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=4,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_strength": AdvancementConfig(
             name="stat_strength",
@@ -113,6 +120,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=8,
             cost_increase=30,
             roll=5,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_toughness": AdvancementConfig(
             name="stat_toughness",
@@ -120,6 +128,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=8,
             cost_increase=30,
             roll=6,
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_wounds": AdvancementConfig(
             name="stat_wounds",
@@ -158,9 +167,7 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=2,  # Also roll 12
-            restricted_to_fighter_categories=[
-                FighterCategoryChoices.GANGER
-            ],  # Only GANGERS can be promoted to specialist
+            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "skill_promote_champion": AdvancementConfig(
             name="skill_promote_champion",
@@ -231,8 +238,9 @@ class AdvancementTypeForm(forms.Form):
     def __init__(self, *args, fighter=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
-        # Create instance-level deep copy of advancement configs to avoid modifying class-level dictionary
-        self.advancement_configs = {k: v for k, v in self.ADVANCEMENT_CONFIGS.items()}
+        # Create instance-level copy of advancement configs to avoid modifying class-level dictionary
+        # Start with a copy of the class-level configs
+        self.advancement_configs = self.ADVANCEMENT_CONFIGS.copy()
 
         # Get fighter category for filtering
         fighter_category = fighter.get_category() if fighter else None
@@ -244,8 +252,8 @@ class AdvancementTypeForm(forms.Form):
 
         # Filter skill advancements based on fighter category
         for choice_key, choice_label in self.ADVANCEMENT_CHOICES:
-            if choice_key in self.advancement_configs:
-                config = self.advancement_configs[choice_key]
+            if choice_key in self.ADVANCEMENT_CONFIGS:
+                config = self.ADVANCEMENT_CONFIGS[choice_key]
                 if fighter_category and not config.is_available_to_category(
                     fighter_category
                 ):
@@ -419,13 +427,13 @@ class AdvancementTypeForm(forms.Form):
         # For GANGER dice rolls, find the config with matching roll number
         advancement_choice = "stat_willpower"  # default
         cost_increase = 5  # default
-        
+
         for key, config in cls.ADVANCEMENT_CONFIGS.items():
             if config.roll == campaign_action.dice_total:
                 advancement_choice = key
                 cost_increase = config.cost_increase
                 break
-        
+
         # For GANGER dice rolls, always use 6 XP
         return {
             "xp_cost": 6,
