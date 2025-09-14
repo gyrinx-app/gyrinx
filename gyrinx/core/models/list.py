@@ -2168,6 +2168,7 @@ class ListFighter(AppBase):
                 advancement_type=advancement.advancement_type,
                 stat_increased=advancement.stat_increased,
                 skill=advancement.skill,
+                equipment_assignment=advancement.equipment_assignment,
                 description=advancement.description,
                 xp_cost=advancement.xp_cost,
                 cost_increase=advancement.cost_increase,
@@ -3852,11 +3853,13 @@ class ListFighterAdvancement(AppBase):
     # Types of advancements
     ADVANCEMENT_STAT = "stat"
     ADVANCEMENT_SKILL = "skill"
+    ADVANCEMENT_EQUIPMENT = "equipment"
     ADVANCEMENT_OTHER = "other"
 
     ADVANCEMENT_TYPE_CHOICES = [
         (ADVANCEMENT_STAT, "Characteristic Increase"),
         (ADVANCEMENT_SKILL, "New Skill"),
+        (ADVANCEMENT_EQUIPMENT, "New Equipment"),
         (ADVANCEMENT_OTHER, "Other"),
     ]
 
@@ -3889,6 +3892,15 @@ class ListFighterAdvancement(AppBase):
         null=True,
         blank=True,
         help_text="For skill advancements, which skill was gained.",
+    )
+
+    # For equipment advancements
+    equipment_assignment = models.ForeignKey(
+        "content.ContentAdvancementAssignment",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="For equipment advancements, which assignment configuration was selected.",
     )
 
     # For other advancements
@@ -3928,8 +3940,11 @@ class ListFighterAdvancement(AppBase):
     def __str__(self):
         if self.advancement_type == self.ADVANCEMENT_STAT:
             return f"{self.fighter.name} - {self.get_stat_increased_display()}"
-        elif self.skill:
+        elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             return f"{self.fighter.name} - {self.skill.name}"
+        elif self.advancement_type == self.ADVANCEMENT_EQUIPMENT:
+            if self.equipment_assignment:
+                return f"{self.fighter.name} - {str(self.equipment_assignment)}"
         elif self.advancement_type == self.ADVANCEMENT_OTHER and self.description:
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
@@ -3979,6 +3994,17 @@ class ListFighterAdvancement(AppBase):
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             # Add skill to fighter
             self.fighter.skills.add(self.skill)
+        elif self.advancement_type == self.ADVANCEMENT_EQUIPMENT:
+            if self.equipment_assignment:
+                # Create equipment assignment with upgrades from advancement assignment
+                assignment = ListFighterEquipmentAssignment.objects.create(
+                    list_fighter=self.fighter,
+                    content_equipment=self.equipment_assignment.equipment,
+                )
+                # Add the upgrades from the advancement assignment
+                assignment.upgrades_field.set(
+                    self.equipment_assignment.upgrades_field.all()
+                )
         elif self.advancement_type == self.ADVANCEMENT_OTHER:
             # For "other" advancements, nothing specific to apply
             # The description is just stored for display purposes
@@ -3994,17 +4020,40 @@ class ListFighterAdvancement(AppBase):
             raise ValidationError("Stat advancement requires a stat to be selected.")
         if self.advancement_type == self.ADVANCEMENT_SKILL and not self.skill:
             raise ValidationError("Skill advancement requires a skill to be selected.")
+        if (
+            self.advancement_type == self.ADVANCEMENT_EQUIPMENT
+            and not self.equipment_assignment
+        ):
+            raise ValidationError(
+                "Equipment advancement requires equipment assignment to be selected."
+            )
         if self.advancement_type == self.ADVANCEMENT_OTHER and not self.description:
             raise ValidationError("Other advancement requires a description.")
-        if self.advancement_type == self.ADVANCEMENT_STAT and self.skill:
-            raise ValidationError("Stat advancement should not have a skill selected.")
-        if self.advancement_type == self.ADVANCEMENT_SKILL and self.stat_increased:
-            raise ValidationError("Skill advancement should not have a stat selected.")
-        if self.advancement_type == self.ADVANCEMENT_OTHER and (
+
+        # Ensure only appropriate fields are set
+        if self.advancement_type == self.ADVANCEMENT_STAT and (
+            self.skill or self.equipment_assignment
+        ):
+            raise ValidationError(
+                "Stat advancement should not have skill or equipment selected."
+            )
+        if self.advancement_type == self.ADVANCEMENT_SKILL and (
+            self.stat_increased or self.equipment_assignment
+        ):
+            raise ValidationError(
+                "Skill advancement should not have stat or equipment selected."
+            )
+        if self.advancement_type == self.ADVANCEMENT_EQUIPMENT and (
             self.stat_increased or self.skill
         ):
             raise ValidationError(
-                "Other advancement should not have a stat or skill selected."
+                "Equipment advancement should not have stat or skill selected."
+            )
+        if self.advancement_type == self.ADVANCEMENT_OTHER and (
+            self.stat_increased or self.skill or self.equipment_assignment
+        ):
+            raise ValidationError(
+                "Other advancement should not have stat, skill, or equipment selected."
             )
 
 
