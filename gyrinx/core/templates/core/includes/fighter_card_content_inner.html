@@ -24,6 +24,7 @@
     </tbody>
     {% comment %} Details {% endcomment %}
     <tbody class="table-group-divider">
+        {% comment %} Rules {% endcomment %}
         {% if fighter.ruleline|length > 0 %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 25 100 fighter.statline|length %}">Rules</th>
