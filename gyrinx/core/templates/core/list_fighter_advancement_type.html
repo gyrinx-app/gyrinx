@@ -90,3 +90,36 @@
         </form>
     </div>
 {% endblock content %}
+{% block extra_script %}
+    <script>
+    // Advancement configurations passed from the server
+    const advancementConfigs = {{ advancement_configs_json|safe }};
+
+    // Get references to form elements
+    const advancementSelect = document.getElementById('{{ form.advancement_choice.id_for_label }}');
+    const xpCostInput = document.getElementById('{{ form.xp_cost.id_for_label }}');
+    const costIncreaseInput = document.getElementById('{{ form.cost_increase.id_for_label }}');
+
+    // Update costs when advancement type changes
+    function updateCosts() {
+        const selectedValue = advancementSelect.value;
+        const config = advancementConfigs[selectedValue];
+
+        if (config) {
+            // Update XP cost and fighter cost increase
+            xpCostInput.value = config.xp_cost;
+            costIncreaseInput.value = config.cost_increase;
+        }
+    }
+
+    // Listen for changes to the advancement selection
+    if (advancementSelect) {
+        advancementSelect.addEventListener('change', updateCosts);
+
+        // Update costs on page load if a value is already selected
+        if (advancementSelect.value) {
+            updateCosts();
+        }
+    }
+    </script>
+{% endblock extra_script %}

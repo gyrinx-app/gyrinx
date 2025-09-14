@@ -1,3 +1,4 @@
+import json
 import random
 import uuid
 from typing import Literal, Optional
@@ -80,7 +81,7 @@ from gyrinx.core.utils import (
     safe_redirect,
 )
 from gyrinx.core.views import make_query_params_str
-from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
+from gyrinx.models import FighterCategoryChoices, QuerySetOf, is_int, is_valid_uuid
 
 
 class ListsListView(generic.ListView):
@@ -3987,6 +3988,15 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         return HttpResponseRedirect(url)
 
+    # Check if fighter is a GANGER - only they can roll dice
+    fighter_category = fighter.get_category()
+    can_roll_dice = fighter_category == FighterCategoryChoices.GANGER
+
+    # If not a GANGER, redirect directly to advancement type selection
+    if not can_roll_dice:
+        url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        return HttpResponseRedirect(url)
+
     if request.method == "POST":
         form = AdvancementDiceChoiceForm(request.POST)
         if form.is_valid():
@@ -4040,6 +4050,8 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             "form": form,
             "fighter": fighter,
             "list": lst,
+            "can_roll_dice": can_roll_dice,
+            "fighter_category": fighter.get_category_label(),
         },
     )
 
@@ -4321,6 +4333,9 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "steps": 3 if is_campaign_mode else 2,
             "current_step": 2 if is_campaign_mode else 1,
             "progress": 66 if is_campaign_mode else 50,
+            "advancement_configs_json": json.dumps(
+                AdvancementTypeForm.get_all_configs_json()
+            ),
         },
     )
 

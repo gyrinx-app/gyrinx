@@ -1,5 +1,6 @@
 """Forms for fighter advancement system."""
 
+from dataclasses import dataclass
 from typing import Optional
 
 from django import forms
@@ -14,6 +15,25 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.forms import group_select
+from gyrinx.models import FighterCategoryChoices
+
+
+@dataclass
+class AdvancementConfig:
+    """Configuration for an advancement type."""
+
+    name: str
+    display_name: str
+    xp_cost: int
+    cost_increase: int
+    roll: Optional[int] = None  # For GANGER 2d6 rolls
+    restricted_to_fighter_categories: Optional[list[str]] = None
+
+    def is_available_to_category(self, category: str) -> bool:
+        """Check if this advancement is available to a fighter category."""
+        if self.restricted_to_fighter_categories is None:
+            return True
+        return category in self.restricted_to_fighter_categories
 
 
 class AdvancementDiceChoiceForm(forms.Form):
@@ -29,20 +49,159 @@ class AdvancementDiceChoiceForm(forms.Form):
 class AdvancementTypeForm(forms.Form):
     """Form for choosing advancement type and costs."""
 
+    # Define advancement configurations
+    ADVANCEMENT_CONFIGS = {
+        # Stat advancements
+        "stat_willpower": AdvancementConfig(
+            name="stat_willpower",
+            display_name="Willpower",
+            xp_cost=3,
+            cost_increase=5,
+            roll=8,
+        ),
+        "stat_intelligence": AdvancementConfig(
+            name="stat_intelligence",
+            display_name="Intelligence",
+            xp_cost=3,
+            cost_increase=5,
+            roll=9,
+        ),
+        "stat_leadership": AdvancementConfig(
+            name="stat_leadership",
+            display_name="Leadership",
+            xp_cost=4,
+            cost_increase=10,
+            roll=10,
+        ),
+        "stat_cool": AdvancementConfig(
+            name="stat_cool",
+            display_name="Cool",
+            xp_cost=4,
+            cost_increase=10,
+            roll=11,
+        ),
+        "stat_initiative": AdvancementConfig(
+            name="stat_initiative",
+            display_name="Initiative",
+            xp_cost=5,
+            cost_increase=10,
+        ),
+        "stat_movement": AdvancementConfig(
+            name="stat_movement",
+            display_name="Movement",
+            xp_cost=5,
+            cost_increase=10,
+            roll=7,
+        ),
+        "stat_weapon_skill": AdvancementConfig(
+            name="stat_weapon_skill",
+            display_name="Weapon Skill",
+            xp_cost=6,
+            cost_increase=20,
+            roll=3,
+        ),
+        "stat_ballistic_skill": AdvancementConfig(
+            name="stat_ballistic_skill",
+            display_name="Ballistic Skill",
+            xp_cost=6,
+            cost_increase=20,
+            roll=4,
+        ),
+        "stat_strength": AdvancementConfig(
+            name="stat_strength",
+            display_name="Strength",
+            xp_cost=8,
+            cost_increase=30,
+            roll=5,
+        ),
+        "stat_toughness": AdvancementConfig(
+            name="stat_toughness",
+            display_name="Toughness",
+            xp_cost=8,
+            cost_increase=30,
+            roll=6,
+        ),
+        "stat_wounds": AdvancementConfig(
+            name="stat_wounds",
+            display_name="Wounds",
+            xp_cost=12,
+            cost_increase=45,
+        ),
+        "stat_attacks": AdvancementConfig(
+            name="stat_attacks",
+            display_name="Attacks",
+            xp_cost=12,
+            cost_increase=45,
+        ),
+        # Skill advancements
+        "skill_primary_random": AdvancementConfig(
+            name="skill_primary_random",
+            display_name="Random Primary Skill",
+            xp_cost=6,
+            cost_increase=20,
+        ),
+        "skill_primary_chosen": AdvancementConfig(
+            name="skill_primary_chosen",
+            display_name="Chosen Primary Skill",
+            xp_cost=9,
+            cost_increase=20,
+        ),
+        "skill_secondary_random": AdvancementConfig(
+            name="skill_secondary_random",
+            display_name="Random Secondary Skill",
+            xp_cost=9,
+            cost_increase=35,
+        ),
+        "skill_promote_specialist": AdvancementConfig(
+            name="skill_promote_specialist",
+            display_name="Promote to Specialist (Random Primary Skill)",
+            xp_cost=6,
+            cost_increase=20,
+            roll=2,  # Also roll 12
+        ),
+        "skill_promote_champion": AdvancementConfig(
+            name="skill_promote_champion",
+            display_name="Promote to Champion",
+            xp_cost=12,
+            cost_increase=40,
+            restricted_to_fighter_categories=[FighterCategoryChoices.SPECIALIST],
+        ),
+        "skill_secondary_chosen": AdvancementConfig(
+            name="skill_secondary_chosen",
+            display_name="Chosen Secondary Skill",
+            xp_cost=12,
+            cost_increase=35,
+        ),
+        "skill_any_random": AdvancementConfig(
+            name="skill_any_random",
+            display_name="Random Skill (Any Set)",
+            xp_cost=15,
+            cost_increase=50,
+        ),
+        # Other
+        "other": AdvancementConfig(
+            name="other",
+            display_name="Other",
+            xp_cost=0,  # Variable
+            cost_increase=0,  # Variable
+        ),
+    }
+
+    # Keep for backward compatibility
     ADVANCEMENT_CHOICES = [
-        # Stat improvements
-        # ... are dynamically generated based on fighter statline
         # Skill options
         ("skill_primary_random", "Random Primary Skill"),
         ("skill_primary_chosen", "Chosen Primary Skill"),
         ("skill_secondary_random", "Random Secondary Skill"),
         ("skill_secondary_chosen", "Chosen Secondary Skill"),
         ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
+        ("skill_promote_champion", "Promote to Champion"),
         ("skill_any_random", "Random Skill (Any Set)"),
         # Other
         ("other", "Other"),
     ]
 
+    # Legacy mappings for GANGER dice rolls
     ROLL_TO_COST = {
         2: 20,
         3: 20,
@@ -99,10 +258,24 @@ class AdvancementTypeForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
 
+        # Get fighter category for filtering
+        fighter_category = fighter.get_category() if fighter else None
+
         # Dynamically generate stat choices for advancement_choice based on the fighter's statline
         all_stat_choices = AdvancementTypeForm.all_stat_choices()
-        initial_advancement_choices = self.fields["advancement_choice"].choices
+        initial_advancement_choices = []
         additional_advancement_choices = []
+
+        # Filter skill advancements based on fighter category
+        for choice_key, choice_label in self.ADVANCEMENT_CHOICES:
+            if choice_key in self.ADVANCEMENT_CONFIGS:
+                config = self.ADVANCEMENT_CONFIGS[choice_key]
+                if fighter_category and not config.is_available_to_category(
+                    fighter_category
+                ):
+                    continue
+            initial_advancement_choices.append((choice_key, choice_label))
+
         if fighter:
             statline_stats = [
                 (f"stat_{stat['field_name']}", stat)
@@ -142,10 +315,67 @@ class AdvancementTypeForm(forms.Form):
                         choice_label = f"Random {adv_equipment.name}"
                         equipment_choices.append((choice_key, choice_label))
 
+        # Update advancement choices with stat configs
+        for stat_key in additional_advancement_choices:
+            if stat_key[0] not in self.ADVANCEMENT_CONFIGS:
+                # Create stat configs dynamically
+                self.ADVANCEMENT_CONFIGS[stat_key[0]] = self._create_stat_config(
+                    stat_key[0]
+                )
+
+        # Update advancement choices with equipment configs
+        for equip_key, equip_label in equipment_choices:
+            if equip_key not in self.ADVANCEMENT_CONFIGS:
+                # Create equipment configs dynamically
+                self.ADVANCEMENT_CONFIGS[equip_key] = self._create_equipment_config(
+                    equip_key, equip_label
+                )
+
         self.fields["advancement_choice"].choices = (
             additional_advancement_choices
             + equipment_choices
             + initial_advancement_choices
+        )
+
+    def _create_stat_config(self, stat_key: str) -> AdvancementConfig:
+        """Create a stat advancement config based on the stat type."""
+        # Map stat types to their costs based on the provided table
+        stat_cost_map = {
+            "stat_willpower": (3, 5),
+            "stat_intelligence": (3, 5),
+            "stat_leadership": (4, 10),
+            "stat_cool": (4, 10),
+            "stat_initiative": (5, 10),
+            "stat_movement": (5, 10),
+            "stat_weapon_skill": (6, 20),
+            "stat_ballistic_skill": (6, 20),
+            "stat_strength": (8, 30),
+            "stat_toughness": (8, 30),
+            "stat_wounds": (12, 45),
+            "stat_attacks": (12, 45),
+        }
+
+        xp_cost, cost_increase = stat_cost_map.get(stat_key, (6, 20))
+        stat_name = stat_key.replace("stat_", "").replace("_", " ").title()
+
+        return AdvancementConfig(
+            name=stat_key,
+            display_name=stat_name,
+            xp_cost=xp_cost,
+            cost_increase=cost_increase,
+        )
+
+    def _create_equipment_config(
+        self, equip_key: str, equip_label: str
+    ) -> AdvancementConfig:
+        """Create an equipment advancement config."""
+        # Equipment advancements use costs from the ContentAdvancementEquipment model
+        # For now, use default costs that can be overridden in the template
+        return AdvancementConfig(
+            name=equip_key,
+            display_name=equip_label,
+            xp_cost=0,  # Will be set from ContentAdvancementEquipment
+            cost_increase=0,  # Will be set from ContentAdvancementEquipment
         )
 
     @classmethod
@@ -198,7 +428,7 @@ class AdvancementTypeForm(forms.Form):
 
     @classmethod
     def get_initial_for_action(
-        self, campaign_action: Optional[CampaignAction] = None
+        cls, campaign_action: Optional[CampaignAction] = None
     ) -> dict:
         """
         Extract initial parameters from a CampaignAction.
@@ -210,16 +440,37 @@ class AdvancementTypeForm(forms.Form):
                 "advancement_choice": "stat_willpower",
             }
 
+        # For GANGER dice rolls, always use 6 XP
         return {
             "xp_cost": 6,
-            "cost_increase": AdvancementTypeForm.ROLL_TO_COST.get(
-                campaign_action.dice_total, 5
-            ),
-            "advancement_choice": AdvancementTypeForm.ROLL_TO_ADVANCEMENT_CHOICE.get(
+            "cost_increase": cls.ROLL_TO_COST.get(campaign_action.dice_total, 5),
+            "advancement_choice": cls.ROLL_TO_ADVANCEMENT_CHOICE.get(
                 campaign_action.dice_total, "stat_willpower"
             ),
             "campaign_action_id": str(campaign_action.id),
         }
+
+    @classmethod
+    def get_advancement_config(
+        cls, advancement_choice: str
+    ) -> Optional[AdvancementConfig]:
+        """Get the AdvancementConfig for a given choice."""
+        return cls.ADVANCEMENT_CONFIGS.get(advancement_choice)
+
+    @classmethod
+    def get_all_configs_json(cls) -> dict:
+        """Get all advancement configs as JSON-serializable dict."""
+        configs = {}
+        for key, config in cls.ADVANCEMENT_CONFIGS.items():
+            configs[key] = {
+                "name": config.name,
+                "display_name": config.display_name,
+                "xp_cost": config.xp_cost,
+                "cost_increase": config.cost_increase,
+                "roll": config.roll,
+                "restricted_to_fighter_categories": config.restricted_to_fighter_categories,
+            }
+        return configs
 
 
 class StatSelectionForm(forms.Form):
