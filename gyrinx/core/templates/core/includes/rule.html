@@ -9,5 +9,7 @@
         {% ref rule.value value=rule.value %}<!-- ! -->
     {% endif %}
 {% else %}
-    {{ rule.value }}
+    {% spaceless %}
+        <span>{{ rule.value }}</span>
+    {% endspaceless %}
 {% endif %}
