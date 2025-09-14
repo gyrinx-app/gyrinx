@@ -1,5 +1,5 @@
 {% for stat in fighter.statline %}
-    <td class="text-center {% if print %}fs-10{% else %}fs-7{% endif %} {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}">
+    <td class="text-center {% if print %}fs-5{% else %}fs-7{% endif %} {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}">
         {% if stat.modded %}
             <span bs-tooltip
                   data-bs-toggle="tooltip"
