@@ -204,35 +204,6 @@ class AdvancementTypeForm(forms.Form):
         ("other", "Other"),
     ]
 
-    # Mappings for GANGER dice rolls (core functionality, not legacy)
-    ROLL_TO_COST = {
-        2: 20,
-        3: 20,
-        4: 20,
-        5: 30,
-        6: 30,
-        7: 10,
-        8: 5,
-        9: 5,
-        10: 10,
-        11: 10,
-        12: 20,
-    }
-
-    ROLL_TO_ADVANCEMENT_CHOICE = {
-        2: "skill_promote_specialist",
-        3: "stat_weapon_skill",
-        4: "stat_ballistic_skill",
-        5: "stat_strength",
-        6: "stat_toughness",
-        7: "stat_movement",
-        8: "stat_willpower",
-        9: "stat_intelligence",
-        10: "stat_leadership",
-        11: "stat_cool",
-        12: "skill_promote_specialist",
-    }
-
     advancement_choice = forms.ChoiceField(
         # Note that these choices are overridden by __init__()
         choices=ADVANCEMENT_CHOICES,
@@ -260,8 +231,8 @@ class AdvancementTypeForm(forms.Form):
     def __init__(self, *args, fighter=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
-        # Create instance-level copy of advancement configs to avoid modifying class-level dictionary
-        self.advancement_configs = self.ADVANCEMENT_CONFIGS.copy()
+        # Create instance-level deep copy of advancement configs to avoid modifying class-level dictionary
+        self.advancement_configs = {k: v for k, v in self.ADVANCEMENT_CONFIGS.items()}
 
         # Get fighter category for filtering
         fighter_category = fighter.get_category() if fighter else None
@@ -445,13 +416,21 @@ class AdvancementTypeForm(forms.Form):
                 "advancement_choice": "stat_willpower",
             }
 
+        # For GANGER dice rolls, find the config with matching roll number
+        advancement_choice = "stat_willpower"  # default
+        cost_increase = 5  # default
+        
+        for key, config in cls.ADVANCEMENT_CONFIGS.items():
+            if config.roll == campaign_action.dice_total:
+                advancement_choice = key
+                cost_increase = config.cost_increase
+                break
+        
         # For GANGER dice rolls, always use 6 XP
         return {
             "xp_cost": 6,
-            "cost_increase": cls.ROLL_TO_COST.get(campaign_action.dice_total, 5),
-            "advancement_choice": cls.ROLL_TO_ADVANCEMENT_CHOICE.get(
-                campaign_action.dice_total, "stat_willpower"
-            ),
+            "cost_increase": cost_increase,
+            "advancement_choice": advancement_choice,
             "campaign_action_id": str(campaign_action.id),
         }
 
