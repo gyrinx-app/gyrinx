@@ -30,7 +30,9 @@
                 <td colspan="{% widthratio 75 100 fighter.statline|length %}">
                     {% spaceless %}
                         {# djlint:off #}
-                            {% for rule in fighter.ruleline %}<span>{% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>, </span>{% endif %}</span>{% endfor %}
+                        {% for rule in fighter.ruleline %}
+                            {% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                        {% endfor %}
                         {# djlint:on #}
                     {% endspaceless %}
                     {% if not print %}
