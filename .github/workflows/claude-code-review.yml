@@ -52,6 +52,8 @@ jobs:
 
             Be constructive and helpful in your feedback.
 
+            DO NOT try to make code changes.
+
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           use_sticky_comment: true
 
@@ -71,7 +73,7 @@ jobs:
 
           # Optional: Add specific tools for running tests or linting
           # allowed_tools: "Bash(npm run test),Bash(npm run lint),Bash(npm run typecheck)"
-          allowed_tools: "Bash"
+          allowed_tools: "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(python -m pytest:*),Bash(pytest:*)"
 
           # Optional: Skip review for certain conditions
           # if: |
