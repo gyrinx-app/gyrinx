@@ -3905,6 +3905,11 @@ class ListCampaignClonesView(generic.DetailView):
 
 
 # Fighter Advancement Views
+def can_fighter_roll_dice_for_advancement(fighter):
+    """Check if a fighter can roll dice for advancement (only GANGERs can)."""
+    return fighter.get_category() == FighterCategoryChoices.GANGER.value
+
+
 @login_required
 def list_fighter_advancements(request, id, fighter_id):
     """
@@ -3988,12 +3993,8 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         return HttpResponseRedirect(url)
 
-    # Check if fighter is a GANGER - only they can roll dice
-    fighter_category = fighter.get_category()
-    can_roll_dice = fighter_category == FighterCategoryChoices.GANGER.value
-
-    # If not a GANGER, redirect directly to advancement type selection
-    if not can_roll_dice:
+    # Check if fighter can roll dice for advancement
+    if not can_fighter_roll_dice_for_advancement(fighter):
         url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         return HttpResponseRedirect(url)
 
@@ -4050,7 +4051,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             "form": form,
             "fighter": fighter,
             "list": lst,
-            "can_roll_dice": can_roll_dice,
+            "can_roll_dice": can_fighter_roll_dice_for_advancement(fighter),
             "fighter_category": fighter.get_category_label(),
         },
     )
