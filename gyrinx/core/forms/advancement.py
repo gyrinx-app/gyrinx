@@ -158,6 +158,9 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=2,  # Also roll 12
+            restricted_to_fighter_categories=[
+                FighterCategoryChoices.GANGER
+            ],  # Only GANGERS can be promoted to specialist
         ),
         "skill_promote_champion": AdvancementConfig(
             name="skill_promote_champion",
@@ -201,7 +204,7 @@ class AdvancementTypeForm(forms.Form):
         ("other", "Other"),
     ]
 
-    # Legacy mappings for GANGER dice rolls
+    # Mappings for GANGER dice rolls (core functionality, not legacy)
     ROLL_TO_COST = {
         2: 20,
         3: 20,
@@ -257,6 +260,8 @@ class AdvancementTypeForm(forms.Form):
     def __init__(self, *args, fighter=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
+        # Create instance-level copy of advancement configs to avoid modifying class-level dictionary
+        self.advancement_configs = self.ADVANCEMENT_CONFIGS.copy()
 
         # Get fighter category for filtering
         fighter_category = fighter.get_category() if fighter else None
@@ -268,8 +273,8 @@ class AdvancementTypeForm(forms.Form):
 
         # Filter skill advancements based on fighter category
         for choice_key, choice_label in self.ADVANCEMENT_CHOICES:
-            if choice_key in self.ADVANCEMENT_CONFIGS:
-                config = self.ADVANCEMENT_CONFIGS[choice_key]
+            if choice_key in self.advancement_configs:
+                config = self.advancement_configs[choice_key]
                 if fighter_category and not config.is_available_to_category(
                     fighter_category
                 ):
@@ -317,19 +322,32 @@ class AdvancementTypeForm(forms.Form):
 
         # Update advancement choices with stat configs
         for stat_key in additional_advancement_choices:
-            if stat_key[0] not in self.ADVANCEMENT_CONFIGS:
+            if stat_key[0] not in self.advancement_configs:
                 # Create stat configs dynamically
-                self.ADVANCEMENT_CONFIGS[stat_key[0]] = self._create_stat_config(
+                self.advancement_configs[stat_key[0]] = self._create_stat_config(
                     stat_key[0]
                 )
 
         # Update advancement choices with equipment configs
         for equip_key, equip_label in equipment_choices:
-            if equip_key not in self.ADVANCEMENT_CONFIGS:
-                # Create equipment configs dynamically
-                self.ADVANCEMENT_CONFIGS[equip_key] = self._create_equipment_config(
-                    equip_key, equip_label
-                )
+            if equip_key not in self.advancement_configs:
+                # Create equipment configs dynamically with actual ContentAdvancementEquipment data
+                equipment_id = equip_key.split("_")[-1]  # Extract ID from key
+                try:
+                    adv_equipment = ContentAdvancementEquipment.objects.get(
+                        id=equipment_id
+                    )
+                    self.advancement_configs[equip_key] = AdvancementConfig(
+                        name=equip_key,
+                        display_name=equip_label,
+                        xp_cost=adv_equipment.xp_cost,
+                        cost_increase=adv_equipment.cost_increase,
+                    )
+                except ContentAdvancementEquipment.DoesNotExist:
+                    # Fallback if equipment not found
+                    self.advancement_configs[equip_key] = self._create_equipment_config(
+                        equip_key, equip_label
+                    )
 
         self.fields["advancement_choice"].choices = (
             additional_advancement_choices
@@ -339,30 +357,17 @@ class AdvancementTypeForm(forms.Form):
 
     def _create_stat_config(self, stat_key: str) -> AdvancementConfig:
         """Create a stat advancement config based on the stat type."""
-        # Map stat types to their costs based on the provided table
-        stat_cost_map = {
-            "stat_willpower": (3, 5),
-            "stat_intelligence": (3, 5),
-            "stat_leadership": (4, 10),
-            "stat_cool": (4, 10),
-            "stat_initiative": (5, 10),
-            "stat_movement": (5, 10),
-            "stat_weapon_skill": (6, 20),
-            "stat_ballistic_skill": (6, 20),
-            "stat_strength": (8, 30),
-            "stat_toughness": (8, 30),
-            "stat_wounds": (12, 45),
-            "stat_attacks": (12, 45),
-        }
+        # Use existing ADVANCEMENT_CONFIGS if the stat is already defined there
+        if stat_key in self.ADVANCEMENT_CONFIGS:
+            return self.ADVANCEMENT_CONFIGS[stat_key]
 
-        xp_cost, cost_increase = stat_cost_map.get(stat_key, (6, 20))
+        # Otherwise create a default stat config
         stat_name = stat_key.replace("stat_", "").replace("_", " ").title()
-
         return AdvancementConfig(
             name=stat_key,
             display_name=stat_name,
-            xp_cost=xp_cost,
-            cost_increase=cost_increase,
+            xp_cost=6,  # Default values for stats not in the main config
+            cost_increase=20,
         )
 
     def _create_equipment_config(
@@ -457,11 +462,10 @@ class AdvancementTypeForm(forms.Form):
         """Get the AdvancementConfig for a given choice."""
         return cls.ADVANCEMENT_CONFIGS.get(advancement_choice)
 
-    @classmethod
-    def get_all_configs_json(cls) -> dict:
+    def get_all_configs_json(self) -> dict:
         """Get all advancement configs as JSON-serializable dict."""
         configs = {}
-        for key, config in cls.ADVANCEMENT_CONFIGS.items():
+        for key, config in self.advancement_configs.items():
             configs[key] = {
                 "name": config.name,
                 "display_name": config.display_name,
