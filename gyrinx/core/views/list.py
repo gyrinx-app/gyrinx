@@ -4099,7 +4099,7 @@ class AdvancementFlowParams(AdvancementBaseParams):
     @classmethod
     def validate_advancement_choice(cls, value: str) -> str:
         if value not in AdvancementTypeForm.all_advancement_choices().keys():
-            raise ValidationError("Invalid advancement type choice.")
+            raise ValueError("Invalid advancement type choice.")
         return value
 
     def is_stat_advancement(self) -> bool:
