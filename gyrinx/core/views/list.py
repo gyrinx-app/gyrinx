@@ -1,3 +1,4 @@
+import json
 import random
 import uuid
 from typing import Literal, Optional
@@ -80,7 +81,7 @@ from gyrinx.core.utils import (
     safe_redirect,
 )
 from gyrinx.core.views import make_query_params_str
-from gyrinx.models import QuerySetOf, is_int, is_valid_uuid
+from gyrinx.models import FighterCategoryChoices, QuerySetOf, is_int, is_valid_uuid
 
 
 class ListsListView(generic.ListView):
@@ -3904,6 +3905,11 @@ class ListCampaignClonesView(generic.DetailView):
 
 
 # Fighter Advancement Views
+def can_fighter_roll_dice_for_advancement(fighter):
+    """Check if a fighter can roll dice for advancement (only GANGERs can)."""
+    return fighter.get_category() == FighterCategoryChoices.GANGER.value
+
+
 @login_required
 def list_fighter_advancements(request, id, fighter_id):
     """
@@ -3987,6 +3993,11 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         return HttpResponseRedirect(url)
 
+    # Check if fighter can roll dice for advancement
+    if not can_fighter_roll_dice_for_advancement(fighter):
+        url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        return HttpResponseRedirect(url)
+
     if request.method == "POST":
         form = AdvancementDiceChoiceForm(request.POST)
         if form.is_valid():
@@ -4040,6 +4051,8 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
             "form": form,
             "fighter": fighter,
             "list": lst,
+            "can_roll_dice": can_fighter_roll_dice_for_advancement(fighter),
+            "fighter_category": fighter.get_category_label(),
         },
     )
 
@@ -4321,6 +4334,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "steps": 3 if is_campaign_mode else 2,
             "current_step": 2 if is_campaign_mode else 1,
             "progress": 66 if is_campaign_mode else 50,
+            "advancement_configs_json": json.dumps(form.get_all_configs_json()),
         },
     )
 
