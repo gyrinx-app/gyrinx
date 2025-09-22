@@ -2,7 +2,7 @@ asgiref==3.9.1
 bandit==1.8.6
 beautifulsoup4==4.13.5
 bleach==6.2.0
-click==8.2.1
+click==8.3.0
 daphne==4.2.1
 Django==5.2.6
 django-allauth==65.11.2
@@ -16,7 +16,7 @@ django-simple-history==3.10.1
 django-storages[google]==1.14.6
 django-tinymce==4.1.0
 djlint==1.36.4
-docutils==0.22
+docutils==0.22.2
 fido2==2.0.0
 google-cloud-logging==3.12.1
 google-cloud-sqlcommenter==2.0.0
@@ -30,7 +30,7 @@ pre-commit==4.3.0
 psycopg2-binary==2.9.10
 pydantic==2.11.9
 pydot==4.0.1
-pyparsing==3.2.4
+pyparsing==3.2.5
 pytest==8.4.2
 pytest-django==4.11.1
 pytest-watcher==0.4.3
@@ -39,8 +39,8 @@ python-dotenv==1.1.1
 qrcode==8.2
 referencing==0.36.2
 rich==14.1.0
-ruff==0.13.0
+ruff==0.13.1
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.3
-whitenoise==6.10.0
+whitenoise==6.11.0
