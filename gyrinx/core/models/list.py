@@ -3876,6 +3876,13 @@ class ListFighterAdvancement(AppBase):
         help_text="The type of advancement purchased.",
     )
 
+    advancement_choice = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="The option selected in the advancement form",
+    )
+
     # For stat advancements
     stat_increased = models.CharField(
         max_length=20,
@@ -4009,6 +4016,21 @@ class ListFighterAdvancement(AppBase):
             # For "other" advancements, nothing specific to apply
             # The description is just stored for display purposes
             pass
+
+        # If this is a promotion, use the category override to set the fighter's category
+        if (
+            self.advancement_choice
+            and self.advancement_choice == "skill_promote_specialist"
+        ):
+            self.fighter.category_override = FighterCategoryChoices.SPECIALIST
+            self.fighter.save()
+
+        if (
+            self.advancement_choice
+            and self.advancement_choice == "skill_promote_champion"
+        ):
+            self.fighter.category_override = FighterCategoryChoices.CHAMPION
+            self.fighter.save()
 
         # Deduct XP cost from fighter
         self.fighter.xp_current -= self.xp_cost

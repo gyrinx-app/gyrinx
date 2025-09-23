@@ -3989,6 +3989,8 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    # TODO: This should be removed once ListActions are implemented, so that dice-rolls for advancements
+    # are possible even outside of campaign mode.
     if lst.status != List.CAMPAIGN_MODE:
         url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         return HttpResponseRedirect(url)
@@ -4187,6 +4189,15 @@ class AdvancementFlowParams(AdvancementBaseParams):
             "skill_secondary_random",
             "skill_promote_specialist",
             "skill_any_random",
+        ]
+
+    def is_promote_advancement(self) -> bool:
+        """
+        Check if this is a specialist promotion advancement.
+        """
+        return self.advancement_choice in [
+            "skill_promote_specialist",
+            "skill_promote_champion",
         ]
 
     def skill_category_from_choice(self) -> Literal["primary", "secondary", "any"]:
@@ -4407,6 +4418,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     xp_cost=params.xp_cost,
                     cost_increase=params.cost_increase,
                     stat_increased=stat,
+                    advancement_choice=params.advancement_choice,
                 )
                 outcome = f"Improved {stat_desc}"
             elif params.is_other_advancement():
@@ -4416,6 +4428,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     xp_cost=params.xp_cost,
                     cost_increase=params.cost_increase,
                     description=stat_desc,
+                    advancement_choice=params.advancement_choice,
                 )
                 outcome = f"Gained {stat_desc}"
             elif is_random_equipment:
@@ -4447,6 +4460,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                         xp_cost=params.xp_cost,
                         cost_increase=params.cost_increase,
                         description=f"Random {equipment_advancement.name}: {selected_assignment}",
+                        advancement_choice=params.advancement_choice,
                     )
                     outcome = f"Gained {selected_assignment}"
                 except (ValueError, ContentAdvancementEquipment.DoesNotExist) as e:
@@ -4565,9 +4579,13 @@ def apply_skill_advancement(
             xp_cost=params.xp_cost,
             cost_increase=params.cost_increase,
             skill=skill,
+            advancement_choice=params.advancement_choice,
         )
 
         outcome = f"Gained {skill.name} skill"
+
+        if params.is_promote_advancement():
+            outcome += " and was promoted"
 
         if params.campaign_action_id:
             # Add outcome to campaign action if exists

@@ -58,7 +58,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=3,
             cost_increase=5,
             roll=8,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_intelligence": AdvancementConfig(
             name="stat_intelligence",
@@ -66,7 +65,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=3,
             cost_increase=5,
             roll=9,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_leadership": AdvancementConfig(
             name="stat_leadership",
@@ -74,7 +72,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=4,
             cost_increase=10,
             roll=10,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_cool": AdvancementConfig(
             name="stat_cool",
@@ -82,7 +79,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=4,
             cost_increase=10,
             roll=11,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_initiative": AdvancementConfig(
             name="stat_initiative",
@@ -96,7 +92,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=5,
             cost_increase=10,
             roll=7,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_weapon_skill": AdvancementConfig(
             name="stat_weapon_skill",
@@ -104,7 +99,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=3,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_ballistic_skill": AdvancementConfig(
             name="stat_ballistic_skill",
@@ -112,7 +106,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=6,
             cost_increase=20,
             roll=4,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_strength": AdvancementConfig(
             name="stat_strength",
@@ -120,7 +113,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=8,
             cost_increase=30,
             roll=5,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_toughness": AdvancementConfig(
             name="stat_toughness",
@@ -128,7 +120,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=8,
             cost_increase=30,
             roll=6,
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
         ),
         "stat_wounds": AdvancementConfig(
             name="stat_wounds",
