@@ -10,25 +10,30 @@
 {% endcomment %}
 {% comment %} Stats {% endcomment %}
 <table class="table table-sm table-borderless table-fixed mb-0">
+    {% comment %} Statline {% endcomment %}
     <thead>
         <tr>
             {% for stat in fighter.statline %}
-                <th class="text-center border-bottom fs-7 {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                <th class="text-center border-bottom {% if print %}fs-5{% else %}fs-7{% endif %} {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
                     scope="col">{{ stat.name }}</th>
             {% endfor %}
         </tr>
     </thead>
     <tbody>
-        <tr class="table-nowrap">{% include "core/includes/list_fighter_statline.html" with fighter=fighter %}</tr>
+        <tr class="table-nowrap">{% include "core/includes/list_fighter_statline.html" with fighter=fighter print=print %}</tr>
     </tbody>
+    {% comment %} Details {% endcomment %}
     <tbody class="table-group-divider">
+        {% comment %} Rules {% endcomment %}
         {% if fighter.ruleline|length > 0 %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Rules</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% spaceless %}
                         {# djlint:off #}
-                            {% for rule in fighter.ruleline %}<span>{% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>, </span>{% endif %}</span>{% endfor %}
+                        {% for rule in fighter.ruleline %}
+                            {% include "core/includes/rule.html" with rule=rule %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                        {% endfor %}
                         {# djlint:on #}
                     {% endspaceless %}
                     {% if not print %}
@@ -50,7 +55,7 @@
                 </td>
             </tr>
         {% endif %}
-        {% comment %} XP{% endcomment %}
+        {% comment %} XP {% endcomment %}
         {% if not fighter.is_vehicle and not print %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
@@ -68,6 +73,7 @@
                 </td>
             </tr>
         {% endif %}
+        {% comment %} Skills {% endcomment %}
         {% if not fighter.content_fighter.hide_skills %}
             {% if fighter.skilline_cached|length > 0 %}
                 <tr class="fs-7">
@@ -104,6 +110,7 @@
                 </tr>
             {% endif %}
         {% endif %}
+        {% comment %} Psychic powers {% endcomment %}
         {% if fighter.is_psyker %}
             {% if fighter.powers_cached|length > 0 %}
                 <tr class="fs-7">
@@ -136,6 +143,7 @@
                 </tr>
             {% endif %}
         {% endif %}
+        {% comment %} Gear {% endcomment %}
         {% if not fighter.content_fighter.hide_house_restricted_gear and fighter.has_house_additional_gear %}
             {% for line in fighter.house_additional_gearline_display %}
                 {% if line.assignments|length > 0 or not print %}
