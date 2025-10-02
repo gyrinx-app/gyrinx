@@ -2049,15 +2049,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             # Common items should always be visible
             equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
 
-        # Apply maximum cost filter if provided
-        mc = (
-            int(request.GET.get("mc"))
-            if request.GET.get("mc") and is_int(request.GET.get("mc"))
-            else None
-        )
-        if mc is not None:
-            equipment = equipment.filter(cost_for_fighter__lte=mc)
+    # Apply maximum cost filter if provided (works in both filter modes)
+    mc = (
+        int(request.GET.get("mc"))
+        if request.GET.get("mc") and is_int(request.GET.get("mc"))
+        else None
+    )
+    if mc is not None:
+        equipment = equipment.filter(cost_for_fighter__lte=mc)
 
+    # If house has can_buy_any, also include equipment from equipment list (only in trading post mode)
+    if not is_equipment_list:
         # If house has can_buy_any, also include equipment from equipment list
         if house_can_buy_any:
             # Combine equipment and equipment_list_items using a single filter with Q
