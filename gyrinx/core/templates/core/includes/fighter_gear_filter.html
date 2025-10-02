@@ -191,6 +191,50 @@
                 </div>
             </div>
         </div>
+        <div class="btn-group">
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    data-bs-auto-close="outside">Cost</button>
+            <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                <div>
+                    <label for="mc" class="form-label">Maximum Cost</label>
+                    <div class="row gx-2 align-items-center">
+                        <div class="col-3">
+                            <input type="number"
+                                   form="search"
+                                   class="form-control fs-7"
+                                   id="mc-value"
+                                   name="mc"
+                                   data-gy-sync="mc-value"
+                                   value="{{ request.GET.mc }}"
+                                   min="0"
+                                   max="500">
+                        </div>
+                        <div class="col-9">
+                            <input type="range"
+                                   class="form-range"
+                                   data-gy-sync="mc-value"
+                                   form="search"
+                                   step="5"
+                                   min="0"
+                                   max="500"
+                                   id="mc">
+                        </div>
+                    </div>
+                    <div class="btn-group align-items-center">
+                        <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                            <i class="bi-arrow-clockwise"></i>
+                            Update
+                        </button>
+                        •
+                        <a class="btn btn-link text-secondary icon-link btn-sm"
+                           href="?cb={% cachebuster %}&{% qt_rm request "mc" %}#search">Reset</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <div class="form-check form-switch mb-0">
         <!-- Hidden value is overridden if filter-switch is checked, but otherwise is used -->

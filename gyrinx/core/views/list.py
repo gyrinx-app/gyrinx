@@ -1897,11 +1897,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     if mal:
                         qd["mal"] = mal
 
+                    mc = request.GET.get("mc")
+                    if mc:
+                        qd["mc"] = mc
+
                     query_params = qd.urlencode()
                 else:
                     # No lists, use simple approach
                     if request.GET.get("mal"):
                         query_dict["mal"] = request.GET.get("mal")
+                    if request.GET.get("mc"):
+                        query_dict["mc"] = request.GET.get("mc")
                     query_params = make_query_params_str(**query_dict)
                 return HttpResponseRedirect(
                     reverse(view_name, args=(lst.id, fighter.id))
@@ -2043,6 +2049,15 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             # Common items should always be visible
             equipment = equipment.filter(Q(rarity="C") | Q(rarity_roll__lte=mal))
 
+        # Apply maximum cost filter if provided
+        mc = (
+            int(request.GET.get("mc"))
+            if request.GET.get("mc") and is_int(request.GET.get("mc"))
+            else None
+        )
+        if mc is not None:
+            equipment = equipment.filter(cost_for_fighter__lte=mc)
+
         # If house has can_buy_any, also include equipment from equipment list
         if house_can_buy_any:
             # Combine equipment and equipment_list_items using a single filter with Q
@@ -2060,6 +2075,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
                     fighter.equipment_list_fighter, expansion_inputs
                 )
+
+            # Re-apply cost filter after re-annotation
+            if mc is not None:
+                equipment = equipment.filter(cost_for_fighter__lte=mc)
 
     # Create assignment objects
     assigns = []
