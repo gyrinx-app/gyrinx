@@ -448,7 +448,10 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
         f'href="{reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])}"'
         in content
     )
-    assert "Edit XP" in content
+    assert (
+        'href="/list/{}/fighter/{}/xp/edit">Edit</a>'.format(list_obj.id, fighter.id)
+        in content
+    )
 
 
 @pytest.mark.django_db
@@ -481,7 +484,7 @@ def test_fighter_card_shows_xp_in_basic_mode():
         content_house=house,
         status=List.LIST_BUILDING,  # Basic mode
     )
-    ListFighter.objects.create(
+    fighter = ListFighter.objects.create(
         list=list_obj,
         content_fighter=content_fighter,
         name="Fighter",
@@ -500,7 +503,10 @@ def test_fighter_card_shows_xp_in_basic_mode():
     content = response.content.decode()
     # Check XP IS displayed (changed to match new behavior)
     assert "10 XP" in content
-    assert "Edit XP" in content
+    assert (
+        'href="/list/{}/fighter/{}/xp/edit">Edit</a>'.format(list_obj.id, fighter.id)
+        in content
+    )
 
 
 @pytest.mark.django_db
