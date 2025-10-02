@@ -55,7 +55,13 @@
                     </div>
                 </div>
             {% empty %}
-                <div class="py-2">No lists available.</div>
+                <div class="py-2">
+                    {% if request.GET.archived == "1" %}
+                        No archived lists found. Note: You can only view your own archived lists.
+                    {% else %}
+                        No lists available.
+                    {% endif %}
+                </div>
             {% endfor %}
             {% if is_paginated %}
                 <nav aria-label="Page navigation">
