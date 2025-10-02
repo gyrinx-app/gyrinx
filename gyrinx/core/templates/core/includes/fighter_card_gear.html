@@ -72,7 +72,7 @@
                                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Edit</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
@@ -104,7 +104,7 @@
                                                 {% endif %}
                                             {% else %}
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&al=E&cat={{ line.id }}#search">Edit</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
@@ -153,7 +153,7 @@
                                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Edit</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
@@ -185,7 +185,7 @@
                                                 {% endif %}
                                             {% else %}
                                                 {% if gear_mode_default == "link" %}
-                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add {{ line.category }}</a>
+                                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Edit</a>
                                                 {% else %}
                                                     <span class="text-secondary">None</span>
                                                 {% endif %}
@@ -259,7 +259,7 @@
                                 {% if not print and gear_mode_default == "link" %}
                                     {% if list.owner_cached == user %}
                                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}"
-                                           class="d-inline-block">Edit gear</a>
+                                           class="d-inline-block">Edit</a>
                                     {% endif %}
                                 {% endif %}
                             </td>
@@ -271,7 +271,7 @@
                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Gear</th>
                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                 {% if gear_mode_default == "link" %}
-                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add gear</a>
+                                    <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit</a>
                                 {% else %}
                                     <span class="text-secondary">{{ fighter.proximal_demonstrative }} has no gear.</span>
                                 {% endif %}
@@ -290,7 +290,7 @@
         <div class="card-footer p-2 fs-7">
             {% if list.owner_cached == user and not print %}
                 <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
-                   class="fw-normal">Edit weapons</a>
+                   class="fw-normal">Edit</a>
             {% endif %}
         </div>
     {% endif %}
