@@ -128,8 +128,12 @@ class ListsListView(generic.ListView):
         # Apply archived filter (default off)
         show_archived = self.request.GET.get("archived", "0")
         if show_archived == "1":
-            # Show ONLY archived lists
-            queryset = queryset.filter(archived=True)
+            # Show ONLY archived lists that belong to the current user
+            if self.request.user.is_authenticated:
+                queryset = queryset.filter(archived=True, owner=self.request.user)
+            else:
+                # Non-authenticated users cannot see archived lists
+                queryset = queryset.none()
         else:
             # Show only non-archived lists by default
             queryset = queryset.filter(archived=False)
