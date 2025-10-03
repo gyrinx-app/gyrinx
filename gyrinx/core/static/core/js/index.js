@@ -210,13 +210,16 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
 
     if (targets.length === 0) return;
 
-    element.addEventListener("change", (event) => {
+    const dispatch = (event) => {
         targets.forEach((target) => {
             if (target.value !== event.target.value) {
                 target.value = event.target.value;
             }
         });
-    });
+    };
+
+    element.addEventListener("change", dispatch);
+    element.addEventListener("input", dispatch);
 });
 
 // Equipment list filter toggle functionality
