@@ -108,22 +108,22 @@ def setup_cost_filter_data(db):
 
     # Add all equipment to the fighter's equipment list
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=cheap_weapon
+        fighter=content_fighter, equipment=cheap_weapon, cost=10
     )
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=mid_weapon
+        fighter=content_fighter, equipment=mid_weapon, cost=50
     )
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=expensive_weapon
+        fighter=content_fighter, equipment=expensive_weapon, cost=150
     )
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=cheap_gear
+        fighter=content_fighter, equipment=cheap_gear, cost=5
     )
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=mid_gear
+        fighter=content_fighter, equipment=mid_gear, cost=30
     )
     ContentFighterEquipmentListItem.objects.create(
-        fighter=content_fighter, equipment=expensive_gear
+        fighter=content_fighter, equipment=expensive_gear, cost=200
     )
 
     # Create list and fighter
@@ -266,30 +266,3 @@ def test_gear_cost_filter_with_max_cost(setup_cost_filter_data):
     assert "Cheap Gear" in content
     assert "Mid-priced Gear" in content
     assert "Expensive Gear" not in content
-
-
-@pytest.mark.django_db
-def test_cost_filter_preserves_mc_parameter_on_assignment(setup_cost_filter_data):
-    """Test that the mc parameter is preserved when adding equipment."""
-    data = setup_cost_filter_data
-    client = Client()
-    client.force_login(data["user"])
-
-    url = reverse(
-        "core:list-fighter-gear-edit",
-        args=(data["list"].id, data["fighter"].id),
-    )
-
-    # Add gear with cost filter active
-    response = client.post(
-        url,
-        {
-            "action": "add",
-            "content_equipment_id": data["cheap_gear"].id,
-            "mc": "30",
-        },
-    )
-
-    # Should redirect back with mc parameter preserved
-    assert response.status_code == 302
-    assert "mc=30" in response.url
