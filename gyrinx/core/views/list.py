@@ -2058,29 +2058,27 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     if mc is not None:
         equipment = equipment.filter(cost_for_fighter__lte=mc)
 
-    # If house has can_buy_any, also include equipment from equipment list (only in trading post mode)
-    if not is_equipment_list:
-        # If house has can_buy_any, also include equipment from equipment list
-        if house_can_buy_any:
-            # Combine equipment and equipment_list_items using a single filter with Q
-            combined_equipment_qs = ContentEquipment.objects.filter(
-                Q(id__in=equipment.values("id")) | Q(id__in=equipment_list_ids)
+    # If house has can_buy_any, also include equipment from equipment list
+    if house_can_buy_any:
+        # Combine equipment and equipment_list_items using a single filter with Q
+        combined_equipment_qs = ContentEquipment.objects.filter(
+            Q(id__in=equipment.values("id")) | Q(id__in=equipment_list_ids)
+        )
+
+        if is_weapon:
+            equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
+            ).with_expansion_profiles_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
+            )
+        else:
+            equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
             )
 
-            if is_weapon:
-                equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
-                    fighter.equipment_list_fighter, expansion_inputs
-                ).with_expansion_profiles_for_fighter(
-                    fighter.equipment_list_fighter, expansion_inputs
-                )
-            else:
-                equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
-                    fighter.equipment_list_fighter, expansion_inputs
-                )
-
-            # Re-apply cost filter after re-annotation
-            if mc is not None:
-                equipment = equipment.filter(cost_for_fighter__lte=mc)
+        # Re-apply cost filter after re-annotation
+        if mc is not None:
+            equipment = equipment.filter(cost_for_fighter__lte=mc)
 
     # Create assignment objects
     assigns = []

@@ -161,9 +161,6 @@ def test_weapon_cost_filter_no_filter(setup_cost_filter_data):
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Write to file for debugging
-    with open("/tmp/test_output.html", "w") as f:
-        f.write(content)
 
     # Check if we have equipment at all
     has_equipment_section = "Test Weapons" in content or "equipment" in content.lower()
