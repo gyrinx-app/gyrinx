@@ -39,20 +39,34 @@
             </table>
             {% if list.fighter_type_summary %}
                 <table class="table table-borderless table-sm mb-0 fs-7">
-                    <tbody>
+                    <thead>
                         <tr>
                             <th class="text-secondary-emphasis">Fighter Types</th>
-                            <th class="text-end text-secondary">Total</th>
-                            <th class="text-secondary">{{ list.active_fighters|length }}</th>
+                            <th class="text-secondary-emphasis">
+                                <span class="visually-hidden">Category</span>
+                            </th>
+                            <th class="text-secondary-emphasis text-end">
+                                <span class="visually-hidden">Count</span> #
+                            </th>
                         </tr>
+                    </thead>
+                    <tbody>
                         {% for item in list.fighter_type_summary %}
                             <tr>
                                 <td>{{ item.type }}</td>
                                 <td class="text-secondary">{{ item.category }}</td>
-                                <td>{{ item.count }}</td>
+                                <td class="text-end">{{ item.count }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" scope="row">
+                                <span class="visually-hidden"># of Active Fighters</span>
+                            </th>
+                            <td class="text-secondary text-end border-top fw-bold">{{ list.active_fighters|length }}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             {% endif %}
         {% else %}
