@@ -1,6 +1,6 @@
 import logging
 import uuid
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -397,30 +397,32 @@ class List(AppBase):
         """
         Returns a summary of fighter types and their counts for active fighters.
 
-        Performance: This uses the prefetched listfighter_set data from with_related_data,
+        Performance: This must use prefetched listfighter_set data from with_related_data,
         so it doesn't issue any additional queries.
 
         Returns:
-            List of dicts with 'type' and 'count' keys, sorted by type name.
+            List of dicts with 'type', 'category' and 'count' keys.
         """
-        from gyrinx.models import FighterCategoryChoices
 
-        # Group fighters by category using in-memory grouping
-        type_counts = defaultdict(int)
+        # Use OrderedDict to maintain the order fighters are encountered
+        type_counts = OrderedDict()
 
         # Iterate over prefetched listfighter_set and filter in memory to avoid queries
-        for fighter in self.listfighter_set.all():
-            # Skip archived fighters and stash fighters
-            if fighter.archived or fighter.is_stash:
-                continue
+        active_fighters = [
+            f
+            for f in self.listfighter_set.all()
+            if not f.archived and not f.content_fighter.is_stash
+        ]
+        for fighter in active_fighters:
+            # We use a compound key of (type, category) to differentiate types with same name but different categories,
+            # and so we can extract both later for the output.
+            fighter_type = (fighter.content_fighter.type, fighter.get_category_label())
+            type_counts[fighter_type] = type_counts.get(fighter_type, 0) + 1
 
-            category = fighter.get_category()
-            type_counts[category] += 1
-
-        # Convert to sorted list of dicts for template use, using category labels
+        # Convert to the expected format while preserving order
         summary = [
-            {"type": FighterCategoryChoices[category].label, "count": count}
-            for category, count in sorted(type_counts.items())
+            {"type": fighter_type, "category": category, "count": count}
+            for (fighter_type, category), count in type_counts.items()
         ]
 
         return summary
