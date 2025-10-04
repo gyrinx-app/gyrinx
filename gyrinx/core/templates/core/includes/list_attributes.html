@@ -35,20 +35,40 @@
                             {% endif %}
                         </tr>
                     {% endfor %}
-                    {% if list.fighter_type_summary %}
+                </tbody>
+            </table>
+            {% if list.fighter_type_summary %}
+                <table class="table table-borderless table-sm mb-0 fs-7">
+                    <thead>
                         <tr>
-                            <th colspan="{% if print %}2{% else %}3{% endif %}"
-                                class="text-secondary-emphasis">Fighter Types</th>
+                            <th class="text-secondary-emphasis">Fighter Types</th>
+                            <th class="text-secondary-emphasis">
+                                <span class="visually-hidden">Category</span>
+                            </th>
+                            <th class="text-secondary-emphasis text-end">
+                                <span class="visually-hidden">Count</span> #
+                            </th>
                         </tr>
+                    </thead>
+                    <tbody>
                         {% for item in list.fighter_type_summary %}
                             <tr>
                                 <td>{{ item.type }}</td>
-                                <td {% if not print %}colspan="2"{% endif %}>{{ item.count }}</td>
+                                <td class="text-secondary">{{ item.category }}</td>
+                                <td class="text-end">{{ item.count }}</td>
                             </tr>
                         {% endfor %}
-                    {% endif %}
-                </tbody>
-            </table>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" scope="row">
+                                <span class="visually-hidden"># of Active Fighters</span>
+                            </th>
+                            <td class="text-secondary text-end border-top fw-bold">{{ list.active_fighters|length }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            {% endif %}
         {% else %}
             <p class="text-muted fs-7 mb-0">No attributes available.</p>
         {% endif %}
