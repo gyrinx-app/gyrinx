@@ -2201,3 +2201,157 @@ def test_wealth_breakdown_display(
     assert lst.credits_current_display == "1500¢"
     assert lst.cost_int() == 1600
     assert lst.cost_display() == "1600¢"
+
+
+@pytest.mark.django_db
+def test_fighter_type_summary_no_additional_queries(user, content_house):
+    """Test that fighter_type_summary doesn't issue additional queries when using with_related_data."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    # Create a list
+    lst = List.objects.create(
+        name="Test List",
+        content_house=content_house,
+        owner=user,
+    )
+
+    # Create multiple fighters of different categories
+    leader_template = ContentFighter.objects.create(
+        type="Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=100,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Gang Leader",
+        content_fighter=leader_template,
+        owner=user,
+    )
+
+    ganger_template = ContentFighter.objects.create(
+        type="Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Ganger 1",
+        content_fighter=ganger_template,
+        owner=user,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Ganger 2",
+        content_fighter=ganger_template,
+        owner=user,
+    )
+
+    juve_template = ContentFighter.objects.create(
+        type="Juve",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=25,
+    )
+    juve_fighter = ListFighter.objects.create(
+        list=lst,
+        name="Juve 1",
+        content_fighter=juve_template,
+        owner=user,
+    )
+
+    # Create a stash fighter (should be excluded from summary)
+    stash_template = ContentFighter.objects.create(
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        house=content_house,
+        is_stash=True,
+        base_cost=0,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Stash",
+        content_fighter=stash_template,
+        owner=user,
+    )
+
+    # Archive a fighter (should be excluded from summary)
+    juve_fighter.archived = True
+    juve_fighter.save()
+
+    # Fetch the list with related data (as the view does)
+    with CaptureQueriesContext(connection) as context:
+        lst = List.objects.with_related_data(with_fighters=True).get(id=lst.id)
+        query_count_after_fetch = len(context.captured_queries)
+
+        # Access fighter_type_summary - should not issue additional queries
+        summary = lst.fighter_type_summary
+        query_count_after_summary = len(context.captured_queries)
+
+    # Verify no additional queries were issued when accessing fighter_type_summary
+    additional_queries = query_count_after_summary - query_count_after_fetch
+    assert additional_queries == 0, (
+        f"Expected 0 additional queries after fetching list, but got {additional_queries}. "
+        f"Total queries: {query_count_after_summary}, queries after fetch: {query_count_after_fetch}"
+    )
+
+    # Verify the summary is correct
+    assert len(summary) == 2  # Only leader and ganger (juve archived, stash excluded)
+
+    # Convert to dict for easier testing
+    summary_dict = {item["type"]: item["count"] for item in summary}
+
+    assert summary_dict[FighterCategoryChoices.LEADER.label] == 1
+    assert summary_dict[FighterCategoryChoices.GANGER.label] == 2
+    assert FighterCategoryChoices.JUVE.label not in summary_dict  # Archived
+    assert FighterCategoryChoices.STASH.label not in summary_dict  # Excluded
+
+
+@pytest.mark.django_db
+def test_fighter_type_summary_with_category_override(user, content_house):
+    """Test that fighter_type_summary respects category overrides."""
+    # Create a list
+    lst = List.objects.create(
+        name="Test List",
+        content_house=content_house,
+        owner=user,
+    )
+
+    # Create a ganger fighter
+    ganger_template = ContentFighter.objects.create(
+        type="Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+
+    # Create two fighters from the same template
+    ListFighter.objects.create(
+        list=lst,
+        name="Regular Ganger",
+        content_fighter=ganger_template,
+        owner=user,
+    )
+
+    # Create a ganger with category override to champion
+    ListFighter.objects.create(
+        list=lst,
+        name="Promoted Champion",
+        content_fighter=ganger_template,
+        category_override=FighterCategoryChoices.CHAMPION,
+        owner=user,
+    )
+
+    # Fetch the list with related data
+    lst = List.objects.with_related_data(with_fighters=True).get(id=lst.id)
+
+    summary = lst.fighter_type_summary
+
+    # Should have both ganger and champion
+    assert len(summary) == 2
+
+    summary_dict = {item["type"]: item["count"] for item in summary}
+    assert summary_dict[FighterCategoryChoices.GANGER.label] == 1
+    assert summary_dict[FighterCategoryChoices.CHAMPION.label] == 1

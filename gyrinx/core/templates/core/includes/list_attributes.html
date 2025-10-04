@@ -35,6 +35,18 @@
                             {% endif %}
                         </tr>
                     {% endfor %}
+                    {% if list.fighter_type_summary %}
+                        <tr>
+                            <th colspan="{% if print %}2{% else %}3{% endif %}"
+                                class="text-secondary-emphasis">Fighter Types</th>
+                        </tr>
+                        {% for item in list.fighter_type_summary %}
+                            <tr>
+                                <td>{{ item.type }}</td>
+                                <td {% if not print %}colspan="2"{% endif %}>{{ item.count }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         {% else %}
