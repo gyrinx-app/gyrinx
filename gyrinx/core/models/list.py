@@ -392,6 +392,39 @@ class List(AppBase):
 
         return attributes
 
+    @cached_property
+    def fighter_type_summary(self):
+        """
+        Returns a summary of fighter types and their counts for active fighters.
+
+        Performance: This uses the prefetched listfighter_set data from with_related_data,
+        so it doesn't issue any additional queries.
+
+        Returns:
+            List of dicts with 'type' and 'count' keys, sorted by type name.
+        """
+        from gyrinx.models import FighterCategoryChoices
+
+        # Group fighters by category using in-memory grouping
+        type_counts = defaultdict(int)
+
+        # Iterate over prefetched listfighter_set and filter in memory to avoid queries
+        for fighter in self.listfighter_set.all():
+            # Skip archived fighters and stash fighters
+            if fighter.archived or fighter.is_stash:
+                continue
+
+            category = fighter.get_category()
+            type_counts[category] += 1
+
+        # Convert to sorted list of dicts for template use, using category labels
+        summary = [
+            {"type": FighterCategoryChoices[category].label, "count": count}
+            for category, count in sorted(type_counts.items())
+        ]
+
+        return summary
+
     def cost_cache_key(self):
         return f"list_cost_{self.id}"
 
