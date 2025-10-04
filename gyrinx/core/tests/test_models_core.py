@@ -2218,7 +2218,7 @@ def test_fighter_type_summary_no_additional_queries(user, content_house):
 
     # Create multiple fighters of different categories
     leader_template = ContentFighter.objects.create(
-        type="Leader",
+        type="Example Leader",
         category=FighterCategoryChoices.LEADER,
         house=content_house,
         base_cost=100,
@@ -2231,7 +2231,7 @@ def test_fighter_type_summary_no_additional_queries(user, content_house):
     )
 
     ganger_template = ContentFighter.objects.create(
-        type="Ganger",
+        type="Example Ganger",
         category=FighterCategoryChoices.GANGER,
         house=content_house,
         base_cost=50,
@@ -2250,7 +2250,7 @@ def test_fighter_type_summary_no_additional_queries(user, content_house):
     )
 
     juve_template = ContentFighter.objects.create(
-        type="Juve",
+        type="Example Juve",
         category=FighterCategoryChoices.JUVE,
         house=content_house,
         base_cost=25,
@@ -2301,12 +2301,19 @@ def test_fighter_type_summary_no_additional_queries(user, content_house):
     assert len(summary) == 2  # Only leader and ganger (juve archived, stash excluded)
 
     # Convert to dict for easier testing
-    summary_dict = {item["type"]: item["count"] for item in summary}
+    summary_dict = {(item["type"], item["category"]): item["count"] for item in summary}
 
-    assert summary_dict[FighterCategoryChoices.LEADER.label] == 1
-    assert summary_dict[FighterCategoryChoices.GANGER.label] == 2
-    assert FighterCategoryChoices.JUVE.label not in summary_dict  # Archived
-    assert FighterCategoryChoices.STASH.label not in summary_dict  # Excluded
+    assert (
+        summary_dict[(leader_template.type, FighterCategoryChoices.LEADER.label)] == 1
+    )
+    assert (
+        summary_dict[(ganger_template.type, FighterCategoryChoices.GANGER.label)] == 2
+    )
+    assert (
+        juve_template.type,
+        FighterCategoryChoices.JUVE.label,
+    ) not in summary_dict  # Archived
+    assert ("Stash", FighterCategoryChoices.STASH.label) not in summary_dict  # Excluded
 
 
 @pytest.mark.django_db
@@ -2321,7 +2328,7 @@ def test_fighter_type_summary_with_category_override(user, content_house):
 
     # Create a ganger fighter
     ganger_template = ContentFighter.objects.create(
-        type="Ganger",
+        type="Example Ganger",
         category=FighterCategoryChoices.GANGER,
         house=content_house,
         base_cost=50,
@@ -2352,6 +2359,10 @@ def test_fighter_type_summary_with_category_override(user, content_house):
     # Should have both ganger and champion
     assert len(summary) == 2
 
-    summary_dict = {item["type"]: item["count"] for item in summary}
-    assert summary_dict[FighterCategoryChoices.GANGER.label] == 1
-    assert summary_dict[FighterCategoryChoices.CHAMPION.label] == 1
+    summary_dict = {(item["type"], item["category"]): item["count"] for item in summary}
+    assert (
+        summary_dict[(ganger_template.type, FighterCategoryChoices.GANGER.label)] == 1
+    )
+    assert (
+        summary_dict[(ganger_template.type, FighterCategoryChoices.CHAMPION.label)] == 1
+    )

@@ -397,27 +397,27 @@ class List(AppBase):
         """
         Returns a summary of fighter types and their counts for active fighters.
 
-        Performance: This uses the prefetched listfighter_set data from with_related_data,
-        so it doesn't issue any additional queries. The order matches active_fighters.
+        Performance: This must use prefetched listfighter_set data from with_related_data,
+        so it doesn't issue any additional queries.
 
         Returns:
-            List of dicts with 'type' and 'count' keys, maintaining the order from active_fighters.
+            List of dicts with 'type', 'category' and 'count' keys.
         """
 
         # Use OrderedDict to maintain the order fighters are encountered
         type_counts = OrderedDict()
 
         # Iterate over prefetched listfighter_set and filter in memory to avoid queries
-        for fighter in self.active_fighters:
-            # Skip archived fighters and stash fighters
-            if fighter.archived or fighter.is_stash:
-                continue
-
+        active_fighters = [
+            f
+            for f in self.listfighter_set.all()
+            if not f.archived and not f.content_fighter.is_stash
+        ]
+        for fighter in active_fighters:
+            # We use a compound key of (type, category) to differentiate types with same name but different categories,
+            # and so we can extract both later for the output.
             fighter_type = (fighter.content_fighter.type, fighter.get_category_label())
-            if fighter_type in type_counts:
-                type_counts[fighter_type] += 1
-            else:
-                type_counts[fighter_type] = 1
+            type_counts[fighter_type] = type_counts.get(fighter_type, 0) + 1
 
         # Convert to the expected format while preserving order
         summary = [
