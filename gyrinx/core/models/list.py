@@ -1,6 +1,6 @@
 import logging
 import uuid
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -398,29 +398,31 @@ class List(AppBase):
         Returns a summary of fighter types and their counts for active fighters.
 
         Performance: This uses the prefetched listfighter_set data from with_related_data,
-        so it doesn't issue any additional queries.
+        so it doesn't issue any additional queries. The order matches active_fighters.
 
         Returns:
-            List of dicts with 'type' and 'count' keys, sorted by type name.
+            List of dicts with 'type' and 'count' keys, maintaining the order from active_fighters.
         """
-        from gyrinx.models import FighterCategoryChoices
 
-        # Group fighters by category using in-memory grouping
-        type_counts = defaultdict(int)
+        # Use OrderedDict to maintain the order fighters are encountered
+        type_counts = OrderedDict()
 
         # Iterate over prefetched listfighter_set and filter in memory to avoid queries
-        for fighter in self.listfighter_set.all():
+        for fighter in self.active_fighters:
             # Skip archived fighters and stash fighters
             if fighter.archived or fighter.is_stash:
                 continue
 
-            category = fighter.get_category()
-            type_counts[category] += 1
+            fighter_type = (fighter.content_fighter.type, fighter.get_category_label())
+            if fighter_type in type_counts:
+                type_counts[fighter_type] += 1
+            else:
+                type_counts[fighter_type] = 1
 
-        # Convert to sorted list of dicts for template use, using category labels
+        # Convert to the expected format while preserving order
         summary = [
-            {"type": FighterCategoryChoices[category].label, "count": count}
-            for category, count in sorted(type_counts.items())
+            {"type": fighter_type, "category": category, "count": count}
+            for (fighter_type, category), count in type_counts.items()
         ]
 
         return summary
