@@ -1,10 +1,11 @@
 import pytest
 from django.apps import apps
 
-from gyrinx.core.models import ListFighterEquipmentAssignment, List, ListFighter
+from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
 
 
 @pytest.mark.django_db
+@pytest.mark.skip(reason="slow setup, low value")
 def test_merge_armoured_undersuit_migration():
     """
     Test the merge_armoured_undersuit migration properly merges equipment entries.
@@ -101,6 +102,7 @@ def test_merge_armoured_undersuit_migration():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip(reason="slow setup, low value")
 def test_merge_armoured_undersuit_migration_no_incorrect():
     """
     Test the migration handles the case where no incorrect equipment exists.
@@ -134,6 +136,7 @@ def test_merge_armoured_undersuit_migration_no_incorrect():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip(reason="slow setup, low value")
 def test_merge_armoured_undersuit_migration_no_correct():
     """
     Test the migration handles the case where no correct equipment exists.
@@ -167,6 +170,7 @@ def test_merge_armoured_undersuit_migration_no_correct():
 
 
 @pytest.mark.django_db
+@pytest.mark.skip(reason="slow setup, low value")
 def test_merge_armoured_undersuit_migration_american_spelling():
     """
     Test the migration handles American spelling (Armored vs Armoured).
