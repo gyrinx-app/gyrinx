@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
@@ -261,6 +263,7 @@ def test_list_cost_variable(content_house, content_fighter):
 
 @pytest.mark.django_db
 @pytest.mark.with_cost_cache
+@pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") != "true", reason="CI only")
 def test_list_cost_cache(content_house, content_fighter, content_equipment_categories):
     spoon, _ = ContentEquipment.objects.get_or_create(
         name="Wooden Spoon",
@@ -1583,6 +1586,7 @@ def test_multi_equipment_upgrades(
 
 @pytest.mark.django_db
 @pytest.mark.with_cost_cache
+@pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") != "true", reason="CI only")
 def test_m2m_triggers_update_cost_cache(
     content_fighter,
     content_equipment_categories,
