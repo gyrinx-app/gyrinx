@@ -4,6 +4,7 @@
     Edit Weapon - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list=True %}
     {% url 'core:list-fighter-weapons-edit' list.id fighter.id as back_url %}
     {% include "core/includes/back.html" with url=back_url text="Back to Weapons" %}
     <div class="col-12 px-0 vstack gap-3">
