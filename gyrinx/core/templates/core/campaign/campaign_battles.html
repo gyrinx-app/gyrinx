@@ -1,0 +1,29 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags color_tags %}
+{% block head_title %}
+    Battles - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
+    <div class="col-lg-12 px-0 vstack gap-3">
+        <div class="vstack gap-0 mb-2">
+            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
+                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
+                    <h1 class="mb-0">Battles</h1>
+                </div>
+            </div>
+            <div class="text-secondary">{{ campaign.name }}</div>
+        </div>
+        {% if battles %}
+            <div class="list-group list-group-flush">
+                {% for battle in battles %}
+                    {% include "core/includes/battle_summary_card.html" %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="border rounded p-2">
+                <i class="bi-info-circle"></i> No battles have been recorded in this campaign yet.
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

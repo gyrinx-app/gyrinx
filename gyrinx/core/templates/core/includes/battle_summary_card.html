@@ -1,0 +1,22 @@
+<a href="{% url 'core:battle' battle.id %}"
+   class="list-group-item list-group-item-action px-2 px-sm-3">
+    <div class="d-flex w-100 justify-content-between">
+        <div>
+            <h6 class="mb-1">
+                <strong>{{ battle.mission }}</strong>
+                <span class="text-muted">• {{ battle.date|date:"M d, Y" }}</span>
+            </h6>
+            <p class="mb-0 text-muted small">
+                {% for participant in battle.participants.all %}
+                    {{ participant.name }}
+                    {% if participant in battle.winners.all %}<i class="bi-trophy-fill text-warning"></i>{% endif %}
+                    {% if not forloop.last %},{% endif %}
+                {% endfor %}
+            </p>
+        </div>
+        <small class="text-muted">
+            <i class="bi-file-text"></i>
+            {{ battle.notes.count }} report{{ battle.notes.count|pluralize }}
+        </small>
+    </div>
+</a>
