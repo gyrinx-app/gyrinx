@@ -6,9 +6,10 @@ third-party packages like allauth are properly logged.
 """
 
 import pytest
-from allauth.account.models import EmailAddress
+from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.account.signals import (
     email_changed,
+    email_confirmation_sent,
     email_confirmed,
     user_logged_in,
     user_signed_up,
@@ -254,3 +255,46 @@ def test_email_changed_signal_logs_event_without_from_email():
     assert event.context["from_email"] is None
     assert event.context["to_email"] == "new@example.com"
     assert event.ip_address == "192.168.1.6"
+
+
+@pytest.mark.django_db
+def test_email_confirmation_sent_signal_logs_event():
+    """Test that email confirmation sent creates an event with proper user data."""
+    user = User.objects.create_user(
+        username="testuser", email="test@example.com", password="testpass123"
+    )
+    email_address = EmailAddress.objects.create(
+        user=user,
+        email="test@example.com",
+        primary=True,
+        verified=False,
+    )
+
+    factory = RequestFactory()
+    request = factory.get("/")
+    request.session = SessionStore()
+    request.session.save()
+    request.META["REMOTE_ADDR"] = "192.168.1.7"
+    request.user = user
+
+    Event.objects.all().delete()
+
+    confirmation = EmailConfirmationHMAC.create(email_address)
+
+    email_confirmation_sent.send(
+        sender=EmailAddress,
+        request=request,
+        confirmation=confirmation,
+        signup=True,
+    )
+
+    assert Event.objects.count() == 1
+    event = Event.objects.first()
+    assert event.owner == user
+    assert event.noun == EventNoun.USER
+    assert event.verb == EventVerb.CONFIRM
+    assert event.context["email"] == "test@example.com"
+    assert event.context["signup"] is True
+    assert "confirmation_key" in event.context
+    assert isinstance(event.context["confirmation_key"], str)
+    assert event.ip_address == "192.168.1.7"
