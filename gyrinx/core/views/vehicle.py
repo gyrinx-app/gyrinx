@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -218,6 +219,42 @@ def vehicle_confirm(request, id):
     if request.method == "POST":
         form = VehicleConfirmationForm(request.POST)
         if form.is_valid():
+            # Calculate total cost before transaction
+            vehicle_cost = vehicle_fighter.cost_for_house(lst.content_house)
+            crew_cost = (
+                crew_fighter.cost_for_house(lst.content_house) if crew_fighter else 0
+            )
+            total_cost = vehicle_cost + crew_cost
+
+            # Check credits in campaign mode before creating anything
+            if lst.is_campaign_mode:
+                try:
+                    lst.spend_credits(
+                        total_cost,
+                        description=f"Adding vehicle '{vehicle_equipment.name}'",
+                    )
+                except DjangoValidationError as e:
+                    error_message = str(e.message) if hasattr(e, "message") else str(e)
+                    messages.error(request, error_message)
+                    return render(
+                        request,
+                        "core/vehicle_confirm.html",
+                        {
+                            "form": form,
+                            "list": lst,
+                            "vehicle_equipment": vehicle_equipment,
+                            "vehicle_fighter": vehicle_fighter,
+                            "crew_fighter": crew_fighter,
+                            "crew_name": params.crew_name,
+                            "params": params,
+                            "vehicle_cost": vehicle_cost,
+                            "crew_cost": crew_cost,
+                            "total_cost": total_cost,
+                            "step": 3,
+                            "total_steps": 3,
+                        },
+                    )
+
             with transaction.atomic():
                 # Create the crew member
                 if params.action == "select_crew":
