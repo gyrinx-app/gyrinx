@@ -99,11 +99,10 @@ def log_email_confirmed(request, email_address, **kwargs):
 def log_email_confirmation_sent(request, confirmation, signup, **kwargs):
     """Log when an email confirmation is sent."""
     log_event(
-        user=None,
+        user=confirmation.email_address.user,
         noun=EventNoun.USER,
         verb=EventVerb.CONFIRM,
         request=request,
-        confirmation=confirmation,
         signup=signup,
     )
 
