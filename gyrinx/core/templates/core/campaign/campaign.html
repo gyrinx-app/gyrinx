@@ -301,7 +301,7 @@
                             {% for battle in recent_battles %}
                                 {% include "core/includes/battle_summary_card.html" %}
                             {% endfor %}
-                            {% if campaign.battles.count > 5 %}
+                            {% if campaign.battles.count > battles_limit %}
                                 <div class="list-group-item text-center">
                                     <a href="{% url 'core:campaign-battles' campaign.id %}"
                                        class="text-decoration-none">View all {{ campaign.battles.count }} battles →</a>
