@@ -529,6 +529,11 @@ urlpatterns = [
     ),
     # Battles
     path(
+        "campaign/<id>/battles",
+        campaign.campaign_battles,
+        name="campaign-battles",
+    ),
+    path(
         "battle/<id>",
         battle.BattleDetailView.as_view(),
         name="battle",
