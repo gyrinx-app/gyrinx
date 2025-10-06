@@ -32,7 +32,7 @@
     "prettier": "^3.6.2",
     "sass": "^1.93.2",
     "sirv-cli": "^3.0.1",
-    "stylelint": "^16.24.0",
+    "stylelint": "^16.25.0",
     "stylelint-config-twbs-bootstrap": "^16.1.0"
   }
 }
