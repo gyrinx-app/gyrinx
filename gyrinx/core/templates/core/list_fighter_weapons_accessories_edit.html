@@ -4,8 +4,7 @@
     Accessories - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:list' list.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url text=list.name %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Accessories: {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}

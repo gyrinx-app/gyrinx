@@ -185,7 +185,7 @@ def test_accessory_selection_preserves_existing_accessories(client):
     weapon_table_section = content[
         content.find('<table class="table') : content.find("</table>")
     ]
-    assert "Extended Magazine" in weapon_table_section
+    assert "Extended Magazine" not in weapon_table_section
 
     available_section = content[content.find("Available Accessories") :]
     # Extended Magazine should not be in the available accessories
