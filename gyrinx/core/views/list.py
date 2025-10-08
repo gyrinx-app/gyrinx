@@ -891,6 +891,22 @@ def new_list_fighter(request, id):
             fighter = form.save(commit=False)
             fighter.list = lst
             fighter.owner = lst.owner
+
+            if lst.is_campaign_mode:
+                fighter_cost = fighter.cost_int()
+                try:
+                    lst.spend_credits(
+                        fighter_cost, description=f"Hiring {fighter.name}"
+                    )
+                except ValidationError as e:
+                    error_message = str(e.message) if hasattr(e, "message") else str(e)
+                    form = ListFighterForm(request.POST, instance=fighter)
+                    return render(
+                        request,
+                        "core/list_fighter_new.html",
+                        {"form": form, "list": lst, "error_message": error_message},
+                    )
+
             fighter.save()
 
             # Log the fighter creation event
