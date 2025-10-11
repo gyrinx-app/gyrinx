@@ -54,6 +54,8 @@ TINYMCE_UPLOAD_CONFIG = {
     "plugins": "autoresize autosave code emoticons fullscreen help image link lists quickbars textpattern visualblocks",
     "toolbar": "undo redo | blocks | bold italic underline link image | numlist bullist align | code",
     "menubar": "edit view insert format table tools help",
+    # Character encoding configuration
+    "entity_encoding": "raw",  # Store UTF-8 characters instead of HTML entities
     # Image upload configuration
     "automatic_uploads": True,
     "images_upload_credentials": True,
