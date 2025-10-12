@@ -86,7 +86,8 @@
                 </div>
             </div>
             {# My Campaigns toggle #}
-            <div class="form-check form-switch mb-0">
+            <div class="form-check form-switch mb-0"
+                 {% if not user.is_authenticated %} data-bs-toggle="tooltip" data-bs-placement="top" title="Only available to signed-in users"{% endif %}>
                 {# Hidden field to ensure 0 is sent when unchecked #}
                 <input type="hidden" name="my" value="0">
                 <input class="form-check-input"
@@ -96,11 +97,14 @@
                        name="my"
                        value="1"
                        data-gy-toggle-submit
-                       {% if request.GET.my == "1" or request.GET.my is None %}checked{% endif %}>
+                       {% if not user.is_authenticated %}disabled{% endif %}
+                       {% if user.is_authenticated %}{% if request.GET.my == "1" or request.GET.my is None %}checked{% endif %}
+                       {% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="my-campaigns">My Campaigns Only</label>
             </div>
             {# Participating toggle #}
-            <div class="form-check form-switch mb-0">
+            <div class="form-check form-switch mb-0"
+                 {% if not user.is_authenticated %} data-bs-toggle="tooltip" data-bs-placement="top" title="Only available to signed-in users"{% endif %}>
                 <input class="form-check-input"
                        type="checkbox"
                        role="switch"
@@ -108,11 +112,14 @@
                        name="participating"
                        value="1"
                        data-gy-toggle-submit
-                       {% if request.GET.participating == "1" %}checked{% endif %}>
+                       {% if not user.is_authenticated %}disabled{% endif %}
+                       {% if user.is_authenticated %}{% if request.GET.participating == "1" %}checked{% endif %}
+                       {% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="participating">Participating Only</label>
             </div>
             {# Archived toggle #}
-            <div class="form-check form-switch mb-0">
+            <div class="form-check form-switch mb-0"
+                 {% if not user.is_authenticated %} data-bs-toggle="tooltip" data-bs-placement="top" title="Only available to signed-in users"{% endif %}>
                 <input class="form-check-input"
                        type="checkbox"
                        role="switch"
@@ -120,7 +127,9 @@
                        name="archived"
                        value="1"
                        data-gy-toggle-submit
-                       {% if request.GET.archived == "1" %}checked{% endif %}>
+                       {% if not user.is_authenticated %}disabled{% endif %}
+                       {% if user.is_authenticated %}{% if request.GET.archived == "1" %}checked{% endif %}
+                       {% endif %}>
                 <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
             </div>
             <div class="btn-group align-items-center">
