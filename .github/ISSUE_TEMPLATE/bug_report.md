@@ -6,6 +6,12 @@ labels: ""
 assignees: ""
 ---
 
+<!--
+IMPORTANT:
+If you've spotted an issue with Gyrinx content (e.g. a missing fighter, incorrect costs or stats), please
+report it via our Discord server in the #📖-content-issues channel: https://discord.com/channels/1337524316987985963/1337526710911897651
+-->
+
 **Describe the bug**
 A clear and concise description of what the bug is.
 
