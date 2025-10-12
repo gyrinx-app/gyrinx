@@ -8,7 +8,7 @@ jobs:
   move-to-in-progress:
     # Only run when Claude Code is triggered
     if: github.event.comment.user.login == 'tgvashworth' && contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
+    runs-on: default
     permissions:
       contents: read
       issues: write
