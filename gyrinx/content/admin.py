@@ -407,21 +407,16 @@ class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelA
     actions = [copy_selected_to_fighter]
 
 
-class ContentFighterEquipmentListUpgradeAdminForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "upgrade", key=lambda x: x.equipment.name)
+@admin.register(ContentEquipmentUpgrade)
+class ContentFighterEquipmentUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "equipment__name"]
 
 
 @admin.register(ContentFighterEquipmentListUpgrade)
 class ContentFighterEquipmentListUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "upgrade__name", "upgrade__equipment__name"]
+    autocomplete_fields = ["fighter", "upgrade"]
     list_filter = ["upgrade__equipment__upgrade_mode"]
-    form = ContentFighterEquipmentListUpgradeAdminForm
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """
