@@ -387,34 +387,22 @@ class ContentFighterEquipmentListItemAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "equipment", key=lambda x: x.cat())
         group_select(self, "weapon_profile", key=lambda x: x.equipment.name)
 
 
 @admin.register(ContentFighterEquipmentListItem)
 class ContentFighterEquipmentListItemAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profile__name"]
+    autocomplete_fields = ["fighter", "equipment"]
     form = ContentFighterEquipmentListItemAdminForm
 
     actions = [copy_selected_to_fighter]
 
 
-class ContentFighterEquipmentListWeaponAccessoryAdminForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-
-
 @admin.register(ContentFighterEquipmentListWeaponAccessory)
 class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "weapon_accessory__name"]
-    form = ContentFighterEquipmentListWeaponAccessoryAdminForm
+    autocomplete_fields = ["fighter", "weapon_accessory"]
 
     actions = [copy_selected_to_fighter]
 
@@ -472,16 +460,13 @@ class ContentFighterDefaultAssignmentAdminForm(forms.ModelForm):
             cost__gt=0,
         )
 
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
-        group_select(self, "equipment", key=lambda x: x.cat())
         group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
 
 
 @admin.register(ContentFighterDefaultAssignment)
 class ContentFighterDefaultAssignmentAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["fighter__type", "equipment__name", "weapon_profiles_field__name"]
+    autocomplete_fields = ["fighter", "equipment"]
     form = ContentFighterDefaultAssignmentAdminForm
     actions = [copy_selected_to_fighter]
 
@@ -808,30 +793,16 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     get_restrictions.short_description = "Restrictions"
 
 
-class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
-
-
 @admin.register(ContentEquipmentFighterProfile)
 class ContentEquipmentFighterProfileAdmin(ContentAdmin, admin.ModelAdmin):
-    form = ContentEquipmentFighterProfileAdminForm
     search_fields = ["equipment__name", "content_fighter__type"]
-
-
-class ContentEquipmentEquipmentProfileAdminForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
-        group_select(self, "linked_equipment", key=lambda x: x.cat())
+    autocomplete_fields = ["equipment", "content_fighter"]
 
 
 @admin.register(ContentEquipmentEquipmentProfile)
 class ContentEquipmentEquipmentProfileAdmin(ContentAdmin):
-    form = ContentEquipmentEquipmentProfileAdminForm
     search_fields = ["equipment__name", "linked_equipment__name"]
+    autocomplete_fields = ["equipment", "linked_equipment"]
 
 
 class ContentWeaponProfileAdminForm(forms.ModelForm):
@@ -841,7 +812,6 @@ class ContentWeaponProfileAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "equipment", key=lambda x: x.cat())
 
     def clean(self):
         """Validate that no smart quotes are used in stat fields."""
@@ -883,6 +853,7 @@ class ContentWeaponProfileAdmin(ContentAdmin):
     form = ContentWeaponProfileAdminForm
     search_fields = ["name"]
     list_display_links = ["equipment", "name"]
+    autocomplete_fields = ["equipment"]
 
 
 def mods(obj):
