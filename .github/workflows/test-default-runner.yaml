@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: default
+    runs-on: gyrinx-ubuntu-1
 
     steps:
       - uses: actions/checkout@v5
