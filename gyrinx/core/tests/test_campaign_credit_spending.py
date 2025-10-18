@@ -50,15 +50,6 @@ def list_building_list_with_credits(db, user, house):
     return lst
 
 
-@pytest.fixture
-def fighter_type(db, house):
-    return ContentFighter.objects.create(
-        house=house,
-        type="Ganger",
-        base_cost=50,
-    )
-
-
 @pytest.mark.django_db
 def test_spend_credits_method_success(campaign_list_with_credits):
     """Test that spend_credits method works correctly."""
@@ -96,46 +87,48 @@ def test_spend_credits_method_negative_amount(campaign_list_with_credits):
 
 @pytest.mark.django_db
 def test_hire_fighter_in_campaign_mode_with_credits(
-    client, user, campaign_list_with_credits, fighter_type
+    client, user, campaign_list_with_credits, content_fighter: ContentFighter
 ):
     """Test hiring a fighter in campaign mode spends credits."""
     client.login(username="testuser", password="password")
 
     response = client.post(
-        reverse("core:new-list-fighter", args=(campaign_list_with_credits.id,)),
+        reverse("core:list-fighter-new", args=(campaign_list_with_credits.id,)),
         {
-            "name": "New Ganger",
-            "content_fighter": fighter_type.id,
+            "name": "New Ganger 1",
+            "content_fighter": content_fighter.id,
         },
     )
 
     assert response.status_code == 302
 
     campaign_list_with_credits.refresh_from_db()
-    assert campaign_list_with_credits.credits_current == 950
+    assert (
+        campaign_list_with_credits.credits_current == 1000 - content_fighter.base_cost
+    )
 
-    fighter = ListFighter.objects.get(name="New Ganger")
+    fighter = ListFighter.objects.get(name="New Ganger 1")
     assert fighter.list == campaign_list_with_credits
 
 
 @pytest.mark.django_db
 def test_hire_fighter_in_campaign_mode_insufficient_credits(
-    client, user, campaign_list_low_credits, fighter_type
+    client, user, campaign_list_low_credits, content_fighter
 ):
     """Test hiring a fighter fails when insufficient credits."""
     client.login(username="testuser", password="password")
 
     response = client.post(
-        reverse("core:new-list-fighter", args=(campaign_list_low_credits.id,)),
+        reverse("core:list-fighter-new", args=(campaign_list_low_credits.id,)),
         {
             "name": "Expensive Ganger",
-            "content_fighter": fighter_type.id,
+            "content_fighter": content_fighter.id,
         },
     )
 
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Insufficient credits" in content or "error_message" in content
+    assert "Insufficient credits" in content
 
     campaign_list_low_credits.refresh_from_db()
     assert campaign_list_low_credits.credits_current == 50
@@ -145,16 +138,16 @@ def test_hire_fighter_in_campaign_mode_insufficient_credits(
 
 @pytest.mark.django_db
 def test_hire_fighter_in_list_building_mode_no_credit_check(
-    client, user, list_building_list_with_credits, fighter_type
+    client, user, list_building_list_with_credits, content_fighter
 ):
     """Test hiring a fighter in list building mode doesn't spend credits."""
     client.login(username="testuser", password="password")
 
     response = client.post(
-        reverse("core:new-list-fighter", args=(list_building_list_with_credits.id,)),
+        reverse("core:list-fighter-new", args=(list_building_list_with_credits.id,)),
         {
             "name": "New Ganger",
-            "content_fighter": fighter_type.id,
+            "content_fighter": content_fighter.id,
         },
     )
 
