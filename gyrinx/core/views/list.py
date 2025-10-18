@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import Case, Q, When
@@ -891,6 +892,23 @@ def new_list_fighter(request, id):
             fighter = form.save(commit=False)
             fighter.list = lst
             fighter.owner = lst.owner
+
+            if lst.is_campaign_mode:
+                fighter_cost = fighter.cost_int()
+                try:
+                    lst.spend_credits(
+                        fighter_cost, description=f"Hiring {fighter.name}"
+                    )
+                except DjangoValidationError as e:
+                    error_message = str(e.message) if hasattr(e, "message") else str(e)
+                    messages.error(request, error_message)
+                    form = ListFighterForm(request.POST, instance=fighter)
+                    return render(
+                        request,
+                        "core/list_fighter_new.html",
+                        {"form": form, "list": lst, "error_message": error_message},
+                    )
+
             fighter.save()
 
             # Log the fighter creation event
@@ -911,6 +929,7 @@ def new_list_fighter(request, id):
                 + f"?{query_params}"
                 + f"#{str(fighter.id)}"
             )
+
     else:
         form = ListFighterForm(instance=fighter)
 

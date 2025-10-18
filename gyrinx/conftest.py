@@ -352,7 +352,7 @@ def campaign(make_campaign) -> Campaign:
 @pytest.fixture
 def house() -> ContentHouse:
     """Alias for content_house for backward compatibility."""
-    return ContentHouse.objects.create(name="Test House")
+    return ContentHouse.objects.create(name="Test House", can_hire_any=True)
 
 
 @pytest.fixture
