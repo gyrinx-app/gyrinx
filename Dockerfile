@@ -26,6 +26,11 @@ COPY content/ /app/content/
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GYRINX=1.0.0
 RUN pip install --editable .
 
+# Install system dependencies for Node.js
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install node dependencies
 COPY package.json package-lock.json /app/
 RUN nodeenv -p
