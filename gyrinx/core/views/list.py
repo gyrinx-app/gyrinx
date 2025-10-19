@@ -1846,25 +1846,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             assign.refresh_from_db()
             total_cost = assign.cost_int()
 
-            # If this is in campaign, check if we have enough credits
-            if lst.campaign and total_cost > lst.credits_current:
-                # Not enough credits - delete the assignment
-                assign.delete()
-                error_message = "Insufficient funds."
-            else:
-                with transaction.atomic():
-                    description = (
-                        f"Added {assign.content_equipment.name} to {fighter.name}"
-                    )
-
-                    if lst.campaign:
-                        # If this is a stash, we need to take credits from the list
-                        lst.credits_current -= total_cost
-                        lst.save()
-
+            # Handle credit spending for campaign mode
+            if lst.is_campaign_mode:
+                try:
+                    with transaction.atomic():
                         description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
+                        lst.spend_credits(
+                            total_cost,
+                            description=f"Buying {assign.content_equipment.name}",
+                        )
 
-                        # Spend credits and create campaign action
+                        # Create campaign action
                         CampaignAction.objects.create(
                             user=request.user,
                             owner=request.user,
@@ -1873,7 +1865,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                             description=description,
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
+                except DjangoValidationError as e:
+                    # Not enough credits - delete the assignment and show error
+                    assign.delete()
+                    error_message = str(e.message)
+                    messages.error(request, error_message)
+                    # Continue to render the form below
+            else:
+                description = f"Added {assign.content_equipment.name} to {fighter.name}"
 
+            # Only redirect on success (when no error_message)
+            if not error_message:
                 # Log the equipment assignment event
                 log_event(
                     user=request.user,
@@ -2485,25 +2487,55 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         accessory_id = request.POST.get("accessory_id")
         accessory = get_object_or_404(ContentWeaponAccessory, pk=accessory_id)
 
-        # Add the accessory to the assignment
-        assignment.weapon_accessories_field.add(accessory)
+        # Calculate the cost of this accessory
+        accessory_cost = assignment.accessory_cost_int(accessory)
 
-        # Build query parameters to preserve filters
-        query_params = {}
-        if request.POST.get("filter"):
-            query_params["filter"] = request.POST.get("filter")
-        if request.POST.get("q"):
-            query_params["q"] = request.POST.get("q")
-        query_string = f"?{urlencode(query_params)}" if query_params else ""
+        # Handle credit spending for campaign mode
+        if lst.is_campaign_mode:
+            try:
+                with transaction.atomic():
+                    lst.spend_credits(
+                        accessory_cost, description=f"Buying {accessory.name}"
+                    )
 
-        # Redirect back to the same page with filters preserved
-        return HttpResponseRedirect(
-            reverse(
-                "core:list-fighter-weapon-accessories-edit",
-                args=(lst.id, fighter.id, assignment.id),
+                    # Add the accessory to the assignment
+                    assignment.weapon_accessories_field.add(accessory)
+
+                    # Create campaign action
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
+                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                    )
+            except DjangoValidationError as e:
+                error_message = str(e.message)
+                messages.error(request, error_message)
+                # Continue to render the form below
+        else:
+            # Not in campaign mode, just add the accessory
+            assignment.weapon_accessories_field.add(accessory)
+
+        # Only redirect if there's no error
+        if not error_message:
+            # Build query parameters to preserve filters
+            query_params = {}
+            if request.POST.get("filter"):
+                query_params["filter"] = request.POST.get("filter")
+            if request.POST.get("q"):
+                query_params["q"] = request.POST.get("q")
+            query_string = f"?{urlencode(query_params)}" if query_params else ""
+
+            # Redirect back to the same page with filters preserved
+            return HttpResponseRedirect(
+                reverse(
+                    "core:list-fighter-weapon-accessories-edit",
+                    args=(lst.id, fighter.id, assignment.id),
+                )
+                + query_string
             )
-            + query_string
-        )
 
     # Handle removing accessories via form
     elif request.method == "POST":
@@ -2637,16 +2669,49 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             ContentWeaponProfile, pk=profile_id, equipment=assignment.content_equipment
         )
 
-        # Add the profile to the assignment
-        assignment.weapon_profiles_field.add(profile)
+        # Calculate the cost of this profile
+        from gyrinx.content.models import VirtualWeaponProfile
 
-        # Redirect back to the same page
-        return HttpResponseRedirect(
-            reverse(
-                "core:list-fighter-weapon-edit",
-                args=(lst.id, fighter.id, assignment.id),
+        virtual_profile = VirtualWeaponProfile(profile=profile)
+        profile_cost = assignment.profile_cost_int(virtual_profile)
+
+        # Handle credit spending for campaign mode
+        if lst.is_campaign_mode:
+            try:
+                with transaction.atomic():
+                    lst.spend_credits(
+                        profile_cost, description=f"Buying {profile.name}"
+                    )
+
+                    # Add the profile to the assignment
+                    assignment.weapon_profiles_field.add(profile)
+
+                    # Create campaign action
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
+                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                    )
+            except DjangoValidationError as e:
+                error_message = str(e.message)
+                messages.error(request, error_message)
+                # Continue to render the form below
+        else:
+            # Not in campaign mode, just add the profile
+            assignment.weapon_profiles_field.add(profile)
+
+        # Only redirect if there's no error
+        if not error_message:
+            # Redirect back to the same page
+            return HttpResponseRedirect(
+                reverse(
+                    "core:list-fighter-weapon-edit",
+                    args=(lst.id, fighter.id, assignment.id),
+                )
             )
-        )
 
     # Get all available profiles for this weapon
     # Exclude standard (free) profiles as they're automatically included
@@ -2888,13 +2953,67 @@ def edit_list_fighter_weapon_upgrade(
         list_fighter=fighter,
     )
 
+    error_message = None
     if request.method == "POST":
         form = ListFighterEquipmentAssignmentUpgradeForm(
             request.POST, instance=assignment
         )
         if form.is_valid():
-            form.save()
-            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+            # Calculate the cost difference for upgrades
+            old_upgrade_cost = assignment.upgrade_cost_int()
+
+            # Save the form (temporarily) to calculate new cost
+            new_upgrades = form.cleaned_data["upgrades_field"]
+
+            # Calculate the cost of the new upgrades
+            new_upgrade_cost = (
+                sum(
+                    [
+                        assignment._upgrade_cost_with_override(upgrade)
+                        for upgrade in new_upgrades
+                    ]
+                )
+                if new_upgrades
+                else 0
+            )
+
+            cost_difference = new_upgrade_cost - old_upgrade_cost
+
+            # Handle credit spending for campaign mode (only if cost increased)
+            if lst.is_campaign_mode and cost_difference > 0:
+                try:
+                    with transaction.atomic():
+                        lst.spend_credits(
+                            cost_difference,
+                            description=f"Buying upgrades for {assignment.content_equipment.name}",
+                        )
+
+                        # Save the form
+                        form.save()
+
+                        # Create campaign action
+                        upgrade_names = ", ".join([u.name for u in new_upgrades])
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
+                            outcome=f"Credits remaining: {lst.credits_current}¢",
+                        )
+                except DjangoValidationError as e:
+                    error_message = str(e.message)
+                    messages.error(request, error_message)
+                    # Re-render form with error
+            else:
+                # Not in campaign mode or cost decreased/stayed same, just save
+                form.save()
+
+            # Only redirect if there's no error
+            if not error_message:
+                return HttpResponseRedirect(
+                    reverse(back_name, args=(lst.id, fighter.id))
+                )
     else:
         form = ListFighterEquipmentAssignmentUpgradeForm(instance=assignment)
 
@@ -2908,6 +3027,7 @@ def edit_list_fighter_weapon_upgrade(
             "action_url": action_name,
             "back_url": back_name,
             "form": form,
+            "error_message": error_message,
         },
     )
 
