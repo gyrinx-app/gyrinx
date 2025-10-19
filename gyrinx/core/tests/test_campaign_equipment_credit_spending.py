@@ -195,7 +195,7 @@ def test_add_weapon_insufficient_credits(
     response = client.post(
         reverse(
             "core:list-fighter-weapons-edit",
-            args=(campaign_list_low_credits.id, fighter_in_campaign.id),
+            args=(campaign_list_low_credits.id, fighter_in_low_credit_campaign.id),
         ),
         {
             "content_equipment": expensive_weapon.id,
@@ -306,7 +306,11 @@ def test_add_accessory_insufficient_credits(
     response = client.post(
         reverse(
             "core:list-fighter-weapon-accessories-edit",
-            args=(campaign_list_low_credits.id, fighter_in_campaign.id, assignment.id),
+            args=(
+                campaign_list_low_credits.id,
+                fighter_in_low_credit_campaign.id,
+                assignment.id,
+            ),
         ),
         {
             "accessory_id": expensive_accessory.id,
@@ -425,7 +429,11 @@ def test_add_weapon_profile_insufficient_credits(
     response = client.post(
         reverse(
             "core:list-fighter-weapon-edit",
-            args=(campaign_list_low_credits.id, fighter_in_campaign.id, assignment.id),
+            args=(
+                campaign_list_low_credits.id,
+                fighter_in_low_credit_campaign.id,
+                assignment.id,
+            ),
         ),
         {
             "profile_id": expensive_profile.id,
@@ -551,10 +559,8 @@ def test_add_equipment_upgrade_insufficient_credits(
             "core:list-fighter-weapon-upgrade-edit",
             args=(
                 campaign_list_low_credits.id,
-                fighter_in_campaign.id,
+                fighter_in_low_credit_campaign.id,
                 assignment.id,
-                "core:list-fighter-weapons-edit",
-                "core:list-fighter-weapon-upgrade-edit",
             ),
         ),
         {
