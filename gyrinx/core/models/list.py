@@ -480,6 +480,32 @@ class List(AppBase):
 
         return new_stash
 
+    def spend_credits(self, amount, description="Purchase"):
+        """Spend credits from this list's available credits.
+
+        Args:
+            amount: The number of credits to spend
+            description: Description of what the credits are being spent on (for error messages)
+
+        Returns:
+            True if the credits were successfully spent
+
+        Raises:
+            ValidationError: If the list doesn't have enough credits
+        """
+        if amount < 0:
+            raise ValidationError("Cannot spend negative credits")
+
+        if self.credits_current < amount:
+            raise ValidationError(
+                f"Insufficient credits. {description} costs {amount}¢, "
+                f"but you only have {self.credits_current}¢ available."
+            )
+
+        self.credits_current -= amount
+        self.save(update_fields=["credits_current"])
+        return True
+
     def clone(self, name=None, owner=None, for_campaign=None, **kwargs):
         """Clone the list, creating a new list with the same fighters.
 
