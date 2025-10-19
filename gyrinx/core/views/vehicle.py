@@ -226,81 +226,82 @@ def vehicle_confirm(request, id):
             )
             total_cost = vehicle_cost + crew_cost
 
-            # Check credits in campaign mode before creating anything
-            if lst.is_campaign_mode:
-                try:
-                    lst.spend_credits(
-                        total_cost,
-                        description=f"Adding vehicle '{vehicle_equipment.name}'",
+            # Create vehicle and crew in a transaction
+            try:
+                with transaction.atomic():
+                    # Spend credits in campaign mode
+                    if lst.is_campaign_mode:
+                        lst.spend_credits(
+                            total_cost,
+                            description=f"Adding vehicle '{vehicle_equipment.name}'",
+                        )
+
+                    # Create the crew member
+                    if params.action == "select_crew":
+                        crew = ListFighter.objects.create(
+                            list=lst,
+                            owner=lst.owner,
+                            name=params.crew_name,
+                            content_fighter=crew_fighter,
+                        )
+                    else:
+                        # We are adding to stash, so make sure there's stash fighter
+                        crew = lst.ensure_stash()
+
+                    # Create the equipment assignment - this will trigger automatic vehicle creation
+                    ListFighterEquipmentAssignment.objects.create(
+                        list_fighter=crew,
+                        content_equipment=vehicle_equipment,
                     )
-                except DjangoValidationError as e:
-                    error_message = str(e.message) if hasattr(e, "message") else str(e)
-                    messages.error(request, error_message)
-                    return render(
+
+                    # Log the vehicle addition
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.LIST_FIGHTER,
+                        verb=EventVerb.CREATE,
+                        object=crew,
+                        request=request,
+                        fighter_name=crew.name,
+                        list_id=str(lst.id),
+                        list_name=lst.name,
+                        is_vehicle_crew=True,
+                        vehicle_equipment_id=str(vehicle_equipment.id),
+                        vehicle_equipment_name=vehicle_equipment.name,
+                        action=params.action,
+                    )
+
+                    messages.success(
                         request,
-                        "core/vehicle_confirm.html",
-                        {
-                            "form": form,
-                            "list": lst,
-                            "vehicle_equipment": vehicle_equipment,
-                            "vehicle_fighter": vehicle_fighter,
-                            "crew_fighter": crew_fighter,
-                            "crew_name": params.crew_name,
-                            "params": params,
-                            "vehicle_cost": vehicle_cost,
-                            "crew_cost": crew_cost,
-                            "total_cost": total_cost,
-                            "step": 3,
-                            "total_steps": 3,
-                        },
+                        f"Vehicle '{vehicle_equipment.name}' and crew member '{crew.name}' added successfully!",
                     )
 
-            with transaction.atomic():
-                # Create the crew member
-                if params.action == "select_crew":
-                    crew = ListFighter.objects.create(
-                        list=lst,
-                        owner=lst.owner,
-                        name=params.crew_name,
-                        content_fighter=crew_fighter,
+                    # Redirect to list with crew member highlighted
+                    query_params = urlencode(dict(flash=crew.id))
+                    return HttpResponseRedirect(
+                        reverse("core:list", args=(lst.id,))
+                        + f"?{query_params}"
+                        + f"#{str(crew.id)}"
                     )
-                else:
-                    # We are adding to stash, so make sure there's stash fighter
-                    crew = lst.ensure_stash()
-
-                # Create the equipment assignment - this will trigger automatic vehicle creation
-                ListFighterEquipmentAssignment.objects.create(
-                    list_fighter=crew,
-                    content_equipment=vehicle_equipment,
-                )
-
-                # Log the vehicle addition
-                log_event(
-                    user=request.user,
-                    noun=EventNoun.LIST_FIGHTER,
-                    verb=EventVerb.CREATE,
-                    object=crew,
-                    request=request,
-                    fighter_name=crew.name,
-                    list_id=str(lst.id),
-                    list_name=lst.name,
-                    is_vehicle_crew=True,
-                    vehicle_equipment_id=str(vehicle_equipment.id),
-                    vehicle_equipment_name=vehicle_equipment.name,
-                    action=params.action,
-                )
-
-                messages.success(
+            except DjangoValidationError as e:
+                error_message = str(e.message)
+                messages.error(request, error_message)
+                return render(
                     request,
-                    f"Vehicle '{vehicle_equipment.name}' and crew member '{crew.name}' added successfully!",
-                )
-
-                # Redirect to list with crew member highlighted
-                query_params = urlencode(dict(flash=crew.id))
-                return HttpResponseRedirect(
-                    reverse("core:list", args=(lst.id,))
-                    + f"?{query_params}"
-                    + f"#{str(crew.id)}"
+                    "core/vehicle_confirm.html",
+                    {
+                        "form": form,
+                        "list": lst,
+                        "vehicle_equipment": vehicle_equipment,
+                        "vehicle_fighter": vehicle_fighter,
+                        "crew_fighter": crew_fighter,
+                        "crew_name": params.crew_name,
+                        "params": params,
+                        "vehicle_cost": vehicle_cost,
+                        "crew_cost": crew_cost,
+                        "total_cost": total_cost,
+                        "step": 3,
+                        "total_steps": 3,
+                    },
                 )
     else:
         form = VehicleConfirmationForm()

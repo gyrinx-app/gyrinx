@@ -896,11 +896,13 @@ def new_list_fighter(request, id):
             if lst.is_campaign_mode:
                 fighter_cost = fighter.cost_int()
                 try:
-                    lst.spend_credits(
-                        fighter_cost, description=f"Hiring {fighter.name}"
-                    )
+                    with transaction.atomic():
+                        lst.spend_credits(
+                            fighter_cost, description=f"Hiring {fighter.name}"
+                        )
+                        fighter.save()
                 except DjangoValidationError as e:
-                    error_message = str(e.message) if hasattr(e, "message") else str(e)
+                    error_message = str(e.message)
                     messages.error(request, error_message)
                     form = ListFighterForm(request.POST, instance=fighter)
                     return render(
@@ -908,8 +910,8 @@ def new_list_fighter(request, id):
                         "core/list_fighter_new.html",
                         {"form": form, "list": lst, "error_message": error_message},
                     )
-
-            fighter.save()
+            else:
+                fighter.save()
 
             # Log the fighter creation event
             log_event(
