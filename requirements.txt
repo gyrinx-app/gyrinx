@@ -5,7 +5,7 @@ bleach==6.2.0
 click==8.3.0
 daphne==4.2.1
 Django==5.2.7
-django-allauth==65.12.0
+django-allauth==65.12.1
 django-csp==4.0
 django-debug-toolbar==6.0.0
 django-extensions==4.1
@@ -27,8 +27,8 @@ nodeenv==1.9.1
 Pillow==11.3.0
 playwright==1.55.0
 pre-commit==4.3.0
-psycopg2-binary==2.9.10
-pydantic==2.11.10
+psycopg2-binary==2.9.11
+pydantic==2.12.3
 pydot==4.0.1
 pyparsing==3.2.5
 pytest==8.4.2
@@ -37,9 +37,9 @@ pytest-watcher==0.4.3
 pytest-xdist==3.8.0
 python-dotenv==1.1.1
 qrcode==8.2
-referencing==0.36.2
-rich==14.1.0
-ruff==0.13.3
+referencing==0.37.0
+rich==14.2.0
+ruff==0.14.1
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.3
