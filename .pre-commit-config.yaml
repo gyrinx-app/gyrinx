@@ -99,7 +99,7 @@ repos:
     hooks:
       - id: markdownlint
         name: markdownlint
-        entry: npx markdownlint-cli2
+        entry: npx markdownlint-cli2 --fix
         language: system
         files: \.md$
 

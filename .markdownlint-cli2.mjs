@@ -17,8 +17,8 @@ const options = {
     "no-duplicate-heading": false,
     // Allow heading level jumps for existing documentation
     "heading-increment": false,
-    // Disable list indentation rule for existing documentation with mixed styles
-    "ul-indent": false
+    // Use 2-space indentation for lists (standard for markdownlint)
+    "ul-indent": { "indent": 2 }
   }),
   customRules: ["@github/markdownlint-github"],
   markdownItFactory,

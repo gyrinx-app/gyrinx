@@ -8,7 +8,7 @@ echo "Running ruff..."
 ruff format .
 ruff check --fix .
 
-# Run npm formatters (includes prettier for JS, SCSS, JSON, YAML, Markdown)
+# Run npm formatters (includes prettier for JS, SCSS, JSON, YAML)
 echo "Running npm fmt..."
 npm run fmt
 

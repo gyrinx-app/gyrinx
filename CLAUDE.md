@@ -178,11 +178,11 @@ SQL_DEBUG=True
 ### Base Model Architecture
 
 - **`AppBase`** - Abstract base model for all app models, provides:
-    - UUID primary key (from `Base`)
-    - Owner tracking (from `Owned`)
-    - Archive functionality (from `Archived`)
-    - History tracking with user information (from `HistoryMixin`)
-    - History-aware manager for better user tracking
+  - UUID primary key (from `Base`)
+  - Owner tracking (from `Owned`)
+  - Archive functionality (from `Archived`)
+  - History tracking with user information (from `HistoryMixin`)
+  - History-aware manager for better user tracking
 - All models inherit from `AppBase` to get consistent behavior
 - Models already define `history = HistoricalRecords()` for SimpleHistory integration
 
