@@ -51,15 +51,16 @@ The decorator logs query info but returns only the original function result (unl
 
 ## Options
 
-* **Database alias**: Pass `using="replica"` to target a different connection.
-* **Logging verbosity**: `log_query_info(info, limit=5, level=logging.INFO)`
-  * `limit`: max number of queries to show (None = show all).
-  * `level`: logging level (defaults to DEBUG).
+- **Database alias**: Pass `using="replica"` to target a different connection.
+- **Logging verbosity**: `log_query_info(info, limit=5, level=logging.INFO)`
+  - `limit`: max number of queries to show (None = show all).
+  - `level`: logging level (defaults to DEBUG).
 
 ## When to use
-* Profiling views or functions in local dev.
-* Writing tests that assert on query counts.
-* Inspecting query behavior in management commands.
+
+- Profiling views or functions in local dev.
+- Writing tests that assert on query counts.
+- Inspecting query behavior in management commands.
 
 ⚠️ **Note**: Avoid leaving decorators or capture calls in production code paths, since they alter return values and add logging noise. They're best for temporary diagnostics and tests.
 

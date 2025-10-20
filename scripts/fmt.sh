@@ -14,7 +14,7 @@ npm run fmt
 
 # Run Markdown linting
 echo "Running markdownlint..."
-npx markdownlint-cli "*.md" --fix --ignore "CHANGELOG.md" --config .markdownlint.json
+npx markdownlint-cli2 --fix "**/*.md"
 
 # Run Django template formatter
 echo "Running djlint..."

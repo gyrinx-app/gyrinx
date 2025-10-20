@@ -9,7 +9,7 @@ This document outlines the performance improvements achieved by introducing `pyt
 - **Total tests**: 451 test cases
 - **Test distribution**:
   - Core app: 45 test files
-  - Content app: 14 test files  
+  - Content app: 14 test files
   - Pages app: 1 test file
   - API app: 1 test file
 - **Current execution**: Sequential (one test at a time)
@@ -47,6 +47,7 @@ Based on typical Django test suite characteristics:
 - **Parallel execution (8 cores)**: ~5-6x speedup expected
 
 The actual speedup depends on:
+
 - Number of CPU cores available
 - Test isolation and database transaction overhead
 - Amount of I/O-bound vs CPU-bound operations
@@ -112,11 +113,13 @@ pytest --durations=0
 If tests fail with parallel execution:
 
 1. Run tests sequentially to isolate the issue:
+
    ```bash
    pytest -n 0  # or just pytest
    ```
 
 2. Run specific test in isolation:
+
    ```bash
    pytest path/to/test_file.py::test_function -vv
    ```

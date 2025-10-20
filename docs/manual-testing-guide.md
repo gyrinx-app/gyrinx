@@ -22,22 +22,22 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **User Registration**
 
-* Users can sign up when `ACCOUNT_ALLOW_SIGNUPS=True`
-* Registration requires username, email, password with reCAPTCHA verification
-* Users are redirected to account home after successful registration and email verification
-* When signups are disabled, users cannot sign up
+- Users can sign up when `ACCOUNT_ALLOW_SIGNUPS=True`
+- Registration requires username, email, password with reCAPTCHA verification
+- Users are redirected to account home after successful registration and email verification
+- When signups are disabled, users cannot sign up
 
 **User Login/Logout**
 
-* Users can log in with username/password
-* Session persists across browser sessions
-* Logout clears session and redirects to home
+- Users can log in with username/password
+- Session persists across browser sessions
+- Logout clears session and redirects to home
 
 **User Profile**
 
-* Public profile page shows user's public lists (later, campaigns)
-* Private lists/campaigns are hidden from other users
-* Profile URL format: `/user/<username>`
+- Public profile page shows user's public lists (later, campaigns)
+- Private lists/campaigns are hidden from other users
+- Profile URL format: `/user/<username>`
 
 ### Test Cases
 
@@ -55,22 +55,22 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **List Creation**
 
-* Users create lists with name, house selection, and optional narrative
-* Lists can be public or private
-* Each list has a unique URL and can be themed with custom colors
-* Lists track total cost based on fighters and equipment
+- Users create lists with name, house selection, and optional narrative
+- Lists can be public or private
+- Each list has a unique URL and can be themed with custom colors
+- Lists track total cost based on fighters and equipment
 
 **List Management**
 
-* Edit: Change name, narrative, theme color, public status
-* Clone: Create a copy with all fighters and equipment
-* Archive: Soft delete to hide from active lists
-* Delete: Only available in non-campaign mode
+- Edit: Change name, narrative, theme color, public status
+- Clone: Create a copy with all fighters and equipment
+- Archive: Soft delete to hide from active lists
+- Delete: Only available in non-campaign mode
 
 **List Building vs Campaign Mode**
 
-* List building mode: Full editing capabilities, can delete fighters
-* Campaign mode: Restricted editing, no fighter deletion, credit tracking enabled
+- List building mode: Full editing capabilities, can delete fighters
+- Campaign mode: Restricted editing, no fighter deletion, credit tracking enabled
 
 ### Test Cases
 
@@ -89,36 +89,36 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Adding Fighters**
 
-* Select from available content fighters based on house
-* Fighter cost automatically calculated from template
-* Can override cost manually with justification
-* Fighters can have custom names and narratives
+- Select from available content fighters based on house
+- Fighter cost automatically calculated from template
+- Can override cost manually with justification
+- Fighters can have custom names and narratives
 
 **Fighter States**
 
-* Active: Normal state, counts toward gang rating
-* Recovery: Injured but healing (campaign mode)
-* Convalescence: Seriously injured (campaign mode)
-* Dead: Killed in campaign, shown struck through
-* Captured: Held by another gang, costs 0 credits
+- Active: Normal state, counts toward gang rating
+- Recovery: Injured but healing (campaign mode)
+- Convalescence: Seriously injured (campaign mode)
+- Dead: Killed in campaign, shown struck through
+- Captured: Held by another gang, costs 0 credits
 
 **Fighter Management**
 
-* Edit: Name, narrative, stat overrides, cost override
-* Clone: Copy within same list or to another list
-* Archive: Remove from active roster
-* Kill: Mark as dead (campaign only)
-* Capture: Mark as captured (campaign only)
+- Edit: Name, narrative, stat overrides, cost override
+- Clone: Copy within same list or to another list
+- Archive: Remove from active roster
+- Kill: Mark as dead (campaign only)
+- Capture: Mark as captured (campaign only)
 
 **Psyker Powers (Wyrd Powers)**
 
-* Available to psyker-type fighters (e.g., Wyrd, Sanctioned Psyker)
-* Powers function like skills but from separate power lists
-* Can gain powers through advancement or starting abilities
-* Powers organized by discipline (e.g., Biomancy, Telepathy)
-* Each power has specific game effects
-* Powers shown separately from skills on fighter card
-* Some powers are faction-specific
+- Available to psyker-type fighters (e.g., Wyrd, Sanctioned Psyker)
+- Powers function like skills but from separate power lists
+- Can gain powers through advancement or starting abilities
+- Powers organized by discipline (e.g., Biomancy, Telepathy)
+- Each power has specific game effects
+- Powers shown separately from skills on fighter card
+- Some powers are faction-specific
 
 ### Test Cases
 
@@ -139,61 +139,61 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Equipment Assignment**
 
-* Weapons and gear assigned separately
-* Weapons may have multiple profiles (e.g., close combat vs ranged)
-* Fighters may have default assignments
-* Equipment can have accessories (scopes, suspensors)
-* Equipment can have upgrades (Tiers, Cyberteknika)
-* Costs cascade: base → profile → accessories → upgrades
+- Weapons and gear assigned separately
+- Weapons may have multiple profiles (e.g., close combat vs ranged)
+- Fighters may have default assignments
+- Equipment can have accessories (scopes, suspensors)
+- Equipment can have upgrades (Tiers, Cyberteknika)
+- Costs cascade: base → profile → accessories → upgrades
 
 **Equipment Accessories & Modifications**
 
-* Accessories enhance equipment functionality (e.g., telescopic sight, suspensor)
-* Each accessory has specific equipment type restrictions
-* Multiple accessories can stack on single item
-* Accessories add to base equipment cost
-* Some accessories modify weapon stats or grant special rules
-* Cannot remove accessories individually (must remove whole equipment)
-* Common accessories: Las-projector, Infra-sight, Telescopic sight, Suspensor
+- Accessories enhance equipment functionality (e.g., telescopic sight, suspensor)
+- Each accessory has specific equipment type restrictions
+- Multiple accessories can stack on single item
+- Accessories add to base equipment cost
+- Some accessories modify weapon stats or grant special rules
+- Cannot remove accessories individually (must remove whole equipment)
+- Common accessories: Las-projector, Infra-sight, Telescopic sight, Suspensor
 
 **Default Equipment**
 
-* Fighters from content templates come with default equipment pre-assigned
-* Default equipment shows with a "default" badge and costs 0 credits
-* Can disable default equipment to remove it from fighter
-* Can convert default equipment to purchasable (fighter must pay cost)
-* Converting to purchasable creates a normal equipment assignment
+- Fighters from content templates come with default equipment pre-assigned
+- Default equipment shows with a "default" badge and costs 0 credits
+- Can disable default equipment to remove it from fighter
+- Can convert default equipment to purchasable (fighter must pay cost)
+- Converting to purchasable creates a normal equipment assignment
 
 **Equipment-Fighter Links (Pets/Exotic Beasts)**
 
-* Some equipment creates additional fighters when assigned (e.g., Cyber-mastiff creates a fighter)
-* Child fighters appear in gang roster with special "child" indicator
-* Child fighters cannot be independently edited or removed
-* Removing the parent equipment removes the child fighter
-* Child fighters count toward gang rating and cost
+- Some equipment creates additional fighters when assigned (e.g., Cyber-mastiff creates a fighter)
+- Child fighters appear in gang roster with special "child" indicator
+- Child fighters cannot be independently edited or removed
+- Removing the parent equipment removes the child fighter
+- Child fighters count toward gang rating and cost
 
 **Equipment-Equipment Links**
 
-* Some equipment automatically adds other equipment when assigned
-* Example: Certain weapons might come with built-in accessories
-* Linked equipment cannot be removed independently
-* Removing parent equipment removes all linked equipment
-* Linked equipment costs are included in parent item cost
-* Equipment links cascade (A creates B, B creates C)
+- Some equipment automatically adds other equipment when assigned
+- Example: Certain weapons might come with built-in accessories
+- Linked equipment cannot be removed independently
+- Removing parent equipment removes all linked equipment
+- Linked equipment costs are included in parent item cost
+- Equipment links cascade (A creates B, B creates C)
 
 **Equipment Lists**
 
-* Fighters may have specific equipment lists affecting costs/availability
-* Venator gangs have special access rules for equipment
-* House-specific equipment restricted to that house
-* Generic equipment available to all
+- Fighters may have specific equipment lists affecting costs/availability
+- Venator gangs have special access rules for equipment
+- House-specific equipment restricted to that house
+- Generic equipment available to all
 
 **Equipment Management**
 
-* Reassign: Transfer equipment between fighters
-* Sell: Stash fighters can sell equipment (campaign mode)
-* Cost override: Manual price adjustment
-* Default equipment: Can disable or convert to purchasable
+- Reassign: Transfer equipment between fighters
+- Sell: Stash fighters can sell equipment (campaign mode)
+- Cost override: Manual price adjustment
+- Default equipment: Can disable or convert to purchasable
 
 ### Test Cases
 
@@ -220,24 +220,24 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **XP Management**
 
-* Add/spend/reduce XP with transaction logging
-* Current XP = available to spend
-* Total XP = lifetime earned
-* XP only available in campaign mode
+- Add/spend/reduce XP with transaction logging
+- Current XP = available to spend
+- Total XP = lifetime earned
+- XP only available in campaign mode
 
 **Advancement System**
 
-* Choice: 2D6 roll or manual selection
-* Types: Stat improvement, skill gain, specialist promotion, other
-* Stats: M, WS, BS, S, T, W, I, A, Ld, Cl, Wil, Int
-* Skills: Limited to primary/secondary categories unless promoted
-* Cost: Each advancement costs XP and increases fighter cost
+- Choice: 2D6 roll or manual selection
+- Types: Stat improvement, skill gain, specialist promotion, other
+- Stats: M, WS, BS, S, T, W, I, A, Ld, Cl, Wil, Int
+- Skills: Limited to primary/secondary categories unless promoted
+- Cost: Each advancement costs XP and increases fighter cost
 
 **Stat Improvements**
 
-* Numeric stats (S, T, W) increase by 1
-* "+" stats (WS 4+, BS 3+) improve by reducing number
-* Maximums are left to the player
+- Numeric stats (S, T, W) increase by 1
+- "+" stats (WS 4+, BS 3+) improve by reducing number
+- Maximums are left to the player
 
 ### Test Cases
 
@@ -257,35 +257,35 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Campaign Creation**
 
-* Set name, description, start date, budget
-* Public/private visibility
-* Pre-campaign → In Progress → Post-campaign lifecycle
+- Set name, description, start date, budget
+- Public/private visibility
+- Pre-campaign → In Progress → Post-campaign lifecycle
 
 **Starting Campaign**
 
-* All participating lists are cloned
-* Starting budget distributed based on gang cost
-* Lists enter campaign mode (restricted editing)
+- All participating lists are cloned
+- Starting budget distributed based on gang cost
+- Lists enter campaign mode (restricted editing)
 
 **Campaign Operations**
 
-* Add new lists mid-campaign (with cloning)
-* End campaign (locks all changes)
-* Reopen campaign (allows continued play)
-* Campaign actions log all significant events
+- Add new lists mid-campaign (with cloning)
+- End campaign (locks all changes)
+- Reopen campaign (allows continued play)
+- Campaign actions log all significant events
 
 **Campaign Actions**
 
-* Central logging system for all campaign events
-* Can be created by any participant or campaign owner
-* Actions can reference: battles, specific lists, or general campaign
-* Supports rich text descriptions with formatting
-* Optional dice rolling integration (D3, D6, 2D6, D66, etc.)
-* Dice results stored and displayed with action
-* Actions appear in chronological campaign history
-* Used for: battle outcomes, territory rolls, injury rolls, advancement rolls
-* Linked to fighter advancement when using roll option
-* Can track any campaign event (trades, alliances, narrative events)
+- Central logging system for all campaign events
+- Can be created by any participant or campaign owner
+- Actions can reference: battles, specific lists, or general campaign
+- Supports rich text descriptions with formatting
+- Optional dice rolling integration (D3, D6, 2D6, D66, etc.)
+- Dice results stored and displayed with action
+- Actions appear in chronological campaign history
+- Used for: battle outcomes, territory rolls, injury rolls, advancement rolls
+- Linked to fighter advancement when using roll option
+- Can track any campaign event (trades, alliances, narrative events)
 
 ### Test Cases
 
@@ -308,17 +308,17 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Asset Management**
 
-* Campaign owner defines asset types (e.g., Territories)
-* Assets assigned to specific gangs
-* Assets can be transferred between gangs
-* Assets shown in gang's campaign view
+- Campaign owner defines asset types (e.g., Territories)
+- Assets assigned to specific gangs
+- Assets can be transferred between gangs
+- Assets shown in gang's campaign view
 
 **Resource Management**
 
-* Campaign owner defines resource types (e.g., Meat, Ammo)
-* Resources tracked per gang with quantities
-* Can add/subtract resources with validation
-* Cannot go below 0 resources
+- Campaign owner defines resource types (e.g., Meat, Ammo)
+- Resources tracked per gang with quantities
+- Can add/subtract resources with validation
+- Cannot go below 0 resources
 
 ### Test Cases
 
@@ -337,16 +337,16 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Battle Creation**
 
-* Date, mission type, participating gangs
-* Can have single winner, multiple winners, or draw
-* Rich text notes for battle report
-* Links to campaign for context
+- Date, mission type, participating gangs
+- Can have single winner, multiple winners, or draw
+- Rich text notes for battle report
+- Links to campaign for context
 
 **Battle Integration**
 
-* Campaign actions can reference battles
-* Fighter injuries/deaths typically happen in battles
-* Resource/asset changes often tied to battle outcomes
+- Campaign actions can reference battles
+- Fighter injuries/deaths typically happen in battles
+- Resource/asset changes often tied to battle outcomes
 
 ### Test Cases
 
@@ -365,22 +365,22 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 
 **Capture System**
 
-* Fighters can be captured by enemy gangs
-* Captured fighters cost 0 for original gang
-* Cannot participate in battles while captured
-* Equipment stays with fighter
+- Fighters can be captured by enemy gangs
+- Captured fighters cost 0 for original gang
+- Cannot participate in battles while captured
+- Equipment stays with fighter
 
 **Captured Fighter Options**
 
-* Sell to Guilders: Permanent removal, gang gets credits
-* Return to Owner: Fighter goes back to original gang
-* Hold: Keep captured (no benefit but denies enemy)
+- Sell to Guilders: Permanent removal, gang gets credits
+- Return to Owner: Fighter goes back to original gang
+- Hold: Keep captured (no benefit but denies enemy)
 
 **Campaign Integration**
 
-* Capture creates campaign action
-* Sale/return creates campaign action
-* Can link to battle where capture occurred
+- Capture creates campaign action
+- Sale/return creates campaign action
+- Can link to battle where capture occurred
 
 ### Test Cases
 

@@ -5,6 +5,7 @@ This guide explains how to debug SQL queries in the Gyrinx application, includin
 ## Overview
 
 The application includes a comprehensive SQL logging system that captures:
+
 - All SQL queries executed by Django
 - Query execution times
 - Slow query analysis with PostgreSQL EXPLAIN plans
@@ -26,6 +27,7 @@ SQL_EXPLAIN_ANALYZE=False
 ```
 
 Then restart your Django development server. SQL queries will be logged to:
+
 - `logs/sql.log` - All SQL queries
 - `logs/slow_sql.log` - Slow queries with EXPLAIN plans
 
@@ -84,6 +86,7 @@ tail -f logs/slow_sql.log
 ```
 
 Look for queries with:
+
 - Sequential scans on large tables
 - Missing indexes
 - Complex joins
@@ -176,6 +179,7 @@ Includes the same query information plus the PostgreSQL EXPLAIN output showing t
 3. **Regular Monitoring**: Check slow_sql.log regularly during development to catch performance issues early.
 
 4. **Index Analysis**: Use EXPLAIN output to identify missing indexes:
+
    ```sql
    -- If you see Seq Scan on large tables, consider adding an index
    CREATE INDEX idx_list_name ON core_list(name);
@@ -200,6 +204,7 @@ INFO: Using logs directory: /path/to/logs
 ### Empty Log Files
 
 If log files are empty:
+
 1. Verify `SQL_DEBUG=True` in `.env`
 2. Restart the Django server after changing settings
 3. Check that queries are actually being executed
@@ -208,6 +213,7 @@ If log files are empty:
 ### EXPLAIN Errors
 
 If you see `[EXPLAIN ERROR: ...]` in slow_sql.log:
+
 - The query might not be a SELECT statement (EXPLAIN only works with SELECT)
 - The query might be too complex for automatic EXPLAIN
 - Try running the query manually with EXPLAIN in `manage shell`
@@ -215,6 +221,7 @@ If you see `[EXPLAIN ERROR: ...]` in slow_sql.log:
 ### Performance Impact
 
 SQL logging has minimal performance impact, but:
+
 - File I/O for logging can slow down high-traffic applications
 - `SQL_EXPLAIN_ANALYZE=True` doubles SELECT query execution
 - Log rotation happens at 10MB, which may cause brief pauses

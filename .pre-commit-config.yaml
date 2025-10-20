@@ -99,7 +99,7 @@ repos:
     hooks:
       - id: markdownlint
         name: markdownlint
-        entry: npx markdownlint-cli "*.md" --fix --ignore "CHANGELOG.md" --config .markdownlint.json
+        entry: npx markdownlint-cli2
         language: system
         files: \.md$
 

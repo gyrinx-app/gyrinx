@@ -123,6 +123,7 @@ jsonPayload.labels.endpoint="/api/v1/fighters"
 ## Implementation Details
 
 The tracker module:
+
 - Attempts to import `google-cloud-logging` when in Google Cloud environment
 - Falls back to JSON logging if the import fails or in local development
 - Structures all events with `event`, `n` (count), optional `value`, and `labels`
@@ -131,6 +132,7 @@ The tracker module:
 ## Future Considerations
 
 As the tracking system evolves, consider:
+
 - Adding sampling for high-frequency events
 - Creating dashboards for key metrics
 - Setting up alerts based on event patterns

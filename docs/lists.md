@@ -67,18 +67,21 @@ At time of writing, advisory rule implementations are not yet implemented.
 Lists have three status modes that control their usage:
 
 ### List Building
+
 - Default status for new lists
 - Can be edited freely
 - Can be added to pre-campaign phase campaigns
 - Represents work-in-progress gangs
 
 ### Campaign Mode
+
 - Automatically set when a list enters an active campaign
 - Indicates the list is being used in ongoing games
 - Original list remains in "List Building" status
 - Campaign version tracks all game effects
 
 ### Retired
+
 - Can be set by list owner
 - Indicates the list is no longer actively used
 - Preserved for historical reference
@@ -89,18 +92,21 @@ Lists have three status modes that control their usage:
 Lists and fighters support rich narrative content:
 
 ### List Narrative
+
 - Add background story and lore for your gang
 - Rich text editing with formatting options
 - Displayed on list detail page
 - Optional - focus on mechanics or storytelling as desired
 
 ### Fighter Narratives
+
 - Individual stories for each fighter
 - Track notable deeds and character development
 - Rich text editing support
 - Build deeper connection with your gang members
 
 To edit narratives:
+
 1. Navigate to your list
 2. Use "Edit Narrative" for list story
 3. Use fighter menu → "Edit Narrative" for individual fighters

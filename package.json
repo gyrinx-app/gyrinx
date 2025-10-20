@@ -16,7 +16,8 @@
     "test": "npm-run-all css-lint css",
     "js-fmt": "prettier --write \"**/*.js\"",
     "fmt": "prettier --write \"**/*.{js,css,scss,json,yaml,yml,md}\"",
-    "fmt-check": "prettier --check \"**/*.{js,css,scss,json,yaml,yml,md}\""
+    "fmt-check": "prettier --check \"**/*.{js,css,scss,json,yaml,yml,md}\"",
+    "lint:markdown": "markdownlint-cli2 \"**/*.md\""
   },
   "license": "ISC",
   "dependencies": {
@@ -24,9 +25,11 @@
     "bootstrap": "^5.3.8"
   },
   "devDependencies": {
+    "@github/markdownlint-github": "^0.8.0",
     "autoprefixer": "^10.4.21",
-    "markdownlint": "^0.38.0",
-    "markdownlint-cli": "^0.45.0",
+    "markdown-it": "^14.1.0",
+    "markdownlint-cli2": "^0.18.1",
+    "markdownlint-cli2-formatter-pretty": "^0.0.8",
     "nodemon": "^3.1.10",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.6",

@@ -37,6 +37,7 @@ When security issues are resolved or new acceptable findings are added:
 ## Configuration
 
 Bandit is configured in `pyproject.toml` with the following exclusions:
+
 - **B101**: Assert statements (needed for tests)
 - **B601**: Paramiko calls (not used)
 - **B603**: Subprocess without shell=True (reviewed case-by-case)

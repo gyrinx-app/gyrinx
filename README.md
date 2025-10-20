@@ -266,7 +266,7 @@ what makes Gyrinx useful.
 Gyrinx uses a custom-ish data export/import process to manage content library
 data from production, so you can test locally.
 
-> **Note**
+> [!NOTE]
 > This process is only available for trusted developers and admins.
 
 1. **Export**: Run the `gyrinx-dumpdata` Cloud Run job in production to export

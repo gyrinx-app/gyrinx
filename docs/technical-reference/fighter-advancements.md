@@ -11,6 +11,7 @@ Advancements are improvements that fighters can purchase using XP earned during 
 3. **Confirmation** - Review and confirm the advancement purchase
 
 There are two main types of advancements:
+
 - **Characteristic Increases** - Improve fighter stats like Movement, Weapon Skill, etc.
 - **New Skills** - Learn skills from Primary, Secondary, or other skill categories
 
@@ -32,6 +33,7 @@ class ListFighterAdvancement(AppBase):
 ```
 
 Key features:
+
 - Tracks which fighter purchased the advancement
 - Records the type of advancement (stat or skill)
 - For stat advances: which characteristic was improved
@@ -42,6 +44,7 @@ Key features:
 ### XP Tracking
 
 Fighters track their XP using two fields:
+
 - `xp_total` - Total XP earned throughout the campaign
 - `xp_current` - Available XP that can be spent
 
@@ -52,15 +55,20 @@ When an advancement is purchased, the XP cost is deducted from `xp_current`.
 The advancement system uses a wizard-style interface with these steps:
 
 ### Step 1: Start (`list_fighter_advancement_start`)
+
 Initiates the advancement process and redirects to dice choice.
 
 ### Step 2: Dice Choice (`list_fighter_advancement_dice_choice`)
+
 `AdvancementDiceChoiceForm` - Player chooses:
+
 - **Roll 2D6** - Cheaper option, limits choices based on dice result
 - **Manual Selection** - More expensive, allows any advancement
 
 ### Step 3: Type Selection (`list_fighter_advancement_type`)
+
 `AdvancementTypeForm` - Based on dice roll (or manual choice), shows available advancements:
+
 - Stat improvements (Movement, Weapon Skill, etc.)
 - Skill options (Primary/Secondary, Random/Chosen)
 - Special options (Promote to Specialist, Any Random Skill)
@@ -68,12 +76,16 @@ Initiates the advancement process and redirects to dice choice.
 Each option shows its XP cost based on the roll-to-cost mapping.
 
 ### Step 4: Skill Selection (`list_fighter_advancement_select`)
+
 If a skill advancement was chosen:
+
 - `SkillSelectionForm` - Pick specific skill from available categories
 - `RandomSkillForm` - Accept randomly rolled skill
 
 ### Step 5: Confirmation (`list_fighter_advancement_confirm`)
+
 Reviews the selected advancement showing:
+
 - What was selected
 - XP cost
 - Credit increase
@@ -94,7 +106,9 @@ The advancement system uses these views:
 ## Business Rules
 
 ### XP Costs
+
 The system uses a dice roll to XP cost mapping:
+
 - Rolling 2-4, 12: 20 XP (includes special advancements)
 - Rolling 5-6: 30 XP (high-value stat increases)
 - Rolling 7, 10-11: 10 XP (moderate improvements)
@@ -102,28 +116,33 @@ The system uses a dice roll to XP cost mapping:
 - Manual selection: Additional cost on top of base costs
 
 Default advancement for each roll:
+
 - 2, 12: Promote to Specialist
 - 3: Weapon Skill, 4: Ballistic Skill, 5: Strength
 - 6: Toughness, 7: Movement, 8: Willpower
 - 9: Intelligence, 10: Leadership, 11: Cool
 
 ### Stat Improvements
+
 - Stats with "+" values (like WS 4+) improve by reducing the number
 - Other stats increase numerically
 - Applied via fighter stat overrides
 
 ### Skill Restrictions
+
 - Can only learn skills from Primary or Secondary categories
 - Cannot learn the same skill twice
 - Some skills may have prerequisites
 
 ### Campaign Mode Only
+
 - Advancements can only be purchased in campaign mode
 - Requires active campaign participation
 
 ## Templates
 
 Key templates:
+
 - `list_fighter_advancements.html` - Shows all advancements for a fighter
 - `list_fighter_advancement_dice_choice.html` - Dice vs manual selection
 - `list_fighter_advancement_type.html` - Advancement options based on roll
@@ -133,18 +152,23 @@ Key templates:
 ## Integration Points
 
 ### Campaign Actions
+
 When dice are rolled for an advancement, it creates a `CampaignAction` record to track:
+
 - Who rolled
 - What was rolled (2d6, 2d6+2)
 - Results
 - Links back to the advancement
 
 ### Fighter Cost
+
 Each advancement increases the fighter's cost:
+
 - Stat increases: typically +5 credits per stat point
 - Skills: varies by skill value
 
 ### History Tracking
+
 All advancement records use django-simple-history for audit trails.
 
 ## Example Usage
@@ -176,6 +200,7 @@ advancement.apply_advancement()  # Applies the stat increase
 ## Error Handling
 
 Common validation errors:
+
 - Insufficient XP
 - Invalid stat/skill selection
 - Attempting advancement outside campaign mode

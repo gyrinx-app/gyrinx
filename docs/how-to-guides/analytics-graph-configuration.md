@@ -36,6 +36,7 @@ Changing the time scale will reload the page with updated data for all graphs.
 This graph shows the daily count of new user registrations. Each point on the graph represents how many users joined on that specific day. Days with no registrations will show as 0.
 
 **Use cases**:
+
 - Monitor user growth trends
 - Identify spikes in registrations (e.g., after marketing campaigns)
 - Track the effectiveness of user acquisition efforts
@@ -45,6 +46,7 @@ This graph shows the daily count of new user registrations. Each point on the gr
 This multi-line graph displays the top 10 most frequent event types over time, excluding view events. Each line represents a different event type (e.g., "list - create", "fighter - update").
 
 **Use cases**:
+
 - Understand which features are most actively used
 - Track user engagement patterns
 - Identify trends in user behavior
@@ -52,6 +54,7 @@ This multi-line graph displays the top 10 most frequent event types over time, e
 ### 3. Cumulative Creations
 
 This graph shows three cumulative lines tracking the total number of:
+
 - **Fighters** created in list-building lists
 - **Lists** in list-building mode
 - **Campaigns** created
@@ -59,6 +62,7 @@ This graph shows three cumulative lines tracking the total number of:
 Each line shows the running total over time, so values always increase or stay flat.
 
 **Use cases**:
+
 - Monitor overall content growth
 - Track adoption of different features
 - Understand the ratio between different content types
@@ -76,6 +80,7 @@ All graphs use Django ORM queries to fetch data:
 ### Chart Configuration
 
 The dashboard uses Chart.js 4.4.0 with simple, reliable configurations:
+
 - Line charts for all graphs
 - String-based x-axis labels
 - Responsive design that works on all screen sizes
@@ -94,6 +99,7 @@ While the graphs themselves are hard-coded, you can:
 To add a new graph:
 
 1. Create a data method in `AnalyticsAdminSite` that returns:
+
    ```python
    {
        "labels": [list of date strings],

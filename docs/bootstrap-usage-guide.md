@@ -15,6 +15,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ### Horizontal and Vertical Stacks
 
 **DO**: Use `hstack` and `vstack` for simple layouts
+
 ```html
 <div class="vstack gap-2">
   <div class="hstack gap-2">
@@ -25,6 +26,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ```
 
 **DON'T**: Use `d-flex` for simple layouts
+
 ```html
 <!-- Avoid this pattern -->
 <div class="d-flex flex-column">
@@ -35,6 +37,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ```
 
 **EXCEPTION**: Use `d-flex` only for complex responsive layouts
+
 ```html
 <!-- OK for responsive behavior -->
 <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center">
@@ -45,6 +48,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ### Spacing
 
 **DO**: Use gap utilities on stacks
+
 ```html
 <div class="vstack gap-2">
   <div>Item 1</div>
@@ -53,6 +57,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ```
 
 **DON'T**: Use margin classes inside stacks
+
 ```html
 <!-- Avoid this pattern -->
 <div class="vstack gap-2">
@@ -62,6 +67,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ```
 
 **EXCEPTION**: Use `mb-0` on headings to remove default margins
+
 ```html
 <h2 class="mb-0">Title</h2>
 ```
@@ -69,6 +75,7 @@ This guide establishes consistent patterns for using Bootstrap 5 classes through
 ### Standard Header Pattern
 
 For list/campaign detail pages:
+
 ```html
 <div class="vstack gap-0 mb-2">
   <!-- Title row with status badges -->
@@ -80,7 +87,7 @@ For list/campaign detail pages:
       </div>
     </div>
   </div>
-  
+
   <!-- Metadata row -->
   <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
     <div class="text-secondary">
@@ -95,6 +102,7 @@ For list/campaign detail pages:
 ### Cards
 
 **DO**: Use cards for fighter cards in list grids
+
 ```html
 <div class="card">
   <div class="card-header p-2">
@@ -109,6 +117,7 @@ For list/campaign detail pages:
 ```
 
 **DON'T**: Use cards for general content sections
+
 ```html
 <!-- Avoid using cards for non-fighter content -->
 <!-- Use simple divs with borders instead -->
@@ -136,12 +145,14 @@ All buttons should use the small size for consistency:
 ### Messages and Alerts
 
 **DO**: Use simple text for informational messages
+
 ```html
 <p class="text-secondary">No fighters in this list yet.</p>
 <div class="text-muted">Optional helper text</div>
 ```
 
 **DON'T**: Use Bootstrap alerts for simple messages
+
 ```html
 <!-- Avoid for simple messages -->
 <div class="alert alert-info">
@@ -150,6 +161,7 @@ All buttons should use the small size for consistency:
 ```
 
 **DO**: Use bordered divs for important callouts
+
 ```html
 <div class="border rounded p-2 text-secondary">
   <i class="icon"></i> Important information here
@@ -159,6 +171,7 @@ All buttons should use the small size for consistency:
 ### Links
 
 Use consistent link styling:
+
 ```html
 <a href="#" class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
   Link text
@@ -193,6 +206,7 @@ Use responsive utility classes for different screen sizes:
 ## Common Patterns
 
 ### Form Groups
+
 ```html
 <div class="vstack gap-3">
   <div>
@@ -203,6 +217,7 @@ Use responsive utility classes for different screen sizes:
 ```
 
 ### Action Button Groups
+
 ```html
 <div class="hstack gap-2">
   <button class="btn btn-primary btn-sm">Save</button>
@@ -214,6 +229,7 @@ Use responsive utility classes for different screen sizes:
 ```
 
 ### Empty States
+
 ```html
 <div class="text-center py-5">
   <p class="text-secondary mb-2">No items found</p>

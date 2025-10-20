@@ -65,20 +65,24 @@ This document describes the Bootstrap Icons (v1.x) used throughout the applicati
 ## Common Patterns
 
 ### Action Buttons
+
 - Primary actions: Icon + text label (e.g., `<i class="bi-plus-circle"></i> Add Fighter`)
 - Secondary actions: Icon only with tooltip (e.g., `<i class="bi-pencil"></i>`)
 - Danger actions: Red colored with appropriate icon (e.g., `<i class="bi-trash"></i>`)
 
 ### Status Indicators
+
 - Visibility: `bi-eye` (public) vs `bi-eye-slash` (private)
 - State: Badges with icons for captured, dead, archived states
 
 ### Navigation
+
 - Back links: `bi-chevron-left` or `bi-arrow-left`
 - Detail/forward: `bi-chevron-right`
 - Dropdowns: `bi-three-dots-vertical`
 
 ### Data Display
+
 - Counts: Icon + number (e.g., `<i class="bi-person"></i> 5 fighters`)
 - Currency: `<i class="bi-coin"></i> 100¢`
 - Ownership: `<i class="bi-person"></i> username`
