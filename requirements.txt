@@ -24,7 +24,7 @@ jsonschema==4.25.1
 jupyter==1.1.1
 nbstripout==0.8.1
 nodeenv==1.9.1
-Pillow==11.3.0
+Pillow==12.0.0
 playwright==1.55.0
 pre-commit==4.3.0
 psycopg2-binary==2.9.11
