@@ -8,7 +8,7 @@ We're a small, not-for-profit team building tools for enthusiasts. If you find y
 
 ### Quick Links
 
-- Coud Run
+- Cloud Run
   - [Monitoring](https://console.cloud.google.com/monitoring/dashboards/integration/cloud_run.cloudrun-monitoring;duration=P1D?invt=Abt3Dw\&project=windy-ellipse-440618-p9\&pageState=\(%22eventTypes%22:\(%22selected%22:%5B%22CLOUD_ALERTING_ALERT%22,%22CLOUD_RUN_DEPLOYMENT%22%5D\)\))
   - Production
     - [Metrics](https://console.cloud.google.com/run/detail/europe-west2/gyrinx/metrics?invt=Abt3Dw\&project=windy-ellipse-440618-p9)
