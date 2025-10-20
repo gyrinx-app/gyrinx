@@ -27,6 +27,7 @@ To get started developing Gyrinx:
 ## Operations
 
 For deployment and operational information:
+
 - [Deployment](deployment.md) - How the application is deployed and managed
 - [Operational Overview](operations/operational-overview.md) - Infrastructure and monitoring
 - [Runbook](runbook.md) - Live operational procedures (team access only)

@@ -95,6 +95,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+  - repo: local
+    hooks:
+      - id: markdownlint
+        name: markdownlint
+        entry: npx markdownlint-cli2 --fix
+        language: system
+        files: \.md$
+
   # Skipped becuase they take too long
   # - repo: local
   #   hooks:

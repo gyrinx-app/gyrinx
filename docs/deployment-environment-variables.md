@@ -30,16 +30,19 @@ gcloud run deploy gyrinx \
 ### Bucket Setup Checklist
 
 1. Create bucket in europe-west2 with uniform access:
+
    ```bash
    gsutil mb -l europe-west2 -b on gs://your-uploads-bucket
    ```
 
 2. Grant public read access:
+
    ```bash
    gsutil iam ch allUsers:objectViewer gs://your-uploads-bucket
    ```
 
 3. Grant service account write access:
+
    ```bash
    gsutil iam ch serviceAccount:YOUR_SA@PROJECT.iam.gserviceaccount.com:objectAdmin gs://your-uploads-bucket
    ```

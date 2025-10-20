@@ -6,10 +6,10 @@ This section assumes you are reasonably familiar with Python, Django, Postgres, 
 
 Quick guide to where to go:
 
-* Jump in and run the application locally → see the [GitHub README](https://github.com/gyrinx-app/gyrinx)
-* Build or extend support for archetypal concepts in Necromunda → **Content**
-* Add user-facing functionality and tools → **Core**
-* Improve the frontend of the application → **Core**
+- Jump in and run the application locally → see the [GitHub README](https://github.com/gyrinx-app/gyrinx)
+- Build or extend support for archetypal concepts in Necromunda → **Content**
+- Add user-facing functionality and tools → **Core**
+- Improve the frontend of the application → **Core**
 
 ## Project Structure
 
@@ -27,9 +27,9 @@ There are also a few useful and shared folders or libraries such as overriding c
 
 We manage our settings using three settings files:
 
-* a base file simply called `settings.py`
-* a `settings_dev.py` file for **local development**
-* a `settings_prod.py` file for **production**
+- a base file simply called `settings.py`
+- a `settings_dev.py` file for **local development**
+- a `settings_prod.py` file for **production**
 
 ### Directory Structure
 

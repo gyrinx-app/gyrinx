@@ -2,9 +2,9 @@
 
 A Psyker is any ContentFighter with one of the following rules:
 
-* Psyker
-* Non-sanctioned Psyker
-* Sanctioned Psyker
+- Psyker
+- Non-sanctioned Psyker
+- Sanctioned Psyker
 
 Like equipment, Psyker Powers can be assigned by default (`ContentFighterPsykerPowerDefaultAssignment`) or directly assigned (`ListFighterPsykerPowerAssignment`).&#x20;
 
@@ -24,7 +24,7 @@ graph LR
 
     ContentFighterPsykerPowerDefaultAssignment-->ContentFighter
     ContentFighterPsykerPowerDefaultAssignment-->ContentPsykerPower
-  end 
+  end
 
   subgraph core
     ListFighter-->ContentFighter

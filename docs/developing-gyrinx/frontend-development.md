@@ -6,16 +6,16 @@ Gyrinx follows a server-rendered approach using Django templates with Bootstrap 
 
 ### Core Technologies
 
-* **Django Templates** - Server-side rendering with template inheritance
-* **Bootstrap 5** - CSS framework for responsive design
-* **SCSS** - CSS preprocessing for maintainable styles
-* **Vanilla JavaScript** - Minimal client-side interactivity
+- **Django Templates** - Server-side rendering with template inheritance
+- **Bootstrap 5** - CSS framework for responsive design
+- **SCSS** - CSS preprocessing for maintainable styles
+- **Vanilla JavaScript** - Minimal client-side interactivity
 
 ### Build Tools
 
-* **npm** - Package management and build scripts
-* **SCSS compilation** - CSS preprocessing
-* **No bundlers** - Keep it simple with direct file serving
+- **npm** - Package management and build scripts
+- **SCSS compilation** - CSS preprocessing
+- **No bundlers** - Keep it simple with direct file serving
 
 ## Template Architecture
 
@@ -118,7 +118,7 @@ All designs start with mobile layout and scale up:
 
 ```html
 <form method="post">
-    
+
 
 <div data-gb-custom-block data-tag="csrf_token"></div>
 
@@ -174,9 +174,9 @@ npm run css-lint
 
 ### Custom Styling Approach
 
-* Override Bootstrap variables rather than writing custom CSS
-* Use Bootstrap utility classes when possible
-* Create component-specific styles only when needed
+- Override Bootstrap variables rather than writing custom CSS
+- Use Bootstrap utility classes when possible
+- Create component-specific styles only when needed
 
 ```scss
 // _variables.scss - Override Bootstrap defaults
@@ -202,10 +202,10 @@ Gyrinx uses minimal JavaScript, favoring server-side rendering and simple form s
 
 ### When to Use JavaScript
 
-* Form enhancements (show/hide fields)
-* Client-side validation feedback
-* Simple interactive elements (dropdowns, modals)
-* Progressive enhancement only
+- Form enhancements (show/hide fields)
+- Client-side validation feedback
+- Simple interactive elements (dropdowns, modals)
+- Progressive enhancement only
 
 ### JavaScript Patterns
 
@@ -243,7 +243,7 @@ class ListForm(forms.ModelForm):
 ```django
 <!-- Template -->
 <form method="post">
-    
+
 
 <div data-gb-custom-block data-tag="csrf_token"></div>
 
@@ -261,12 +261,12 @@ class ListForm(forms.ModelForm):
         {{ form.name.label }}
     </label>
     {{ form.name }}
-    
+
 
 <div data-gb-custom-block data-tag="if">
 
         <div class="text-danger">{{ form.name.errors }}</div>
-    
+
 
 </div>
 
@@ -287,9 +287,9 @@ DEBUG=True  # in settings_dev.py
 
 ### Production
 
-* WhiteNoise serves static files
-* Files are collected during deployment
-* CSS is compiled from SCSS in build process
+- WhiteNoise serves static files
+- Files are collected during deployment
+- CSS is compiled from SCSS in build process
 
 ### File Organization
 
@@ -310,7 +310,7 @@ gyrinx/core/static/core/
 
 ### Template Performance
 
-* Use \`
+- Use \`
 
 \` efficiently\
 \- Cache template fragments with \`\`\
@@ -318,23 +318,23 @@ gyrinx/core/static/core/
 
 ### CSS Performance
 
-* Minimize custom CSS
-* Use Bootstrap utilities to reduce file size
-* Optimize images for web delivery
+- Minimize custom CSS
+- Use Bootstrap utilities to reduce file size
+- Optimize images for web delivery
 
 ### JavaScript Performance
 
-* Load JavaScript at end of `<body>`
-* Use event delegation for dynamic content
-* Avoid large JavaScript frameworks
+- Load JavaScript at end of `<body>`
+- Use event delegation for dynamic content
+- Avoid large JavaScript frameworks
 
 ## Accessibility
 
 ### Built-in Bootstrap Accessibility
 
-* Use semantic HTML elements
-* Leverage Bootstrap's ARIA attributes
-* Ensure keyboard navigation works
+- Use semantic HTML elements
+- Leverage Bootstrap's ARIA attributes
+- Ensure keyboard navigation works
 
 ### Custom Accessibility
 
@@ -369,14 +369,14 @@ def test_list_template_renders():
 
 ### CSS Testing
 
-* Visual regression testing (manual)
-* Cross-browser testing on common devices
-* Mobile responsiveness testing
+- Visual regression testing (manual)
+- Cross-browser testing on common devices
+- Mobile responsiveness testing
 
 ### JavaScript Testing
 
-* Manual testing for progressive enhancement
-* Ensure core functionality works without JavaScript
+- Manual testing for progressive enhancement
+- Ensure core functionality works without JavaScript
 
 ## Future Considerations
 
@@ -393,6 +393,6 @@ While not currently used, htmx could add interactivity:
 
 ### Performance Monitoring
 
-* Consider adding Core Web Vitals monitoring
-* Monitor CSS bundle size growth
-* Track JavaScript execution time
+- Consider adding Core Web Vitals monitoring
+- Monitor CSS bundle size growth
+- Track JavaScript execution time

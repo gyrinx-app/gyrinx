@@ -104,6 +104,7 @@ The database might be partially cleared. Just run the command again - it'll clea
 ### No Access?
 
 If you can't access the GCS bucket or Cloud Run job, you'll need to ask an admin for:
+
 1. Access to the production GCP project
 2. Permissions for the `gyrinx-app-bootstrap-dump` bucket
 3. Ability to run the `gyrinx-dumpdata` Cloud Run job

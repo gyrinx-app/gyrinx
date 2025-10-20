@@ -55,7 +55,7 @@ Check group membership:
 <div data-gb-custom-block data-tag="if" data-0='Campaigns Alpha'>
 
     <li class="nav-item">
-        <a class="nav-link 
+        <a class="nav-link
 
 <div data-gb-custom-block data-tag="active_view" data-0='core:campaigns'></div>"
            href="<div data-gb-custom-block data-tag="url" data-0='core:campaigns'></div>
@@ -172,15 +172,15 @@ def test_feature_visible_to_group_members(self):
 
 ## Security Considerations
 
-* Group membership is checked server-side
-* Template filter prevents rendering, not just hiding with CSS
-* Groups should not be used for critical security permissions
-* Use Django's permission system for access control
+- Group membership is checked server-side
+- Template filter prevents rendering, not just hiding with CSS
+- Groups should not be used for critical security permissions
+- Use Django's permission system for access control
 
 ## Performance
 
 The `in_group` filter:
 
-* Makes one database query per check
-* Results are not cached by default
-* Consider using `select_related('groups')` for user queries if checking many groups
+- Makes one database query per check
+- Results are not cached by default
+- Consider using `select_related('groups')` for user queries if checking many groups

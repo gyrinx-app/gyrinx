@@ -14,9 +14,11 @@ All models that inherit from `AppBase` automatically have history tracking enabl
 ## Automatic User Tracking
 
 ### Web Requests
+
 For changes made through web requests (forms, admin), the user is automatically tracked via the `HistoryRequestMiddleware`.
 
 ### Programmatic Changes
+
 For changes made in code (management commands, scripts), you need to explicitly provide the user:
 
 ```python
@@ -74,6 +76,7 @@ for record in history:
 ## Querying History
 
 ### All History for a Model
+
 ```python
 # All campaign history across all campaigns
 from gyrinx.core.models.campaign import Campaign
@@ -81,6 +84,7 @@ all_history = Campaign.history.all()
 ```
 
 ### Recent Changes
+
 ```python
 # Recent changes across all models
 recent_campaigns = Campaign.history.filter(
@@ -89,12 +93,14 @@ recent_campaigns = Campaign.history.filter(
 ```
 
 ### Changes by User
+
 ```python
 # All changes made by a specific user
 user_changes = Campaign.history.filter(history_user=user)
 ```
 
 ### Comparing Versions
+
 ```python
 # Get differences between versions
 campaign = Campaign.objects.get(id=some_id)
@@ -122,6 +128,7 @@ Campaign.objects.filter(...).update_with_user(user=user, field=value)
 ## Best Practices
 
 ### Management Commands
+
 Always provide a user for history tracking in management commands:
 
 ```python
@@ -138,6 +145,7 @@ class Command(BaseCommand):
 ```
 
 ### Data Migrations
+
 For data migrations that create or modify records, ensure history is tracked:
 
 ```python
@@ -152,6 +160,7 @@ def migrate_data(apps, schema_editor):
 ```
 
 ### Testing
+
 History records are created during tests, so account for them:
 
 ```python
@@ -173,12 +182,15 @@ def test_campaign_history():
 ## Performance Considerations
 
 ### History Volume
+
 History records accumulate over time. Consider:
+
 - Periodic cleanup of old history records
 - Indexing on `history_date` and `history_user`
 - Monitoring database size growth
 
 ### Query Optimization
+
 - Use `select_related()` when accessing history users
 - Filter history queries by date ranges when possible
 - Consider pagination for large history sets
@@ -186,18 +198,24 @@ History records accumulate over time. Consider:
 ## Troubleshooting
 
 ### Missing User Information
+
 If `history_user` is `None`:
+
 - Ensure `HistoryRequestMiddleware` is in `MIDDLEWARE` settings
 - Use `save_with_user()` or `create_with_user()` for programmatic changes
 - Check that the user is authenticated in the request
 
 ### Bulk Operations Not Tracked
+
 Standard bulk operations don't trigger signals that create history:
+
 - Use `bulk_create_with_history()` instead of `bulk_create()`
 - Use `update_with_user()` instead of `update()`
 
 ### History Not Created
+
 If no history records are created:
+
 - Ensure the model inherits from `AppBase`
 - Check that `simple_history` is in `INSTALLED_APPS`
 - Verify the model has `history = HistoricalRecords()`

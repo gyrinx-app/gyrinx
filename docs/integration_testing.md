@@ -22,12 +22,12 @@ def test_user_workflow(client, user, other_fixtures):
     """Test description of what workflow is being tested."""
     # 1. Login user if authentication is required
     client.force_login(user)
-    
+
     # 2. Make GET request to view page
     response = client.get(reverse("app:view-name", args=[obj.id]))
     assert response.status_code == 200
     assert "Expected content" in response.content.decode()
-    
+
     # 3. Make POST request to submit form
     response = client.post(
         reverse("app:action-name", args=[obj.id]),
@@ -37,11 +37,11 @@ def test_user_workflow(client, user, other_fixtures):
         }
     )
     assert response.status_code == 302  # Redirect after success
-    
+
     # 4. Verify database changes
     obj.refresh_from_db()
     assert obj.field1 == "value1"
-    
+
     # 5. Verify UI reflects changes
     response = client.get(reverse("app:view-name", args=[obj.id]))
     assert "value1" in response.content.decode()
@@ -73,12 +73,12 @@ The project provides several fixtures in `conftest.py`:
 def test_view_requires_login(client, user):
     """Test that view redirects to login for anonymous users."""
     url = reverse("core:protected-view")
-    
+
     # Test anonymous access
     response = client.get(url)
     assert response.status_code == 302
     assert "/accounts/login/" in response.url
-    
+
     # Test authenticated access
     client.force_login(user)
     response = client.get(url)
@@ -92,7 +92,7 @@ def test_view_requires_login(client, user):
 def test_form_submission(client, user):
     """Test form validation and processing."""
     client.force_login(user)
-    
+
     # Test invalid form
     response = client.post(
         reverse("core:form-view"),
@@ -100,7 +100,7 @@ def test_form_submission(client, user):
     )
     assert response.status_code == 200  # Stays on form page
     assert "This field is required" in response.content.decode()
-    
+
     # Test valid form
     response = client.post(
         reverse("core:form-view"),
@@ -116,7 +116,7 @@ def test_form_submission(client, user):
 def test_ownership_required(client, user, other_user, make_list):
     """Test that only owners can modify their objects."""
     lst = make_list("Test List", owner=other_user)
-    
+
     client.force_login(user)
     response = client.get(reverse("core:list-edit", args=[lst.id]))
     assert response.status_code == 404  # Not found for non-owner
@@ -131,12 +131,12 @@ def test_search_functionality(client):
     # Create test data
     Equipment.objects.create(name="Bolt Pistol", category="Pistols")
     Equipment.objects.create(name="Plasma Gun", category="Special")
-    
+
     # Test search
     response = client.get(reverse("core:equipment-list") + "?search=bolt")
     assert "Bolt Pistol" in response.content.decode()
     assert "Plasma Gun" not in response.content.decode()
-    
+
     # Test filter
     response = client.get(reverse("core:equipment-list") + "?category=Special")
     assert "Plasma Gun" in response.content.decode()
@@ -155,16 +155,19 @@ def test_search_functionality(client):
 ## Running Integration Tests
 
 Run all integration tests:
+
 ```bash
 pytest gyrinx/core/tests/test_integration_*.py
 ```
 
 Run a specific test:
+
 ```bash
 pytest gyrinx/core/tests/test_integration_core_functionality.py::test_create_list_and_add_fighter
 ```
 
 Run with verbose output:
+
 ```bash
 pytest -v gyrinx/core/tests/test_integration_*.py
 ```
@@ -189,45 +192,46 @@ def test_fighter_equipment_workflow(client, user, make_list, make_list_fighter, 
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Fighter")
     weapon = make_equipment("Lasgun", category="Basic Weapons", cost=15)
-    
+
     client.force_login(user)
-    
+
     # View fighter equipment page
     response = client.get(reverse("core:fighter-equipment", args=[fighter.id]))
     assert response.status_code == 200
     assert "Lasgun" in response.content.decode()
     assert "15 credits" in response.content.decode()
-    
+
     # Add equipment
     response = client.post(
         reverse("core:fighter-equipment-add", args=[fighter.id]),
         {"equipment": weapon.id}
     )
     assert response.status_code == 302
-    
+
     # Verify equipment was added
     fighter.refresh_from_db()
     assert fighter.equipment.count() == 1
     assert fighter.equipment.first() == weapon
-    
+
     # View fighter detail page
     response = client.get(reverse("core:fighter", args=[fighter.id]))
     assert response.status_code == 200
     assert "Lasgun" in response.content.decode()
-    
+
     # Remove equipment
     assignment = fighter.assignments()[0]
     response = client.post(
         reverse("core:fighter-equipment-remove", args=[fighter.id, assignment.id])
     )
     assert response.status_code == 302
-    
+
     # Verify equipment was removed
     fighter.refresh_from_db()
     assert fighter.equipment.count() == 0
 ```
 
 This example demonstrates:
+
 - Setting up test data with fixtures
 - Making authenticated requests
 - Testing multiple related views

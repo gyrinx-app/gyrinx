@@ -1,5 +1,6 @@
 # Repo specific
 docs/
+*.md
 
 # Dependencies
 package-lock.json

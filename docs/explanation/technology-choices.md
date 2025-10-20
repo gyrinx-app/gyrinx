@@ -59,4 +59,3 @@ An obvious extension to our current technology stack is to add htmx. This would 
 ### Cache
 
 Django's cache becans are currently configured entirely in memory. This has obvious limitations as usage increases, but it does simplify operational overheads and reduce costs by not requiring us to have a cache cluster spun up. However, an obvious extension to our tech stack would be to add one of Redis or Memcache to our stack to act as a permanent and shared cache that persists through deploys.
-

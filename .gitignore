@@ -24,3 +24,5 @@ media/
 latest.json
 .DS_Store
 logs/
+# Ignore Pycharm project files
+.idea/

@@ -5,6 +5,7 @@ Campaigns are a core feature of Gyrinx that allow users to organize and track mu
 ## Overview
 
 A campaign in Gyrinx represents a series of connected games with:
+
 - Multiple participating gangs (lists)
 - Shared narrative and tracking
 - Asset management (territories, relics, etc.)
@@ -16,12 +17,14 @@ A campaign in Gyrinx represents a series of connected games with:
 Campaigns progress through three distinct phases:
 
 ### Pre-Campaign
+
 - Initial setup phase
 - Add participating lists
 - Define asset types and resource types
 - Set up campaign narrative
 
 ### In Progress
+
 - Active gaming phase
 - Lists are cloned for campaign-specific tracking
 - Resources are allocated
@@ -30,6 +33,7 @@ Campaigns progress through three distinct phases:
 - Resources can be modified
 
 ### Post-Campaign
+
 - Archived state
 - No further modifications allowed
 - Historical record preserved
@@ -39,12 +43,14 @@ Campaigns progress through three distinct phases:
 ### Action Logging
 
 Players can log actions during the campaign with:
+
 - Descriptive text of what happened
 - Optional dice rolls (D6)
 - Outcome recording
 - Automatic timestamp and user tracking
 
 Example actions:
+
 - "Ambushed rival gang in Sector 7"
 - "Explored abandoned manufactorum" (with 2D6 roll)
 - "Negotiated trade agreement"
@@ -52,17 +58,20 @@ Example actions:
 ### Asset Management
 
 Campaign owners can define custom asset types:
+
 - **Name**: Singular and plural forms (e.g., "Territory" / "Territories")
 - **Description**: Rich text description of the asset type
 - **Individual Assets**: Named items that can be held by gangs
 
 Assets can be:
+
 - Created by campaign owner
 - Assigned to specific gangs
 - Transferred between gangs
 - Tracked with full history
 
 Common asset types:
+
 - Territories (specific locations)
 - Relics (unique items)
 - Alliances (political connections)
@@ -71,12 +80,14 @@ Common asset types:
 ### Resource Tracking
 
 Resources represent countable items shared across the campaign:
+
 - **Name**: Resource identifier (e.g., "Credits", "Ammunition")
 - **Description**: What the resource represents
 - **Default Amount**: Starting quantity for each gang
 - **Modifications**: Add or subtract amounts
 
 Resource features:
+
 - Automatically allocated when campaign starts
 - Cannot go below zero
 - Modifications create action log entries
@@ -95,6 +106,7 @@ Resource features:
 ### Adding Lists
 
 In pre-campaign phase:
+
 1. Click "Add Lists" from campaign page
 2. Search for lists by name or owner
 3. Add your own lists or public lists
@@ -103,6 +115,7 @@ In pre-campaign phase:
 ### Starting the Campaign
 
 When ready to begin:
+
 1. Ensure all lists are added
 2. Click "Start Campaign"
 3. Lists are cloned for campaign tracking
@@ -112,6 +125,7 @@ When ready to begin:
 ### During the Campaign
 
 Players can:
+
 - Log actions with narrative descriptions
 - Roll dice for random outcomes
 - Transfer assets between gangs
@@ -119,6 +133,7 @@ Players can:
 - Update gang progress
 
 Campaign owners can:
+
 - Create new asset types and assets
 - Create new resource types
 - Manage all transfers and modifications

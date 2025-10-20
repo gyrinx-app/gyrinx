@@ -13,11 +13,13 @@ The content admin module (`gyrinx/content/admin.py`) contains extensive customiz
 The `ContentFighterEquipmentCategoryLimitForm` ensures that equipment category limits can only be set for categories that have fighter restrictions. This prevents configuration errors where limits would be meaningless.
 
 **Key features:**
+
 - Validates against parent category restrictions
 - Groups fighters by house for better organization
 - Prevents invalid limit configurations
 
 **Implementation:**
+
 - Custom `clean()` method checks for fighter restrictions
 - Dynamic form class creation in `get_formset()` to pass parent instance
 
@@ -26,6 +28,7 @@ The `ContentFighterEquipmentCategoryLimitForm` ensures that equipment category l
 The `clone` action in `ContentEquipmentAdmin` allows duplicating equipment items with all their associated weapon profiles. This is useful for creating variations of existing equipment.
 
 **Key features:**
+
 - Atomic transaction ensures data consistency
 - Copies all associated weapon profiles
 - Adds "(Clone)" suffix to distinguish copies
@@ -39,11 +42,13 @@ Select equipment items in the admin list view and choose "Clone selected Equipme
 Several admin forms dynamically filter their field choices based on context:
 
 #### Equipment Admin Form
+
 - Orders categories by predefined group order
 - Filters modifiers to only show fighter-affecting types
 - Groups categories for better organization
 
 #### Fighter Equipment List Item Form
+
 - Filters weapon profiles based on selected equipment
 - Only shows profiles with cost > 0
 - Groups fighters by house and equipment by category
@@ -53,6 +58,7 @@ Several admin forms dynamically filter their field choices based on context:
 The `ContentStatlineAdmin.save_related()` method ensures all required stats exist for a statline after saving. This prevents incomplete data and maintains consistency.
 
 **Key features:**
+
 - Automatically creates missing stat entries
 - Sets default empty values ("-")
 - Runs after all related objects are saved
@@ -61,11 +67,13 @@ The `ContentStatlineAdmin.save_related()` method ensures all required stats exis
 ### 5. Inline Form Customizations
 
 #### Statline Inline
+
 - Enforces one-to-one relationship with fighters
 - Custom `has_add_permission()` prevents multiple statlines
 - Max of one statline per fighter
 
 #### Page Reference Inline
+
 - Custom ordering by numeric page number
 - Handles both numeric and empty page values
 - Converts string pages to integers for proper sorting
@@ -93,6 +101,7 @@ This improves usability when dealing with large numbers of choices.
 ### Polymorphic Admin Support
 
 The content module uses `django-polymorphic` for modifier models, with:
+
 - `ContentModAdmin` as the parent admin
 - Child admins for specific modifier types
 - Polymorphic filter in list view
@@ -100,6 +109,7 @@ The content module uses `django-polymorphic` for modifier models, with:
 ### Custom Form Validation
 
 Many forms include custom validation in their `clean()` methods to enforce business rules:
+
 - Equipment category restrictions
 - Fighter assignment limits
 - Statline requirements
