@@ -2,6 +2,7 @@ import pytest
 
 from gyrinx.content.models import (
     ContentEquipmentCategory,
+    ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
 )
 from gyrinx.core.models.list import ListFighterEquipmentAssignment
@@ -153,3 +154,88 @@ def test_clone_fighter_with_linked_equipment(
     assert cloned_assign.child_fighter != assign.child_fighter  # Different instances
     assert cloned_assign.child_fighter.name == "Beast"
     assert cloned_assign.child_fighter.list == lst
+
+
+@pytest.mark.django_db
+def test_clone_fighter_with_equipment_equipment_link(
+    user,
+    make_list,
+    make_content_house,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    """Test that cloning a fighter with equipment-equipment links doesn't duplicate equipment."""
+    # Create house and fighter
+    house = make_content_house("Example House")
+    leader_cf = make_content_fighter(
+        type="Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+
+    # Create parent equipment (e.g., Dustback helamite (NTP))
+    parent_equipment = make_equipment(
+        "Dustback helamite (NTP)",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=50,
+    )
+
+    # Create linked equipment (e.g., Helamite claws)
+    linked_equipment = make_equipment(
+        "Helamite claws",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost=0,  # Auto-assigned equipment is typically free
+    )
+
+    # Link the equipment
+    ContentEquipmentEquipmentProfile.objects.create(
+        equipment=parent_equipment,
+        linked_equipment=linked_equipment,
+    )
+
+    # Create list and fighter
+    lst = make_list("Example List", content_house=house, owner=user)
+    leader_lf = make_list_fighter(lst, "Leader", content_fighter=leader_cf, owner=user)
+
+    # Assign the parent equipment to the leader
+    parent_assign = ListFighterEquipmentAssignment(
+        list_fighter=leader_lf, content_equipment=parent_equipment
+    )
+    parent_assign.save()
+
+    # Verify setup: should have 1 fighter with 2 equipment assignments (parent + linked)
+    assert lst.fighters().count() == 1
+    all_assignments = leader_lf._direct_assignments()
+    assert all_assignments.count() == 2
+
+    # Find the parent and linked assignments
+    parent_assignment = all_assignments.get(content_equipment=parent_equipment)
+    linked_assignment = all_assignments.get(content_equipment=linked_equipment)
+    assert linked_assignment.linked_equipment_parent == parent_assignment
+
+    # Clone the fighter
+    cloned_leader = leader_lf.clone(name="Cloned Leader")
+
+    # Verify clone results: should have 2 fighters total
+    assert lst.fighters().count() == 2
+
+    # Check the cloned fighter's assignments
+    cloned_assignments = cloned_leader._direct_assignments()
+    # Validate that the bug is fixed: cloned fighter should have exactly 2 assignments
+    # (parent + linked equipment, no duplicates)
+    assert cloned_assignments.count() == 2, (
+        f"Expected 2 equipment assignments for cloned fighter, "
+        f"got {cloned_assignments.count()}. "
+        f"Assignments: {list(cloned_assignments.values_list('content_equipment__name', flat=True))}"
+    )
+
+    # Verify the cloned assignments are correct
+    cloned_parent_assignment = cloned_assignments.get(
+        content_equipment=parent_equipment
+    )
+    cloned_linked_assignment = cloned_assignments.get(
+        content_equipment=linked_equipment
+    )
+    assert cloned_linked_assignment.linked_equipment_parent == cloned_parent_assignment

@@ -2304,10 +2304,15 @@ class ListFighter(AppBase):
         )
 
         # Don't clone equipment assignments that were converted from default assignments
+        # or assignments that were auto-created from equipment-equipment links
         for assignment in self._direct_assignments():
             if assignment.from_default_assignment is not None:
                 # Skip assignments that were converted from default assignments
                 # The clone will get these as default assignments instead
+                continue
+            if assignment.linked_equipment_parent is not None:
+                # Skip assignments that were auto-created from equipment-equipment links
+                # The clone will get these via the signal when the parent equipment is cloned
                 continue
             cloned_assignment = assignment.clone(list_fighter=clone)
 
