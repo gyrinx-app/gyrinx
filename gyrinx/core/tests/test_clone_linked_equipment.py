@@ -223,8 +223,8 @@ def test_clone_fighter_with_equipment_equipment_link(
 
     # Check the cloned fighter's assignments
     cloned_assignments = cloned_leader._direct_assignments()
-    # BUG: This should be 2, but due to the bug it will be 4
-    # (parent + linked from clone method, then another parent + linked from signal)
+    # Validate that the bug is fixed: cloned fighter should have exactly 2 assignments
+    # (parent + linked equipment, no duplicates)
     assert cloned_assignments.count() == 2, (
         f"Expected 2 equipment assignments for cloned fighter, "
         f"got {cloned_assignments.count()}. "
