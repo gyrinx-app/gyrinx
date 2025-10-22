@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from gyrinx.core.models import List
-from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.core.models.campaign import Campaign, CampaignAction
 
 User = get_user_model()
 
@@ -177,8 +177,6 @@ def test_campaign_owner_can_edit_list_credits(client, db, house):
     list_owner = User.objects.create_user(username="list_owner", password="password")
 
     # Create campaign owned by campaign_owner
-    from gyrinx.core.models.campaign import Campaign
-
     campaign = Campaign.objects.create(
         name="Test Campaign", owner=campaign_owner, public=True
     )
@@ -224,8 +222,6 @@ def test_campaign_owner_can_access_credits_edit_view(client, db, house):
     list_owner = User.objects.create_user(username="list_owner", password="password")
 
     # Create campaign owned by campaign_owner
-    from gyrinx.core.models.campaign import Campaign
-
     campaign = Campaign.objects.create(
         name="Test Campaign", owner=campaign_owner, public=True
     )
@@ -257,13 +253,9 @@ def test_non_owner_cannot_edit_credits(client, db, house):
         username="campaign_owner", password="password"
     )
     list_owner = User.objects.create_user(username="list_owner", password="password")
-    unrelated_user = User.objects.create_user(
-        username="unrelated_user", password="password"
-    )
+    User.objects.create_user(username="unrelated_user", password="password")
 
     # Create campaign owned by campaign_owner
-    from gyrinx.core.models.campaign import Campaign
-
     campaign = Campaign.objects.create(
         name="Test Campaign", owner=campaign_owner, public=True
     )

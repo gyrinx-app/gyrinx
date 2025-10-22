@@ -20,8 +20,10 @@
             <div class="hstack gap-3 align-items-center justify-content-between px-1">
                 <h4 class="h6 mb-0">Stash Credits</h4>
                 <div class="hstack gap-2 align-items-center">
-                    {% if (list.owner_cached == user or (list.campaign and list.campaign.owner == user)) and not print and not list.is_list_building %}
-                        <a href="{% url 'core:list-credits-edit' list.id %}" class="fs-7 linked">Edit</a>
+                    {% if list.owner_cached == user or list.campaign and list.campaign.owner == user %}
+                        {% if not print and not list.is_list_building %}
+                            <a href="{% url 'core:list-credits-edit' list.id %}" class="fs-7 linked">Edit</a>
+                        {% endif %}
                     {% endif %}
                     <span class="badge bg-primary fs-7">{{ list.credits_current|default:"0" }}¢</span>
                 </div>
