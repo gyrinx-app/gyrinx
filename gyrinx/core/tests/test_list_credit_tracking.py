@@ -165,3 +165,140 @@ def test_cannot_spend_more_than_available(client, user, campaign_list):
     campaign_list.refresh_from_db()
     assert campaign_list.credits_current == 100
     assert campaign_list.credits_earned == 100
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_edit_list_credits(client, db, house):
+    """Test that campaign owner can edit credits for lists in their campaign."""
+    # Create campaign owner and list owner as different users
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+
+    # Create campaign owned by campaign_owner
+    from gyrinx.core.models.campaign import Campaign
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
+    )
+
+    # Create list owned by list_owner, but in campaign_owner's campaign
+    campaign_list = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+        credits_current=100,
+        credits_earned=100,
+    )
+
+    # Login as campaign owner
+    client.login(username="campaign_owner", password="password")
+
+    # Campaign owner should be able to modify credits
+    response = client.post(
+        reverse("core:list-credits-edit", args=(campaign_list.id,)),
+        {
+            "operation": "add",
+            "amount": 500,
+            "description": "Arbitrator adjustment",
+        },
+    )
+
+    assert response.status_code == 302
+
+    campaign_list.refresh_from_db()
+    assert campaign_list.credits_current == 600
+    assert campaign_list.credits_earned == 600
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_access_credits_edit_view(client, db, house):
+    """Test that campaign owner can access the credits edit view."""
+    # Create campaign owner and list owner as different users
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+
+    # Create campaign owned by campaign_owner
+    from gyrinx.core.models.campaign import Campaign
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
+    )
+
+    # Create list owned by list_owner, but in campaign_owner's campaign
+    campaign_list = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    # Login as campaign owner
+    client.login(username="campaign_owner", password="password")
+
+    # Campaign owner should be able to access the view
+    response = client.get(reverse("core:list-credits-edit", args=(campaign_list.id,)))
+
+    assert response.status_code == 200
+    assert "Edit Credits" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_non_owner_cannot_edit_credits(client, db, house):
+    """Test that users who are neither list nor campaign owner cannot edit credits."""
+    # Create three users: campaign owner, list owner, and unrelated user
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+    unrelated_user = User.objects.create_user(
+        username="unrelated_user", password="password"
+    )
+
+    # Create campaign owned by campaign_owner
+    from gyrinx.core.models.campaign import Campaign
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
+    )
+
+    # Create list owned by list_owner in the campaign
+    campaign_list = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+        credits_current=100,
+        credits_earned=100,
+    )
+
+    # Login as unrelated user
+    client.login(username="unrelated_user", password="password")
+
+    # Unrelated user should get 404 when trying to access the view
+    response = client.get(reverse("core:list-credits-edit", args=(campaign_list.id,)))
+
+    assert response.status_code == 404
+
+    # Unrelated user should get 404 when trying to post
+    response = client.post(
+        reverse("core:list-credits-edit", args=(campaign_list.id,)),
+        {
+            "operation": "add",
+            "amount": 500,
+        },
+    )
+
+    assert response.status_code == 404
+
+    # List credits should be unchanged
+    campaign_list.refresh_from_db()
+    assert campaign_list.credits_current == 100
+    assert campaign_list.credits_earned == 100
