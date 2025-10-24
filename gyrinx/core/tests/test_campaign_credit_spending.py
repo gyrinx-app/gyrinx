@@ -231,14 +231,26 @@ def test_add_vehicle_creates_campaign_action(
 
     client.login(username="testuser", password="password")
 
-    # Create a vehicle equipment and crew fighter
+    # Create a vehicle fighter and crew fighter
     from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    vehicle_fighter = ContentFighter.objects.create(
+        type="Test Bike",
+        category=FighterCategoryChoices.VEHICLE,
+        house=house,
+        base_cost=80,
+    )
 
     vehicle_equipment = make_equipment(
         name="Test Bike",
         category="Vehicles",
-        base_cost=80,
-        is_vehicle=True,
+        cost="80",
+    )
+
+    # Create profile that links the vehicle equipment to the vehicle fighter
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle_equipment,
+        content_fighter=vehicle_fighter,
     )
 
     crew_fighter = ContentFighter.objects.create(
@@ -248,36 +260,32 @@ def test_add_vehicle_creates_campaign_action(
         base_cost=20,
     )
 
-    # Create profile that links the vehicle to the crew fighter
-    ContentEquipmentFighterProfile.objects.create(
-        equipment=vehicle_equipment,
-        fighter=crew_fighter,
-    )
-
     # Verify no campaign actions exist initially
     assert CampaignAction.objects.filter(list=campaign_list_with_credits).count() == 0
 
-    # Simulate the vehicle flow - step 1: select vehicle
-    session = client.session
-    session["vehicle_flow_params"] = {
+    # Simulate the vehicle flow - prepare GET parameters for confirmation
+    from urllib.parse import urlencode
+
+    params = {
         "vehicle_equipment_id": str(vehicle_equipment.id),
         "action": "select_crew",
         "crew_name": "Test Crew Member",
         "crew_fighter_id": str(crew_fighter.id),
     }
-    session.save()
+    query_string = urlencode(params)
 
     # Step 3: confirm vehicle purchase
     response = client.post(
-        reverse("core:list-vehicle-confirm", args=(campaign_list_with_credits.id,)),
-        {},  # Confirmation form has no fields
+        reverse("core:list-vehicle-confirm", args=(campaign_list_with_credits.id,))
+        + f"?{query_string}",
+        {"confirm": True},
     )
 
-    assert response.status_code == 302
+    assert response.status_code == 302, f"Expected 302 but got {response.status_code}"
 
     # Verify credits were spent
     campaign_list_with_credits.refresh_from_db()
-    expected_cost = vehicle_equipment.base_cost + crew_fighter.base_cost
+    expected_cost = vehicle_fighter.base_cost + crew_fighter.base_cost
     assert campaign_list_with_credits.credits_current == 1000 - expected_cost
 
     # Verify campaign action was created
