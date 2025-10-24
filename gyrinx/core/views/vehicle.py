@@ -257,12 +257,19 @@ def vehicle_confirm(request, id):
 
                     # Create campaign action for vehicle purchase in campaign mode
                     if lst.is_campaign_mode:
+                        if params.action == "add_to_stash":
+                            description = (
+                                f"Purchased {vehicle_equipment.name} ({total_cost}¢)"
+                            )
+                        else:
+                            description = f"Purchased {vehicle_equipment.name} and crew {crew.name} ({total_cost}¢)"
+
                         CampaignAction.objects.create(
                             user=request.user,
                             owner=request.user,
                             campaign=lst.campaign,
                             list=lst,
-                            description=f"Purchased {vehicle_equipment.name} and crew {crew.name} ({total_cost}¢)",
+                            description=description,
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
 
