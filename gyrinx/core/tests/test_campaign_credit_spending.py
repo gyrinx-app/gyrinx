@@ -185,3 +185,117 @@ def test_spend_credits_one_credit_short(campaign_list_with_credits):
     assert "Insufficient credits" in str(exc_info.value)
     campaign_list_with_credits.refresh_from_db()
     assert campaign_list_with_credits.credits_current == 99
+
+
+@pytest.mark.django_db
+def test_hire_fighter_creates_campaign_action(
+    client, user, campaign_list_with_credits, content_fighter: ContentFighter
+):
+    """Test that hiring a fighter in campaign mode creates a campaign action."""
+    from gyrinx.core.models.campaign import CampaignAction
+
+    client.login(username="testuser", password="password")
+
+    # Verify no campaign actions exist initially
+    assert CampaignAction.objects.filter(list=campaign_list_with_credits).count() == 0
+
+    response = client.post(
+        reverse("core:list-fighter-new", args=(campaign_list_with_credits.id,)),
+        {
+            "name": "New Ganger 1",
+            "content_fighter": content_fighter.id,
+        },
+    )
+
+    assert response.status_code == 302
+
+    # Verify campaign action was created
+    actions = CampaignAction.objects.filter(list=campaign_list_with_credits)
+    assert actions.count() == 1
+
+    action = actions.first()
+    assert action.user == user
+    assert action.campaign == campaign_list_with_credits.campaign
+    assert "Hired New Ganger 1" in action.description
+    assert f"{content_fighter.base_cost}¢" in action.description
+    assert "Credits remaining:" in action.outcome
+
+
+@pytest.mark.django_db
+def test_add_vehicle_creates_campaign_action(
+    client, user, campaign_list_with_credits, house, make_equipment
+):
+    """Test that adding a vehicle in campaign mode creates a campaign action."""
+    from gyrinx.core.models.campaign import CampaignAction
+    from gyrinx.models import FighterCategoryChoices
+
+    client.login(username="testuser", password="password")
+
+    # Create a vehicle fighter and crew fighter
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    vehicle_fighter = ContentFighter.objects.create(
+        type="Test Bike",
+        category=FighterCategoryChoices.VEHICLE,
+        house=house,
+        base_cost=80,
+    )
+
+    vehicle_equipment = make_equipment(
+        name="Test Bike",
+        category="Vehicles",
+        cost="80",
+    )
+
+    # Create profile that links the vehicle equipment to the vehicle fighter
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle_equipment,
+        content_fighter=vehicle_fighter,
+    )
+
+    crew_fighter = ContentFighter.objects.create(
+        type="Vehicle Crew",
+        category=FighterCategoryChoices.CREW,
+        house=house,
+        base_cost=20,
+    )
+
+    # Verify no campaign actions exist initially
+    assert CampaignAction.objects.filter(list=campaign_list_with_credits).count() == 0
+
+    # Simulate the vehicle flow - prepare GET parameters for confirmation
+    from urllib.parse import urlencode
+
+    params = {
+        "vehicle_equipment_id": str(vehicle_equipment.id),
+        "action": "select_crew",
+        "crew_name": "Test Crew Member",
+        "crew_fighter_id": str(crew_fighter.id),
+    }
+    query_string = urlencode(params)
+
+    # Step 3: confirm vehicle purchase
+    response = client.post(
+        reverse("core:list-vehicle-confirm", args=(campaign_list_with_credits.id,))
+        + f"?{query_string}",
+        {"confirm": True},
+    )
+
+    assert response.status_code == 302, f"Expected 302 but got {response.status_code}"
+
+    # Verify credits were spent
+    campaign_list_with_credits.refresh_from_db()
+    expected_cost = vehicle_fighter.base_cost + crew_fighter.base_cost
+    assert campaign_list_with_credits.credits_current == 1000 - expected_cost
+
+    # Verify campaign action was created
+    actions = CampaignAction.objects.filter(list=campaign_list_with_credits)
+    assert actions.count() == 1
+
+    action = actions.first()
+    assert action.user == user
+    assert action.campaign == campaign_list_with_credits.campaign
+    assert "Purchased Test Bike" in action.description
+    assert "Test Crew Member" in action.description
+    assert f"{expected_cost}¢" in action.description
+    assert "Credits remaining:" in action.outcome

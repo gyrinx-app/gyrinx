@@ -23,6 +23,7 @@ from gyrinx.core.forms.vehicle import (
     VehicleConfirmationForm,
     VehicleSelectionForm,
 )
+from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 
@@ -253,6 +254,24 @@ def vehicle_confirm(request, id):
                         list_fighter=crew,
                         content_equipment=vehicle_equipment,
                     )
+
+                    # Create campaign action for vehicle purchase in campaign mode
+                    if lst.is_campaign_mode:
+                        if params.action == "add_to_stash":
+                            description = (
+                                f"Purchased {vehicle_equipment.name} ({total_cost}¢)"
+                            )
+                        else:
+                            description = f"Purchased {vehicle_equipment.name} and crew {crew.name} ({total_cost}¢)"
+
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=description,
+                            outcome=f"Credits remaining: {lst.credits_current}¢",
+                        )
 
                     # Log the vehicle addition
                     log_event(

@@ -901,6 +901,16 @@ def new_list_fighter(request, id):
                             fighter_cost, description=f"Hiring {fighter.name}"
                         )
                         fighter.save()
+
+                        # Create campaign action
+                        CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=f"Hired {fighter.name} ({fighter_cost}¢)",
+                            outcome=f"Credits remaining: {lst.credits_current}¢",
+                        )
                 except DjangoValidationError as e:
                     error_message = str(e.message)
                     messages.error(request, error_message)
