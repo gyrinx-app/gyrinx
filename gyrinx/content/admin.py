@@ -410,6 +410,7 @@ class ContentFighterEquipmentListWeaponAccessoryAdmin(ContentAdmin, admin.ModelA
 @admin.register(ContentEquipmentUpgrade)
 class ContentFighterEquipmentUpgradeAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name", "equipment__name"]
+    autocomplete_fields = ["equipment"]
 
 
 @admin.register(ContentFighterEquipmentListUpgrade)
