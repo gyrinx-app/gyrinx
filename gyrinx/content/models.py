@@ -1918,7 +1918,7 @@ class ContentEquipmentUpgrade(CostMixin, Content):
         unique_together = ["equipment", "name"]
 
     def __str__(self):
-        return f"{self.equipment.upgrade_stack_name_display} – {self.name}"
+        return f"{self.equipment.upgrade_stack_name_display} – {self.name} ({self.equipment.name})"
 
     objects = ContentEquipmentUpgradeManager.from_queryset(
         ContentEquipmentUpgradeQuerySet
