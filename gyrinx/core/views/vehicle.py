@@ -302,7 +302,7 @@ def vehicle_confirm(request, id):
                         + f"#{str(crew.id)}"
                     )
             except DjangoValidationError as e:
-                error_message = str(e.message)
+                error_message = ". ".join(e.messages)
                 messages.error(request, error_message)
                 return render(
                     request,

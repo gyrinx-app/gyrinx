@@ -912,7 +912,7 @@ def new_list_fighter(request, id):
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
                 except DjangoValidationError as e:
-                    error_message = str(e.message)
+                    error_message = ". ".join(e.messages)
                     messages.error(request, error_message)
                     form = ListFighterForm(request.POST, instance=fighter)
                     return render(
@@ -1878,7 +1878,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 except DjangoValidationError as e:
                     # Not enough credits - delete the assignment and show error
                     assign.delete()
-                    error_message = str(e)
+                    error_message = ". ".join(e.messages)
                     messages.error(request, error_message)
                     # Continue to render the form below
             else:
@@ -2706,7 +2706,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
                         outcome=f"Credits remaining: {lst.credits_current}¢",
                     )
             except DjangoValidationError as e:
-                error_message = str(e)
+                error_message = ". ".join(e.messages)
                 messages.error(request, error_message)
                 # Continue to render the form below
         else:
@@ -3012,7 +3012,7 @@ def edit_list_fighter_weapon_upgrade(
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
                 except DjangoValidationError as e:
-                    error_message = str(e)
+                    error_message = ". ".join(e.messages)
                     messages.error(request, error_message)
                     # Re-render form with error
             else:

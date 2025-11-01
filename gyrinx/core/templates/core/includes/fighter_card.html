@@ -1,8 +1,6 @@
 {% load allauth custom_tags %}
-{% if not print or not fighter.is_stash %}
-    {% if list.owner_cached == user and not list.archived %}
-        {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=True print=print classes=classes %}
-    {% else %}
-        {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=False print=print classes=classes %}
-    {% endif %}
+{% if list.owner_cached == user and not list.archived %}
+    {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=True print=print classes=classes %}
+{% else %}
+    {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=False print=print classes=classes %}
 {% endif %}

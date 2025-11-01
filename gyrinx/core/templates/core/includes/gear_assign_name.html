@@ -1,12 +1,11 @@
-<!-- gear_assign_name.html -->
-{{ assign.name }}
-{% if assign.active_upgrades_display|length > 0 %}
-    {% spaceless %}
-        <span>(</span>
+{% spaceless %}
+    <span>{{ assign.name }}</span>
+    {% if assign.active_upgrades_display|length > 0 %}
+        <span>&nbsp;(</span>
         {% for up in assign.active_upgrades_display %}
             <span>{{ up.name }}</span>
             {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
         {% endfor %}
         <span>)</span>
-    {% endspaceless %}
-{% endif %}
+    {% endif %}
+{% endspaceless %}
