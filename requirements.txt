@@ -35,11 +35,11 @@ pytest==8.4.2
 pytest-django==4.11.1
 pytest-watcher==0.4.3
 pytest-xdist==3.8.0
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 qrcode==8.2
 referencing==0.37.0
 rich==14.2.0
-ruff==0.14.1
+ruff==0.14.2
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.3
