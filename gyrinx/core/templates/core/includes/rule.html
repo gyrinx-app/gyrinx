@@ -1,15 +1,15 @@
 {% load custom_tags %}
-{% if not print %}
-    {% if rule.modded %}
-        <span bs-tooltip
-              data-bs-toggle="tooltip"
-              class="tooltipped"
-              title="Added by equipment, accessories or upgrades">{{ rule.value }}</span>
+{% spaceless %}
+    {% if not print %}
+        {% if rule.modded %}
+            <span bs-tooltip
+                  data-bs-toggle="tooltip"
+                  class="tooltipped"
+                  title="Added by equipment, accessories or upgrades">{{ rule.value }}</span>
+        {% else %}
+            <span>{% ref rule.value value=rule.value %}</span>
+        {% endif %}
     {% else %}
-        {% ref rule.value value=rule.value %}<!-- ! -->
-    {% endif %}
-{% else %}
-    {% spaceless %}
         <span>{{ rule.value }}</span>
-    {% endspaceless %}
-{% endif %}
+    {% endif %}
+{% endspaceless %}
