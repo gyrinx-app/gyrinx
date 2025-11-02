@@ -3545,6 +3545,71 @@ def kill_list_fighter(request, id, fighter_id):
 
 
 @login_required
+def resurrect_list_fighter(request, id, fighter_id):
+    """
+    Mark a :model:`core.ListFighter` as alive in campaign mode.
+    This sets cost to the original value of the fighter, but does not
+    restore equipment transferred to the stash when the fighter was killed.
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` to be marked as alive.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_kill.html`
+    """
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+
+    if not lst.is_campaign_mode:
+        messages.error(request, "Fighters can only be resurrected in campaign mode.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        if not fighter.injury_state == ListFighter.DEAD:
+            messages.error(request, "Only dead fighters can be resurrected.")
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+        # Mark fighter as alive and set cost to original value
+        fighter.injury_state = ListFighter.ACTIVE
+        fighter.cost_override = None
+        fighter.save()
+
+        CampaignAction.objects.create(
+            user=request.user,
+            owner=request.user,
+            campaign=lst.campaign,
+            list=lst,
+            description=f"Resurrection: {fighter.name} is no longer dead",
+            outcome=f"{fighter.name} has been returned to the active roster.",
+        )
+
+        messages.success(
+            request,
+            f"{fighter.name} has been resurrected. They can now be re-equipped from the stash.",
+        )
+
+        return HttpResponseRedirect(
+            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+        )
+
+    return render(
+        request, "core/list_fighter_resurrect.html", {"fighter": fighter, "list": lst}
+    )
+
+
+@login_required
 def delete_list_fighter(request, id, fighter_id):
     """
     Delete a :model:`core.ListFighter`.

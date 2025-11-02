@@ -186,17 +186,25 @@
                                            aria-disabled="true"><i class="bi-trash"></i> Delete</a>
                                     </li>
                                 {% else %}
-                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
-                                        </li>
-                                    {% endif %}
-                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' %}
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
-                                        </li>
+                                    {% if list.is_campaign_mode %}
+                                        {% if fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
+                                            </li>
+                                        {% endif %}
+                                        {% if fighter.injury_state != 'dead' %}
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
+                                            </li>
+                                        {% endif %}
+                                        {% if fighter.injury_state == 'dead' %}
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:list-fighter-resurrect' list.id fighter.id %}"><i class="bi-heart-pulse"></i> Resurrect</a>
+                                            </li>
+                                        {% endif %}
                                     {% endif %}
                                     <li>
                                         <hr class="dropdown-divider">
