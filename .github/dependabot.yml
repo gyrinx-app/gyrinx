@@ -2,21 +2,18 @@
 
 version: 2
 updates:
-  # Temporarily disabled due to Dependabot issue with pip-tools/pip 25.3 incompatibility
-  # See: https://github.com/jazzband/pip-tools/issues/2252
-  # Re-enable once GitHub fixes their internal pip-tools version
-  # - package-ecosystem: "pip"
-  #   directory: "/"
-  #   schedule:
-  #     interval: "weekly"
-  #   groups:
-  #     minor-and-patch:
-  #       update-types:
-  #         - "patch"
-  #         - "minor"
-  #     major:
-  #       update-types:
-  #         - "major"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "patch"
+          - "minor"
+      major:
+        update-types:
+          - "major"
 
   - package-ecosystem: "npm"
     directory: "/"
