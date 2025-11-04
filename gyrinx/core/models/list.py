@@ -59,6 +59,7 @@ from gyrinx.content.models import (
     StatlineDisplay,
     VirtualWeaponProfile,
 )
+from gyrinx.core.models.action import ListAction
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
@@ -71,6 +72,7 @@ from gyrinx.models import (
     QuerySetOf,
     format_cost_display,
 )
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 pylist = list
@@ -124,6 +126,13 @@ class ListQuerySet(models.QuerySet):
                     status=List.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
                 ),
                 to_attr="active_campaign_clones",
+            ),
+            Prefetch(
+                "actions",
+                queryset=ListAction.objects.order_by(
+                    "list_id", "-created", "-id"
+                ).distinct("list_id"),
+                to_attr="latest_actions",
             ),
         )
 
@@ -216,11 +225,23 @@ class List(AppBase):
         ],
     )
 
-    # Credit tracking
-    credits_current = models.PositiveIntegerField(
+    # Wealth tracking fields
+
+    rating_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Current rating of the list",
+    )
+
+    stash_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Current stash value of the list",
+    )
+
+    credits_current = models.IntegerField(
         default=0,
         help_text="Current credits available",
     )
+
     credits_earned = models.PositiveIntegerField(
         default=0,
         help_text="Total credits ever earned",
@@ -238,24 +259,39 @@ class List(AppBase):
     history = HistoricalRecords()
 
     #
-    # Wealth, Cost, Rating
+    # Wealth, Rating, Credits Behaviour
     #
 
     @admin.display(description="Cost / Wealth")
     def cost_int(self):
-        # Note: we do _not_ want to used cached versions here because this method
-        # can be used to calculate the cost in real-time, reflecting any changes
-        # made to the fighters or their attributes.
+        """
+        Calculate the total wealth of the list.
+
+        Calling this 'cost' is a bit of a misnomer: it actually represents the total wealth of the list,
+        i.e., the sum of all fighter costs plus stash (also a fighter because reasons) plus current credits.
+
+        Note: we do _not_ want to used cached versions here because this method
+        can be used to calculate the cost in real-time, reflecting any changes
+        made to the fighters or their attributes.
+        """
         rating = sum(
             [f.cost_int() for f in self.fighters() if not f.content_fighter.is_stash]
         )
         stash_fighter_cost_int = (
             self.stash_fighter.cost_int() if self.stash_fighter else 0
         )
-        return rating + stash_fighter_cost_int + self.credits_current
+        wealth = rating + stash_fighter_cost_int + self.credits_current
+        self.check_wealth_sync(wealth)
+        return wealth
 
     @cached_property
     def cost_int_cached(self):
+        """
+        Max-in-memory-cached version of cost_int().
+
+        This should preferably be used, as it is expected to be accessed multiple times
+        during typical request handling.
+        """
         cache = caches["core_list_cache"]
         cache_key = self.cost_cache_key()
         cached = cache.get(cache_key)
@@ -263,9 +299,9 @@ class List(AppBase):
             return cached
 
         rating = sum([f.cost_int_cached for f in self.active_fighters])
-        cost = rating + self.stash_fighter_cost_int + self.credits_current
-        cache.set(cache_key, cost, settings.CACHE_LIST_TTL)
-        return cost
+        wealth = rating + self.stash_fighter_cost_int + self.credits_current
+        cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
+        return wealth
 
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
@@ -289,6 +325,39 @@ class List(AppBase):
     @cached_property
     def credits_current_display(self):
         return format_cost_display(self.credits_current)
+
+    @cached_property
+    def wealth_current(self):
+        return self.rating_current + self.stash_current + self.credits_current
+
+    def check_wealth_sync(self, wealth_calculated):
+        """
+        Check if the stored rating_current and latest action match the calculated cost.
+
+        This is temporary and will be removed once we fully rely on rating_current and actions to track list costs.
+        """
+
+        # This is conditioned on having a latest action to avoid false positives before we have any actions in place.
+        # We refetch in the case where latest_action is not prefetched.
+        la = self.latest_action
+
+        if la:
+            calculated_current_delta = wealth_calculated - self.wealth_current
+            calculated_action_delta = wealth_calculated - la.wealth_after
+            if calculated_current_delta != 0 or calculated_action_delta != 0:
+                track(
+                    "list_cost_out_of_sync",
+                    list_id=str(self.id),
+                    wealth_calculated=wealth_calculated,
+                    wealth_current=self.wealth_current,
+                    rating_current=self.rating_current,
+                    stash_current=self.stash_current,
+                    credits_current=self.credits_current,
+                    latest_action_wealth_after=la.wealth_after,
+                    latest_action_rating_after=la.rating_after,
+                    latest_action_stash_after=la.stash_after,
+                    latest_action_credits_after=la.credits_after,
+                )
 
     #
     # Fighter & other properties
@@ -438,6 +507,17 @@ class List(AppBase):
         # Also clear the cached property from the instance
         if "cost_int_cached" in self.__dict__:
             del self.__dict__["cost_int_cached"]
+
+    @cached_property
+    def latest_action(self) -> Optional[ListAction]:
+        """Get the latest ListAction for this list, if any.
+
+        Performance: This requires prefetching latest_actions via with_related_data().
+        """
+        if hasattr(self, "latest_actions") and self.latest_actions:
+            return self.latest_actions[0]
+
+        return ListAction.objects.latest_for_list(self.id)
 
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.
