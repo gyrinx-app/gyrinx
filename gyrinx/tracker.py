@@ -46,6 +46,20 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
     if labels:
         payload["labels"] = labels
 
+    # Filter labels to only JSON-serializable values
+    if labels:
+        filtered_labels = {}
+        for key, val in labels.items():
+            try:
+                json.dumps(val)
+                filtered_labels[key] = val
+            except (TypeError, ValueError):
+                # Not JSON serializable, try to extract ID
+                if hasattr(val, "id"):
+                    filtered_labels[key] = str(val.id)
+                # Otherwise drop the label
+        payload["labels"] = filtered_labels
+
     if _use_cloud_logging:
         # Google Cloud Logging
         _logger.log_struct(payload, severity="INFO")

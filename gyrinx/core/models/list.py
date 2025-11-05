@@ -519,6 +519,57 @@ class List(AppBase):
 
         return ListAction.objects.latest_for_list(self.id)
 
+    def create_action(
+        self, update_credits: bool = False, **kwargs
+    ) -> Optional[ListAction]:
+        from gyrinx.core.models.action import ListAction
+
+        # Don't run this if we haven't yet got a latest_action. We'll run a backfill
+        # to ensure there is at least one action for each list, with the correct values, later.
+        if self.latest_action:
+            user = kwargs.pop("user", None)
+
+            # We create the action first, with applied=False, so that we can track if the update failed
+            la = ListAction.objects.create(
+                user=user or self.owner,
+                owner=self.owner,
+                list=self,
+                applied=False,
+                **kwargs,
+            )
+            la.save()
+
+            # Update key fields
+            # Currently we don't track credits delta by default in actions becuase spend_credits exists
+            # but we should refactor in that direction later.
+            rating_delta = kwargs.get("rating_delta", 0)
+            stash_delta = kwargs.get("stash_delta", 0)
+            credits_delta = kwargs.get("credits_delta", 0) if update_credits else 0
+
+            try:
+                self.rating_current += rating_delta
+                self.stash_current += stash_delta
+                self.credits_current += credits_delta
+                self.save()
+            except Exception as e:
+                logger.error(
+                    f"Failed to update list {self.id} cost fields after action creation: {e}"
+                )
+                return la
+
+            la.applied = True
+            la.save(update_fields=["applied"])
+            return la
+
+        else:
+            track(
+                "list_action_skipped_no_latest_action",
+                list=self,
+                **kwargs,
+            )
+
+        return None
+
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.
 

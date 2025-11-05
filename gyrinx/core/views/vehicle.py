@@ -226,10 +226,20 @@ def vehicle_confirm(request, id):
                 crew_fighter.cost_for_house(lst.content_house) if crew_fighter else 0
             )
             total_cost = vehicle_cost + crew_cost
+            is_stash = params.action == "add_to_stash"
 
             # Create vehicle and crew in a transaction
             try:
                 with transaction.atomic():
+                    # Build these beforehand so we get the credit values right
+                    from gyrinx.core.models.action import ListActionType
+
+                    la_args = dict(
+                        rating_before=lst.rating_current,
+                        stash_before=lst.stash_current,
+                        credits_before=lst.credits_current,
+                    )
+
                     # Spend credits in campaign mode
                     if lst.is_campaign_mode:
                         lst.spend_credits(
@@ -250,14 +260,14 @@ def vehicle_confirm(request, id):
                         crew = lst.ensure_stash()
 
                     # Create the equipment assignment - this will trigger automatic vehicle creation
-                    ListFighterEquipmentAssignment.objects.create(
+                    assignment = ListFighterEquipmentAssignment.objects.create(
                         list_fighter=crew,
                         content_equipment=vehicle_equipment,
                     )
 
                     # Create campaign action for vehicle purchase in campaign mode
                     if lst.is_campaign_mode:
-                        if params.action == "add_to_stash":
+                        if is_stash:
                             description = (
                                 f"Purchased {vehicle_equipment.name} ({total_cost}¢)"
                             )
@@ -272,6 +282,39 @@ def vehicle_confirm(request, id):
                             description=description,
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
+
+                    # Create ListAction to track the vehicle purchase
+                    if is_stash:
+                        action_description = (
+                            f"Purchased {vehicle_equipment.name} ({total_cost}¢)"
+                        )
+                    else:
+                        action_description = f"Purchased {vehicle_equipment.name} and crew {crew.name} ({total_cost}¢)"
+
+                    # Useful to have separate actions for crew and vehicle for easier tracking of what happened
+                    if not is_stash:
+                        lst.create_action(
+                            user=request.user,
+                            action_type=ListActionType.ADD_FIGHTER,
+                            description=action_description,
+                            list_fighter=crew,
+                            rating_delta=crew_cost,
+                            stash_delta=0,
+                            credits_delta=-crew_cost if lst.is_campaign_mode else 0,
+                            **la_args,
+                        )
+
+                    lst.create_action(
+                        user=request.user,
+                        action_type=ListActionType.ADD_EQUIPMENT,
+                        description=action_description,
+                        list_fighter=None if is_stash else crew,
+                        list_fighter_equipment_assignment=assignment,
+                        rating_delta=vehicle_cost if not is_stash else 0,
+                        stash_delta=vehicle_cost if is_stash else 0,
+                        credits_delta=-vehicle_cost if lst.is_campaign_mode else 0,
+                        **la_args,
+                    )
 
                     # Log the vehicle addition
                     log_event(

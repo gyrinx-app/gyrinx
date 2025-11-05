@@ -4,6 +4,7 @@ import uuid
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
@@ -61,6 +62,7 @@ from gyrinx.core.forms.list import (
     ListFighterForm,
     NewListForm,
 )
+from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
@@ -446,15 +448,15 @@ def new_list(request):
     if request.method == "POST":
         form = NewListForm(request.POST)
         if form.is_valid():
-            list_ = form.save(commit=False)
-            list_.owner = request.user
-            list_.save()
+            lst = form.save(commit=False)
+            lst.owner = request.user
+            lst.save()
 
             # Only create a stash fighter if the checkbox is checked
             if form.cleaned_data.get("show_stash", True):
                 # Create a stash fighter for the new list
                 stash_fighter, created = ContentFighter.objects.get_or_create(
-                    house=list_.content_house,
+                    house=lst.content_house,
                     is_stash=True,
                     defaults={
                         "type": "Stash",
@@ -467,8 +469,18 @@ def new_list(request):
                 ListFighter.objects.create(
                     name="Stash",
                     content_fighter=stash_fighter,
-                    list=list_,
+                    list=lst,
                     owner=request.user,
+                )
+
+            # Create an initial action for the list if the feature is enabled
+            if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
+                ListAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    list=lst,
+                    action_type=ListActionType.CREATE,
+                    description="List created",
                 )
 
             # Log the list creation event
@@ -476,14 +488,14 @@ def new_list(request):
                 user=request.user,
                 noun=EventNoun.LIST,
                 verb=EventVerb.CREATE,
-                object=list_,
+                object=lst,
                 request=request,
-                list_name=list_.name,
-                content_house=list_.content_house.name,
-                public=list_.public,
+                list_name=lst.name,
+                content_house=lst.content_house.name,
+                public=lst.public,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
         form = NewListForm(
             initial={
@@ -893,10 +905,19 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
 
-            if lst.is_campaign_mode:
+            with transaction.atomic():
                 fighter_cost = fighter.cost_int()
-                try:
-                    with transaction.atomic():
+                # Build these beforehand so we get the credit values right
+                la_args = dict(
+                    rating_delta=fighter_cost if not fighter.is_stash else 0,
+                    stash_delta=fighter_cost if fighter.is_stash else 0,
+                    credits_delta=-fighter_cost if lst.is_campaign_mode else 0,
+                    rating_before=lst.rating_current,
+                    stash_before=lst.stash_current,
+                    credits_before=lst.credits_current,
+                )
+                if lst.is_campaign_mode:
+                    try:
                         lst.spend_credits(
                             fighter_cost, description=f"Hiring {fighter.name}"
                         )
@@ -911,17 +932,28 @@ def new_list_fighter(request, id):
                             description=f"Hired {fighter.name} ({fighter_cost}¢)",
                             outcome=f"Credits remaining: {lst.credits_current}¢",
                         )
-                except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    form = ListFighterForm(request.POST, instance=fighter)
-                    return render(
-                        request,
-                        "core/list_fighter_new.html",
-                        {"form": form, "list": lst, "error_message": error_message},
-                    )
-            else:
-                fighter.save()
+                    except DjangoValidationError as e:
+                        error_message = ". ".join(e.messages)
+                        messages.error(request, error_message)
+                        form = ListFighterForm(request.POST, instance=fighter)
+                        return render(
+                            request,
+                            "core/list_fighter_new.html",
+                            {"form": form, "list": lst, "error_message": error_message},
+                        )
+                else:
+                    fighter.save()
+
+                lst.create_action(
+                    user=request.user,
+                    action_type=ListActionType.ADD_FIGHTER,
+                    subject_app="core",
+                    subject_type="ListFighter",
+                    subject_id=fighter.id,
+                    description=f"Hired {fighter.name} ({fighter_cost}¢)",
+                    list_fighter=fighter,
+                    **la_args,
+                )
 
             # Log the fighter creation event
             log_event(
@@ -1856,6 +1888,17 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             assign.refresh_from_db()
             total_cost = assign.cost_int()
 
+            # Build these beforehand so we get the credit values right
+            is_stash = fighter.is_stash
+            la_args = dict(
+                rating_delta=total_cost if not is_stash else 0,
+                stash_delta=total_cost if is_stash else 0,
+                credits_delta=-total_cost if lst.is_campaign_mode else 0,
+                rating_before=lst.rating_current,
+                stash_before=lst.stash_current,
+                credits_before=lst.credits_current,
+            )
+
             # Handle credit spending for campaign mode
             if lst.is_campaign_mode:
                 try:
@@ -1882,10 +1925,21 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     messages.error(request, error_message)
                     # Continue to render the form below
             else:
-                description = f"Added {assign.content_equipment.name} to {fighter.name}"
+                description = f"Added {assign.content_equipment.name} to {fighter.name} ({total_cost}¢)"
 
-            # Only redirect on success (when no error_message)
             if not error_message:
+                lst.create_action(
+                    user=request.user,
+                    action_type=ListActionType.ADD_EQUIPMENT,
+                    subject_app="core",
+                    subject_type="ListFighterEquipmentAssignment",
+                    subject_id=assign.id,
+                    description=description,
+                    list_fighter=fighter,
+                    list_fighter_equipment_assignment=assign,
+                    **la_args,
+                )
+
                 # Log the equipment assignment event
                 log_event(
                     user=request.user,
@@ -2500,6 +2554,17 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         # Calculate the cost of this accessory
         accessory_cost = assignment.accessory_cost_int(accessory)
 
+        # Build these beforehand so we get the credit values right
+        is_stash = fighter.is_stash
+        la_args = dict(
+            rating_delta=accessory_cost if not is_stash else 0,
+            stash_delta=accessory_cost if is_stash else 0,
+            credits_delta=-accessory_cost if lst.is_campaign_mode else 0,
+            rating_before=lst.rating_current,
+            stash_before=lst.stash_current,
+            credits_before=lst.credits_current,
+        )
+
         # Handle credit spending for campaign mode
         if lst.is_campaign_mode:
             try:
@@ -2527,6 +2592,19 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         else:
             # Not in campaign mode, just add the accessory
             assignment.weapon_accessories_field.add(accessory)
+
+        # Create ListAction to track the accessory addition (if no error)
+        if not error_message:
+            lst.create_action(
+                user=request.user,
+                action_type=ListActionType.UPDATE_EQUIPMENT,
+                subject_app="core",
+                subject_type="ListFighterEquipmentAssignment",
+                subject_id=assignment.id,
+                description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
+                list_fighter_equipment_assignment=assignment,
+                **la_args,
+            )
 
         # Only redirect if there's no error
         if not error_message:
@@ -2685,6 +2763,17 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
         virtual_profile = VirtualWeaponProfile(profile=profile)
         profile_cost = assignment.profile_cost_int(virtual_profile)
 
+        # Build these beforehand so we get the credit values right
+        is_stash = fighter.is_stash
+        la_args = dict(
+            rating_delta=profile_cost if not is_stash else 0,
+            stash_delta=profile_cost if is_stash else 0,
+            credits_delta=-profile_cost if lst.is_campaign_mode else 0,
+            rating_before=lst.rating_current,
+            stash_before=lst.stash_current,
+            credits_before=lst.credits_current,
+        )
+
         # Handle credit spending for campaign mode
         if lst.is_campaign_mode:
             try:
@@ -2712,6 +2801,19 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
         else:
             # Not in campaign mode, just add the profile
             assignment.weapon_profiles_field.add(profile)
+
+        # Create ListAction to track the profile addition (if no error)
+        if not error_message:
+            lst.create_action(
+                user=request.user,
+                action_type=ListActionType.UPDATE_EQUIPMENT,
+                subject_app="core",
+                subject_type="ListFighterEquipmentAssignment",
+                subject_id=assignment.id,
+                description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
+                list_fighter_equipment_assignment=assignment,
+                **la_args,
+            )
 
         # Only redirect if there's no error
         if not error_message:
@@ -2989,6 +3091,20 @@ def edit_list_fighter_weapon_upgrade(
 
             cost_difference = new_upgrade_cost - old_upgrade_cost
 
+            # Build these beforehand so we get the credit values right
+            # Note: cost_difference can be negative (removing upgrades) or zero
+            is_stash = fighter.is_stash
+            la_args = dict(
+                rating_delta=cost_difference if not is_stash else 0,
+                stash_delta=cost_difference if is_stash else 0,
+                credits_delta=-cost_difference
+                if lst.is_campaign_mode and cost_difference > 0
+                else 0,
+                rating_before=lst.rating_current,
+                stash_before=lst.stash_current,
+                credits_before=lst.credits_current,
+            )
+
             # Handle credit spending for campaign mode (only if cost increased)
             if lst.is_campaign_mode and cost_difference > 0:
                 try:
@@ -3018,6 +3134,25 @@ def edit_list_fighter_weapon_upgrade(
             else:
                 # Not in campaign mode or cost decreased/stayed same, just save
                 form.save()
+
+            # Create ListAction to track the upgrade change (if no error)
+            if not error_message:
+                if new_upgrades:
+                    upgrade_names = ", ".join([u.name for u in new_upgrades])
+                    action_description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
+                else:
+                    action_description = f"Removed upgrades from {assignment.content_equipment.name} on {fighter.name}"
+
+                lst.create_action(
+                    user=request.user,
+                    action_type=ListActionType.UPDATE_EQUIPMENT,
+                    subject_app="core",
+                    subject_type="ListFighterEquipmentAssignment",
+                    subject_id=assignment.id,
+                    description=action_description,
+                    list_fighter_equipment_assignment=assignment,
+                    **la_args,
+                )
 
             # Only redirect if there's no error
             if not error_message:

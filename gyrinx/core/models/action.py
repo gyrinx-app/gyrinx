@@ -71,6 +71,21 @@ class ListAction(AppBase):
         db_index=True,
     )
 
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="list_actions",
+        help_text="The user who performed this action",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    applied = models.BooleanField(
+        default=False,
+        help_text="Whether this action has been applied to the list.",
+    )
+
     action_type = models.CharField(
         max_length=50,
         choices=ListActionType.choices,
