@@ -2898,6 +2898,13 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         if self.linked_equipment_parent is not None:
             return 0
 
+        # If this equipment creates a child fighter (vehicle/exotic beast),
+        # use the child fighter's cost which includes house overrides
+        if self.child_fighter is not None:
+            return self.child_fighter.content_fighter.cost_for_house(
+                self.list_fighter.list.content_house
+            )
+
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
 
