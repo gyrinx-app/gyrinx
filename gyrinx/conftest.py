@@ -367,3 +367,117 @@ def list_with_campaign(user, content_house, campaign) -> List:
     )
     campaign.lists.add(lst)
     return lst
+
+
+@pytest.fixture
+def make_weapon_with_accessory(content_equipment_categories):
+    """Make a weapon with an accessory fixture."""
+
+    def make_weapon_with_accessory_(
+        cost=50, accessory_cost=25
+    ) -> tuple[ContentEquipment, ContentWeaponAccessory]:
+        from gyrinx.content.models import ContentEquipment, ContentWeaponAccessory
+
+        weapon = ContentEquipment.objects.create(
+            name="Test Weapon",
+            cost=str(cost),  # cost is a CharField
+            category=content_equipment_categories[0],
+        )
+
+        accessory = ContentWeaponAccessory.objects.create(
+            name="Test Accessory",
+            cost=accessory_cost,
+        )
+        # No need to link them - tests will add accessory to assignment
+
+        return weapon, accessory
+
+    return make_weapon_with_accessory_
+
+
+@pytest.fixture
+def make_weapon_with_profile(content_equipment_categories):
+    """Make a weapon with a profile fixture."""
+
+    def make_weapon_with_profile_(
+        cost=50, profile_cost=30
+    ) -> tuple[ContentEquipment, object]:
+        from gyrinx.content.models import ContentEquipment, ContentWeaponProfile
+
+        weapon = ContentEquipment.objects.create(
+            name="Test Weapon",
+            cost=str(cost),  # cost is a CharField
+            category=content_equipment_categories[0],
+        )
+
+        profile = ContentWeaponProfile.objects.create(
+            name="Test Profile",
+            equipment=weapon,
+            cost=profile_cost,
+        )
+
+        return weapon, profile
+
+    return make_weapon_with_profile_
+
+
+@pytest.fixture
+def make_equipment_with_upgrades(content_equipment_categories):
+    """Make equipment with upgrades fixture."""
+
+    def make_equipment_with_upgrades_(
+        cost=50, upgrade_cost=20
+    ) -> tuple[ContentEquipment, object]:
+        from gyrinx.content.models import ContentEquipment, ContentEquipmentUpgrade
+
+        equipment = ContentEquipment.objects.create(
+            name="Test Equipment",
+            cost=str(cost),  # cost is a CharField
+            category=content_equipment_categories[0],
+        )
+
+        upgrade = ContentEquipmentUpgrade.objects.create(
+            name="Test Upgrade",
+            cost=upgrade_cost,
+            equipment=equipment,  # ContentEquipmentUpgrade has FK to ContentEquipment
+        )
+
+        return equipment, upgrade
+
+    return make_equipment_with_upgrades_
+
+
+@pytest.fixture
+def make_vehicle_equipment(content_equipment_categories, content_house):
+    """Make vehicle equipment with associated fighter profile."""
+
+    def make_vehicle_equipment_(cost=200) -> tuple[ContentEquipment, ContentFighter]:
+        from gyrinx.content.models import (
+            ContentEquipment,
+            ContentEquipmentFighterProfile,
+            ContentFighter,
+        )
+
+        # Create vehicle equipment
+        vehicle = ContentEquipment.objects.create(
+            name="Test Vehicle",
+            cost=str(cost),  # cost is a CharField
+            category=content_equipment_categories[0],
+        )
+
+        # Create vehicle fighter profile
+        vehicle_fighter = ContentFighter.objects.create(
+            type="Vehicle",
+            house=content_house,
+            base_cost=cost,
+        )
+
+        # Link them via ContentEquipmentFighterProfile - this makes it a vehicle
+        ContentEquipmentFighterProfile.objects.create(
+            equipment=vehicle,
+            content_fighter=vehicle_fighter,
+        )
+
+        return vehicle, vehicle_fighter
+
+    return make_vehicle_equipment_

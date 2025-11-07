@@ -1880,54 +1880,47 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
-            # Save the assignment and m2m relationships first
-            assign.save()
-            form.save_m2m()
+            try:
+                # Save the assignment and m2m relationships
+                assign.save()
+                form.save_m2m()
 
-            # Refetch to get the full cost including profiles, accessories, and upgrades
-            assign.refresh_from_db()
-            total_cost = assign.cost_int()
+                # Refetch to get the full cost including profiles, accessories, and upgrades
+                assign.refresh_from_db()
+                total_cost = assign.cost_int()
 
-            # Build these beforehand so we get the credit values right
-            is_stash = fighter.is_stash
-            la_args = dict(
-                rating_delta=total_cost if not is_stash else 0,
-                stash_delta=total_cost if is_stash else 0,
-                credits_delta=-total_cost if lst.is_campaign_mode else 0,
-                rating_before=lst.rating_current,
-                stash_before=lst.stash_current,
-                credits_before=lst.credits_current,
-            )
+                # Build these beforehand so we get the credit values right
+                is_stash = fighter.is_stash
+                la_args = dict(
+                    rating_delta=total_cost if not is_stash else 0,
+                    stash_delta=total_cost if is_stash else 0,
+                    credits_delta=-total_cost if lst.is_campaign_mode else 0,
+                    rating_before=lst.rating_current,
+                    stash_before=lst.stash_current,
+                    credits_before=lst.credits_current,
+                )
 
-            # Handle credit spending for campaign mode
-            if lst.is_campaign_mode:
-                try:
-                    with transaction.atomic():
-                        description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
-                        lst.spend_credits(
-                            total_cost,
-                            description=f"Buying {assign.content_equipment.name}",
-                        )
+                # Handle credit spending for campaign mode
+                if lst.is_campaign_mode:
+                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
+                    lst.spend_credits(
+                        total_cost,
+                        description=f"Buying {assign.content_equipment.name}",
+                    )
 
-                        # Create campaign action
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=description,
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                except DjangoValidationError as e:
-                    # Not enough credits - delete the assignment and show error
-                    assign.delete()
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    # Continue to render the form below
-            else:
-                description = f"Added {assign.content_equipment.name} to {fighter.name} ({total_cost}¢)"
+                    # Create campaign action
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=description,
+                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                    )
+                else:
+                    description = f"Added {assign.content_equipment.name} to {fighter.name} ({total_cost}¢)"
 
-            if not error_message:
+                # Create list action
                 lst.create_action(
                     user=request.user,
                     action_type=ListActionType.ADD_EQUIPMENT,
@@ -2005,6 +1998,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     + f"?{query_params}"
                     + f"#{str(fighter.id)}"
                 )
+            except DjangoValidationError as e:
+                # Not enough credits or other validation error
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
 
     # Get the appropriate equipment
     # Create expansion rule inputs for cost calculations
@@ -2565,36 +2562,27 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
             credits_before=lst.credits_current,
         )
 
-        # Handle credit spending for campaign mode
-        if lst.is_campaign_mode:
-            try:
-                with transaction.atomic():
-                    lst.spend_credits(
-                        accessory_cost, description=f"Buying {accessory.name}"
-                    )
+        try:
+            # Handle credit spending for campaign mode
+            if lst.is_campaign_mode:
+                lst.spend_credits(
+                    accessory_cost, description=f"Buying {accessory.name}"
+                )
 
-                    # Add the accessory to the assignment
-                    assignment.weapon_accessories_field.add(accessory)
+                # Create campaign action
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
+                    outcome=f"Credits remaining: {lst.credits_current}¢",
+                )
 
-                    # Create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-            except DjangoValidationError as e:
-                error_message = str(e)
-                messages.error(request, error_message)
-                # Continue to render the form below
-        else:
-            # Not in campaign mode, just add the accessory
+            # Add the accessory to the assignment
             assignment.weapon_accessories_field.add(accessory)
 
-        # Create ListAction to track the accessory addition (if no error)
-        if not error_message:
+            # Create ListAction to track the accessory addition
             lst.create_action(
                 user=request.user,
                 action_type=ListActionType.UPDATE_EQUIPMENT,
@@ -2605,6 +2593,9 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
                 list_fighter_equipment_assignment=assignment,
                 **la_args,
             )
+        except DjangoValidationError as e:
+            error_message = str(e)
+            messages.error(request, error_message)
 
         # Only redirect if there's no error
         if not error_message:
@@ -2774,36 +2765,25 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             credits_before=lst.credits_current,
         )
 
-        # Handle credit spending for campaign mode
-        if lst.is_campaign_mode:
-            try:
-                with transaction.atomic():
-                    lst.spend_credits(
-                        profile_cost, description=f"Buying {profile.name}"
-                    )
+        try:
+            # Handle credit spending for campaign mode
+            if lst.is_campaign_mode:
+                lst.spend_credits(profile_cost, description=f"Buying {profile.name}")
 
-                    # Add the profile to the assignment
-                    assignment.weapon_profiles_field.add(profile)
+                # Create campaign action
+                CampaignAction.objects.create(
+                    user=request.user,
+                    owner=request.user,
+                    campaign=lst.campaign,
+                    list=lst,
+                    description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
+                    outcome=f"Credits remaining: {lst.credits_current}¢",
+                )
 
-                    # Create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-            except DjangoValidationError as e:
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
-                # Continue to render the form below
-        else:
-            # Not in campaign mode, just add the profile
+            # Add the profile to the assignment
             assignment.weapon_profiles_field.add(profile)
 
-        # Create ListAction to track the profile addition (if no error)
-        if not error_message:
+            # Create ListAction to track the profile addition
             lst.create_action(
                 user=request.user,
                 action_type=ListActionType.UPDATE_EQUIPMENT,
@@ -2814,6 +2794,9 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
                 list_fighter_equipment_assignment=assignment,
                 **la_args,
             )
+        except DjangoValidationError as e:
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
 
         # Only redirect if there's no error
         if not error_message:
@@ -3105,38 +3088,29 @@ def edit_list_fighter_weapon_upgrade(
                 credits_before=lst.credits_current,
             )
 
-            # Handle credit spending for campaign mode (only if cost increased)
-            if lst.is_campaign_mode and cost_difference > 0:
-                try:
-                    with transaction.atomic():
-                        lst.spend_credits(
-                            cost_difference,
-                            description=f"Buying upgrades for {assignment.content_equipment.name}",
-                        )
+            try:
+                # Handle credit spending for campaign mode (only if cost increased)
+                if lst.is_campaign_mode and cost_difference > 0:
+                    lst.spend_credits(
+                        cost_difference,
+                        description=f"Buying upgrades for {assignment.content_equipment.name}",
+                    )
 
-                        # Save the form
-                        form.save()
+                    # Create campaign action
+                    upgrade_names = ", ".join([u.name for u in new_upgrades])
+                    CampaignAction.objects.create(
+                        user=request.user,
+                        owner=request.user,
+                        campaign=lst.campaign,
+                        list=lst,
+                        description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
+                        outcome=f"Credits remaining: {lst.credits_current}¢",
+                    )
 
-                        # Create campaign action
-                        upgrade_names = ", ".join([u.name for u in new_upgrades])
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    # Re-render form with error
-            else:
-                # Not in campaign mode or cost decreased/stayed same, just save
+                # Save the form
                 form.save()
 
-            # Create ListAction to track the upgrade change (if no error)
-            if not error_message:
+                # Create ListAction to track the upgrade change
                 if new_upgrades:
                     upgrade_names = ", ".join([u.name for u in new_upgrades])
                     action_description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
@@ -3153,6 +3127,9 @@ def edit_list_fighter_weapon_upgrade(
                     list_fighter_equipment_assignment=assignment,
                     **la_args,
                 )
+            except DjangoValidationError as e:
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
 
             # Only redirect if there's no error
             if not error_message:
