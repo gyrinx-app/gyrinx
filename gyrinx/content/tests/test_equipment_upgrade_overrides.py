@@ -57,7 +57,7 @@ def test_content_fighter_equipment_list_upgrade_creation():
 
     assert override.cost_int() == 30
     assert override.cost_display() == "30¢"
-    assert str(override) == "Archaeotek Upgrades – Suspensor (30)"
+    assert str(override) == "Archaeotek Upgrades – Suspensor (Servo-arm) (30)"
 
 
 @pytest.mark.django_db
