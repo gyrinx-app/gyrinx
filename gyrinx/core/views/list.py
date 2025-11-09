@@ -62,6 +62,12 @@ from gyrinx.core.forms.list import (
     ListFighterForm,
     NewListForm,
 )
+from gyrinx.core.handlers.equipment_purchases import (
+    handle_accessory_purchase,
+    handle_equipment_purchase,
+    handle_equipment_upgrade,
+    handle_weapon_profile_purchase,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
@@ -1885,53 +1891,18 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 assign.save()
                 form.save_m2m()
 
-                # Refetch to get the full cost including profiles, accessories, and upgrades
-                assign.refresh_from_db()
-                total_cost = assign.cost_int()
-
-                # Build these beforehand so we get the credit values right
-                is_stash = fighter.is_stash
-                la_args = dict(
-                    rating_delta=total_cost if not is_stash else 0,
-                    stash_delta=total_cost if is_stash else 0,
-                    credits_delta=-total_cost if lst.is_campaign_mode else 0,
-                    rating_before=lst.rating_current,
-                    stash_before=lst.stash_current,
-                    credits_before=lst.credits_current,
-                )
-
-                # Handle credit spending for campaign mode
-                if lst.is_campaign_mode:
-                    description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
-                    lst.spend_credits(
-                        total_cost,
-                        description=f"Buying {assign.content_equipment.name}",
-                    )
-
-                    # Create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-                else:
-                    description = f"Added {assign.content_equipment.name} to {fighter.name} ({total_cost}¢)"
-
-                # Create list action
-                lst.create_action(
+                # Call handler to handle business logic (credit spending, actions)
+                result = handle_equipment_purchase(
                     user=request.user,
-                    action_type=ListActionType.ADD_EQUIPMENT,
-                    subject_app="core",
-                    subject_type="ListFighterEquipmentAssignment",
-                    subject_id=assign.id,
-                    description=description,
-                    list_fighter=fighter,
-                    list_fighter_equipment_assignment=assign,
-                    **la_args,
+                    lst=lst,
+                    fighter=fighter,
+                    assignment=assign,
                 )
+
+                # Extract results for HTTP-specific operations
+                assign = result.assignment
+                total_cost = result.total_cost
+                description = result.description
 
                 # Log the equipment assignment event
                 log_event(
@@ -1999,6 +1970,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     + f"#{str(fighter.id)}"
                 )
             except DjangoValidationError as e:
+                # Handler failed (e.g., insufficient credits) - clean up the assignment
+                assign.delete()
+
                 # Not enough credits or other validation error
                 error_message = ". ".join(e.messages)
                 messages.error(request, error_message)
@@ -2548,53 +2522,22 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         accessory_id = request.POST.get("accessory_id")
         accessory = get_object_or_404(ContentWeaponAccessory, pk=accessory_id)
 
-        # Calculate the cost of this accessory
-        accessory_cost = assignment.accessory_cost_int(accessory)
-
-        # Build these beforehand so we get the credit values right
-        is_stash = fighter.is_stash
-        la_args = dict(
-            rating_delta=accessory_cost if not is_stash else 0,
-            stash_delta=accessory_cost if is_stash else 0,
-            credits_delta=-accessory_cost if lst.is_campaign_mode else 0,
-            rating_before=lst.rating_current,
-            stash_before=lst.stash_current,
-            credits_before=lst.credits_current,
-        )
-
         try:
-            # Handle credit spending for campaign mode
-            if lst.is_campaign_mode:
-                lst.spend_credits(
-                    accessory_cost, description=f"Buying {accessory.name}"
-                )
-
-                # Create campaign action
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
-                    outcome=f"Credits remaining: {lst.credits_current}¢",
-                )
-
-            # Add the accessory to the assignment
-            assignment.weapon_accessories_field.add(accessory)
-
-            # Create ListAction to track the accessory addition
-            lst.create_action(
+            # Call handler to handle business logic (credit spending, actions)
+            result = handle_accessory_purchase(
                 user=request.user,
-                action_type=ListActionType.UPDATE_EQUIPMENT,
-                subject_app="core",
-                subject_type="ListFighterEquipmentAssignment",
-                subject_id=assignment.id,
-                description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
-                list_fighter_equipment_assignment=assignment,
-                **la_args,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                accessory=accessory,
             )
+
+            messages.success(request, result.description)
         except DjangoValidationError as e:
-            error_message = str(e)
+            # Handler failed (e.g., insufficient credits) - clean up the accessory addition
+            assignment.weapon_accessories_field.remove(accessory)
+
+            error_message = ". ".join(e.messages)
             messages.error(request, error_message)
 
         # Only redirect if there's no error
@@ -2748,53 +2691,21 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             ContentWeaponProfile, pk=profile_id, equipment=assignment.content_equipment
         )
 
-        # Calculate the cost of this profile
-        from gyrinx.content.models import VirtualWeaponProfile
-
-        virtual_profile = VirtualWeaponProfile(profile=profile)
-        profile_cost = assignment.profile_cost_int(virtual_profile)
-
-        # Build these beforehand so we get the credit values right
-        is_stash = fighter.is_stash
-        la_args = dict(
-            rating_delta=profile_cost if not is_stash else 0,
-            stash_delta=profile_cost if is_stash else 0,
-            credits_delta=-profile_cost if lst.is_campaign_mode else 0,
-            rating_before=lst.rating_current,
-            stash_before=lst.stash_current,
-            credits_before=lst.credits_current,
-        )
-
         try:
-            # Handle credit spending for campaign mode
-            if lst.is_campaign_mode:
-                lst.spend_credits(profile_cost, description=f"Buying {profile.name}")
-
-                # Create campaign action
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
-                    outcome=f"Credits remaining: {lst.credits_current}¢",
-                )
-
-            # Add the profile to the assignment
-            assignment.weapon_profiles_field.add(profile)
-
-            # Create ListAction to track the profile addition
-            lst.create_action(
+            # Call handler to handle business logic (credit spending, actions)
+            result = handle_weapon_profile_purchase(
                 user=request.user,
-                action_type=ListActionType.UPDATE_EQUIPMENT,
-                subject_app="core",
-                subject_type="ListFighterEquipmentAssignment",
-                subject_id=assignment.id,
-                description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
-                list_fighter_equipment_assignment=assignment,
-                **la_args,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                profile=profile,
             )
+
+            messages.success(request, result.description)
         except DjangoValidationError as e:
+            # Handler failed (e.g., insufficient credits) - clean up the profile addition
+            assignment.weapon_profiles_field.remove(profile)
+
             error_message = ". ".join(e.messages)
             messages.error(request, error_message)
 
@@ -3054,80 +2965,26 @@ def edit_list_fighter_weapon_upgrade(
             request.POST, instance=assignment
         )
         if form.is_valid():
-            # Calculate the cost difference for upgrades
-            old_upgrade_cost = assignment.upgrade_cost_int()
-
-            # Save the form (temporarily) to calculate new cost
+            # Extract new upgrades from form
             new_upgrades = form.cleaned_data["upgrades_field"]
 
-            # Calculate the cost of the new upgrades
-            new_upgrade_cost = (
-                sum(
-                    [
-                        assignment._upgrade_cost_with_override(upgrade)
-                        for upgrade in new_upgrades
-                    ]
-                )
-                if new_upgrades
-                else 0
-            )
-
-            cost_difference = new_upgrade_cost - old_upgrade_cost
-
-            # Build these beforehand so we get the credit values right
-            # Note: cost_difference can be negative (removing upgrades) or zero
-            is_stash = fighter.is_stash
-            la_args = dict(
-                rating_delta=cost_difference if not is_stash else 0,
-                stash_delta=cost_difference if is_stash else 0,
-                credits_delta=-cost_difference
-                if lst.is_campaign_mode and cost_difference > 0
-                else 0,
-                rating_before=lst.rating_current,
-                stash_before=lst.stash_current,
-                credits_before=lst.credits_current,
-            )
+            # Save old upgrades in case we need to rollback
+            old_upgrades = list(assignment.upgrades_field.all())
 
             try:
-                # Handle credit spending for campaign mode (only if cost increased)
-                if lst.is_campaign_mode and cost_difference > 0:
-                    lst.spend_credits(
-                        cost_difference,
-                        description=f"Buying upgrades for {assignment.content_equipment.name}",
-                    )
-
-                    # Create campaign action
-                    upgrade_names = ", ".join([u.name for u in new_upgrades])
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-
-                # Save the form
-                form.save()
-
-                # Create ListAction to track the upgrade change
-                if new_upgrades:
-                    upgrade_names = ", ".join([u.name for u in new_upgrades])
-                    action_description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
-                else:
-                    action_description = f"Removed upgrades from {assignment.content_equipment.name} on {fighter.name}"
-
-                lst.create_action(
+                # Call handler to handle business logic (credit spending, actions, upgrade update)
+                result = handle_equipment_upgrade(
                     user=request.user,
-                    action_type=ListActionType.UPDATE_EQUIPMENT,
-                    subject_app="core",
-                    subject_type="ListFighterEquipmentAssignment",
-                    subject_id=assignment.id,
-                    description=action_description,
-                    list_fighter_equipment_assignment=assignment,
-                    **la_args,
+                    lst=lst,
+                    fighter=fighter,
+                    assignment=assignment,
+                    new_upgrades=list(new_upgrades),
                 )
+                messages.success(request, result.description)
             except DjangoValidationError as e:
+                # Handler failed (e.g., insufficient credits) - restore old upgrades
+                assignment.upgrades_field.set(old_upgrades)
+
                 error_message = ". ".join(e.messages)
                 messages.error(request, error_message)
 

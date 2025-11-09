@@ -18,6 +18,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
+from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.models import FighterCategoryChoices
@@ -276,7 +277,16 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
             "owner": user,
             **kwargs,
         }
-        return List.objects.create(name=name, **kwargs)
+        lst = List.objects.create(name=name, **kwargs)
+
+        # Create initial LIST_CREATE action so other actions can be created
+        ListAction.objects.create(
+            list=lst,
+            action_type=ListActionType.CREATE,
+            owner=user,
+        )
+
+        return lst
 
     return make_list_
 
@@ -356,12 +366,10 @@ def house() -> ContentHouse:
 
 
 @pytest.fixture
-def list_with_campaign(user, content_house, campaign) -> List:
+def list_with_campaign(user, content_house, campaign, make_list) -> List:
     """A list in campaign mode with an associated campaign."""
-    lst = List.objects.create(
-        name="Test List",
-        content_house=content_house,
-        owner=user,
+    lst = make_list(
+        "Test List",
         status=List.CAMPAIGN_MODE,
         campaign=campaign,
     )
