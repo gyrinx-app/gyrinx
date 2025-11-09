@@ -4,7 +4,6 @@ import uuid
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
@@ -39,6 +38,8 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
+from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
+from gyrinx.core.handlers.list_operations import handle_list_creation
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,
@@ -68,7 +69,6 @@ from gyrinx.core.handlers.equipment_purchases import (
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
-from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
@@ -456,52 +456,27 @@ def new_list(request):
         if form.is_valid():
             lst = form.save(commit=False)
             lst.owner = request.user
-            lst.save()
 
-            # Only create a stash fighter if the checkbox is checked
-            if form.cleaned_data.get("show_stash", True):
-                # Create a stash fighter for the new list
-                stash_fighter, created = ContentFighter.objects.get_or_create(
-                    house=lst.content_house,
-                    is_stash=True,
-                    defaults={
-                        "type": "Stash",
-                        "category": "STASH",
-                        "base_cost": 0,
-                    },
-                )
+            # Call handler to handle business logic
+            result = handle_list_creation(
+                user=request.user,
+                lst=lst,
+                create_stash=form.cleaned_data.get("show_stash", True),
+            )
 
-                # Create the stash ListFighter
-                ListFighter.objects.create(
-                    name="Stash",
-                    content_fighter=stash_fighter,
-                    list=lst,
-                    owner=request.user,
-                )
-
-            # Create an initial action for the list if the feature is enabled
-            if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-                ListAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    list=lst,
-                    action_type=ListActionType.CREATE,
-                    description="List created",
-                )
-
-            # Log the list creation event
+            # Log the list creation event (HTTP-specific)
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST,
                 verb=EventVerb.CREATE,
-                object=lst,
+                object=result.lst,
                 request=request,
-                list_name=lst.name,
-                content_house=lst.content_house.name,
-                public=lst.public,
+                list_name=result.lst.name,
+                content_house=result.lst.content_house.name,
+                public=result.lst.public,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+            return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
         form = NewListForm(
             initial={
@@ -911,73 +886,41 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
 
-            with transaction.atomic():
-                fighter_cost = fighter.cost_int()
-                # Build these beforehand so we get the credit values right
-                la_args = dict(
-                    rating_delta=fighter_cost if not fighter.is_stash else 0,
-                    stash_delta=fighter_cost if fighter.is_stash else 0,
-                    credits_delta=-fighter_cost if lst.is_campaign_mode else 0,
-                    rating_before=lst.rating_current,
-                    stash_before=lst.stash_current,
-                    credits_before=lst.credits_current,
-                )
-                if lst.is_campaign_mode:
-                    try:
-                        lst.spend_credits(
-                            fighter_cost, description=f"Hiring {fighter.name}"
-                        )
-                        fighter.save()
-
-                        # Create campaign action
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=f"Hired {fighter.name} ({fighter_cost}¢)",
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                    except DjangoValidationError as e:
-                        error_message = ". ".join(e.messages)
-                        messages.error(request, error_message)
-                        form = ListFighterForm(request.POST, instance=fighter)
-                        return render(
-                            request,
-                            "core/list_fighter_new.html",
-                            {"form": form, "list": lst, "error_message": error_message},
-                        )
-                else:
-                    fighter.save()
-
-                lst.create_action(
+            # Call handler to handle business logic
+            try:
+                result = handle_fighter_hire(
                     user=request.user,
-                    action_type=ListActionType.ADD_FIGHTER,
-                    subject_app="core",
-                    subject_type="ListFighter",
-                    subject_id=fighter.id,
-                    description=f"Hired {fighter.name} ({fighter_cost}¢)",
-                    list_fighter=fighter,
-                    **la_args,
+                    lst=lst,
+                    fighter=fighter,
+                )
+            except DjangoValidationError as e:
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
+                form = ListFighterForm(request.POST, instance=fighter)
+                return render(
+                    request,
+                    "core/list_fighter_new.html",
+                    {"form": form, "list": lst, "error_message": error_message},
                 )
 
-            # Log the fighter creation event
+            # Log the fighter creation event (HTTP-specific)
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
                 verb=EventVerb.CREATE,
-                object=fighter,
+                object=result.fighter,
                 request=request,
-                fighter_name=fighter.name,
+                fighter_name=result.fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
             )
 
-            query_params = urlencode(dict(flash=fighter.id))
+            # Redirect with flash parameter (HTTP-specific)
+            query_params = urlencode(dict(flash=result.fighter.id))
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,))
                 + f"?{query_params}"
-                + f"#{str(fighter.id)}"
+                + f"#{str(result.fighter.id)}"
             )
 
     else:
