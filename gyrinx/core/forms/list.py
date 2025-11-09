@@ -27,7 +27,7 @@ class NewListForm(forms.ModelForm):
         required=False,
         initial=True,
         label="Show Stash for this list",
-        help_text="If checked, a stash fighter will be created for this list.",
+        help_text="Stash is always enabled for campaign-mode gangs. For non-campaign gangs, you can choose to make stash available.",
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
 
