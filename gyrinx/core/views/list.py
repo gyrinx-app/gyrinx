@@ -2477,9 +2477,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
 
             messages.success(request, result.description)
         except DjangoValidationError as e:
-            # Handler failed (e.g., insufficient credits) - clean up the accessory addition
-            assignment.weapon_accessories_field.remove(accessory)
-
+            # Handler failed (e.g., insufficient credits)
             error_message = ". ".join(e.messages)
             messages.error(request, error_message)
 
@@ -2646,9 +2644,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
 
             messages.success(request, result.description)
         except DjangoValidationError as e:
-            # Handler failed (e.g., insufficient credits) - clean up the profile addition
-            assignment.weapon_profiles_field.remove(profile)
-
+            # Handler failed (e.g., insufficient credits)
             error_message = ". ".join(e.messages)
             messages.error(request, error_message)
 
@@ -2911,9 +2907,6 @@ def edit_list_fighter_weapon_upgrade(
             # Extract new upgrades from form
             new_upgrades = form.cleaned_data["upgrades_field"]
 
-            # Save old upgrades in case we need to rollback
-            old_upgrades = list(assignment.upgrades_field.all())
-
             try:
                 # Call handler to handle business logic (credit spending, actions, upgrade update)
                 result = handle_equipment_upgrade(
@@ -2925,9 +2918,7 @@ def edit_list_fighter_weapon_upgrade(
                 )
                 messages.success(request, result.description)
             except DjangoValidationError as e:
-                # Handler failed (e.g., insufficient credits) - restore old upgrades
-                assignment.upgrades_field.set(old_upgrades)
-
+                # Handler failed (e.g., insufficient credits)
                 error_message = ". ".join(e.messages)
                 messages.error(request, error_message)
 

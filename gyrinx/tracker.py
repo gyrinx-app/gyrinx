@@ -43,8 +43,6 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
     }
     if value is not None:
         payload["value"] = value
-    if labels:
-        payload["labels"] = labels
 
     # Filter labels to only JSON-serializable values
     if labels:
@@ -57,7 +55,11 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
                 # Not JSON serializable, try to extract ID
                 if hasattr(val, "id"):
                     filtered_labels[key] = str(val.id)
-                # Otherwise drop the label
+                else:
+                    # Log that we're dropping this label
+                    _fallback_logger.debug(
+                        f"Dropping non-serializable label '{key}' with type {type(val).__name__} for event '{event}'"
+                    )
         payload["labels"] = filtered_labels
 
     if _use_cloud_logging:

@@ -540,7 +540,7 @@ class List(AppBase):
             la.save()
 
             # Update key fields
-            # Currently we don't track credits delta by default in actions becuase spend_credits exists
+            # Currently we don't track credits delta by default in actions because spend_credits exists
             # but we should refactor in that direction later.
             rating_delta = kwargs.get("rating_delta", 0)
             stash_delta = kwargs.get("stash_delta", 0)
@@ -550,11 +550,14 @@ class List(AppBase):
                 self.rating_current += rating_delta
                 self.stash_current += stash_delta
                 self.credits_current += credits_delta
-                self.save()
+                self.save(
+                    update_fields=["rating_current", "stash_current", "credits_current"]
+                )
             except Exception as e:
                 logger.error(
                     f"Failed to update list {self.id} cost fields after action creation: {e}"
                 )
+                self.refresh_from_db()
                 return la
 
             la.applied = True
@@ -564,7 +567,7 @@ class List(AppBase):
         else:
             track(
                 "list_action_skipped_no_latest_action",
-                list=self,
+                list=self.id,
                 **kwargs,
             )
 

@@ -84,6 +84,7 @@ class ListAction(AppBase):
     applied = models.BooleanField(
         default=False,
         help_text="Whether this action has been applied to the list.",
+        db_index=True,
     )
 
     action_type = models.CharField(

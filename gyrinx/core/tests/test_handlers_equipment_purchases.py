@@ -558,3 +558,198 @@ def test_transaction_rollback_on_insufficient_credits(
 
     # Assignment still exists (was created before handler call)
     assert ListFighterEquipmentAssignment.objects.count() == initial_assignment_count
+
+
+# Regression tests for view cleanup bugs
+
+
+@pytest.mark.django_db
+def test_accessory_purchase_failure_preserves_existing_accessories(
+    user, list_with_campaign, content_fighter, make_weapon_with_accessory
+):
+    """
+    Test that when an accessory purchase fails (insufficient credits),
+    any accessories already on the weapon are preserved.
+
+    This is a regression test for a bug where view code would do:
+        assignment.weapon_accessories_field.remove(accessory)
+    after handler failure, which could incorrectly remove pre-existing accessories.
+
+    The handler's @transaction.atomic decorator creates a savepoint. When the
+    handler fails, the savepoint rolls back the .add(accessory) automatically.
+    Manual cleanup in the view is unnecessary and harmful.
+    """
+    from gyrinx.content.models import ContentWeaponAccessory
+
+    lst = list_with_campaign
+    lst.credits_current = 100  # Enough for initial setup
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create weapon with accessory A already attached
+    weapon, accessory_a = make_weapon_with_accessory(cost=10, accessory_cost=10)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=weapon,
+    )
+    assignment.weapon_accessories_field.add(accessory_a)
+
+    # Reduce credits so we can't afford another accessory
+    lst.credits_current = 5  # Not enough for accessory B
+    lst.save()
+
+    # Create accessory B (expensive)
+    accessory_b = ContentWeaponAccessory.objects.create(
+        name="Expensive Scope",
+        cost=50,
+    )
+
+    # Try to add accessory B (should fail due to insufficient credits)
+    with pytest.raises(ValidationError, match="Insufficient credits"):
+        handle_accessory_purchase(
+            user=user,
+            lst=lst,
+            fighter=fighter,
+            assignment=assignment,
+            accessory=accessory_b,
+        )
+
+    # CRITICAL: Accessory A should still be there
+    # Bug would cause it to be removed by view's cleanup code
+    assignment.refresh_from_db()
+    assert accessory_a in assignment.weapon_accessories_field.all()
+    assert accessory_b not in assignment.weapon_accessories_field.all()
+    assert assignment.weapon_accessories_field.count() == 1
+
+
+@pytest.mark.django_db
+def test_profile_purchase_failure_preserves_existing_profiles(
+    user, list_with_campaign, content_fighter, make_weapon_with_profile
+):
+    """
+    Test that when a profile purchase fails, existing profiles are preserved.
+
+    Regression test for bug where view would do:
+        assignment.weapon_profiles_field.remove(profile)
+    after handler failure.
+    """
+    from gyrinx.content.models import ContentWeaponProfile
+
+    lst = list_with_campaign
+    lst.credits_current = 100
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create weapon with profile A already attached
+    weapon, profile_a = make_weapon_with_profile(cost=10, profile_cost=10)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=weapon,
+    )
+    assignment.weapon_profiles_field.add(profile_a)
+
+    # Reduce credits
+    lst.credits_current = 5
+    lst.save()
+
+    # Create profile B (expensive)
+    profile_b = ContentWeaponProfile.objects.create(
+        name="Expensive Profile",
+        equipment=weapon,
+        cost=50,
+    )
+
+    # Try to add profile B (should fail)
+    with pytest.raises(ValidationError, match="Insufficient credits"):
+        handle_weapon_profile_purchase(
+            user=user,
+            lst=lst,
+            fighter=fighter,
+            assignment=assignment,
+            profile=profile_b,
+        )
+
+    # CRITICAL: Profile A should still be there
+    assignment.refresh_from_db()
+    assert profile_a in assignment.weapon_profiles_field.all()
+    assert profile_b not in assignment.weapon_profiles_field.all()
+    assert assignment.weapon_profiles_field.count() == 1
+
+
+@pytest.mark.django_db
+def test_upgrade_change_failure_preserves_existing_upgrades(
+    user, list_with_campaign, content_fighter, make_equipment_with_upgrades
+):
+    """
+    Test that when an upgrade change fails, original upgrades are preserved.
+
+    Regression test for bug where view would do:
+        assignment.upgrades_field.set(old_upgrades)
+    after handler failure (redundant with transaction rollback).
+    """
+    from gyrinx.content.models import ContentEquipmentUpgrade
+
+    lst = list_with_campaign
+    lst.credits_current = 100
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment with upgrade A (cheap)
+    equipment, upgrade_a = make_equipment_with_upgrades(cost=10, upgrade_cost=5)
+    # Set to MULTI mode so upgrades have independent costs, not cumulative
+    from gyrinx.content.models import ContentEquipment
+
+    equipment.upgrade_mode = ContentEquipment.UpgradeMode.MULTI
+    equipment.save()
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade_a)
+
+    # Reduce credits to almost nothing
+    lst.credits_current = 10  # Not enough for the cost difference
+    lst.save()
+
+    # Create upgrade B (much more expensive)
+    upgrade_b = ContentEquipmentUpgrade.objects.create(
+        name="Expensive Upgrade",
+        cost=100,  # Very expensive - difference from upgrade_a is 95 credits
+        equipment=equipment,
+    )
+
+    # Try to replace A with B (should fail - need 95 credits but only have 10)
+    with pytest.raises(ValidationError, match="Insufficient credits"):
+        handle_equipment_upgrade(
+            user=user,
+            lst=lst,
+            fighter=fighter,
+            assignment=assignment,
+            new_upgrades=[upgrade_b],  # Replace A (5 credits) with B (100 credits)
+        )
+
+    # CRITICAL: Original upgrade A should still be there
+    # Transaction rollback handles this, buggy manual restoration could cause issues
+    assignment.refresh_from_db()
+    assert upgrade_a in assignment.upgrades_field.all()
+    assert upgrade_b not in assignment.upgrades_field.all()
+    assert assignment.upgrades_field.count() == 1
