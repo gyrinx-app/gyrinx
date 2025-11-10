@@ -2,22 +2,27 @@
 
 import pytest
 from gyrinx.content.models import (
-    ContentEquipment,
     ContentEquipmentFighterProfile,
-    ContentFighter,
     ContentFighterHouseOverride,
-    ContentHouse,
 )
-from gyrinx.core.models import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models import ListFighterEquipmentAssignment
+from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_vehicle_in_stash_uses_house_override_cost(user):
-    house = ContentHouse.objects.create(name="Squats", short_name="SQT")
+def test_vehicle_in_stash_uses_house_override_cost(
+    user,
+    make_content_house,
+    make_content_fighter,
+    make_equipment,
+    make_list,
+    make_list_fighter,
+):
+    house = make_content_house("Squats")
 
-    vehicle_fighter = ContentFighter.objects.create(
+    vehicle_fighter = make_content_fighter(
         type="Svenotar Scout Trike",
-        category="VEHICLE",
+        category=FighterCategoryChoices.VEHICLE,
         base_cost=0,
         house=house,
     )
@@ -26,30 +31,31 @@ def test_vehicle_in_stash_uses_house_override_cost(user):
         fighter=vehicle_fighter, house=house, cost=100
     )
 
-    vehicle_equipment = ContentEquipment.objects.create(
-        name="Svenotar Scout Trike",
+    vehicle_equipment = make_equipment(
+        "Svenotar Scout Trike",
         category="VEHICLE",
-        cost="0",
+        cost=0,
     )
 
     ContentEquipmentFighterProfile.objects.create(
         equipment=vehicle_equipment, content_fighter=vehicle_fighter
     )
 
-    gang_list = List.objects.create(name="Test Gang", content_house=house, owner=user)
+    gang_list = make_list("Test Gang", content_house=house, owner=user)
 
-    stash_fighter_content = ContentFighter.objects.create(
+    stash_fighter_content = make_content_fighter(
         type="Stash",
-        category="STASH",
+        category=FighterCategoryChoices.STASH,
         base_cost=0,
         is_stash=True,
         house=house,
     )
 
-    stash_fighter = ListFighter.objects.create(
-        name="Gang Stash",
+    stash_fighter = make_list_fighter(
+        gang_list,
+        "Gang Stash",
         content_fighter=stash_fighter_content,
-        list=gang_list,
+        owner=user,
     )
 
     assignment = ListFighterEquipmentAssignment.objects.create(
