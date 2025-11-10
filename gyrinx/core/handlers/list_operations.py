@@ -82,3 +82,86 @@ def handle_list_creation(
         stash_fighter=stash_fighter,
         initial_action=initial_action,
     )
+
+
+@dataclass
+class ListCloneResult:
+    """Result of cloning a list."""
+
+    original_list: List
+    cloned_list: List
+    original_action: ListAction
+    cloned_action: Optional[ListAction]
+
+
+@transaction.atomic
+def handle_list_clone(
+    *,
+    user,
+    original_list: List,
+    name: str = None,
+    owner=None,
+    public: bool = None,
+    **kwargs,
+) -> ListCloneResult:
+    """
+    Handle list cloning with cost field copying and ListAction creation.
+
+    Creates a clone with copied cost fields and creates ListActions:
+    - On original list: Records that it was cloned
+    - On cloned list: Records creation as clone (if FEATURE_LIST_ACTION_CREATE_INITIAL)
+
+    Args:
+        user: The user performing the clone
+        original_list: The list to clone
+        name: Name for the clone (defaults to original name + suffix)
+        owner: Owner of the clone (defaults to original owner)
+        public: Public setting for the clone (defaults to original public)
+        **kwargs: Additional fields to set on the clone
+
+    Returns:
+        ListCloneResult with original list, cloned list, and actions
+    """
+    # Capture original list name before any operations
+    # (in case caller has modified original_list in memory)
+    original_list_name = original_list.name
+
+    # Set defaults
+    if owner is None:
+        owner = original_list.owner
+    if name is None:
+        name = f"{original_list_name} (Clone)"
+    if public is not None:
+        kwargs["public"] = public
+
+    # Clone the list (this now copies cost fields automatically)
+    cloned_list = original_list.clone(name=name, owner=owner, **kwargs)
+
+    # Create ListAction on original list recording the clone
+    original_action = ListAction.objects.create(
+        user=user,
+        owner=user,
+        list=original_list,
+        action_type=ListActionType.CLONE,
+        description=f"List cloned to '{cloned_list.name}'",
+        applied=True,
+    )
+
+    # Create ListAction on cloned list if feature flag is enabled
+    cloned_action = None
+    if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
+        cloned_action = ListAction.objects.create(
+            user=user,
+            owner=user,
+            list=cloned_list,
+            action_type=ListActionType.CREATE,
+            description=f"Cloned from '{original_list_name}'",
+            applied=True,
+        )
+
+    return ListCloneResult(
+        original_list=original_list,
+        cloned_list=cloned_list,
+        original_action=original_action,
+        cloned_action=cloned_action,
+    )

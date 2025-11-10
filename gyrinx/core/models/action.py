@@ -18,6 +18,7 @@ class ListActionType(models.TextChoices):
     """Enumeration of possible action types."""
 
     CREATE = "CREATE", "Create"
+    CLONE = "CLONE", "Clone"
     ADD_FIGHTER = "ADD_FIGHTER", "Add Fighter"
     REMOVE_FIGHTER = "REMOVE_FIGHTER", "Remove Fighter"
     UPDATE_FIGHTER = "UPDATE_FIGHTER", "Update Fighter"

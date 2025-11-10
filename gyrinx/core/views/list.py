@@ -39,7 +39,7 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
-from gyrinx.core.handlers.list_operations import handle_list_creation
+from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,
@@ -822,26 +822,29 @@ def clone_list(request, id):
     if request.method == "POST":
         form = CloneListForm(request.POST, instance=list_)
         if form.is_valid():
-            new_list = list_.clone(
+            result = handle_list_clone(
+                user=request.user,
+                original_list=list_,
                 name=form.cleaned_data["name"],
                 owner=request.user,
                 public=form.cleaned_data["public"],
             )
-            new_list.save()
 
             # Log the list clone event
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST,
                 verb=EventVerb.CLONE,
-                object=new_list,
+                object=result.cloned_list,
                 request=request,
-                list_name=new_list.name,
+                list_name=result.cloned_list.name,
                 source_list_id=str(list_.id),
                 source_list_name=list_.name,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
+            return HttpResponseRedirect(
+                reverse("core:list", args=(result.cloned_list.id,))
+            )
     else:
         form = CloneListForm(
             instance=list_,

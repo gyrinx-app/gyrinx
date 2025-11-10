@@ -668,6 +668,10 @@ class List(AppBase):
             "public": self.public,
             "narrative": self.narrative,
             "theme_color": self.theme_color,
+            "rating_current": self.rating_current,
+            "stash_current": self.stash_current,
+            "credits_current": self.credits_current,
+            "credits_earned": self.credits_earned,
             **kwargs,
         }
 
@@ -691,19 +695,24 @@ class List(AppBase):
             if not is_linked and not is_stash:
                 fighter.clone(list=clone)
 
-        # Add a stash fighter if cloning for a campaign
+        # Clone stash fighter
+        original_stash = self.listfighter_set.filter(
+            content_fighter__is_stash=True
+        ).first()
+
+        # For campaign mode, always ensure a stash exists
         if for_campaign:
             new_stash = clone.ensure_stash(owner=owner)
-
-            # Clone equipment from original stash if it exists
-            original_stash = self.listfighter_set.filter(
-                content_fighter__is_stash=True
-            ).first()
-
+            # Clone equipment from original stash if it existed
             if original_stash:
-                # Clone all equipment assignments from the original stash
                 for assignment in original_stash._direct_assignments():
                     assignment.clone(list_fighter=new_stash)
+        # For regular clones, only clone stash if it exists in original
+        elif original_stash:
+            new_stash = clone.ensure_stash(owner=owner)
+            # Clone all equipment assignments from the original stash
+            for assignment in original_stash._direct_assignments():
+                assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.filter(
