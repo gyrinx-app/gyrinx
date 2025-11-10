@@ -16,7 +16,7 @@ django-simple-history==3.10.1
 django-storages[google]==1.14.6
 django-tinymce==5.0.0
 djlint==1.36.4
-docutils==0.22.2
+docutils==0.22.3
 fido2==2.0.0
 google-cloud-logging==3.12.1
 google-cloud-sqlcommenter==2.0.0
@@ -26,9 +26,9 @@ nbstripout==0.8.1
 nodeenv==1.9.1
 Pillow==12.0.0
 playwright==1.55.0
-pre-commit==4.3.0
+pre-commit==4.4.0
 psycopg2-binary==2.9.11
-pydantic==2.12.3
+pydantic==2.12.4
 pydot==4.0.1
 pyparsing==3.2.5
 pytest==8.4.2
@@ -39,7 +39,7 @@ python-dotenv==1.2.1
 qrcode==8.2
 referencing==0.37.0
 rich==14.2.0
-ruff==0.14.3
+ruff==0.14.4
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.3
