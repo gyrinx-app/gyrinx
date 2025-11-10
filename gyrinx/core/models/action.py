@@ -18,6 +18,7 @@ class ListActionType(models.TextChoices):
     """Enumeration of possible action types."""
 
     CREATE = "CREATE", "Create"
+    CLONE = "CLONE", "Clone"
     ADD_FIGHTER = "ADD_FIGHTER", "Add Fighter"
     REMOVE_FIGHTER = "REMOVE_FIGHTER", "Remove Fighter"
     UPDATE_FIGHTER = "UPDATE_FIGHTER", "Update Fighter"
@@ -68,6 +69,22 @@ class ListAction(AppBase):
         related_name="actions",
         null=False,
         blank=False,
+        db_index=True,
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="list_actions",
+        help_text="The user who performed this action",
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    applied = models.BooleanField(
+        default=False,
+        help_text="Whether this action has been applied to the list.",
         db_index=True,
     )
 

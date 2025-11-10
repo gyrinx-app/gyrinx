@@ -519,6 +519,60 @@ class List(AppBase):
 
         return ListAction.objects.latest_for_list(self.id)
 
+    def create_action(
+        self, update_credits: bool = False, **kwargs
+    ) -> Optional[ListAction]:
+        from gyrinx.core.models.action import ListAction
+
+        # Don't run this if we haven't yet got a latest_action. We'll run a backfill
+        # to ensure there is at least one action for each list, with the correct values, later.
+        if self.latest_action:
+            user = kwargs.pop("user", None)
+
+            # We create the action first, with applied=False, so that we can track if the update failed
+            la = ListAction.objects.create(
+                user=user or self.owner,
+                owner=self.owner,
+                list=self,
+                applied=False,
+                **kwargs,
+            )
+            la.save()
+
+            # Update key fields
+            # Currently we don't track credits delta by default in actions because spend_credits exists
+            # but we should refactor in that direction later.
+            rating_delta = kwargs.get("rating_delta", 0)
+            stash_delta = kwargs.get("stash_delta", 0)
+            credits_delta = kwargs.get("credits_delta", 0) if update_credits else 0
+
+            try:
+                self.rating_current += rating_delta
+                self.stash_current += stash_delta
+                self.credits_current += credits_delta
+                self.save(
+                    update_fields=["rating_current", "stash_current", "credits_current"]
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to update list {self.id} cost fields after action creation: {e}"
+                )
+                self.refresh_from_db()
+                return la
+
+            la.applied = True
+            la.save(update_fields=["applied"])
+            return la
+
+        else:
+            track(
+                "list_action_skipped_no_latest_action",
+                list=self.id,
+                **kwargs,
+            )
+
+        return None
+
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.
 
@@ -614,6 +668,10 @@ class List(AppBase):
             "public": self.public,
             "narrative": self.narrative,
             "theme_color": self.theme_color,
+            "rating_current": self.rating_current,
+            "stash_current": self.stash_current,
+            "credits_current": self.credits_current,
+            "credits_earned": self.credits_earned,
             **kwargs,
         }
 
@@ -637,19 +695,24 @@ class List(AppBase):
             if not is_linked and not is_stash:
                 fighter.clone(list=clone)
 
-        # Add a stash fighter if cloning for a campaign
+        # Clone stash fighter
+        original_stash = self.listfighter_set.filter(
+            content_fighter__is_stash=True
+        ).first()
+
+        # For campaign mode, always ensure a stash exists
         if for_campaign:
             new_stash = clone.ensure_stash(owner=owner)
-
-            # Clone equipment from original stash if it exists
-            original_stash = self.listfighter_set.filter(
-                content_fighter__is_stash=True
-            ).first()
-
+            # Clone equipment from original stash if it existed
             if original_stash:
-                # Clone all equipment assignments from the original stash
                 for assignment in original_stash._direct_assignments():
                     assignment.clone(list_fighter=new_stash)
+        # For regular clones, only clone stash if it exists in original
+        elif original_stash:
+            new_stash = clone.ensure_stash(owner=owner)
+            # Clone all equipment assignments from the original stash
+            for assignment in original_stash._direct_assignments():
+                assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.filter(
@@ -2653,6 +2716,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         help_text="Select the weapon accessories to assign to this equipment.",
     )
 
+    # This field is deprecated and should be replaced with upgrades_field in all cases
+    # There are places it is checked for backwards compatibility, but new code should not use it
     upgrade = models.ForeignKey(
         ContentEquipmentUpgrade,
         on_delete=models.SET_NULL,

@@ -21,6 +21,9 @@ CSRF_COOKIE_SECURE = False
 # Allow local hosts for development
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
+# Feature flags for development
+FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
 USE_REAL_EMAIL_IN_DEV = os.getenv("USE_REAL_EMAIL_IN_DEV", "False").lower() == "true"
 if USE_REAL_EMAIL_IN_DEV:
     # Email configuration - all values from environment variables

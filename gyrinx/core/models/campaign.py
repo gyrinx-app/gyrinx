@@ -277,9 +277,11 @@ class CampaignAction(AppBase):
     )
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="campaign_actions",
         help_text="The user who performed this action",
+        null=True,
+        blank=True,
         db_index=True,
     )
     list = models.ForeignKey(

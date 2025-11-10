@@ -38,6 +38,8 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
+from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
+from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,
@@ -60,6 +62,12 @@ from gyrinx.core.forms.list import (
     ListFighterEquipmentAssignmentUpgradeForm,
     ListFighterForm,
     NewListForm,
+)
+from gyrinx.core.handlers.equipment_purchases import (
+    handle_accessory_purchase,
+    handle_equipment_purchase,
+    handle_equipment_upgrade,
+    handle_weapon_profile_purchase,
 )
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
@@ -446,44 +454,29 @@ def new_list(request):
     if request.method == "POST":
         form = NewListForm(request.POST)
         if form.is_valid():
-            list_ = form.save(commit=False)
-            list_.owner = request.user
-            list_.save()
+            lst = form.save(commit=False)
+            lst.owner = request.user
 
-            # Only create a stash fighter if the checkbox is checked
-            if form.cleaned_data.get("show_stash", True):
-                # Create a stash fighter for the new list
-                stash_fighter, created = ContentFighter.objects.get_or_create(
-                    house=list_.content_house,
-                    is_stash=True,
-                    defaults={
-                        "type": "Stash",
-                        "category": "STASH",
-                        "base_cost": 0,
-                    },
-                )
+            # Call handler to handle business logic
+            result = handle_list_creation(
+                user=request.user,
+                lst=lst,
+                create_stash=form.cleaned_data.get("show_stash", True),
+            )
 
-                # Create the stash ListFighter
-                ListFighter.objects.create(
-                    name="Stash",
-                    content_fighter=stash_fighter,
-                    list=list_,
-                    owner=request.user,
-                )
-
-            # Log the list creation event
+            # Log the list creation event (HTTP-specific)
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST,
                 verb=EventVerb.CREATE,
-                object=list_,
+                object=result.lst,
                 request=request,
-                list_name=list_.name,
-                content_house=list_.content_house.name,
-                public=list_.public,
+                list_name=result.lst.name,
+                content_house=result.lst.content_house.name,
+                public=result.lst.public,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
+            return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
         form = NewListForm(
             initial={
@@ -829,26 +822,29 @@ def clone_list(request, id):
     if request.method == "POST":
         form = CloneListForm(request.POST, instance=list_)
         if form.is_valid():
-            new_list = list_.clone(
+            result = handle_list_clone(
+                user=request.user,
+                original_list=list_,
                 name=form.cleaned_data["name"],
                 owner=request.user,
                 public=form.cleaned_data["public"],
             )
-            new_list.save()
 
             # Log the list clone event
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST,
                 verb=EventVerb.CLONE,
-                object=new_list,
+                object=result.cloned_list,
                 request=request,
-                list_name=new_list.name,
+                list_name=result.cloned_list.name,
                 source_list_id=str(list_.id),
                 source_list_name=list_.name,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(new_list.id,)))
+            return HttpResponseRedirect(
+                reverse("core:list", args=(result.cloned_list.id,))
+            )
     else:
         form = CloneListForm(
             instance=list_,
@@ -893,53 +889,41 @@ def new_list_fighter(request, id):
             fighter.list = lst
             fighter.owner = lst.owner
 
-            if lst.is_campaign_mode:
-                fighter_cost = fighter.cost_int()
-                try:
-                    with transaction.atomic():
-                        lst.spend_credits(
-                            fighter_cost, description=f"Hiring {fighter.name}"
-                        )
-                        fighter.save()
+            # Call handler to handle business logic
+            try:
+                result = handle_fighter_hire(
+                    user=request.user,
+                    lst=lst,
+                    fighter=fighter,
+                )
+            except DjangoValidationError as e:
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
+                form = ListFighterForm(request.POST, instance=fighter)
+                return render(
+                    request,
+                    "core/list_fighter_new.html",
+                    {"form": form, "list": lst, "error_message": error_message},
+                )
 
-                        # Create campaign action
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=f"Hired {fighter.name} ({fighter_cost}¢)",
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    form = ListFighterForm(request.POST, instance=fighter)
-                    return render(
-                        request,
-                        "core/list_fighter_new.html",
-                        {"form": form, "list": lst, "error_message": error_message},
-                    )
-            else:
-                fighter.save()
-
-            # Log the fighter creation event
+            # Log the fighter creation event (HTTP-specific)
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
                 verb=EventVerb.CREATE,
-                object=fighter,
+                object=result.fighter,
                 request=request,
-                fighter_name=fighter.name,
+                fighter_name=result.fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
             )
 
-            query_params = urlencode(dict(flash=fighter.id))
+            # Redirect with flash parameter (HTTP-specific)
+            query_params = urlencode(dict(flash=result.fighter.id))
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,))
                 + f"?{query_params}"
-                + f"#{str(fighter.id)}"
+                + f"#{str(result.fighter.id)}"
             )
 
     else:
@@ -1848,44 +1832,24 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
-            # Save the assignment and m2m relationships first
-            assign.save()
-            form.save_m2m()
+            try:
+                # Save the assignment and m2m relationships
+                assign.save()
+                form.save_m2m()
 
-            # Refetch to get the full cost including profiles, accessories, and upgrades
-            assign.refresh_from_db()
-            total_cost = assign.cost_int()
+                # Call handler to handle business logic (credit spending, actions)
+                result = handle_equipment_purchase(
+                    user=request.user,
+                    lst=lst,
+                    fighter=fighter,
+                    assignment=assign,
+                )
 
-            # Handle credit spending for campaign mode
-            if lst.is_campaign_mode:
-                try:
-                    with transaction.atomic():
-                        description = f"Bought {assign.content_equipment.name} for {fighter.name} ({total_cost}¢)"
-                        lst.spend_credits(
-                            total_cost,
-                            description=f"Buying {assign.content_equipment.name}",
-                        )
+                # Extract results for HTTP-specific operations
+                assign = result.assignment
+                total_cost = result.total_cost
+                description = result.description
 
-                        # Create campaign action
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=description,
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                except DjangoValidationError as e:
-                    # Not enough credits - delete the assignment and show error
-                    assign.delete()
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    # Continue to render the form below
-            else:
-                description = f"Added {assign.content_equipment.name} to {fighter.name}"
-
-            # Only redirect on success (when no error_message)
-            if not error_message:
                 # Log the equipment assignment event
                 log_event(
                     user=request.user,
@@ -1951,6 +1915,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                     + f"?{query_params}"
                     + f"#{str(fighter.id)}"
                 )
+            except DjangoValidationError as e:
+                # Handler failed (e.g., insufficient credits) - clean up the assignment
+                assign.delete()
+
+                # Not enough credits or other validation error
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
 
     # Get the appropriate equipment
     # Create expansion rule inputs for cost calculations
@@ -2497,36 +2468,21 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
         accessory_id = request.POST.get("accessory_id")
         accessory = get_object_or_404(ContentWeaponAccessory, pk=accessory_id)
 
-        # Calculate the cost of this accessory
-        accessory_cost = assignment.accessory_cost_int(accessory)
+        try:
+            # Call handler to handle business logic (credit spending, actions)
+            result = handle_accessory_purchase(
+                user=request.user,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                accessory=accessory,
+            )
 
-        # Handle credit spending for campaign mode
-        if lst.is_campaign_mode:
-            try:
-                with transaction.atomic():
-                    lst.spend_credits(
-                        accessory_cost, description=f"Buying {accessory.name}"
-                    )
-
-                    # Add the accessory to the assignment
-                    assignment.weapon_accessories_field.add(accessory)
-
-                    # Create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-            except DjangoValidationError as e:
-                error_message = str(e)
-                messages.error(request, error_message)
-                # Continue to render the form below
-        else:
-            # Not in campaign mode, just add the accessory
-            assignment.weapon_accessories_field.add(accessory)
+            messages.success(request, result.description)
+        except DjangoValidationError as e:
+            # Handler failed (e.g., insufficient credits)
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
 
         # Only redirect if there's no error
         if not error_message:
@@ -2679,39 +2635,21 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             ContentWeaponProfile, pk=profile_id, equipment=assignment.content_equipment
         )
 
-        # Calculate the cost of this profile
-        from gyrinx.content.models import VirtualWeaponProfile
+        try:
+            # Call handler to handle business logic (credit spending, actions)
+            result = handle_weapon_profile_purchase(
+                user=request.user,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                profile=profile,
+            )
 
-        virtual_profile = VirtualWeaponProfile(profile=profile)
-        profile_cost = assignment.profile_cost_int(virtual_profile)
-
-        # Handle credit spending for campaign mode
-        if lst.is_campaign_mode:
-            try:
-                with transaction.atomic():
-                    lst.spend_credits(
-                        profile_cost, description=f"Buying {profile.name}"
-                    )
-
-                    # Add the profile to the assignment
-                    assignment.weapon_profiles_field.add(profile)
-
-                    # Create campaign action
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
-                        outcome=f"Credits remaining: {lst.credits_current}¢",
-                    )
-            except DjangoValidationError as e:
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
-                # Continue to render the form below
-        else:
-            # Not in campaign mode, just add the profile
-            assignment.weapon_profiles_field.add(profile)
+            messages.success(request, result.description)
+        except DjangoValidationError as e:
+            # Handler failed (e.g., insufficient credits)
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
 
         # Only redirect if there's no error
         if not error_message:
@@ -2969,55 +2907,23 @@ def edit_list_fighter_weapon_upgrade(
             request.POST, instance=assignment
         )
         if form.is_valid():
-            # Calculate the cost difference for upgrades
-            old_upgrade_cost = assignment.upgrade_cost_int()
-
-            # Save the form (temporarily) to calculate new cost
+            # Extract new upgrades from form
             new_upgrades = form.cleaned_data["upgrades_field"]
 
-            # Calculate the cost of the new upgrades
-            new_upgrade_cost = (
-                sum(
-                    [
-                        assignment._upgrade_cost_with_override(upgrade)
-                        for upgrade in new_upgrades
-                    ]
+            try:
+                # Call handler to handle business logic (credit spending, actions, upgrade update)
+                result = handle_equipment_upgrade(
+                    user=request.user,
+                    lst=lst,
+                    fighter=fighter,
+                    assignment=assignment,
+                    new_upgrades=list(new_upgrades),
                 )
-                if new_upgrades
-                else 0
-            )
-
-            cost_difference = new_upgrade_cost - old_upgrade_cost
-
-            # Handle credit spending for campaign mode (only if cost increased)
-            if lst.is_campaign_mode and cost_difference > 0:
-                try:
-                    with transaction.atomic():
-                        lst.spend_credits(
-                            cost_difference,
-                            description=f"Buying upgrades for {assignment.content_equipment.name}",
-                        )
-
-                        # Save the form
-                        form.save()
-
-                        # Create campaign action
-                        upgrade_names = ", ".join([u.name for u in new_upgrades])
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
-                            outcome=f"Credits remaining: {lst.credits_current}¢",
-                        )
-                except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
-                    # Re-render form with error
-            else:
-                # Not in campaign mode or cost decreased/stayed same, just save
-                form.save()
+                messages.success(request, result.description)
+            except DjangoValidationError as e:
+                # Handler failed (e.g., insufficient credits)
+                error_message = ". ".join(e.messages)
+                messages.error(request, error_message)
 
             # Only redirect if there's no error
             if not error_message:

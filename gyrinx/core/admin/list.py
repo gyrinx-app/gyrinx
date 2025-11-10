@@ -49,6 +49,9 @@ class ListAdmin(BaseAdmin):
         "campaign",
         "public",
         "narrative",
+        "rating_current",
+        "stash_current",
+        "credits_current",
     ]
     readonly_fields = ["original_list", "campaign"]
     list_display = ["name", "content_house", "owner", "status", "public"]

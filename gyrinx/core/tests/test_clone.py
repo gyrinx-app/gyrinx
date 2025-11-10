@@ -1,6 +1,8 @@
 import pytest
 
 from gyrinx.content.models import ContentEquipmentUpgrade
+from gyrinx.core.handlers.list_operations import handle_list_clone
+from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -100,10 +102,10 @@ def test_fighter_clone_with_mods(
 
 
 @pytest.mark.django_db
-def test_list_clone_excludes_stash_fighter(
-    make_list, make_list_fighter, make_content_fighter
+def test_list_clone_includes_stash_fighter(
+    make_list, make_list_fighter, make_content_fighter, make_equipment
 ):
-    """Test that stash fighters are not cloned when cloning a list."""
+    """Test that stash fighters and their equipment are cloned when cloning a list."""
     list_ = make_list("Test List")
 
     # Create a regular fighter
@@ -120,12 +122,16 @@ def test_list_clone_excludes_stash_fighter(
     stash_cf.save()
 
     # Create a stash list fighter
-    ListFighter.objects.create(
+    stash_fighter = ListFighter.objects.create(
         name="Gang Stash",
         content_fighter=stash_cf,
         list=list_,
         owner=list_.owner,
     )
+
+    # Add equipment to the stash
+    stash_equipment = make_equipment("Stash Item")
+    stash_fighter.assign(stash_equipment)
 
     # Verify original list has both fighters
     assert list_.fighters().count() == 2
@@ -133,11 +139,24 @@ def test_list_clone_excludes_stash_fighter(
     # Clone the list
     cloned_list = list_.clone()
 
-    # Verify only the regular fighter was cloned
-    assert cloned_list.fighters().count() == 1
-    cloned_fighter = cloned_list.fighters().first()
-    assert cloned_fighter.name == "Regular Fighter"
-    assert not cloned_fighter.content_fighter.is_stash
+    # Verify both fighters were cloned (regular + stash)
+    assert cloned_list.fighters().count() == 2
+
+    # Find the cloned stash
+    cloned_stash = cloned_list.fighters().filter(content_fighter__is_stash=True).first()
+    assert cloned_stash is not None
+    assert cloned_stash.name == "Stash"  # ensure_stash() creates with default name
+
+    # Verify stash equipment was cloned
+    assert cloned_stash.equipment.count() == 1
+    assert cloned_stash.equipment.first().name == "Stash Item"
+
+    # Verify regular fighter was also cloned
+    regular_fighter = (
+        cloned_list.fighters().filter(content_fighter__is_stash=False).first()
+    )
+    assert regular_fighter is not None
+    assert regular_fighter.name == "Regular Fighter"
 
 
 @pytest.mark.django_db
@@ -207,3 +226,151 @@ def test_fighter_clone_with_xp_and_advancements(
     assert (
         cloned_advancement.campaign_action is None
     )  # Should not clone campaign action reference
+
+
+@pytest.mark.django_db
+def test_list_clone_copies_cost_fields(make_list):
+    """Test that cost fields are copied from original to clone."""
+    # Setup
+    original = make_list("Original List")
+    original.credits_current = 500
+    original.rating_current = 1000
+    original.stash_current = 150
+    original.credits_earned = 2000
+    original.save()
+
+    # Execute
+    clone = original.clone(name="Clone")
+
+    # Assert
+    assert clone.credits_current == 500
+    assert clone.rating_current == 1000
+    assert clone.stash_current == 150
+    assert clone.credits_earned == 2000
+
+
+@pytest.mark.django_db
+def test_list_clone_creates_action_on_original(make_list, user):
+    """Test that original list gets a ListAction recording the clone."""
+    # Setup
+    original = make_list("Original List")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        name="Clone",
+        owner=user,
+    )
+
+    # Assert
+    assert result.original_action is not None
+    assert result.original_action.list == original
+    assert result.original_action.action_type == ListActionType.CLONE
+    assert result.original_action.applied is True
+    assert "Clone" in result.original_action.description
+
+
+@pytest.mark.django_db
+def test_list_clone_creates_action_on_clone_when_feature_enabled(
+    make_list, user, settings
+):
+    """Test that cloned list gets initial ListAction if feature enabled."""
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("Original List")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        name="Clone",
+        owner=user,
+    )
+
+    # Assert
+    assert result.cloned_action is not None
+    assert result.cloned_action.list == result.cloned_list
+    assert result.cloned_action.action_type == ListActionType.CREATE
+    assert result.cloned_action.applied is True
+    # Check that the description references the original list name, not the cloned list name
+    assert result.cloned_action.description == "Cloned from 'Original List'"
+
+
+@pytest.mark.django_db
+def test_list_clone_no_action_on_clone_when_feature_disabled(make_list, user, settings):
+    """Test that no action on clone when FEATURE_LIST_ACTION_CREATE_INITIAL is False."""
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = False
+    original = make_list("Original List")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        name="Clone",
+        owner=user,
+    )
+
+    # Assert
+    assert result.cloned_action is None
+
+
+@pytest.mark.django_db
+def test_list_clone_actions_have_zero_deltas(make_list, user):
+    """Test that ListActions have zero cost deltas (no credits spent)."""
+    # Setup
+    original = make_list("Original List")
+    original.credits_current = 500
+    original.rating_current = 1000
+    original.stash_current = 150
+    original.save()
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        name="Clone",
+        owner=user,
+    )
+
+    # Assert original's action
+    assert result.original_action.rating_delta == 0
+    assert result.original_action.stash_delta == 0
+    assert result.original_action.credits_delta == 0
+
+    # Assert clone's action (if created)
+    if result.cloned_action:
+        assert result.cloned_action.rating_delta == 0
+        assert result.cloned_action.stash_delta == 0
+        assert result.cloned_action.credits_delta == 0
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_handler(make_list, user):
+    """Test the handler directly."""
+    # Setup
+    original = make_list("Original List")
+    original.credits_current = 500
+    original.rating_current = 1000
+    original.stash_current = 150
+    original.save()
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        name="Clone",
+        owner=user,
+        public=False,
+    )
+
+    # Assert result structure
+    assert result.original_list == original
+    assert result.cloned_list.name == "Clone"
+    assert result.original_action is not None
+
+    # Assert cost fields copied
+    assert result.cloned_list.credits_current == 500
+    assert result.cloned_list.rating_current == 1000
+    assert result.cloned_list.stash_current == 150

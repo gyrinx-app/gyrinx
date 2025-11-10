@@ -22,6 +22,7 @@ def test_create_list_action_basic(user, make_list):
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     assert action.list == lst
@@ -40,6 +41,7 @@ def test_create_list_action_with_optional_fields(user, make_list):
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
         subject_app="core",
         subject_type="ListFighter",
         subject_id="12345678-1234-1234-1234-123456789012",
@@ -61,6 +63,7 @@ def test_create_list_action_with_credit_tracking(user, make_list):
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
         rating_before=100,
         rating_delta=50,
         credits_before=200,
@@ -82,6 +85,7 @@ def test_rating_after_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         rating_before=200,
         rating_delta=75,
         credits_before=200,
@@ -96,6 +100,7 @@ def test_rating_after_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         rating_before=200,
         rating_delta=-50,
         credits_before=200,
@@ -115,6 +120,7 @@ def test_stash_after_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         stash_before=100,
         stash_delta=50,
         credits_before=200,
@@ -129,6 +135,7 @@ def test_stash_after_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         stash_before=100,
         stash_delta=-50,
         credits_before=200,
@@ -148,6 +155,7 @@ def test_multi_delta_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         stash_before=100,
         stash_delta=50,
         rating_before=200,
@@ -165,6 +173,7 @@ def test_multi_delta_calculation(user, make_list):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         stash_delta=-50,
         stash_before=100,
         rating_delta=-75,
@@ -190,6 +199,7 @@ def test_cascade_delete_when_list_deleted(user, make_list):
         list=lst,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
     )
 
     action_id = action.id
@@ -211,6 +221,7 @@ def test_set_null_when_list_fighter_deleted(user, make_list, make_list_fighter):
         list=lst,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         list_fighter=fighter,
     )
 
@@ -244,6 +255,7 @@ def test_set_null_when_assignment_deleted(
         list=lst,
         action_type=ListActionType.ADD_EQUIPMENT,
         owner=user,
+        applied=True,
         list_fighter_equipment_assignment=assignment,
     )
 
@@ -272,6 +284,7 @@ def test_latest_for_list_single_action(user, make_list):
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     latest = ListAction.objects.latest_for_list(lst.id)
@@ -289,18 +302,21 @@ def test_latest_for_list_multiple_actions(user, make_list):
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     ListAction.objects.create(
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     action3 = ListAction.objects.create(
         list=lst,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     latest = ListAction.objects.latest_for_list(lst.id)
@@ -312,7 +328,8 @@ def test_latest_for_list_multiple_actions(user, make_list):
 @pytest.mark.django_db
 def test_latest_for_list_no_actions(user, make_list):
     """Test that None is returned when list has no actions."""
-    lst = make_list("Test List")
+    # Create list without initial action to test edge case
+    lst = make_list("Test List", create_initial_action=False)
 
     latest = ListAction.objects.latest_for_list(lst.id)
 
@@ -330,6 +347,7 @@ def test_latest_for_list_filters_by_list(user, make_list):
         list=lst1,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
     )
 
     # Create action for list 2
@@ -337,6 +355,7 @@ def test_latest_for_list_filters_by_list(user, make_list):
         list=lst2,
         action_type="",
         owner=user,
+        applied=True,
     )
 
     # Get latest for list 1
@@ -363,18 +382,21 @@ def test_list_with_related_data_prefetch_latest_action(user, make_list):
         list=lst1,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
         rating_delta=10,
     )
     ListAction.objects.create(
         list=lst1,
         action_type=ListActionType.ADD_FIGHTER,
         owner=user,
+        applied=True,
         rating_delta=20,
     )
     action1_3 = ListAction.objects.create(
         list=lst1,
         action_type=ListActionType.ADD_EQUIPMENT,
         owner=user,
+        applied=True,
         rating_delta=30,
     )
 
@@ -383,6 +405,7 @@ def test_list_with_related_data_prefetch_latest_action(user, make_list):
         list=lst2,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
         rating_delta=100,
     )
 
@@ -415,7 +438,8 @@ def test_check_wealth_sync_no_latest_action(user, make_list):
     """Test that check_wealth_sync does nothing when there is no latest_action."""
     from unittest.mock import patch
 
-    lst = make_list("Test List")
+    # Create list without initial action to test edge case
+    lst = make_list("Test List", create_initial_action=False)
 
     # No latest_action, so check_wealth_sync should do nothing
     with patch("gyrinx.core.models.list.track") as mock_track:
@@ -436,6 +460,7 @@ def test_check_wealth_sync_in_sync(user, make_list):
         list=lst,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
         rating_before=0,
         rating_delta=500,  # Spent 500 credits on rating
         credits_before=1000,
@@ -471,6 +496,7 @@ def test_check_wealth_sync_out_of_sync_current(user, make_list):
         list=lst,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
         rating_before=0,
         rating_delta=500,
         credits_before=1000,
@@ -516,6 +542,7 @@ def test_check_wealth_sync_out_of_sync_action(user, make_list):
         list=lst,
         action_type=ListActionType.CREATE,
         owner=user,
+        applied=True,
         rating_before=100,
         rating_delta=500,
         credits_before=1000,
