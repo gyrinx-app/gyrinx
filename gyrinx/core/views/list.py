@@ -3576,6 +3576,11 @@ def resurrect_list_fighter(request, id, fighter_id):
         messages.error(request, "Fighters can only be resurrected in campaign mode.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
+    # Don't ressurrect stash fighters - just in case
+    if fighter.is_stash:
+        messages.error(request, "Cannot resurrect the stash.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     if request.method == "POST":
         if not fighter.injury_state == ListFighter.DEAD:
             messages.error(request, "Only dead fighters can be resurrected.")
@@ -3586,14 +3591,29 @@ def resurrect_list_fighter(request, id, fighter_id):
         fighter.cost_override = None
         fighter.save()
 
-        CampaignAction.objects.create(
+        # Log the resurrection event
+        log_event(
             user=request.user,
-            owner=request.user,
-            campaign=lst.campaign,
-            list=lst,
-            description=f"Resurrection: {fighter.name} is no longer dead",
-            outcome=f"{fighter.name} has been returned to the active roster.",
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.ACTIVATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            action="resurrected",
         )
+
+        # Log the resurrection campaign action
+        if lst.campaign:
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=f"Resurrection: {fighter.name} is no longer dead",
+                outcome=f"{fighter.name} has been returned to the active roster.",
+            )
 
         messages.success(
             request,
