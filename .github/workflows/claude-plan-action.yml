@@ -1,0 +1,246 @@
+name: Claude Issue Planning
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  issue-planning:
+    # Skip if issue is from dependabot or already has a plan comment
+    if: |
+      github.actor != 'dependabot[bot]'
+
+    runs-on: default
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Cache pip
+        id: cache-pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv && \
+          . .venv/bin/activate && \
+          pip install --editable .
+
+      - name: Write to .env file
+        run: |
+          echo "SECRET_KEY=test-secret" >> .env
+          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install pre-commit
+        run: |
+          . .venv/bin/activate && \
+          pip install pre-commit
+
+      - name: Install pre-commit hooks
+        run: |
+          . .venv/bin/activate && \
+          pre-commit install --install-hooks
+
+      - name: Run Claude Issue Planning
+        id: claude-planning
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Use Claude Sonnect
+          model: "claude-sonnet-4-5-20250929"
+
+          # Allow Claude to use necessary tools for analysis
+          allowed_tools: "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(pytest:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(git:*)"
+
+          # Use sticky comments to update the same comment if re-run
+          use_sticky_comment: true
+
+          # Direct prompt for automated issue analysis and planning
+          direct_prompt: |
+            You are analyzing a newly opened GitHub issue to create an implementation plan or request clarifications.
+
+            ## Your Task
+
+            Read the issue carefully and determine the best course of action:
+
+            1. **Understand the Request**:
+               - What is the user asking for? (feature, bug fix, enhancement, etc.)
+               - What is the scope and complexity?
+               - Are there ambiguities or missing information?
+
+            2. **Analyze the Codebase**:
+               - Explore relevant files and subsystems
+               - Understand the architecture and patterns used
+               - Identify where the changes would need to be made
+               - Consider existing implementations of similar features
+               - Review test patterns and coverage requirements
+
+            3. **Self-Critique and Validation**:
+               - Question your assumptions about the implementation
+               - Consider alternative approaches and their trade-offs
+               - Identify potential risks or complications
+               - Note areas where you're uncertain
+               - Be explicit about your confidence level
+               - Challenge yourself: "What am I missing?" "What could go wrong?"
+               - Consider edge cases and integration points
+
+            4. **Decide on Next Steps**:
+
+               **Option A: Create an Implementation Plan** (when the request is clear)
+               - Break down the work into specific, actionable tasks
+               - Identify all files that need to be modified or created
+               - Specify the order of implementation
+               - Include testing requirements
+               - Note any migrations, static file changes, or dependencies
+               - Highlight risks and areas of uncertainty
+
+               **Option B: Ask Clarifying Questions** (when information is missing)
+               - List specific questions that need answers
+               - Explain why each clarification is needed
+               - Suggest options or alternatives for the user to consider
+               - Be concise but thorough
+
+            ## Response Format
+
+            Structure your comment as follows:
+
+            ### Summary
+            [Brief 1-2 sentence summary of what this issue is requesting]
+
+            ### Analysis
+            [Your analysis of the codebase and where this fits in. Include relevant file paths, existing patterns, and architectural considerations.]
+
+            ### Self-Critique
+            [Challenge your assumptions. What are you uncertain about? What alternative approaches exist? What could go wrong? Be honest about confidence levels.]
+
+            ---
+
+            **Then choose ONE of the following:**
+
+            ### Implementation Plan
+
+            #### Overview
+            [High-level approach to solving this issue]
+
+            #### Tasks
+            1. [Specific, actionable task with file paths]
+            2. [Specific, actionable task with file paths]
+            3. [...]
+
+            #### Files to Modify/Create
+            - `path/to/file.py` - [what changes are needed]
+            - `path/to/test.py` - [what tests to add]
+            - [...]
+
+            #### Testing Strategy
+            [How to test these changes, including specific test cases]
+
+            #### Risks and Considerations
+            [Potential issues, edge cases, or areas requiring careful attention]
+
+            #### Confidence Assessment
+            - **Overall Confidence**: [Low/Medium/High]
+            - **Areas of Uncertainty**: [List any uncertain areas]
+
+            **OR**
+
+            ### Questions for Clarification
+
+            Before creating a detailed implementation plan, I need clarification on the following:
+
+            1. **[Question category]**
+               - [Specific question]
+               - [Why this matters for implementation]
+               - [Possible options if applicable]
+
+            2. **[Question category]**
+               - [...]
+
+            ---
+
+            ## Critical Guidelines
+
+            - **Be humble**: Acknowledge uncertainty and gaps in understanding
+            - **Be specific**: Use actual file paths, function names, and code references
+            - **Be practical**: Focus on actionable steps, not abstract ideas
+            - **Be thorough**: Consider the full scope including tests, migrations, documentation
+            - **Be critical**: Question your own assumptions and identify potential issues
+            - **Be concise**: Keep explanations clear and to the point
+            - **Don't be overconfident**: If you're unsure, ask questions rather than guess
+            - **Don't implement yet**: This is planning only - no code changes, no PRs
+            - **Do explore the codebase**: Use grep, find, and read files to understand context
+            - **Do reference existing patterns**: Point to similar implementations as examples
+
+            ## Important Notes
+
+            - This is a planning exercise only - DO NOT make any code changes
+            - DO NOT create pull requests or commits
+            - DO explore the codebase thoroughly using available tools
+            - DO provide file paths and line numbers for context
+            - The goal is to create a plan that can be immediately implemented after review
+            - If the issue is unclear or ambiguous, it's better to ask questions than to make assumptions
+
+            Start your analysis now.
+
+          # Custom instructions for the project
+          custom_instructions: |
+            IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
+            pip install --editable .
+
+            This installs all project dependencies defined in pyproject.toml.
+
+            When analyzing the codebase:
+            - Review CLAUDE.md for project-specific patterns and conventions
+            - Use `manage` command (not `python manage.py`) for Django commands
+            - Refer to the architecture overview in CLAUDE.md
+            - Consider the testing patterns documented in CLAUDE.md
+            - Remember this is a server-rendered Django app, not an SPA
+            - Mobile-first design is a key principle
+
+            DO NOT:
+            - Make any code changes
+            - Create any commits or pull requests
+            - Run the test suite (this is analysis only)
+            - Be overconfident about implementation details
+
+            DO:
+            - Use grep/rg to search for relevant code
+            - Read model files to understand the data structure
+            - Look at existing similar features for patterns
+            - Reference actual file paths in your analysis
+            - Be explicit about uncertainty and assumptions
