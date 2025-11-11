@@ -2386,7 +2386,6 @@ def delete_list_fighter_gear_upgrade(
     return_url = request.GET.get("return_url", default_url)
 
     if request.method == "POST":
-        assignment.upgrade = None
         assignment.upgrades_field.remove(upgrade)
         assignment.save()
 
@@ -3170,7 +3169,6 @@ def kill_list_fighter(request, id, fighter_id):
                         content_equipment=assignment.content_equipment,
                         cost_override=assignment.cost_override,
                         total_cost_override=assignment.total_cost_override,
-                        upgrade=assignment.upgrade,
                         from_default_assignment=assignment.from_default_assignment,
                     )
                     new_assignment.save()
@@ -5174,8 +5172,6 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
         # Selling entire assignment (equipment + upgrades)
         base_cost = assignment.content_equipment.cost_int()
         print(f"Base cost for {assignment.content_equipment.name}: {base_cost}")
-        if assignment.upgrade:
-            base_cost += assignment.upgrade.cost_int_cached
         for upgrade in assignment.upgrades_field.all():
             print(f"Adding upgrade cost: {upgrade.cost_int_cached} for {upgrade.name}")
             base_cost += upgrade.cost_int_cached
@@ -5184,8 +5180,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
             {
                 "type": "equipment",
                 "name": assignment.content_equipment.name,
-                "upgrades": list(assignment.upgrades_field.all())
-                + ([assignment.upgrade] if assignment.upgrade else []),
+                "upgrades": list(assignment.upgrades_field.all()),
                 "base_cost": base_cost,
                 "total_cost": base_cost,  # Total cost including upgrades
                 "assignment": assignment,
