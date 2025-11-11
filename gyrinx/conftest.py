@@ -491,3 +491,17 @@ def make_vehicle_equipment(content_equipment_categories, content_house):
         return vehicle, vehicle_fighter
 
     return make_vehicle_equipment_
+
+
+@pytest.fixture
+def make_equipment_upgrade():
+    """Make equipment upgrade fixture."""
+
+    def make_equipment_upgrade_(equipment, name, cost):
+        from gyrinx.content.models import ContentEquipmentUpgrade
+
+        return ContentEquipmentUpgrade.objects.create(
+            equipment=equipment, name=name, cost=cost
+        )
+
+    return make_equipment_upgrade_
