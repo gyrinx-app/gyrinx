@@ -81,7 +81,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Use Claude Sonnect
+          # Use Claude Sonnet
           model: "claude-sonnet-4-5-20250929"
 
           # Allow Claude to use necessary tools for analysis
