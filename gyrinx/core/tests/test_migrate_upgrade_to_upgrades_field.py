@@ -2,83 +2,41 @@ import importlib
 
 import pytest
 from django.apps import apps
-from django.contrib.auth import get_user_model
 
-from gyrinx.content.models import (
-    ContentEquipment,
-    ContentEquipmentCategory,
-    ContentEquipmentUpgrade,
-    ContentFighter,
-    ContentHouse,
-)
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
-
-User = get_user_model()
+from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
 
 @pytest.fixture
-def setup_data():
+def setup_data(
+    user,
+    content_house,
+    make_equipment,
+    make_equipment_upgrade,
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    content_equipment_categories,
+):
     """Create basic test data for migration tests."""
-    # Create user
-    user = User.objects.create_user(username="test_migration_user", password="testpass")
-
-    # Create house
-    house = ContentHouse.objects.create(name="Test Migration House", generic=True)
-
-    # Create equipment category
-    category = ContentEquipmentCategory.objects.create(name="Test Migration Weapons")
-
-    # Create equipment
-    equipment = ContentEquipment.objects.create(
-        name="Test Migration Weapon", category=category, cost=10, rarity="C"
+    # Create equipment with 3 upgrades
+    equipment = make_equipment(
+        name="Test Migration Weapon",
+        cost=10,
+        rarity="C",
+        category=content_equipment_categories[0],
     )
 
-    # Create upgrades
-    upgrade1 = ContentEquipmentUpgrade.objects.create(
-        equipment=equipment, name="Upgrade 1", cost=5
-    )
-    upgrade2 = ContentEquipmentUpgrade.objects.create(
-        equipment=equipment, name="Upgrade 2", cost=10
-    )
-    upgrade3 = ContentEquipmentUpgrade.objects.create(
-        equipment=equipment, name="Upgrade 3", cost=15
-    )
-
-    # Create fighter type
-    fighter_type = ContentFighter.objects.create(
-        house=house,
-        type="Test Migration Fighter",
-        category="GANGER",
-        base_cost=50,
-        movement="4",
-        weapon_skill="4+",
-        ballistic_skill="4+",
-        strength="3",
-        toughness="3",
-        wounds="1",
-        initiative="4+",
-        attacks="1",
-        leadership="7+",
-        cool="7+",
-        willpower="7+",
-        intelligence="7+",
-    )
+    upgrade1 = make_equipment_upgrade(equipment, "Upgrade 1", 5)
+    upgrade2 = make_equipment_upgrade(equipment, "Upgrade 2", 10)
+    upgrade3 = make_equipment_upgrade(equipment, "Upgrade 3", 15)
 
     # Create list and fighter
-    lst = List.objects.create(
-        name="Test Migration List", content_house=house, owner=user
-    )
-
-    list_fighter = ListFighter.objects.create(
-        name="Test Migration Fighter",
-        content_fighter=fighter_type,
-        list=lst,
-        owner=user,
-    )
+    lst = make_list("Test Migration List")
+    list_fighter = make_list_fighter(lst, "Test Migration Fighter")
 
     return {
         "user": user,
-        "house": house,
+        "house": content_house,
         "equipment": equipment,
         "upgrade1": upgrade1,
         "upgrade2": upgrade2,
