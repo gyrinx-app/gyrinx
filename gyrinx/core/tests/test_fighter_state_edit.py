@@ -171,6 +171,68 @@ def test_fighter_state_edit_dead_redirects_to_kill(client, user, content_house):
 
 
 @pytest.mark.django_db
+def test_fighter_state_edit_active_redirects_to_resurrect(client, user, content_house):
+    """Test that changing state to active redirects to resurrect confirmation."""
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+    )
+
+    # Create a campaign mode list
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    # Create a content fighter
+    content_fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=50,
+    )
+
+    # Create a list fighter
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+    )
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-state-edit", args=[lst.id, fighter.id])
+
+    # Try to change to active state
+    response = client.post(
+        url,
+        {
+            "fighter_state": ListFighter.ACTIVE,
+            "reason": "Resurrected",
+        },
+    )
+
+    # Should redirect to resurrect confirmation page
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "core:list-fighter-resurrect", args=[lst.id, fighter.id]
+    )
+
+    # Check state was NOT changed yet (resurrect view should handle it)
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD  # Still dead
+
+    # Check no campaign action was created yet
+    assert CampaignAction.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_fighter_state_edit_no_change(client, user, content_house):
     """Test that no change when state is the same."""
     # Create a campaign mode list
