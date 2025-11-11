@@ -105,8 +105,22 @@ class PrintConfig(AppBase):
             included.append("All Fighters")
 
         if self.blank_fighter_cards > 0:
-            included.append(f"{self.blank_fighter_cards} Blank Fighter")
+            included.append(
+                ngettext(
+                    "%(count)d Blank Fighter",
+                    "%(count)d Blank Fighters",
+                    self.blank_fighter_cards,
+                )
+                % {"count": self.blank_fighter_cards}
+            )
         if self.blank_vehicle_cards > 0:
-            included.append(f"{self.blank_vehicle_cards} Blank Vehicle")
+            included.append(
+                ngettext(
+                    "%(count)d Blank Vehicle",
+                    "%(count)d Blank Vehicles",
+                    self.blank_vehicle_cards,
+                )
+                % {"count": self.blank_vehicle_cards}
+            )
 
         return ", ".join(included) if included else "None"

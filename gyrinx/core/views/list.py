@@ -432,10 +432,8 @@ class ListPrintView(generic.DetailView):
 
         # Add blank card ranges if print_config exists
         if print_config:
-            if print_config.blank_fighter_cards > 0:
-                context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
-            if print_config.blank_vehicle_cards > 0:
-                context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
+            context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
+            context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
 
         return context
 
