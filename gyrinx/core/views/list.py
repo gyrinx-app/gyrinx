@@ -38,8 +38,6 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
-from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
-from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,
@@ -69,6 +67,9 @@ from gyrinx.core.handlers.equipment_purchases import (
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
+from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
+from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
+from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
@@ -2310,8 +2311,23 @@ def delete_list_fighter_assign(
     )
 
     if request.method == "POST":
-        # Store equipment name before deletion
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
+        # Calculate cost before deletion
+        equipment_cost = assignment.cost_int()
+
+        # Determine deltas based on whether fighter is in stash
+        rating_delta = -equipment_cost if not fighter.is_stash else 0
+        stash_delta = -equipment_cost if fighter.is_stash else 0
+        credits_delta = 0
+
+        # Store equipment name and assignment ID before deletion
         equipment_name = assignment.content_equipment.name
+        assignment_id = assignment.id
+
         assignment.delete()
 
         # Log the equipment deletion
@@ -2325,6 +2341,23 @@ def delete_list_fighter_assign(
             list_id=str(lst.id),
             list_name=lst.name,
             equipment_name=equipment_name,
+        )
+
+        # Create ListAction after deletion
+        lst.create_action(
+            user=request.user,
+            action_type=ListActionType.REMOVE_EQUIPMENT,
+            subject_app="core",
+            subject_type="ListFighterEquipmentAssignment",
+            subject_id=assignment_id,
+            list_fighter=fighter,
+            description=f"Removed {equipment_name} from {fighter.name} ({equipment_cost}¢)",
+            rating_delta=rating_delta,
+            stash_delta=stash_delta,
+            credits_delta=credits_delta,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
         )
 
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
@@ -2386,6 +2419,19 @@ def delete_list_fighter_gear_upgrade(
     return_url = request.GET.get("return_url", default_url)
 
     if request.method == "POST":
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
+        # Calculate upgrade cost before removal
+        upgrade_cost = assignment._upgrade_cost_with_override(upgrade)
+
+        # Determine deltas based on whether fighter is in stash
+        rating_delta = -upgrade_cost if not fighter.is_stash else 0
+        stash_delta = -upgrade_cost if fighter.is_stash else 0
+        credits_delta = 0
+
         assignment.upgrades_field.remove(upgrade)
         assignment.save()
 
@@ -2401,6 +2447,24 @@ def delete_list_fighter_gear_upgrade(
             list_name=lst.name,
             equipment_name=assignment.content_equipment.name,
             upgrade_removed=upgrade.name,
+        )
+
+        # Create ListAction after removal
+        lst.create_action(
+            user=request.user,
+            action_type=ListActionType.UPDATE_EQUIPMENT,
+            subject_app="core",
+            subject_type="ListFighterEquipmentAssignment",
+            subject_id=assignment.id,
+            list_fighter=fighter,
+            list_fighter_equipment_assignment=assignment,
+            description=f"Removed upgrade {upgrade.name} from {assignment.content_equipment.name} on {fighter.name} ({upgrade_cost}¢)",
+            rating_delta=rating_delta,
+            stash_delta=stash_delta,
+            credits_delta=credits_delta,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
         )
 
         return safe_redirect(request, return_url, default_url)
@@ -2763,8 +2827,39 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
     )
 
     if request.method == "POST":
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
+        # Calculate profile cost before removal
+        profile_cost = assignment.profile_cost_int(profile)
+
+        # Determine deltas based on whether fighter is in stash
+        rating_delta = -profile_cost if not fighter.is_stash else 0
+        stash_delta = -profile_cost if fighter.is_stash else 0
+        credits_delta = 0
+
         # Remove the profile from the assignment
         assignment.weapon_profiles_field.remove(profile)
+
+        # Create ListAction after removal
+        lst.create_action(
+            user=request.user,
+            action_type=ListActionType.UPDATE_EQUIPMENT,
+            subject_app="core",
+            subject_type="ListFighterEquipmentAssignment",
+            subject_id=assignment.id,
+            list_fighter=fighter,
+            list_fighter_equipment_assignment=assignment,
+            description=f"Removed weapon profile {profile.name} from {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)",
+            rating_delta=rating_delta,
+            stash_delta=stash_delta,
+            credits_delta=credits_delta,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
+        )
 
         # Redirect back to the weapon edit page
         return HttpResponseRedirect(
@@ -2833,6 +2928,19 @@ def delete_list_fighter_weapon_accessory(
     return_url = request.GET.get("return_url", default_url)
 
     if request.method == "POST":
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
+        # Calculate accessory cost before removal
+        accessory_cost = assignment.accessory_cost_int(accessory)
+
+        # Determine deltas based on whether fighter is in stash
+        rating_delta = -accessory_cost if not fighter.is_stash else 0
+        stash_delta = -accessory_cost if fighter.is_stash else 0
+        credits_delta = 0
+
         assignment.weapon_accessories_field.remove(accessory)
 
         # Log the weapon accessory removal
@@ -2847,6 +2955,24 @@ def delete_list_fighter_weapon_accessory(
             list_name=lst.name,
             equipment_name=assignment.content_equipment.name,
             accessory_removed=accessory.name,
+        )
+
+        # Create ListAction after removal
+        lst.create_action(
+            user=request.user,
+            action_type=ListActionType.UPDATE_EQUIPMENT,
+            subject_app="core",
+            subject_type="ListFighterEquipmentAssignment",
+            subject_id=assignment.id,
+            list_fighter=fighter,
+            list_fighter_equipment_assignment=assignment,
+            description=f"Removed accessory {accessory.name} from {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)",
+            rating_delta=rating_delta,
+            stash_delta=stash_delta,
+            credits_delta=credits_delta,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
         )
 
         return safe_redirect(request, return_url, default_url)
@@ -3076,7 +3202,20 @@ def archive_list_fighter(request, id, fighter_id):
     )
 
     if request.method == "POST":
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
         if request.POST.get("archive") == "1":
+            # Calculate cost before archival
+            fighter_cost = fighter.cost_int()
+
+            # Archiving removes the fighter cost from rating/stash
+            rating_delta = -fighter_cost if not fighter.is_stash else 0
+            stash_delta = -fighter_cost if fighter.is_stash else 0
+            credits_delta = 0
+
             fighter.archive()
 
             # Log the fighter archive event
@@ -3090,7 +3229,32 @@ def archive_list_fighter(request, id, fighter_id):
                 list_id=str(lst.id),
                 list_name=lst.name,
             )
+
+            # Create ListAction for archive
+            lst.create_action(
+                user=request.user,
+                action_type=ListActionType.UPDATE_FIGHTER,
+                subject_app="core",
+                subject_type="ListFighter",
+                subject_id=fighter.id,
+                list_fighter=fighter,
+                description=f"Archived {fighter.name} ({fighter_cost}¢)",
+                rating_delta=rating_delta,
+                stash_delta=stash_delta,
+                credits_delta=credits_delta,
+                rating_before=rating_before,
+                stash_before=stash_before,
+                credits_before=credits_before,
+            )
         elif fighter.archived:
+            # Calculate cost before unarchival
+            fighter_cost = fighter.cost_int()
+
+            # Unarchiving adds the fighter cost back to rating/stash
+            rating_delta = fighter_cost if not fighter.is_stash else 0
+            stash_delta = fighter_cost if fighter.is_stash else 0
+            credits_delta = 0
+
             fighter.unarchive()
 
             # Log the fighter restore event
@@ -3103,6 +3267,23 @@ def archive_list_fighter(request, id, fighter_id):
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
+            )
+
+            # Create ListAction for unarchive
+            lst.create_action(
+                user=request.user,
+                action_type=ListActionType.UPDATE_FIGHTER,
+                subject_app="core",
+                subject_type="ListFighter",
+                subject_id=fighter.id,
+                list_fighter=fighter,
+                description=f"Restored {fighter.name} ({fighter_cost}¢)",
+                rating_delta=rating_delta,
+                stash_delta=stash_delta,
+                credits_delta=credits_delta,
+                rating_before=rating_before,
+                stash_before=stash_before,
+                credits_before=credits_before,
             )
         return HttpResponseRedirect(
             reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
@@ -3259,6 +3440,19 @@ def delete_list_fighter(request, id, fighter_id):
     )
 
     if request.method == "POST":
+        # Capture BEFORE values for ListAction
+        rating_before = lst.rating_current
+        stash_before = lst.stash_current
+        credits_before = lst.credits_current
+
+        # Calculate cost before deletion
+        fighter_cost = fighter.cost_int()
+
+        # Determine deltas based on whether fighter is in stash
+        rating_delta = -fighter_cost if not fighter.is_stash else 0
+        stash_delta = -fighter_cost if fighter.is_stash else 0
+        credits_delta = 0
+
         # Log the fighter delete event before deletion
         log_event(
             user=request.user,
@@ -3271,7 +3465,28 @@ def delete_list_fighter(request, id, fighter_id):
             list_name=lst.name,
         )
 
+        # Store fighter ID and name before deletion
+        fighter_id = fighter.id
+        fighter_name = fighter.name
+
         fighter.delete()
+
+        # Create ListAction after deletion
+        lst.create_action(
+            user=request.user,
+            action_type=ListActionType.REMOVE_FIGHTER,
+            subject_app="core",
+            subject_type="ListFighter",
+            subject_id=fighter_id,
+            description=f"Removed {fighter_name} ({fighter_cost}¢)",
+            rating_delta=rating_delta,
+            stash_delta=stash_delta,
+            credits_delta=credits_delta,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
+        )
+
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     return render(
