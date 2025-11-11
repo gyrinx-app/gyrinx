@@ -3560,7 +3560,7 @@ def resurrect_list_fighter(request, id, fighter_id):
 
     **Template**
 
-    :template:`core/list_fighter_kill.html`
+    :template:`core/list_fighter_resurrect.html`
     """
     from gyrinx.core.models.campaign import CampaignAction
 
@@ -3864,6 +3864,17 @@ def list_fighter_state_edit(request, id, fighter_id):
                     # Don't save the state change here - let the kill view handle it
                     return HttpResponseRedirect(
                         reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                    )
+                # If resurrecting from dead to active, redirect to resurrect confirmation
+                elif (
+                    new_state == ListFighter.ACTIVE
+                    and fighter.injury_state == ListFighter.DEAD
+                ):
+                    # Don't save the state change here - let the resurrect view handle it
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-resurrect", args=(lst.id, fighter.id)
+                        )
                     )
 
                 with transaction.atomic():
