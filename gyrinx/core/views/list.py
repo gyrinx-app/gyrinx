@@ -3986,8 +3986,12 @@ class ListCampaignClonesView(generic.DetailView):
 
 # Fighter Advancement Views
 def can_fighter_roll_dice_for_advancement(fighter):
-    """Check if a fighter can roll dice for advancement (only GANGERs can)."""
-    return fighter.get_category() == FighterCategoryChoices.GANGER.value
+    """Check if a fighter can roll dice for advancement (GANGERs and EXOTIC_BEASTs can)."""
+    category = fighter.get_category()
+    return category in [
+        FighterCategoryChoices.GANGER.value,
+        FighterCategoryChoices.EXOTIC_BEAST.value,
+    ]
 
 
 @login_required
