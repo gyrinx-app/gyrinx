@@ -2716,16 +2716,6 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         help_text="Select the weapon accessories to assign to this equipment.",
     )
 
-    # This field is deprecated and should be replaced with upgrades_field in all cases
-    # There are places it is checked for backwards compatibility, but new code should not use it
-    upgrade = models.ForeignKey(
-        ContentEquipmentUpgrade,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text="The upgrade that this equipment assignment is set to.",
-    )
-
     upgrades_field = models.ManyToManyField(
         ContentEquipmentUpgrade,
         blank=True,
