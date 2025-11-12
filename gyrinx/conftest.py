@@ -36,6 +36,18 @@ def django_test_settings():
     # This prevents the banner query being fired in tests
     cache.set(BANNER_CACHE_KEY, False, None)
 
+    # Optimize test performance
+    # Disable DEBUG to avoid query tracking overhead
+    settings.DEBUG = False
+
+    # Use faster password hasher for tests (MD5 instead of PBKDF2)
+    settings.PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
+
+    # Disable migration checks for performance
+    settings.MIGRATION_MODULES = {}
+
 
 @pytest.fixture(autouse=True)
 def disable_cost_cache_in_tests(request):
