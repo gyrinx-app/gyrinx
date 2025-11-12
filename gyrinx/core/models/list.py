@@ -577,6 +577,20 @@ class List(AppBase):
                 **kwargs,
             )
 
+            # Even when actions are disabled, allow credit updates for refunds
+            if update_credits:
+                credits_delta = kwargs.get("credits_delta", 0)
+                if credits_delta != 0:
+                    self.credits_current += credits_delta
+                    self.save(update_fields=["credits_current"])
+                    track(
+                        "list_credits_updated_without_action",
+                        list=self.id,
+                        credits_delta=credits_delta,
+                        credits_current=self.credits_current,
+                        description=kwargs.get("description", ""),
+                    )
+
         return None
 
     def ensure_stash(self, owner=None):
