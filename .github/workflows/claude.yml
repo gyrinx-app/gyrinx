@@ -112,6 +112,9 @@ jobs:
             - ruff for linting and formatting
             - All other development dependencies
 
+            Then you MUST activate the virtual environment with:
+            source .venv/bin/activate
+
             CRITICAL TEST REQUIREMENTS:
             1. BEFORE committing any changes, you MUST run the tests using: pytest
             2. Check the test output - ALL tests must pass (no failures, no errors)
@@ -125,7 +128,7 @@ jobs:
             WORKFLOW FOR COMPLETING TASKS:
             1. Make the requested changes
             2. Run formatting: ./scripts/fmt.sh
-            3. Run tests: pytest
+            3. Run tests: ./scripts/test.sh (in docker to ensure posgres is available)
             4. Verify ALL tests pass
             5. If tests fail, fix the issues and repeat steps 2-4
             6. Only after all tests pass, commit and push your changes
