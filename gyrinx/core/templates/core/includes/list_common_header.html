@@ -60,6 +60,9 @@
                             data-bs-toggle="tooltip"
                             title="Wealth"
                             aria-label="Wealth">W</th>
+                        {% if not print and list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                            <th class="py-0 bg-transparent" rowspan="2"></th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -68,6 +71,20 @@
                         <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
                         <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
                         <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
+                        {% if not print and list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                            <td class="py-0 bg-transparent align-middle">
+                                <form method="post"
+                                      action="{% url 'core:list-refresh-cost' list.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-link btn-sm p-0 text-secondary"
+                                            aria-label="Refresh cost">
+                                        <i class="bi-arrow-clockwise"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        {% endif %}
                     </tr>
                 </tbody>
             </table>

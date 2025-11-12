@@ -7,7 +7,8 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
-from django.core.cache import cache
+from django.conf import settings
+from django.core.cache import cache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
@@ -798,6 +799,36 @@ def show_stash(request, id):
         messages.success(request, "Stash fighter added to the list.")
     else:
         messages.info(request, "This list already has a stash fighter.")
+
+    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+
+@login_required
+def refresh_list_cost(request, id):
+    """
+    Refresh the cost cache for a :model:`core.List`.
+
+    Only processes POST requests. Recalculates the list cost using cost_int()
+    and updates the cache, then redirects back to the list detail page.
+
+    Can be accessed by either the list owner or the campaign owner (if list is in a campaign).
+    """
+    lst = get_object_or_404(List, id=id)
+
+    if lst.owner != request.user and (
+        not lst.campaign or lst.campaign.owner != request.user
+    ):
+        raise Http404("List not found")
+
+    if request.method == "POST":
+        wealth = lst.cost_int()
+
+        cache = caches["core_list_cache"]
+        cache_key = lst.cost_cache_key()
+        cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
+
+        if "cost_int_cached" in lst.__dict__:
+            del lst.__dict__["cost_int_cached"]
 
     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
