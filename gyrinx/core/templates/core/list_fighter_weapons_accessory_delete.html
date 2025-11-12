@@ -15,6 +15,16 @@
             <p>
                 Are you sure you want to delete the {{ accessory.name }} from the {{ assign.content_equipment.name }} assigned to {{ fighter.name }}?
             </p>
+            {% if list.is_campaign_mode %}
+                <div class="form-check mt-3">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           name="refund"
+                           id="refund"
+                           checked>
+                    <label class="form-check-label" for="refund">Apply refund (+{{ accessory_cost }}¢ to credits)</label>
+                </div>
+            {% endif %}
             <div class="mt-3">
                 <input type="hidden" name="remove" value="1">
                 <button type="submit" class="btn btn-danger">Delete</button>
