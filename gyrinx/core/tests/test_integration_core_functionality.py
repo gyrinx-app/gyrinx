@@ -507,6 +507,11 @@ def test_remove_weapon(client, user, make_list, make_list_fighter, make_equipmen
     # Add weapon to fighter
     assignment = fighter.assign(weapon)
 
+    # Set list rating to reflect the actual cost (fighter + equipment)
+    # This simulates what will happen after the backfill of rating values
+    lst.rating_current = fighter.cost_int()
+    lst.save(update_fields=["rating_current"])
+
     client.force_login(user)
 
     # Verify weapon is shown on list page
