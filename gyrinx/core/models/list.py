@@ -275,11 +275,7 @@ class List(AppBase):
         made to the fighters or their attributes.
         """
         rating = sum(
-            [
-                f.cost_int()
-                for f in self.fighters()
-                if not f.content_fighter.is_stash and not f.is_child_fighter
-            ]
+            [f.cost_int() for f in self.fighters() if not f.content_fighter.is_stash]
         )
         stash_fighter_cost_int = (
             self.stash_fighter.cost_int() if self.stash_fighter else 0
@@ -302,9 +298,7 @@ class List(AppBase):
         if cached:
             return cached
 
-        rating = sum(
-            [f.cost_int_cached for f in self.active_fighters if not f.is_child_fighter]
-        )
+        rating = sum([f.cost_int_cached for f in self.active_fighters])
         wealth = rating + self.stash_fighter_cost_int + self.credits_current
         cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
         return wealth
@@ -1425,14 +1419,8 @@ class ListFighter(AppBase):
         if self.cost_override is not None:
             return self.cost_override
 
-        # If it's linked to a parent via an assignment, the cost is usually 0
-        # (since the cost is accounted for in the assignment), but we need to
-        # calculate the actual cost for vehicles/beasts with house overrides
+        # Or if it's linked to a parent via an assignment...
         if self.is_child_fighter:
-            # Check if there's a house override - if so, use it
-            base_cost = self._base_cost_before_override()
-            if base_cost > 0:
-                return base_cost
             return 0
 
         return self._base_cost_before_override()
@@ -2974,17 +2962,6 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         # If this is a linked assignment and is the child, then the cost is zero
         if self.linked_equipment_parent is not None:
             return 0
-
-        # If this equipment creates a child fighter (vehicle/exotic beast),
-        # prefer the equipment cost, but fall back to the fighter's house-specific
-        # cost if the equipment cost is zero (for vehicles with house overrides)
-        if self.child_fighter is not None:
-            equipment_cost = self.content_equipment.cost_int()
-            if equipment_cost == 0:
-                return self.child_fighter.content_fighter.cost_for_house(
-                    self.list_fighter.list.content_house
-                )
-            return equipment_cost
 
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
