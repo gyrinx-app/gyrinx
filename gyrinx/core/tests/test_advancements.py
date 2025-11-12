@@ -441,6 +441,36 @@ def test_champion_cannot_see_promotion_options(client, user, champion_fighter):
     assert "skill_promote_champion" not in choices_dict
 
 
+@pytest.fixture
+def exotic_beast_fighter(list_with_campaign, house):
+    """Create an exotic beast fighter for testing."""
+    content_fighter = ContentFighter.objects.create(
+        type="Exotic Beast Fighter",
+        house=house,
+        movement='6"',
+        weapon_skill="4+",
+        ballistic_skill="6+",
+        strength="4",
+        toughness="3",
+        wounds="2",
+        initiative="3+",
+        attacks="2",
+        leadership="8",
+        cool="8",
+        willpower="8",
+        intelligence="8",
+        category="EXOTIC_BEAST",
+        base_cost=120,
+    )
+    return ListFighter.objects.create(
+        name="Test Beast",
+        content_fighter=content_fighter,
+        list=list_with_campaign,
+        xp_current=50,
+        xp_total=50,
+    )
+
+
 @pytest.mark.django_db
 def test_only_gangers_can_roll_dice(client, user, fighter_with_xp, specialist_fighter):
     """Test that only GANGERs can roll dice for advancement."""
@@ -467,6 +497,57 @@ def test_only_gangers_can_roll_dice(client, user, fighter_with_xp, specialist_fi
         "core:list-fighter-advancement-type",
         args=[specialist_fighter.list.id, specialist_fighter.id],
     )
+
+
+@pytest.mark.django_db
+def test_exotic_beasts_can_roll_dice(client, user, exotic_beast_fighter):
+    """Test that EXOTIC_BEASTs can roll dice for advancement."""
+    client.login(username="testuser", password="password")
+
+    # Test EXOTIC_BEAST can see dice rolling option
+    url = reverse(
+        "core:list-fighter-advancement-dice-choice",
+        args=[exotic_beast_fighter.list.id, exotic_beast_fighter.id],
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Roll for Advancement?" in content
+    assert "Roll 2D6" in content
+    # Should not see the warning message
+    assert "Only Gangers and Exotic Beasts can roll for advancements" not in content
+
+
+@pytest.mark.django_db
+def test_can_fighter_roll_dice_for_advancement():
+    """Test the can_fighter_roll_dice_for_advancement function."""
+    from gyrinx.core.views.list import can_fighter_roll_dice_for_advancement
+
+    # Mock fighters with different categories
+    class MockFighter:
+        def __init__(self, category):
+            self._category = category
+
+        def get_category(self):
+            return self._category
+
+    # Test GANGER can roll
+    ganger = MockFighter("GANGER")
+    assert can_fighter_roll_dice_for_advancement(ganger) is True
+
+    # Test EXOTIC_BEAST can roll
+    exotic_beast = MockFighter("EXOTIC_BEAST")
+    assert can_fighter_roll_dice_for_advancement(exotic_beast) is True
+
+    # Test other categories cannot roll
+    specialist = MockFighter("SPECIALIST")
+    assert can_fighter_roll_dice_for_advancement(specialist) is False
+
+    champion = MockFighter("CHAMPION")
+    assert can_fighter_roll_dice_for_advancement(champion) is False
+
+    leader = MockFighter("LEADER")
+    assert can_fighter_roll_dice_for_advancement(leader) is False
 
 
 @pytest.mark.django_db

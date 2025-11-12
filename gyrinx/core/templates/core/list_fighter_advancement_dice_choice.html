@@ -45,7 +45,7 @@
             {% else %}
                 <div class="alert alert-warning">
                     <i class="bi-exclamation-triangle"></i>
-                    Only Gangers can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must spend XP to choose advancements.
+                    Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must spend XP to choose advancements.
                 </div>
                 <nav class="hstack gap-3" aria-label="Form navigation">
                     <button type="submit"
@@ -54,13 +54,13 @@
                             disabled
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
-                            title="Only Gangers can roll for advancements">
+                            title="Only Gangers and Exotic Beasts can roll for advancements">
                         <i class="bi-dice-6"></i> Roll 2D6
                     </button>
                     <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                        class="btn btn-success"
                        aria-describedby="spend-help">Spend XP</a>
-                    <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement (disabled for non-Gangers)</span>
+                    <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement (disabled for non-Gangers and non-Exotic Beasts)</span>
                     <span id="spend-help" class="visually-hidden">Spend XP to choose your advancement</span>
                 </nav>
             {% endif %}
