@@ -419,6 +419,32 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+// Handle collapse chevron icon rotation
+document.addEventListener("DOMContentLoaded", () => {
+    // Find all elements with data-gy-collapse-icon attribute
+    const collapseIcons = document.querySelectorAll("[data-gy-collapse-icon]");
+
+    collapseIcons.forEach((icon) => {
+        const collapseId = icon.getAttribute("data-gy-collapse-icon");
+        if (!collapseId) return;
+
+        const collapseElement = document.getElementById(collapseId);
+        if (!collapseElement) return;
+
+        // Rotate icon on show
+        collapseElement.addEventListener("show.bs.collapse", () => {
+            icon.classList.remove("bi-chevron-down");
+            icon.classList.add("bi-chevron-up");
+        });
+
+        // Rotate icon on hide
+        collapseElement.addEventListener("hide.bs.collapse", () => {
+            icon.classList.remove("bi-chevron-up");
+            icon.classList.add("bi-chevron-down");
+        });
+    });
+});
+
 // Handle banner dismissal
 document.addEventListener("DOMContentLoaded", () => {
     // Find all elements with data-gy-banner-dismiss attribute

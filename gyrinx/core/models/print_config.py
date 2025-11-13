@@ -49,6 +49,19 @@ class PrintConfig(AppBase):
         help_text="Include dead fighters in the print output.",
     )
 
+    # Blank card options
+    blank_fighter_cards = models.PositiveIntegerField(
+        default=0,
+        validators=[validators.MaxValueValidator(20)],
+        help_text="Number of blank fighter cards to include (max 20).",
+    )
+
+    blank_vehicle_cards = models.PositiveIntegerField(
+        default=0,
+        validators=[validators.MaxValueValidator(20)],
+        help_text="Number of blank vehicle/crew cards to include (max 20).",
+    )
+
     # Fighter selection - many-to-many relationship with ListFighter
     included_fighters = models.ManyToManyField(
         "ListFighter",
@@ -90,5 +103,24 @@ class PrintConfig(AppBase):
             )
         else:
             included.append("All Fighters")
+
+        if self.blank_fighter_cards > 0:
+            included.append(
+                ngettext(
+                    "%(count)d Blank Fighter",
+                    "%(count)d Blank Fighters",
+                    self.blank_fighter_cards,
+                )
+                % {"count": self.blank_fighter_cards}
+            )
+        if self.blank_vehicle_cards > 0:
+            included.append(
+                ngettext(
+                    "%(count)d Blank Vehicle",
+                    "%(count)d Blank Vehicles",
+                    self.blank_vehicle_cards,
+                )
+                % {"count": self.blank_vehicle_cards}
+            )
 
         return ", ".join(included) if included else "None"

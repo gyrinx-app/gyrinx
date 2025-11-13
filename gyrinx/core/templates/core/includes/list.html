@@ -256,6 +256,18 @@
                 </div>
             {% endif %}
         {% endif %}
+        {% comment %} Render blank fighter cards if configured {% endcomment %}
+        {% if print and print_config %}
+            {% for i in blank_fighter_range %}
+                {% include "core/includes/blank_fighter_card.html" %}
+            {% endfor %}
+        {% endif %}
+        {% comment %} Render blank vehicle cards if configured {% endcomment %}
+        {% if print and print_config %}
+            {% for i in blank_vehicle_range %}
+                {% include "core/includes/blank_vehicle_card.html" %}
+            {% endfor %}
+        {% endif %}
     </div>
     <div class="offcanvas offcanvas-end"
          tabindex="-1"

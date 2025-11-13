@@ -430,6 +430,11 @@ class ListPrintView(generic.DetailView):
         if not print_config or print_config.include_actions:
             context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
+        # Add blank card ranges if print_config exists
+        if print_config:
+            context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
+            context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
+
         return context
 
 
