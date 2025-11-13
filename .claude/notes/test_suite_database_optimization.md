@@ -137,12 +137,16 @@ pytest --migrations --create-db
 - Impact: 1-2s savings
 - Decision: Requires system config, out of scope
 
+### Optimizations Added in This PR
+
+- ✅ `DEBUG = False` (disables query logging overhead)
+- ✅ MD5 password hasher (faster user creation vs PBKDF2)
+- ✅ `--nomigrations` flag (creates schema from models instead of running migrations)
+
 ### Already Optimal
 
 The test suite already had:
 - ✅ `--reuse-db` (database persistence)
-- ✅ `DEBUG = False` (no query logging)
-- ✅ MD5 password hasher (fast user creation)
 - ✅ Parallel execution (12 workers)
 - ✅ Session-scoped fixtures
 - ✅ Cost cache mocking
@@ -179,7 +183,8 @@ The `--nomigrations` flag eliminates 90% of database setup overhead with **zero 
 
 ### Files Modified
 
-1. `pyproject.toml` - Added `--nomigrations` to pytest config
+1. `gyrinx/conftest.py` - Added DEBUG=False and MD5PasswordHasher test optimizations
+2. `pyproject.toml` - Added `--nomigrations` to pytest config
 
 ### Measurement Summary
 

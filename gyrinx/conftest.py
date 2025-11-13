@@ -45,9 +45,6 @@ def django_test_settings():
         "django.contrib.auth.hashers.MD5PasswordHasher",
     ]
 
-    # Disable migration checks for performance
-    settings.MIGRATION_MODULES = {}
-
 
 @pytest.fixture(autouse=True)
 def disable_cost_cache_in_tests(request):
