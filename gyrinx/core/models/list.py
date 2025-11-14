@@ -17,7 +17,6 @@ from django.db.models import (
     Prefetch,
     Q,
     Subquery,
-    Sum,
     Value,
     When,
 )
@@ -965,7 +964,8 @@ class ListFighterQuerySet(models.QuerySet):
                     ListFighter.objects.sq_house_cost_override()
                 ),
                 annotated_advancement_total_cost=Coalesce(
-                    Sum("advancements__cost_increase"), Value(0)
+                    Subquery(self.sq_advancement_cost_sum()),
+                    Value(0),
                 ),
                 annotated_content_fighter_statline=self.sq_content_fighter_statline(),
                 annotated_stat_overrides=self.sq_stat_overrides(),
@@ -1002,6 +1002,21 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .annotate(obj=JSONObject(cost=F("cost")))
             .values("obj")[:1]
+        )
+
+    def sq_advancement_cost_sum(self):
+        """
+        Subquery to sum non-archived advancement cost increases.
+        This avoids JOIN duplication issues with direct Sum annotations.
+        """
+        return (
+            ListFighterAdvancement.objects.filter(
+                fighter_id=OuterRef("pk"),
+                archived=False,
+            )
+            .values("fighter_id")
+            .annotate(total=models.Sum("cost_increase"))
+            .values("total")[:1]
         )
 
     def sq_content_fighter_statline(self):
@@ -1401,9 +1416,12 @@ class ListFighter(AppBase):
         if self.should_have_zero_cost:
             return 0
 
-        # Include advancement cost increases
+        # Include advancement cost increases (excluding archived)
         advancement_cost = (
-            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+            self.advancements.filter(archived=False).aggregate(
+                total=models.Sum("cost_increase")
+            )["total"]
+            or 0
         )
         return (
             self._base_cost_int
@@ -1475,7 +1493,10 @@ class ListFighter(AppBase):
             return self.annotated_advancement_total_cost
 
         return (
-            self.advancements.aggregate(total=models.Sum("cost_increase"))["total"] or 0
+            self.advancements.filter(archived=False).aggregate(
+                total=models.Sum("cost_increase")
+            )["total"]
+            or 0
         )
 
     @cached_property
