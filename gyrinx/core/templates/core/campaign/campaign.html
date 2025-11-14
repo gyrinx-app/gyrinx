@@ -246,19 +246,24 @@
                                             </td>
                                             {% for resource_type in resource_types %}
                                                 <td class="text-center">
-                                                    {% for res in resource_type.list_resources.all %}
-                                                        {% if res.list.id == list.id %}
-                                                            {{ res.amount }}
-                                                            {% if is_owner or res.list.owner == user %}
-                                                                {% if not campaign.archived %}
-                                                                    <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
-                                                                       class="icon-link ms-1">
-                                                                        <i class="bi-pencil"></i>
-                                                                    </a>
+                                                    {% with list_resources=resource_lookup|lookup:list.id %}
+                                                        {% with res=list_resources|lookup:resource_type.id %}
+                                                            {% if res %}
+                                                                {{ res.amount }}
+                                                                {% if is_owner or res.list.owner == user %}
+                                                                    {% if not campaign.archived %}
+                                                                        <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
+                                                                           class="icon-link ms-1"
+                                                                           aria-label="Edit {{ resource_type.name }} for {{ list.name }}">
+                                                                            <i class="bi-pencil"></i>
+                                                                        </a>
+                                                                    {% endif %}
                                                                 {% endif %}
+                                                            {% else %}
+                                                                -
                                                             {% endif %}
-                                                        {% endif %}
-                                                    {% endfor %}
+                                                        {% endwith %}
+                                                    {% endwith %}
                                                 </td>
                                             {% endfor %}
                                         </tr>
