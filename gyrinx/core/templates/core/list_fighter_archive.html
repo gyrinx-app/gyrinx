@@ -11,6 +11,16 @@
               method="post">
             {% csrf_token %}
             <p>Are you sure you want to archive this fighter?</p>
+            {% if list.is_campaign_mode %}
+                <div class="form-check mt-3">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           name="refund"
+                           id="refund"
+                           checked>
+                    <label class="form-check-label" for="refund">Apply refund (+{{ fighter_cost }}¢ to credits)</label>
+                </div>
+            {% endif %}
             <div class="mt-3">
                 <input type="hidden" name="archive" value="1">
                 <button type="submit" class="btn btn-danger">Archive</button>
