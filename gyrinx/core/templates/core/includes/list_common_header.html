@@ -60,8 +60,10 @@
                             data-bs-toggle="tooltip"
                             title="Wealth"
                             aria-label="Wealth">W</th>
-                        {% if not print and list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
-                            <th class="py-0 bg-transparent"></th>
+                        {% if not print %}
+                            {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                <th class="py-0 bg-transparent"></th>
+                            {% endif %}
                         {% endif %}
                     </tr>
                 </thead>
@@ -71,22 +73,24 @@
                         <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
                         <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
                         <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
-                        {% if not print and list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
-                            <td class="py-0 bg-transparent align-middle">
-                                <form method="post"
-                                      action="{% url 'core:list-refresh-cost' list.id %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="btn btn-link btn-sm p-0 text-secondary"
-                                            bs-tooltip
-                                            data-bs-toggle="tooltip"
-                                            title="Refresh rating &amp; wealth"
-                                            aria-label="Refresh rating &amp; wealth">
-                                        <i class="bi-arrow-clockwise"></i>
-                                    </button>
-                                </form>
-                            </td>
+                        {% if not print %}
+                            {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                <td class="py-0 bg-transparent align-middle">
+                                    <form method="post"
+                                          action="{% url 'core:list-refresh-cost' list.id %}"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                                class="btn btn-link btn-sm p-0 text-secondary"
+                                                bs-tooltip
+                                                data-bs-toggle="tooltip"
+                                                title="Refresh rating &amp; wealth"
+                                                aria-label="Refresh rating &amp; wealth">
+                                            <i class="bi-arrow-clockwise"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            {% endif %}
                         {% endif %}
                     </tr>
                 </tbody>
