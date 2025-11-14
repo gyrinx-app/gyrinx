@@ -18,6 +18,7 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.user.login == 'tgvashworth') ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.issue.user.login == 'tgvashworth')
     runs-on: [gyrinx-ubuntu-2]
+    timeout-minutes: 60
     permissions:
       contents: read
       pull-requests: read
@@ -78,7 +79,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -86,25 +87,17 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          model: "claude-sonnet-4-5-20250929"
-
-          # Optional: Specify timeout in minutes (default is 30 minutes)
-          timeout_minutes: 60
-
           # Optional: Customize the trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
 
           # Optional: Trigger when specific user is assigned to an issue
           assignee_trigger: "claude-bot"
 
-          # Optional: Allow Claude to run specific commands
-          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
-          allowed_tools: "Bash"
-
-          # Optional: Add custom instructions for Claude to customize its behavior for your project
-          custom_instructions: |
-            IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
+          # Claude configuration via CLI arguments
+          claude_args: |
+            --model claude-sonnet-4-5-20250929
+            --allowedTools Bash
+            --system-prompt "IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
             pip install --editable .
 
             This installs all project dependencies defined in pyproject.toml, including:
@@ -133,7 +126,7 @@ jobs:
             5. If tests fail, fix the issues and repeat steps 2-4
             6. Only after all tests pass, commit and push your changes
 
-            When completing a task, you MUST commit any changes you make before you can report success and stop.
+            When completing a task, you MUST commit any changes you make before you can report success and stop."
 
           # Optional: Custom environment variables for Claude
           # claude_env: |

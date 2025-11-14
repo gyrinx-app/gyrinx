@@ -83,7 +83,7 @@ jobs:
 
       - name: Run Claude Issue Planning
         id: claude-planning
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -92,17 +92,41 @@ jobs:
           # Trigger on @claude-plan mentions
           trigger_phrase: "@claude-plan"
 
-          # Use Claude Sonnet
-          model: "claude-sonnet-4-5-20250929"
-
-          # Allow Claude to use necessary tools for analysis
-          allowed_tools: "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(pytest:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(git:*)"
-
           # Use sticky comments to update the same comment if re-run
           use_sticky_comment: true
 
-          # Direct prompt for automated issue analysis and planning
-          direct_prompt: |
+          # Claude configuration via CLI arguments
+          claude_args: |
+            --model claude-sonnet-4-5-20250929
+            --allowedTools "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(pytest:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(git:*)"
+            --system-prompt "IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
+            pip install --editable .
+
+            This installs all project dependencies defined in pyproject.toml.
+
+            When analyzing the codebase:
+            - Review CLAUDE.md for project-specific patterns and conventions
+            - Use 'manage' command (not 'python manage.py') for Django commands
+            - Refer to the architecture overview in CLAUDE.md
+            - Consider the testing patterns documented in CLAUDE.md
+            - Remember this is a server-rendered Django app, not an SPA
+            - Mobile-first design is a key principle
+
+            DO NOT:
+            - Make any code changes
+            - Create any commits or pull requests
+            - Run the test suite (this is analysis only)
+            - Be overconfident about implementation details
+
+            DO:
+            - Use grep/rg to search for relevant code
+            - Read model files to understand the data structure
+            - Look at existing similar features for patterns
+            - Reference actual file paths in your analysis
+            - Be explicit about uncertainty and assumptions"
+
+          # Automated issue analysis and planning prompt
+          prompt: |
             You are analyzing a newly opened GitHub issue to create an implementation plan or request clarifications.
 
             ## Your Task
@@ -227,31 +251,3 @@ jobs:
             - If the issue is unclear or ambiguous, it's better to ask questions than to make assumptions
 
             Start your analysis now.
-
-          # Custom instructions for the project
-          custom_instructions: |
-            IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
-            pip install --editable .
-
-            This installs all project dependencies defined in pyproject.toml.
-
-            When analyzing the codebase:
-            - Review CLAUDE.md for project-specific patterns and conventions
-            - Use `manage` command (not `python manage.py`) for Django commands
-            - Refer to the architecture overview in CLAUDE.md
-            - Consider the testing patterns documented in CLAUDE.md
-            - Remember this is a server-rendered Django app, not an SPA
-            - Mobile-first design is a key principle
-
-            DO NOT:
-            - Make any code changes
-            - Create any commits or pull requests
-            - Run the test suite (this is analysis only)
-            - Be overconfident about implementation details
-
-            DO:
-            - Use grep/rg to search for relevant code
-            - Read model files to understand the data structure
-            - Look at existing similar features for patterns
-            - Reference actual file paths in your analysis
-            - Be explicit about uncertainty and assumptions

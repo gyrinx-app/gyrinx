@@ -66,21 +66,27 @@ jobs:
 
       - name: Run Claude Code Improvement Analysis
         id: claude-improvement
-        uses: anthropics/claude-code-action@beta
-        env:
-          ALLOWED_TOOLS: "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Use Claude Opus for thorough analysis
-          model: "claude-opus-4-20250514"
-          mode: "agent"
+          # Claude configuration via CLI arguments
+          claude_args: |
+            --model claude-opus-4-20250514
+            --allowedTools "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
+            --system-prompt "The repo is gyrinx-app/gyrinx.
 
-          # Allow Claude to use necessary tools
-          allowed_tools: "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
+            You can create issues using the 'gh' CLI tool:
+            ```bash
+            gh issue create --repo gyrinx-app/gyrinx [ARGS]
+            ```
 
-          # Direct prompt for automated code improvement
-          direct_prompt: |
+            Focus on the following areas:
+            - Use the checklist at .github/code-improvement-checklist.md
+            - Review the patterns documented in CLAUDE.md"
+
+          # Automated code improvement prompt
+          prompt: |
             You are performing an automated code improvement analysis on the Gyrinx repository.
 
             Your task is to:
@@ -160,16 +166,3 @@ jobs:
             - Clearly show the analysis path from the random file to the broader subsystem
 
             Start by listing files and selecting one randomly, then proceed with the analysis.
-
-          # Custom instructions for the project
-          custom_instructions: |
-            The repo is gyrinx-app/gyrinx.
-
-            You can create issues using the `gh` CLI tool:
-            ```bash
-            gh issue create --repo gyrinx-app/gyrinx [ARGS]
-            ```
-
-            Focus on the following areas:
-            - Use the checklist at .github/code-improvement-checklist.md
-            - Review the patterns documented in CLAUDE.md
