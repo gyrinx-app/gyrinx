@@ -22,16 +22,35 @@
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
-                    <span class="badge ms-2 {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
-                        {{ fighter.get_injury_state_display }}
-                    </span>
+                    {% if can_edit and not print %}
+                        <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
+                           class="badge ms-2 text-decoration-none {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
+                            {{ fighter.get_injury_state_display }}
+                        </a>
+                    {% else %}
+                        <span class="badge ms-2 {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
+                            {{ fighter.get_injury_state_display }}
+                        </span>
+                    {% endif %}
                 {% endif %}
                 {% if fighter.is_captured %}
-                    <span class="badge ms-2 bg-warning text-dark"
-                          data-bs-toggle="tooltip"
-                          data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
+                    {% if list.campaign and not print %}
+                        <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
+                           class="badge ms-2 bg-warning text-dark text-decoration-none"
+                           data-bs-toggle="tooltip"
+                           data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</a>
+                    {% else %}
+                        <span class="badge ms-2 bg-warning text-dark"
+                              data-bs-toggle="tooltip"
+                              data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
+                    {% endif %}
                 {% elif fighter.is_sold_to_guilders %}
-                    <span class="badge ms-2 bg-secondary">Sold to Guilders</span>
+                    {% if list.campaign and not print %}
+                        <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
+                           class="badge ms-2 bg-secondary text-decoration-none">Sold to Guilders</a>
+                    {% else %}
+                        <span class="badge ms-2 bg-secondary">Sold to Guilders</span>
+                    {% endif %}
                 {% endif %}
                 <div class="ms-auto hstack gap-2 flex-wrap">
                     {% if not print %}
