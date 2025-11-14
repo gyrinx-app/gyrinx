@@ -34,7 +34,7 @@
                     {% endif %}
                 {% endif %}
                 {% if fighter.is_captured %}
-                    {% if list.campaign and not print %}
+                    {% if can_edit and list.campaign and not print %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
                            class="badge ms-2 bg-warning text-dark text-decoration-none"
                            data-bs-toggle="tooltip"
@@ -45,7 +45,7 @@
                               data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
                     {% endif %}
                 {% elif fighter.is_sold_to_guilders %}
-                    {% if list.campaign and not print %}
+                    {% if can_edit and list.campaign and not print %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
                            class="badge ms-2 bg-secondary text-decoration-none">Sold to Guilders</a>
                     {% else %}
