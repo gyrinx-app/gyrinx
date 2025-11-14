@@ -14,7 +14,7 @@ dependencies = { file = ["requirements.txt"] }
 manage = "scripts.manage:main"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib -p no:warnings --reuse-db -n auto"
+addopts = "--import-mode=importlib -p no:warnings --reuse-db -n auto --nomigrations"
 DJANGO_SETTINGS_MODULE = "gyrinx.settings_dev"
 python_files = "tests.py test_*.py *_tests.py"
 markers = [
