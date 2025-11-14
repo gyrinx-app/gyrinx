@@ -3,12 +3,18 @@ name: Claude Issue Planning
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 jobs:
   issue-planning:
-    # Skip if issue is from dependabot
+    # Skip if issue is from dependabot or if it's a comment that doesn't mention @claude-plan
     if: |
-      github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]' &&
+      (
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude-plan') || contains(github.event.issue.title, '@claude-plan')) && (github.event.issue.user.login == 'tgvashworth' || github.event.issue.user.login == 'claude[bot]')) ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude-plan') && github.event.comment.user.login == 'tgvashworth')
+      )
 
     runs-on: [gyrinx-ubuntu-2]
     permissions:
@@ -82,6 +88,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           allowed_bots: "claude"
+
+          # Trigger on @claude-plan mentions
+          trigger_phrase: "@claude-plan"
 
           # Use Claude Sonnet
           model: "claude-sonnet-4-5-20250929"

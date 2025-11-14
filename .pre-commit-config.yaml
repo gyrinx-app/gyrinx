@@ -43,6 +43,12 @@ repos:
           ]
         additional_dependencies: ["bandit[toml]"]
 
+  # Lint GitHub Actions workflow files
+  - repo: https://github.com/mpalmer/action-validator
+    rev: v0.7.0
+    hooks:
+      - id: action-validator
+
   - repo: local
     hooks:
       - id: check-fmt
