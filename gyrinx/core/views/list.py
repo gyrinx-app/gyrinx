@@ -65,6 +65,7 @@ from gyrinx.core.forms.list import (
 from gyrinx.core.handlers.equipment_purchases import (
     handle_accessory_purchase,
     handle_equipment_purchase,
+    handle_equipment_reassignment,
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
@@ -5396,39 +5397,25 @@ def reassign_list_fighter_equipment(
             target_fighter = form.cleaned_data["target_fighter"]
 
             with transaction.atomic():
-                # Update the assignment
-                assignment.list_fighter = target_fighter
-                assignment.save_with_user(user=request.user)
-
-                # Get names for logging and campaign action
-                equipment_name = assignment.content_equipment.name
-                from_fighter_name = fighter.name
-                to_fighter_name = target_fighter.name
-
-                # Create campaign action if in campaign mode
-                if lst.status == List.CAMPAIGN_MODE and lst.campaign:
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
-                        outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
-                        dice_count=0,
-                        dice_results=[],
-                        dice_total=0,
-                    )
+                # Handle the reassignment (performs update and creates ListAction/CampaignAction)
+                result = handle_equipment_reassignment(
+                    user=request.user,
+                    lst=lst,
+                    from_fighter=fighter,
+                    to_fighter=target_fighter,
+                    assignment=assignment,
+                )
 
                 # Log the equipment reassignment
                 log_event(
                     user=request.user,
                     noun=EventNoun.EQUIPMENT_ASSIGNMENT,
                     verb=EventVerb.UPDATE,
-                    object=assignment,
+                    object=result.assignment,
                     request=request,
-                    from_fighter_name=from_fighter_name,
-                    to_fighter_name=to_fighter_name,
-                    equipment_name=equipment_name,
+                    from_fighter_name=result.from_fighter.name,
+                    to_fighter_name=result.to_fighter.name,
+                    equipment_name=result.assignment.content_equipment.name,
                     list_id=str(lst.id),
                     list_name=lst.name,
                     action="reassigned",
@@ -5436,7 +5423,7 @@ def reassign_list_fighter_equipment(
 
             messages.success(
                 request,
-                f"{assignment.content_equipment.name} reassigned to {target_fighter.name}.",
+                f"{result.assignment.content_equipment.name} reassigned to {result.to_fighter.name}.",
             )
             return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
     else:
