@@ -3516,14 +3516,14 @@ def kill_list_fighter(request, id, fighter_id):
 @login_required
 def resurrect_list_fighter(request, id, fighter_id):
     """
-    Mark a :model:`core.ListFighter` as alive in campaign mode.
+    Change the status of a :model:`core.ListFighter` from dead to alive in campaign mode.
     This sets cost to the original value of the fighter, but does not
     restore equipment transferred to the stash when the fighter was killed.
 
     **Context**
 
     ``fighter``
-        The :model:`core.ListFighter` to be marked as alive.
+        The dead :model:`core.ListFighter` to be marked as alive.
     ``list``
         The :model:`core.List` that owns this fighter.
 
