@@ -191,6 +191,16 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Create a resource lookup dictionary for efficient template rendering
+        # Structure: {list_id: {resource_type_id: resource}}
+        resource_lookup = {}
+        for resource_type in context["resource_types"]:
+            for resource in resource_type.list_resources.all():
+                if resource.list_id not in resource_lookup:
+                    resource_lookup[resource.list_id] = {}
+                resource_lookup[resource.list_id][resource_type.id] = resource
+        context["resource_lookup"] = resource_lookup
+
         # Get pending invitations for the campaign
         context["pending_invitations"] = (
             CampaignInvitation.objects.filter(
