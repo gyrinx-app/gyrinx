@@ -1,13 +1,13 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Clone - {{ form.instance.name }} - {{ form.instance.content_fighter.name }} - {{ list.name }}
+    Clone - {{ fighter.name }} - {{ fighter.content_fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with text=list.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Clone: {{ form.instance.name }} - {{ form.instance.content_fighter.name }}</h1>
-        <form action="{% url 'core:list-fighter-clone' list.id form.instance.id %}"
+        <h1 class="h3">Clone: {{ fighter.name }} - {{ fighter.content_fighter.name }}</h1>
+        <form action="{% url 'core:list-fighter-clone' list.id fighter.id %}"
               method="post">
             {% csrf_token %}
             {{ form }}

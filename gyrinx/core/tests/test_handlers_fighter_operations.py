@@ -9,7 +9,10 @@ correctly without involving HTTP machinery.
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
+from gyrinx.core.handlers.fighter_operations import (
+    handle_fighter_clone,
+    handle_fighter_hire,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import ListFighter
@@ -316,3 +319,531 @@ def test_handle_fighter_hire_description_format(
     assert result.description == expected_desc
     assert result.list_action.description == expected_desc
     assert expected_desc in result.campaign_action.description
+
+
+# ===== Fighter Clone Tests =====
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_same_list_campaign_mode(
+    user, list_with_campaign, content_fighter
+):
+    """Test cloning a fighter to the same list in campaign mode."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.rating_current = 500
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+    fighter_cost = original_fighter.cost_int()
+
+    # Clone the fighter (to same list)
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+        list=lst,
+    )
+    new_fighter.save()
+
+    # Call the handler
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify result
+    assert result.fighter == new_fighter
+    assert result.source_fighter == original_fighter
+    assert result.fighter_cost == fighter_cost
+    assert "Cloned Fighter" in result.description
+    assert "Original Fighter" in result.description
+
+    # Verify ListAction created on target list
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    assert result.list_action.rating_delta == fighter_cost
+    assert result.list_action.stash_delta == 0
+    assert result.list_action.credits_delta == -fighter_cost
+    assert result.list_action.rating_before == 500
+    assert result.list_action.credits_before == 1000
+
+    # Verify CampaignAction created
+    assert result.campaign_action is not None
+    assert "Cloned" in result.campaign_action.description
+
+    # Verify credits spent
+    assert lst.credits_current == 1000 - fighter_cost
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_different_list_campaign_mode(
+    user, list_with_campaign, make_list, content_fighter
+):
+    """Test cloning a fighter to a different list in campaign mode."""
+    source_list = list_with_campaign
+    source_list.rating_current = 500
+    source_list.credits_current = 1000
+    source_list.save()
+
+    # Create target list in same campaign
+    target_list = make_list(
+        "Target List",
+        status=source_list.CAMPAIGN_MODE,
+        campaign=source_list.campaign,
+    )
+    target_list.rating_current = 300
+    target_list.credits_current = 800
+    target_list.save()
+
+    # Create original fighter on source list
+    original_fighter = ListFighter.objects.create(
+        list=source_list,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+    fighter_cost = original_fighter.cost_int()
+
+    # Clone to target list
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+        list=target_list,
+    )
+    new_fighter.save()
+
+    # Call the handler
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify action created on TARGET list only
+    assert result.list_action.list == target_list
+    assert result.list_action.rating_before == 300
+    assert result.list_action.credits_before == 800
+
+    # Verify target list credits spent
+    assert target_list.credits_current == 800 - fighter_cost
+
+    # Verify source list unchanged (no refresh needed)
+    assert source_list.credits_current == 1000
+    assert source_list.rating_current == 500
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_list_building_mode(
+    user, make_list, content_fighter, content_house
+):
+    """Test cloning a fighter in list building mode (no credits)."""
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+    fighter_cost = original_fighter.cost_int()
+
+    # Clone the fighter
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify result
+    assert result.fighter_cost == fighter_cost
+    assert result.campaign_action is None  # No campaign mode
+
+    # Verify ListAction created with no credit delta
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == fighter_cost
+
+    # Verify credits unchanged
+    assert lst.credits_current == 0
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_stash_fighter(
+    user, list_with_campaign, content_house, make_content_fighter
+):
+    """Test cloning a stash fighter affects stash, not rating."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.stash_current = 100
+    lst.rating_current = 500
+    lst.save()
+
+    # Create a stash fighter type
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=50,
+        is_stash=True,
+    )
+
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=stash_fighter_type,
+        name="Original Stash",
+    )
+    fighter_cost = original_fighter.cost_int()
+
+    # Clone the stash fighter
+    new_fighter = original_fighter.clone(
+        name="Cloned Stash",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify stash delta, not rating delta
+    assert result.list_action.stash_delta == fighter_cost
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.credits_delta == -fighter_cost
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_with_equipment(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test cloning a fighter with equipment includes equipment cost."""
+    lst = list_with_campaign
+    lst.credits_current = 2000
+    lst.rating_current = 500
+    lst.save()
+
+    # Create original fighter with equipment
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+
+    # Add equipment to the original fighter
+    equipment = make_equipment(name="Test Weapon", cost="50")
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=original_fighter,
+        content_equipment=equipment,
+    )
+
+    # Get total cost (fighter + equipment)
+    total_cost = original_fighter.cost_int()
+
+    # Clone the fighter (equipment is cloned automatically)
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify cost includes equipment
+    assert result.fighter_cost == total_cost
+    assert result.list_action.rating_delta == total_cost
+    assert result.list_action.credits_delta == -total_cost
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_insufficient_credits(
+    user, list_with_campaign, content_fighter
+):
+    """Test fighter clone fails with insufficient credits."""
+    lst = list_with_campaign
+    lst.credits_current = 25  # Not enough
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+
+    # Clone the fighter
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    # Count initial actions (should have CREATE and one ADD_FIGHTER for original)
+    initial_action_count = ListAction.objects.count()
+    initial_campaign_action_count = CampaignAction.objects.count()
+
+    # Should raise ValidationError due to insufficient credits
+    with pytest.raises(ValidationError, match="Insufficient credits"):
+        handle_fighter_clone(
+            user=user,
+            source_fighter=original_fighter,
+            new_fighter=new_fighter,
+        )
+
+    # Verify no new actions created
+    assert ListAction.objects.count() == initial_action_count
+    assert CampaignAction.objects.count() == initial_campaign_action_count
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_correct_before_values(
+    user, list_with_campaign, content_fighter
+):
+    """Test that before values are captured correctly in ListAction."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.rating_current = 500
+    lst.stash_current = 200
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+
+    # Clone the fighter
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify before values match original list state
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 200
+    assert result.list_action.credits_before == 1000
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_transaction_rollback(
+    user, list_with_campaign, content_fighter, monkeypatch
+):
+    """Test that transaction rolls back on error."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+
+    # Clone the fighter
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    # Count initial objects
+    initial_action_count = ListAction.objects.count()
+    initial_campaign_action_count = CampaignAction.objects.count()
+    initial_credits = lst.credits_current
+
+    # Monkeypatch create_action to raise an error
+    def failing_create_action(*args, **kwargs):
+        raise RuntimeError("Simulated error")
+
+    monkeypatch.setattr(lst, "create_action", failing_create_action)
+
+    # Call the handler - should raise error and rollback
+    with pytest.raises(RuntimeError):
+        handle_fighter_clone(
+            user=user,
+            source_fighter=original_fighter,
+            new_fighter=new_fighter,
+        )
+
+    # Verify transaction rolled back - no new actions created
+    assert ListAction.objects.count() == initial_action_count
+    assert CampaignAction.objects.count() == initial_campaign_action_count
+
+    # Verify credits unchanged (refresh needed for same reason as hire test)
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_description_format(
+    user, list_with_campaign, content_fighter
+):
+    """Test that description is formatted correctly."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create original fighter
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Source Fighter Name",
+    )
+    fighter_cost = original_fighter.cost_int()
+
+    # Clone with specific name
+    new_fighter = original_fighter.clone(
+        name="Target Fighter Name",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify description format includes both names and cost
+    expected_desc = (
+        f"Cloned Target Fighter Name from Source Fighter Name ({fighter_cost}¢)"
+    )
+    assert result.description == expected_desc
+    assert result.list_action.description == expected_desc
+    assert expected_desc in result.campaign_action.description
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_with_category_override(
+    user, list_with_campaign, content_fighter
+):
+    """Test cloning a fighter with category_override preserves the override."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create original fighter with category override
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+        category_override=FighterCategoryChoices.CHAMPION,
+    )
+
+    # Clone with category override
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+        category_override=FighterCategoryChoices.CHAMPION,
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify category override was cloned
+    assert new_fighter.category_override == FighterCategoryChoices.CHAMPION
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_clear_category_override(
+    user, list_with_campaign, content_fighter
+):
+    """Test cloning a fighter can clear category_override (unchecked checkbox)."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create original fighter with category override
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+        category_override=FighterCategoryChoices.CHAMPION,
+    )
+
+    # Clone without category override (checkbox unchecked = set to None)
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+        category_override=None,
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify category override was cleared
+    assert new_fighter.category_override is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_no_category_override(
+    user, list_with_campaign, content_fighter
+):
+    """Test cloning a fighter without category_override works normally."""
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create original fighter WITHOUT category override
+    original_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Original Fighter",
+    )
+
+    # Clone without providing category_override
+    new_fighter = original_fighter.clone(
+        name="Cloned Fighter",
+    )
+    new_fighter.save()
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=original_fighter,
+        new_fighter=new_fighter,
+    )
+
+    # Verify no category override on cloned fighter
+    assert new_fighter.category_override is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.ADD_FIGHTER

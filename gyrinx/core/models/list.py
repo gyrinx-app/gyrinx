@@ -4,6 +4,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
@@ -26,7 +27,6 @@ from django.dispatch import receiver
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
-from gyrinx import settings
 from gyrinx.content.models import (
     ContentAttribute,
     ContentAttributeValue,
@@ -521,12 +521,15 @@ class List(AppBase):
     def create_action(
         self, update_credits: bool = False, **kwargs
     ) -> Optional[ListAction]:
-        from gyrinx.core.models.action import ListAction
-
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
         if self.latest_action:
             user = kwargs.pop("user", None)
+
+            # Make sure we have values for the key fields
+            rating_before = kwargs.pop("rating_before", self.rating_current)
+            stash_before = kwargs.pop("stash_before", self.stash_current)
+            credits_before = kwargs.pop("credits_before", self.credits_current)
 
             # We create the action first, with applied=False, so that we can track if the update failed
             la = ListAction.objects.create(
@@ -534,12 +537,30 @@ class List(AppBase):
                 owner=self.owner,
                 list=self,
                 applied=False,
+                rating_before=rating_before,
+                stash_before=stash_before,
+                credits_before=credits_before,
                 **kwargs,
             )
             la.save()
 
+            track_args = {
+                "list": str(self.id),
+                "action_id": str(la.id),
+                "update_credits": update_credits,
+                "rating_before": rating_before,
+                "stash_before": stash_before,
+                "credits_before": credits_before,
+                **kwargs,
+            }
+
+            track(
+                "list_action_created",
+                **track_args,
+            )
+
             # Update key fields
-            # Currently we don't track credits delta by default in actions because spend_credits exists
+            # Currently we don't apply credits delta by default in actions because spend_credits exists
             # but we should refactor in that direction later.
             rating_delta = kwargs.get("rating_delta", 0)
             stash_delta = kwargs.get("stash_delta", 0)
@@ -549,15 +570,31 @@ class List(AppBase):
                 self.rating_current += rating_delta
                 self.stash_current += stash_delta
                 self.credits_current += credits_delta
+                self.credits_earned += max(0, credits_delta)
                 self.save(
-                    update_fields=["rating_current", "stash_current", "credits_current"]
+                    update_fields=[
+                        "rating_current",
+                        "stash_current",
+                        "credits_current",
+                        "credits_earned",
+                    ]
                 )
             except Exception as e:
                 logger.error(
                     f"Failed to update list {self.id} cost fields after action creation: {e}"
                 )
+                track(
+                    "list_action_apply_failed",
+                    **track_args,
+                    error=str(e),
+                )
                 self.refresh_from_db()
                 return la
+
+            track(
+                "list_action_apply_succeeded",
+                **track_args,
+            )
 
             la.applied = True
             la.save(update_fields=["applied"])
@@ -566,7 +603,7 @@ class List(AppBase):
         else:
             track(
                 "list_action_skipped_no_latest_action",
-                list=self.id,
+                list=str(self.id),
                 **kwargs,
             )
 
@@ -575,13 +612,14 @@ class List(AppBase):
                 credits_delta = kwargs.get("credits_delta", 0)
                 if credits_delta != 0:
                     self.credits_current += credits_delta
-                    self.save(update_fields=["credits_current"])
+                    self.credits_earned += max(0, credits_delta)
+                    self.save(update_fields=["credits_current", "credits_earned"])
                     track(
                         "list_credits_updated_without_action",
-                        list=self.id,
-                        credits_delta=credits_delta,
+                        list=str(self.id),
                         credits_current=self.credits_current,
-                        description=kwargs.get("description", ""),
+                        credits_earned=self.credits_earned,
+                        **kwargs,
                     )
 
         return None
@@ -653,7 +691,7 @@ class List(AppBase):
         self.save(update_fields=["credits_current"])
         return True
 
-    def clone(self, name=None, owner=None, for_campaign=None, **kwargs):
+    def clone(self, name=None, owner=None, for_campaign=None, **kwargs) -> "List":
         """Clone the list, creating a new list with the same fighters.
 
         Args:
@@ -695,6 +733,39 @@ class List(AppBase):
             **values,
         )
 
+        # Create initial ListAction for if feature flag enabled
+        la = None
+        if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
+            from gyrinx.core.models.action import ListAction, ListActionType
+
+            la = ListAction.objects.create(
+                user=owner,
+                owner=owner,
+                list=clone,
+                action_type=ListActionType.CREATE,
+                description=f"Cloned from '{self.name}'",
+                applied=True,
+                rating_before=0,
+                stash_before=0,
+                credits_before=0,
+                rating_delta=self.rating_current,
+                stash_delta=self.stash_current,
+                credits_delta=self.credits_current,
+            )
+
+            track(
+                "list_clone_initial_action_created",
+                original_list=str(self.id),
+                cloned_list=str(clone.id),
+                action=str(la.id),
+            )
+        else:
+            track(
+                "list_clone_initial_action_skipped",
+                original_list=str(self.id),
+                cloned_list=str(clone.id),
+            )
+
         # Clone fighters, but skip linked fighters and stash fighters
         for fighter in self.fighters():
             # Skip if this fighter is linked to an equipment assignment
@@ -714,18 +785,12 @@ class List(AppBase):
         ).first()
 
         # For campaign mode, always ensure a stash exists
-        if for_campaign:
+        if for_campaign or original_stash:
             new_stash = clone.ensure_stash(owner=owner)
             # Clone equipment from original stash if it existed
             if original_stash:
                 for assignment in original_stash._direct_assignments():
                     assignment.clone(list_fighter=new_stash)
-        # For regular clones, only clone stash if it exists in original
-        elif original_stash:
-            new_stash = clone.ensure_stash(owner=owner)
-            # Clone all equipment assignments from the original stash
-            for assignment in original_stash._direct_assignments():
-                assignment.clone(list_fighter=new_stash)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.filter(
@@ -735,6 +800,21 @@ class List(AppBase):
                 list=clone,
                 attribute_value=attribute_assignment.attribute_value,
             )
+
+        # Simulate prefetching latest_actions for the clone
+        if la:
+            # Clear any cached None value from the @cached_property
+            clone.__dict__.pop("latest_action", None)
+            # Set the prefetch list that latest_action property will check
+            setattr(clone, "latest_actions", [la])
+
+        track(
+            "list_cloned",
+            original_list=str(self.id),
+            cloned_list=str(clone.id),
+            for_campaign=str(for_campaign.id) if for_campaign else "",
+            action=str(la.id) if la else "",
+        )
 
         return clone
 

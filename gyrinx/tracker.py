@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from typing import Any, Optional
+from uuid import UUID
 
 # Check if we're in Google Cloud environment
 IS_GOOGLE_CLOUD = os.getenv("GOOGLE_CLOUD_PROJECT") is not None
@@ -49,12 +50,15 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
         filtered_labels = {}
         for key, val in labels.items():
             try:
+                # Side-effect test for JSON serializability
                 json.dumps(val)
                 filtered_labels[key] = val
             except (TypeError, ValueError):
                 # Not JSON serializable, try to extract ID
                 if hasattr(val, "id"):
                     filtered_labels[key] = str(val.id)
+                elif isinstance(val, UUID):
+                    filtered_labels[key] = str(val)
                 else:
                     # Log that we're dropping this label
                     _fallback_logger.debug(

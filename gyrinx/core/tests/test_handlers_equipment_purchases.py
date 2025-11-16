@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from gyrinx.core.handlers.equipment_purchases import (
     handle_accessory_purchase,
     handle_equipment_purchase,
+    handle_equipment_reassignment,
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
@@ -753,3 +754,385 @@ def test_upgrade_change_failure_preserves_existing_upgrades(
     assert upgrade_a in assignment.upgrades_field.all()
     assert upgrade_b not in assignment.upgrades_field.all()
     assert assignment.upgrades_field.count() == 1
+
+
+# ===== Equipment Reassignment Tests =====
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_stash_to_regular(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test reassigning equipment from stash to regular fighter."""
+    lst = list_with_campaign
+    lst.rating_current = 500
+    lst.stash_current = 100
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create stash and regular fighter
+    stash = lst.ensure_stash()
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment on stash
+    equipment = make_equipment("Test Weapon", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+    equipment_cost = assignment.cost_int()
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash,
+        to_fighter=fighter,
+        assignment=assignment,
+    )
+
+    # Verify deltas: stash→regular means rating+, stash-
+    assert result.list_action.rating_delta == equipment_cost
+    assert result.list_action.stash_delta == -equipment_cost
+    assert result.list_action.credits_delta == 0  # Reassignment is free
+
+    # Verify before values
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 100
+    assert result.list_action.credits_before == 1000
+
+    # Verify description is user-friendly (mentions "from stash")
+    assert "from stash" in result.description
+    assert fighter.name in result.description
+    assert equipment.name in result.description
+
+    # Verify CampaignAction created
+    assert result.campaign_action is not None
+    assert result.campaign_action.description == result.description
+
+    # Verify assignment updated
+    assignment.refresh_from_db()
+    assert assignment.list_fighter == fighter
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_regular_to_stash(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test reassigning equipment from regular fighter to stash."""
+    lst = list_with_campaign
+    lst.rating_current = 500
+    lst.stash_current = 100
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create stash and regular fighter
+    stash = lst.ensure_stash()
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment on regular fighter
+    equipment = make_equipment("Test Weapon", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+    equipment_cost = assignment.cost_int()
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=fighter,
+        to_fighter=stash,
+        assignment=assignment,
+    )
+
+    # Verify deltas: regular→stash means rating-, stash+
+    assert result.list_action.rating_delta == -equipment_cost
+    assert result.list_action.stash_delta == equipment_cost
+    assert result.list_action.credits_delta == 0
+
+    # Verify description mentions "to stash"
+    assert "to stash" in result.description
+    assert fighter.name in result.description
+    assert equipment.name in result.description
+
+    # Verify CampaignAction created
+    assert result.campaign_action is not None
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_regular_to_regular(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test reassigning equipment between two regular fighters."""
+    lst = list_with_campaign
+    lst.rating_current = 500
+    lst.stash_current = 100
+    lst.save()
+
+    # Create two regular fighters
+    fighter1 = ListFighter.objects.create(
+        name="Fighter One",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter Two",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment on fighter1
+    equipment = make_equipment("Test Weapon", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter1,
+        content_equipment=equipment,
+    )
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=fighter1,
+        to_fighter=fighter2,
+        assignment=assignment,
+    )
+
+    # Verify no deltas: regular→regular means same bucket
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.stash_delta == 0
+    assert result.list_action.credits_delta == 0
+
+    # Verify description includes both fighter names
+    assert "Fighter One" in result.description
+    assert "Fighter Two" in result.description
+    assert "Reassigned" in result.description
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_list_building_mode(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test equipment reassignment in list building mode (no campaign)."""
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two fighters
+    fighter1 = ListFighter.objects.create(
+        name="Fighter One",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter Two",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment
+    equipment = make_equipment("Test Weapon", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter1,
+        content_equipment=equipment,
+    )
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=fighter1,
+        to_fighter=fighter2,
+        assignment=assignment,
+    )
+
+    # Verify no CampaignAction in list building mode
+    assert result.campaign_action is None
+
+    # ListAction should still be created
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_with_upgrades(
+    user, list_with_campaign, content_fighter, make_equipment, make_equipment_upgrade
+):
+    """Test reassignment of equipment with upgrades includes total cost."""
+    lst = list_with_campaign
+    lst.rating_current = 500
+    lst.stash_current = 100
+    lst.save()
+
+    # Create stash and fighter
+    stash = lst.ensure_stash()
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment with upgrade
+    equipment = make_equipment("Test Weapon", cost="50")
+    upgrade = make_equipment_upgrade(
+        name="Test Upgrade", cost="25", equipment=equipment
+    )
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade)
+
+    # Get total cost (base + upgrade)
+    total_cost = assignment.cost_int()
+    assert total_cost > 50  # Should include upgrade cost
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash,
+        to_fighter=fighter,
+        assignment=assignment,
+    )
+
+    # Verify deltas use total cost including upgrades
+    assert result.equipment_cost == total_cost
+    assert result.list_action.rating_delta == total_cost
+    assert result.list_action.stash_delta == -total_cost
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_before_values(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test that before values are captured correctly."""
+    lst = list_with_campaign
+    lst.rating_current = 750
+    lst.stash_current = 200
+    lst.credits_current = 1500
+    lst.save()
+
+    # Create fighters
+    fighter1 = ListFighter.objects.create(
+        name="Fighter One",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter Two",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment
+    equipment = make_equipment("Test Weapon", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter1,
+        content_equipment=equipment,
+    )
+
+    # Call handler (handler will perform the reassignment)
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=fighter1,
+        to_fighter=fighter2,
+        assignment=assignment,
+    )
+
+    # Verify before values match list state before operation
+    assert result.list_action.rating_before == 750
+    assert result.list_action.stash_before == 200
+    assert result.list_action.credits_before == 1500
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_description_stash_to_regular(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test description format for stash to regular reassignment."""
+    lst = list_with_campaign
+    lst.rating_current = 100
+    lst.stash_current = 100  # Ensure we have enough stash to move from
+    lst.save()
+
+    stash = lst.ensure_stash()
+    fighter = ListFighter.objects.create(
+        name="My Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    equipment = make_equipment("Lasgun", cost="15")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash,
+        to_fighter=fighter,
+        assignment=assignment,
+    )
+
+    # Verify user-friendly description
+    assert result.description == "Equipped My Fighter with Lasgun from stash (15¢)"
+
+
+@pytest.mark.django_db
+def test_handle_equipment_reassignment_description_regular_to_stash(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Test description format for regular to stash reassignment."""
+    lst = list_with_campaign
+    lst.rating_current = 100  # Ensure we have enough rating to move from
+    lst.stash_current = 100
+    lst.save()
+
+    stash = lst.ensure_stash()
+    fighter = ListFighter.objects.create(
+        name="My Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    equipment = make_equipment("Lasgun", cost="15")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=fighter,
+        to_fighter=stash,
+        assignment=assignment,
+    )
+
+    # Verify user-friendly description
+    assert result.description == "Moved Lasgun from My Fighter to stash (15¢)"

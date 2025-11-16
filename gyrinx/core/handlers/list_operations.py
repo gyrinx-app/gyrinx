@@ -138,13 +138,10 @@ def handle_list_clone(
     cloned_list = original_list.clone(name=name, owner=owner, **kwargs)
 
     # Create ListAction on original list recording the clone
-    original_action = ListAction.objects.create(
+    original_action = original_list.create_action(
         user=user,
-        owner=user,
-        list=original_list,
         action_type=ListActionType.CLONE,
         description=f"List cloned to '{cloned_list.name}'",
-        applied=True,
     )
 
     # Create ListAction on cloned list if feature flag is enabled

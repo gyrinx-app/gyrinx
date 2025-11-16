@@ -260,49 +260,60 @@ class ListFighterForm(forms.ModelForm):
         }
 
 
-class CloneListFighterForm(forms.ModelForm):
+class CloneListFighterForm(forms.Form):
+    name = forms.CharField(
+        label="Name",
+        help_text="The name you use to identify this Fighter. This may be public.",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    content_fighter = ContentFighterChoiceField(
+        queryset=ContentFighter.objects.none(),  # Set in __init__
+        label="Fighter",
+    )
+    list = forms.ModelChoiceField(
+        queryset=List.objects.none(),  # Set in __init__
+        label="List",
+        help_text="The List into which this Fighter will be cloned.",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
     def __init__(self, *args, **kwargs):
-        # user is passed in as a kwarg from the view but is not valid
-        # for the ModelForm, so we pop it off before calling super()
+        # Extract custom kwargs
         user = kwargs.pop("user", None)
+        fighter = kwargs.pop("fighter", None)
 
         super().__init__(*args, **kwargs)
 
-        inst = kwargs.get("instance", {})
-        if inst:
+        if fighter:
+            # Set querysets based on the fighter being cloned
+            # Exclude stash fighters from the dropdown
             self.fields["content_fighter"].queryset = ContentFighter.objects.filter(
-                house=inst.list.content_house
+                house=fighter.list.content_house, is_stash=False
             )
+            self.fields["content_fighter"].content_house = fighter.list.content_house
 
-        if user:
-            self.fields["list"].queryset = List.objects.filter(
-                owner=user,
-                content_house=inst.list.content_house,
-            )
+            if user:
+                self.fields["list"].queryset = List.objects.filter(
+                    owner=user,
+                    content_house=fighter.list.content_house,
+                )
 
-        self.fields["content_fighter"] = ContentFighterChoiceField(
-            queryset=self.fields["content_fighter"].queryset
-        )
-        if inst:
-            self.fields["content_fighter"].content_house = inst.list.content_house
-
-    class Meta:
-        model = ListFighter
-        fields = ["name", "content_fighter", "list"]
-        labels = {
-            "name": "Name",
-            "content_fighter": "Fighter",
-            "list": "List",
-        }
-        help_texts = {
-            "name": "The name you use to identify this Fighter. This may be public.",
-            "list": "The List into which this Fighter will be cloned.",
-        }
-        widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control"}),
-            "content_fighter": forms.Select(attrs={"class": "form-select"}),
-            "list": forms.Select(attrs={"class": "form-select"}),
-        }
+            # Add category_override checkbox only if the fighter has an override
+            if fighter.category_override:
+                # Get labels from the FighterCategoryChoices enum
+                base_category = FighterCategoryChoices(
+                    fighter.content_fighter.category
+                ).label
+                override_category = FighterCategoryChoices(
+                    fighter.category_override
+                ).label
+                self.fields["clone_category_override"] = forms.BooleanField(
+                    required=False,
+                    initial=True,
+                    label=f"Clone as {override_category}",
+                    help_text=f"The fighter being cloned was a {base_category} but is now a {override_category}.",
+                    widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+                )
 
 
 class ListFighterSkillsForm(forms.ModelForm):
