@@ -228,24 +228,24 @@
                         <i class="bi-coin"></i> View Resources
                     </a>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 px-2 px-sm-3">
                     {% if resource_types %}
                         <div class="table-responsive">
                             <table class="table table-sm table-borderless mb-0 align-middle">
                                 <thead>
                                     <tr>
-                                        <th class="ps-2 ps-sm-3">Gang</th>
-                                        {% for resource_type in resource_types %}<th class="text-center">{{ resource_type.name }}</th>{% endfor %}
+                                        <th>Gang</th>
+                                        {% for resource_type in resource_types %}<th class="text-end">{{ resource_type.name }}</th>{% endfor %}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for list in campaign.lists.all %}
                                         <tr>
-                                            <td class="ps-2 ps-sm-3">
+                                            <td>
                                                 <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list "me-1" %}</a>
                                             </td>
                                             {% for resource_type in resource_types %}
-                                                <td class="text-center">
+                                                <td class="text-end">
                                                     {% with list_resources=resource_lookup|lookup:list.id %}
                                                         {% with res=list_resources|lookup:resource_type.id %}
                                                             {% if res %}
@@ -253,7 +253,7 @@
                                                                 {% if is_owner or res.list.owner == user %}
                                                                     {% if not campaign.archived %}
                                                                         <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
-                                                                           class="icon-link ms-1"
+                                                                           class="icon-link text-secondary btn-sm ms-1"
                                                                            aria-label="Edit {{ resource_type.name }} for {{ list.name }}">
                                                                             <i class="bi-pencil"></i>
                                                                         </a>
