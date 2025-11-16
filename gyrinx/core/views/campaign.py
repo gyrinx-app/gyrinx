@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery
@@ -23,6 +24,7 @@ from gyrinx.core.forms.campaign import (
     NewCampaignForm,
     ResourceModifyForm,
 )
+from gyrinx.core.handlers.campaign_operations import handle_campaign_start
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -903,14 +905,12 @@ def start_campaign(request, id):
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
     if request.method == "POST":
-        with transaction.atomic():
-            if campaign.start_campaign():
-                # Log the campaign start action
-                CampaignAction.objects.create(
+        try:
+            with transaction.atomic():
+                # Handle campaign start (creates ListActions and CampaignActions)
+                result = handle_campaign_start(
                     user=request.user,
-                    owner=request.user,
                     campaign=campaign,
-                    description=f"Campaign Started: {campaign.name} is now in progress",
                 )
 
                 # Log the campaign start event
@@ -924,12 +924,13 @@ def start_campaign(request, id):
                     action="started",
                 )
 
-                messages.success(request, "Campaign has been started!")
-            else:
-                if not campaign.lists.exists():
-                    messages.error(request, "Cannot start campaign without any lists.")
-                else:
-                    messages.error(request, "Campaign cannot be started.")
+                messages.success(
+                    request,
+                    f"Campaign has been started! {len(result.list_results)} gang(s) joined.",
+                )
+        except ValidationError as e:
+            messages.error(request, str(e))
+
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     # For GET request, show confirmation page

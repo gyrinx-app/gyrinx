@@ -649,7 +649,11 @@ def handle_equipment_reassignment(
         Equipment reassignment does not cost credits - credits_delta is always 0.
         However, rating and stash may change depending on fighter types.
     """
-    # Calculate cost BEFORE reassignment (assignment should still be on from_fighter)
+    # Calculate cost BEFORE reassignment
+    # Note: We calculate the equipment cost both before and after reassignment because
+    # the cost may depend on the assigned fighter. This allows us to track if the cost
+    # changes as a result of reassignment. If cost_int() is expensive and the cost rarely
+    # changes, consider optimizing, but both calculations are required for correctness.
     cost_before = assignment.cost_int()
 
     # Perform the reassignment
