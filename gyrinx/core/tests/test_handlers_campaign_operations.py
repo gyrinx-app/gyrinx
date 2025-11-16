@@ -15,6 +15,7 @@ from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_all_lists_receive_credits(
     user,
@@ -23,8 +24,11 @@ def test_handle_campaign_start_all_lists_receive_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test that all lists in campaign receive correct credits when starting."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     # Create campaign in PRE_CAMPAIGN status with budget
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -107,12 +111,16 @@ def test_handle_campaign_start_creates_list_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
 ):
     """Test that ListActions are created for each list with CAMPAIGN_START type.
 
     Campaign-cloned lists get an initial CREATE ListAction, which allows
     subsequent CAMPAIGN_START actions to be created properly.
     """
+    # Enable feature flag for initial ListAction creation
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     # Create fighters
@@ -156,6 +164,7 @@ def test_handle_campaign_start_creates_list_actions(
     assert list_actions.count() == 2
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_credits_match_budget_configuration(
     user,
@@ -164,8 +173,11 @@ def test_handle_campaign_start_credits_match_budget_configuration(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test that credits distributed match budget configuration."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     # Create campaign with custom budget
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=2000)
 
@@ -193,11 +205,13 @@ def test_handle_campaign_start_credits_match_budget_configuration(
     assert cloned_list.credits_current == 1200
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_zero_budget(
-    user, make_campaign, make_list, content_house
+    user, make_campaign, make_list, content_house, settings, feature_flag_enabled
 ):
     """Test that no credits are distributed when budget is zero."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=0)
 
     lst = make_list("Gang 1", content_house=content_house)
@@ -220,6 +234,7 @@ def test_handle_campaign_start_zero_budget(
     assert cloned_list.credits_current == 0
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_expensive_list(
     user,
@@ -228,8 +243,11 @@ def test_handle_campaign_start_expensive_list(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test that lists more expensive than budget get zero credits."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1000)
 
     # Create expensive fighter (costs more than budget)
@@ -256,9 +274,13 @@ def test_handle_campaign_start_expensive_list(
     assert cloned_list.credits_current == 0
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_campaign_start_only_once(user, make_campaign, make_list, content_house):
+def test_handle_campaign_start_only_once(
+    user, make_campaign, make_list, content_house, settings, feature_flag_enabled
+):
     """Test that campaign start can only happen once."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     lst = make_list("Gang 1", content_house=content_house)
@@ -275,9 +297,13 @@ def test_handle_campaign_start_only_once(user, make_campaign, make_list, content
     assert "cannot be started" in str(exc_info.value).lower()
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_campaign_start_no_lists(user, make_campaign):
+def test_handle_campaign_start_no_lists(
+    user, make_campaign, settings, feature_flag_enabled
+):
     """Test that campaign cannot be started without lists."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     # Try to start campaign with no lists
@@ -287,6 +313,7 @@ def test_handle_campaign_start_no_lists(user, make_campaign):
     assert "cannot be started without lists" in str(exc_info.value).lower()
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_creates_campaign_actions(
     user,
@@ -295,8 +322,11 @@ def test_handle_campaign_start_creates_campaign_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test that both per-list and overall CampaignActions are created."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     # Create fighters
@@ -343,6 +373,7 @@ def test_handle_campaign_start_creates_campaign_actions(
     assert actions_after == actions_before + 3
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_list_with_existing_credits(
     user,
@@ -351,12 +382,15 @@ def test_handle_campaign_start_list_with_existing_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test budget distribution when list already has credits.
 
     Note: Existing credits are copied to the clone, and the budget calculation
     is based on rating + stash (not reduced by existing credits).
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     # Create a fighter with cost 1000
@@ -389,11 +423,13 @@ def test_handle_campaign_start_list_with_existing_credits(
     assert cloned_list.credits_current == 500
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_updates_campaign_status(
-    user, make_campaign, make_list, content_house
+    user, make_campaign, make_list, content_house, settings, feature_flag_enabled
 ):
     """Test that campaign status is updated to IN_PROGRESS."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     lst = make_list("Gang 1", content_house=content_house)
@@ -413,11 +449,13 @@ def test_handle_campaign_start_updates_campaign_status(
     assert result.campaign.status == Campaign.IN_PROGRESS
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_campaign_start_clones_lists_to_campaign_mode(
-    user, make_campaign, make_list, content_house
+    user, make_campaign, make_list, content_house, settings, feature_flag_enabled
 ):
     """Test that lists are cloned with CAMPAIGN_MODE status."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     list1 = make_list("Gang 1", content_house=content_house)
@@ -457,12 +495,14 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
+    settings,
 ):
     """Test that the initial CREATE action for cloned lists has correct deltas.
 
     The CREATE action should represent creating the list from nothing,
     so before values should be 0 and deltas should equal the cloned values.
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     # Create fighters with specific costs
@@ -516,6 +556,7 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
         list=cloned_list, action_type=ListActionType.CREATE
     ).first()
 
+    # When feature flag is enabled, CREATE action should exist
     assert create_action is not None, "CREATE action should exist"
 
     # Verify before values are 0 (list created from nothing)
