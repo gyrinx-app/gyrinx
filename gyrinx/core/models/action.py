@@ -25,6 +25,7 @@ class ListActionType(models.TextChoices):
     ADD_EQUIPMENT = "ADD_EQUIPMENT", "Add Equipment"
     REMOVE_EQUIPMENT = "REMOVE_EQUIPMENT", "Remove Equipment"
     UPDATE_EQUIPMENT = "UPDATE_EQUIPMENT", "Update Equipment"
+    CAMPAIGN_START = "CAMPAIGN_START", "Campaign Start"
 
 
 class ListActionQuerySet(models.QuerySet):
@@ -46,6 +47,11 @@ class ListAction(AppBase):
     ListAction tracks user actions performed on lists and objects within those lists.
 
     The key use of ListAction is for performant cost tracking.
+
+    NOTE: In future, it would be good to refactor this to have a "Prepare" and "Apply" step, so that this
+          model owns all business logic around what goes into an action. Right now, the caller has to know
+          a bit too much about the internals of the list action. This refactor would also extend to `create_action`
+          on the List, which is really more of a transact-on-list method.
     """
 
     class Meta:

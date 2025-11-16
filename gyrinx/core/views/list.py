@@ -65,10 +65,14 @@ from gyrinx.core.forms.list import (
 from gyrinx.core.handlers.equipment_purchases import (
     handle_accessory_purchase,
     handle_equipment_purchase,
+    handle_equipment_reassignment,
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
-from gyrinx.core.handlers.fighter_operations import handle_fighter_hire
+from gyrinx.core.handlers.fighter_operations import (
+    handle_fighter_clone,
+    handle_fighter_hire,
+)
 from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
 from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.campaign import CampaignAction
@@ -1065,39 +1069,66 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = CloneListFighterForm(request.POST, instance=fighter)
+        form = CloneListFighterForm(request.POST, fighter=fighter, user=request.user)
         if form.is_valid():
-            new_fighter = fighter.clone(
-                name=form.cleaned_data["name"],
-                content_fighter=form.cleaned_data["content_fighter"],
-                list=form.cleaned_data["list"],
-            )
-            new_fighter.save()
+            try:
+                # Prepare clone kwargs
+                clone_kwargs = {
+                    "name": form.cleaned_data["name"],
+                    "content_fighter": form.cleaned_data["content_fighter"],
+                    "list": form.cleaned_data["list"],
+                }
 
-            # Log the fighter clone event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.CLONE,
-                object=new_fighter,
-                request=request,
-                fighter_name=new_fighter.name,
-                list_id=str(new_fighter.list.id),
-                list_name=new_fighter.list.name,
-                source_fighter_id=str(fighter.id),
-                source_fighter_name=fighter.name,
-            )
+                # Handle category_override based on checkbox
+                # If fighter has an override and checkbox is checked, preserve it
+                # Otherwise, clear it
+                if fighter.category_override and form.cleaned_data.get(
+                    "clone_category_override", False
+                ):
+                    clone_kwargs["category_override"] = fighter.category_override
+                else:
+                    clone_kwargs["category_override"] = None
 
-            query_params = urlencode(dict(flash=new_fighter.id))
-            return HttpResponseRedirect(
-                reverse("core:list", args=(new_fighter.list.id,))
-                + f"?{query_params}"
-                + f"#{str(new_fighter.id)}"
-            )
+                new_fighter = fighter.clone(**clone_kwargs)
+                new_fighter.save()
+
+                # Handle the clone operation (creates ListAction and handles credits)
+                handle_fighter_clone(
+                    user=request.user,
+                    source_fighter=fighter,
+                    new_fighter=new_fighter,
+                )
+
+                # Log the fighter clone event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.CLONE,
+                    object=new_fighter,
+                    request=request,
+                    fighter_name=new_fighter.name,
+                    list_id=str(new_fighter.list.id),
+                    list_name=new_fighter.list.name,
+                    source_fighter_id=str(fighter.id),
+                    source_fighter_name=fighter.name,
+                )
+
+                query_params = urlencode(dict(flash=new_fighter.id))
+                return HttpResponseRedirect(
+                    reverse("core:list", args=(new_fighter.list.id,))
+                    + f"?{query_params}"
+                    + f"#{str(new_fighter.id)}"
+                )
+            except DjangoValidationError as e:
+                error_message = str(e)
     else:
         form = CloneListFighterForm(
-            instance=fighter,
-            initial={"name": f"{fighter.name} (Clone)"},
+            fighter=fighter,
+            initial={
+                "name": f"{fighter.name} (Clone)",
+                "content_fighter": fighter.content_fighter,
+                "list": fighter.list,
+            },
             user=request.user,
         )
 
@@ -5366,39 +5397,25 @@ def reassign_list_fighter_equipment(
             target_fighter = form.cleaned_data["target_fighter"]
 
             with transaction.atomic():
-                # Update the assignment
-                assignment.list_fighter = target_fighter
-                assignment.save_with_user(user=request.user)
-
-                # Get names for logging and campaign action
-                equipment_name = assignment.content_equipment.name
-                from_fighter_name = fighter.name
-                to_fighter_name = target_fighter.name
-
-                # Create campaign action if in campaign mode
-                if lst.status == List.CAMPAIGN_MODE and lst.campaign:
-                    CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=f"Reassigned {equipment_name} from {from_fighter_name} to {to_fighter_name}",
-                        outcome=f"{equipment_name} is now equipped by {to_fighter_name}",
-                        dice_count=0,
-                        dice_results=[],
-                        dice_total=0,
-                    )
+                # Handle the reassignment (performs update and creates ListAction/CampaignAction)
+                result = handle_equipment_reassignment(
+                    user=request.user,
+                    lst=lst,
+                    from_fighter=fighter,
+                    to_fighter=target_fighter,
+                    assignment=assignment,
+                )
 
                 # Log the equipment reassignment
                 log_event(
                     user=request.user,
                     noun=EventNoun.EQUIPMENT_ASSIGNMENT,
                     verb=EventVerb.UPDATE,
-                    object=assignment,
+                    object=result.assignment,
                     request=request,
-                    from_fighter_name=from_fighter_name,
-                    to_fighter_name=to_fighter_name,
-                    equipment_name=equipment_name,
+                    from_fighter_name=result.from_fighter.name,
+                    to_fighter_name=result.to_fighter.name,
+                    equipment_name=result.assignment.content_equipment.name,
                     list_id=str(lst.id),
                     list_name=lst.name,
                     action="reassigned",
@@ -5406,7 +5423,7 @@ def reassign_list_fighter_equipment(
 
             messages.success(
                 request,
-                f"{assignment.content_equipment.name} reassigned to {target_fighter.name}.",
+                f"{result.assignment.content_equipment.name} reassigned to {result.to_fighter.name}.",
             )
             return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
     else:
