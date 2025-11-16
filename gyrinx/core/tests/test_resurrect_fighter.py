@@ -202,7 +202,7 @@ def test_resurrect_fighter_marks_as_active_with_original_cost(
     # Resurrect the fighter
     client.force_login(user)
     url = reverse("core:list-fighter-resurrect", args=[lst.id, fighter.id])
-    response = client.post(url, follow=True)
+    response = client.post(url)
 
     # Fighter should now be active
     assert response.status_code == 302
@@ -300,7 +300,7 @@ def test_resurrect_fighter_creates_campaign_action(client, user, content_house):
     assert CampaignAction.objects.count() == 0
 
     # Resurrect the fighter
-    response = client.post(url, follow=True)
+    response = client.post(url)
     assert response.status_code == 302
 
     # Verify campaign action was created
