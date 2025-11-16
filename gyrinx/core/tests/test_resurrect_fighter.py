@@ -10,8 +10,8 @@ User = get_user_model()
 
 
 @pytest.mark.django_db
-def test_resurrect_fighter_url_requries_login(client, user, content_house):
-    """Test that the resurect fighter requires login."""
+def test_resurrect_fighter_url_requires_login(client, user, content_house):
+    """Test that the resurrect fighter requires login."""
     # Create a campaign mode list
     lst = List.objects.create(
         name="Test List",
@@ -48,7 +48,7 @@ def test_resurrect_fighter_url_requries_login(client, user, content_house):
 
 @pytest.mark.django_db
 def test_resurrect_fighter_url_exists_for_logged_in_user(client, user, content_house):
-    """Test that the resurect fighter URL exists for logged in user."""
+    """Test that the resurrect fighter URL exists for logged in user."""
     # Create a campaign mode list
     lst = List.objects.create(
         name="Test List",
@@ -84,7 +84,7 @@ def test_resurrect_fighter_url_exists_for_logged_in_user(client, user, content_h
 
 
 @pytest.mark.django_db
-def test_resurrect_fighter_requries_campaign_mode_list(client, user, content_house):
+def test_resurrect_fighter_requires_campaign_mode_list(client, user, content_house):
     """Test that resurrect fighter only works for campaign mode lists."""
     # Create a list in list building mode
     lst = List.objects.create(
@@ -124,6 +124,7 @@ def test_resurrect_fighter_requries_campaign_mode_list(client, user, content_hou
     assert fighter.injury_state == ListFighter.DEAD
 
 
+@pytest.mark.django_db
 def test_resurrect_fighter_cannot_resurrect_stash(client, user, content_house):
     """Test that stash fighters cannot be resurrected."""
     # Create a campaign mode list
