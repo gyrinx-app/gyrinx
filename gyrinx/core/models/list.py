@@ -753,6 +753,19 @@ class List(AppBase):
                 credits_delta=self.credits_current,
             )
 
+            track(
+                "list_clone_initial_action_created",
+                original_list=str(self.id),
+                cloned_list=str(clone.id),
+                action=str(la.id),
+            )
+        else:
+            track(
+                "list_clone_initial_action_skipped",
+                original_list=str(self.id),
+                cloned_list=str(clone.id),
+            )
+
         # Clone fighters, but skip linked fighters and stash fighters
         for fighter in self.fighters():
             # Skip if this fighter is linked to an equipment assignment
@@ -794,6 +807,15 @@ class List(AppBase):
             clone.__dict__.pop("latest_action", None)
             # Set the prefetch list that latest_action property will check
             setattr(clone, "latest_actions", [la])
+
+        track(
+            "list_cloned",
+            original_list=str(self.id),
+            cloned_list=str(clone.id),
+            for_campaign=str(for_campaign.id) if for_campaign else "",
+            action=str(la.id) if la else "",
+        )
+
         return clone
 
     class Meta:

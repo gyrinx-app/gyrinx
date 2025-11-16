@@ -22,6 +22,7 @@ class ListBudgetDistributionResult:
     list_action: Optional[ListAction]
     campaign_action: Optional[CampaignAction]
     credits_added: int
+    reason: str = ""
 
 
 @dataclass
@@ -194,6 +195,7 @@ def _distribute_budget_to_list(
             list_action=None,
             campaign_action=None,
             credits_added=0,
+            reason="Campaign budget is zero",
         )
 
     # Calculate credits to add: max(0, budget - list cost)
@@ -206,6 +208,7 @@ def _distribute_budget_to_list(
             list_action=None,
             campaign_action=None,
             credits_added=0,
+            reason="List cost exceeds or meets campaign budget",
         )
 
     description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang cost)"
@@ -239,4 +242,5 @@ def _distribute_budget_to_list(
         list_action=list_action,
         campaign_action=campaign_action,
         credits_added=credits_to_add,
+        reason="Budget distributed successfully",
     )
