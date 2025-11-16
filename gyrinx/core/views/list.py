@@ -3576,7 +3576,7 @@ def resurrect_list_fighter(request, id, fighter_id):
         messages.error(request, "Fighters can only be resurrected in campaign mode.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
-    # Don't ressurrect stash fighters - just in case
+    # Don't resurrect stash fighters - just in case
     if fighter.is_stash:
         messages.error(request, "Cannot resurrect the stash.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
