@@ -61,6 +61,8 @@ def flash(context: RequestContext, id):
 
 @register.filter
 def lookup(dictionary, key):
+    if dictionary is None:
+        return None
     if isinstance(dictionary, list):
         # TODO: This assumes the list is a namedtuple with a 'grouper' attribute. This is a bit of a hack.
         item = next((item for item in dictionary if item.grouper == key), None)
