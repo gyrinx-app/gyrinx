@@ -37,6 +37,7 @@ from gyrinx.content.models import (
     ContentSkillCategory,
     ContentWeaponAccessory,
     ContentWeaponProfile,
+    VirtualWeaponProfile,
 )
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.forms.advancement import (
@@ -2924,7 +2925,8 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
         credits_before = lst.credits_current
 
         # Calculate profile cost before removal
-        profile_cost = assignment.profile_cost_int(profile)
+        virtual_profile = VirtualWeaponProfile(profile=profile)
+        profile_cost = assignment.profile_cost_int(virtual_profile)
 
         # Check if refund was requested (only in campaign mode)
         refund = request.POST.get("refund") == "on"
@@ -2970,7 +2972,8 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
         )
 
     # Calculate profile cost for template
-    profile_cost = assignment.profile_cost_int(profile)
+    virtual_profile = VirtualWeaponProfile(profile=profile)
+    profile_cost = assignment.profile_cost_int(virtual_profile)
 
     return render(
         request,
