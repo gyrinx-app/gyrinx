@@ -361,14 +361,25 @@ class ListPrintView(generic.DetailView):
 
         # Apply print config filters if available
         if print_config:
-            # Filter by included fighters if specific ones are selected
-            if print_config.included_fighters.exists():
-                fighters_qs = fighters_qs.filter(
-                    id__in=print_config.included_fighters.values_list("id", flat=True)
-                )
+            # Handle fighter selection mode
+            if print_config.fighter_selection_mode == PrintConfig.NO_FIGHTERS:
+                # No fighters - return empty queryset
+                fighters_qs = fighters_qs.none()
+            elif print_config.fighter_selection_mode == PrintConfig.SPECIFIC_FIGHTERS:
+                # Filter by included fighters if specific ones are selected
+                if print_config.included_fighters.exists():
+                    fighters_qs = fighters_qs.filter(
+                        id__in=print_config.included_fighters.values_list(
+                            "id", flat=True
+                        )
+                    )
+            # else: ALL_FIGHTERS - no filtering needed
 
-            # Exclude dead fighters if configured
-            if not print_config.include_dead_fighters:
+            # Exclude dead fighters if configured (unless mode is NO_FIGHTERS)
+            if (
+                print_config.fighter_selection_mode != PrintConfig.NO_FIGHTERS
+                and not print_config.include_dead_fighters
+            ):
                 fighters_qs = fighters_qs.exclude(injury_state=ListFighter.DEAD)
         else:
             # Default behavior: exclude dead fighters

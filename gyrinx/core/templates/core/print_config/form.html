@@ -51,13 +51,13 @@
                 <h2 class="h5 mb-3">Fighter Selection</h2>
                 <p class="text-muted small mb-3">{{ form.included_fighters.help_text }}</p>
                 <div class="border rounded p-3 overflow-auto">
-                    <div class="form-check mb-3 border-bottom pb-3">
-                        <input type="checkbox"
-                               class="form-check-input"
-                               id="select-all-fighters"
-                               name="select_all_fighters"
-                               {% if not form.instance.included_fighters.exists %}checked{% endif %}>
-                        <label class="form-check-label" for="select-all-fighters">All current &amp; future fighters</label>
+                    <div class="vstack gap-2 mb-3 border-bottom pb-3">
+                        {% for choice in form.fighter_selection_mode %}
+                            <div class="form-check">
+                                {{ choice.tag }}
+                                <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                            </div>
+                        {% endfor %}
                     </div>
                     {% if form.included_fighters.field.queryset %}
                         <div class="vstack gap-2" id="fighter-checkboxes">
@@ -121,28 +121,40 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const selectAllCheckbox = document.getElementById('select-all-fighters');
+            const modeRadios = document.querySelectorAll('input[name="fighter_selection_mode"]');
             const fighterCheckboxes = document.querySelectorAll('#fighter-checkboxes input[type="checkbox"]');
+            const fighterCheckboxesContainer = document.getElementById('fighter-checkboxes');
 
-            // When "all fighters" is checked, uncheck and disable individual fighters
-            selectAllCheckbox.addEventListener('change', () => {
-                fighterCheckboxes.forEach(checkbox => {
-                    checkbox.checked = !selectAllCheckbox.checked;
-                });
+            function updateFighterCheckboxesState() {
+                const selectedMode = document.querySelector('input[name="fighter_selection_mode"]:checked')?.value;
+
+                if (selectedMode === 'specific') {
+                    // Enable fighter checkboxes
+                    fighterCheckboxes.forEach(checkbox => {
+                        checkbox.disabled = false;
+                    });
+                    if (fighterCheckboxesContainer) {
+                        fighterCheckboxesContainer.style.opacity = '1';
+                    }
+                } else {
+                    // Disable and uncheck fighter checkboxes
+                    fighterCheckboxes.forEach(checkbox => {
+                        checkbox.disabled = true;
+                        checkbox.checked = false;
+                    });
+                    if (fighterCheckboxesContainer) {
+                        fighterCheckboxesContainer.style.opacity = '0.5';
+                    }
+                }
+            }
+
+            // Update state when mode changes
+            modeRadios.forEach(radio => {
+                radio.addEventListener('change', updateFighterCheckboxesState);
             });
 
-            // When any individual fighter is checked, uncheck "all fighters"
-            fighterCheckboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', () => {
-                    if (selectAllCheckbox.checked) {
-                        selectAllCheckbox.checked = false;
-                    }
-
-                    if (Array.from(fighterCheckboxes).every(cb => !cb.checked)) {
-                        selectAllCheckbox.checked = true;
-                    }
-                });
-            });
+            // Set initial state
+            updateFighterCheckboxesState();
         });
     </script>
 {% endblock content %}
