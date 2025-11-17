@@ -20,8 +20,13 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_handle_fighter_hire_campaign_mode(user, list_with_campaign, content_fighter):
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+def test_handle_fighter_hire_campaign_mode(
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+):
     """Test hiring a fighter in campaign mode creates actions and spends credits."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -54,15 +59,18 @@ def test_handle_fighter_hire_campaign_mode(user, list_with_campaign, content_fig
     assert ListFighter.objects.filter(id=result.fighter.id).exists()
 
     # Verify ListAction created
-    assert result.list_action is not None
-    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
-    assert result.list_action.rating_delta == fighter_cost
-    assert result.list_action.stash_delta == 0
-    assert result.list_action.credits_delta == -fighter_cost
-    assert result.list_action.rating_before == 500
-    assert result.list_action.credits_before == 1000
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+        assert result.list_action.rating_delta == fighter_cost
+        assert result.list_action.stash_delta == 0
+        assert result.list_action.credits_delta == -fighter_cost
+        assert result.list_action.rating_before == 500
+        assert result.list_action.credits_before == 1000
+    else:
+        assert result.list_action is None
 
-    # Verify CampaignAction created
+    # Verify CampaignAction created (always created in campaign mode)
     assert result.campaign_action is not None
     assert f"Hired Test Fighter ({fighter_cost}¢)" in result.campaign_action.description
 
@@ -71,10 +79,13 @@ def test_handle_fighter_hire_campaign_mode(user, list_with_campaign, content_fig
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_hire_list_building_mode(
-    user, make_list, content_fighter, content_house
+    user, make_list, content_fighter, content_house, settings, feature_flag_enabled
 ):
     """Test hiring a fighter in list building mode (no credits)."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -99,18 +110,29 @@ def test_handle_fighter_hire_list_building_mode(
     assert result.campaign_action is None  # No campaign mode
 
     # Verify ListAction created with no credit delta
-    assert result.list_action.credits_delta == 0
-    assert result.list_action.rating_delta == fighter_cost
+    if feature_flag_enabled:
+        assert result.list_action.credits_delta == 0
+        assert result.list_action.rating_delta == fighter_cost
+    else:
+        assert result.list_action is None
 
     # Verify credits unchanged (no refresh needed - handler modifies the same object)
     assert lst.credits_current == 0
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_hire_stash_fighter(
-    user, list_with_campaign, content_house, make_content_fighter
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test hiring a stash fighter affects stash, not rating."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.stash_current = 100
@@ -140,9 +162,12 @@ def test_handle_fighter_hire_stash_fighter(
     )
 
     # Verify stash delta, not rating delta
-    assert result.list_action.stash_delta == result.fighter_cost
-    assert result.list_action.rating_delta == 0
-    assert result.list_action.credits_delta == -result.fighter_cost
+    if feature_flag_enabled:
+        assert result.list_action.stash_delta == result.fighter_cost
+        assert result.list_action.rating_delta == 0
+        assert result.list_action.credits_delta == -result.fighter_cost
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
@@ -179,10 +204,13 @@ def test_handle_fighter_hire_insufficient_credits(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_hire_correct_before_values(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test that before values are captured correctly in ListAction."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -203,9 +231,12 @@ def test_handle_fighter_hire_correct_before_values(
     )
 
     # Verify before values match original list state
-    assert result.list_action.rating_before == 500
-    assert result.list_action.stash_before == 200
-    assert result.list_action.credits_before == 1000
+    if feature_flag_enabled:
+        assert result.list_action.rating_before == 500
+        assert result.list_action.stash_before == 200
+        assert result.list_action.credits_before == 1000
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
@@ -291,10 +322,13 @@ def test_handle_fighter_hire_campaign_action_created(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_hire_description_format(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test that description is formatted correctly."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.save()
@@ -317,7 +351,10 @@ def test_handle_fighter_hire_description_format(
     # Verify description format includes name and cost
     expected_desc = f"Hired Specialized Fighter Name ({fighter_cost}¢)"
     assert result.description == expected_desc
-    assert result.list_action.description == expected_desc
+    if feature_flag_enabled:
+        assert result.list_action.description == expected_desc
+    else:
+        assert result.list_action is None
     assert expected_desc in result.campaign_action.description
 
 
@@ -325,10 +362,13 @@ def test_handle_fighter_hire_description_format(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_same_list_campaign_mode(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test cloning a fighter to the same list in campaign mode."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -365,15 +405,18 @@ def test_handle_fighter_clone_same_list_campaign_mode(
     assert "Original Fighter" in result.description
 
     # Verify ListAction created on target list
-    assert result.list_action is not None
-    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
-    assert result.list_action.rating_delta == fighter_cost
-    assert result.list_action.stash_delta == 0
-    assert result.list_action.credits_delta == -fighter_cost
-    assert result.list_action.rating_before == 500
-    assert result.list_action.credits_before == 1000
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+        assert result.list_action.rating_delta == fighter_cost
+        assert result.list_action.stash_delta == 0
+        assert result.list_action.credits_delta == -fighter_cost
+        assert result.list_action.rating_before == 500
+        assert result.list_action.credits_before == 1000
+    else:
+        assert result.list_action is None
 
-    # Verify CampaignAction created
+    # Verify CampaignAction created (always created in campaign mode)
     assert result.campaign_action is not None
     assert "Cloned" in result.campaign_action.description
 
@@ -382,10 +425,13 @@ def test_handle_fighter_clone_same_list_campaign_mode(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_different_list_campaign_mode(
-    user, list_with_campaign, make_list, content_fighter
+    user, list_with_campaign, make_list, content_fighter, settings, feature_flag_enabled
 ):
     """Test cloning a fighter to a different list in campaign mode."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     source_list = list_with_campaign
     source_list.rating_current = 500
     source_list.credits_current = 1000
@@ -425,9 +471,12 @@ def test_handle_fighter_clone_different_list_campaign_mode(
     )
 
     # Verify action created on TARGET list only
-    assert result.list_action.list == target_list
-    assert result.list_action.rating_before == 300
-    assert result.list_action.credits_before == 800
+    if feature_flag_enabled:
+        assert result.list_action.list == target_list
+        assert result.list_action.rating_before == 300
+        assert result.list_action.credits_before == 800
+    else:
+        assert result.list_action is None
 
     # Verify target list credits spent
     assert target_list.credits_current == 800 - fighter_cost
@@ -438,10 +487,13 @@ def test_handle_fighter_clone_different_list_campaign_mode(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_list_building_mode(
-    user, make_list, content_fighter, content_house
+    user, make_list, content_fighter, content_house, settings, feature_flag_enabled
 ):
     """Test cloning a fighter in list building mode (no credits)."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -472,18 +524,29 @@ def test_handle_fighter_clone_list_building_mode(
     assert result.campaign_action is None  # No campaign mode
 
     # Verify ListAction created with no credit delta
-    assert result.list_action.credits_delta == 0
-    assert result.list_action.rating_delta == fighter_cost
+    if feature_flag_enabled:
+        assert result.list_action.credits_delta == 0
+        assert result.list_action.rating_delta == fighter_cost
+    else:
+        assert result.list_action is None
 
     # Verify credits unchanged
     assert lst.credits_current == 0
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_stash_fighter(
-    user, list_with_campaign, content_house, make_content_fighter
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    settings,
+    feature_flag_enabled,
 ):
     """Test cloning a stash fighter affects stash, not rating."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.stash_current = 100
@@ -520,16 +583,27 @@ def test_handle_fighter_clone_stash_fighter(
     )
 
     # Verify stash delta, not rating delta
-    assert result.list_action.stash_delta == fighter_cost
-    assert result.list_action.rating_delta == 0
-    assert result.list_action.credits_delta == -fighter_cost
+    if feature_flag_enabled:
+        assert result.list_action.stash_delta == fighter_cost
+        assert result.list_action.rating_delta == 0
+        assert result.list_action.credits_delta == -fighter_cost
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_with_equipment(
-    user, list_with_campaign, content_fighter, make_equipment
+    user,
+    list_with_campaign,
+    content_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
 ):
     """Test cloning a fighter with equipment includes equipment cost."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 2000
     lst.rating_current = 500
@@ -569,8 +643,11 @@ def test_handle_fighter_clone_with_equipment(
 
     # Verify cost includes equipment
     assert result.fighter_cost == total_cost
-    assert result.list_action.rating_delta == total_cost
-    assert result.list_action.credits_delta == -total_cost
+    if feature_flag_enabled:
+        assert result.list_action.rating_delta == total_cost
+        assert result.list_action.credits_delta == -total_cost
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
@@ -614,10 +691,13 @@ def test_handle_fighter_clone_insufficient_credits(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_correct_before_values(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test that before values are captured correctly in ListAction."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -645,9 +725,12 @@ def test_handle_fighter_clone_correct_before_values(
     )
 
     # Verify before values match original list state
-    assert result.list_action.rating_before == 500
-    assert result.list_action.stash_before == 200
-    assert result.list_action.credits_before == 1000
+    if feature_flag_enabled:
+        assert result.list_action.rating_before == 500
+        assert result.list_action.stash_before == 200
+        assert result.list_action.credits_before == 1000
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
@@ -702,10 +785,13 @@ def test_handle_fighter_clone_transaction_rollback(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_description_format(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test that description is formatted correctly."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.save()
@@ -736,15 +822,21 @@ def test_handle_fighter_clone_description_format(
         f"Cloned Target Fighter Name from Source Fighter Name ({fighter_cost}¢)"
     )
     assert result.description == expected_desc
-    assert result.list_action.description == expected_desc
+    if feature_flag_enabled:
+        assert result.list_action.description == expected_desc
+    else:
+        assert result.list_action is None
     assert expected_desc in result.campaign_action.description
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_with_category_override(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test cloning a fighter with category_override preserves the override."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.save()
@@ -773,15 +865,21 @@ def test_handle_fighter_clone_with_category_override(
 
     # Verify category override was cloned
     assert new_fighter.category_override == FighterCategoryChoices.CHAMPION
-    assert result.list_action is not None
-    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_clear_category_override(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test cloning a fighter can clear category_override (unchecked checkbox)."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.save()
@@ -810,15 +908,21 @@ def test_handle_fighter_clone_clear_category_override(
 
     # Verify category override was cleared
     assert new_fighter.category_override is None
-    assert result.list_action is not None
-    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    else:
+        assert result.list_action is None
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_clone_no_category_override(
-    user, list_with_campaign, content_fighter
+    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
 ):
     """Test cloning a fighter without category_override works normally."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.save()
@@ -845,5 +949,8 @@ def test_handle_fighter_clone_no_category_override(
 
     # Verify no category override on cloned fighter
     assert new_fighter.category_override is None
-    assert result.list_action is not None
-    assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.ADD_FIGHTER
+    else:
+        assert result.list_action is None

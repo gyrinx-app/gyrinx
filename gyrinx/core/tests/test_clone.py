@@ -249,10 +249,14 @@ def test_list_clone_copies_cost_fields(make_list):
     assert clone.credits_earned == 2000
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_list_clone_creates_action_on_original(make_list, user):
+def test_list_clone_creates_action_on_original(
+    make_list, user, settings, feature_flag_enabled
+):
     """Test that original list gets a ListAction recording the clone."""
     # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
 
     # Execute
@@ -264,11 +268,14 @@ def test_list_clone_creates_action_on_original(make_list, user):
     )
 
     # Assert
-    assert result.original_action is not None
-    assert result.original_action.list == original
-    assert result.original_action.action_type == ListActionType.CLONE
-    assert result.original_action.applied is True
-    assert "Clone" in result.original_action.description
+    if feature_flag_enabled:
+        assert result.original_action is not None
+        assert result.original_action.list == original
+        assert result.original_action.action_type == ListActionType.CLONE
+        assert result.original_action.applied is True
+        assert "Clone" in result.original_action.description
+    else:
+        assert result.original_action is None
 
 
 @pytest.mark.django_db
@@ -316,10 +323,14 @@ def test_list_clone_no_action_on_clone_when_feature_disabled(make_list, user, se
     assert result.cloned_action is None
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_list_clone_actions_have_zero_deltas(make_list, user):
+def test_list_clone_actions_have_zero_deltas(
+    make_list, user, settings, feature_flag_enabled
+):
     """Test that ListActions have zero cost deltas (no credits spent)."""
     # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
     original.credits_current = 500
     original.rating_current = 1000
@@ -334,22 +345,25 @@ def test_list_clone_actions_have_zero_deltas(make_list, user):
         owner=user,
     )
 
-    # Assert original's action
-    assert result.original_action.rating_delta == 0
-    assert result.original_action.stash_delta == 0
-    assert result.original_action.credits_delta == 0
+    # Assert original's action (only when feature flag enabled)
+    if feature_flag_enabled:
+        assert result.original_action.rating_delta == 0
+        assert result.original_action.stash_delta == 0
+        assert result.original_action.credits_delta == 0
 
-    # Assert clone's action (if created)
-    if result.cloned_action:
-        assert result.cloned_action.rating_delta == 0
-        assert result.cloned_action.stash_delta == 0
-        assert result.cloned_action.credits_delta == 0
+        # Assert clone's action (if created)
+        if result.cloned_action:
+            assert result.cloned_action.rating_delta == 0
+            assert result.cloned_action.stash_delta == 0
+            assert result.cloned_action.credits_delta == 0
 
 
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_list_clone_handler(make_list, user):
+def test_handle_list_clone_handler(make_list, user, settings, feature_flag_enabled):
     """Test the handler directly."""
     # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
     original.credits_current = 500
     original.rating_current = 1000
@@ -368,7 +382,12 @@ def test_handle_list_clone_handler(make_list, user):
     # Assert result structure
     assert result.original_list == original
     assert result.cloned_list.name == "Clone"
-    assert result.original_action is not None
+
+    # Assert action created only if feature flag enabled
+    if feature_flag_enabled:
+        assert result.original_action is not None
+    else:
+        assert result.original_action is None
 
     # Assert cost fields copied
     assert result.cloned_list.credits_current == 500
