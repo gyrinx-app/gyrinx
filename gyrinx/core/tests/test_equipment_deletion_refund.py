@@ -9,10 +9,19 @@ from gyrinx.core.models.list import List
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_delete_equipment_with_refund_checked(
-    client, user, make_list, make_list_fighter, make_equipment
+    client,
+    user,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
 ):
     """Test deleting equipment with refund checkbox checked adds credits."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     # Create a campaign mode list
     lst = make_list("Test Gang", status=List.CAMPAIGN_MODE)
     lst.credits_current = 100
@@ -49,20 +58,35 @@ def test_delete_equipment_with_refund_checked(
     assert lst.credits_current == 115  # 100 + 15
 
     # Verify ListAction was created with correct deltas
-    action = ListAction.objects.filter(
-        list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
-    ).first()
-    assert action is not None
-    assert action.credits_delta == 15
-    assert action.rating_delta == -15
-    assert "refund applied" in action.description.lower()
+    if feature_flag_enabled:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is not None
+        assert action.credits_delta == 15
+        assert action.rating_delta == -15
+        assert "refund applied" in action.description.lower()
+    else:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is None
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_delete_equipment_with_refund_unchecked(
-    client, user, make_list, make_list_fighter, make_equipment
+    client,
+    user,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
 ):
     """Test deleting equipment with refund unchecked doesn't add credits."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     # Create a campaign mode list
     lst = make_list("Test Gang", status=List.CAMPAIGN_MODE)
     lst.credits_current = 100
@@ -99,20 +123,35 @@ def test_delete_equipment_with_refund_unchecked(
     assert lst.credits_current == 100  # Unchanged
 
     # Verify ListAction was created with zero credits_delta
-    action = ListAction.objects.filter(
-        list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
-    ).first()
-    assert action is not None
-    assert action.credits_delta == 0
-    assert action.rating_delta == -15
-    assert "refund" not in action.description.lower()
+    if feature_flag_enabled:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is not None
+        assert action.credits_delta == 0
+        assert action.rating_delta == -15
+        assert "refund" not in action.description.lower()
+    else:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is None
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_delete_equipment_refund_only_in_campaign_mode(
-    client, user, make_list, make_list_fighter, make_equipment
+    client,
+    user,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
 ):
     """Test that refund is only applied in campaign mode."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
     # Create a list building mode list
     lst = make_list("Test Gang", status=List.LIST_BUILDING)
     lst.credits_current = 100
@@ -149,12 +188,18 @@ def test_delete_equipment_refund_only_in_campaign_mode(
     assert lst.credits_current == 100  # Unchanged
 
     # Verify ListAction was created with zero credits_delta
-    action = ListAction.objects.filter(
-        list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
-    ).first()
-    assert action is not None
-    assert action.credits_delta == 0
-    assert "refund" not in action.description.lower()
+    if feature_flag_enabled:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is not None
+        assert action.credits_delta == 0
+        assert "refund" not in action.description.lower()
+    else:
+        action = ListAction.objects.filter(
+            list=lst, action_type=ListActionType.REMOVE_EQUIPMENT
+        ).first()
+        assert action is None
 
 
 @pytest.mark.django_db
