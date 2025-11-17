@@ -193,6 +193,22 @@ class CampaignDetailView(generic.DetailView):
         # Get resource types with their list resources
         context["resource_types"] = get_campaign_resource_types_with_resources(campaign)
 
+        # Defensive fix: Ensure all lists have resources for all resource types
+        # This handles edge cases where resources weren't created due to race conditions,
+        # transaction failures, or other issues during resource type/list addition
+        if campaign.is_in_progress:
+            for resource_type in context["resource_types"]:
+                for list_obj in campaign.lists.all():
+                    CampaignListResource.objects.get_or_create(
+                        campaign=campaign,
+                        resource_type=resource_type,
+                        list=list_obj,
+                        defaults={
+                            "amount": resource_type.default_amount,
+                            "owner": campaign.owner,
+                        },
+                    )
+
         # Create a resource lookup dictionary for efficient template rendering
         # Structure: {list_id: {resource_type_id: resource}}
         resource_lookup = {}
@@ -1739,6 +1755,7 @@ def campaign_resources(request, id):
 
 
 @login_required
+@transaction.atomic
 def campaign_resource_type_new(request, id):
     """
     Create a new resource type for a campaign.
@@ -1767,42 +1784,52 @@ def campaign_resource_type_new(request, id):
     if request.method == "POST":
         form = CampaignResourceTypeForm(request.POST)
         if form.is_valid():
-            resource_type = form.save(commit=False)
-            resource_type.campaign = campaign
-            resource_type.owner = request.user
-            resource_type.save()
+            try:
+                resource_type = form.save(commit=False)
+                resource_type.campaign = campaign
+                resource_type.owner = request.user
+                resource_type.save()
 
-            # If campaign is already started, allocate resources to existing lists
-            if campaign.is_in_progress:
-                for list_obj in campaign.lists.all():
-                    CampaignListResource.objects.create(
-                        campaign=campaign,
-                        resource_type=resource_type,
-                        list=list_obj,
-                        amount=resource_type.default_amount,
-                        owner=request.user,
-                    )
+                # If campaign is already started, allocate resources to existing lists
+                if campaign.is_in_progress:
+                    for list_obj in campaign.lists.all():
+                        CampaignListResource.objects.get_or_create(
+                            campaign=campaign,
+                            resource_type=resource_type,
+                            list=list_obj,
+                            defaults={
+                                "amount": resource_type.default_amount,
+                                "owner": request.user,
+                            },
+                        )
 
-            # Log the resource type creation
-            log_event(
-                user=request.user,
-                noun=EventNoun.CAMPAIGN_RESOURCE,
-                verb=EventVerb.CREATE,
-                object=resource_type,
-                request=request,
-                campaign_id=str(campaign.id),
-                campaign_name=campaign.name,
-                resource_type_name=resource_type.name,
-                default_amount=resource_type.default_amount,
-                lists_allocated=campaign.lists.count()
-                if campaign.is_in_progress
-                else 0,
-            )
+                # Log the resource type creation
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN_RESOURCE,
+                    verb=EventVerb.CREATE,
+                    object=resource_type,
+                    request=request,
+                    campaign_id=str(campaign.id),
+                    campaign_name=campaign.name,
+                    resource_type_name=resource_type.name,
+                    default_amount=resource_type.default_amount,
+                    lists_allocated=campaign.lists.count()
+                    if campaign.is_in_progress
+                    else 0,
+                )
 
-            messages.success(request, f"Resource type '{resource_type.name}' created.")
-            return HttpResponseRedirect(
-                reverse("core:campaign-resources", args=(campaign.id,))
-            )
+                messages.success(
+                    request, f"Resource type '{resource_type.name}' created."
+                )
+                return HttpResponseRedirect(
+                    reverse("core:campaign-resources", args=(campaign.id,))
+                )
+            except Exception as e:
+                messages.error(
+                    request,
+                    f"Failed to create resource type: {str(e)}",
+                )
     else:
         form = CampaignResourceTypeForm()
 
