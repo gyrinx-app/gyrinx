@@ -523,7 +523,7 @@ class List(AppBase):
     ) -> Optional[ListAction]:
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
-        if self.latest_action:
+        if self.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
             user = kwargs.pop("user", None)
 
             # Make sure we have values for the key fields
@@ -567,8 +567,8 @@ class List(AppBase):
             credits_delta = kwargs.get("credits_delta", 0) if update_credits else 0
 
             try:
-                self.rating_current += rating_delta
-                self.stash_current += stash_delta
+                self.rating_current = max(0, self.rating_current + rating_delta)
+                self.stash_current = max(0, self.stash_current + stash_delta)
                 self.credits_current += credits_delta
                 self.credits_earned += max(0, credits_delta)
                 self.save(

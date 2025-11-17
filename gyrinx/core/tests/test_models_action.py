@@ -570,3 +570,77 @@ def test_check_wealth_sync_out_of_sync_action(user, make_list):
         assert call_args["latest_action_rating_after"] == 600
         assert call_args["latest_action_stash_after"] == 0
         assert call_args["latest_action_credits_after"] == 500
+
+
+# Test for protection against negative values
+
+
+@pytest.mark.django_db
+def test_create_action_prevents_negative_rating_and_stash(user, make_list, settings):
+    """Test that create_action prevents rating_current and stash_current from going negative.
+
+    When applying negative deltas (e.g., removing fighters or equipment), the values
+    should be clamped to 0 rather than going negative.
+    """
+    # Enable feature flag for initial action creation
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = make_list("Test List")
+
+    # Set initial values
+    lst.rating_current = 50
+    lst.stash_current = 30
+    lst.credits_current = 100
+    lst.save()
+
+    # Create initial action to establish baseline
+    lst.create_action(
+        user=user,
+        update_credits=True,
+        action_type=ListActionType.UPDATE_FIGHTER,
+        description="Initial state",
+        rating_delta=0,
+        stash_delta=0,
+        credits_delta=0,
+    )
+
+    # Apply action with negative deltas that would make values go negative without the fix
+    # rating: 50 - 100 = -50 (should be clamped to 0)
+    # stash: 30 - 50 = -20 (should be clamped to 0)
+    action = lst.create_action(
+        user=user,
+        update_credits=True,
+        action_type=ListActionType.REMOVE_FIGHTER,
+        description="Remove expensive fighter",
+        rating_delta=-100,
+        stash_delta=-50,
+        credits_delta=0,
+    )
+
+    assert action is not None
+
+    # Refresh from database to get updated values
+    lst.refresh_from_db()
+
+    # Verify that rating_current and stash_current are clamped to 0, not negative
+    assert lst.rating_current == 0, (
+        "rating_current should be clamped to 0, not negative"
+    )
+    assert lst.stash_current == 0, "stash_current should be clamped to 0, not negative"
+    assert lst.credits_current == 100, "credits_current should remain unchanged"
+
+    # Verify the action records the correct before/delta values
+    assert action.rating_before == 50
+    assert action.rating_delta == -100
+    assert action.stash_before == 30
+    assert action.stash_delta == -50
+    assert action.credits_before == 100
+    assert action.credits_delta == 0
+
+    # The after values should reflect the clamped results
+    # Note: The action.rating_after is a calculated property (rating_before + rating_delta)
+    # which would be -50, but the actual list.rating_current is clamped to 0
+    assert action.rating_after == -50, (
+        "Action's calculated rating_after can be negative"
+    )
+    assert action.stash_after == -20, "Action's calculated stash_after can be negative"
