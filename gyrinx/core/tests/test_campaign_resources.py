@@ -421,3 +421,156 @@ def test_campaign_detail_shows_resources():
     assert "Meat" in content
     assert "Credits" in content
     assert "View Resources" in content
+
+
+@pytest.mark.django_db
+def test_campaign_detail_creates_missing_resources_in_progress(content_house):
+    """Test that viewing campaign detail page creates missing resources for IN_PROGRESS campaigns."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    # Create campaign with two lists and two resource types
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+    )
+
+    meat = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        default_amount=10,
+        owner=user,
+    )
+    credits = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Credits",
+        default_amount=100,
+        owner=user,
+    )
+
+    gang1 = List.objects.create(
+        name="Gang One", owner=user, content_house=content_house
+    )
+    gang2 = List.objects.create(
+        name="Gang Two", owner=user, content_house=content_house
+    )
+    campaign.lists.add(gang1, gang2)
+
+    # Start campaign
+    campaign.start_campaign()
+
+    # Verify resources were created
+    cloned_lists = list(campaign.lists.all())
+    assert len(cloned_lists) == 2
+    assert CampaignListResource.objects.filter(campaign=campaign).count() == 4
+
+    # Simulate missing resources by deleting some
+    # Delete meat resource for first list and credits resource for second list
+    CampaignListResource.objects.filter(
+        campaign=campaign, resource_type=meat, list=cloned_lists[0]
+    ).delete()
+    CampaignListResource.objects.filter(
+        campaign=campaign, resource_type=credits, list=cloned_lists[1]
+    ).delete()
+
+    # Verify resources are missing
+    assert CampaignListResource.objects.filter(campaign=campaign).count() == 2
+
+    # View campaign detail page (this should trigger defensive fix)
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+
+    # Verify missing resources were created with default amounts
+    assert CampaignListResource.objects.filter(campaign=campaign).count() == 4
+
+    # Check that missing resources have correct default amounts
+    meat_resource = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=meat, list=cloned_lists[0]
+    )
+    assert meat_resource.amount == 10  # default_amount
+
+    credits_resource = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=credits, list=cloned_lists[1]
+    )
+    assert credits_resource.amount == 100  # default_amount
+
+
+@pytest.mark.django_db
+def test_campaign_detail_does_not_modify_existing_resources(content_house):
+    """Test that viewing campaign detail page does not modify existing resources."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    # Create campaign with list and resource type
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+    )
+
+    meat = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        default_amount=10,
+        owner=user,
+    )
+
+    gang = List.objects.create(name="Gang One", owner=user, content_house=content_house)
+    campaign.lists.add(gang)
+
+    # Start campaign
+    campaign.start_campaign()
+
+    # Get the cloned list
+    cloned_list = campaign.lists.first()
+
+    # Modify the resource amount
+    resource = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=meat, list=cloned_list
+    )
+    resource.amount = 25  # Different from default_amount of 10
+    resource.save()
+
+    # View campaign detail page
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+
+    # Verify resource amount was NOT changed back to default
+    resource.refresh_from_db()
+    assert resource.amount == 25  # Should still be 25, not 10
+
+
+@pytest.mark.django_db
+def test_campaign_detail_does_not_create_resources_for_pre_campaign(content_house):
+    """Test that defensive fix only runs for IN_PROGRESS campaigns, not PRE_CAMPAIGN."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    # Create campaign in PRE_CAMPAIGN status
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        status=Campaign.PRE_CAMPAIGN,
+    )
+
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        default_amount=10,
+        owner=user,
+    )
+
+    gang = List.objects.create(name="Gang One", owner=user, content_house=content_house)
+    campaign.lists.add(gang)
+
+    # View campaign detail page
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+
+    # Verify NO resources were created (should wait until campaign starts)
+    assert CampaignListResource.objects.filter(campaign=campaign).count() == 0
