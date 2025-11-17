@@ -861,7 +861,7 @@ def clone_list(request, id):
 
     error_message = None
     if request.method == "POST":
-        form = CloneListForm(request.POST, instance=list_)
+        form = CloneListForm(request.POST, list_to_clone=list_)
         if form.is_valid():
             result = handle_list_clone(
                 user=request.user,
@@ -888,7 +888,7 @@ def clone_list(request, id):
             )
     else:
         form = CloneListForm(
-            instance=list_,
+            list_to_clone=list_,
             initial={
                 "name": f"{list_.name} (Clone)",
             },

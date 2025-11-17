@@ -71,27 +71,31 @@ class NewListForm(forms.ModelForm):
         }
 
 
-class CloneListForm(forms.ModelForm):
-    class Meta:
-        model = List
-        fields = ["name", "narrative", "public"]
-        labels = {
-            "name": "Name",
-            "narrative": "About",
-            "public": "Public",
-        }
-        help_texts = {
-            "name": "The name you use to identify this List. This may be public.",
-            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
-            "public": "If checked, this List will be visible to all users of Gyrinx. If unchecked, it will be unlisted. You can edit this later.",
-        }
-        widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control"}),
-            "narrative": TinyMCEWithUpload(
-                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
-            ),
-            "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        }
+class CloneListForm(forms.Form):
+    name = forms.CharField(
+        label="Name",
+        help_text="The name you use to identify this List. This may be public.",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    narrative = forms.CharField(
+        required=False,
+        label="About",
+        help_text="Narrative description of the gang in this list: their history and how to play them.",
+        widget=TinyMCEWithUpload(
+            attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+        ),
+    )
+    public = forms.BooleanField(
+        required=False,
+        label="Public",
+        help_text="If checked, this List will be visible to all users of Gyrinx. If unchecked, it will be unlisted. You can edit this later.",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        # Pop the list being cloned from kwargs
+        self.list_to_clone = kwargs.pop("list_to_clone", None)
+        super().__init__(*args, **kwargs)
 
 
 class EditListForm(forms.ModelForm):
