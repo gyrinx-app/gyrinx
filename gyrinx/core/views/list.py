@@ -4848,6 +4848,19 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     if request.method == "POST":
         with transaction.atomic():
+            # Check if advancement already exists for this campaign action (idempotent check)
+            if params.campaign_action_id:
+                existing_advancement = ListFighterAdvancement.objects.filter(
+                    campaign_action_id=params.campaign_action_id
+                ).first()
+
+                if existing_advancement:
+                    messages.info(
+                        request,
+                        f"Advancement already applied: {existing_advancement}",
+                    )
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
             # Create the advancement
             if params.is_stat_advancement():
                 advancement = ListFighterAdvancement(

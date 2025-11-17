@@ -576,3 +576,59 @@ def test_promotion_outcome_includes_promotion_text(fighter_with_xp, skill):
 
     # Check skill was added
     assert skill in fighter_with_xp.skills.all()
+
+
+@pytest.mark.django_db
+def test_advancement_confirm_idempotent_with_campaign_action(
+    client, user, fighter_with_xp
+):
+    """Test that advancement confirm is idempotent when campaign_action_id is provided."""
+    from gyrinx.core.models.campaign import CampaignAction
+
+    client.login(username="testuser", password="password")
+
+    # Create a campaign action
+    campaign_action = CampaignAction.objects.create(
+        user=user,
+        owner=user,
+        campaign=fighter_with_xp.list.campaign,
+        list=fighter_with_xp.list,
+        description="Test advancement",
+    )
+
+    # Prepare the URL with all required parameters
+    url = reverse(
+        "core:list-fighter-advancement-confirm",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+    params = {
+        "advancement_choice": "other",
+        "description": "Test advancement",
+        "xp_cost": "10",
+        "cost_increase": "20",
+        "campaign_action_id": str(campaign_action.id),
+    }
+
+    # First POST - should create the advancement
+    response = client.post(f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
+    assert response.status_code == 302
+
+    # Check that the advancement was created
+    advancements = ListFighterAdvancement.objects.filter(
+        fighter=fighter_with_xp, campaign_action=campaign_action
+    )
+    assert advancements.count() == 1
+    first_advancement = advancements.first()
+
+    # Second POST with same campaign_action_id - should NOT create duplicate
+    response = client.post(f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
+    assert response.status_code == 302
+
+    # Check that no duplicate was created
+    advancements = ListFighterAdvancement.objects.filter(
+        fighter=fighter_with_xp, campaign_action=campaign_action
+    )
+    assert advancements.count() == 1
+
+    # Verify it's the same advancement (not deleted and recreated)
+    assert advancements.first().id == first_advancement.id
