@@ -510,12 +510,11 @@ def test_handle_equipment_upgrade_remove_upgrades(
     if feature_flag_enabled:
         assert result.list_action.rating_delta == -20
         assert result.list_action.credits_delta == 0  # No credits returned
-
-        # Verify no CampaignAction (no credits spent)
-        assert result.campaign_action is None
     else:
         assert result.list_action is None
-        assert result.campaign_action is None
+
+    # Verify no CampaignAction (no credits spent)
+    assert result.campaign_action is None
 
     # Verify description indicates removal
     assert "Removed upgrades" in result.description
