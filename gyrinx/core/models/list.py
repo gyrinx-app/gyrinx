@@ -588,7 +588,8 @@ class List(AppBase):
                     **track_args,
                     error=str(e),
                 )
-                self.refresh_from_db()
+                # Don't refresh_from_db() here - causes TransactionManagementError when
+                # called within an atomic transaction after an error
                 return la
 
             track(
