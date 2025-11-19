@@ -337,7 +337,6 @@ def campaign_add_lists(request, id):
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
-
         if list_id:
             try:
                 list_to_add = List.objects.get(id=list_id)
@@ -356,7 +355,50 @@ def campaign_add_lists(request, id):
                             defaults={"owner": request.user},
                         )
 
-                        if created:
+                        # Check for auto-accept condition (same owner)
+                        if campaign.owner == list_to_add.owner:
+                            # If invitation was declined, reset to pending so it can be accepted
+                            if invitation.is_declined:
+                                invitation.status = CampaignInvitation.PENDING
+
+                            # Try to accept the invitation
+                            if invitation.accept():
+                                messages.success(
+                                    request,
+                                    f"{list_to_add.name} has been added to the campaign.",
+                                )
+
+                                # Log the event if it was just created
+                                if created:
+                                    log_event(
+                                        user=request.user,
+                                        noun=EventNoun.CAMPAIGN_INVITATION,
+                                        verb=EventVerb.CREATE,
+                                        object=invitation,
+                                        request=request,
+                                        campaign_name=campaign.name,
+                                        list_invited_id=str(list_to_add.id),
+                                        list_invited_name=list_to_add.name,
+                                        list_owner=list_to_add.owner.username,
+                                        action="invitation_auto_accepted",
+                                    )
+                            else:
+                                # If accept() returned False, it was likely already accepted/pending
+                                if (
+                                    invitation.is_accepted
+                                    and list_to_add in campaign.lists.all()
+                                ):
+                                    messages.info(
+                                        request,
+                                        f"{list_to_add.name} is already in the campaign.",
+                                    )
+                                else:
+                                    # Should not happen if we handled declined above, but fallback
+                                    messages.info(
+                                        request, f"Could not add {list_to_add.name}."
+                                    )
+
+                        elif created:
                             # Log the invitation creation event
                             log_event(
                                 user=request.user,
