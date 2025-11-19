@@ -360,6 +360,7 @@ def campaign_add_lists(request, id):
                             # If invitation was declined, reset to pending so it can be accepted
                             if invitation.is_declined:
                                 invitation.status = CampaignInvitation.PENDING
+                                invitation.save()  # Required to persist the status change
 
                             # Try to accept the invitation
                             if invitation.accept():
@@ -368,22 +369,23 @@ def campaign_add_lists(request, id):
                                     f"{list_to_add.name} has been added to the campaign.",
                                 )
 
-                                # Log the event if it was just created
-                                if created:
-                                    log_event(
-                                        user=request.user,
-                                        noun=EventNoun.CAMPAIGN_INVITATION,
-                                        verb=EventVerb.CREATE,
-                                        object=invitation,
-                                        request=request,
-                                        campaign_name=campaign.name,
-                                        list_invited_id=str(list_to_add.id),
-                                        list_invited_name=list_to_add.name,
-                                        list_owner=list_to_add.owner.username,
-                                        action="invitation_auto_accepted",
-                                    )
+                                # Log the auto-accept event regardless of whether the invitation was just created
+                                log_event(
+                                    user=request.user,
+                                    noun=EventNoun.CAMPAIGN_INVITATION,
+                                    verb=EventVerb.CREATE
+                                    if created
+                                    else EventVerb.UPDATE,
+                                    object=invitation,
+                                    request=request,
+                                    campaign_name=campaign.name,
+                                    list_invited_id=str(list_to_add.id),
+                                    list_invited_name=list_to_add.name,
+                                    list_owner=list_to_add.owner.username,
+                                    action="invitation_auto_accepted",
+                                )
                             else:
-                                # If accept() returned False, it was likely already accepted/pending
+                                # If accept() returned False, the invitation was already accepted
                                 if (
                                     invitation.is_accepted
                                     and list_to_add in campaign.lists.all()

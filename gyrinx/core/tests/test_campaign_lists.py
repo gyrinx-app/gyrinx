@@ -139,16 +139,21 @@ def test_campaign_add_list_post():
     from gyrinx.core.models.invitation import CampaignInvitation
 
     client = Client()
-    user = User.objects.create_user(username="testuser", password="testpass")
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
-    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
-
-    list_to_add = List.objects.create(
-        name="List to Add", owner=user, content_house=house
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
     )
 
-    client.login(username="testuser", password="testpass")
+    list_to_add = List.objects.create(
+        name="List to Add", owner=list_owner, content_house=house, public=True
+    )
+
+    client.login(username="campaign_owner", password="testpass")
 
     response = client.post(
         reverse("core:campaign-add-lists", args=[campaign.id]),
@@ -293,14 +298,19 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
     from gyrinx.core.models.invitation import CampaignInvitation
 
     client = Client()
-    user = User.objects.create_user(username="testuser", password="testpass")
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
-    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, public=True
+    )
 
     # Add an initial list and start the campaign
     initial_list = List.objects.create(
-        name="Initial List", owner=user, content_house=house
+        name="Initial List", owner=campaign_owner, content_house=house
     )
     campaign.lists.add(initial_list)
     assert campaign.start_campaign()  # This starts the campaign
@@ -308,10 +318,12 @@ def test_add_list_to_in_progress_campaign_shows_confirmation():
     # Refresh the campaign to get updated status
     campaign.refresh_from_db()
 
-    # Create a new list to add
-    new_list = List.objects.create(name="New List", owner=user, content_house=house)
+    # Create a new list to add (owned by different user)
+    new_list = List.objects.create(
+        name="New List", owner=list_owner, content_house=house, public=True
+    )
 
-    client.login(username="testuser", password="testpass")
+    client.login(username="campaign_owner", password="testpass")
 
     # Try to add the list - should create invitation and redirect
     response = client.post(
@@ -376,20 +388,30 @@ def test_list_already_in_campaign_message():
     from gyrinx.core.models.invitation import CampaignInvitation
 
     client = Client()
-    user = User.objects.create_user(username="testuser", password="testpass")
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
     # Create a campaign in pre-campaign mode
     campaign = Campaign.objects.create(
-        name="Test Campaign", owner=user, public=True, status=Campaign.PRE_CAMPAIGN
+        name="Test Campaign",
+        owner=campaign_owner,
+        public=True,
+        status=Campaign.PRE_CAMPAIGN,
     )
 
-    # Create and add a list
+    # Create and add a list (owned by different user)
     test_list = List.objects.create(
-        name="Test List", owner=user, content_house=house, status=List.LIST_BUILDING
+        name="Test List",
+        owner=list_owner,
+        content_house=house,
+        status=List.LIST_BUILDING,
+        public=True,
     )
 
-    client.login(username="testuser", password="testpass")
+    client.login(username="campaign_owner", password="testpass")
 
     # Send invitation for the first time
     response = client.post(
