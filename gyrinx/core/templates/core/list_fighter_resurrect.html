@@ -1,0 +1,33 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Resurrect Fighter - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with text=list.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Resurrect Fighter: {{ fighter.fully_qualified_name }}</h1>
+        <form action="{% url 'core:list-fighter-resurrect' list.id fighter.id %}"
+              method="post">
+            {% csrf_token %}
+            <p>
+                Are you sure you want to resurrect <strong>{{ fighter.name }}</strong>?
+            </p>
+            <p>This will:</p>
+            <ul>
+                <li>Return them to the gang roster;</li>
+                <li>Set their cost back to its original value, minus equipment.</li>
+            </ul>
+            <div class="alert alert-primary">
+                <p class="mb-0">
+                    <strong>Note:</strong> This will not restore the fighter's equipment - you will need to re-equip them manually from the stash or otherwise.
+                </p>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-heart-pulse"></i> Resurrect Fighter
+                </button>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

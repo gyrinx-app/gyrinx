@@ -3548,6 +3548,91 @@ def kill_list_fighter(request, id, fighter_id):
 
 
 @login_required
+def resurrect_list_fighter(request, id, fighter_id):
+    """
+    Change the status of a :model:`core.ListFighter` from dead to alive in campaign mode.
+    This sets cost to the original value of the fighter, but does not
+    restore equipment transferred to the stash when the fighter was killed.
+
+    **Context**
+
+    ``fighter``
+        The dead :model:`core.ListFighter` to be marked as alive.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+
+    **Template**
+
+    :template:`core/list_fighter_resurrect.html`
+    """
+    from gyrinx.core.models.campaign import CampaignAction
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+    )
+
+    if not lst.is_campaign_mode:
+        messages.error(request, "Fighters can only be resurrected in campaign mode.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    # Don't resurrect stash fighters - just in case
+    if fighter.is_stash:
+        messages.error(request, "Cannot resurrect the stash.")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        if not fighter.injury_state == ListFighter.DEAD:
+            messages.error(request, "Only dead fighters can be resurrected.")
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+        # Mark fighter as alive and set cost to original value
+        fighter.injury_state = ListFighter.ACTIVE
+        fighter.cost_override = None
+        fighter.save()
+
+        # Log the resurrection event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.ACTIVATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            action="resurrected",
+        )
+
+        # Log the resurrection campaign action
+        if lst.campaign:
+            CampaignAction.objects.create(
+                user=request.user,
+                owner=request.user,
+                campaign=lst.campaign,
+                list=lst,
+                description=f"Resurrection: {fighter.name} is no longer dead",
+                outcome=f"{fighter.name} has been returned to the active roster.",
+            )
+
+        messages.success(
+            request,
+            f"{fighter.name} has been resurrected. They can now be re-equipped from the stash.",
+        )
+
+        return HttpResponseRedirect(
+            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+        )
+
+    return render(
+        request, "core/list_fighter_resurrect.html", {"fighter": fighter, "list": lst}
+    )
+
+
+@login_required
 def delete_list_fighter(request, id, fighter_id):
     """
     Delete a :model:`core.ListFighter`.
@@ -3802,6 +3887,17 @@ def list_fighter_state_edit(request, id, fighter_id):
                     # Don't save the state change here - let the kill view handle it
                     return HttpResponseRedirect(
                         reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
+                    )
+                # If resurrecting from dead to active, redirect to resurrect confirmation
+                elif (
+                    new_state == ListFighter.ACTIVE
+                    and fighter.injury_state == ListFighter.DEAD
+                ):
+                    # Don't save the state change here - let the resurrect view handle it
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-resurrect", args=(lst.id, fighter.id)
+                        )
                     )
 
                 with transaction.atomic():
