@@ -4851,6 +4851,27 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     if request.method == "POST":
         with transaction.atomic():
+            # Check if advancement already exists for this campaign action (idempotent check)
+            if params.campaign_action_id:
+                existing_advancement = ListFighterAdvancement.objects.filter(
+                    campaign_action_id=params.campaign_action_id
+                ).first()
+
+                if existing_advancement:
+                    if existing_advancement.fighter != fighter:
+                        # Log warning - this shouldn't happen but good to catch if it does
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.warning(
+                            f"Campaign action {params.campaign_action_id} already linked to different fighter"
+                        )
+                    messages.info(
+                        request,
+                        f"Advancement already applied: {existing_advancement}",
+                    )
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
             # Create the advancement
             if params.is_stat_advancement():
                 advancement = ListFighterAdvancement(
@@ -5011,8 +5032,29 @@ def apply_skill_advancement(
     fighter: ListFighter,
     skill: ContentSkill,
     params: AdvancementFlowParams,
-) -> ListFighterAdvancement:
+) -> ListFighterAdvancement | None:
     with transaction.atomic():
+        # Check if advancement already exists for this campaign action (idempotent check)
+        if params.campaign_action_id:
+            existing_advancement = ListFighterAdvancement.objects.filter(
+                campaign_action_id=params.campaign_action_id
+            ).first()
+
+            if existing_advancement:
+                if existing_advancement.fighter != fighter:
+                    # Log warning - this shouldn't happen but good to catch if it does
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Campaign action {params.campaign_action_id} already linked to different fighter"
+                    )
+                messages.info(
+                    request,
+                    f"Advancement already applied: {existing_advancement}",
+                )
+                return None
+
         # Create the advancement
         advancement = ListFighterAdvancement(
             fighter=fighter,
@@ -5180,7 +5222,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
             if form.is_valid():
                 skill = form.cleaned_data["skill"]
 
-                apply_skill_advancement(
+                advancement = apply_skill_advancement(
                     request,
                     lst,
                     fighter,
@@ -5188,10 +5230,11 @@ def list_fighter_advancement_select(request, id, fighter_id):
                     params,
                 )
 
-                messages.success(
-                    request,
-                    f"Advanced: {fighter.name} has gained {skill.name} skill",
-                )
+                if advancement:
+                    messages.success(
+                        request,
+                        f"Advanced: {fighter.name} has gained {skill.name} skill",
+                    )
 
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
         else:
@@ -5215,7 +5258,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
                     # Pick a random skill from the available ones
                     random_skill = available_skills.order_by("?").first()
 
-                    apply_skill_advancement(
+                    advancement = apply_skill_advancement(
                         request,
                         lst,
                         fighter,
@@ -5223,10 +5266,11 @@ def list_fighter_advancement_select(request, id, fighter_id):
                         params,
                     )
 
-                    messages.success(
-                        request,
-                        f"Advanced: {fighter.name} has gained {random_skill.name} skill",
-                    )
+                    if advancement:
+                        messages.success(
+                            request,
+                            f"Advanced: {fighter.name} has gained {random_skill.name} skill",
+                        )
 
                     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
                 else:
