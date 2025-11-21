@@ -10,11 +10,6 @@
         <form action="{% url 'core:list-fighter-kill' list.id fighter.id %}"
               method="post">
             {% csrf_token %}
-            <div class="alert alert-danger">
-                <p class="mb-0">
-                    <strong>Warning:</strong> This action cannot be undone.
-                </p>
-            </div>
             <p>
                 Are you sure you want to mark <strong>{{ fighter.name }}</strong> as dead?
             </p>
