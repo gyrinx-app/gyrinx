@@ -1,14 +1,14 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Clone {{ form.instance.name }}
+    Clone {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Clone {{ form.instance.name }}</h1>
+        <h1 class="h3">Clone {{ list.name }}</h1>
         <p>Cloning a list will create a new list with the same fighters and settings.</p>
-        <form action="{% url 'core:list-clone' form.instance.id %}"
+        <form action="{% url 'core:list-clone' list.id %}"
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
