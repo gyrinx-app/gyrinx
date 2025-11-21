@@ -891,6 +891,8 @@ def clone_list(request, id):
             list_to_clone=list_,
             initial={
                 "name": f"{list_.name} (Clone)",
+                "narrative": list_.narrative,
+                "public": list_.public,
             },
         )
 

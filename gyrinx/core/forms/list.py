@@ -75,6 +75,7 @@ class CloneListForm(forms.Form):
     name = forms.CharField(
         label="Name",
         help_text="The name you use to identify this List. This may be public.",
+        max_length=255,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     narrative = forms.CharField(
