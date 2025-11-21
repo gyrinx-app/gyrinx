@@ -30,7 +30,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - All our infra is in GCP europe-west2 (London)
 - In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
 
-## Critical Workflow (Before Push)
+## Critical Workflow
+
+### Before Starting
+
+1. Create a new branch for the task: `git checkout -b issue-NAME`
+
+### Before Push
 
 1. Format code: `./scripts/fmt.sh`
 2. Run tests: `pytest -n auto`

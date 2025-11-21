@@ -270,3 +270,68 @@ def test_list_detail_shows_invitation_count(
 
     assert response.status_code == 200
     assert response.context["pending_invitations_count"] == 1
+
+
+@pytest.mark.django_db
+def test_campaign_add_lists_auto_accept_same_owner(
+    client, campaign_owner, test_list, campaign
+):
+    """Test that adding a list owned by the campaign owner auto-accepts."""
+    # Ensure campaign owner owns the list
+    test_list.owner = campaign_owner
+    test_list.save()
+
+    # Login as campaign owner
+    client.login(username="campaign_owner", password="password123")
+
+    # Add the list
+    url = reverse("core:campaign-add-lists", args=[campaign.id])
+    response = client.post(url, {"list_id": test_list.id})
+
+    # Check redirect
+    assert response.status_code == 302
+
+    # Verify invitation was created and ACCEPTED
+    invitation = CampaignInvitation.objects.get(campaign=campaign, list=test_list)
+    assert invitation.status == CampaignInvitation.ACCEPTED
+
+    # Verify list is in campaign
+    assert test_list in campaign.lists.all()
+
+    # Verify message
+    messages = list(response.wsgi_request._messages)
+    assert len(messages) == 1
+    assert str(messages[0]) == f"{test_list.name} has been added to the campaign."
+
+
+@pytest.mark.django_db
+def test_resend_declined_invitation_auto_accept_same_owner(
+    client, campaign_owner, test_list, campaign
+):
+    """Test that re-sending a declined invitation auto-accepts if owners match."""
+    # Ensure campaign owner owns the list
+    test_list.owner = campaign_owner
+    test_list.save()
+
+    # Create and decline an invitation
+    invitation = CampaignInvitation.objects.create(
+        campaign=campaign, list=test_list, owner=campaign_owner
+    )
+    invitation.decline()
+
+    # Login as campaign owner
+    client.login(username="campaign_owner", password="password123")
+
+    # Add the list again
+    url = reverse("core:campaign-add-lists", args=[campaign.id])
+    response = client.post(url, {"list_id": test_list.id})
+
+    # Check redirect
+    assert response.status_code == 302
+
+    # Verify invitation is now ACCEPTED
+    invitation.refresh_from_db()
+    assert invitation.status == CampaignInvitation.ACCEPTED
+
+    # Verify list is in campaign
+    assert test_list in campaign.lists.all()

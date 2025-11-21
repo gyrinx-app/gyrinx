@@ -338,21 +338,24 @@ def test_can_add_lists_to_in_progress_campaign(client):
     """Test that lists can be added to a campaign after it starts with confirmation."""
     from gyrinx.core.models.invitation import CampaignInvitation
 
-    owner = User.objects.create_user(username="owner", password="password")
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
     house = ContentHouse.objects.create(name="Test House")
-    client.login(username="owner", password="password")
+    client.login(username="campaign_owner", password="password")
 
     # Create campaign and list
     campaign = Campaign.objects.create_with_user(
-        user=owner,
+        user=campaign_owner,
         name="Test Campaign",
-        owner=owner,
+        owner=campaign_owner,
     )
 
     list1 = List.objects.create_with_user(
-        user=owner,
+        user=campaign_owner,
         name="List 1",
-        owner=owner,
+        owner=campaign_owner,
         content_house=house,
     )
 
@@ -363,13 +366,15 @@ def test_can_add_lists_to_in_progress_campaign(client):
     campaign.start_campaign()
     assert campaign.is_in_progress
 
-    # Create another list to try to add
+    # Create another list to try to add (owned by different user)
     list2 = List.objects.create_with_user(
-        user=owner,
+        user=list_owner,
         name="List 2",
-        owner=owner,
+        owner=list_owner,
         content_house=house,
     )
+    list2.public = True
+    list2.save()
 
     # Try to access add lists page - should be accessible
     response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
