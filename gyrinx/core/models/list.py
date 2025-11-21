@@ -51,6 +51,7 @@ from gyrinx.content.models import (
     ContentPsykerPower,
     ContentSkill,
     ContentStat,
+    ContentStatline,
     ContentStatlineTypeStat,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -1101,47 +1102,51 @@ class ListFighterQuerySet(models.QuerySet):
         )
 
     def sq_content_fighter_statline(self):
-        return Case(
-            When(
-                Q(content_fighter__custom_statline__isnull=False),
-                then=ArrayAgg(
+        """
+        Subquery to get custom statline stats as JSON array.
+        This avoids JOIN duplication issues with direct ArrayAgg annotations.
+        """
+        return Subquery(
+            ContentStatline.objects.filter(
+                content_fighter_id=OuterRef("content_fighter_id")
+            )
+            .annotate(
+                stats_array=ArrayAgg(
                     JSONObject(
-                        field_name=F(
-                            "content_fighter__custom_statline__stats__statline_type_stat__stat__field_name"
-                        ),
-                        name=F(
-                            "content_fighter__custom_statline__stats__statline_type_stat__stat__short_name"
-                        ),
-                        value=F("content_fighter__custom_statline__stats__value"),
-                        highlight=F(
-                            "content_fighter__custom_statline__stats__statline_type_stat__is_highlighted"
-                        ),
+                        field_name=F("stats__statline_type_stat__stat__field_name"),
+                        name=F("stats__statline_type_stat__stat__short_name"),
+                        value=F("stats__value"),
+                        highlight=F("stats__statline_type_stat__is_highlighted"),
                         first_of_group=F(
-                            "content_fighter__custom_statline__stats__statline_type_stat__is_first_of_group"
+                            "stats__statline_type_stat__is_first_of_group"
                         ),
                     ),
-                    # Cannot use distinct here due to order_by
-                    order_by=F(
-                        "content_fighter__custom_statline__stats__statline_type_stat__position"
-                    ),
-                ),
-            ),
-            default=Value(None),
+                    ordering=F("stats__statline_type_stat__position").asc(),
+                )
+            )
+            .values("stats_array")[:1]
         )
 
     def sq_stat_overrides(self):
-        return Case(
-            When(
-                Q(content_fighter__custom_statline__isnull=False)
-                & Q(stat_overrides__isnull=False),
-                then=ArrayAgg(
+        """
+        Subquery to get stat overrides as JSON array.
+        This avoids JOIN duplication issues with direct ArrayAgg annotations.
+        """
+        return Subquery(
+            ListFighterStatOverride.objects.filter(
+                list_fighter_id=OuterRef("pk"), archived=False
+            )
+            .values("list_fighter_id")
+            .annotate(
+                overrides_array=ArrayAgg(
                     JSONObject(
-                        field_name=F("stat_overrides__content_stat__stat__field_name"),
-                        value=F("stat_overrides__value"),
+                        field_name=F("content_stat__stat__field_name"),
+                        value=F("value"),
                     ),
                     distinct=True,
-                ),
+                )
             )
+            .values("overrides_array")[:1]
         )
 
 
