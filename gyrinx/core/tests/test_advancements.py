@@ -632,3 +632,141 @@ def test_advancement_confirm_idempotent_with_campaign_action(
 
     # Verify it's the same advancement (not deleted and recreated)
     assert advancements.first().id == first_advancement.id
+
+
+@pytest.mark.django_db
+def test_apply_skill_advancement_idempotent_with_campaign_action(
+    user, fighter_with_xp, skill
+):
+    """Test that apply_skill_advancement is idempotent when campaign_action_id is provided."""
+    from unittest.mock import Mock
+
+    from gyrinx.core.models.campaign import CampaignAction
+    from gyrinx.core.views.list import (
+        AdvancementFlowParams,
+        apply_skill_advancement,
+    )
+
+    # Create a campaign action
+    campaign_action = CampaignAction.objects.create(
+        user=user,
+        owner=user,
+        campaign=fighter_with_xp.list.campaign,
+        list=fighter_with_xp.list,
+        description="Test skill advancement",
+    )
+
+    # Create a mock request object with messages support
+    request = Mock()
+    request.user = user
+
+    # Create advancement parameters with campaign_action_id
+    params = AdvancementFlowParams(
+        advancement_choice="skill_primary_chosen",
+        xp_cost=6,
+        cost_increase=10,
+        campaign_action_id=campaign_action.id,
+    )
+
+    # First call - should create the advancement
+    advancement = apply_skill_advancement(
+        request,
+        fighter_with_xp.list,
+        fighter_with_xp,
+        skill,
+        params,
+    )
+    assert advancement is not None
+
+    # Check that the advancement was created
+    advancements = ListFighterAdvancement.objects.filter(
+        fighter=fighter_with_xp, campaign_action=campaign_action
+    )
+    assert advancements.count() == 1
+    first_advancement = advancements.first()
+
+    # Second call with same campaign_action_id - should NOT create duplicate
+    advancement2 = apply_skill_advancement(
+        request,
+        fighter_with_xp.list,
+        fighter_with_xp,
+        skill,
+        params,
+    )
+    assert advancement2 is None  # Should return None for duplicate
+
+    # Check that no duplicate was created
+    advancements = ListFighterAdvancement.objects.filter(
+        fighter=fighter_with_xp, campaign_action=campaign_action
+    )
+    assert advancements.count() == 1
+
+    # Verify it's the same advancement (not deleted and recreated)
+    assert advancements.first().id == first_advancement.id
+
+
+@pytest.mark.django_db
+def test_advancement_confirm_warns_on_different_fighter(
+    client, user, fighter_with_xp, list_with_campaign, content_fighter
+):
+    """Test that advancement confirm warns if campaign_action_id is linked to a different fighter."""
+    from gyrinx.core.models.campaign import CampaignAction
+
+    client.login(username="testuser", password="password")
+
+    # Create another fighter
+    other_fighter = ListFighter.objects.create(
+        name="Other Fighter",
+        content_fighter=content_fighter,
+        list=list_with_campaign,
+        xp_current=50,
+        xp_total=50,
+    )
+
+    # Create a campaign action
+    campaign_action = CampaignAction.objects.create(
+        user=user,
+        owner=user,
+        campaign=fighter_with_xp.list.campaign,
+        list=fighter_with_xp.list,
+        description="Test advancement",
+    )
+
+    # Create an advancement for the first fighter
+    ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
+        description="Test advancement",
+        xp_cost=10,
+        cost_increase=20,
+        campaign_action=campaign_action,
+    )
+
+    # Try to create an advancement for the second fighter with the same campaign_action_id
+    url = reverse(
+        "core:list-fighter-advancement-confirm",
+        args=[other_fighter.list.id, other_fighter.id],
+    )
+    params = {
+        "advancement_choice": "other",
+        "description": "Test advancement",
+        "xp_cost": "10",
+        "cost_increase": "20",
+        "campaign_action_id": str(campaign_action.id),
+    }
+
+    # This should trigger the warning log (we can't easily test logs, but we can verify behavior)
+    response = client.post(f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
+    assert response.status_code == 302
+
+    # Verify no duplicate was created for the other fighter
+    other_fighter_advancements = ListFighterAdvancement.objects.filter(
+        fighter=other_fighter, campaign_action=campaign_action
+    )
+    assert other_fighter_advancements.count() == 0
+
+    # Verify the original advancement still exists
+    original_advancements = ListFighterAdvancement.objects.filter(
+        fighter=fighter_with_xp, campaign_action=campaign_action
+    )
+    assert original_advancements.count() == 1
