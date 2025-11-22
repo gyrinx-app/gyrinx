@@ -123,6 +123,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
+    # Google Cloud Logging - must be early to capture request for trace correlation
+    "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

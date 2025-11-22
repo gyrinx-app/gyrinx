@@ -19,6 +19,7 @@ client.setup_logging(
 # Override Django logging configuration for production to ensure exceptions are logged as single entries
 LOGGING["handlers"]["structured_console"] = {
     "class": "google.cloud.logging.handlers.StructuredLogHandler",
+    "project_id": client.project,  # Required for trace correlation
 }
 
 # Update loggers to use structured logging
