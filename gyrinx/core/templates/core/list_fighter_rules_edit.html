@@ -4,8 +4,8 @@
     Rules - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back_to_list.html" with list=list %}
-    <div class="col-12 px-0 vstack gap-3">
+    {% include "core/includes/list_common_header.html" with list=list link_list=True %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Rules: {{ fighter.fully_qualified_name }}</h1>
         {# Default rules from ContentFighter #}
         <div class="card">

@@ -1,31 +1,27 @@
-{% extends "core/layouts/page.html" %}
+{% extends "core/layouts/base.html" %}
 {% load custom_tags %}
 {% block head_title %}
     XP - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    <div class="container">
-        {% include "core/includes/back.html" %}
-        <div class="row">
-            <div class="col-12 col-md-8 col-lg-6">
-                <h2>Edit XP for {{ fighter.name }}</h2>
-                <ul class="fs-5 mb-3 list-group list-group-flush">
-                    <li class="list-group-item">
-                        <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current
-                    </li>
-                    <li class="list-group-item">
-                        <span class="badge text-bg-secondary">{{ fighter.xp_total }} XP</span> Total
-                    </li>
-                </ul>
-                <form method="post" class="vstack gap-3">
-                    {% csrf_token %}
-                    {{ form.as_div }}
-                    <div class="hstack gap-2 mt-3 align-items-center">
-                        <button type="submit" class="btn btn-primary">Update XP</button>
-                        <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
-                    </div>
-                </form>
+    {% include "core/includes/list_common_header.html" with list=list link_list=True %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h2>Edit XP for {{ fighter.name }}</h2>
+        <ul class="fs-5 mb-3 list-group list-group-flush">
+            <li class="list-group-item">
+                <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current
+            </li>
+            <li class="list-group-item">
+                <span class="badge text-bg-secondary">{{ fighter.xp_total }} XP</span> Total
+            </li>
+        </ul>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form.as_div }}
+            <div class="hstack gap-2 mt-3 align-items-center">
+                <button type="submit" class="btn btn-primary">Update XP</button>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
             </div>
-        </div>
+        </form>
     </div>
 {% endblock content %}
