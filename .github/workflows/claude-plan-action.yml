@@ -8,11 +8,10 @@ on:
 
 jobs:
   issue-planning:
-    # Skip if issue is from dependabot or if it's a comment that doesn't mention @claude-plan
     if: |
       github.actor != 'dependabot[bot]' &&
       (
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude-plan') || contains(github.event.issue.title, '@claude-plan')) && (github.event.issue.user.login == 'tgvashworth' || github.event.issue.user.login == 'claude[bot]')) ||
+        (github.event_name == 'issues' && github.event.action == 'opened' && (github.event.issue.user.login == 'tgvashworth' || github.event.issue.user.login == 'claude[bot]')) ||
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude-plan') && github.event.comment.user.login == 'tgvashworth')
       )
 
