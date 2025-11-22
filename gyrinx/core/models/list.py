@@ -4278,6 +4278,14 @@ class ListFighterAdvancement(AppBase):
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
 
+    def get_stat_increased_display(self):
+        # Import here to avoid circular imports
+        from gyrinx.core.forms.advancement import AdvancementTypeForm
+
+        return AdvancementTypeForm.all_stat_choices().get(
+            f"stat_{self.stat_increased}", "Unknown"
+        )
+
     def apply_advancement(self):
         """Apply this advancement to the fighter."""
         if self.advancement_type == self.ADVANCEMENT_STAT and self.stat_increased:
