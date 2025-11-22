@@ -549,3 +549,86 @@ def test_statline_override_annotation_with_custom_statline(list_obj):
             "value": "3",
         },
     ]
+
+
+@pytest.mark.django_db
+def test_with_related_data_returns_single_fighter_with_stat_overrides(list_obj):
+    """
+    Test that with_related_data().get() returns only one ListFighter when
+    the fighter has both custom statline and stat overrides.
+    This is a regression test for issue #1112.
+    """
+    fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=list_obj.content_house,
+        category="GANGER",
+    )
+
+    # Create statline type with stats
+    statline_type = ContentStatlineType.objects.create(name="Test Type")
+
+    # Create stat definitions
+    stat1_def = ContentStat.objects.create(
+        field_name="stat1",
+        short_name="S1",
+        full_name="Stat 1",
+    )
+
+    stat2_def = ContentStat.objects.create(
+        field_name="stat2",
+        short_name="S2",
+        full_name="Stat 2",
+    )
+
+    # Create statline type stats
+    s1 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat1_def,
+        position=1,
+    )
+
+    s2 = ContentStatlineTypeStat.objects.create(
+        statline_type=statline_type,
+        stat=stat2_def,
+        position=2,
+    )
+
+    # Create statline
+    statline = ContentStatline.objects.create(
+        content_fighter=fighter,
+        statline_type=statline_type,
+    )
+
+    # Add stat values
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s1,
+        value="1",
+    )
+
+    ContentStatlineStat.objects.create(
+        statline=statline,
+        statline_type_stat=s2,
+        value="2",
+    )
+
+    # Create ListFighter
+    lf = ListFighter.objects.create(
+        content_fighter=fighter,
+        list=list_obj,
+    )
+
+    # Add stat override
+    ListFighterStatOverride.objects.create(
+        list_fighter=lf,
+        content_stat=s1,
+        value="3",
+    )
+
+    # This should return exactly one fighter, not raise MultipleObjectsReturned
+    result = ListFighter.objects.with_related_data().get(id=lf.id)
+
+    # Verify it's the correct fighter
+    assert result.id == lf.id
+    assert result.annotated_content_fighter_statline is not None
+    assert result.annotated_stat_overrides is not None
