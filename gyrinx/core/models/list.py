@@ -1734,9 +1734,13 @@ class ListFighter(AppBase):
         return [mod for mod in self._mods if isinstance(mod, ContentModFighterSkill)]
 
     @cached_property
-    def statline(self) -> pylist[StatlineDisplay]:
+    def statline_before_overrides(self) -> pylist[StatlineDisplay]:
         """
-        Get the statline for this fighter.
+        Get the statline for this fighter with mods applied but without user overrides.
+
+        This is useful for showing the "modified value" in the stat override editor,
+        so users can see what their stats are after equipment/skill mods but before
+        their manual overrides are applied.
 
         There are two statline systems:
         1. one simple, legacy version that has a base list of stats on the content fighter, and `_override` fields
@@ -1744,12 +1748,62 @@ class ListFighter(AppBase):
         2. a more complex, newer version that allows custom statline types to be created and assigned to content
            fighters, with overrides stored separately, and with specific underlying stats reused across statline types
 
-        In either case, the flow goes something like this:
+        The flow for this method:
         1. Get the statline for the underlying content fighter
-        2. Apply any overrides from the list fighter
-        3. Apply any mods from the list fighter
+        2. Apply any mods from the list fighter (equipment, skills, etc.)
+        3. Do NOT apply user overrides
 
         The more complex system is, without optimisation, massively more expensive to compute.
+        """
+        stats = []
+
+        # Prefetch all stats because we're going to use them later
+        # This is better than querying each stat individually
+        mod_ctx = ModContext(
+            all_stats={
+                stat["field_name"]: stat for stat in ContentStat.objects.all().values()
+            }
+        )
+
+        for stat in self.content_fighter_statline:
+            input_value = stat["value"]
+
+            # Apply the mods (but not overrides)
+            statmods = self._statmods(stat["field_name"])
+            value = self._apply_mods(
+                stat["field_name"],
+                input_value,
+                statmods,
+                mod_ctx,
+            )
+
+            modded = value != stat["value"]
+            sd = StatlineDisplay(
+                name=stat["name"],
+                field_name=stat["field_name"],
+                classes=stat["classes"],
+                highlight=stat["highlight"],
+                value=value,
+                modded=modded,
+            )
+            stats.append(sd)
+
+        return stats
+
+    @cached_property
+    def statline(self) -> pylist[StatlineDisplay]:
+        """
+        Get the statline for this fighter.
+
+        This method builds on statline_before_overrides by additionally applying user overrides.
+
+        The flow:
+        1. Get the statline with mods applied (via statline_before_overrides)
+        2. Apply any user overrides from the list fighter
+
+        Note: We can't simply call statline_before_overrides here because we need to
+        recalculate the statline with overrides applied as input before mods are applied.
+        The override system works by replacing the base value before mods are applied.
         """
         stats = []
 

@@ -840,6 +840,14 @@ class EditListFighterStatsForm(forms.Form):
         # Check if the fighter has a custom statline
         has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
 
+        # Get the statline before overrides (with mods applied)
+        statline_before_overrides = fighter.statline_before_overrides
+
+        # Create a dict for quick lookup of modified values by field_name
+        modified_values = {
+            stat.field_name: stat.value for stat in statline_before_overrides
+        }
+
         if has_custom_statline:
             # Use the custom statline approach
             statline = fighter.content_fighter.custom_statline
@@ -858,9 +866,12 @@ class EditListFighterStatsForm(forms.Form):
                 # Get the base value from ContentStatline
                 try:
                     base_stat = statline.stats.get(statline_type_stat=stat_def)
-                    placeholder = base_stat.value
+                    base_value = base_stat.value
                 except Exception:
-                    placeholder = "-"
+                    base_value = "-"
+
+                # Get the modified value (after mods, before overrides)
+                modified_value = modified_values.get(stat_def.field_name, base_value)
 
                 self.fields[field_name] = forms.CharField(
                     required=False,
@@ -878,7 +889,8 @@ class EditListFighterStatsForm(forms.Form):
                 # Store metadata for template rendering
                 self.fields[field_name].stat_def = stat_def
                 self.fields[field_name].is_first_of_group = stat_def.is_first_of_group
-                self.fields[field_name].base_value = placeholder
+                self.fields[field_name].base_value = base_value
+                self.fields[field_name].modified_value = modified_value
         else:
             # Use legacy override fields
             legacy_stats = [
@@ -901,6 +913,9 @@ class EditListFighterStatsForm(forms.Form):
                 current_value = getattr(fighter, override_field) or ""
                 base_value = getattr(fighter.content_fighter, field_name) or "-"
 
+                # Get the modified value (after mods, before overrides)
+                modified_value = modified_values.get(field_name, base_value)
+
                 self.fields[override_field] = forms.CharField(
                     required=False,
                     label=full_name,
@@ -921,6 +936,7 @@ class EditListFighterStatsForm(forms.Form):
                 self.fields[override_field].short_name = short_name
                 self.fields[override_field].full_name = full_name
                 self.fields[override_field].base_value = base_value
+                self.fields[override_field].modified_value = modified_value
 
         self.fighter = fighter
         self.has_custom_statline = has_custom_statline

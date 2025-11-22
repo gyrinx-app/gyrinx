@@ -25,6 +25,13 @@
                                     <th>Stat</th>
                                     <th>Short</th>
                                     <th>Base Value</th>
+                                    <th>
+                                        Value
+                                        <i class="bi bi-info-circle"
+                                           data-bs-toggle="tooltip"
+                                           data-bs-placement="top"
+                                           data-bs-title="Stat value after modifications and before the override"></i>
+                                    </th>
                                     <th>Override</th>
                                 </tr>
                             </thead>
@@ -40,6 +47,9 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-muted">{{ field.field.base_value }}</td>
+                                        <td class="{% if field.field.modified_value != field.field.base_value %}{% else %}text-muted{% endif %}">
+                                            {{ field.field.modified_value }}
+                                        </td>
                                         <td>
                                             {{ field }}
                                             {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors.0 }}</div>{% endif %}
@@ -59,3 +69,12 @@
         </form>
     </div>
 {% endblock content %}
+{% block extra_body %}
+    <script>
+        // Initialize Bootstrap tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        });
+    </script>
+{% endblock extra_body %}
