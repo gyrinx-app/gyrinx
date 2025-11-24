@@ -48,7 +48,6 @@ from gyrinx.content.models import (
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
-    ContentPsykerPower,
     ContentSkill,
     ContentStat,
     ContentStatline,
@@ -59,6 +58,7 @@ from gyrinx.content.models import (
     StatlineDisplay,
     VirtualWeaponProfile,
 )
+from gyrinx.content.models.psyker import ContentPsykerPower
 from gyrinx.core.models.action import ListAction
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.campaign import Campaign

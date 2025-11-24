@@ -2,10 +2,9 @@ import pytest
 
 from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
     ContentRule,
 )
+from gyrinx.content.models.psyker import ContentPsykerDiscipline, ContentPsykerPower
 from gyrinx.core.models.list import ListFighter, ListFighterPsykerPowerAssignment
 
 

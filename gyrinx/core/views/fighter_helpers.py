@@ -9,9 +9,8 @@ from django.shortcuts import get_object_or_404
 
 from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
 )
+from gyrinx.content.models.psyker import ContentPsykerDiscipline, ContentPsykerPower
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
     List,
