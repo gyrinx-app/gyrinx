@@ -25,9 +25,10 @@ from simple_history.models import HistoricalRecords
 from simpleeval import simple_eval
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.content.models.base import Content
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.core.models.util import ModContext
 from gyrinx.models import (
-    Base,
     CostMixin,
     FighterCategoryChoices,
     FighterCostMixin,
@@ -42,16 +43,6 @@ logger = logging.getLogger(__name__)
 ##
 ## Content Models
 ##
-
-
-class Content(Base):
-    """
-    An abstract base model that captures common fields for all content-related
-    models. Subclasses should inherit from this to store standard metadata.
-    """
-
-    class Meta:
-        abstract = True
 
 
 class ContentHouse(Content):
@@ -99,54 +90,6 @@ class ContentHouse(Content):
         verbose_name = "House"
         verbose_name_plural = "Houses"
         ordering = ["name"]
-
-
-class ContentSkillCategory(Content):
-    """
-    Represents a category of skills that fighters may possess.
-    """
-
-    name = models.CharField(max_length=255, unique=True)
-    restricted = models.BooleanField(
-        default=False,
-        help_text="If checked, this skill tree is only available to specific gangs.",
-    )
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "Skill Tree"
-        verbose_name_plural = "Skill Trees"
-        ordering = ["name"]
-
-
-class ContentSkill(Content):
-    """
-    Represents a skill that fighters may possess.
-    """
-
-    name = models.CharField(max_length=255, db_index=True)
-    category = models.ForeignKey(
-        ContentSkillCategory,
-        on_delete=models.CASCADE,
-        null=False,
-        blank=False,
-        related_name="skills",
-        verbose_name="tree",
-        db_index=True,
-    )
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return f"{self.name}"
-
-    class Meta:
-        verbose_name = "Skill"
-        verbose_name_plural = "Skills"
-        ordering = ["category", "name"]
-        unique_together = ["name", "category"]
 
 
 class ContentPsykerDiscipline(Content):
