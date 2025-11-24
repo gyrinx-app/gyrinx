@@ -72,7 +72,7 @@ jobs:
 
           # Claude configuration via CLI arguments
           claude_args: |
-            --model claude-opus-4-20250514
+            --model claude-opus-4-5-20251101
             --allowedTools "Edit,View,Replace,Write,Create,BatchTool,GlobTool,GrepTool,NotebookEditCell,Bash,mcp__*"
             --system-prompt "The repo is gyrinx-app/gyrinx.
 

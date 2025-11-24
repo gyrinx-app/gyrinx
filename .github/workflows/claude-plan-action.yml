@@ -96,7 +96,7 @@ jobs:
 
           # Claude configuration via CLI arguments
           claude_args: |
-            --model claude-sonnet-4-5-20250929
+            --model claude-opus-4-5-20251101
             --allowedTools "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(pytest:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(git:*)"
             --system-prompt "IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
             pip install --editable .
