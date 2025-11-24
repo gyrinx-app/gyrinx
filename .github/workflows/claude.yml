@@ -95,7 +95,7 @@ jobs:
 
           # Claude configuration via CLI arguments
           claude_args: |
-            --model claude-sonnet-4-5-20250929
+            --model claude-opus-4-5-20251101
             --allowedTools Bash
             --system-prompt "IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
             pip install --editable .
