@@ -127,6 +127,8 @@ MIDDLEWARE = [
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Catch RequestDataTooBig early and return 400 instead of 500
+    "gyrinx.core.middleware.RequestSizeExceptionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
