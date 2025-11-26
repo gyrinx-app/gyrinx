@@ -5,6 +5,7 @@
 ## Getting Started
 
 - [Project Overview](README.md)
+- [Tutorial: Your First Contribution](developing-gyrinx/tutorial-first-contribution.md)
 
 ## How-To Guides
 
