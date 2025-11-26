@@ -175,7 +175,10 @@ def handle_fighter_advancement(
     campaign_action = None
     if campaign_action_id:
         # Link to existing campaign action and update outcome
-        campaign_action = CampaignAction.objects.get(id=campaign_action_id)
+        try:
+            campaign_action = CampaignAction.objects.get(id=campaign_action_id)
+        except CampaignAction.DoesNotExist:
+            raise ValidationError(f"Campaign action {campaign_action_id} not found")
         advancement.campaign_action = campaign_action
         campaign_action.outcome = outcome
         campaign_action.save()

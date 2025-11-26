@@ -4985,39 +4985,46 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                 )
 
         # Call the handler
-        if params.is_stat_advancement():
-            result = handle_fighter_advancement(
-                user=request.user,
-                fighter=fighter,
-                advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
-                advancement_choice=params.advancement_choice,
-                stat_increased=stat,
-                campaign_action_id=params.campaign_action_id,
-            )
-        elif params.is_other_advancement():
-            result = handle_fighter_advancement(
-                user=request.user,
-                fighter=fighter,
-                advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
-                advancement_choice=params.advancement_choice,
-                description=stat_desc,
-                campaign_action_id=params.campaign_action_id,
-            )
-        elif is_random_equipment:
-            result = handle_fighter_advancement(
-                user=request.user,
-                fighter=fighter,
-                advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
-                advancement_choice=params.advancement_choice,
-                equipment_assignment=selected_assignment,
-                description=equipment_description,
-                campaign_action_id=params.campaign_action_id,
+        try:
+            if params.is_stat_advancement():
+                result = handle_fighter_advancement(
+                    user=request.user,
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    advancement_choice=params.advancement_choice,
+                    stat_increased=stat,
+                    campaign_action_id=params.campaign_action_id,
+                )
+            elif params.is_other_advancement():
+                result = handle_fighter_advancement(
+                    user=request.user,
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    advancement_choice=params.advancement_choice,
+                    description=stat_desc,
+                    campaign_action_id=params.campaign_action_id,
+                )
+            elif is_random_equipment:
+                result = handle_fighter_advancement(
+                    user=request.user,
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    advancement_choice=params.advancement_choice,
+                    equipment_assignment=selected_assignment,
+                    description=equipment_description,
+                    campaign_action_id=params.campaign_action_id,
+                )
+        except DjangoValidationError as e:
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
             )
 
         # Handle idempotent case (already applied)
@@ -5098,18 +5105,24 @@ def apply_skill_advancement(
     """
     Apply a skill advancement to a fighter using the handler.
 
-    Returns the advancement if created, or None if already applied (idempotent).
+    Returns the advancement if created, or None if already applied (idempotent)
+    or if a validation error occurred.
     """
-    result = handle_fighter_advancement(
-        user=request.user,
-        fighter=fighter,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
-        xp_cost=params.xp_cost,
-        cost_increase=params.cost_increase,
-        advancement_choice=params.advancement_choice,
-        skill=skill,
-        campaign_action_id=params.campaign_action_id,
-    )
+    try:
+        result = handle_fighter_advancement(
+            user=request.user,
+            fighter=fighter,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+            xp_cost=params.xp_cost,
+            cost_increase=params.cost_increase,
+            advancement_choice=params.advancement_choice,
+            skill=skill,
+            campaign_action_id=params.campaign_action_id,
+        )
+    except DjangoValidationError as e:
+        error_message = ". ".join(e.messages)
+        messages.error(request, error_message)
+        return None
 
     if result is None:
         # Idempotent case - already applied
@@ -5207,17 +5220,27 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 assignment = form.cleaned_data["assignment"]
 
                 # Use the handler to create the advancement
-                result = handle_fighter_advancement(
-                    user=request.user,
-                    fighter=fighter,
-                    advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                    xp_cost=params.xp_cost,
-                    cost_increase=params.cost_increase,
-                    advancement_choice=params.advancement_choice,
-                    equipment_assignment=assignment,
-                    description=f"Chosen {advancement.name}: {assignment}",
-                    campaign_action_id=params.campaign_action_id,
-                )
+                try:
+                    result = handle_fighter_advancement(
+                        user=request.user,
+                        fighter=fighter,
+                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                        xp_cost=params.xp_cost,
+                        cost_increase=params.cost_increase,
+                        advancement_choice=params.advancement_choice,
+                        equipment_assignment=assignment,
+                        description=f"Chosen {advancement.name}: {assignment}",
+                        campaign_action_id=params.campaign_action_id,
+                    )
+                except DjangoValidationError as e:
+                    error_message = ". ".join(e.messages)
+                    messages.error(request, error_message)
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-advancement-type",
+                            args=(lst.id, fighter.id),
+                        )
+                    )
 
                 if result is None:
                     # Idempotent case - already applied
