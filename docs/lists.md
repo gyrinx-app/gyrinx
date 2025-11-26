@@ -89,36 +89,27 @@ Lists have three status modes that control their usage:
 
 ## Narrative Features
 
-Lists and fighters support rich narrative content:
+Lists and fighters support rich narrative content through the `narrative` field (TextField with TinyMCE rich text editing):
 
-### List Narrative
+- **List.narrative** - Background story for the gang
+- **ListFighter.narrative** - Individual fighter stories
 
-- Add background story and lore for your gang
-- Rich text editing with formatting options
-- Displayed on list detail page
-- Optional - focus on mechanics or storytelling as desired
-
-### Fighter Narratives
-
-- Individual stories for each fighter
-- Track notable deeds and character development
-- Rich text editing support
-- Build deeper connection with your gang members
-
-To edit narratives:
-
-1. Navigate to your list
-2. Use "Edit Narrative" for list story
-3. Use fighter menu → "Edit Narrative" for individual fighters
+The narrative fields use TinyMCE for rich text editing and are rendered with `|safe` filter in templates.
 
 ## Campaign Integration
 
-Lists integrate seamlessly with the campaign system:
+Lists integrate with the campaign system through cloning:
 
-1. **Pre-Campaign**: Add your list to campaigns before they start
-2. **Campaign Start**: List is cloned for campaign-specific tracking
-3. **During Campaign**:
-   - Track resources and assets
-   - Log actions and outcomes
-   - Original list remains unchanged
+1. **Pre-Campaign**: Lists can be added to campaigns in the pre-campaign phase
+2. **Campaign Start**: `List.clone()` creates a campaign-specific copy
+3. **During Campaign**: Campaign list tracks resources, actions, and outcomes independently
 4. **Post-Campaign**: Campaign version preserved as historical record
+
+The original list remains in "List Building" status while the clone tracks campaign-specific state.
+
+## Related Documentation
+
+- [Fighter Cost System Reference](fighter-cost-system-reference.md) - Detailed cost calculation logic
+- [Fighter Cost System Design](fighter-cost-system-design.md) - Design philosophy for cost calculations
+- [Models and Database](developing-gyrinx/models-and-database.md) - Data model documentation
+- [Campaigns](campaigns.md) - Campaign system documentation
