@@ -8,54 +8,47 @@
 [tests-badge]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml/badge.svg
 [tests-link]: https://github.com/gyrinx-app/content/actions/workflows/test.yaml
 
-This repository contains the Gyrinx Django application. The code for this
-application is in the [`gyrinx`](./gyrinx) directory.
+This repository contains the Gyrinx Django application - a gang management tool
+for Necromunda. The code for this application is in the [`gyrinx`](./gyrinx)
+directory.
 
-See the [docs](./docs) directory or the [Google Doc](https://docs.google.com/document/d/1seKmLBz2L4bGPeHfUxjgl39BJ27-O1Fb0MlJWfmLQFE/edit?tab=t.5q9jh7it524z)
-for technical discussions. Access to the Google Doc is limited to contributors
-and admins.
+📚 **[Full Documentation](./docs/README.md)** - Technical overview, architecture,
+and development guides.
 
-## Table of Contents
+## Prerequisites
 
-- [Technical Overview](#technical-overview)
-- [Development](#development)
-- [Setup](#setup)
-- [Running the Django application](#running-the-django-application)
-- [Building the UI](#building-the-ui)
-- [Running Tests](#running-tests)
-- [New data migration](#new-data-migration)
-- [Debugging SQL](#debugging-sql)
-- [Content library for development](#content-library-for-development)
+Before getting started, you'll need:
 
-## Technical Overview
+- **Python 3.12+** - Use [pyenv](https://github.com/pyenv/pyenv) to manage versions
+- **Docker** with [Compose](https://docs.docker.com/compose/gettingstarted/) - For the database
+- **Git** - For version control
 
-Gyrinx is a [Django](https://www.djangoproject.com/) application running in
-[Google Cloud Platform](https://console.cloud.google.com/). It runs in
-[Cloud Run](https://cloud.google.com/run), a serverless application platform,
-with [Cloud SQL (specifically, Postgres)](https://cloud.google.com/sql/postgresql)
-for data storage. [Cloud Build](https://cloud.google.com/build) is used to deploy
-the application. The frontend is built with
-[Bootstrap 5](https://getbootstrap.com/docs/5.0/getting-started/introduction/).
+## Quick Start
 
-The code is hosted here on [GitHub](https://github.com/gyrinx-app). When new code
-is pushed on main to the [gyrinx repo](https://github.com/gyrinx-app/gyrinx), it
-is automatically deployed by Cloud Build. This includes running database
-migrations. Code is tested automatically in
-[GitHub Actions](https://github.com/gyrinx-app/gyrinx/actions).
+```bash
+# Clone and enter the repository
+git clone git@github.com:gyrinx-app/gyrinx.git && cd gyrinx
 
-Analytics are through
-[Google Analytics](https://analytics.google.com/analytics/web/#/p470310767/reports/intelligenthome?params=_u..nav%3Dmaui).
+# Set up Python environment
+python -m venv .venv && . .venv/bin/activate
+pip install --editable .
 
-Project tasks, issues and to-dos are managed in the
-[Gyrinx GitHub Project](https://github.com/orgs/gyrinx-app/projects/1).
+# Configure the application
+manage setupenv
+
+# Set up frontend toolchain
+nodeenv -p && npm install && npm run build
+
+# Start the database and run migrations
+docker compose up -d && manage migrate
+
+# Run the application
+manage runserver
+```
+
+Visit http://localhost:8000 to see the application.
 
 ## Development
-
-To run Gyrinx, you will need
-[Docker](https://docs.docker.com/get-started/get-docker/) with
-[Compose](https://docs.docker.com/compose/gettingstarted/). You'll also need a
-recent Python version: [pyenv](https://github.com/pyenv/pyenv) is a good way to
-manage installed Python versions.
 
 There's a [devcontainer](https://code.visualstudio.com/docs/devcontainers/containers)
 configured in this repo which should get you up and running too, perhaps via a
@@ -68,9 +61,9 @@ The Django `manage.py` file (in `scripts/`) is added to your shell by
 manage shell
 ```
 
-## Setup
+## Detailed Setup
 
-To set up the development environment, follow these steps:
+The Quick Start above gets you running fast. For more detailed steps:
 
 1. Clone the repository:
 
