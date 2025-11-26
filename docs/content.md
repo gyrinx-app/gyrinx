@@ -3,7 +3,7 @@
 Necromunda is a complex game. The content application within the Django project captures the static content library from which gangs can be built, campaigns can be run, and battles can be fought.
 
 {% hint style="info" %}
-The content is managed by the Gyrinx team and at time of writing is not extensible by users. However, we do have plans to support user-defined content which can be used within Gyrinx alongside the core content library.
+The content is managed by the Gyrinx team and is not currently extensible by users. We have plans to support user-defined content in the future.
 {% endhint %}
 
 The Django models within the content application are all prefixed with C`ontent` to help us distinguish them. The most important models are `ContentHouse`, `ContentFighter`, `ContentEquipment`, and `ContentWeaponProfile`.
@@ -19,11 +19,27 @@ The actual content library itself is managed directly within the Django admin ap
 {% hint style="info" %}
 The size and complexity of the content library can make developing Gyrinx locally difficult because you have to set up a reasonable representation of the production content library locally.
 
-We are considering providing a development export of a representative part content library to support development & testing. If that would be useful, let's chat in the #development Discord channel.
+A development content fixture is available - see the [Development Setup](development-setup.md) guide for details.
 {% endhint %}
 
-TODO: What are the principles of the content library? How is it put together and what rules are we trying to adhere to? How are tests written?
+## Content Library Principles
 
-## Extending support for new types of content
+The content library follows these key principles:
 
-TODO: How do we think about this? What are the expectations? e.g. discuss on GitHub or Discord.&#x20;
+1. **Accuracy** - Content should match the rulebooks as closely as possible
+2. **Completeness** - All options available to players should be represented
+3. **Consistency** - Similar concepts should be modelled in similar ways
+4. **Testability** - Content models should be covered by automated tests
+
+For questions about content modelling or to report content issues, please open a [GitHub issue](https://github.com/gyrinx-app/gyrinx/issues) or discuss in the #development Discord channel.
+
+## Extending Support for New Content Types
+
+Adding support for new content types (e.g., new gang types, equipment categories, or game mechanics) requires:
+
+1. **Discussion** - Open a GitHub issue or Discord thread to discuss the approach
+2. **Design** - Document the proposed model changes and their implications
+3. **Implementation** - Create the Django models with appropriate tests
+4. **Content Entry** - Add the actual game content via the admin interface
+
+See the [Contributing Guide](../CONTRIBUTING.md) for more details on the development process.
