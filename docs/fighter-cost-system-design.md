@@ -2,6 +2,8 @@
 
 This document explains the design philosophy and architectural decisions behind Gyrinx's fighter cost calculation system.
 
+> **See also:** [Fighter Cost System Reference](fighter-cost-system-reference.md) for implementation details, code locations, and API reference.
+
 ## Why This Complexity?
 
 The fighter cost system might seem complex at first glance, but this complexity serves specific game mechanics from Necromunda. The system needs to handle:
