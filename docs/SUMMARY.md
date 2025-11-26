@@ -9,8 +9,6 @@
 ## How-To Guides
 
 - [Bootstrap Usage Guide](bootstrap-usage-guide.md)
-- [Icon Usage](icon-usage.md)
-- [Manual Testing Guide](manual-testing-guide.md)
 - [SQL Debugging Guide](sql-debugging.md)
 - [Query Debugging Utilities](query-debugging-utilities.md)
 - [GCS CDN Setup](gcs-cdn-setup.md)
@@ -28,6 +26,8 @@
 - [Psykers](psykers.md)
 - [Fighter Cost System Reference](fighter-cost-system-reference.md)
 - [Fighter Advancements](technical-reference/fighter-advancements.md)
+- [Icon Usage](icon-usage.md)
+- [Manual Testing Guide](manual-testing-guide.md)
 - [Admin Customizations](developing-gyrinx/admin-customizations.md)
 - [History Tracking](developing-gyrinx/history-tracking.md)
 - [Group-Based Features](developing-gyrinx/group-based-features.md)
