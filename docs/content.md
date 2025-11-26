@@ -19,7 +19,7 @@ The actual content library itself is managed directly within the Django admin ap
 {% hint style="info" %}
 The size and complexity of the content library can make developing Gyrinx locally difficult because you have to set up a reasonable representation of the production content library locally.
 
-A development content fixture is available - see the [Development Setup](development-setup.md) guide for details.
+A development content fixture is available - see the [Content Data Management](./operations/content-data-management.md) guide for details.
 {% endhint %}
 
 ## Content Library Principles
