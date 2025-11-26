@@ -59,7 +59,7 @@ Instead: we allow them to do whatever they like, will over time implement more a
 Examples of advisory rules that could be implemented include over-filling a fighters weapon slots or not following gang composition rulebook stipulations.
 
 {% hint style="info" %}
-At time of writing, advisory rule implementations are not yet implemented.
+Advisory rules are planned for future development. Track progress in our [GitHub issues](https://github.com/gyrinx-app/gyrinx/issues).
 {% endhint %}
 
 ## List Status Modes
