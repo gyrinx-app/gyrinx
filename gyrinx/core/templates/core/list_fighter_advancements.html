@@ -4,11 +4,9 @@
     Advancements - {{ fighter.name }}
 {% endblock head_title %}
 {% block content %}
-    <div class="vstack gap-3">
-        <div class="vstack gap-1">
-            {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
-            <h2 class="mb-0">Advancements for {{ fighter.name }}</h2>
-        </div>
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h2 class="mb-0">Advancements for {{ fighter.name }}</h2>
         <ul class="fs-5 list-group list-group-flush">
             <li class="list-group-item">
                 <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current

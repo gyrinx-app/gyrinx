@@ -1,5 +1,5 @@
 {% load allauth custom_tags color_tags %}
-<div class="hstack gap-2 mb-2 align-items-start align-items-md-center break-inside-avoid">
+<div class="hstack gap-2 mb-2 {% if link_list %}mb-4 pb-4 border-bottom{% endif %} align-items-start align-items-md-center break-inside-avoid">
     <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
         <div class="vstack">
             <h2 class="mb-0 order-2 h3">
