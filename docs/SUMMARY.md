@@ -2,9 +2,9 @@
 
 - [Overview](README.md)
 
-## Tutorials
+## Getting Started
 
-- [Getting Started](README.md)
+- [Project Overview](README.md)
 
 ## How-To Guides
 
