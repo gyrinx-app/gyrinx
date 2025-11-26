@@ -1,4 +1,4 @@
-"""Handlers for fighter operations (hiring, etc.)."""
+"""Handlers for fighter hire and clone operations."""
 
 from dataclasses import dataclass
 from typing import Optional
