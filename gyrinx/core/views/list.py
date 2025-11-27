@@ -70,7 +70,8 @@ from gyrinx.core.handlers.equipment_purchases import (
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
-from gyrinx.core.handlers.fighter_operations import (
+from gyrinx.core.handlers.fighter import (
+    handle_fighter_advancement,
     handle_fighter_clone,
     handle_fighter_hire,
 )
@@ -4948,139 +4949,109 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         )
 
     if request.method == "POST":
-        with transaction.atomic():
-            # Check if advancement already exists for this campaign action (idempotent check)
-            if params.campaign_action_id:
-                existing_advancement = ListFighterAdvancement.objects.filter(
-                    campaign_action_id=params.campaign_action_id
-                ).first()
+        # Prepare type-specific parameters for the handler
+        selected_assignment = None
+        equipment_description = None
 
-                if existing_advancement:
-                    if existing_advancement.fighter != fighter:
-                        # Log warning - this shouldn't happen but good to catch if it does
-                        import logging
+        if is_random_equipment:
+            # For random equipment, select the assignment before calling handler
+            try:
+                advancement_id = params.get_equipment_advancement_id()
+                equipment_advancement = ContentAdvancementEquipment.objects.get(
+                    id=advancement_id
+                )
 
-                        logger = logging.getLogger(__name__)
-                        logger.warning(
-                            f"Campaign action {params.campaign_action_id} already linked to different fighter"
-                        )
-                    messages.info(
-                        request,
-                        f"Advancement already applied: {existing_advancement}",
+                # Randomly select assignment, filtering out duplicates
+                available_assignments = filter_equipment_assignments_for_duplicates(
+                    equipment_advancement, fighter
+                )
+                if not available_assignments.exists():
+                    error_msg = (
+                        f"No available options from {equipment_advancement.name}. "
                     )
-                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+                    raise ValueError(error_msg)
 
-            # Create the advancement
+                selected_assignment = available_assignments.order_by("?").first()
+                equipment_description = (
+                    f"Random {equipment_advancement.name}: {selected_assignment}"
+                )
+            except (ValueError, ContentAdvancementEquipment.DoesNotExist) as e:
+                messages.error(request, f"Invalid equipment advancement: {e}")
+                return HttpResponseRedirect(
+                    reverse(
+                        "core:list-fighter-advancement-type",
+                        args=(lst.id, fighter.id),
+                    )
+                )
+
+        # Call the handler
+        try:
             if params.is_stat_advancement():
-                advancement = ListFighterAdvancement(
+                result = handle_fighter_advancement(
+                    user=request.user,
                     fighter=fighter,
                     advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
                     xp_cost=params.xp_cost,
                     cost_increase=params.cost_increase,
-                    stat_increased=stat,
                     advancement_choice=params.advancement_choice,
+                    stat_increased=stat,
+                    campaign_action_id=params.campaign_action_id,
                 )
-                outcome = f"Improved {stat_desc}"
             elif params.is_other_advancement():
-                advancement = ListFighterAdvancement(
+                result = handle_fighter_advancement(
+                    user=request.user,
                     fighter=fighter,
                     advancement_type=ListFighterAdvancement.ADVANCEMENT_OTHER,
                     xp_cost=params.xp_cost,
                     cost_increase=params.cost_increase,
-                    description=stat_desc,
                     advancement_choice=params.advancement_choice,
+                    description=stat_desc,
+                    campaign_action_id=params.campaign_action_id,
                 )
-                outcome = f"Gained {stat_desc}"
             elif is_random_equipment:
-                # Handle random equipment advancement
-                # Get the equipment advancement
-                try:
-                    advancement_id = params.get_equipment_advancement_id()
-                    equipment_advancement = ContentAdvancementEquipment.objects.get(
-                        id=advancement_id
-                    )
-
-                    # Randomly select assignment, filtering out duplicates
-                    available_assignments = filter_equipment_assignments_for_duplicates(
-                        equipment_advancement, fighter
-                    )
-                    if not available_assignments.exists():
-                        error_msg = (
-                            f"No available options from {equipment_advancement.name}. "
-                        )
-                        raise ValueError(error_msg)
-
-                    selected_assignment = available_assignments.order_by("?").first()
-
-                    # Create the advancement
-                    advancement = ListFighterAdvancement(
-                        fighter=fighter,
-                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                        equipment_assignment=selected_assignment,
-                        xp_cost=params.xp_cost,
-                        cost_increase=params.cost_increase,
-                        description=f"Random {equipment_advancement.name}: {selected_assignment}",
-                        advancement_choice=params.advancement_choice,
-                    )
-                    outcome = f"Gained {selected_assignment}"
-                except (ValueError, ContentAdvancementEquipment.DoesNotExist) as e:
-                    messages.error(request, f"Invalid equipment advancement: {e}")
-                    return HttpResponseRedirect(
-                        reverse(
-                            "core:list-fighter-advancement-type",
-                            args=(lst.id, fighter.id),
-                        )
-                    )
-
-            if params.campaign_action_id:
-                # Add outcome to campaign action if exists
-                campaign_action = get_object_or_404(
-                    CampaignAction, id=params.campaign_action_id
+                result = handle_fighter_advancement(
+                    user=request.user,
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    advancement_choice=params.advancement_choice,
+                    equipment_assignment=selected_assignment,
+                    description=equipment_description,
+                    campaign_action_id=params.campaign_action_id,
                 )
-                advancement.campaign_action = campaign_action
-                campaign_action.outcome = outcome
-                campaign_action.save()
-            else:
-                # Create new campaign action if not exists
-                if lst.campaign:
-                    description = f"{fighter.name} spent {params.xp_cost} XP to advance"
-
-                    campaign_action = CampaignAction.objects.create(
-                        user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=outcome,
-                    )
-                    advancement.campaign_action = campaign_action
-
-            advancement.save()
-
-            # Apply the advancement (this deducts XP)
-            # Don't update cost_override - the cost will be computed from advancements
-            advancement.apply_advancement()
-
-            # Log the advancement event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.UPDATE,
-                object=fighter,
-                request=request,
-                fighter_name=fighter.name,
-                list_id=str(lst.id),
-                list_name=lst.name,
-                action="advancement_applied",
-                advancement_type=advancement.advancement_type,
-                advancement_detail=stat_desc,
-                xp_cost=params.xp_cost,
-                cost_increase=params.cost_increase,
+        except DjangoValidationError as e:
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
             )
+
+        # Handle idempotent case (already applied)
+        if result is None:
+            messages.info(request, "Advancement already applied.")
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+        # Log the advancement event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            action="advancement_applied",
+            advancement_type=result.advancement.advancement_type,
+            advancement_detail=stat_desc,
+            xp_cost=params.xp_cost,
+            cost_increase=params.cost_increase,
+        )
 
         messages.success(
             request,
-            f"Advanced: {fighter.name} - {outcome}",
+            f"Advanced: {fighter.name} - {result.outcome}",
         )
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
@@ -5131,89 +5102,50 @@ def apply_skill_advancement(
     skill: ContentSkill,
     params: AdvancementFlowParams,
 ) -> ListFighterAdvancement | None:
-    with transaction.atomic():
-        # Check if advancement already exists for this campaign action (idempotent check)
-        if params.campaign_action_id:
-            existing_advancement = ListFighterAdvancement.objects.filter(
-                campaign_action_id=params.campaign_action_id
-            ).first()
+    """
+    Apply a skill advancement to a fighter using the handler.
 
-            if existing_advancement:
-                if existing_advancement.fighter != fighter:
-                    # Log warning - this shouldn't happen but good to catch if it does
-                    import logging
-
-                    logger = logging.getLogger(__name__)
-                    logger.warning(
-                        f"Campaign action {params.campaign_action_id} already linked to different fighter"
-                    )
-                messages.info(
-                    request,
-                    f"Advancement already applied: {existing_advancement}",
-                )
-                return None
-
-        # Create the advancement
-        advancement = ListFighterAdvancement(
+    Returns the advancement if created, or None if already applied (idempotent)
+    or if a validation error occurred.
+    """
+    try:
+        result = handle_fighter_advancement(
+            user=request.user,
             fighter=fighter,
             advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
             xp_cost=params.xp_cost,
             cost_increase=params.cost_increase,
-            skill=skill,
             advancement_choice=params.advancement_choice,
+            skill=skill,
+            campaign_action_id=params.campaign_action_id,
         )
+    except DjangoValidationError as e:
+        error_message = ". ".join(e.messages)
+        messages.error(request, error_message)
+        return None
 
-        outcome = f"Gained {skill.name} skill"
+    if result is None:
+        # Idempotent case - already applied
+        messages.info(request, "Advancement already applied.")
+        return None
 
-        if params.is_promote_advancement():
-            outcome += " and was promoted"
+    # Log the skill advancement event
+    log_event(
+        user=request.user,
+        noun=EventNoun.LIST_FIGHTER,
+        verb=EventVerb.UPDATE,
+        object=fighter,
+        request=request,
+        fighter_name=fighter.name,
+        list_id=str(lst.id),
+        list_name=lst.name,
+        action="skill_advancement_applied",
+        skill_name=skill.name,
+        xp_cost=params.xp_cost,
+        cost_increase=params.cost_increase,
+    )
 
-        if params.campaign_action_id:
-            # Add outcome to campaign action if exists
-            campaign_action = get_object_or_404(
-                CampaignAction, id=params.campaign_action_id
-            )
-            advancement.campaign_action = campaign_action
-            campaign_action.outcome = outcome
-            campaign_action.save()
-        else:
-            # Create new campaign action if not exists
-            if lst.campaign:
-                description = f"{fighter.name} spent {params.xp_cost} XP to advance"
-
-                campaign_action = CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=description,
-                    outcome=outcome,
-                )
-                advancement.campaign_action = campaign_action
-
-        advancement.save()
-
-        # Apply the advancement (this deducts XP)
-        # Don't update cost_override - the cost will be computed from advancements
-        advancement.apply_advancement()
-
-        # Log the skill advancement event
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST_FIGHTER,
-            verb=EventVerb.UPDATE,
-            object=fighter,
-            request=request,
-            fighter_name=fighter.name,
-            list_id=str(lst.id),
-            list_name=lst.name,
-            action="skill_advancement_applied",
-            skill_name=skill.name,
-            xp_cost=params.xp_cost,
-            cost_increase=params.cost_increase,
-        )
-
-        return advancement
+    return result.advancement
 
 
 @login_required
@@ -5287,18 +5219,49 @@ def list_fighter_advancement_select(request, id, fighter_id):
             if form.is_valid():
                 assignment = form.cleaned_data["assignment"]
 
-                # Create the advancement
-                advancement_obj = ListFighterAdvancement.objects.create(
-                    fighter=fighter,
-                    advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
-                    equipment_assignment=assignment,
+                # Use the handler to create the advancement
+                try:
+                    result = handle_fighter_advancement(
+                        user=request.user,
+                        fighter=fighter,
+                        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+                        xp_cost=params.xp_cost,
+                        cost_increase=params.cost_increase,
+                        advancement_choice=params.advancement_choice,
+                        equipment_assignment=assignment,
+                        description=f"Chosen {advancement.name}: {assignment}",
+                        campaign_action_id=params.campaign_action_id,
+                    )
+                except DjangoValidationError as e:
+                    error_message = ". ".join(e.messages)
+                    messages.error(request, error_message)
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-advancement-type",
+                            args=(lst.id, fighter.id),
+                        )
+                    )
+
+                if result is None:
+                    # Idempotent case - already applied
+                    messages.info(request, "Advancement already applied.")
+                    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+                # Log the equipment advancement event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="equipment_advancement_applied",
+                    equipment_name=str(assignment),
                     xp_cost=params.xp_cost,
                     cost_increase=params.cost_increase,
-                    description=f"Chosen {advancement.name}: {assignment}",
                 )
-
-                # Apply it
-                advancement_obj.apply_advancement()
 
                 messages.success(
                     request,

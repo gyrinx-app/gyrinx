@@ -2,14 +2,14 @@
 Tests for fighter operation handlers.
 
 These tests directly test the handle_fighter_hire function in
-gyrinx.core.handlers.fighter_operations, ensuring that business logic works
+gyrinx.core.handlers.fighter.hire_clone, ensuring that business logic works
 correctly without involving HTTP machinery.
 """
 
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.core.handlers.fighter_operations import (
+from gyrinx.core.handlers.fighter import (
     handle_fighter_clone,
     handle_fighter_hire,
 )
