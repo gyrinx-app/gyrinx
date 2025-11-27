@@ -79,62 +79,6 @@ def test_request_data_too_big_exception_behavior():
             )
 
 
-def test_middleware_should_catch_request_data_too_big():
-    """
-    Test that verifies the middleware pattern for catching RequestDataTooBig.
-
-    This demonstrates what the middleware should do to fix the bug.
-    """
-
-    # Simulate a middleware that catches the exception
-    def mock_middleware_process_exception(request, exception):
-        """Mock middleware process_exception method."""
-        if isinstance(exception, RequestDataTooBig):
-            # This is what the middleware should do
-            return HttpResponse(
-                "Request Too Large",
-                status=400,
-                content_type="text/plain",
-            )
-        return None
-
-    # Create a mock request
-    request = HttpRequest()
-    request.method = "POST"
-
-    # Create the exception
-    exception = RequestDataTooBig("Request body exceeded settings.")
-
-    # The middleware should catch it and return 400
-    response = mock_middleware_process_exception(request, exception)
-
-    assert response is not None, "Middleware should return a response"
-    assert response.status_code == 400, f"Expected 400 but got {response.status_code}"
-
-
-def test_without_middleware_exception_propagates():
-    """
-    Test that demonstrates the bug: without proper middleware,
-    the RequestDataTooBig exception propagates and becomes a 500.
-
-    This test verifies the problem exists and needs to be fixed.
-    """
-
-    # The issue is that RequestDataTooBig raised during CSRF middleware
-    # (before the view is called) doesn't get properly converted to 400.
-    # Django's exception handling should convert SuspiciousOperation to 400,
-    # but this doesn't always work when the exception is raised in middleware.
-
-    # Verify that RequestDataTooBig is indeed a SuspiciousOperation
-    from django.core.exceptions import SuspiciousOperation
-
-    exception = RequestDataTooBig("Request body exceeded settings.")
-    assert isinstance(exception, SuspiciousOperation)
-
-    # The fix is to add custom middleware that catches this exception
-    # and returns a proper 400 response before it becomes a 500.
-
-
 def test_django_handler_with_request_data_too_big():
     """
     Test that verifies RequestDataTooBig is properly handled as a 400 error.
@@ -172,19 +116,6 @@ def test_django_handler_with_request_data_too_big():
     # Call the wrapped view
     response = wrapped_view(request)
 
-    print(f"Response status: {response.status_code}")
-
-    # With the RequestSizeExceptionMiddleware, this should return 400
-    # Note: This test verifies Django's built-in handling, which currently
-    # returns 500. The actual fix is via middleware that catches the exception
-    # before Django's default handler turns it into a 500.
-    #
-    # This test documents the current behavior (500) because Django's
-    # convert_exception_to_response doesn't properly handle SuspiciousOperation
-    # when DEBUG=False and no handler400 is configured at the view level.
-    #
-    # The middleware fix ensures the exception is caught and converted to 400
-    # before it reaches Django's default exception handling.
-    assert response.status_code in (400, 500), (
+    assert response.status_code == 400, (
         f"Unexpected status code: {response.status_code}"
     )
