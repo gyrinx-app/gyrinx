@@ -1,30 +1,23 @@
 import os
 
-import google.cloud.logging
-
 from .settings import *  # noqa: F403
 from .settings import LOGGING, STORAGES
 from .storage_settings import configure_gcs_storage
 
-# Configure Google Cloud Logging with structured logging for exceptions
-client = google.cloud.logging.Client()
-# Use exclude_loggers to prevent duplicate logging from standard Django loggers
-client.setup_logging(
-    excluded_loggers=(
-        "django.security.DisallowedHost",
-        "django.db.backends",
-    )
-)
-
-# Override Django logging configuration for production to ensure exceptions are logged as single entries
+# Configure Django logging for production using StructuredLogHandler
+# This writes JSON to stdout, which Cloud Run captures and sends to Cloud Logging
+# Note: RequestMiddleware in settings.py handles trace correlation
 LOGGING["handlers"]["structured_console"] = {
-    "class": "google.cloud.logging.handlers.StructuredLogHandler",
-    "project_id": client.project,  # Required for trace correlation
+    "class": "google.cloud.logging_v2.handlers.StructuredLogHandler",
 }
 
-# Update loggers to use structured logging
+# Update loggers to use structured logging with propagate: False to prevent duplicates
 LOGGING["loggers"]["django.request"]["handlers"] = ["structured_console"]
+LOGGING["loggers"]["django.request"]["propagate"] = False
+
 LOGGING["loggers"]["gyrinx"]["handlers"] = ["structured_console"]
+LOGGING["loggers"]["gyrinx"]["propagate"] = False
+
 LOGGING["root"]["handlers"] = ["structured_console"]
 
 DEBUG = False
