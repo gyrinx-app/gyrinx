@@ -93,69 +93,41 @@ Resource features:
 - Modifications create action log entries
 - Both campaign and list owners can modify
 
-## Managing Campaigns
+## Data Model
 
-### Creating a Campaign
+### Core Models
 
-1. Navigate to Campaigns (if you have access)
-2. Click "Create Campaign"
-3. Enter name, summary, and narrative
-4. Choose visibility (public/private)
-5. Save campaign
+- **Campaign** - Main campaign entity with lifecycle state
+- **CampaignList** - Join table linking campaigns to lists
+- **CampaignAction** - Action log entries with optional dice rolls
+- **CampaignAssetType** - Custom asset type definitions
+- **CampaignAsset** - Individual assets assignable to gangs
+- **CampaignResourceType** - Resource type definitions
+- **CampaignResource** - Per-gang resource quantities
 
-### Adding Lists
+### Key Methods
 
-In pre-campaign phase:
-
-1. Click "Add Lists" from campaign page
-2. Search for lists by name or owner
-3. Add your own lists or public lists
-4. Lists must be in "List Building" status
-
-### Starting the Campaign
-
-When ready to begin:
-
-1. Ensure all lists are added
-2. Click "Start Campaign"
-3. Lists are cloned for campaign tracking
-4. Resources are allocated
-5. Campaign enters "In Progress" phase
-
-### During the Campaign
-
-Players can:
-
-- Log actions with narrative descriptions
-- Roll dice for random outcomes
-- Transfer assets between gangs
-- Modify resource amounts
-- Update gang progress
-
-Campaign owners can:
-
-- Create new asset types and assets
-- Create new resource types
-- Manage all transfers and modifications
-- End the campaign when complete
+- `Campaign.start()` - Transitions to In Progress, clones lists, allocates resources
+- `Campaign.end()` - Transitions to Post-Campaign, locks modifications
+- `List.clone()` - Creates campaign-specific copy of a list
 
 ## Permissions
 
-- **Campaign Owner**: Full control over campaign, assets, and resources
-- **List Owners**: Can modify their own resources and log actions
-- **Other Users**: Can view public campaigns
+Permission checks are implemented in views and enforced at the model level:
 
-## Best Practices
+- **Campaign Owner** (`campaign.owner == request.user`): Full control
+- **List Owners** (`list.owner == request.user`): Can modify own resources and log actions
+- **Other Users**: Read-only access to public campaigns
 
-1. **Plan Asset Types**: Define meaningful asset types that drive narrative
-2. **Resource Balance**: Set appropriate default amounts for resources
-3. **Regular Updates**: Encourage players to log actions after each game
-4. **Rich Narratives**: Use the description fields to add flavor
-5. **Asset Stories**: Give assets interesting names and descriptions
+## Technical Implementation
 
-## Technical Notes
-
-- Lists are cloned when campaign starts to preserve state
-- All modifications are tracked with full history
+- Lists are cloned via `List.clone()` when campaign starts to preserve state
+- All modifications tracked with django-simple-history
 - Action logs are immutable once created
-- Resources use atomic operations to prevent conflicts
+- Resources use `F()` expressions for atomic operations
+
+## Related Documentation
+
+- [Lists](lists.md) - List system and campaign integration
+- [Models and Database](developing-gyrinx/models-and-database.md) - Data model documentation
+- [History Tracking](developing-gyrinx/history-tracking.md) - How modifications are tracked

@@ -1,24 +1,34 @@
 # Statlines
 
-There are two statline systems in Gyrinx:
+Statlines represent the statistical characteristics of fighters and vehicles (Movement, Weapon Skill, Ballistic Skill, etc.).
 
-There are two statline systems:
+## Two Systems
 
-1. **Old:** one simple, legacy version that has a base list of stats on the `ContentFighter`, and `_override` fields for each stat on the `ListFighter`
-2. **New:** A more complex, powerful version that allows custom statline types to be created and assigned to `ContentFighter`, with overrides stored separately, and with specific underlying stats reused across statline types
+Gyrinx uses two statline systems:
 
-In either case, the flow goes something like this:
+1. **Legacy System** - Simple stat fields on `ContentFighter` with `_override` fields on `ListFighter`
+2. **New System** - Flexible custom statline types with separate override storage
 
-1. Get the statline for the underlying content fighter
-2. Apply any overrides from the list fighter
-3. Apply any mods from the list fighter
+The new system supports vehicles and crew with different stat requirements (e.g., Toughness Front/Side/Rear for vehicles).
 
-The more complex system is, without optimisation, massively more expensive to compute due to N+1 queries.
+## Calculation Flow
 
-It allows custom statlines to be created to support vehicles and crew, for example:
+Both systems follow this pattern:
 
-<figure><img src="https://cdn.gyrinx.app/98619d14-566f-434c-9553-a3b3c2b55203.png" alt=""><figcaption></figcaption></figure>
+1. Get the statline from the underlying `ContentFighter`
+2. Apply any overrides from the `ListFighter`
+3. Apply any mods from equipment or advancements
 
-Here's the models relationship for quick reference:
+## Performance
 
-<figure><img src="../.gitbook/assets/gyrinx-statlines.png" alt=""><figcaption></figcaption></figure>
+The new system requires careful query optimisation to avoid N+1 queries. See the models diagram below for the relationship complexity.
+
+## Visual Examples
+
+Custom statlines for vehicles:
+
+<figure><img src="https://cdn.gyrinx.app/98619d14-566f-434c-9553-a3b3c2b55203.png" alt="Vehicle statline showing Front/Side/Rear toughness"><figcaption></figcaption></figure>
+
+## Model Relationships
+
+<figure><img src="../.gitbook/assets/gyrinx-statlines.png" alt="Statline model relationships diagram"><figcaption></figcaption></figure>

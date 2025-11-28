@@ -2,6 +2,8 @@
 
 This document provides a comprehensive reference for the fighter cost calculation system in Gyrinx, including how costs are calculated, overridden, and displayed throughout the application.
 
+> **See also:** [Fighter Cost System Design Guide](fighter-cost-system-design.md) for the design philosophy and architectural decisions behind this system.
+
 ## Overview
 
 The fighter cost system calculates the total cost of a fighter by combining:

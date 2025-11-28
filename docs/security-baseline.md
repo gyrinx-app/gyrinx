@@ -36,8 +36,42 @@ When security issues are resolved or new acceptable findings are added:
 
 ## Configuration
 
-Bandit is configured in `pyproject.toml` with the following exclusions:
+Bandit is configured in `pyproject.toml`:
 
-- **B101**: Assert statements (needed for tests)
-- **B601**: Paramiko calls (not used)
-- **B603**: Subprocess without shell=True (reviewed case-by-case)
+### Excluded Directories
+
+- `.venv`, `.git`, `__pycache__` - Infrastructure directories
+- `*/migrations/*` - Django migrations (auto-generated)
+- `*/tests/*` - Test files (assertions expected)
+- `node_modules` - Node.js dependencies
+
+### Skipped Checks
+
+- **B101** (`assert_used`): Assertions are used in tests
+- **B601** (`paramiko_calls`): Paramiko is not used
+- **B603** (`subprocess_without_shell_equals_true`): Reviewed case-by-case
+
+## Additional Security Practices
+
+### Input Validation
+
+- Use `safe_redirect()` helper for all redirect URLs to prevent open redirect vulnerabilities
+- Validate user input at form level using Django forms
+- Sanitise HTML content with appropriate filters
+
+### Authentication
+
+- Django's built-in authentication system with session management
+- reCAPTCHA verification for registration (when enabled)
+- Password validation using Django validators
+
+### Pre-commit Hooks
+
+Security checks run automatically on commit via pre-commit:
+
+- `detect-private-key` - Prevents committing private keys
+- `bandit` - Runs security scan on Python files
+
+## Related Documentation
+
+- [SECURITY.md](../SECURITY.md) - Security policy and vulnerability reporting
