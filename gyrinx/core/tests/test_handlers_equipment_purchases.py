@@ -1304,3 +1304,531 @@ def test_handle_equipment_reassignment_description_regular_to_stash(
 
     # Verify user-friendly description
     assert result.description == "Moved Lasgun from My Fighter to stash (15¢)"
+
+
+# ===== Equipment Sale Tests =====
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_equipment_sale_entire_assignment(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
+):
+    """Test selling entire equipment assignment from stash."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 100
+    lst.rating_current = 400
+    lst.save()
+
+    # Create a stash fighter
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment on stash
+    equipment = make_equipment("Lasgun", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Sale items (dice roll scenario)
+    sale_items = [SaleItemDetail(name="Lasgun", cost=50, sale_price=30, dice_roll=2)]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=True,
+        profiles_to_remove=[],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=1,
+        dice_rolls=[2],
+    )
+
+    # Verify result
+    assert result.total_sale_credits == 30
+    assert result.total_equipment_cost == 50
+    assert "Sold equipment from stash" in result.description
+    assert "Lasgun" in result.description
+
+    # Verify ListAction
+    if feature_flag_enabled:
+        assert result.list_action is not None
+        assert result.list_action.action_type == ListActionType.REMOVE_EQUIPMENT
+        assert (
+            result.list_action.stash_delta == -50
+        )  # Equipment cost removed from stash
+        assert result.list_action.credits_delta == 30  # Sale proceeds
+        assert result.list_action.rating_delta == 0  # Selling from stash, not rating
+        assert result.list_action.stash_before == 100
+        assert result.list_action.credits_before == 500
+    else:
+        assert result.list_action is None
+
+    # Verify CampaignAction (always created)
+    assert result.campaign_action is not None
+    assert result.campaign_action.dice_count == 1
+    assert result.campaign_action.dice_results == [2]
+
+    # Verify credits added (handler uses update_credits=True)
+    lst.refresh_from_db()
+    assert lst.credits_current == 530  # 500 + 30
+
+    # Verify assignment deleted
+    assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_equipment_sale_individual_profile(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_weapon_with_profile,
+    settings,
+    feature_flag_enabled,
+):
+    """Test selling individual weapon profile from stash."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 150
+    lst.save()
+
+    # Create stash fighter
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Create weapon with profile
+    weapon, profile = make_weapon_with_profile(cost=50, profile_cost=25)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=weapon,
+    )
+    assignment.weapon_profiles_field.add(profile)
+
+    # Sale items (manual price)
+    sale_items = [
+        SaleItemDetail(name=profile.name, cost=25, sale_price=20, dice_roll=None)
+    ]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=False,
+        profiles_to_remove=[profile],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=0,
+        dice_rolls=[],
+    )
+
+    # Verify result
+    assert result.total_sale_credits == 20
+    assert result.total_equipment_cost == 25
+
+    # Verify ListAction
+    if feature_flag_enabled:
+        assert result.list_action.stash_delta == -25
+        assert result.list_action.credits_delta == 20
+    else:
+        assert result.list_action is None
+
+    # Verify CampaignAction (no dice)
+    assert result.campaign_action.dice_count == 0
+    assert result.campaign_action.dice_results == []
+
+    # Verify assignment still exists but profile removed
+    assignment.refresh_from_db()
+    assert profile not in assignment.weapon_profiles_field.all()
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_equipment_sale_individual_accessory(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_weapon_with_accessory,
+    settings,
+    feature_flag_enabled,
+):
+    """Test selling individual weapon accessory from stash."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 150
+    lst.save()
+
+    # Create stash fighter
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Create weapon with accessory
+    weapon, accessory = make_weapon_with_accessory(cost=50, accessory_cost=30)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=weapon,
+    )
+    assignment.weapon_accessories_field.add(accessory)
+
+    # Sale items
+    sale_items = [
+        SaleItemDetail(name=accessory.name, cost=30, sale_price=15, dice_roll=2)
+    ]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=False,
+        profiles_to_remove=[],
+        accessories_to_remove=[accessory],
+        sale_items=sale_items,
+        dice_count=1,
+        dice_rolls=[2],
+    )
+
+    # Verify result
+    assert result.total_sale_credits == 15
+    assert result.total_equipment_cost == 30
+
+    # Verify ListAction
+    if feature_flag_enabled:
+        assert result.list_action.stash_delta == -30
+        assert result.list_action.credits_delta == 15
+    else:
+        assert result.list_action is None
+
+    # Verify assignment still exists but accessory removed
+    assignment.refresh_from_db()
+    assert accessory not in assignment.weapon_accessories_field.all()
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_equipment_sale_multiple_items(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
+):
+    """Test selling entire assignment with upgrades (multiple items in one sale)."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 200
+    lst.save()
+
+    # Create stash fighter
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment
+    equipment = make_equipment("Heavy Bolter", cost="80")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Sale items with multiple items (equipment + upgrades bundled)
+    sale_items = [
+        SaleItemDetail(name="Heavy Bolter", cost=80, sale_price=60, dice_roll=2),
+        SaleItemDetail(name="Suspensor", cost=20, sale_price=15, dice_roll=1),
+    ]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=True,
+        profiles_to_remove=[],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=2,
+        dice_rolls=[2, 1],
+    )
+
+    # Verify combined totals
+    assert result.total_sale_credits == 75
+    assert result.total_equipment_cost == 100
+
+    # Verify ListAction combines all deltas
+    if feature_flag_enabled:
+        assert result.list_action.stash_delta == -100
+        assert result.list_action.credits_delta == 75
+    else:
+        assert result.list_action is None
+
+    # Verify CampaignAction has all dice
+    assert result.campaign_action.dice_count == 2
+    assert result.campaign_action.dice_results == [2, 1]
+    assert result.campaign_action.dice_total == 3
+
+
+@pytest.mark.django_db
+def test_handle_equipment_sale_description_with_dice(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_equipment,
+):
+    """Test that description includes dice roll details."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 100
+    lst.save()
+
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    equipment = make_equipment("Lasgun", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    sale_items = [SaleItemDetail(name="Lasgun", cost=50, sale_price=30, dice_roll=2)]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=True,
+        profiles_to_remove=[],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=1,
+        dice_rolls=[2],
+    )
+
+    # Verify description format includes dice roll
+    assert "Lasgun (50¢ - 2×10 = 30¢)" in result.description
+
+
+@pytest.mark.django_db
+def test_handle_equipment_sale_description_manual_price(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_equipment,
+):
+    """Test that description for manual price doesn't include dice."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    lst = list_with_campaign
+    lst.credits_current = 500
+    lst.stash_current = 100
+    lst.save()
+
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    equipment = make_equipment("Lasgun", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    sale_items = [SaleItemDetail(name="Lasgun", cost=50, sale_price=40, dice_roll=None)]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=True,
+        profiles_to_remove=[],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=0,
+        dice_rolls=[],
+    )
+
+    # Verify description format for manual price (no dice roll shown)
+    assert "Lasgun (40¢)" in result.description
+    assert "×10" not in result.description
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_equipment_sale_before_values(
+    user,
+    list_with_campaign,
+    content_house,
+    make_content_fighter,
+    make_equipment,
+    settings,
+    feature_flag_enabled,
+):
+    """Test that before values are captured correctly."""
+    from gyrinx.core.handlers.equipment_purchases import (
+        SaleItemDetail,
+        handle_equipment_sale,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    lst = list_with_campaign
+    lst.credits_current = 750
+    lst.stash_current = 200
+    lst.rating_current = 500
+    lst.save()
+
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    equipment = make_equipment("Lasgun", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    sale_items = [SaleItemDetail(name="Lasgun", cost=50, sale_price=30, dice_roll=2)]
+
+    result = handle_equipment_sale(
+        user=user,
+        lst=lst,
+        fighter=stash,
+        assignment=assignment,
+        sell_assignment=True,
+        profiles_to_remove=[],
+        accessories_to_remove=[],
+        sale_items=sale_items,
+        dice_count=1,
+        dice_rolls=[2],
+    )
+
+    if feature_flag_enabled:
+        # Verify before values match original list state
+        assert result.list_action.rating_before == 500
+        assert result.list_action.stash_before == 200
+        assert result.list_action.credits_before == 750
+    else:
+        assert result.list_action is None

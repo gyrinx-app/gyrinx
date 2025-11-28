@@ -64,9 +64,11 @@ from gyrinx.core.forms.list import (
     NewListForm,
 )
 from gyrinx.core.handlers.equipment_purchases import (
+    SaleItemDetail,
     handle_accessory_purchase,
     handle_equipment_purchase,
     handle_equipment_reassignment,
+    handle_equipment_sale,
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
@@ -5576,7 +5578,6 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_equipment_sell.html`
     """
     from gyrinx.core.forms.list import EquipmentSellSelectionForm
-    from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -5747,7 +5748,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 total_dice = 0
                 dice_rolls = []
                 total_credits = 0
-                sale_details = []
+                sale_items = []
 
                 for item_data in sell_data:
                     if item_data["price_method"] == "dice":
@@ -5765,114 +5766,105 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     else:
                         # Use manual price
                         sale_price = item_data["manual_price"]
+                        roll = None
 
                     total_credits += sale_price
-                    sale_details.append(
-                        {
-                            "name": item_data["name"],
-                            "base_cost": item_data["base_cost"],
-                            "total_cost": item_data.get(
-                                "total_cost", item_data["base_cost"]
-                            ),
-                            "sale_price": sale_price,
-                            "dice_roll": roll
-                            if item_data["price_method"] == "dice"
-                            else None,
-                        }
+                    sale_items.append(
+                        SaleItemDetail(
+                            name=item_data["name"],
+                            cost=item_data.get("total_cost", item_data["base_cost"]),
+                            sale_price=sale_price,
+                            dice_roll=roll,
+                        )
                     )
 
-                with transaction.atomic():
-                    # Update list credits
-                    lst.credits_current += total_credits
-                    lst.credits_earned += total_credits
-                    lst.save()
+                # Gather profiles and accessories to remove
+                sell_assign = request.session.get("sell_assign")
+                profiles_to_remove = []
+                accessories_to_remove = []
 
-                    # Store assignment ID before potential deletion
-                    assignment_id = assignment.id
+                if not sell_assign:
+                    for profile_id in request.session.get("sell_profiles", []):
+                        profile = assignment.weapon_profiles_field.filter(
+                            id=profile_id
+                        ).first()
+                        if profile:
+                            profiles_to_remove.append(profile)
 
-                    # Remove sold items
-                    if request.session.get("sell_assign"):
-                        # Delete entire assignment
-                        assignment.delete()
-                    else:
-                        # Remove individual components
-                        for profile_id in request.session.get("sell_profiles", []):
-                            profile = assignment.weapon_profiles_field.filter(
-                                id=profile_id
-                            ).first()
-                            if profile:
-                                assignment.weapon_profiles_field.remove(profile)
+                    for accessory_id in request.session.get("sell_accessories", []):
+                        accessory = assignment.weapon_accessories_field.filter(
+                            id=accessory_id
+                        ).first()
+                        if accessory:
+                            accessories_to_remove.append(accessory)
 
-                        for accessory_id in request.session.get("sell_accessories", []):
-                            accessory = assignment.weapon_accessories_field.filter(
-                                id=accessory_id
-                            ).first()
-                            if accessory:
-                                assignment.weapon_accessories_field.remove(accessory)
-
-                    # Create campaign action
-                    description_parts = []
-                    for detail in sale_details:
-                        if detail["dice_roll"]:
-                            description_parts.append(
-                                f"{detail['name']} ({detail['total_cost']}¢ - {detail['dice_roll']}×10 = {detail['sale_price']}¢)"
-                            )
-                        else:
-                            description_parts.append(
-                                f"{detail['name']} ({detail['sale_price']}¢)"
-                            )
-
-                    description = (
-                        f"Sold equipment from stash: {', '.join(description_parts)}"
-                    )
-                    outcome = f"+{total_credits}¢ (to {lst.credits_current}¢)"
-
-                    CampaignAction.objects.create(
+                # Call the handler
+                try:
+                    result = handle_equipment_sale(
                         user=request.user,
-                        owner=request.user,
-                        campaign=lst.campaign,
-                        list=lst,
-                        description=description,
-                        outcome=outcome,
+                        lst=lst,
+                        fighter=fighter,
+                        assignment=assignment,
+                        sell_assignment=sell_assign,
+                        profiles_to_remove=profiles_to_remove,
+                        accessories_to_remove=accessories_to_remove,
+                        sale_items=sale_items,
                         dice_count=total_dice,
-                        dice_results=dice_rolls,
-                        dice_total=sum(dice_rolls) if dice_rolls else 0,
+                        dice_rolls=dice_rolls,
+                    )
+                except DjangoValidationError as e:
+                    error_message = ". ".join(e.messages)
+                    messages.error(request, error_message)
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:list-fighter-equipment-sell",
+                            args=(lst.id, fighter.id, assignment.id),
+                        )
+                        + "?step=selection"
                     )
 
-                    # Log the equipment sale event
-                    log_event(
-                        user=request.user,
-                        noun=EventNoun.LIST,
-                        verb=EventVerb.UPDATE,
-                        object=lst,
-                        request=request,
-                        list_id=str(lst.id),
-                        list_name=lst.name,
-                        action="equipment_sold",
-                        credits_gained=total_credits,
-                        items_sold=len(sale_details),
-                        sale_summary=description,
-                    )
+                # Log the equipment sale event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.UPDATE,
+                    object=lst,
+                    request=request,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="equipment_sold",
+                    credits_gained=result.total_sale_credits,
+                    items_sold=len(sale_items),
+                    sale_summary=result.description,
+                )
 
-                # Store results in session for summary
+                # Store results in session for summary (convert to dicts for JSON serialization)
                 request.session["sale_results"] = {
-                    "total_credits": total_credits,
-                    "sale_details": sale_details,
+                    "total_credits": result.total_sale_credits,
+                    "sale_details": [
+                        {
+                            "name": item.name,
+                            "total_cost": item.cost,  # Template expects total_cost
+                            "sale_price": item.sale_price,
+                            "dice_roll": item.dice_roll,
+                        }
+                        for item in sale_items
+                    ],
                     "dice_rolls": dice_rolls,
                 }
 
                 # Clear sell data
-                del request.session["sell_data"]
-                del request.session["sell_assign_id"]
-                del request.session["sell_assign"]
-                del request.session["sell_profiles"]
-                del request.session["sell_accessories"]
+                request.session.pop("sell_data", None)
+                request.session.pop("sell_assign_id", None)
+                request.session.pop("sell_assign", None)
+                request.session.pop("sell_profiles", None)
+                request.session.pop("sell_accessories", None)
 
                 # Redirect to summary
                 return HttpResponseRedirect(
                     reverse(
                         "core:list-fighter-equipment-sell",
-                        args=(lst.id, fighter.id, assignment_id),
+                        args=(lst.id, fighter.id, assign_id),
                     )
                     + "?step=summary"
                 )
