@@ -337,7 +337,7 @@ LOGGING = {
         "gyrinx": {
             "handlers": ["console"],
             "level": os.getenv("GYRINX_LOG_LEVEL", "INFO").upper(),
-            "propagate": True,
+            "propagate": False,
         },
     },
     "root": {
