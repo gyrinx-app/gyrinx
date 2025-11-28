@@ -33,6 +33,7 @@
 - [History Tracking](developing-gyrinx/history-tracking.md)
 - [Group-Based Features](developing-gyrinx/group-based-features.md)
 - [Deployment Environment Variables](deployment-environment-variables.md)
+- [Logging and Tracing Reference](logging-and-tracing-reference.md)
 - [Security Baseline](security-baseline.md)
 - [Statlines](technical-reference/statlines.md)
 

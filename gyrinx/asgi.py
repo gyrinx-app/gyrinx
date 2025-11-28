@@ -13,4 +13,8 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings")
 
+# Initialize OpenTelemetry tracing before Django loads
+# This ensures trace context propagation is configured for all requests
+import gyrinx.tracing  # noqa: F401, E402
+
 application = get_asgi_application()

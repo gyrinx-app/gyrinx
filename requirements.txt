@@ -24,6 +24,11 @@ jsonschema==4.25.1
 jupyter==1.1.1
 nbstripout==0.8.2
 nodeenv==1.9.1
+opentelemetry-exporter-gcp-trace>=1.8.0
+opentelemetry-instrumentation-django>=0.49b0
+
+# OpenTelemetry - Cloud Trace integration
+opentelemetry-sdk>=1.28.0
 Pillow==12.0.0
 playwright==1.56.0
 pre-commit==4.5.0
