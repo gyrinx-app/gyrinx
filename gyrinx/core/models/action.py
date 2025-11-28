@@ -26,6 +26,10 @@ class ListActionType(models.TextChoices):
     REMOVE_EQUIPMENT = "REMOVE_EQUIPMENT", "Remove Equipment"
     UPDATE_EQUIPMENT = "UPDATE_EQUIPMENT", "Update Equipment"
     CAMPAIGN_START = "CAMPAIGN_START", "Campaign Start"
+    CAPTURE_FIGHTER = "CAPTURE_FIGHTER", "Capture Fighter"
+    SELL_FIGHTER = "SELL_FIGHTER", "Sell Fighter"
+    RETURN_FIGHTER = "RETURN_FIGHTER", "Return Fighter"
+    RELEASE_FIGHTER = "RELEASE_FIGHTER", "Release Fighter"
 
 
 class ListActionQuerySet(models.QuerySet):

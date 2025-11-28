@@ -2238,6 +2238,8 @@ def fighter_sell_to_guilders(request, id, fighter_id):
 
     :template:`core/campaign/fighter_sell_to_guilders.html`
     """
+    from gyrinx.core.handlers.fighter.capture import handle_fighter_sell_to_guilders
+
     campaign = get_object_or_404(Campaign, id=id)
 
     # Get the captured fighter - must be in this campaign and not sold
@@ -2275,42 +2277,40 @@ def fighter_sell_to_guilders(request, id, fighter_id):
                 ),
             )
 
-        with transaction.atomic():
-            # Sell the fighter
-            captured_fighter.sell_to_guilders(credits=credits)
+        # Call the handler
+        result = handle_fighter_sell_to_guilders(
+            user=request.user,
+            captured_fighter=captured_fighter,
+            sale_price=credits,
+        )
 
-            # Add credits to capturing gang
-            if credits > 0:
-                captured_fighter.capturing_list.credits_current += credits
-                captured_fighter.capturing_list.save()
+        # Log campaign action
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=result.capturing_list,
+            description=f"Sold {result.fighter.name} from {result.fighter.list.name} to the guilders"
+            + (f" for {credits} credits" if credits > 0 else ""),
+        )
 
-            # Log campaign action
-            CampaignAction.objects.create(
-                campaign=campaign,
-                user=request.user,
-                list=captured_fighter.capturing_list,
-                description=f"Sold {captured_fighter.fighter.name} from {captured_fighter.fighter.list.name} to the guilders"
-                + (f" for {credits} credits" if credits > 0 else ""),
-            )
-
-            # Log the fighter sale event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.UPDATE,
-                object=captured_fighter.fighter,
-                request=request,
-                campaign_id=str(campaign.id),
-                campaign_name=campaign.name,
-                action="sold_to_guilders",
-                fighter_name=captured_fighter.fighter.name,
-                original_list=captured_fighter.fighter.list.name,
-                capturing_list=captured_fighter.capturing_list.name,
-                credits=credits,
-            )
+        # Log the fighter sale event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=result.fighter,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            action="sold_to_guilders",
+            fighter_name=result.fighter.name,
+            original_list=result.fighter.list.name,
+            capturing_list=result.capturing_list.name,
+            credits=credits,
+        )
 
         messages.success(
-            request, f"{captured_fighter.fighter.name} has been sold to the guilders."
+            request, f"{result.fighter.name} has been sold to the guilders."
         )
         return HttpResponseRedirect(
             reverse("core:campaign-captured-fighters", args=(campaign.id,))
@@ -2342,6 +2342,10 @@ def fighter_return_to_owner(request, id, fighter_id):
 
     :template:`core/campaign/fighter_return_to_owner.html`
     """
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from gyrinx.core.handlers.fighter.capture import handle_fighter_return_to_owner
+
     campaign = get_object_or_404(Campaign, id=id)
 
     # Get the captured fighter - must be in this campaign and not sold
@@ -2380,35 +2384,22 @@ def fighter_return_to_owner(request, id, fighter_id):
                 ),
             )
 
-        original_list = captured_fighter.fighter.list
+        # Store fighter info before handler (fighter object may be modified)
+        fighter = captured_fighter.fighter
+        original_list = fighter.list
         capturing_list = captured_fighter.capturing_list
-        fighter_name = captured_fighter.fighter.name
+        fighter_name = fighter.name
 
-        # Process ransom payment
-        if ransom > 0:
-            if original_list.credits_current < ransom:
-                messages.error(
-                    request,
-                    f"{original_list.name} doesn't have enough credits to pay the ransom.",
-                )
-                # Redirect safely back to the form
-                return safe_redirect(
-                    request,
-                    request.path,
-                    fallback_url=reverse(
-                        "core:campaign_captured_fighters", args=[campaign.id]
-                    ),
-                )
+        try:
+            # Call the handler
+            result = handle_fighter_return_to_owner(
+                user=request.user,
+                captured_fighter=captured_fighter,
+                ransom_amount=ransom,
+            )
 
-        with transaction.atomic():
+            # Log campaign action for ransom payment (if any)
             if ransom > 0:
-                # Transfer credits
-                original_list.credits_current -= ransom
-                original_list.save()
-                capturing_list.credits_current += ransom
-                capturing_list.save()
-
-                # Log ransom payment
                 CampaignAction.objects.create(
                     campaign=campaign,
                     user=request.user,
@@ -2416,10 +2407,7 @@ def fighter_return_to_owner(request, id, fighter_id):
                     description=f"Paid {ransom} credit ransom to {capturing_list.name} for {fighter_name}",
                 )
 
-            # Return the fighter
-            captured_fighter.return_to_owner(credits=ransom)
-
-            # Log return action
+            # Log campaign action for return
             CampaignAction.objects.create(
                 campaign=campaign,
                 user=request.user,
@@ -2433,7 +2421,7 @@ def fighter_return_to_owner(request, id, fighter_id):
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
                 verb=EventVerb.UPDATE,
-                object=captured_fighter.fighter,
+                object=result.fighter,
                 request=request,
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
@@ -2444,12 +2432,23 @@ def fighter_return_to_owner(request, id, fighter_id):
                 ransom=ransom,
             )
 
-        messages.success(
-            request, f"{fighter_name} has been returned to {original_list.name}."
-        )
-        return HttpResponseRedirect(
-            reverse("core:campaign-captured-fighters", args=(campaign.id,))
-        )
+            messages.success(
+                request, f"{fighter_name} has been returned to {original_list.name}."
+            )
+            return HttpResponseRedirect(
+                reverse("core:campaign-captured-fighters", args=(campaign.id,))
+            )
+
+        except DjangoValidationError as e:
+            error_message = ". ".join(e.messages)
+            messages.error(request, error_message)
+            return safe_redirect(
+                request,
+                request.path,
+                fallback_url=reverse(
+                    "core:campaign_captured_fighters", args=[campaign.id]
+                ),
+            )
 
     return render(
         request,
@@ -2477,6 +2476,8 @@ def fighter_release(request, id, fighter_id):
 
     :template:`core/campaign/fighter_release.html`
     """
+    from gyrinx.core.handlers.fighter.capture import handle_fighter_release
+
     campaign = get_object_or_404(Campaign, id=id)
 
     # Get the captured fighter - must be in this campaign and not sold
@@ -2496,41 +2497,45 @@ def fighter_release(request, id, fighter_id):
         raise Http404()
 
     if request.method == "POST":
-        original_list = captured_fighter.fighter.list
+        # Store info before handler (capture record will be deleted)
+        fighter = captured_fighter.fighter
+        original_list = fighter.list
         capturing_list = captured_fighter.capturing_list
-        fighter_name = captured_fighter.fighter.name
+        fighter_name = fighter.name
 
-        with transaction.atomic():
-            # Release the fighter (delete capture record)
-            captured_fighter.delete()
+        # Call the handler
+        result = handle_fighter_release(
+            user=request.user,
+            captured_fighter=captured_fighter,
+        )
 
-            # Log release action
-            CampaignAction.objects.create(
-                campaign=campaign,
-                user=request.user,
-                list=capturing_list,
-                description=f"Released {fighter_name} back to {original_list.name} without ransom",
-            )
+        # Log campaign action for release
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=capturing_list,
+            description=f"Released {fighter_name} back to {original_list.name} without ransom",
+        )
 
-            # Log the fighter release event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.UPDATE,
-                object=captured_fighter.fighter,
-                request=request,
-                campaign_id=str(campaign.id),
-                campaign_name=campaign.name,
-                fighter_name=fighter_name,
-                action="released",
-                capturing_list=capturing_list.name,
-                original_list=original_list.name,
-            )
+        # Log the fighter release event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=result.fighter,
+            request=request,
+            campaign_id=str(campaign.id),
+            campaign_name=campaign.name,
+            fighter_name=fighter_name,
+            action="released",
+            capturing_list=capturing_list.name,
+            original_list=original_list.name,
+        )
 
-            messages.success(
-                request,
-                f"{fighter_name} has been released back to {original_list.name}.",
-            )
+        messages.success(
+            request,
+            f"{fighter_name} has been released back to {original_list.name}.",
+        )
 
         return HttpResponseRedirect(
             reverse("core:campaign-captured-fighters", args=(campaign.id,))
