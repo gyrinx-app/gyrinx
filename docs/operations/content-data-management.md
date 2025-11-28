@@ -2,8 +2,9 @@
 
 This guide explains how to get the content library data from production into your local development environment using the custom-ish `dumpdata` and `loaddata_overwrite` process.
 
-> [!IMPORTANT]
+{% hint style="warning" %}
 > This process is only available for trusted developers and admins who have been granted access to the production infrastructure.
+{% endhint %}
 
 ## Why You Need This
 
@@ -55,9 +56,8 @@ This custom command is different from Django's built-in `loaddata`:
 1. **Clears existing content** - Wipes all content models before importing (destructive!)
 2. **Handles foreign keys** - Temporarily disables constraints during import
 3. **Skips historical records** - Ignores django-simple-history tables
-4. **Actually works** - Django's loaddata would fail on duplicate keys
 
-The command lives at `gyrinx/core/management/commands/loaddata_overwrite.py`.
+Content primary keys stay consistent over time, so long as you develop against content exported from production, your local content references will remain valid.
 
 ## Common Tasks
 
@@ -114,6 +114,8 @@ If you can't access the GCS bucket or Cloud Run job, you'll need to ask an admin
 Re-download from the bucket. The export job creates valid JSON, so corruption usually happens during download.
 
 ## Technical Details
+
+The command lives at `gyrinx/core/management/commands/loaddata_overwrite.py`.
 
 The command uses PostgreSQL's `TRUNCATE CASCADE` for fast deletion, but falls back to regular `DELETE` if that fails. Foreign key checks are disabled with `SET session_replication_role = 'replica'` during import.
 

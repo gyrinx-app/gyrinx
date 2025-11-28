@@ -6,7 +6,7 @@ Necromunda is a complex game. The content application within the Django project 
 The content is managed by the Gyrinx team and is not currently extensible by users. We have plans to support user-defined content in the future.
 {% endhint %}
 
-The Django models within the content application are all prefixed with C`ontent` to help us distinguish them. The most important models are `ContentHouse`, `ContentFighter`, `ContentEquipment`, and `ContentWeaponProfile`.
+The Django models within the content application are all prefixed with `Content` to help us distinguish them. The most important models are `ContentHouse`, `ContentFighter`, `ContentEquipment`, and `ContentWeaponProfile`.
 
 There's a range of supporting models that help with default equipment assignments, equipment list items, weapon accessories, links between equipment and fighters to support exotic beasts, house additional rules for game concepts like legendary names, modifications that can allow equipment to modify weapon stats and fighter stats, page references that support linking game concepts to their rulebook entry, Psyker models around the disciplines and default assignments of powers, the rules and skills that are built into the game, and weapon accessories and traits.
 
