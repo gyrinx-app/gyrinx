@@ -7,8 +7,11 @@ from .storage_settings import configure_gcs_storage
 # Configure Django logging for production using StructuredLogHandler
 # This writes JSON to stdout, which Cloud Run captures and sends to Cloud Logging
 # Note: RequestMiddleware in settings.py handles trace correlation
+# The project_id is required for proper trace correlation formatting
+GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", ""))
 LOGGING["handlers"]["structured_console"] = {
     "class": "google.cloud.logging_v2.handlers.StructuredLogHandler",
+    "project_id": GCP_PROJECT_ID,
 }
 
 # Update loggers to use structured logging with propagate: False to prevent duplicates
