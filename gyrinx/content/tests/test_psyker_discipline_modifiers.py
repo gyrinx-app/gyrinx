@@ -11,10 +11,9 @@ from gyrinx.content.models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentHouse,
     ContentModPsykerDisciplineAccess,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
     ContentRule,
 )
+from gyrinx.content.models.psyker import ContentPsykerDiscipline, ContentPsykerPower
 from gyrinx.core.models import (
     List,
     ListFighter,

@@ -31,7 +31,6 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
-    ContentPsykerPower,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,
@@ -39,6 +38,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
     VirtualWeaponProfile,
 )
+from gyrinx.content.models.psyker import ContentPsykerPower
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.forms.advancement import (
     AdvancementDiceChoiceForm,
