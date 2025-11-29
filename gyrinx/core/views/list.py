@@ -3974,7 +3974,6 @@ def mark_fighter_captured(request, id, fighter_id):
     from django.contrib import messages
 
     from gyrinx.core.handlers.fighter.capture import handle_fighter_capture
-    from gyrinx.core.models.campaign import CampaignAction
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -4030,20 +4029,6 @@ def mark_fighter_captured(request, id, fighter_id):
                 user=request.user,
                 fighter=fighter,
                 capturing_list=capturing_list,
-            )
-
-            # Log campaign action
-            description = f"{fighter.name} was captured by {capturing_list.name}"
-            if result.equipment_removed:
-                description += " (linked equipment removed)"
-
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=campaign,
-                list=lst,
-                description=description,
-                outcome=f"{fighter.name} is now held captive",
             )
 
             # Show messages for removed equipment

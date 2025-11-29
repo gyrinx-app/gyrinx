@@ -2284,15 +2284,6 @@ def fighter_sell_to_guilders(request, id, fighter_id):
             sale_price=credits,
         )
 
-        # Log campaign action
-        CampaignAction.objects.create(
-            campaign=campaign,
-            user=request.user,
-            list=result.capturing_list,
-            description=f"Sold {result.fighter.name} from {result.fighter.list.name} to the guilders"
-            + (f" for {credits} credits" if credits > 0 else ""),
-        )
-
         # Log the fighter sale event
         log_event(
             user=request.user,
@@ -2398,24 +2389,6 @@ def fighter_return_to_owner(request, id, fighter_id):
                 ransom_amount=ransom,
             )
 
-            # Log campaign action for ransom payment (if any)
-            if ransom > 0:
-                CampaignAction.objects.create(
-                    campaign=campaign,
-                    user=request.user,
-                    list=original_list,
-                    description=f"Paid {ransom} credit ransom to {capturing_list.name} for {fighter_name}",
-                )
-
-            # Log campaign action for return
-            CampaignAction.objects.create(
-                campaign=campaign,
-                user=request.user,
-                list=capturing_list,
-                description=f"Returned {fighter_name} to {original_list.name}"
-                + (f" for {ransom} credits" if ransom > 0 else ""),
-            )
-
             # Log the fighter return event
             log_event(
                 user=request.user,
@@ -2507,14 +2480,6 @@ def fighter_release(request, id, fighter_id):
         result = handle_fighter_release(
             user=request.user,
             captured_fighter=captured_fighter,
-        )
-
-        # Log campaign action for release
-        CampaignAction.objects.create(
-            campaign=campaign,
-            user=request.user,
-            list=capturing_list,
-            description=f"Released {fighter_name} back to {original_list.name} without ransom",
         )
 
         # Log the fighter release event
