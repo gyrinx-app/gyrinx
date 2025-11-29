@@ -4,11 +4,14 @@ from .settings import *  # noqa: F403
 from .settings import LOGGING, STORAGES
 from .storage_settings import configure_gcs_storage
 
+# GCP Project ID - required for trace correlation in logging
+# Uses env var with hardcoded fallback (same approach as storage_settings.py)
+GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
+
 # Configure Django logging for production using StructuredLogHandler
 # This writes JSON to stdout, which Cloud Run captures and sends to Cloud Logging
 # Note: RequestMiddleware in settings.py handles trace correlation
 # The project_id is required for proper trace correlation formatting
-GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", ""))
 LOGGING["handlers"]["structured_console"] = {
     "class": "google.cloud.logging_v2.handlers.StructuredLogHandler",
     "project_id": GCP_PROJECT_ID,

@@ -2,7 +2,8 @@
 OpenTelemetry tracing utilities for Google Cloud Run.
 
 This module provides tracing capabilities that integrate with Google Cloud Trace.
-Tracing is only enabled when the GOOGLE_CLOUD_PROJECT environment variable is set.
+In production (DEBUG=False), traces are exported to Google Cloud Trace.
+In development (DEBUG=True), traces are printed to the console.
 
 Typical usage:
 
@@ -38,16 +39,26 @@ _tracer = None
 _initialized = False
 
 
+def _get_project_id():
+    """Get GCP project ID with fallback for Cloud Run."""
+    return os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
+
+
 def _get_exporter():
-    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if project_id:
-        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+    """Get the appropriate span exporter based on environment.
 
-        return CloudTraceSpanExporter(project_id=project_id)
+    Production (DEBUG=False): CloudTraceSpanExporter for Google Cloud Trace
+    Development (DEBUG=True): ConsoleSpanExporter for local debugging
+    """
+    if settings.DEBUG:
+        from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
-    from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+        return ConsoleSpanExporter()
 
-    return ConsoleSpanExporter()
+    from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+    project_id = _get_project_id()
+    return CloudTraceSpanExporter(project_id=project_id)
 
 
 def _get_processor(exporter):
@@ -64,12 +75,12 @@ def _get_processor(exporter):
 
 
 def _init_tracing() -> None:
-    """Initialize OpenTelemetry tracing if GOOGLE_CLOUD_PROJECT is set.
+    """Initialize OpenTelemetry tracing for Google Cloud Trace.
 
     This configures:
-    1. Google Cloud Trace exporter
-    2. Django auto-instrumentation (automatic request spans)
-    3. Trace context propagation from X-Cloud-Trace-Context header
+    1. CloudTraceFormatPropagator - parses X-Cloud-Trace-Context header from Cloud Run
+    2. Google Cloud Trace exporter
+    3. Django auto-instrumentation (automatic request spans)
 
     Called automatically on module import.
     """
@@ -83,7 +94,16 @@ def _init_tracing() -> None:
     try:
         from opentelemetry import trace
         from opentelemetry.instrumentation.django import DjangoInstrumentor
+        from opentelemetry.propagate import set_global_textmap
+        from opentelemetry.propagators.cloud_trace_propagator import (
+            CloudTraceFormatPropagator,
+        )
         from opentelemetry.sdk.trace import TracerProvider
+
+        # Configure Cloud Trace propagator FIRST
+        # This tells OpenTelemetry to parse X-Cloud-Trace-Context header (GCP format)
+        # instead of the default W3C traceparent format
+        set_global_textmap(CloudTraceFormatPropagator())
 
         # Create tracer provider
         provider = TracerProvider()
@@ -97,16 +117,13 @@ def _init_tracing() -> None:
         trace.set_tracer_provider(provider)
 
         # Auto-instrument Django (adds automatic request spans)
-        # This also handles X-Cloud-Trace-Context propagation
         DjangoInstrumentor().instrument()
 
         # Get tracer for manual spans
         _tracer = trace.get_tracer("gyrinx.tracing")
         _tracing_enabled = True
 
-        logger.info(
-            f"OpenTelemetry tracing enabled with exporter {exporter.__class__.__name__}"
-        )
+        logger.info(f"OpenTelemetry tracing enabled with {exporter.__class__.__name__}")
 
     except ImportError as e:
         logger.warning(f"OpenTelemetry packages not installed: {e}")
