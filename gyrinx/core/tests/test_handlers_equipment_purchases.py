@@ -1400,6 +1400,12 @@ def test_handle_equipment_sale_entire_assignment(
     lst.refresh_from_db()
     assert lst.credits_current == 530  # 500 + 30
 
+    # Stash is only updated when ListAction feature is enabled
+    if feature_flag_enabled:
+        assert lst.stash_current == 50  # 100 - 50 (equipment cost removed from stash)
+    else:
+        assert lst.stash_current == 100  # Unchanged without ListAction tracking
+
     # Verify assignment deleted
     assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
 
