@@ -193,9 +193,11 @@ track("fighter_created", fighter=fighter_instance)
 
 The `gyrinx.tracing` module provides OpenTelemetry tracing integration with Google Cloud Trace.
 
-### Module Location
+To trace locally:
 
-`gyrinx/tracing.py`
+```console
+> opentelemetry-instrument manage runserver
+```
 
 ### Initialization
 
@@ -209,8 +211,8 @@ import gyrinx.tracing  # noqa: F401, E402
 
 | Condition | Result |
 |-----------|--------|
-| `GOOGLE_CLOUD_PROJECT` set | Tracing enabled |
-| `GOOGLE_CLOUD_PROJECT` not set | Tracing disabled (all functions become no-ops) |
+| `GOOGLE_CLOUD_PROJECT` set | Tracing using batch cloud exporter |
+| `GOOGLE_CLOUD_PROJECT` not set | Tracing using console settings |
 
 ### Dependencies
 
@@ -220,6 +222,7 @@ Required packages for tracing:
 opentelemetry-sdk>=1.28.0
 opentelemetry-exporter-gcp-trace>=1.8.0
 opentelemetry-instrumentation-django>=0.49b0
+opentelemetry-instrumentation-asgi>=0.49b0
 ```
 
 ### span()
@@ -373,7 +376,7 @@ Filter by labels:
 ```
 resource.type="cloud_run_revision"
 jsonPayload.event="api_call"
-jsonPayload.labels.endpoint="/api/v1/fighters"
+jsonPayload.labels.endpoint="..."
 ```
 
 ---

@@ -28,12 +28,39 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Generator, Optional
 
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 # Module-level state
 _tracing_enabled = False
 _tracer = None
 _initialized = False
+
+
+def _get_exporter():
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if project_id:
+        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+        return CloudTraceSpanExporter(project_id=project_id)
+
+    from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
+    return ConsoleSpanExporter()
+
+
+def _get_processor(exporter):
+    if settings.DEBUG:
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+        logger.info("Using SimpleSpanProcessor for tracing (DEBUG mode)")
+        return SimpleSpanProcessor(exporter)
+    else:
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        logger.info("Using BatchSpanProcessor for tracing")
+        return BatchSpanProcessor(exporter)
 
 
 def _init_tracing() -> None:
@@ -53,24 +80,17 @@ def _init_tracing() -> None:
 
     _initialized = True
 
-    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if not project_id:
-        logger.debug("OpenTelemetry tracing disabled - GOOGLE_CLOUD_PROJECT not set")
-        return
-
     try:
         from opentelemetry import trace
-        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
         from opentelemetry.instrumentation.django import DjangoInstrumentor
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
         # Create tracer provider
         provider = TracerProvider()
 
         # Add Cloud Trace exporter with batch processing
-        exporter = CloudTraceSpanExporter(project_id=project_id)
-        processor = BatchSpanProcessor(exporter)
+        exporter = _get_exporter()
+        processor = _get_processor(exporter)
         provider.add_span_processor(processor)
 
         # Set as global tracer provider
@@ -84,7 +104,9 @@ def _init_tracing() -> None:
         _tracer = trace.get_tracer("gyrinx.tracing")
         _tracing_enabled = True
 
-        logger.info(f"OpenTelemetry tracing enabled for project: {project_id}")
+        logger.info(
+            f"OpenTelemetry tracing enabled with exporter {exporter.__class__.__name__}"
+        )
 
     except ImportError as e:
         logger.warning(f"OpenTelemetry packages not installed: {e}")

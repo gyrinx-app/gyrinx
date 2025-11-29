@@ -19,6 +19,7 @@ from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.models.site import Banner
+from gyrinx.tracing import span, traced
 
 from .csrf import csrf_failure as csrf_failure
 from .upload import tinymce_upload as tinymce_upload
@@ -30,6 +31,7 @@ def make_query_params_str(**kwargs) -> str:
     return urlencode(dict([(k, v) for k, v in kwargs.items() if v is not None]))
 
 
+@traced("view_index")
 def index(request):
     """
     Display a list of the user's :model:`core.List` objects, campaign gangs, and campaigns.
@@ -54,52 +56,53 @@ def index(request):
         has_any_lists = False
         search_query = None
     else:
-        # Check if user has ANY lists (for showing filter)
-        has_any_lists = List.objects.filter(
-            owner=request.user, status=List.LIST_BUILDING, archived=False
-        ).exists()
+        with span("fetch_user_dashboard_data"):
+            # Check if user has ANY lists (for showing filter)
+            has_any_lists = List.objects.filter(
+                owner=request.user, status=List.LIST_BUILDING, archived=False
+            ).exists()
 
-        # Regular lists (not in campaigns) - show 5 most recent
-        lists_queryset = List.objects.filter(
-            owner=request.user, status=List.LIST_BUILDING, archived=False
-        ).select_related("content_house")
+            # Regular lists (not in campaigns) - show 5 most recent
+            lists_queryset = List.objects.filter(
+                owner=request.user, status=List.LIST_BUILDING, archived=False
+            ).select_related("content_house")
 
-        # Apply search filter for lists
-        search_query = request.GET.get("q")
-        if search_query:
-            search_vector = SearchVector("name", "content_house__name")
-            search_q = SearchQuery(search_query)
-            lists_queryset = lists_queryset.annotate(search=search_vector).filter(
-                Q(search=search_q)
-                | Q(name__icontains=search_query)
-                | Q(content_house__name__icontains=search_query)
+            # Apply search filter for lists
+            search_query = request.GET.get("q")
+            if search_query:
+                search_vector = SearchVector("name", "content_house__name")
+                search_q = SearchQuery(search_query)
+                lists_queryset = lists_queryset.annotate(search=search_vector).filter(
+                    Q(search=search_q)
+                    | Q(name__icontains=search_query)
+                    | Q(content_house__name__icontains=search_query)
+                )
+
+            # Order by modified and limit to 5
+            lists = lists_queryset.order_by("-modified")[:5]
+
+            # Campaign gangs - user's lists that are in active campaigns, show 5 most recent
+            campaign_gangs = (
+                List.objects.filter(
+                    owner=request.user,
+                    status=List.CAMPAIGN_MODE,
+                    campaign__status=Campaign.IN_PROGRESS,
+                )
+                .select_related("campaign", "content_house")
+                .order_by("-modified")[:5]
             )
 
-        # Order by modified and limit to 5
-        lists = lists_queryset.order_by("-modified")[:5]
-
-        # Campaign gangs - user's lists that are in active campaigns, show 5 most recent
-        campaign_gangs = (
-            List.objects.filter(
-                owner=request.user,
-                status=List.CAMPAIGN_MODE,
-                campaign__status=Campaign.IN_PROGRESS,
+            # Campaigns - where user is owner or has lists participating
+            campaigns = (
+                Campaign.objects.filter(
+                    Q(owner=request.user)  # User is campaign admin
+                    | Q(
+                        campaign_lists__owner=request.user
+                    )  # User has lists in the campaign
+                )
+                .distinct()
+                .order_by("-created")
             )
-            .select_related("campaign", "content_house")
-            .order_by("-modified")[:5]
-        )
-
-        # Campaigns - where user is owner or has lists participating
-        campaigns = (
-            Campaign.objects.filter(
-                Q(owner=request.user)  # User is campaign admin
-                | Q(
-                    campaign_lists__owner=request.user
-                )  # User has lists in the campaign
-            )
-            .distinct()
-            .order_by("-created")
-        )
 
     # Log the dashboard view
     if request.user.is_authenticated:

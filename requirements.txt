@@ -25,6 +25,7 @@ jupyter==1.1.1
 nbstripout==0.8.2
 nodeenv==1.9.1
 opentelemetry-exporter-gcp-trace>=1.8.0
+opentelemetry-instrumentation-asgi>=0.49b0
 opentelemetry-instrumentation-django>=0.49b0
 
 # OpenTelemetry - Cloud Trace integration
