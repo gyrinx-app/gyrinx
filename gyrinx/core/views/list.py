@@ -78,10 +78,10 @@ from gyrinx.core.handlers.fighter import (
     handle_fighter_advancement,
     handle_fighter_archive_toggle,
     handle_fighter_clone,
+    handle_fighter_deletion,
     handle_fighter_hire,
 )
 from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
-from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
@@ -3468,21 +3468,8 @@ def delete_list_fighter(request, id, fighter_id):
     )
 
     if request.method == "POST":
-        # Capture BEFORE values for ListAction
-        rating_before = lst.rating_current
-        stash_before = lst.stash_current
-        credits_before = lst.credits_current
-
-        # Calculate cost before deletion
-        fighter_cost = fighter.cost_int()
-
-        # Check if refund was requested (only in campaign mode)
-        refund = request.POST.get("refund") == "on"
-
-        # Determine deltas based on whether fighter is in stash
-        rating_delta = -fighter_cost if not fighter.is_stash else 0
-        stash_delta = -fighter_cost if fighter.is_stash else 0
-        credits_delta = fighter_cost if (refund and lst.is_campaign_mode) else 0
+        # Store fighter name for logging before handler deletes it
+        fighter_name = fighter.name
 
         # Log the fighter delete event before deletion
         log_event(
@@ -3491,37 +3478,17 @@ def delete_list_fighter(request, id, fighter_id):
             verb=EventVerb.DELETE,
             object=fighter,
             request=request,
-            fighter_name=fighter.name,
+            fighter_name=fighter_name,
             list_id=str(lst.id),
             list_name=lst.name,
         )
 
-        # Store fighter ID and name before deletion
-        fighter_id = fighter.id
-        fighter_name = fighter.name
-
-        fighter.delete()
-
-        # Build description
-        description = f"Removed {fighter_name} ({fighter_cost}¢)"
-        if refund and lst.is_campaign_mode:
-            description += f" - refund applied (+{fighter_cost}¢)"
-
-        # Create ListAction after deletion
-        lst.create_action(
+        # Call handler to perform business logic
+        handle_fighter_deletion(
             user=request.user,
-            action_type=ListActionType.REMOVE_FIGHTER,
-            subject_app="core",
-            subject_type="ListFighter",
-            subject_id=fighter_id,
-            description=description,
-            rating_delta=rating_delta,
-            stash_delta=stash_delta,
-            credits_delta=credits_delta,
-            rating_before=rating_before,
-            stash_before=stash_before,
-            credits_before=credits_before,
-            update_credits=True,
+            lst=lst,
+            fighter=fighter,
+            request_refund=request.POST.get("refund") == "on",
         )
 
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
