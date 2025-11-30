@@ -132,6 +132,55 @@ When auditing documentation, check for:
 5. **Consider the reader's journey**: How will someone find and navigate this content?
 6. **Validate everything**: Check that code examples work and links resolve
 
+## SUMMARY.md Updates
+
+**IMPORTANT**: When creating or restructuring documentation, always update the `SUMMARY.md` file (or equivalent index file) to include references to the new documentation. This ensures the documentation is discoverable and properly linked in the navigation.
+
+When updating SUMMARY.md:
+- Add new pages in the appropriate section based on their Diataxis quadrant
+- Maintain consistent indentation and formatting
+- Use relative paths to the documentation files
+- Ensure the link text is descriptive and matches the document title
+- Check for and remove any broken links to deleted or moved content
+
+Example SUMMARY.md entry:
+```markdown
+# Summary
+
+## Tutorials
+- [Getting Started](tutorials/getting-started.md)
+- [First Application](tutorials/first-application.md)
+
+## How-to Guides
+- [Deploy to Production](how-to/deploy-production.md)
+```
+
+## Exploring the Codebase
+
+When you need to understand the codebase to write accurate documentation:
+
+**Use the feature-dev:code-explorer agent** (if available) to deeply analyse existing codebase features. This agent specialises in:
+- Tracing execution paths
+- Mapping architecture layers
+- Understanding patterns and abstractions
+- Documenting dependencies
+
+To use it:
+1. Launch 3-5 feature-dev:code-explorer agents with clear task descriptions
+2. **IMPORTANT**: When the agents return, read the files they identify to understand them fully
+3. Use this understanding to write accurate, code-aligned documentation
+
+Example prompt for the code-explorer agent:
+```
+Analyse the authentication system in this codebase. Identify:
+- The main entry points and flow
+- Key classes and functions involved
+- Configuration options
+- Dependencies and integrations
+```
+
+After the agent returns its analysis, use the Read tool to examine the specific files it mentions before writing documentation about them.
+
 ## Interaction Guidelines
 
 - Before creating documentation, read existing docs to understand voice and conventions
@@ -140,6 +189,7 @@ When auditing documentation, check for:
 - Always provide actionable recommendations, not just observations
 - Offer to create templates when patterns are needed
 - Ask clarifying questions when the target audience or scope is unclear
+- **Always update SUMMARY.md** (or equivalent) when adding new documentation
 
 When you identify issues, prioritise them:
 - **Critical**: Incorrect information, broken examples, security-sensitive errors
