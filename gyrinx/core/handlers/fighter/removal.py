@@ -430,3 +430,115 @@ def handle_fighter_archive_toggle(
         list_action=list_action,
         campaign_action=campaign_action,
     )
+
+
+@dataclass
+class FighterDeletionResult:
+    """Result of deleting a fighter."""
+
+    fighter_id: UUID
+    fighter_name: str
+    fighter_cost: int
+    refund_applied: bool
+    description: str
+    list_action: Optional[ListAction]
+    campaign_action: Optional[CampaignAction]
+
+
+@transaction.atomic
+def handle_fighter_deletion(
+    *,
+    user,
+    lst: List,
+    fighter: ListFighter,
+    request_refund: bool,
+) -> FighterDeletionResult:
+    """
+    Handle deletion of a fighter from a list.
+
+    This handler performs the following operations atomically:
+    1. Captures before values for ListAction
+    2. Calculates fighter cost before deletion
+    3. Validates and calculates refund (only in campaign mode)
+    4. Stores fighter details before deletion
+    5. Deletes the fighter
+    6. Creates CampaignAction if in campaign mode
+    7. Creates ListAction to track the deletion
+
+    Args:
+        user: User performing deletion
+        lst: List containing fighter
+        fighter: Fighter to delete
+        request_refund: Whether user requested refund (only applied in campaign mode)
+
+    Returns:
+        FighterDeletionResult with deletion details
+    """
+    # Capture BEFORE values for ListAction
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+    credits_before = lst.credits_current
+
+    # Calculate cost BEFORE deletion
+    fighter_cost = fighter.cost_int()
+    fighter_id = fighter.id
+    fighter_name = fighter.name
+    is_stash = fighter.is_stash
+
+    # Calculate deltas based on fighter type
+    rating_delta = -fighter_cost if not is_stash else 0
+    stash_delta = -fighter_cost if is_stash else 0
+
+    # Validate and calculate refund
+    credits_delta, refund_applied = _calculate_refund_credits(
+        lst=lst,
+        cost=fighter_cost,
+        request_refund=request_refund,
+    )
+
+    # Delete the fighter
+    fighter.delete()
+
+    # Build description
+    description = f"Removed {fighter_name} ({fighter_cost}¢)"
+    if refund_applied:
+        description += f" - refund applied (+{fighter_cost}¢)"
+
+    # Create CampaignAction if in campaign mode
+    campaign_action = None
+    if lst.is_campaign_mode:
+        campaign_action = CampaignAction.objects.create(
+            user=user,
+            owner=user,
+            campaign=lst.campaign,
+            list=lst,
+            description=description,
+            outcome=f"Credits: {credits_before + credits_delta}¢",
+        )
+
+    # Create ListAction
+    list_action = lst.create_action(
+        user=user,
+        action_type=ListActionType.REMOVE_FIGHTER,
+        subject_app="core",
+        subject_type="ListFighter",
+        subject_id=fighter_id,
+        description=description,
+        rating_delta=rating_delta,
+        stash_delta=stash_delta,
+        credits_delta=credits_delta,
+        rating_before=rating_before,
+        stash_before=stash_before,
+        credits_before=credits_before,
+        update_credits=True,
+    )
+
+    return FighterDeletionResult(
+        fighter_id=fighter_id,
+        fighter_name=fighter_name,
+        fighter_cost=fighter_cost,
+        refund_applied=refund_applied,
+        description=description,
+        list_action=list_action,
+        campaign_action=campaign_action,
+    )
