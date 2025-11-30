@@ -26,21 +26,21 @@ from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
 
-# Debug-only URLs must be added before the flatpage catch-all
-_debug_urls = []
-if settings.DEBUG:
-    _debug_urls = [
-        path(
-            "_debug/test-plans/",
-            debug_views.debug_test_plan_index,
-            name="debug_test_plans",
-        ),
-        path(
-            "_debug/test-plans/<str:filename>",
-            debug_views.debug_test_plan_detail,
-            name="debug_test_plan_detail",
-        ),
-    ]
+# Debug URLs - always registered, views check DEBUG and return 404 if disabled.
+# This ensures consistent URL routing in parallel test workers where DEBUG
+# may be False at import time but True via @override_settings.
+_debug_urls = [
+    path(
+        "_debug/test-plans/",
+        debug_views.debug_test_plan_index,
+        name="debug_test_plans",
+    ),
+    path(
+        "_debug/test-plans/<str:filename>",
+        debug_views.debug_test_plan_detail,
+        name="debug_test_plan_detail",
+    ),
+]
 
 urlpatterns = (
     debug_toolbar_urls()
