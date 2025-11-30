@@ -30,6 +30,7 @@ class ListActionType(models.TextChoices):
     SELL_FIGHTER = "SELL_FIGHTER", "Sell Fighter"
     RETURN_FIGHTER = "RETURN_FIGHTER", "Return Fighter"
     RELEASE_FIGHTER = "RELEASE_FIGHTER", "Release Fighter"
+    UPDATE_CREDITS = "UPDATE_CREDITS", "Update Credits"
 
 
 class ListActionQuerySet(models.QuerySet):

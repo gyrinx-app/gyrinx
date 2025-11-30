@@ -81,7 +81,7 @@ from gyrinx.core.handlers.fighter import (
     handle_fighter_deletion,
     handle_fighter_hire,
 )
-from gyrinx.core.handlers.list_operations import handle_list_clone, handle_list_creation
+from gyrinx.core.handlers.list import handle_list_clone, handle_list_creation
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import (
@@ -578,7 +578,7 @@ def edit_list_credits(request, id):
     from django.db.models import Q
 
     from gyrinx.core.forms.list import EditListCreditsForm
-    from gyrinx.core.models.campaign import CampaignAction
+    from gyrinx.core.handlers.list import handle_credits_modification
 
     lst = get_object_or_404(
         List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
@@ -607,73 +607,36 @@ def edit_list_credits(request, id):
             amount = form.cleaned_data["amount"]
             description = form.cleaned_data.get("description", "")
 
-            # Validate the operation
-            if operation == "spend" and amount > lst.credits_current:
-                form.add_error(
-                    "amount",
-                    f"Cannot spend more credits than available ({lst.credits_current}¢)",
+            try:
+                result = handle_credits_modification(
+                    user=request.user,
+                    lst=lst,
+                    operation=operation,
+                    amount=amount,
+                    description=description,
                 )
-            elif operation == "reduce" and amount > lst.credits_current:
-                form.add_error(
-                    "amount",
-                    f"Cannot reduce credits below zero (current: {lst.credits_current}¢)",
+
+                # Log the credit update event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.UPDATE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                    credit_operation=operation,
+                    amount=amount,
+                    credits_current=result.credits_after,
+                    credits_earned=result.credits_earned_after,
+                    description=description,
                 )
-            elif operation == "reduce" and amount > lst.credits_earned:
-                form.add_error(
-                    "amount",
-                    f"Cannot reduce all time credits below zero (all time: {lst.credits_earned}¢)",
-                )
-            else:
-                with transaction.atomic():
-                    # Apply the credit change
-                    if operation == "add":
-                        lst.credits_current += amount
-                        lst.credits_earned += amount
-                        action_desc = f"Added {amount}¢"
-                        outcome = f"+{amount}¢ (to {lst.credits_current}¢)"
-                    elif operation == "spend":
-                        lst.credits_current -= amount
-                        action_desc = f"Spent {amount}¢"
-                        outcome = f"-{amount}¢ (to {lst.credits_current}¢)"
-                    else:  # reduce
-                        lst.credits_current -= amount
-                        lst.credits_earned -= amount
-                        action_desc = f"Reduced {amount}¢"
-                        outcome = f"-{amount}¢ (to {lst.credits_current}¢, all time: {lst.credits_earned}¢)"
-
-                    if description:
-                        action_desc += f": {description}"
-
-                    lst.save()
-
-                    # Log to campaign action
-                    if lst.campaign:
-                        CampaignAction.objects.create(
-                            user=request.user,
-                            owner=request.user,
-                            campaign=lst.campaign,
-                            list=lst,
-                            description=action_desc,
-                            outcome=outcome,
-                        )
-
-                    # Log the credit update event
-                    log_event(
-                        user=request.user,
-                        noun=EventNoun.LIST,
-                        verb=EventVerb.UPDATE,
-                        object=lst,
-                        request=request,
-                        list_name=lst.name,
-                        credit_operation=operation,
-                        amount=amount,
-                        credits_current=lst.credits_current,
-                        credits_earned=lst.credits_earned,
-                        description=description,
-                    )
 
                 messages.success(request, f"Credits updated for {lst.name}")
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+            except ValueError as e:
+                # Handler validation errors become form errors
+                form.add_error("amount", str(e))
     else:
         form = EditListCreditsForm(lst=lst)
 

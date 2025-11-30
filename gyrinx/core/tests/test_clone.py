@@ -1,7 +1,7 @@
 import pytest
 
 from gyrinx.content.models import ContentEquipmentUpgrade
-from gyrinx.core.handlers.list_operations import handle_list_clone
+from gyrinx.core.handlers.list import handle_list_clone
 from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.list import (
     List,
