@@ -2,7 +2,7 @@
 Tests for list operation handlers.
 
 These tests directly test the handle_list_creation function in
-gyrinx.core.handlers.list_operations, ensuring that business logic works
+gyrinx.core.handlers.list.operations, ensuring that business logic works
 correctly without involving HTTP machinery.
 """
 
@@ -10,7 +10,7 @@ import pytest
 from django.conf import settings
 
 from gyrinx.content.models import ContentFighter
-from gyrinx.core.handlers.list_operations import handle_list_creation
+from gyrinx.core.handlers.list import handle_list_creation
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import List, ListFighter
 
