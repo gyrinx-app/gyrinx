@@ -73,6 +73,7 @@ from gyrinx.core.handlers.equipment_purchases import (
     handle_weapon_profile_purchase,
 )
 from gyrinx.core.handlers.fighter import (
+    handle_equipment_removal,
     handle_fighter_advancement,
     handle_fighter_clone,
     handle_fighter_hire,
@@ -2384,34 +2385,17 @@ def delete_list_fighter_assign(
     )
 
     if request.method == "POST":
-        # Capture BEFORE values for ListAction
-        rating_before = lst.rating_current
-        stash_before = lst.stash_current
-        credits_before = lst.credits_current
-
-        # Calculate cost before deletion
-        equipment_cost = assignment.cost_int()
-
-        # Check if refund was requested (only in campaign mode)
-        refund = request.POST.get("refund") == "on"
-
-        # Determine deltas based on whether fighter is in stash
-        rating_delta = -equipment_cost if not fighter.is_stash else 0
-        stash_delta = -equipment_cost if fighter.is_stash else 0
-        credits_delta = equipment_cost if (refund and lst.is_campaign_mode) else 0
-
-        # Store equipment name and assignment ID before deletion
+        # Store equipment name for logging before handler deletes it
         equipment_name = assignment.content_equipment.name
-        assignment_id = assignment.id
 
-        assignment.delete()
-
-        # Build description
-        description = (
-            f"Removed {equipment_name} from {fighter.name} ({equipment_cost}¢)"
+        # Call handler to perform business logic
+        handle_equipment_removal(
+            user=request.user,
+            lst=lst,
+            fighter=fighter,
+            assignment=assignment,
+            request_refund=request.POST.get("refund") == "on",
         )
-        if refund and lst.is_campaign_mode:
-            description += f" - refund applied (+{equipment_cost}¢)"
 
         # Log the equipment deletion
         log_event(
@@ -2424,24 +2408,6 @@ def delete_list_fighter_assign(
             list_id=str(lst.id),
             list_name=lst.name,
             equipment_name=equipment_name,
-        )
-
-        # Create ListAction after deletion
-        lst.create_action(
-            user=request.user,
-            action_type=ListActionType.REMOVE_EQUIPMENT,
-            subject_app="core",
-            subject_type="ListFighterEquipmentAssignment",
-            subject_id=assignment_id,
-            list_fighter=fighter,
-            description=description,
-            rating_delta=rating_delta,
-            stash_delta=stash_delta,
-            credits_delta=credits_delta,
-            rating_before=rating_before,
-            stash_before=stash_before,
-            credits_before=credits_before,
-            update_credits=True,  # Allow credits_delta to be applied
         )
 
         return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
