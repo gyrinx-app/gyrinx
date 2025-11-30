@@ -122,9 +122,9 @@ def handle_equipment_removal(
     if refund_applied:
         description += f" - refund applied (+{equipment_cost}¢)"
 
-    # Create CampaignAction if in campaign mode
+    # Create CampaignAction if in campaign mode with a campaign
     campaign_action = None
-    if lst.is_campaign_mode:
+    if lst.is_campaign_mode and lst.campaign:
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
@@ -263,7 +263,7 @@ def handle_equipment_component_removal(
 
     # Create CampaignAction if in campaign mode
     campaign_action = None
-    if lst.is_campaign_mode:
+    if lst.is_campaign_mode and lst.campaign:
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
@@ -393,7 +393,7 @@ def handle_fighter_archive_toggle(
 
     # Create CampaignAction if in campaign mode
     campaign_action = None
-    if lst.is_campaign_mode:
+    if lst.is_campaign_mode and lst.campaign:
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
@@ -506,7 +506,7 @@ def handle_fighter_deletion(
 
     # Create CampaignAction if in campaign mode
     campaign_action = None
-    if lst.is_campaign_mode:
+    if lst.is_campaign_mode and lst.campaign:
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
