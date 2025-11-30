@@ -50,7 +50,26 @@ Format the test plan so Claude for Chrome can execute it step-by-step:
 - Note any checkboxes or form fields to interact with
 - Specify page navigation clearly (e.g., "Navigate to the fighter's detail page by clicking on their name")
 
-### 4. Context: This Application
+### 4. Human Assistance Required
+
+Some tests may require actions outside the browser that Claude for Chrome cannot perform. For these, include a **"🧑‍💻 Human Action Required"** section that clearly asks the user to help.
+
+Examples of when to ask for human help:
+- Running CLI commands (e.g., `python manage.py ...`, `git ...`)
+- Checking database state
+- Modifying environment variables or settings
+- Restarting servers
+- Checking log files
+- Any action requiring terminal access
+
+Format these as:
+```
+🧑‍💻 **Human Action Required**
+Please run this command and tell me the result:
+`python manage.py shell -c "print(MyModel.objects.count())"`
+```
+
+### 5. Context: This Application
 
 This is Gyrinx, a list-building application for tabletop gaming. Key concepts:
 - **Lists**: Collections of fighters and equipment
@@ -62,7 +81,7 @@ This is Gyrinx, a list-building application for tabletop gaming. Key concepts:
 - **Stash**: Equipment held in reserve (separate from rating)
 - **Refunds**: In campaign mode, removing items can optionally refund credits
 
-### 5. Output Format and File Saving
+### 6. Output Format and File Saving
 
 Structure your output as a numbered checklist that Claude for Chrome can follow.
 
@@ -103,6 +122,16 @@ Steps:
 
 ## Test 2: [Test Name]
 ...
+
+## Test N: [Test requiring CLI/terminal]
+**Purpose**: [What this tests]
+
+🧑‍💻 **Human Action Required**
+This test requires terminal access. Please:
+1. Run: `[command]`
+2. Tell me the output
+
+Then I will verify: [what to check]
 ```
 
 Now analyze the changes shown above, generate the test plan, and save it to a file.
