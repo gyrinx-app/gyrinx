@@ -41,11 +41,18 @@ def debug_test_plan_detail(request, filename):
     if not settings.DEBUG:
         raise Http404("Debug views are only available in development")
 
-    # Security: ensure filename doesn't escape the directory
-    if ".." in filename or "/" in filename or "\\" in filename:
+    # Security: resolve the path and verify it's within the allowed directory
+    # This prevents path traversal attacks (e.g., ../../../etc/passwd)
+    try:
+        base_dir = TEST_PLANS_DIR.resolve()
+        file_path = (TEST_PLANS_DIR / filename).resolve()
+
+        # Ensure the resolved path is within the test plans directory
+        if not file_path.is_relative_to(base_dir):
+            raise Http404("Invalid filename")
+    except (ValueError, OSError):
         raise Http404("Invalid filename")
 
-    file_path = TEST_PLANS_DIR / filename
     if not file_path.exists() or not file_path.is_file():
         raise Http404("Test plan not found")
 
