@@ -98,3 +98,19 @@
         </div>
     </div>
 </div>
+{% if gyrinx_debug %}
+    <div class="bg-warning-subtle border border-warning rounded px-2 py-1 mb-2 fs-7 font-monospace d-flex align-items-center gap-3">
+        <span class="text-warning-emphasis fw-bold">DEBUG</span>
+        <span bs-tooltip
+              data-bs-toggle="tooltip"
+              title="{% if list.latest_action %}{{ list.latest_action.action_type }}: {{ list.latest_action.description }}{% else %}No actions recorded{% endif %}">
+            {% if list.latest_action %}
+                <i class="bi-flag-fill text-success"></i> Has actions
+            {% else %}
+                <i class="bi-flag text-secondary"></i> No actions
+            {% endif %}
+        </span>
+        <span class="text-muted">|</span>
+        <span>R: {{ list.rating_current }}¢ · C: {{ list.credits_current }}¢ · S: {{ list.stash_current }}¢ · W: {{ list.wealth_current }}¢</span>
+    </div>
+{% endif %}

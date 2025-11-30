@@ -3973,8 +3973,7 @@ def mark_fighter_captured(request, id, fighter_id):
     """
     from django.contrib import messages
 
-    from gyrinx.core.models.campaign import CampaignAction
-    from gyrinx.core.models.list import CapturedFighter
+    from gyrinx.core.handlers.fighter.capture import handle_fighter_capture
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -4025,62 +4024,34 @@ def mark_fighter_captured(request, id, fighter_id):
                 List, id=capturing_list_id, campaign=campaign
             )
 
-            with transaction.atomic():
-                # Check if this fighter is linked to equipment assignments and unlink them
-                linked_assignments = ListFighterEquipmentAssignment.objects.filter(
-                    child_fighter=fighter
+            # Call the capture handler
+            result = handle_fighter_capture(
+                user=request.user,
+                fighter=fighter,
+                capturing_list=capturing_list,
+            )
+
+            # Show messages for removed equipment
+            for assignment_id, equipment_cost in result.equipment_removed:
+                messages.info(
+                    request,
+                    f"Linked equipment removed due to capture ({equipment_cost}¢).",
                 )
 
-                # Create the capture record first
-                CapturedFighter.objects.create(
-                    fighter=fighter,
-                    capturing_list=capturing_list,
-                    owner=request.user,
-                )
-
-                # Now delete the linked assignments
-                # This won't cascade delete the fighter because we need to unlink the foreign key first
-                if linked_assignments.exists():
-                    for assignment in linked_assignments:
-                        # Log what equipment is being removed
-                        messages.info(
-                            request,
-                            f"Removed {assignment.content_equipment.name} from {assignment.list_fighter.name} as {fighter.name} was captured.",
-                        )
-                        # Unlink the fighter first to prevent cascade delete
-                        assignment.child_fighter = None
-                        assignment.save()
-                        # Now delete the assignment
-                        assignment.delete()
-
-                # Log campaign action
-                description = f"{fighter.name} was captured by {capturing_list.name}"
-                if linked_assignments.exists():
-                    description += " (linked equipment removed)"
-
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=campaign,
-                    list=lst,
-                    description=description,
-                    outcome=f"{fighter.name} is now held captive",
-                )
-
-                # Log the capture event
-                log_event(
-                    user=request.user,
-                    noun=EventNoun.LIST_FIGHTER,
-                    verb=EventVerb.UPDATE,
-                    object=fighter,
-                    request=request,
-                    fighter_name=fighter.name,
-                    list_id=str(lst.id),
-                    list_name=lst.name,
-                    action="captured",
-                    capturing_list_name=capturing_list.name,
-                    capturing_list_id=str(capturing_list.id),
-                )
+            # Log the capture event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="captured",
+                capturing_list_name=capturing_list.name,
+                capturing_list_id=str(capturing_list.id),
+            )
 
             messages.success(
                 request,

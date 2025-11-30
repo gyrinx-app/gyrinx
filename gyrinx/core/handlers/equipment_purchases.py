@@ -778,7 +778,7 @@ class EquipmentSaleResult:
     total_sale_credits: int  # Credits received from sale
     total_equipment_cost: int  # Original equipment cost removed from stash
     description: str
-    list_action: ListAction
+    list_action: Optional[ListAction]
     campaign_action: Optional[CampaignAction]
 
 

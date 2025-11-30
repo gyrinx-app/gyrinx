@@ -330,10 +330,10 @@ def test_return_to_owner_view(client, campaign_with_lists):
     assert list1.credits_current == initial_credits_list1 - 25
     assert list2.credits_current == initial_credits_list2 + 25
 
-    # Check campaign actions were logged
+    # Check campaign actions were logged (handler creates CampaignActions)
     actions = CampaignAction.objects.filter(campaign=campaign).order_by("created")
-    assert any("Paid 25 credit ransom" in action.description for action in actions)
-    assert any("Returned Fighter 1" in action.description for action in actions)
+    assert any("Paid 25¢ ransom" in action.description for action in actions)
+    assert any("Received 25¢ ransom" in action.description for action in actions)
 
 
 @pytest.mark.django_db
