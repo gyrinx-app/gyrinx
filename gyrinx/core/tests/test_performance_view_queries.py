@@ -77,17 +77,7 @@ def strip_sql_comments(sql):
 @pytest.fixture
 def performance_test_data(db):
     """Set up test data for performance testing."""
-    # Warm up Django's ContentType cache to ensure consistent query counts
-    # when running tests in isolation vs. as part of a larger suite.
-    # Polymorphic models (ContentMod and subclasses) trigger ContentType lookups.
-    from django.contrib.contenttypes.models import ContentType
-
-    from gyrinx.content.models import ContentMod
-
-    # Must warm up both the base class (ContentMod) and subclass (ContentModFighterStat)
-    # as polymorphic lookups query the base class ContentType
-    ContentType.objects.get_for_model(ContentMod)
-    ContentType.objects.get_for_model(ContentModFighterStat)
+    # Note: ContentType cache for polymorphic models is warmed in ContentConfig.ready()
 
     # Create user
     user = User.objects.create_user(username="testuser", password="testpass")
