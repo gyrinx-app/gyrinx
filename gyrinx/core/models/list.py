@@ -522,6 +522,20 @@ class List(AppBase):
     def create_action(
         self, update_credits: bool = False, **kwargs
     ) -> Optional[ListAction]:
+        """
+        Create a ListAction to track changes to this list.
+
+        Args:
+            update_credits: If True, applies credits_delta to the list's credits_current.
+                           This works regardless of whether the feature flag is enabled -
+                           credits are always updated when this is True.
+            **kwargs: Additional fields for the ListAction (action_type, description,
+                     rating_delta, stash_delta, credits_delta, etc.)
+
+        Returns:
+            The created ListAction if feature flag is enabled, None otherwise.
+            Note: Even when returning None, credits are still updated if update_credits=True.
+        """
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
         if self.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL:

@@ -370,14 +370,6 @@ def handle_fighter_return_to_owner(
     cap_stash_before = capturing_list.stash_current
     cap_credits_before = capturing_list.credits_current
 
-    # Transfer ransom credits if applicable
-    if ransom_amount > 0:
-        original_list.credits_current -= ransom_amount
-        original_list.save(update_fields=["credits_current"])
-
-        capturing_list.credits_current += ransom_amount
-        capturing_list.save(update_fields=["credits_current"])
-
     # Delete capture record (restores fighter - should_have_zero_cost becomes False)
     captured_fighter.delete()
 
@@ -431,7 +423,7 @@ def handle_fighter_return_to_owner(
             outcome=f"+{ransom_amount}¢",
         )
 
-    # Create ListAction on original gang (rating restoration)
+    # Create ListAction on original gang (rating restoration, credits deducted if ransom)
     original_action = original_list.create_action(
         user=user,
         action_type=ListActionType.RETURN_FIGHTER,
@@ -448,9 +440,10 @@ def handle_fighter_return_to_owner(
         rating_before=orig_rating_before,
         stash_before=orig_stash_before,
         credits_before=orig_credits_before,
+        update_credits=True,
     )
 
-    # Create ListAction on capturing gang only if ransom > 0
+    # Create ListAction on capturing gang only if ransom > 0 (credits added)
     capturing_action = None
     if ransom_amount > 0:
         capturing_action = capturing_list.create_action(
@@ -467,6 +460,7 @@ def handle_fighter_return_to_owner(
             rating_before=cap_rating_before,
             stash_before=cap_stash_before,
             credits_before=cap_credits_before,
+            update_credits=True,
         )
 
     return FighterReturnResult(
