@@ -3,6 +3,7 @@
 These views are only available when DEBUG=True.
 """
 
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -11,6 +12,9 @@ from django.shortcuts import render
 
 # Test plans directory relative to project root
 TEST_PLANS_DIR = Path(settings.BASE_DIR) / ".claude" / "test-plans"
+
+# Valid filename pattern: alphanumeric, dash, underscore, with .md extension
+VALID_FILENAME_PATTERN = re.compile(r"^[\w\-]+\.md$")
 
 
 def debug_test_plan_index(request):
@@ -40,6 +44,10 @@ def debug_test_plan_detail(request, filename):
     """Serve raw content of a test plan file."""
     if not settings.DEBUG:
         raise Http404("Debug views are only available in development")
+
+    # Security: validate filename format before any file operations
+    if not VALID_FILENAME_PATTERN.match(filename):
+        raise Http404("Invalid filename")
 
     # Security: resolve the path and verify it's within the allowed directory
     # This prevents path traversal attacks (e.g., ../../../etc/passwd)
