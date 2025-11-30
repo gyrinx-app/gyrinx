@@ -76,6 +76,7 @@ from gyrinx.core.handlers.fighter import (
     handle_equipment_component_removal,
     handle_equipment_removal,
     handle_fighter_advancement,
+    handle_fighter_archive_toggle,
     handle_fighter_clone,
     handle_fighter_hire,
 )
@@ -3198,30 +3199,25 @@ def archive_list_fighter(request, id, fighter_id):
     )
 
     if request.method == "POST":
-        # Capture BEFORE values for ListAction
-        rating_before = lst.rating_current
-        stash_before = lst.stash_current
-        credits_before = lst.credits_current
+        # Determine archive/unarchive based on POST data
+        archive = request.POST.get("archive") == "1"
 
-        if request.POST.get("archive") == "1":
-            # Calculate cost before archival
-            fighter_cost = fighter.cost_int()
+        # Only process if archiving or if fighter is currently archived (for unarchive)
+        if archive or fighter.archived:
+            # Call handler to perform business logic
+            result = handle_fighter_archive_toggle(
+                user=request.user,
+                lst=lst,
+                fighter=fighter,
+                archive=archive,
+                request_refund=request.POST.get("refund") == "on",
+            )
 
-            # Check if refund was requested (only in campaign mode)
-            refund = request.POST.get("refund") == "on"
-
-            # Archiving removes the fighter cost from rating/stash
-            rating_delta = -fighter_cost if not fighter.is_stash else 0
-            stash_delta = -fighter_cost if fighter.is_stash else 0
-            credits_delta = fighter_cost if (refund and lst.is_campaign_mode) else 0
-
-            fighter.archive()
-
-            # Log the fighter archive event
+            # Log the event based on operation
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.ARCHIVE,
+                verb=EventVerb.ARCHIVE if result.archived else EventVerb.RESTORE,
                 object=fighter,
                 request=request,
                 fighter_name=fighter.name,
@@ -3229,67 +3225,6 @@ def archive_list_fighter(request, id, fighter_id):
                 list_name=lst.name,
             )
 
-            # Build description
-            description = f"Archived {fighter.name} ({fighter_cost}¢)"
-            if refund and lst.is_campaign_mode:
-                description += f" - refund applied (+{fighter_cost}¢)"
-
-            # Create ListAction for archive
-            lst.create_action(
-                user=request.user,
-                action_type=ListActionType.UPDATE_FIGHTER,
-                subject_app="core",
-                subject_type="ListFighter",
-                subject_id=fighter.id,
-                list_fighter=fighter,
-                description=description,
-                rating_delta=rating_delta,
-                stash_delta=stash_delta,
-                credits_delta=credits_delta,
-                rating_before=rating_before,
-                stash_before=stash_before,
-                credits_before=credits_before,
-                update_credits=True,
-            )
-        elif fighter.archived:
-            # Calculate cost before unarchival
-            fighter_cost = fighter.cost_int()
-
-            # Unarchiving adds the fighter cost back to rating/stash
-            rating_delta = fighter_cost if not fighter.is_stash else 0
-            stash_delta = fighter_cost if fighter.is_stash else 0
-            credits_delta = 0
-
-            fighter.unarchive()
-
-            # Log the fighter restore event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.RESTORE,
-                object=fighter,
-                request=request,
-                fighter_name=fighter.name,
-                list_id=str(lst.id),
-                list_name=lst.name,
-            )
-
-            # Create ListAction for unarchive
-            lst.create_action(
-                user=request.user,
-                action_type=ListActionType.UPDATE_FIGHTER,
-                subject_app="core",
-                subject_type="ListFighter",
-                subject_id=fighter.id,
-                list_fighter=fighter,
-                description=f"Restored {fighter.name} ({fighter_cost}¢)",
-                rating_delta=rating_delta,
-                stash_delta=stash_delta,
-                credits_delta=credits_delta,
-                rating_before=rating_before,
-                stash_before=stash_before,
-                credits_before=credits_before,
-            )
         return HttpResponseRedirect(
             reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
         )
