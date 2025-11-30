@@ -14,8 +14,6 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentAdvancementAssignment,
     ContentAdvancementEquipment,
-    ContentSkill,
-    ContentSkillCategory,
 )
 from gyrinx.core.handlers.fighter import handle_fighter_advancement
 from gyrinx.core.models.action import ListActionType
@@ -32,19 +30,15 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.fixture
-def content_skill():
+def content_skill(make_content_skill):
     """Create a ContentSkill for testing."""
-    category, _ = ContentSkillCategory.objects.get_or_create(name="Combat")
-    skill, _ = ContentSkill.objects.get_or_create(name="Iron Jaw", category=category)
-    return skill
+    return make_content_skill("Iron Jaw", category="Combat")
 
 
 @pytest.fixture
-def content_skill_for_promotion():
+def content_skill_for_promotion(make_content_skill):
     """Create a ContentSkill for promotion testing."""
-    category, _ = ContentSkillCategory.objects.get_or_create(name="Leadership")
-    skill, _ = ContentSkill.objects.get_or_create(name="Mentor", category=category)
-    return skill
+    return make_content_skill("Mentor", category="Leadership")
 
 
 @pytest.fixture

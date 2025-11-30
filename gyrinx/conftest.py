@@ -275,6 +275,21 @@ def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
 
 
 @pytest.fixture
+def make_content_skill():
+    """Factory fixture to create ContentSkill objects."""
+    from gyrinx.content.models import ContentSkill, ContentSkillCategory
+
+    def make_content_skill_(name: str, category: str = "Combat", **kwargs):
+        skill_category, _ = ContentSkillCategory.objects.get_or_create(name=category)
+        skill, _ = ContentSkill.objects.get_or_create(
+            name=name, category=skill_category, defaults=kwargs
+        )
+        return skill
+
+    return make_content_skill_
+
+
+@pytest.fixture
 def content_fighter(content_house, make_content_fighter):
     return make_content_fighter(
         type="Prospector Digger",
