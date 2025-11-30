@@ -77,7 +77,7 @@ def strip_sql_comments(sql):
 @pytest.fixture
 def performance_test_data(db):
     """Set up test data for performance testing."""
-    # Note: ContentType cache for polymorphic models is warmed in ContentConfig.ready()
+    # Note: ContentType cache for polymorphic models is warmed by the warm_contenttype_cache fixture
 
     # Create user
     user = User.objects.create_user(username="testuser", password="testpass")
