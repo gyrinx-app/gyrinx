@@ -288,8 +288,11 @@ def performance_test_data(db):
 
 
 @pytest.mark.django_db
-def test_performance_view_query_count(performance_test_data):
+def test_performance_view_query_count(performance_test_data, settings):
     """Test that the performance view query count doesn't increase."""
+    # Ensure GYRINX_DEBUG is off to avoid extra queries from debug UI
+    settings.GYRINX_DEBUG = False
+
     client = Client()
     gang_list = performance_test_data["list"]
 

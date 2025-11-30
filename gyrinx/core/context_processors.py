@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
@@ -57,3 +58,8 @@ def site_banner(request):
             context["banner"] = live_banner
 
     return context
+
+
+def gyrinx_debug(request):
+    """Add gyrinx_debug flag to the context for debug UI elements."""
+    return {"gyrinx_debug": settings.GYRINX_DEBUG}
