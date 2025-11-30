@@ -18,6 +18,7 @@ ui_archive/
 screenshots/
 .claude/settings.local.json
 .claude/memory.local.json
+.claude/test-plans/
 CLAUDE.local.md
 media/
 # Ignore the latest content data export file

@@ -1,5 +1,6 @@
 ---
 description: Generate a manual test plan for code changes, formatted for Claude for Chrome
+argument-hint: [short-name]
 ---
 
 # Manual Test Plan Generator
@@ -61,18 +62,34 @@ This is Gyrinx, a list-building application for tabletop gaming. Key concepts:
 - **Stash**: Equipment held in reserve (separate from rating)
 - **Refunds**: In campaign mode, removing items can optionally refund credits
 
-### 5. Output Format
+### 5. Output Format and File Saving
 
-Structure your output as a numbered checklist that Claude for Chrome can follow:
+Structure your output as a numbered checklist that Claude for Chrome can follow.
 
-```
-## Test Plan: [Feature/Change Name]
+**IMPORTANT**: After generating the test plan, you MUST save it to a file using the Write tool:
+- Directory: `.claude/test-plans/`
+- Filename format: `YYYY-MM-DD-short-name.md` where short-name comes from:
+  - The argument provided to this command: `$ARGUMENTS`
+  - If no argument, derive from the current git branch name (sanitized)
+- Create the directory if it doesn't exist: `!mkdir -p .claude/test-plans`
 
-### Setup
+Example filename: `2025-11-30-removal-handlers.md`
+
+The test plan will then be accessible at `http://localhost:8000/_debug/test-plans/` when the Django dev server is running.
+
+### Test Plan Template
+
+```markdown
+# Test Plan: [Feature/Change Name]
+
+Generated: [Date]
+Branch: [Branch name]
+
+## Setup
 1. Navigate to [URL]
 2. Ensure you have [prerequisites]
 
-### Test 1: [Test Name]
+## Test 1: [Test Name]
 **Purpose**: [What this tests]
 
 Steps:
@@ -84,8 +101,8 @@ Steps:
 - [ ] [Expected visual result]
 - [ ] [Expected visual result]
 
-### Test 2: [Test Name]
+## Test 2: [Test Name]
 ...
 ```
 
-Now analyze the changes shown above and generate the test plan.
+Now analyze the changes shown above, generate the test plan, and save it to a file.
