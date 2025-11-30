@@ -22,7 +22,7 @@ from gyrinx.core.forms.vehicle import (
     VehicleConfirmationForm,
     VehicleSelectionForm,
 )
-from gyrinx.core.handlers.equipment_purchases import handle_vehicle_purchase
+from gyrinx.core.handlers.fighter import handle_vehicle_purchase
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 

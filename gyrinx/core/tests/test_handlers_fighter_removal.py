@@ -8,9 +8,11 @@ correctly without involving HTTP machinery.
 
 import pytest
 
-from gyrinx.core.handlers.fighter import (
+from gyrinx.core.handlers.equipment import (
     handle_equipment_component_removal,
     handle_equipment_removal,
+)
+from gyrinx.core.handlers.fighter import (
     handle_fighter_archive_toggle,
     handle_fighter_deletion,
 )

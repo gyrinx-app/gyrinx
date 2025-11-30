@@ -63,18 +63,18 @@ from gyrinx.core.forms.list import (
     ListFighterForm,
     NewListForm,
 )
-from gyrinx.core.handlers.equipment_purchases import (
+from gyrinx.core.handlers.equipment import (
     SaleItemDetail,
     handle_accessory_purchase,
+    handle_equipment_component_removal,
     handle_equipment_purchase,
     handle_equipment_reassignment,
+    handle_equipment_removal,
     handle_equipment_sale,
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
 from gyrinx.core.handlers.fighter import (
-    handle_equipment_component_removal,
-    handle_equipment_removal,
     handle_fighter_advancement,
     handle_fighter_archive_toggle,
     handle_fighter_clone,

@@ -11,29 +11,27 @@ from gyrinx.core.handlers.fighter.hire_clone import (
     handle_fighter_hire,
 )
 from gyrinx.core.handlers.fighter.removal import (
-    EquipmentComponentRemovalResult,
-    EquipmentRemovalResult,
     FighterArchiveResult,
     FighterDeletionResult,
-    handle_equipment_component_removal,
-    handle_equipment_removal,
     handle_fighter_archive_toggle,
     handle_fighter_deletion,
 )
+from gyrinx.core.handlers.fighter.vehicle import (
+    VehiclePurchaseResult,
+    handle_vehicle_purchase,
+)
 
 __all__ = [
-    "EquipmentComponentRemovalResult",
-    "EquipmentRemovalResult",
     "FighterAdvancementResult",
     "FighterArchiveResult",
     "FighterCloneResult",
     "FighterDeletionResult",
     "FighterHireResult",
-    "handle_equipment_component_removal",
-    "handle_equipment_removal",
+    "VehiclePurchaseResult",
     "handle_fighter_advancement",
     "handle_fighter_archive_toggle",
     "handle_fighter_clone",
     "handle_fighter_deletion",
     "handle_fighter_hire",
+    "handle_vehicle_purchase",
 ]

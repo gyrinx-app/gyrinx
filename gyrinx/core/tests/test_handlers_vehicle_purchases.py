@@ -2,14 +2,14 @@
 Tests for vehicle purchase handlers.
 
 These tests directly test the handle_vehicle_purchase function in
-gyrinx.core.handlers.equipment_purchases, ensuring that business logic works
+gyrinx.core.handlers.fighter.vehicle, ensuring that business logic works
 correctly without involving HTTP machinery.
 """
 
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.core.handlers.equipment_purchases import handle_vehicle_purchase
+from gyrinx.core.handlers.fighter import handle_vehicle_purchase
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
