@@ -21,23 +21,46 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
 
+from gyrinx.core.views import debug as debug_views
 from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
 
-urlpatterns = debug_toolbar_urls() + [
-    path("", include("gyrinx.core.urls")),
-    path("api/", include("gyrinx.api.urls")),
-    path("accounts/", include("allauth.urls")),
-    path("admin/doc/", include("django.contrib.admindocs.urls")),
-    path("400/", views.error_400, name="error_400"),
-    path("403/", views.error_403, name="error_403"),
-    path("404/", views.error_404, name="error_404"),
-    path("500/", views.error_500, name="error_500"),
-    path("admin/", admin.site.urls),
-    path("tinymce/", include("tinymce.urls")),
-    re_path(r"^(?P<url>.*/)$", views.flatpage),
+# Debug URLs - always registered, views check DEBUG and return 404 if disabled.
+# This ensures consistent URL routing in parallel test workers where DEBUG
+# may be False at import time but True via @override_settings.
+_debug_urls = [
+    path(
+        "_debug/test-plans/",
+        debug_views.debug_test_plan_index,
+        name="debug_test_plans",
+    ),
+    path(
+        "_debug/test-plans/<str:filename>",
+        debug_views.debug_test_plan_detail,
+        name="debug_test_plan_detail",
+    ),
 ]
+
+urlpatterns = (
+    debug_toolbar_urls()
+    + [
+        path("", include("gyrinx.core.urls")),
+        path("api/", include("gyrinx.api.urls")),
+        path("accounts/", include("allauth.urls")),
+        path("admin/doc/", include("django.contrib.admindocs.urls")),
+        path("400/", views.error_400, name="error_400"),
+        path("403/", views.error_403, name="error_403"),
+        path("404/", views.error_404, name="error_404"),
+        path("500/", views.error_500, name="error_500"),
+        path("admin/", admin.site.urls),
+        path("tinymce/", include("tinymce.urls")),
+    ]
+    + _debug_urls
+    + [
+        re_path(r"^(?P<url>.*/)$", views.flatpage),
+    ]
+)
 
 # Serve media files in development
 if settings.DEBUG:

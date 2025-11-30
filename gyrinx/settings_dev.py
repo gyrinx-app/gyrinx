@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
 
+# Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
+# use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
+if os.getenv("PYTEST_CURRENT_TEST") or "pytest" in os.getenv("_", ""):
+    DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: False}
+
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
 
