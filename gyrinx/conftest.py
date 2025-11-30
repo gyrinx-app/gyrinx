@@ -46,6 +46,24 @@ def django_test_settings():
     ]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def warm_contenttype_cache(django_db_setup, django_db_blocker):
+    """Warm up ContentType cache for polymorphic models at test session start.
+
+    This ensures consistent query counts regardless of whether tests run
+    in isolation or as part of a larger suite. Polymorphic models (ContentMod
+    and subclasses) trigger ContentType lookups, and the cache state varies
+    without this initialization.
+    """
+    with django_db_blocker.unblock():
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.content.models import ContentMod, ContentModFighterStat
+
+        ContentType.objects.get_for_model(ContentMod)
+        ContentType.objects.get_for_model(ContentModFighterStat)
+
+
 @pytest.fixture(autouse=True)
 def disable_cost_cache_in_tests(request):
     """
