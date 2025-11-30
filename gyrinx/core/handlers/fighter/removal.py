@@ -10,35 +10,12 @@ from uuid import UUID
 
 from django.db import transaction
 
+from gyrinx.core.handlers.refund import calculate_refund_credits
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
     ListFighter,
 )
-
-
-def _calculate_refund_credits(
-    *,
-    lst: List,
-    cost: int,
-    request_refund: bool,
-) -> tuple[int, bool]:
-    """
-    Calculate credits delta based on refund request and campaign mode.
-
-    Refunds are ONLY allowed in campaign mode.
-
-    Args:
-        lst: The list
-        cost: The item cost being removed
-        request_refund: Whether user requested refund
-
-    Returns:
-        Tuple of (credits_delta, refund_applied)
-    """
-    refund_applied = request_refund and lst.is_campaign_mode
-    credits_delta = cost if refund_applied else 0
-    return credits_delta, refund_applied
 
 
 @dataclass
@@ -100,7 +77,7 @@ def handle_fighter_archive_toggle(
         stash_delta = -fighter_cost if is_stash else 0
 
         # Validate and calculate refund
-        credits_delta, refund_applied = _calculate_refund_credits(
+        credits_delta, refund_applied = calculate_refund_credits(
             lst=lst,
             cost=fighter_cost,
             request_refund=request_refund,
@@ -210,7 +187,7 @@ def handle_fighter_deletion(
     stash_delta = -fighter_cost if is_stash else 0
 
     # Validate and calculate refund
-    credits_delta, refund_applied = _calculate_refund_credits(
+    credits_delta, refund_applied = calculate_refund_credits(
         lst=lst,
         cost=fighter_cost,
         request_refund=request_refund,
