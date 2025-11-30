@@ -1,14 +1,14 @@
 """
 Tests for equipment purchase handlers.
 
-These tests directly test the handler functions in gyrinx.core.handlers.equipment_purchases,
+These tests directly test the handler functions in gyrinx.core.handlers.equipment,
 ensuring that business logic works correctly without involving HTTP machinery.
 """
 
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.core.handlers.equipment_purchases import (
+from gyrinx.core.handlers.equipment import (
     handle_accessory_purchase,
     handle_equipment_purchase,
     handle_equipment_reassignment,
@@ -1321,7 +1321,7 @@ def test_handle_equipment_sale_entire_assignment(
     feature_flag_enabled,
 ):
     """Test selling entire equipment assignment from stash."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1422,7 +1422,7 @@ def test_handle_equipment_sale_individual_profile(
     feature_flag_enabled,
 ):
     """Test selling individual weapon profile from stash."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1506,7 +1506,7 @@ def test_handle_equipment_sale_individual_accessory(
     feature_flag_enabled,
 ):
     """Test selling individual weapon accessory from stash."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1586,7 +1586,7 @@ def test_handle_equipment_sale_multiple_items(
     feature_flag_enabled,
 ):
     """Test selling entire assignment with upgrades (multiple items in one sale)."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1664,7 +1664,7 @@ def test_handle_equipment_sale_description_with_dice(
     make_equipment,
 ):
     """Test that description includes dice roll details."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1722,7 +1722,7 @@ def test_handle_equipment_sale_description_manual_price(
     make_equipment,
 ):
     """Test that description for manual price doesn't include dice."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
@@ -1784,7 +1784,7 @@ def test_handle_equipment_sale_before_values(
     feature_flag_enabled,
 ):
     """Test that before values are captured correctly."""
-    from gyrinx.core.handlers.equipment_purchases import (
+    from gyrinx.core.handlers.equipment import (
         SaleItemDetail,
         handle_equipment_sale,
     )
