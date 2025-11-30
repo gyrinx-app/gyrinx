@@ -11,7 +11,6 @@ from uuid import UUID
 from django.db import transaction
 
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentWeaponAccessory,
@@ -35,7 +34,6 @@ class EquipmentRemovalResult:
     refund_applied: bool
     description: str
     list_action: Optional[ListAction]
-    campaign_action: Optional[CampaignAction]
 
 
 def _calculate_refund_credits(
@@ -79,8 +77,7 @@ def handle_equipment_removal(
     2. Calculates equipment cost before deletion
     3. Validates and calculates refund (only in campaign mode)
     4. Deletes the equipment assignment
-    5. Creates CampaignAction if in campaign mode
-    6. Creates ListAction to track the removal
+    5. Creates ListAction to track the removal
 
     Args:
         user: User performing removal
@@ -122,18 +119,6 @@ def handle_equipment_removal(
     if refund_applied:
         description += f" - refund applied (+{equipment_cost}¢)"
 
-    # Create CampaignAction if in campaign mode with a campaign
-    campaign_action = None
-    if lst.is_campaign_mode and lst.campaign:
-        campaign_action = CampaignAction.objects.create(
-            user=user,
-            owner=user,
-            campaign=lst.campaign,
-            list=lst,
-            description=description,
-            outcome=f"Credits: {credits_before + credits_delta}¢",
-        )
-
     # Create ListAction
     list_action = lst.create_action(
         user=user,
@@ -159,7 +144,6 @@ def handle_equipment_removal(
         refund_applied=refund_applied,
         description=description,
         list_action=list_action,
-        campaign_action=campaign_action,
     )
 
 
@@ -174,7 +158,6 @@ class EquipmentComponentRemovalResult:
     refund_applied: bool
     description: str
     list_action: Optional[ListAction]
-    campaign_action: Optional[CampaignAction]
 
 
 @transaction.atomic
@@ -199,8 +182,7 @@ def handle_equipment_component_removal(
     2. Calculates component cost based on type
     3. Validates and calculates refund (only in campaign mode)
     4. Removes the component from the assignment
-    5. Creates CampaignAction if in campaign mode
-    6. Creates ListAction to track the removal
+    5. Creates ListAction to track the removal
 
     Args:
         user: User performing removal
@@ -261,18 +243,6 @@ def handle_equipment_component_removal(
     if refund_applied:
         description += f" - refund applied (+{component_cost}¢)"
 
-    # Create CampaignAction if in campaign mode
-    campaign_action = None
-    if lst.is_campaign_mode and lst.campaign:
-        campaign_action = CampaignAction.objects.create(
-            user=user,
-            owner=user,
-            campaign=lst.campaign,
-            list=lst,
-            description=description,
-            outcome=f"Credits: {credits_before + credits_delta}¢",
-        )
-
     # Create ListAction
     list_action = lst.create_action(
         user=user,
@@ -300,7 +270,6 @@ def handle_equipment_component_removal(
         refund_applied=refund_applied,
         description=description,
         list_action=list_action,
-        campaign_action=campaign_action,
     )
 
 
@@ -314,7 +283,6 @@ class FighterArchiveResult:
     refund_applied: bool  # Only relevant when archiving
     description: str
     list_action: Optional[ListAction]
-    campaign_action: Optional[CampaignAction]
 
 
 @transaction.atomic
@@ -337,8 +305,7 @@ def handle_fighter_archive_toggle(
     2. Calculates fighter cost
     3. For archive: validates and calculates refund (only in campaign mode)
     4. Performs archive or unarchive operation
-    5. Creates CampaignAction if in campaign mode
-    6. Creates ListAction to track the operation
+    5. Creates ListAction to track the operation
 
     Args:
         user: User performing the operation
@@ -391,18 +358,6 @@ def handle_fighter_archive_toggle(
         # Build description
         description = f"Restored {fighter.name} ({fighter_cost}¢)"
 
-    # Create CampaignAction if in campaign mode
-    campaign_action = None
-    if lst.is_campaign_mode and lst.campaign:
-        campaign_action = CampaignAction.objects.create(
-            user=user,
-            owner=user,
-            campaign=lst.campaign,
-            list=lst,
-            description=description,
-            outcome=f"Credits: {credits_before + credits_delta}¢",
-        )
-
     # Create ListAction
     list_action = lst.create_action(
         user=user,
@@ -428,7 +383,6 @@ def handle_fighter_archive_toggle(
         refund_applied=refund_applied,
         description=description,
         list_action=list_action,
-        campaign_action=campaign_action,
     )
 
 
@@ -442,7 +396,6 @@ class FighterDeletionResult:
     refund_applied: bool
     description: str
     list_action: Optional[ListAction]
-    campaign_action: Optional[CampaignAction]
 
 
 @transaction.atomic
@@ -462,8 +415,7 @@ def handle_fighter_deletion(
     3. Validates and calculates refund (only in campaign mode)
     4. Stores fighter details before deletion
     5. Deletes the fighter
-    6. Creates CampaignAction if in campaign mode
-    7. Creates ListAction to track the deletion
+    6. Creates ListAction to track the deletion
 
     Args:
         user: User performing deletion
@@ -504,18 +456,6 @@ def handle_fighter_deletion(
     if refund_applied:
         description += f" - refund applied (+{fighter_cost}¢)"
 
-    # Create CampaignAction if in campaign mode
-    campaign_action = None
-    if lst.is_campaign_mode and lst.campaign:
-        campaign_action = CampaignAction.objects.create(
-            user=user,
-            owner=user,
-            campaign=lst.campaign,
-            list=lst,
-            description=description,
-            outcome=f"Credits: {credits_before + credits_delta}¢",
-        )
-
     # Create ListAction
     list_action = lst.create_action(
         user=user,
@@ -540,5 +480,4 @@ def handle_fighter_deletion(
         refund_applied=refund_applied,
         description=description,
         list_action=list_action,
-        campaign_action=campaign_action,
     )

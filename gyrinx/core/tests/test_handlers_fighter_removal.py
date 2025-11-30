@@ -15,7 +15,6 @@ from gyrinx.core.handlers.fighter import (
     handle_fighter_deletion,
 )
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 
@@ -86,10 +85,6 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
         assert result.list_action.credits_before == 500
     else:
         assert result.list_action is None
-
-    # Verify CampaignAction created
-    assert result.campaign_action is not None
-    assert "Test Weapon" in result.campaign_action.description
 
 
 @pytest.mark.django_db
@@ -181,9 +176,6 @@ def test_handle_equipment_removal_list_building_mode(
     # Verify refund was NOT applied (not campaign mode)
     assert result.refund_applied is False
     assert "refund" not in result.description
-
-    # No CampaignAction in list building mode
-    assert result.campaign_action is None
 
     # ListAction still has rating delta but no credits delta
     if feature_flag_enabled:
@@ -280,7 +272,6 @@ def test_handle_equipment_removal_transaction_rollback(
 
     # Count initial objects
     initial_action_count = ListAction.objects.count()
-    initial_campaign_action_count = CampaignAction.objects.count()
 
     # Monkeypatch create_action to raise an error
     def failing_create_action(*args, **kwargs):
@@ -299,7 +290,6 @@ def test_handle_equipment_removal_transaction_rollback(
 
     # Verify transaction rolled back
     assert ListAction.objects.count() == initial_action_count
-    assert CampaignAction.objects.count() == initial_campaign_action_count
 
     # Assignment should still exist (rollback)
     assert ListFighterEquipmentAssignment.objects.filter(id=assignment_id).exists()
@@ -370,9 +360,6 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
         assert result.list_action.credits_delta == upgrade_cost  # Refund
     else:
         assert result.list_action is None
-
-    # Verify CampaignAction created
-    assert result.campaign_action is not None
 
 
 @pytest.mark.django_db
@@ -579,8 +566,6 @@ def test_handle_fighter_archive_toggle_archive_with_refund(
     else:
         assert result.list_action is None
 
-    assert result.campaign_action is not None
-
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
@@ -700,9 +685,6 @@ def test_handle_fighter_archive_toggle_archive_list_building_mode(
     # Refund not applied in list building mode
     assert result.refund_applied is False
 
-    # No CampaignAction in list building mode
-    assert result.campaign_action is None
-
     if feature_flag_enabled:
         assert result.list_action.credits_delta == 0
         assert result.list_action.rating_delta == -fighter_cost
@@ -759,8 +741,6 @@ def test_handle_fighter_deletion_campaign_mode_with_refund(
         assert result.list_action.credits_delta == fighter_cost  # Refund
     else:
         assert result.list_action is None
-
-    assert result.campaign_action is not None
 
 
 @pytest.mark.django_db
@@ -834,9 +814,6 @@ def test_handle_fighter_deletion_list_building_mode(
 
     # Fighter was still deleted
     assert not ListFighter.objects.filter(id=fighter_id).exists()
-
-    # No CampaignAction in list building mode
-    assert result.campaign_action is None
 
     if feature_flag_enabled:
         assert result.list_action.credits_delta == 0
@@ -916,7 +893,6 @@ def test_handle_fighter_deletion_transaction_rollback(
     # Count initial objects
     initial_fighter_count = ListFighter.objects.count()
     initial_action_count = ListAction.objects.count()
-    initial_campaign_action_count = CampaignAction.objects.count()
 
     # Monkeypatch create_action to raise an error
     def failing_create_action(*args, **kwargs):
@@ -935,7 +911,6 @@ def test_handle_fighter_deletion_transaction_rollback(
     # Verify transaction rolled back
     assert ListFighter.objects.count() == initial_fighter_count
     assert ListAction.objects.count() == initial_action_count
-    assert CampaignAction.objects.count() == initial_campaign_action_count
 
     # Fighter should still exist (rollback)
     assert ListFighter.objects.filter(id=fighter_id).exists()
