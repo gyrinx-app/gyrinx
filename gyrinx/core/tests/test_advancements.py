@@ -84,8 +84,8 @@ def test_advancement_model_creation(fighter_with_xp, skill):
 
 @pytest.mark.django_db
 def test_stat_advancement_application(fighter_with_xp):
-    """Test applying a stat advancement."""
-    # ListFighter gets base stats from content_fighter
+    """Test applying a stat advancement via the mod system."""
+    # ListFighter gets base stats from content_fighter (base WS is "3+")
 
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
@@ -96,17 +96,28 @@ def test_stat_advancement_application(fighter_with_xp):
     )
 
     advancement.apply_advancement()
-    fighter_with_xp.refresh_from_db()
 
-    # Since original_ws is "3+", the override should be "2+" (improved by 1)
-    assert fighter_with_xp.weapon_skill_override == "2+"
-    assert fighter_with_xp.xp_current == 40  # 50 - 10
+    # Get a fresh instance to ensure cached properties are cleared
+    fighter = ListFighter.objects.get(id=fighter_with_xp.id)
+
+    # With the mod system, override field should NOT be set
+    assert fighter.weapon_skill_override is None
+
+    # But the advancement uses the mod system (default=True)
+    assert advancement.uses_mod_system is True
+
+    # The statline should show the improved value via mods
+    statline_dict = {stat.field_name: stat.value for stat in fighter.statline}
+    assert statline_dict["weapon_skill"] == "2+"  # Improved from "3+"
+
+    # XP should still be deducted
+    assert fighter.xp_current == 40  # 50 - 10
 
 
 @pytest.mark.django_db
 def test_stat_advancement_application_movement(fighter_with_xp):
-    """Test applying a stat advancement."""
-    # ListFighter gets base stats from content_fighter
+    """Test applying a movement stat advancement via the mod system."""
+    # ListFighter gets base movement '4"'
 
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
@@ -117,10 +128,38 @@ def test_stat_advancement_application_movement(fighter_with_xp):
     )
 
     advancement.apply_advancement()
+
+    # Get a fresh instance to ensure cached properties are cleared
+    fighter = ListFighter.objects.get(id=fighter_with_xp.id)
+
+    # With the mod system, override field should NOT be set
+    assert fighter.movement_override is None
+
+    # The statline should show the improved value via mods
+    statline_dict = {stat.field_name: stat.value for stat in fighter.statline}
+    assert statline_dict["movement"] == '5"'  # Improved from '4"'
+
+    # XP should still be deducted
+    assert fighter.xp_current == 40  # 50 - 10
+
+
+@pytest.mark.django_db
+def test_stat_advancement_legacy_override_system(fighter_with_xp):
+    """Test that legacy advancements (uses_mod_system=False) still use override fields."""
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="weapon_skill",
+        xp_cost=10,
+        cost_increase=20,
+        uses_mod_system=False,  # Use legacy system
+    )
+
+    advancement.apply_advancement()
     fighter_with_xp.refresh_from_db()
 
-    # Since original is '4"', the override should be '5"' (improved by 1)
-    assert fighter_with_xp.movement_override == '5"'
+    # With legacy system, override field SHOULD be set
+    assert fighter_with_xp.weapon_skill_override == "2+"
     assert fighter_with_xp.xp_current == 40  # 50 - 10
 
 
