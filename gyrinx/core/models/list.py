@@ -1643,13 +1643,16 @@ class ListFighter(AppBase):
 
         # Add advancement mods for stat advancements using the mod system
         # (not legacy override fields)
+        # Note: Use .all() with Python filtering to leverage prefetched data.
+        # Using .filter() would bypass the prefetch cache and cause N+1 queries.
         advancement_mods = [
             AdvancementStatMod(adv.stat_increased)
-            for adv in self.advancements.filter(
-                archived=False,
-                advancement_type="stat",  # ListFighterAdvancement.ADVANCEMENT_STAT
-                stat_increased__isnull=False,
-                uses_mod_system=True,
+            for adv in self.advancements.all()
+            if (
+                not adv.archived
+                and adv.advancement_type == "stat"
+                and adv.stat_increased is not None
+                and adv.uses_mod_system
             )
         ]
 
