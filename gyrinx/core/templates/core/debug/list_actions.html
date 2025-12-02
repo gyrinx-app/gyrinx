@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Debug endpoint for list actions">
+        <meta name="keywords" content="debug, list actions">
+        <title>List Actions - {{ list.name }}</title>
+        <style>
+        body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { margin-bottom: 0.5rem; }
+        .back { margin-bottom: 1rem; }
+        .back a { color: #0066cc; text-decoration: none; }
+        .back a:hover { text-decoration: underline; }
+        .description { color: #666; margin-bottom: 1.5rem; }
+        .count { background: #eee; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.875rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; font-weight: 600; }
+        tr:hover { background: #fafafa; }
+        .timestamp { white-space: nowrap; color: #666; }
+        .action-type { font-weight: 500; }
+        .user { color: #666; }
+        .description-cell { max-width: 300px; }
+        .delta { font-family: monospace; }
+        .delta-positive { color: #28a745; }
+        .delta-negative { color: #dc3545; }
+        .delta-zero { color: #999; }
+        .before-after { font-family: monospace; font-size: 0.75rem; color: #666; }
+        .empty { padding: 2rem; background: #f5f5f5; border-radius: 4px; text-align: center; }
+        </style>
+    </head>
+    <body>
+        <div class="back">
+            <a href="{% url 'core:list' list.id %}">← Back to {{ list.name }}</a>
+        </div>
+        <h1>
+            List Actions <span class="count">{{ actions|length }}</span>
+        </h1>
+        <p class="description">
+            Debug view showing all actions for <strong>{{ list.name }}</strong>, sorted newest first.
+        </p>
+        {% if actions %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>User</th>
+                        <th>Description</th>
+                        <th>Rating</th>
+                        <th>Credits</th>
+                        <th>Stash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for action in actions %}
+                        <tr>
+                            <td class="timestamp">{{ action.created|date:"Y-m-d H:i:s" }}</td>
+                            <td class="action-type">{{ action.action_type }}</td>
+                            <td class="user">{{ action.user|default:"-" }}</td>
+                            <td class="description-cell">{{ action.description|default:"-" }}</td>
+                            <td>
+                                <span class="delta {% if action.rating_delta > 0 %}delta-positive{% elif action.rating_delta < 0 %}delta-negative{% else %}delta-zero{% endif %}">
+                                    {% if action.rating_delta >= 0 %}+{% endif %}
+                                    {{ action.rating_delta }}
+                                </span>
+                                <div class="before-after">{{ action.rating_before }} → {{ action.rating_after }}</div>
+                            </td>
+                            <td>
+                                <span class="delta {% if action.credits_delta > 0 %}delta-positive{% elif action.credits_delta < 0 %}delta-negative{% else %}delta-zero{% endif %}">
+                                    {% if action.credits_delta >= 0 %}+{% endif %}
+                                    {{ action.credits_delta }}
+                                </span>
+                                <div class="before-after">{{ action.credits_before }} → {{ action.credits_after }}</div>
+                            </td>
+                            <td>
+                                <span class="delta {% if action.stash_delta > 0 %}delta-positive{% elif action.stash_delta < 0 %}delta-negative{% else %}delta-zero{% endif %}">
+                                    {% if action.stash_delta >= 0 %}+{% endif %}
+                                    {{ action.stash_delta }}
+                                </span>
+                                <div class="before-after">{{ action.stash_before }} → {{ action.stash_after }}</div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty">
+                <p>No actions recorded for this list.</p>
+            </div>
+        {% endif %}
+    </body>
+</html>
