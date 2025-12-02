@@ -1,5 +1,9 @@
 """Equipment operation handlers."""
 
+from gyrinx.core.handlers.equipment.cost_override import (
+    EquipmentCostOverrideResult,
+    handle_equipment_cost_override,
+)
 from gyrinx.core.handlers.equipment.purchase import (
     AccessoryPurchaseResult,
     EquipmentPurchaseResult,
@@ -29,6 +33,7 @@ from gyrinx.core.handlers.equipment.sale import (
 __all__ = [
     "AccessoryPurchaseResult",
     "EquipmentComponentRemovalResult",
+    "EquipmentCostOverrideResult",
     "EquipmentPurchaseResult",
     "EquipmentReassignmentResult",
     "EquipmentRemovalResult",
@@ -38,6 +43,7 @@ __all__ = [
     "WeaponProfilePurchaseResult",
     "handle_accessory_purchase",
     "handle_equipment_component_removal",
+    "handle_equipment_cost_override",
     "handle_equipment_purchase",
     "handle_equipment_reassignment",
     "handle_equipment_removal",
