@@ -3051,6 +3051,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def cost_int_cached(self):
         return self.cost_int()
 
+    def calculated_cost_int(self):
+        """Calculate the assignment's cost without any total_cost_override.
+
+        This returns the sum of base cost, weapon profiles, accessories, and upgrades,
+        ignoring the total_cost_override field. Useful for calculating cost deltas
+        when the override is set or cleared.
+        """
+        return (
+            self.base_cost_int_cached
+            + self.weapon_profiles_cost_int_cached
+            + self.weapon_accessories_cost_int_cached
+            + self.upgrade_cost_int_cached
+        )
+
     def has_total_cost_override(self):
         return self.total_cost_override is not None
 

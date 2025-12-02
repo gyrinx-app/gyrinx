@@ -26,18 +26,6 @@ class EquipmentCostOverrideResult:
     list_action: ListAction
 
 
-def _calculate_cost_without_override(
-    assignment: ListFighterEquipmentAssignment,
-) -> int:
-    """Calculate the assignment's cost without any total_cost_override."""
-    return (
-        assignment.base_cost_int_cached
-        + assignment.weapon_profiles_cost_int_cached
-        + assignment.weapon_accessories_cost_int_cached
-        + assignment.upgrade_cost_int_cached
-    )
-
-
 def _calculate_cost_delta(
     assignment: ListFighterEquipmentAssignment,
     old_override: Optional[int],
@@ -49,7 +37,7 @@ def _calculate_cost_delta(
     Returns:
         Tuple of (old_total_cost, new_total_cost, delta)
     """
-    calculated_cost = _calculate_cost_without_override(assignment)
+    calculated_cost = assignment.calculated_cost_int()
 
     # Determine old effective cost
     if old_override is not None:
