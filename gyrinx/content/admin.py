@@ -12,6 +12,7 @@ from polymorphic.admin import (
 )
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
+from .models.psyker import ContentPsykerDiscipline, ContentPsykerPower
 from gyrinx.forms import group_select
 from gyrinx.models import (
     SMART_QUOTES,
@@ -54,8 +55,6 @@ from .models import (
     ContentModTrait,
     ContentPageRef,
     ContentPolicy,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,

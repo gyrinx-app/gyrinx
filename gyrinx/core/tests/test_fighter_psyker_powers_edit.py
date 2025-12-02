@@ -5,10 +5,9 @@ from django.urls import reverse
 from gyrinx.content.models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
     ContentRule,
 )
+from gyrinx.content.models.psyker import ContentPsykerDiscipline, ContentPsykerPower
 from gyrinx.core.models.list import ListFighterPsykerPowerAssignment
 
 
