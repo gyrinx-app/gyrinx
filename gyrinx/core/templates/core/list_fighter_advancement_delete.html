@@ -1,0 +1,63 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Remove Advancement - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=advancements_url text="Advancements" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Remove Advancement: {{ fighter.name }}</h1>
+        <div class="border rounded p-3 mb-3">
+            <dl class="mb-0">
+                <dt>Type</dt>
+                <dd>
+                    {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
+                        Stat Improvement
+                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
+                        Skill
+                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
+                        Equipment
+                    {% else %}
+                        Other
+                    {% endif %}
+                </dd>
+                <dt>Details</dt>
+                <dd>
+                    {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
+                        {{ advancement.get_stat_increased_display }}
+                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
+                        {{ advancement.skill.name }}
+                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
+                        {{ advancement.equipment_assignment }}
+                    {% else %}
+                        {{ advancement.description }}
+                    {% endif %}
+                </dd>
+                <dt>XP Cost</dt>
+                <dd>
+                    {{ advancement.xp_cost }} XP (will be restored)
+                </dd>
+                <dt>Cost Increase</dt>
+                <dd>
+                    +{{ advancement.cost_increase }}¢ (will be reduced)
+                </dd>
+            </dl>
+        </div>
+        {% if advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
+            <div class="alert alert-warning">
+                <i class="bi-exclamation-triangle me-1"></i>
+                <strong>Note:</strong> Equipment from this advancement must be removed manually.
+            </div>
+        {% endif %}
+        <form action="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"
+              method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to remove this advancement?</p>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-danger">Remove Advancement</button>
+                <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

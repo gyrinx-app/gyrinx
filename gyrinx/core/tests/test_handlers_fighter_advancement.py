@@ -15,7 +15,10 @@ from gyrinx.content.models import (
     ContentAdvancementAssignment,
     ContentAdvancementEquipment,
 )
-from gyrinx.core.handlers.fighter import handle_fighter_advancement
+from gyrinx.core.handlers.fighter import (
+    handle_fighter_advancement,
+    handle_fighter_advancement_deletion,
+)
 from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -665,3 +668,334 @@ def test_handle_fighter_advancement_skill_with_promotion(
     assert result is not None
     assert "and was promoted" in result.outcome
     assert "Gained Mentor skill" in result.outcome
+
+
+# --- Advancement Deletion Tests ---
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_stat_basic(
+    user, fighter_with_xp, settings
+):
+    """Test deleting a stat advancement restores XP and creates ListAction."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    xp_before = fighter_with_xp.xp_current
+    xp_cost = 10
+    cost_increase = 20
+
+    # Create advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=xp_cost,
+        cost_increase=cost_increase,
+        advancement_choice="stat_weapon_skill",
+        stat_increased="weapon_skill",
+    )
+
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.xp_current == xp_before - xp_cost
+
+    # Delete advancement
+    delete_result = handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify result
+    assert delete_result.xp_restored == xp_cost
+    assert delete_result.cost_decrease == cost_increase
+    assert delete_result.list_action is not None
+    assert delete_result.list_action.rating_delta == -cost_increase
+
+    # Verify XP restored
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.xp_current == xp_before
+
+    # Verify advancement archived
+    result.advancement.refresh_from_db()
+    assert result.advancement.archived is True
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_skill_basic(
+    user, fighter_with_xp, content_skill, settings
+):
+    """Test deleting a skill advancement removes the skill."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    # Create skill advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=12,
+        cost_increase=15,
+        advancement_choice="skill_primary",
+        skill=content_skill,
+    )
+
+    # Verify skill added
+    fighter_with_xp.refresh_from_db()
+    assert content_skill in fighter_with_xp.skills.all()
+
+    # Delete advancement
+    delete_result = handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify skill removed
+    fighter_with_xp.refresh_from_db()
+    assert content_skill not in fighter_with_xp.skills.all()
+    assert len(delete_result.warnings) == 0
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_promotion_reversal(
+    user, fighter_with_xp, content_skill, settings
+):
+    """Test deleting a promotion advancement clears category_override."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    # Create promotion advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=15,
+        cost_increase=25,
+        advancement_choice="skill_promote_specialist",
+        skill=content_skill,
+    )
+
+    # Verify promoted to specialist
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override == FighterCategoryChoices.SPECIALIST
+
+    # Delete advancement
+    handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify category_override cleared
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override is None
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_equipment_warns(
+    user, fighter_with_xp, content_advancement_assignment, settings
+):
+    """Test deleting equipment advancement warns about manual removal."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    # Create equipment advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+        xp_cost=8,
+        cost_increase=75,
+        advancement_choice="equipment_primary",
+        equipment_assignment=content_advancement_assignment,
+    )
+
+    # Delete advancement
+    delete_result = handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify warning about equipment
+    assert len(delete_result.warnings) == 1
+    assert "manually" in delete_result.warnings[0]
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_stash_fighter(
+    user, stash_fighter_with_xp, settings
+):
+    """Test stash fighter deletion uses stash_delta."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = stash_fighter_with_xp.list
+    lst.rating_current = 500
+    lst.stash_current = 100
+    lst.save()
+
+    cost_increase = 25
+
+    # Create advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=stash_fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=cost_increase,
+        advancement_choice="stat_strength",
+        stat_increased="strength",
+    )
+
+    # Delete advancement
+    delete_result = handle_fighter_advancement_deletion(
+        user=user,
+        fighter=stash_fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify stash_delta used (negative)
+    assert delete_result.list_action.rating_delta == 0
+    assert delete_result.list_action.stash_delta == -cost_increase
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_wrong_fighter(
+    user, fighter_with_xp, content_fighter, list_with_campaign
+):
+    """Test deleting advancement from wrong fighter raises ValidationError."""
+    # Create advancement on fighter_with_xp
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=20,
+        advancement_choice="stat_weapon_skill",
+        stat_increased="weapon_skill",
+    )
+
+    # Create different fighter
+    other_fighter = ListFighter.objects.create(
+        list=list_with_campaign,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Other Fighter",
+        xp_current=100,
+    )
+
+    # Try to delete from wrong fighter
+    with pytest.raises(ValidationError) as excinfo:
+        handle_fighter_advancement_deletion(
+            user=user,
+            fighter=other_fighter,
+            advancement=result.advancement,
+        )
+
+    assert "does not belong" in str(excinfo.value)
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_already_archived(user, fighter_with_xp):
+    """Test deleting already archived advancement raises ValidationError."""
+    # Create advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=20,
+        advancement_choice="stat_weapon_skill",
+        stat_increased="weapon_skill",
+    )
+
+    # Archive it manually
+    result.advancement.archive()
+
+    # Try to delete again
+    with pytest.raises(ValidationError) as excinfo:
+        handle_fighter_advancement_deletion(
+            user=user,
+            fighter=fighter_with_xp,
+            advancement=result.advancement,
+        )
+
+    assert "already archived" in str(excinfo.value)
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_multiple_promotions(
+    user, fighter_with_xp, make_content_skill, settings
+):
+    """Test deleting one promotion when another remains keeps correct category."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    skill1 = make_content_skill("Skill 1", category="Combat")
+    skill2 = make_content_skill("Skill 2", category="Combat")
+
+    # Create first promotion to specialist
+    result1 = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=15,
+        cost_increase=25,
+        advancement_choice="skill_promote_specialist",
+        skill=skill1,
+    )
+
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override == FighterCategoryChoices.SPECIALIST
+
+    # Create second promotion to champion
+    result2 = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        xp_cost=20,
+        cost_increase=40,
+        advancement_choice="skill_promote_champion",
+        skill=skill2,
+    )
+
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override == FighterCategoryChoices.CHAMPION
+
+    # Delete champion promotion
+    handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result2.advancement,
+    )
+
+    # Should revert to specialist (still have that promotion)
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override == FighterCategoryChoices.SPECIALIST
+
+    # Delete specialist promotion
+    handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result1.advancement,
+    )
+
+    # Should have no override
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.category_override is None

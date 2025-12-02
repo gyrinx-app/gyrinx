@@ -77,6 +77,7 @@ from gyrinx.core.handlers.equipment import (
 )
 from gyrinx.core.handlers.fighter import (
     handle_fighter_advancement,
+    handle_fighter_advancement_deletion,
     handle_fighter_archive_toggle,
     handle_fighter_clone,
     handle_fighter_deletion,
@@ -4212,7 +4213,8 @@ def list_fighter_advancements(request, id, fighter_id):
     )
 
     advancements = ListFighterAdvancement.objects.filter(
-        fighter=fighter
+        fighter=fighter,
+        archived=False,
     ).select_related("skill", "campaign_action")
 
     return render(
@@ -4222,6 +4224,92 @@ def list_fighter_advancements(request, id, fighter_id):
             "list": lst,
             "fighter": fighter,
             "advancements": advancements,
+        },
+    )
+
+
+@login_required
+def delete_list_fighter_advancement(request, id, fighter_id, advancement_id):
+    """
+    Delete (archive) a :model:`core.ListFighterAdvancement`.
+
+    This reverses the effects of the advancement:
+    - Restores XP to the fighter
+    - Reduces rating/stash by cost_increase
+    - For stat advancements: stat change disappears (mod system) or recalculates override
+    - For skill advancements: removes skill and recalculates category_override
+    - For equipment advancements: warns user to remove equipment manually
+    - For other advancements: just archives (no side effects)
+
+    **Context**
+
+    ``fighter``
+        The :model:`core.ListFighter` whose advancement is being deleted.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``advancement``
+        The :model:`core.ListFighterAdvancement` to be deleted.
+
+    **Template**
+
+    :template:`core/list_fighter_advancement_delete.html`
+    """
+    lst = get_object_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
+    )
+    advancement = get_object_or_404(
+        ListFighterAdvancement, id=advancement_id, fighter=fighter, archived=False
+    )
+
+    if request.method == "POST":
+        # Log the event before deletion
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.UPDATE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            advancement_type=advancement.advancement_type,
+        )
+
+        # Call handler to perform business logic
+        try:
+            result = handle_fighter_advancement_deletion(
+                user=request.user,
+                fighter=fighter,
+                advancement=advancement,
+            )
+
+            # Show warnings if any
+            for warning in result.warnings:
+                messages.warning(request, warning)
+
+            messages.success(
+                request,
+                f"Advancement removed: {result.advancement_description}. "
+                f"XP restored: {result.xp_restored}.",
+            )
+        except DjangoValidationError as e:
+            messages.error(request, str(e))
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-advancements", args=(lst.id, fighter.id))
+            )
+
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancements", args=(lst.id, fighter.id))
+        )
+
+    return render(
+        request,
+        "core/list_fighter_advancement_delete.html",
+        {
+            "list": lst,
+            "fighter": fighter,
+            "advancement": advancement,
         },
     )
 

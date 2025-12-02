@@ -30,6 +30,11 @@
                                 <th>
                                     <span class="visually-hidden">Cost Increase</span>
                                 </th>
+                                {% if list.is_owner %}
+                                    <th>
+                                        <span class="visually-hidden">Actions</span>
+                                    </th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -56,6 +61,17 @@
                                     </td>
                                     <td>{{ advancement.xp_cost }} XP</td>
                                     <td>+{{ advancement.cost_increase }}¢</td>
+                                    {% if list.is_owner %}
+                                        <td>
+                                            {% if not advancement.archived %}
+                                                <a href="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                   title="Remove advancement">
+                                                    <i class="bi-trash"></i>
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    {% endif %}
                                 </tr>
                             {% endfor %}
                         </tbody>
