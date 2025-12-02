@@ -52,7 +52,7 @@ Format the test plan so Claude for Chrome can execute it step-by-step:
 
 ### 4. Human Assistance Required
 
-Some tests may require actions outside the browser that Claude for Chrome cannot perform. For these, include a **"🧑‍💻 Human Action Required"** section that clearly asks the user to help.
+Some tests may require actions outside the browser that Claude for Chrome cannot perform. For these, include a **"🧑‍💻 Human Action Required"** section that instructs Claude for Chrome clearly to stop and ask the user to help.
 
 Examples of when to ask for human help:
 - Running CLI commands (e.g., `python manage.py ...`, `git ...`)
@@ -65,6 +65,8 @@ Examples of when to ask for human help:
 Format these as:
 ```
 🧑‍💻 **Human Action Required**
+STOP HERE and ask the user to perform the following action:
+
 Please run this command and tell me the result:
 `python manage.py shell -c "print(MyModel.objects.count())"`
 ```
