@@ -40,6 +40,11 @@ _debug_urls = [
         debug_views.debug_test_plan_detail,
         name="debug_test_plan_detail",
     ),
+    path(
+        "_debug/list/<uuid:list_id>/actions/",
+        debug_views.debug_list_actions,
+        name="debug_list_actions",
+    ),
 ]
 
 urlpatterns = (
