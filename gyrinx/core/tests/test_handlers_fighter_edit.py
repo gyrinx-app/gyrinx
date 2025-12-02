@@ -11,9 +11,10 @@ The handler API expects:
 
 import pytest
 
+from gyrinx.content.models import ContentEquipmentFighterProfile
 from gyrinx.core.handlers.fighter import handle_fighter_edit
 from gyrinx.core.models.action import ListActionType
-from gyrinx.core.models.list import ListFighter
+from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -325,6 +326,82 @@ def test_handle_fighter_edit_stash_fighter(
         old_cost_override=None,
     )
 
+    assert result is not None
+    assert result.changes[0].stash_delta == 50
+    assert result.changes[0].rating_delta == 0
+    assert result.list_actions[0].stash_delta == 50
+    assert result.list_actions[0].rating_delta == 0
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_child_fighter_on_stash(
+    user, make_list, make_content_fighter, content_house, make_equipment, settings
+):
+    """Test that cost changes for child fighter (vehicle) on stash go to stash_delta.
+
+    This tests the _is_fighter_stash_linked() logic that handles child fighters
+    (vehicles/exotic beasts) whose parent equipment is on a stash fighter.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.stash_current = 200
+    lst.save()
+
+    # Create a stash fighter type
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+
+    stash_fighter = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Create vehicle equipment with fighter profile
+    vehicle_equipment = make_equipment("Test Vehicle", cost="150")
+    vehicle_fighter_type = make_content_fighter(
+        type="Vehicle",
+        category=FighterCategoryChoices.VEHICLE,
+        house=content_house,
+        base_cost=150,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=vehicle_equipment,
+        content_fighter=vehicle_fighter_type,
+    )
+
+    # Create equipment assignment on stash fighter
+    equipment_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash_fighter,
+        content_equipment=vehicle_equipment,
+    )
+
+    # Create child fighter linked to equipment on stash
+    child_fighter = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=vehicle_fighter_type,
+        name="Child Vehicle",
+    )
+    child_fighter.source_assignment.add(equipment_assignment)
+
+    # Simulate form setting cost override on child fighter
+    child_fighter.cost_override = 200
+
+    # Call handler with old value (None)
+    result = handle_fighter_edit(
+        user=user,
+        fighter=child_fighter,
+        old_cost_override=None,
+    )
+
+    # Delta = 200 - 150 = +50
     assert result is not None
     assert result.changes[0].stash_delta == 50
     assert result.changes[0].rating_delta == 0

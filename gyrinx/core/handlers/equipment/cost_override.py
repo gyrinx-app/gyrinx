@@ -5,6 +5,7 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.handlers.fighter.advancement import _is_fighter_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
@@ -141,7 +142,9 @@ def handle_equipment_cost_override(
     )
 
     # Determine if this goes to stash or rating
-    is_stash = fighter.is_stash
+    # Use _is_fighter_stash_linked to handle child fighters (vehicles/exotic beasts)
+    # whose parent equipment is on a stash fighter
+    is_stash = _is_fighter_stash_linked(fighter)
 
     # Generate description
     description = _generate_description(
