@@ -2290,17 +2290,20 @@ def edit_list_fighter_assign_cost(
 
     error_message = None
     if request.method == "POST":
+        # Capture old value before form.is_valid() modifies the instance
+        old_total_cost_override = assignment.total_cost_override
+
         form = ListFighterEquipmentAssignmentCostForm(request.POST, instance=assignment)
         if form.is_valid():
-            cleaned = form.cleaned_data
-
-            # Call handler to update assignment and track changes via ListAction
+            # Form's is_valid() already applied new value to assignment
+            # Call handler to save and track changes via ListAction
             handle_equipment_cost_override(
                 user=request.user,
                 lst=lst,
                 fighter=fighter,
                 assignment=assignment,
-                new_total_cost_override=cleaned.get("total_cost_override"),
+                old_total_cost_override=old_total_cost_override,
+                new_total_cost_override=assignment.total_cost_override,
             )
 
             # Log the cost update event

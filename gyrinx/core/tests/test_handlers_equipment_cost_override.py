@@ -3,6 +3,10 @@ Tests for equipment cost override handlers.
 
 These tests directly test the handler functions in gyrinx.core.handlers.equipment.cost_override,
 ensuring that business logic works correctly without involving HTTP machinery.
+
+The handler API expects:
+1. The assignment already has NEW value applied (e.g., by ModelForm's is_valid())
+2. OLD value is passed to the handler for comparison
 """
 
 import pytest
@@ -33,12 +37,13 @@ def test_handle_equipment_cost_override_no_change(
         content_equipment=equipment,
     )
 
-    # No override set, passing None (no change)
+    # No override set, passing None for both (no change)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=None,
         new_total_cost_override=None,
     )
 
@@ -67,12 +72,16 @@ def test_handle_equipment_cost_override_set(
         content_equipment=equipment,
     )
 
+    # Simulate form applying new value
+    assignment.total_cost_override = 75
+
     # Set override to 75 (delta = 75 - 50 = +25)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=None,
         new_total_cost_override=75,
     )
 
@@ -116,12 +125,16 @@ def test_handle_equipment_cost_override_clear(
         total_cost_override=75,  # Was overridden to 75
     )
 
+    # Simulate form clearing the value
+    assignment.total_cost_override = None
+
     # Clear override (delta = 50 - 75 = -25)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=75,
         new_total_cost_override=None,
     )
 
@@ -162,12 +175,16 @@ def test_handle_equipment_cost_override_change(
         total_cost_override=75,
     )
 
+    # Simulate form changing value from 75 to 100
+    assignment.total_cost_override = 100
+
     # Change override from 75 to 100 (delta = 100 - 75 = +25)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=75,
         new_total_cost_override=100,
     )
 
@@ -209,12 +226,16 @@ def test_handle_equipment_cost_override_stash_fighter(
         content_equipment=equipment,
     )
 
+    # Simulate form applying new value
+    assignment.total_cost_override = 75
+
     # Set override on stash equipment (should go to stash_delta)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=stash_fighter,
         assignment=assignment,
+        old_total_cost_override=None,
         new_total_cost_override=75,
     )
 
@@ -249,6 +270,9 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
     )
     assignment.weapon_accessories_field.add(accessory)
 
+    # Simulate form applying new value
+    assignment.total_cost_override = 100
+
     # Equipment base=50, accessory=25, total=75
     # Set override to 100 (delta = 100 - 75 = +25)
     result = handle_equipment_cost_override(
@@ -256,6 +280,7 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=None,
         new_total_cost_override=100,
     )
 
@@ -287,12 +312,16 @@ def test_handle_equipment_cost_override_zero_delta(
         content_equipment=equipment,
     )
 
+    # Simulate form applying new value
+    assignment.total_cost_override = 50
+
     # Set override to same as calculated cost (delta = 50 - 50 = 0)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
         fighter=fighter,
         assignment=assignment,
+        old_total_cost_override=None,
         new_total_cost_override=50,
     )
 

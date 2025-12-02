@@ -100,6 +100,7 @@ def handle_equipment_cost_override(
     lst: List,
     fighter: ListFighter,
     assignment: ListFighterEquipmentAssignment,
+    old_total_cost_override: Optional[int],
     new_total_cost_override: Optional[int],
 ) -> Optional[EquipmentCostOverrideResult]:
     """
@@ -109,21 +110,24 @@ def handle_equipment_cost_override(
     override change. The delta goes to rating_delta or stash_delta depending
     on whether the fighter is stash-linked.
 
+    The assignment object should already have the new value applied (e.g., by
+    Django's ModelForm is_valid()). This handler compares the old value passed
+    as a parameter with the new value and saves the assignment.
+
     Args:
         user: The user making the change
         lst: The list the fighter belongs to
         fighter: The fighter whose equipment is being modified
-        assignment: The equipment assignment to update
+        assignment: The equipment assignment with new value already applied
+        old_total_cost_override: Previous override value (before form modified it)
         new_total_cost_override: New override value (None to clear)
 
     Returns:
         EquipmentCostOverrideResult with assignment, costs, and action,
         or None if no change occurred
     """
-    old_override = assignment.total_cost_override
-
     # Check if anything is actually changing
-    if old_override == new_total_cost_override:
+    if old_total_cost_override == new_total_cost_override:
         return None
 
     # Capture before values for ListAction
@@ -133,7 +137,7 @@ def handle_equipment_cost_override(
 
     # Calculate delta
     old_total_cost, new_total_cost, cost_delta = _calculate_cost_delta(
-        assignment, old_override, new_total_cost_override
+        assignment, old_total_cost_override, new_total_cost_override
     )
 
     # Determine if this goes to stash or rating
@@ -141,7 +145,11 @@ def handle_equipment_cost_override(
 
     # Generate description
     description = _generate_description(
-        assignment, fighter, old_override, new_total_cost_override, cost_delta
+        assignment,
+        fighter,
+        old_total_cost_override,
+        new_total_cost_override,
+        cost_delta,
     )
 
     # Apply the change
