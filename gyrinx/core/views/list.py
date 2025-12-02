@@ -67,6 +67,7 @@ from gyrinx.core.handlers.equipment import (
     SaleItemDetail,
     handle_accessory_purchase,
     handle_equipment_component_removal,
+    handle_equipment_cost_override,
     handle_equipment_purchase,
     handle_equipment_reassignment,
     handle_equipment_removal,
@@ -79,6 +80,7 @@ from gyrinx.core.handlers.fighter import (
     handle_fighter_archive_toggle,
     handle_fighter_clone,
     handle_fighter_deletion,
+    handle_fighter_edit,
     handle_fighter_hire,
 )
 from gyrinx.core.handlers.list import handle_list_clone, handle_list_creation
@@ -977,12 +979,26 @@ def edit_list_fighter(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
+        # Capture old values before form.is_valid() modifies the instance
+        old_name = fighter.name
+        old_content_fighter = fighter.content_fighter
+        old_legacy_content_fighter = fighter.legacy_content_fighter
+        old_category_override = fighter.category_override
+        old_cost_override = fighter.cost_override
+
         form = ListFighterForm(request.POST, instance=fighter)
         if form.is_valid():
-            fighter = form.save(commit=False)
-            fighter.list = lst
-            fighter.owner = lst.owner
-            fighter.save()
+            # Form's is_valid() already applied new values to fighter
+            # Call handler to save and track changes via ListAction
+            handle_fighter_edit(
+                user=request.user,
+                fighter=fighter,
+                old_name=old_name,
+                old_content_fighter=old_content_fighter,
+                old_legacy_content_fighter=old_legacy_content_fighter,
+                old_category_override=old_category_override,
+                old_cost_override=old_cost_override,
+            )
 
             # Log the fighter update event
             log_event(
@@ -2276,7 +2292,16 @@ def edit_list_fighter_assign_cost(
     if request.method == "POST":
         form = ListFighterEquipmentAssignmentCostForm(request.POST, instance=assignment)
         if form.is_valid():
-            form.save()
+            cleaned = form.cleaned_data
+
+            # Call handler to update assignment and track changes via ListAction
+            handle_equipment_cost_override(
+                user=request.user,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                new_total_cost_override=cleaned.get("total_cost_override"),
+            )
 
             # Log the cost update event
             log_event(
@@ -2290,8 +2315,8 @@ def edit_list_fighter_assign_cost(
                 list_id=str(lst.id),
                 list_name=lst.name,
                 equipment_name=assignment.content_equipment.name,
-                field="cost_override",
-                new_cost=assignment.cost_override,
+                field="total_cost_override",
+                new_cost=assignment.total_cost_override,
             )
 
             return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
