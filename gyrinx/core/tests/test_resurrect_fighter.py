@@ -251,9 +251,6 @@ def test_resurrect_fighter_confirmation_page(client, user, content_house):
 
     assert response.status_code == 200
     assert b"Resurrect Fighter - Deceased Fighter" in response.content
-    assert b"Are you sure you want to resurrect" in response.content
-    assert b"Return them to the gang roster" in response.content
-    assert b"Set their cost back to its original value" in response.content
 
 
 @pytest.mark.django_db

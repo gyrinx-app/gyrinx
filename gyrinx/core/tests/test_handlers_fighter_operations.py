@@ -10,6 +10,7 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from gyrinx.core.handlers.fighter import (
+    FighterCloneParams,
     handle_fighter_clone,
     handle_fighter_hire,
 )
@@ -383,22 +384,20 @@ def test_handle_fighter_clone_same_list_campaign_mode(
     )
     fighter_cost = original_fighter.cost_int()
 
-    # Clone the fighter (to same list)
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
-        list=lst,
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
-    # Call the handler
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify result
-    assert result.fighter == new_fighter
+    assert result.fighter.name == "Cloned Fighter"
     assert result.source_fighter == original_fighter
     assert result.fighter_cost == fighter_cost
     assert "Cloned Fighter" in result.description
@@ -456,18 +455,16 @@ def test_handle_fighter_clone_different_list_campaign_mode(
     )
     fighter_cost = original_fighter.cost_int()
 
-    # Clone to target list
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone to target list happens internally)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
-        list=target_list,
+        content_fighter=content_fighter,
+        target_list=target_list,
     )
-    new_fighter.save()
-
-    # Call the handler
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify action created on TARGET list only
@@ -507,16 +504,16 @@ def test_handle_fighter_clone_list_building_mode(
     )
     fighter_cost = original_fighter.cost_int()
 
-    # Clone the fighter
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify result
@@ -570,16 +567,16 @@ def test_handle_fighter_clone_stash_fighter(
     )
     fighter_cost = original_fighter.cost_int()
 
-    # Clone the stash fighter
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally)
+    clone_params = FighterCloneParams(
         name="Cloned Stash",
+        content_fighter=stash_fighter_type,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify stash delta, not rating delta
@@ -629,16 +626,16 @@ def test_handle_fighter_clone_with_equipment(
     # Get total cost (fighter + equipment)
     total_cost = original_fighter.cost_int()
 
-    # Clone the fighter (equipment is cloned automatically)
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally, equipment is cloned automatically)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify cost includes equipment
@@ -667,27 +664,29 @@ def test_handle_fighter_clone_insufficient_credits(
         name="Original Fighter",
     )
 
-    # Clone the fighter
-    new_fighter = original_fighter.clone(
-        name="Cloned Fighter",
-    )
-    new_fighter.save()
-
-    # Count initial actions (should have CREATE and one ADD_FIGHTER for original)
+    # Count initial actions and fighters before clone attempt
     initial_action_count = ListAction.objects.count()
     initial_campaign_action_count = CampaignAction.objects.count()
+    initial_fighter_count = ListFighter.objects.count()
 
     # Should raise ValidationError due to insufficient credits
+    # The clone should be rolled back by the transaction
+    clone_params = FighterCloneParams(
+        name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
+    )
     with pytest.raises(ValidationError, match="Insufficient credits"):
         handle_fighter_clone(
             user=user,
             source_fighter=original_fighter,
-            new_fighter=new_fighter,
+            clone_params=clone_params,
         )
 
-    # Verify no new actions created
+    # Verify no new actions or fighters created (clone was rolled back)
     assert ListAction.objects.count() == initial_action_count
     assert CampaignAction.objects.count() == initial_campaign_action_count
+    assert ListFighter.objects.count() == initial_fighter_count
 
 
 @pytest.mark.django_db
@@ -712,16 +711,16 @@ def test_handle_fighter_clone_correct_before_values(
         name="Original Fighter",
     )
 
-    # Clone the fighter
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify before values match original list state
@@ -750,15 +749,10 @@ def test_handle_fighter_clone_transaction_rollback(
         name="Original Fighter",
     )
 
-    # Clone the fighter
-    new_fighter = original_fighter.clone(
-        name="Cloned Fighter",
-    )
-    new_fighter.save()
-
     # Count initial objects
     initial_action_count = ListAction.objects.count()
     initial_campaign_action_count = CampaignAction.objects.count()
+    initial_fighter_count = ListFighter.objects.count()
     initial_credits = lst.credits_current
 
     # Monkeypatch create_action to raise an error
@@ -768,16 +762,22 @@ def test_handle_fighter_clone_transaction_rollback(
     monkeypatch.setattr(lst, "create_action", failing_create_action)
 
     # Call the handler - should raise error and rollback
+    clone_params = FighterCloneParams(
+        name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
+    )
     with pytest.raises(RuntimeError):
         handle_fighter_clone(
             user=user,
             source_fighter=original_fighter,
-            new_fighter=new_fighter,
+            clone_params=clone_params,
         )
 
-    # Verify transaction rolled back - no new actions created
+    # Verify transaction rolled back - no new actions or fighters created
     assert ListAction.objects.count() == initial_action_count
     assert CampaignAction.objects.count() == initial_campaign_action_count
+    assert ListFighter.objects.count() == initial_fighter_count
 
     # Verify credits unchanged (refresh needed for same reason as hire test)
     lst.refresh_from_db()
@@ -805,16 +805,16 @@ def test_handle_fighter_clone_description_format(
     )
     fighter_cost = original_fighter.cost_int()
 
-    # Clone with specific name
-    new_fighter = original_fighter.clone(
+    # Call the handler (clone happens internally)
+    clone_params = FighterCloneParams(
         name="Target Fighter Name",
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify description format includes both names and cost
@@ -850,21 +850,21 @@ def test_handle_fighter_clone_with_category_override(
         category_override=FighterCategoryChoices.CHAMPION,
     )
 
-    # Clone with category override
-    new_fighter = original_fighter.clone(
+    # Call the handler with category override
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
         category_override=FighterCategoryChoices.CHAMPION,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify category override was cloned
-    assert new_fighter.category_override == FighterCategoryChoices.CHAMPION
+    assert result.fighter.category_override == FighterCategoryChoices.CHAMPION
     if feature_flag_enabled:
         assert result.list_action is not None
         assert result.list_action.action_type == ListActionType.ADD_FIGHTER
@@ -893,21 +893,21 @@ def test_handle_fighter_clone_clear_category_override(
         category_override=FighterCategoryChoices.CHAMPION,
     )
 
-    # Clone without category override (checkbox unchecked = set to None)
-    new_fighter = original_fighter.clone(
+    # Call the handler without category override (checkbox unchecked = None)
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
         category_override=None,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify category override was cleared
-    assert new_fighter.category_override is None
+    assert result.fighter.category_override is None
     if feature_flag_enabled:
         assert result.list_action is not None
         assert result.list_action.action_type == ListActionType.ADD_FIGHTER
@@ -935,20 +935,20 @@ def test_handle_fighter_clone_no_category_override(
         name="Original Fighter",
     )
 
-    # Clone without providing category_override
-    new_fighter = original_fighter.clone(
+    # Call the handler without providing category_override
+    clone_params = FighterCloneParams(
         name="Cloned Fighter",
+        content_fighter=content_fighter,
+        target_list=lst,
     )
-    new_fighter.save()
-
     result = handle_fighter_clone(
         user=user,
         source_fighter=original_fighter,
-        new_fighter=new_fighter,
+        clone_params=clone_params,
     )
 
     # Verify no category override on cloned fighter
-    assert new_fighter.category_override is None
+    assert result.fighter.category_override is None
     if feature_flag_enabled:
         assert result.list_action is not None
         assert result.list_action.action_type == ListActionType.ADD_FIGHTER

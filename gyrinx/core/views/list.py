@@ -76,12 +76,15 @@ from gyrinx.core.handlers.equipment import (
     handle_weapon_profile_purchase,
 )
 from gyrinx.core.handlers.fighter import (
+    FighterCloneParams,
     handle_fighter_advancement,
     handle_fighter_archive_toggle,
     handle_fighter_clone,
     handle_fighter_deletion,
     handle_fighter_edit,
     handle_fighter_hire,
+    handle_fighter_kill,
+    handle_fighter_resurrect,
 )
 from gyrinx.core.handlers.list import handle_list_clone, handle_list_creation
 from gyrinx.core.models.campaign import CampaignAction
@@ -1060,31 +1063,28 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
         form = CloneListFighterForm(request.POST, fighter=fighter, user=request.user)
         if form.is_valid():
             try:
-                # Prepare clone kwargs
-                clone_kwargs = {
-                    "name": form.cleaned_data["name"],
-                    "content_fighter": form.cleaned_data["content_fighter"],
-                    "list": form.cleaned_data["list"],
-                }
-
+                # Prepare clone params
                 # Handle category_override based on checkbox
                 # If fighter has an override and checkbox is checked, preserve it
                 # Otherwise, clear it
+                category_override = None
                 if fighter.category_override and form.cleaned_data.get(
                     "clone_category_override", False
                 ):
-                    clone_kwargs["category_override"] = fighter.category_override
-                else:
-                    clone_kwargs["category_override"] = None
+                    category_override = fighter.category_override
 
-                new_fighter = fighter.clone(**clone_kwargs)
-                new_fighter.save()
+                clone_params = FighterCloneParams(
+                    name=form.cleaned_data["name"],
+                    content_fighter=form.cleaned_data["content_fighter"],
+                    target_list=form.cleaned_data["list"],
+                    category_override=category_override,
+                )
 
-                # Handle the clone operation (creates ListAction and handles credits)
-                handle_fighter_clone(
+                # Handle the clone operation (clones fighter, creates ListAction, handles credits)
+                result = handle_fighter_clone(
                     user=request.user,
                     source_fighter=fighter,
-                    new_fighter=new_fighter,
+                    clone_params=clone_params,
                 )
 
                 # Log the fighter clone event
@@ -1092,20 +1092,20 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
                     user=request.user,
                     noun=EventNoun.LIST_FIGHTER,
                     verb=EventVerb.CLONE,
-                    object=new_fighter,
+                    object=result.fighter,
                     request=request,
-                    fighter_name=new_fighter.name,
-                    list_id=str(new_fighter.list.id),
-                    list_name=new_fighter.list.name,
+                    fighter_name=result.fighter.name,
+                    list_id=str(result.fighter.list.id),
+                    list_name=result.fighter.list.name,
                     source_fighter_id=str(fighter.id),
                     source_fighter_name=fighter.name,
                 )
 
-                query_params = urlencode(dict(flash=new_fighter.id))
+                query_params = urlencode(dict(flash=result.fighter.id))
                 return HttpResponseRedirect(
-                    reverse("core:list", args=(new_fighter.list.id,))
+                    reverse("core:list", args=(result.fighter.list.id,))
                     + f"?{query_params}"
-                    + f"#{str(new_fighter.id)}"
+                    + f"#{str(result.fighter.id)}"
                 )
             except DjangoValidationError as e:
                 error_message = str(e)
@@ -3247,8 +3247,6 @@ def kill_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_kill.html`
     """
-    from gyrinx.core.models.campaign import CampaignAction
-
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
@@ -3268,76 +3266,27 @@ def kill_list_fighter(request, id, fighter_id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        with transaction.atomic():
-            # Find the stash fighter for this list
-            stash_fighter = lst.listfighter_set.filter(
-                content_fighter__is_stash=True
-            ).first()
-
-            if stash_fighter:
-                # Transfer all equipment to stash
-                equipment_assignments = fighter.listfighterequipmentassignment_set.all()
-                for assignment in equipment_assignments:
-                    # Create new assignment for stash with same equipment
-                    new_assignment = ListFighterEquipmentAssignment(
-                        list_fighter=stash_fighter,
-                        content_equipment=assignment.content_equipment,
-                        cost_override=assignment.cost_override,
-                        total_cost_override=assignment.total_cost_override,
-                        from_default_assignment=assignment.from_default_assignment,
-                    )
-                    new_assignment.save()
-
-                    # Copy over any weapon profiles and accessories
-                    if assignment.weapon_profiles_field.exists():
-                        new_assignment.weapon_profiles_field.set(
-                            assignment.weapon_profiles_field.all()
-                        )
-                    if assignment.weapon_accessories_field.exists():
-                        new_assignment.weapon_accessories_field.set(
-                            assignment.weapon_accessories_field.all()
-                        )
-                    if assignment.upgrades_field.exists():
-                        new_assignment.upgrades_field.set(
-                            assignment.upgrades_field.all()
-                        )
-
-                # Delete all equipment assignments from the dead fighter
-                equipment_assignments.delete()
-
-            # Mark fighter as dead and set cost to 0
-            fighter.injury_state = ListFighter.DEAD
-            fighter.cost_override = 0
-            fighter.save()
-
-            # Log the fighter kill event
-            log_event(
-                user=request.user,
-                noun=EventNoun.LIST_FIGHTER,
-                verb=EventVerb.DELETE,
-                object=fighter,
-                request=request,
-                fighter_name=fighter.name,
-                list_id=str(lst.id),
-                list_name=lst.name,
-                action="killed",
-            )
-
-            # Log the kill in campaign action if this list is part of a campaign
-            if lst.campaign:
-                CampaignAction.objects.create(
-                    user=request.user,
-                    owner=request.user,
-                    campaign=lst.campaign,
-                    list=lst,
-                    description=f"Death: {fighter.name} was killed",
-                    outcome=f"{fighter.name} is permanently dead. All equipment transferred to stash.",
-                )
-
-        messages.success(
-            request,
-            f"{fighter.name} has been killed. Their equipment has been transferred to the stash.",
+        # Handle fighter death (transfers equipment, creates ListAction and CampaignAction)
+        result = handle_fighter_kill(
+            user=request.user,
+            lst=lst,
+            fighter=fighter,
         )
+
+        # Log the fighter kill event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.DELETE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+            action="killed",
+        )
+
+        messages.success(request, result.description)
         return HttpResponseRedirect(
             reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
         )
@@ -3367,8 +3316,6 @@ def resurrect_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_resurrect.html`
     """
-    from gyrinx.core.models.campaign import CampaignAction
-
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
@@ -3387,14 +3334,15 @@ def resurrect_list_fighter(request, id, fighter_id):
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
-        if not fighter.injury_state == ListFighter.DEAD:
+        if fighter.injury_state != ListFighter.DEAD:
             messages.error(request, "Only dead fighters can be resurrected.")
             return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
-        # Mark fighter as alive and set cost to original value
-        fighter.injury_state = ListFighter.ACTIVE
-        fighter.cost_override = None
-        fighter.save()
+        # Handle resurrection (restores cost, creates ListAction and CampaignAction)
+        handle_fighter_resurrect(
+            user=request.user,
+            fighter=fighter,
+        )
 
         # Log the resurrection event
         log_event(
@@ -3408,17 +3356,6 @@ def resurrect_list_fighter(request, id, fighter_id):
             list_name=lst.name,
             action="resurrected",
         )
-
-        # Log the resurrection campaign action
-        if lst.campaign:
-            CampaignAction.objects.create(
-                user=request.user,
-                owner=request.user,
-                campaign=lst.campaign,
-                list=lst,
-                description=f"Resurrection: {fighter.name} is no longer dead",
-                outcome=f"{fighter.name} has been returned to the active roster.",
-            )
 
         messages.success(
             request,
