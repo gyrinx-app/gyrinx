@@ -43,10 +43,11 @@ def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     """
     Detect if a fighter's cost changes should go to stash instead of rating.
 
-    A fighter is stash-linked if:
-    1. It's directly a stash fighter (fighter.is_stash), OR
-    2. It's a child fighter (vehicle/exotic beast) linked to equipment
-       owned by a stash fighter
+    A fighter is stash-linked if it's a child fighter (vehicle/exotic beast)
+    linked to equipment owned by a stash fighter.
+
+    Note: Direct stash fighters cannot receive advancements and are rejected
+    earlier in the handler, so we only check for child fighters here.
 
     Args:
         fighter: The fighter to check
@@ -54,10 +55,6 @@ def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     Returns:
         True if cost increases should go to stash_delta instead of rating_delta
     """
-    # Direct stash fighter
-    if fighter.is_stash:
-        return True
-
     # Child fighter (vehicle/exotic beast) linked to stash via source_assignment
     if fighter.is_child_fighter:
         parent_assignment = fighter.source_assignment.first()
@@ -129,6 +126,13 @@ def handle_fighter_advancement(
                 )
             # Return None to signal idempotent case (already applied)
             return None
+
+    # Validate fighter is not a stash fighter (stash fighters cannot advance)
+    if fighter.is_stash:
+        raise ValidationError(
+            f"Stash fighters cannot receive advancements. "
+            f"Fighter '{fighter.name}' is a stash fighter."
+        )
 
     # Validate XP sufficiency
     if fighter.xp_current < xp_cost:

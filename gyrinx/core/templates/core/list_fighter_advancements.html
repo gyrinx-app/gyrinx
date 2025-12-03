@@ -6,10 +6,14 @@
 {% block content %}
     {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h2 class="mb-0">Advancements for {{ fighter.name }}</h2>
-        <ul class="fs-5 list-group list-group-flush">
+        <h2>Advancements for {{ fighter.name }}</h2>
+        <ul class="fs-5 mb-3 list-group list-group-flush">
             <li class="list-group-item">
                 <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current
+                {% if list.owner_cached == user %}
+                    <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}"
+                       class="fs-7 link-secondary link-underline-opacity-25 link-underline-opacity-100-hover ms-2">Add XP</a>
+                {% endif %}
             </li>
             <li class="list-group-item">
                 <span class="badge text-bg-secondary">{{ fighter.xp_total }} XP</span> Total
@@ -30,7 +34,7 @@
                                 <th>
                                     <span class="visually-hidden">Cost Increase</span>
                                 </th>
-                                {% if list.is_owner %}
+                                {% if list.owner_cached == user %}
                                     <th>
                                         <span class="visually-hidden">Actions</span>
                                     </th>
@@ -50,18 +54,10 @@
                                             <span class="badge text-bg-warning">Other</span>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                                            {{ advancement.get_stat_increased_display }}
-                                        {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
-                                            {{ advancement.skill.name }}
-                                        {% else %}
-                                            {{ advancement.description }}
-                                        {% endif %}
-                                    </td>
+                                    <td>{{ advancement.display_description }}</td>
                                     <td>{{ advancement.xp_cost }} XP</td>
                                     <td>+{{ advancement.cost_increase }}¢</td>
-                                    {% if list.is_owner %}
+                                    {% if list.owner_cached == user %}
                                         <td>
                                             {% if not advancement.archived %}
                                                 <a href="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"

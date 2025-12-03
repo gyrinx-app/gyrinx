@@ -330,31 +330,21 @@ def test_handle_fighter_advancement_rating_delta_regular_fighter(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_stash_delta_stash_fighter(
-    user, stash_fighter_with_xp, settings
-):
-    """Test stash fighter: rating_delta = 0, stash_delta = cost_increase."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+def test_handle_fighter_advancement_stash_fighter_rejected(user, stash_fighter_with_xp):
+    """Test stash fighters cannot receive advancements."""
+    with pytest.raises(ValidationError) as excinfo:
+        handle_fighter_advancement(
+            user=user,
+            fighter=stash_fighter_with_xp,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+            xp_cost=10,
+            cost_increase=25,
+            advancement_choice="stat_strength",
+            stat_increased="strength",
+        )
 
-    lst = stash_fighter_with_xp.list
-    lst.rating_current = 500
-    lst.stash_current = 100
-    lst.save()
-
-    cost_increase = 25
-
-    result = handle_fighter_advancement(
-        user=user,
-        fighter=stash_fighter_with_xp,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-        xp_cost=10,
-        cost_increase=cost_increase,
-        advancement_choice="stat_strength",
-        stat_increased="strength",
-    )
-
-    assert result.update_action.rating_delta == 0
-    assert result.update_action.stash_delta == cost_increase
+    assert "Stash fighters cannot receive advancements" in str(excinfo.value)
+    assert stash_fighter_with_xp.name in str(excinfo.value)
 
 
 @pytest.mark.django_db
@@ -833,43 +823,6 @@ def test_handle_fighter_advancement_deletion_equipment_warns(
     # Verify warning about equipment
     assert len(delete_result.warnings) == 1
     assert "manually" in delete_result.warnings[0]
-
-
-@pytest.mark.django_db
-def test_handle_fighter_advancement_deletion_stash_fighter(
-    user, stash_fighter_with_xp, settings
-):
-    """Test stash fighter deletion uses stash_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = stash_fighter_with_xp.list
-    lst.rating_current = 500
-    lst.stash_current = 100
-    lst.save()
-
-    cost_increase = 25
-
-    # Create advancement
-    result = handle_fighter_advancement(
-        user=user,
-        fighter=stash_fighter_with_xp,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-        xp_cost=10,
-        cost_increase=cost_increase,
-        advancement_choice="stat_strength",
-        stat_increased="strength",
-    )
-
-    # Delete advancement
-    delete_result = handle_fighter_advancement_deletion(
-        user=user,
-        fighter=stash_fighter_with_xp,
-        advancement=result.advancement,
-    )
-
-    # Verify stash_delta used (negative)
-    assert delete_result.list_action.rating_delta == 0
-    assert delete_result.list_action.stash_delta == -cost_increase
 
 
 @pytest.mark.django_db

@@ -7,46 +7,25 @@
     {% include "core/includes/back.html" with url=advancements_url text="Advancements" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Remove Advancement: {{ fighter.name }}</h1>
-        <div class="border rounded p-3 mb-3">
+        <div class="border rounded p-3 pb-0 mb-3">
             <dl class="mb-0">
-                <dt>Type</dt>
+                <dt>Advancement</dt>
                 <dd>
-                    {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                        Stat Improvement
-                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
-                        Skill
-                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
-                        Equipment
-                    {% else %}
-                        Other
-                    {% endif %}
+                    {{ advancement.display_description }}
                 </dd>
-                <dt>Details</dt>
+                <dt>To be restored/reverted</dt>
                 <dd>
-                    {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                        {{ advancement.get_stat_increased_display }}
-                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
-                        {{ advancement.skill.name }}
-                    {% elif advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
-                        {{ advancement.equipment_assignment }}
-                    {% else %}
-                        {{ advancement.description }}
-                    {% endif %}
-                </dd>
-                <dt>XP Cost</dt>
-                <dd>
-                    {{ advancement.xp_cost }} XP (will be restored)
-                </dd>
-                <dt>Cost Increase</dt>
-                <dd>
-                    +{{ advancement.cost_increase }}¢ (will be reduced)
+                    <ul>
+                        <li>{{ advancement.xp_cost }} XP</li>
+                        <li>+{{ advancement.cost_increase }}¢ Rating</li>
+                    </ul>
                 </dd>
             </dl>
         </div>
         {% if advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
             <div class="alert alert-warning">
                 <i class="bi-exclamation-triangle me-1"></i>
-                <strong>Note:</strong> Equipment from this advancement must be removed manually.
+                <strong>Note:</strong> Equipment added by this advancement must be removed manually.
             </div>
         {% endif %}
         <form action="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"

@@ -2394,6 +2394,11 @@ class ListFighter(AppBase):
         """Check if this fighter should contribute 0 to gang total cost."""
         return self.is_captured or self.is_sold_to_guilders
 
+    @property
+    def active_advancement_count(self):
+        """Return count of non-archived advancements."""
+        return self.advancements.filter(archived=False).count()
+
     def has_overridden_cost(self):
         return self.cost_override is not None or self.should_have_zero_cost
 
@@ -4366,6 +4371,21 @@ class ListFighterAdvancement(AppBase):
         return AdvancementTypeForm.all_stat_choices().get(
             f"stat_{self.stat_increased}", "Unknown"
         )
+
+    @property
+    def display_description(self):
+        """Return a human-readable description of what this advancement provides."""
+        if self.advancement_type == self.ADVANCEMENT_STAT:
+            return self.get_stat_increased_display()
+        elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
+            return self.skill.name
+        elif (
+            self.advancement_type
+            in (self.ADVANCEMENT_OTHER, self.ADVANCEMENT_EQUIPMENT)
+            and self.description
+        ):
+            return self.description
+        return "Advancement"
 
     def apply_advancement(self):
         """Apply this advancement to the fighter."""
