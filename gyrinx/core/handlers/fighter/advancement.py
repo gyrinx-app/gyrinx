@@ -388,8 +388,8 @@ def handle_fighter_advancement_deletion(
     elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_EQUIPMENT:
         # Equipment advancements require manual removal
         warnings.append(
-            "Equipment from this advancement must be removed manually before "
-            "the advancement can be fully reversed."
+            "Equipment added by this advancement must be removed manually. "
+            "The advancement has been reversed, but the equipment remains on the fighter."
         )
     # ADVANCEMENT_OTHER has no effects to reverse
 

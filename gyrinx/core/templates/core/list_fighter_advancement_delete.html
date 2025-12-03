@@ -4,6 +4,7 @@
     Remove Advancement - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
+    {% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
     {% include "core/includes/back.html" with url=advancements_url text="Advancements" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Remove Advancement: {{ fighter.name }}</h1>
