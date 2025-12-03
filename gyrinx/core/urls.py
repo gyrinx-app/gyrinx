@@ -359,6 +359,11 @@ urlpatterns = [
         name="list-fighter-advancement-confirm",
     ),
     path(
+        "list/<id>/fighter/<fighter_id>/advancements/<advancement_id>/delete",
+        list.delete_list_fighter_advancement,
+        name="list-fighter-advancement-delete",
+    ),
+    path(
         "list/<id>/fighter/<fighter_id>/state/edit",
         list.list_fighter_state_edit,
         name="list-fighter-state-edit",

@@ -43,10 +43,16 @@ def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     """
     Detect if a fighter's cost changes should go to stash instead of rating.
 
+    This function is used for COST ROUTING only, not advancement eligibility.
+    Direct stash fighters are rejected separately before this is called.
+
     A fighter is stash-linked if:
-    1. It's directly a stash fighter (fighter.is_stash), OR
+    1. It IS a stash fighter directly, OR
     2. It's a child fighter (vehicle/exotic beast) linked to equipment
-       owned by a stash fighter
+       owned by a stash fighter.
+
+    Note: Child fighters linked to stash CAN receive advancements (they are
+    not is_stash=True themselves), but their cost changes go to stash_delta.
 
     Args:
         fighter: The fighter to check
@@ -129,6 +135,16 @@ def handle_fighter_advancement(
                 )
             # Return None to signal idempotent case (already applied)
             return None
+
+    # Validate fighter is not a direct stash fighter (stash fighters cannot advance)
+    # Note: Child fighters linked to stash (vehicles/exotic beasts with source_assignment
+    # pointing to stash-owned equipment) CAN advance - their costs go to stash_delta.
+    # This check only rejects direct stash fighters (is_stash=True).
+    if fighter.is_stash:
+        raise ValidationError(
+            f"Stash fighters cannot receive advancements. "
+            f"Fighter '{fighter.name}' is a stash fighter."
+        )
 
     # Validate XP sufficiency
     if fighter.xp_current < xp_cost:
@@ -303,3 +319,280 @@ def _generate_outcome_description(
         return f"Gained {description}" if description else "Other advancement"
 
     return "Advanced"
+
+
+@dataclass
+class FighterAdvancementDeletionResult:
+    """Result of deleting (archiving) a fighter advancement."""
+
+    advancement_id: UUID
+    advancement_description: str
+    xp_restored: int
+    cost_decrease: int
+    description: str
+    list_action: Optional[ListAction]
+
+    # Warnings for the user
+    warnings: list[str]
+
+
+@transaction.atomic
+def handle_fighter_advancement_deletion(
+    *,
+    user,
+    fighter: ListFighter,
+    advancement: ListFighterAdvancement,
+) -> FighterAdvancementDeletionResult:
+    """
+    Handle deletion (archiving) of a fighter advancement.
+
+    This handler reverses the effects of an advancement:
+    1. Archives the advancement
+    2. Restores XP to the fighter
+    3. Reduces rating/stash by cost_increase
+    4. For mod-based stat advancements: stat change disappears automatically
+    5. For legacy stat advancements: recalculates the override field
+    6. For skill advancements: removes skill and recalculates category_override
+    7. For equipment advancements: warns user to remove equipment manually
+    8. For other advancements: just archives (no side effects)
+
+    Args:
+        user: The user performing the deletion
+        fighter: The fighter whose advancement is being deleted
+        advancement: The advancement to delete
+
+    Returns:
+        FighterAdvancementDeletionResult with deletion details
+
+    Raises:
+        ValidationError: If the advancement cannot be deleted
+    """
+    lst = fighter.list
+    warnings = []
+
+    # Validate the advancement belongs to this fighter
+    if advancement.fighter_id != fighter.id:
+        raise ValidationError("Advancement does not belong to this fighter")
+
+    # Validate the advancement is not already archived
+    if advancement.archived:
+        raise ValidationError("Advancement is already archived")
+
+    # Capture before values for ListAction
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+    credits_before = lst.credits_current
+
+    # Determine where cost delta should go
+    is_stash_linked = _is_fighter_stash_linked(fighter)
+
+    # Store advancement details before archiving
+    advancement_id = advancement.id
+    advancement_description = str(advancement)
+    xp_restored = advancement.xp_cost
+    cost_decrease = advancement.cost_increase
+
+    # Reverse the advancement effects based on type
+    if advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_STAT:
+        _reverse_stat_advancement(advancement, fighter, warnings)
+    elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_SKILL:
+        _reverse_skill_advancement(advancement, fighter, warnings)
+    elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_EQUIPMENT:
+        # Equipment advancements require manual removal
+        warnings.append(
+            "Equipment added by this advancement must be removed manually. "
+            "The advancement has been reversed, but the equipment remains on the fighter."
+        )
+    # ADVANCEMENT_OTHER has no effects to reverse
+
+    # Restore XP to fighter
+    fighter.xp_current += xp_restored
+    fighter.save()
+
+    # Archive the advancement
+    advancement.archive()
+
+    # Build description
+    description = f"Removed advancement: {advancement_description} (XP +{xp_restored}, Cost -{cost_decrease}¢)"
+
+    # Create ListAction with negative cost delta
+    list_action = lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_FIGHTER,
+        subject_app="core",
+        subject_type="ListFighterAdvancement",
+        subject_id=advancement_id,
+        description=description,
+        list_fighter=fighter,
+        rating_delta=-cost_decrease if not is_stash_linked else 0,
+        stash_delta=-cost_decrease if is_stash_linked else 0,
+        credits_delta=0,  # Advancements don't affect credits
+        rating_before=rating_before,
+        stash_before=stash_before,
+        credits_before=credits_before,
+    )
+
+    return FighterAdvancementDeletionResult(
+        advancement_id=advancement_id,
+        advancement_description=advancement_description,
+        xp_restored=xp_restored,
+        cost_decrease=cost_decrease,
+        description=description,
+        list_action=list_action,
+        warnings=warnings,
+    )
+
+
+def _reverse_stat_advancement(
+    advancement: ListFighterAdvancement,
+    fighter: ListFighter,
+    warnings: list[str],
+) -> None:
+    """
+    Reverse a stat advancement.
+
+    For mod-based advancements (uses_mod_system=True), the stat change
+    disappears automatically when the advancement is archived.
+
+    For legacy advancements (uses_mod_system=False), we need to recalculate
+    the override field based on remaining advancements.
+    """
+    if advancement.uses_mod_system:
+        # Mod-based: stat change disappears automatically when archived
+        return
+
+    # Legacy advancement: need to recalculate the override field
+    stat_name = advancement.stat_increased
+    override_field = f"{stat_name}_override"
+
+    # Count remaining non-archived stat advancements for this stat
+    # (excluding the one being deleted)
+    remaining_count = (
+        ListFighterAdvancement.objects.filter(
+            fighter=fighter,
+            archived=False,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+            stat_increased=stat_name,
+            uses_mod_system=False,  # Only count legacy advancements
+        )
+        .exclude(id=advancement.id)
+        .count()
+    )
+
+    if remaining_count == 0:
+        # No more legacy advancements for this stat, clear the override
+        setattr(fighter, override_field, None)
+    else:
+        # Recalculate the override based on remaining advancements
+        base_value = getattr(fighter.content_fighter, stat_name)
+        new_value = _calculate_stat_value(base_value, remaining_count)
+        setattr(fighter, override_field, new_value)
+
+    fighter.save()
+
+
+def _calculate_stat_value(base_value: str, improvement_count: int) -> str:
+    """
+    Calculate the new stat value after a number of improvements.
+
+    Args:
+        base_value: The base stat value (e.g., "3+", "4", '4"')
+        improvement_count: Number of improvements to apply
+
+    Returns:
+        The improved stat value
+    """
+    if not base_value:
+        return base_value
+
+    if "+" in base_value:
+        # Target roll stats (WS, BS, Initiative, etc.) - lower is better
+        base_numeric = int(base_value.replace("+", ""))
+        new_value = base_numeric - improvement_count
+        return f"{new_value}+"
+    elif '"' in base_value:
+        # Distance stats (Movement) - higher is better
+        base_numeric = int(base_value.replace('"', ""))
+        new_value = base_numeric + improvement_count
+        return f'{new_value}"'
+    else:
+        # Numeric stats (S, T, W, A) - higher is better
+        try:
+            base_numeric = int(base_value)
+            new_value = base_numeric + improvement_count
+            return str(new_value)
+        except ValueError:
+            return base_value
+
+
+def _reverse_skill_advancement(
+    advancement: ListFighterAdvancement,
+    fighter: ListFighter,
+    warnings: list[str],
+) -> None:
+    """
+    Reverse a skill advancement.
+
+    Removes the skill from the fighter and recalculates category_override
+    if this was a promotion advancement.
+    """
+    # Remove the skill
+    if advancement.skill:
+        fighter.skills.remove(advancement.skill)
+
+    # Handle promotion reversals
+    if advancement.advancement_choice in [
+        "skill_promote_specialist",
+        "skill_promote_champion",
+    ]:
+        _recalculate_category_override(fighter, advancement)
+
+
+def _recalculate_category_override(
+    fighter: ListFighter,
+    advancement_being_deleted: ListFighterAdvancement,
+) -> None:
+    """
+    Recalculate the fighter's category_override after a promotion advancement is deleted.
+
+    Looks at all remaining non-archived skill advancements with promotion choices
+    and sets category_override to the highest remaining promotion level.
+
+    Promotion hierarchy:
+    - Champion > Specialist > None
+
+    Args:
+        fighter: The fighter to recalculate
+        advancement_being_deleted: The advancement being deleted (excluded from calculation)
+    """
+    # Import here to avoid circular imports
+    from gyrinx.models import FighterCategoryChoices
+
+    # Find remaining promotion advancements (excluding the one being deleted)
+    remaining_promotions = ListFighterAdvancement.objects.filter(
+        fighter=fighter,
+        archived=False,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        advancement_choice__in=["skill_promote_specialist", "skill_promote_champion"],
+    ).exclude(id=advancement_being_deleted.id)
+
+    # Check for Champion promotions first (highest)
+    has_champion = remaining_promotions.filter(
+        advancement_choice="skill_promote_champion"
+    ).exists()
+
+    if has_champion:
+        fighter.category_override = FighterCategoryChoices.CHAMPION
+    else:
+        # Check for Specialist promotions
+        has_specialist = remaining_promotions.filter(
+            advancement_choice="skill_promote_specialist"
+        ).exists()
+
+        if has_specialist:
+            fighter.category_override = FighterCategoryChoices.SPECIALIST
+        else:
+            # No promotions remaining, clear the override
+            fighter.category_override = None
+
+    fighter.save()

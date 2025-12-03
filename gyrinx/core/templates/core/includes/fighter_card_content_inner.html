@@ -268,7 +268,7 @@
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Advancements</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    {% with advancement_count=fighter.advancements.count %}
+                    {% with advancement_count=fighter.active_advancement_count %}
                         {% if advancement_count == 0 %}
                             {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                 <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Add</a>

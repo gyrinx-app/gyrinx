@@ -1,0 +1,43 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth %}
+{% block head_title %}
+    Remove Advancement - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
+    {% include "core/includes/back.html" with url=advancements_url text="Advancements" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Remove Advancement: {{ fighter.name }}</h1>
+        <div class="border rounded p-3 pb-0 mb-3">
+            <dl class="mb-0">
+                <dt>Advancement</dt>
+                <dd>
+                    {{ advancement.display_description }}
+                </dd>
+                <dt>To be restored/reverted</dt>
+                <dd>
+                    <ul>
+                        <li>{{ advancement.xp_cost }} XP</li>
+                        <li>+{{ advancement.cost_increase }}¢ Rating</li>
+                    </ul>
+                </dd>
+            </dl>
+        </div>
+        {% if advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
+            <div class="alert alert-warning">
+                <i class="bi-exclamation-triangle me-1"></i>
+                <strong>Note:</strong> Equipment added by this advancement must be removed manually.
+            </div>
+        {% endif %}
+        <form action="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"
+              method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to remove this advancement?</p>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-danger">Remove Advancement</button>
+                <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

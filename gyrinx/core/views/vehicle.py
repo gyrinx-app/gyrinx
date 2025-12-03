@@ -4,7 +4,6 @@ import uuid
 from typing import Optional
 from urllib.parse import urlencode
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpResponseRedirect
@@ -12,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from pydantic import BaseModel, ValidationError
 
+from gyrinx import messages
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentFighterProfile,
@@ -272,8 +272,7 @@ def vehicle_confirm(request, id):
                 )
             except DjangoValidationError as e:
                 # Handler failed - no cleanup needed (transaction rolled back)
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
+                messages.validation(request, e)
                 return render(
                     request,
                     "core/vehicle_confirm.html",

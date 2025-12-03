@@ -1,8 +1,10 @@
 """Fighter operation handlers."""
 
 from gyrinx.core.handlers.fighter.advancement import (
+    FighterAdvancementDeletionResult,
     FighterAdvancementResult,
     handle_fighter_advancement,
+    handle_fighter_advancement_deletion,
 )
 from gyrinx.core.handlers.fighter.edit import (
     FieldChange,
@@ -28,6 +30,7 @@ from gyrinx.core.handlers.fighter.vehicle import (
 
 __all__ = [
     "FieldChange",
+    "FighterAdvancementDeletionResult",
     "FighterAdvancementResult",
     "FighterArchiveResult",
     "FighterCloneResult",
@@ -36,6 +39,7 @@ __all__ = [
     "FighterHireResult",
     "VehiclePurchaseResult",
     "handle_fighter_advancement",
+    "handle_fighter_advancement_deletion",
     "handle_fighter_archive_toggle",
     "handle_fighter_clone",
     "handle_fighter_deletion",
