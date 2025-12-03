@@ -1,6 +1,6 @@
 ---
 description: Generate a manual test plan for code changes, formatted for Claude for Chrome
-argument-hint: [short-name]
+argument-hint: [testing-notes]
 ---
 
 # Manual Test Plan Generator
@@ -20,11 +20,17 @@ Claude for Chrome CANNOT:
 
 Analyze the recent code changes and generate a manual test plan that can be executed in a browser.
 
-**First, check what has changed:**
+1. First, check what has changed:
 
 !`git diff main --name-only | head -20`
 
 !`git log main..HEAD --oneline | head -10`
+
+2. Next, review the changed files to understand the modifications.
+
+3. Take into account any additional testing notes provided as an argument to this command:
+
+Testing Notes: $1
 
 ## Instructions for Generating the Test Plan
 
@@ -89,12 +95,12 @@ Structure your output as a numbered checklist that Claude for Chrome can follow.
 
 **IMPORTANT**: After generating the test plan, you MUST save it to a file using the Write tool:
 - Directory: `.claude/test-plans/`
-- Filename format: `YYYY-MM-DD-short-name.md` where short-name comes from:
-  - The argument provided to this command: `$ARGUMENTS`
+- Filename format: `YYYY-MM-DD-HH-mm-short-name.md` where short-name comes from:
   - If no argument, derive from the current git branch name (sanitized)
 - Create the directory if it doesn't exist: `!mkdir -p .claude/test-plans`
+- Make sure the filename is unique (append a counter if needed)
 
-Example filename: `2025-11-30-removal-handlers.md`
+Example filename: `2025-11-30-12-30-removal-handlers.md`
 
 The test plan will then be accessible at `http://localhost:8000/_debug/test-plans/` when the Django dev server is running.
 

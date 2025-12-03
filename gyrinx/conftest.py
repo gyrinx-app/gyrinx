@@ -550,3 +550,15 @@ def make_equipment_upgrade():
         )
 
     return make_equipment_upgrade_
+
+
+@pytest.fixture
+def stash_fighter_type(content_house, make_content_fighter):
+    """Create a stash fighter type (ContentFighter with is_stash=True)."""
+    return make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )

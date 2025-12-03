@@ -30,6 +30,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 # --- Fixtures ---
+# Note: stash_fighter_type is defined in conftest.py
 
 
 @pytest.fixture
@@ -63,27 +64,13 @@ def content_advancement_assignment(make_equipment):
 
 
 @pytest.fixture
-def fighter_with_xp(list_with_campaign, content_fighter, user):
+def fighter_with_xp(list_with_campaign, make_list_fighter):
     """Fighter with enough XP for advancement testing."""
-    return ListFighter.objects.create(
-        list=list_with_campaign,
-        owner=user,
-        content_fighter=content_fighter,
-        name="Test Fighter",
+    return make_list_fighter(
+        list_with_campaign,
+        "Test Fighter",
         xp_current=100,
         xp_total=100,
-    )
-
-
-@pytest.fixture
-def stash_fighter_type(content_house, make_content_fighter):
-    """Create a stash fighter type."""
-    return make_content_fighter(
-        type="Stash",
-        category=FighterCategoryChoices.CREW,
-        house=content_house,
-        base_cost=0,
-        is_stash=True,
     )
 
 
