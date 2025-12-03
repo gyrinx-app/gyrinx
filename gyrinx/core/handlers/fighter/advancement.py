@@ -43,10 +43,16 @@ def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     """
     Detect if a fighter's cost changes should go to stash instead of rating.
 
+    This function is used for COST ROUTING only, not advancement eligibility.
+    Direct stash fighters are rejected separately before this is called.
+
     A fighter is stash-linked if:
     1. It IS a stash fighter directly, OR
     2. It's a child fighter (vehicle/exotic beast) linked to equipment
        owned by a stash fighter.
+
+    Note: Child fighters linked to stash CAN receive advancements (they are
+    not is_stash=True themselves), but their cost changes go to stash_delta.
 
     Args:
         fighter: The fighter to check
@@ -130,7 +136,10 @@ def handle_fighter_advancement(
             # Return None to signal idempotent case (already applied)
             return None
 
-    # Validate fighter is not a stash fighter (stash fighters cannot advance)
+    # Validate fighter is not a direct stash fighter (stash fighters cannot advance)
+    # Note: Child fighters linked to stash (vehicles/exotic beasts with source_assignment
+    # pointing to stash-owned equipment) CAN advance - their costs go to stash_delta.
+    # This check only rejects direct stash fighters (is_stash=True).
     if fighter.is_stash:
         raise ValidationError(
             f"Stash fighters cannot receive advancements. "

@@ -22,18 +22,13 @@
         <div>
             {% if advancements %}
                 <div class="table-responsive">
-                    <table class="table table-sm">
+                    <table class="table table-borderless table-sm">
                         <thead>
                             <tr>
-                                <th>Date</th>
                                 <th>Type</th>
                                 <th>Advancement</th>
-                                <th>
-                                    <span class="visually-hidden">XP Cost</span>
-                                </th>
-                                <th>
-                                    <span class="visually-hidden">Cost Increase</span>
-                                </th>
+                                <th>XP</th>
+                                <th>Rating</th>
                                 {% if list.owner_cached == user %}
                                     <th>
                                         <span class="visually-hidden">Actions</span>
@@ -44,26 +39,25 @@
                         <tbody>
                             {% for advancement in advancements %}
                                 <tr>
-                                    <td>{{ advancement.created|date:"Y-m-d" }}</td>
                                     <td>
                                         {% if advancement.advancement_type == advancement.ADVANCEMENT_STAT %}
-                                            <span class="badge text-bg-primary">Stat</span>
+                                            Stat
                                         {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
-                                            <span class="badge text-bg-success">Skill</span>
+                                            Skill
                                         {% else %}
-                                            <span class="badge text-bg-warning">Other</span>
+                                            Other
                                         {% endif %}
                                     </td>
                                     <td>{{ advancement.display_description }}</td>
                                     <td>{{ advancement.xp_cost }} XP</td>
                                     <td>+{{ advancement.cost_increase }}¢</td>
                                     {% if list.owner_cached == user %}
-                                        <td>
+                                        <td class="text-end fs-7">
                                             {% if not advancement.archived %}
                                                 <a href="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                   class="link-secondary icon-link link-underline-opacity-25 link-underline-opacity-100-hover"
                                                    title="Remove advancement">
-                                                    <i class="bi-trash"></i>
+                                                    <i class="bi-trash"></i> Remove
                                                 </a>
                                             {% endif %}
                                         </td>

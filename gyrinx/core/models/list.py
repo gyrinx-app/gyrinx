@@ -4379,12 +4379,14 @@ class ListFighterAdvancement(AppBase):
             return self.get_stat_increased_display()
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             return self.skill.name
-        elif (
-            self.advancement_type
-            in (self.ADVANCEMENT_OTHER, self.ADVANCEMENT_EQUIPMENT)
-            and self.description
+        elif self.advancement_type in (
+            self.ADVANCEMENT_OTHER,
+            self.ADVANCEMENT_EQUIPMENT,
         ):
-            return self.description
+            if self.description:
+                return self.description
+            else:
+                return str(self.equipment_assignment)
         return "Advancement"
 
     def apply_advancement(self):

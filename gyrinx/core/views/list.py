@@ -4,10 +4,9 @@ import uuid
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
-from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
-from django.conf import settings
 from django.core.cache import cache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
@@ -20,6 +19,7 @@ from django.views import generic
 from django.views.decorators.clickjacking import xframe_options_exempt
 from pydantic import BaseModel, ValidationError, field_validator
 
+from gyrinx import messages
 from gyrinx.content.models import (
     ContentAdvancementEquipment,
     ContentEquipment,
@@ -574,7 +574,6 @@ def edit_list_credits(request, id):
 
     :template:`core/list_credits_edit.html`
     """
-    from django.contrib import messages
 
     # Allow both list owner and campaign owner to modify credits
     # Filter the queryset to include only lists owned by the user or by campaigns they own
@@ -913,8 +912,7 @@ def new_list_fighter(request, id):
                     fighter=fighter,
                 )
             except DjangoValidationError as e:
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
+                error_message = messages.validation(request, e)
                 form = ListFighterForm(request.POST, instance=fighter)
                 return render(
                     request,
@@ -1977,8 +1975,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 assign.delete()
 
                 # Not enough credits or other validation error
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
+                error_message = messages.validation(request, e)
 
     # Get the appropriate equipment
     # Create expansion rule inputs for cost calculations
@@ -2569,8 +2566,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
             messages.success(request, result.description)
         except DjangoValidationError as e:
             # Handler failed (e.g., insufficient credits)
-            error_message = ". ".join(e.messages)
-            messages.error(request, error_message)
+            error_message = messages.validation(request, e)
 
         # Only redirect if there's no error
         if not error_message:
@@ -2736,8 +2732,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
             messages.success(request, result.description)
         except DjangoValidationError as e:
             # Handler failed (e.g., insufficient credits)
-            error_message = ". ".join(e.messages)
-            messages.error(request, error_message)
+            error_message = messages.validation(request, e)
 
         # Only redirect if there's no error
         if not error_message:
@@ -3036,8 +3031,7 @@ def edit_list_fighter_weapon_upgrade(
                 messages.success(request, result.description)
             except DjangoValidationError as e:
                 # Handler failed (e.g., insufficient credits)
-                error_message = ". ".join(e.messages)
-                messages.error(request, error_message)
+                error_message = messages.validation(request, e)
 
             # Only redirect if there's no error
             if not error_message:
@@ -3582,7 +3576,6 @@ def list_fighter_injuries_edit(request, id, fighter_id):
 
     :template:`core/list_fighter_injuries_edit.html`
     """
-    from django.contrib import messages
 
     lst = get_object_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -3627,7 +3620,6 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     :template:`core/list_fighter_state_edit.html`
     """
-    from django.contrib import messages
 
     from gyrinx.core.models.campaign import CampaignAction
 
@@ -3736,7 +3728,6 @@ def mark_fighter_captured(request, id, fighter_id):
 
     :template:`core/list_fighter_mark_captured.html`
     """
-    from django.contrib import messages
 
     from gyrinx.core.handlers.fighter.capture import handle_fighter_capture
 
@@ -3854,7 +3845,6 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     :template:`core/list_fighter_add_injury.html`
     """
-    from django.contrib import messages
 
     from gyrinx.core.models.campaign import CampaignAction
 
@@ -3971,7 +3961,6 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     :template:`core/list_fighter_remove_injury.html`
     """
-    from django.contrib import messages
 
     from gyrinx.core.models.campaign import CampaignAction
 
@@ -4062,7 +4051,6 @@ def edit_list_fighter_xp(request, id, fighter_id):
 
     :template:`core/list_fighter_xp_edit.html`
     """
-    from django.contrib import messages
 
     from gyrinx.core.forms.list import EditFighterXPForm
     from gyrinx.core.models.campaign import CampaignAction
@@ -4263,20 +4251,6 @@ def delete_list_fighter_advancement(request, id, fighter_id, advancement_id):
     )
 
     if request.method == "POST":
-        # Log the event before deletion
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST_FIGHTER,
-            verb=EventVerb.UPDATE,
-            object=fighter,
-            request=request,
-            fighter_name=fighter.name,
-            list_id=str(lst.id),
-            list_name=lst.name,
-            advancement_type=advancement.advancement_type,
-        )
-
-        # Call handler to perform business logic
         try:
             result = handle_fighter_advancement_deletion(
                 user=request.user,
@@ -4288,6 +4262,18 @@ def delete_list_fighter_advancement(request, id, fighter_id, advancement_id):
             for warning in result.warnings:
                 messages.warning(request, warning)
 
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST_FIGHTER,
+                verb=EventVerb.UPDATE,
+                object=fighter,
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                advancement_type=advancement.advancement_type,
+            )
+
             messages.success(
                 request,
                 f"Advancement removed: {result.advancement_description}. "
@@ -4295,9 +4281,6 @@ def delete_list_fighter_advancement(request, id, fighter_id, advancement_id):
             )
         except DjangoValidationError as e:
             messages.error(request, str(e))
-            return HttpResponseRedirect(
-                reverse("core:list-fighter-advancements", args=(lst.id, fighter.id))
-            )
 
         return HttpResponseRedirect(
             reverse("core:list-fighter-advancements", args=(lst.id, fighter.id))
@@ -4846,8 +4829,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     campaign_action_id=params.campaign_action_id,
                 )
         except DjangoValidationError as e:
-            error_message = ". ".join(e.messages)
-            messages.error(request, error_message)
+            messages.validation(request, e)
             return HttpResponseRedirect(
                 reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
             )
@@ -4945,8 +4927,7 @@ def apply_skill_advancement(
             campaign_action_id=params.campaign_action_id,
         )
     except DjangoValidationError as e:
-        error_message = ". ".join(e.messages)
-        messages.error(request, error_message)
+        messages.validation(request, e)
         return None
 
     if result is None:
@@ -5058,8 +5039,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
                         campaign_action_id=params.campaign_action_id,
                     )
                 except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
+                    messages.validation(request, e)
                     return HttpResponseRedirect(
                         reverse(
                             "core:list-fighter-advancement-type",
@@ -5636,8 +5616,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         dice_rolls=dice_rolls,
                     )
                 except DjangoValidationError as e:
-                    error_message = ". ".join(e.messages)
-                    messages.error(request, error_message)
+                    messages.validation(request, e)
                     return HttpResponseRedirect(
                         reverse(
                             "core:list-fighter-equipment-sell",

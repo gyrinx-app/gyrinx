@@ -1,7 +1,6 @@
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.exceptions import ValidationError
@@ -14,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views import generic
 
+from gyrinx import messages
 from gyrinx.core.forms.campaign import (
     AssetTransferForm,
     CampaignActionForm,
@@ -26,6 +26,7 @@ from gyrinx.core.forms.campaign import (
     ResourceModifyForm,
 )
 from gyrinx.core.handlers.campaign_operations import handle_campaign_start
+from gyrinx.core.handlers.fighter.capture import handle_fighter_return_to_owner
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -1056,7 +1057,7 @@ def start_campaign(request, id):
                     f"Campaign has been started! {len(result.list_results)} gang(s) joined.",
                 )
         except ValidationError as e:
-            messages.error(request, str(e))
+            messages.validation(request, e)
 
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
@@ -2333,9 +2334,6 @@ def fighter_return_to_owner(request, id, fighter_id):
 
     :template:`core/campaign/fighter_return_to_owner.html`
     """
-    from django.core.exceptions import ValidationError as DjangoValidationError
-
-    from gyrinx.core.handlers.fighter.capture import handle_fighter_return_to_owner
 
     campaign = get_object_or_404(Campaign, id=id)
 
@@ -2412,9 +2410,8 @@ def fighter_return_to_owner(request, id, fighter_id):
                 reverse("core:campaign-captured-fighters", args=(campaign.id,))
             )
 
-        except DjangoValidationError as e:
-            error_message = ". ".join(e.messages)
-            messages.error(request, error_message)
+        except ValidationError as e:
+            messages.validation(request, e)
             return safe_redirect(
                 request,
                 request.path,
