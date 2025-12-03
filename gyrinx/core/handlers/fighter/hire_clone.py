@@ -5,9 +5,11 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.content.models import ContentFighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import List, ListFighter
+from gyrinx.models import FighterCategoryChoices
 
 
 @dataclass
@@ -19,6 +21,16 @@ class FighterHireResult:
     description: str
     list_action: ListAction
     campaign_action: Optional[CampaignAction]
+
+
+@dataclass
+class FighterCloneParams:
+    """Parameters for cloning a fighter."""
+
+    name: str
+    content_fighter: ContentFighter
+    target_list: List
+    category_override: Optional[FighterCategoryChoices] = None
 
 
 @dataclass
@@ -121,18 +133,18 @@ def handle_fighter_clone(
     *,
     user,
     source_fighter: ListFighter,
-    new_fighter: ListFighter,
+    clone_params: FighterCloneParams,
 ) -> FighterCloneResult:
     """
     Handle cloning a fighter to a list.
 
-    Creates ListAction on the target list (where the new fighter appears).
-    The source list is unaffected by cloning.
+    Performs the clone operation, creates ListAction on the target list,
+    and handles credits in campaign mode. The source list is unaffected.
 
     Args:
         user: The user performing the clone
         source_fighter: The original fighter being cloned
-        new_fighter: The cloned fighter (already saved)
+        clone_params: Parameters for the clone operation (name, target list, etc.)
 
     Returns:
         FighterCloneResult with created objects
@@ -140,16 +152,24 @@ def handle_fighter_clone(
     Raises:
         ValidationError: If insufficient credits in campaign mode
     """
-    # Get the target list (where the new fighter was created)
-    target_list = new_fighter.list
+    target_list = clone_params.target_list
 
-    # Calculate cost of the new fighter
-    fighter_cost = new_fighter.cost_int()
-
-    # Capture before values for ListAction
+    # Capture before values BEFORE clone (clone will create and save the fighter)
     rating_before = target_list.rating_current
     stash_before = target_list.stash_current
     credits_before = target_list.credits_current
+
+    # Clone the fighter with the provided parameters
+    # Note: clone() creates and saves the fighter internally
+    new_fighter = source_fighter.clone(
+        name=clone_params.name,
+        content_fighter=clone_params.content_fighter,
+        list=clone_params.target_list,
+        category_override=clone_params.category_override,
+    )
+
+    # Calculate cost after creation
+    fighter_cost = new_fighter.cost_int()
 
     # Determine deltas based on fighter type
     rating_delta = fighter_cost if not new_fighter.is_stash else 0
@@ -157,6 +177,7 @@ def handle_fighter_clone(
     credits_delta = -fighter_cost if target_list.is_campaign_mode else 0
 
     # Spend credits in campaign mode (raises ValidationError if insufficient)
+    # If this fails, @transaction.atomic rolls back the clone
     if target_list.is_campaign_mode:
         target_list.spend_credits(
             fighter_cost, description=f"Cloning {source_fighter.name}"

@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from gyrinx.content.models import ContentEquipment, ContentFighter
+from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import List, ListFighter
 
 User = get_user_model()
@@ -277,9 +278,11 @@ def test_kill_fighter_confirmation_page(client, user, content_house):
     response = client.get(url)
 
     assert response.status_code == 200
-    assert b"Kill Fighter: Doomed Fighter" in response.content
+    # Template uses fully_qualified_name which may include additional info
+    assert b"Kill Fighter:" in response.content
+    assert b"Doomed Fighter" in response.content
     assert b"Transfer all their equipment to the stash" in response.content
-    assert b"Set their cost to 0 credits" in response.content
+    assert b"Set their rating to 0" in response.content
 
 
 @pytest.mark.django_db
@@ -365,3 +368,127 @@ def test_kill_fighter_creates_campaign_action(client, user, content_house):
     assert "Death: Doomed Fighter was killed" in action.description
     assert "permanently dead" in action.outcome
     assert "equipment transferred to stash" in action.outcome
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+def test_kill_fighter_creates_list_action_with_stash_delta(
+    client, user, content_house, settings, feature_flag_enabled
+):
+    """Test that killing a fighter creates a ListAction with correct stash_delta."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+
+    # Create a campaign mode list
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+    )
+
+    # Create initial LIST_CREATE action so other actions can be created
+    # (required by create_action which checks for latest_action)
+    ListAction.objects.create(
+        list=lst,
+        action_type=ListActionType.CREATE,
+        owner=user,
+        applied=True,
+    )
+
+    # Create a stash fighter
+    stash_content = ContentFighter.objects.create(
+        house=content_house,
+        type="Stash",
+        category="STASH",
+        base_cost=0,
+        is_stash=True,
+    )
+    ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_content,
+        list=lst,
+        owner=user,
+    )
+
+    # Create a fighter
+    content_fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=50,
+    )
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Create equipment
+    equipment1 = ContentEquipment.objects.create(name="Lasgun", cost=15)
+    equipment2 = ContentEquipment.objects.create(name="Sword", cost=10)
+
+    # Assign equipment to fighter
+    fighter.assign(equipment1)
+    fighter.assign(equipment2)
+
+    # Set up initial rating/stash to match what fighters would contribute
+    # (needed because we created fighters directly, not via handlers)
+    fighter_cost = fighter.cost_int()  # 50 + 15 + 10 = 75
+    equipment_cost = 15 + 10  # 25
+    lst.rating_current = fighter_cost
+    lst.stash_current = 0
+    lst.save()
+
+    # Capture initial state after setup
+    initial_rating = lst.rating_current
+    initial_stash = lst.stash_current
+
+    # Kill the fighter
+    client.force_login(user)
+    url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+    response = client.post(url)
+    assert response.status_code == 302
+
+    # Fighter should always be marked as dead regardless of feature flag
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD
+    assert fighter.cost_override == 0
+
+    # Equipment should always be transferred to stash
+    stash = lst.listfighter_set.filter(content_fighter__is_stash=True).first()
+    assert stash.listfighterequipmentassignment_set.count() == 2
+
+    # Check ListAction behavior based on feature flag
+    list_action = (
+        ListAction.objects.filter(
+            list=lst,
+            action_type=ListActionType.UPDATE_FIGHTER,
+        )
+        .order_by("-created")
+        .first()
+    )
+
+    if feature_flag_enabled:
+        assert list_action is not None, "ListAction should be created when flag enabled"
+
+        # Verify the deltas track equipment moving to stash
+        assert list_action.rating_delta == -fighter_cost  # Full cost leaves rating
+        assert list_action.stash_delta == equipment_cost  # Equipment value enters stash
+        assert list_action.credits_delta == 0
+
+        # Verify stored values were updated correctly by the action
+        lst.refresh_from_db()
+        assert lst.rating_current == initial_rating - fighter_cost
+        assert lst.stash_current == initial_stash + equipment_cost
+
+        # Verify wealth is preserved (only lost fighter base cost, not equipment)
+        fighter_base_cost = 50
+        assert (
+            lst.rating_current + lst.stash_current
+            == initial_rating + initial_stash - fighter_base_cost
+        )
+    else:
+        assert list_action is None, (
+            "ListAction should not be created when flag disabled"
+        )
