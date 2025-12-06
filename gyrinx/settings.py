@@ -440,3 +440,7 @@ SQLCOMMENTER_WITH_CONTROLLER = True
 SQLCOMMENTER_WITH_FRAMEWORK = True
 SQLCOMMENTER_WITH_ROUTE = True
 SQLCOMMENTER_WITH_APP_NAME = True
+
+# Tracing configuration
+# Options: "off" (no-op), "console" (print to stdout), "gcp" (Google Cloud Trace)
+TRACING_MODE = os.getenv("TRACING_MODE", "off")

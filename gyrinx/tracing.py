@@ -2,8 +2,10 @@
 OpenTelemetry tracing utilities for Google Cloud Run.
 
 This module provides tracing capabilities that integrate with Google Cloud Trace.
-In production (DEBUG=False), traces are exported to Google Cloud Trace.
-In development (DEBUG=True), traces are printed to the console.
+Tracing mode is controlled by the TRACING_MODE setting:
+- "off": Tracing is disabled (no-op)
+- "console": Traces are printed to stdout (for development)
+- "gcp": Traces are exported to Google Cloud Trace (for production)
 
 Typical usage:
 
@@ -44,17 +46,28 @@ def _get_project_id():
     return os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
 
 
-def _get_exporter():
-    """Get the appropriate span exporter based on environment.
+def _get_tracing_mode():
+    """Get the tracing mode from settings.
 
-    Production (DEBUG=False): CloudTraceSpanExporter for Google Cloud Trace
-    Development (DEBUG=True): ConsoleSpanExporter for local debugging
+    Returns one of: "off", "console", "gcp"
     """
-    if settings.DEBUG:
+    return getattr(settings, "TRACING_MODE", "off")
+
+
+def _get_exporter():
+    """Get the appropriate span exporter based on TRACING_MODE setting.
+
+    "console": ConsoleSpanExporter for local debugging
+    "gcp": CloudTraceSpanExporter for Google Cloud Trace
+    """
+    tracing_mode = _get_tracing_mode()
+
+    if tracing_mode == "console":
         from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
         return ConsoleSpanExporter()
 
+    # Default to GCP exporter for "gcp" mode
     from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 
     project_id = _get_project_id()
@@ -62,10 +75,12 @@ def _get_exporter():
 
 
 def _get_processor(exporter):
-    if settings.DEBUG:
+    tracing_mode = _get_tracing_mode()
+
+    if tracing_mode == "console":
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-        logger.info("Using SimpleSpanProcessor for tracing (DEBUG mode)")
+        logger.info("Using SimpleSpanProcessor for tracing (console mode)")
         return SimpleSpanProcessor(exporter)
     else:
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -75,11 +90,16 @@ def _get_processor(exporter):
 
 
 def _init_tracing() -> None:
-    """Initialize OpenTelemetry tracing for Google Cloud Trace.
+    """Initialize OpenTelemetry tracing based on TRACING_MODE setting.
+
+    TRACING_MODE options:
+    - "off": Tracing is disabled (no-op) - no OpenTelemetry imports or setup
+    - "console": Traces are printed to stdout (for development)
+    - "gcp": Traces are exported to Google Cloud Trace (for production)
 
     This configures:
     1. CloudTraceFormatPropagator - parses X-Cloud-Trace-Context header from Cloud Run
-    2. Google Cloud Trace exporter
+    2. Appropriate exporter based on mode
     3. Django auto-instrumentation (automatic request spans)
 
     Called automatically on module import.
@@ -90,6 +110,13 @@ def _init_tracing() -> None:
         return
 
     _initialized = True
+
+    tracing_mode = _get_tracing_mode()
+
+    # If tracing is off, do nothing - this is a no-op
+    if tracing_mode == "off":
+        logger.debug("Tracing disabled (TRACING_MODE=off)")
+        return
 
     try:
         from opentelemetry import trace
@@ -109,7 +136,7 @@ def _init_tracing() -> None:
         # Create tracer provider
         provider = TracerProvider()
 
-        # Add Cloud Trace exporter with batch processing
+        # Add exporter with appropriate processor based on mode
         exporter = _get_exporter()
         processor = _get_processor(exporter)
         provider.add_span_processor(processor)
@@ -128,7 +155,10 @@ def _init_tracing() -> None:
         _tracer = trace.get_tracer("gyrinx.tracing")
         _tracing_enabled = True
 
-        logger.info(f"OpenTelemetry tracing enabled with {exporter.__class__.__name__}")
+        logger.info(
+            f"OpenTelemetry tracing enabled (mode={tracing_mode}) "
+            f"with {exporter.__class__.__name__}"
+        )
 
     except ImportError as e:
         logger.warning(f"OpenTelemetry packages not installed: {e}")
