@@ -10,6 +10,9 @@ from .settings import *  # noqa: F403
 from .settings import BASE_DIR, STORAGES
 from .settings import LOGGING as BASE_LOGGING
 
+# Use console tracing in development
+TRACING_MODE = "console"
+
 logger = logging.getLogger(__name__)
 
 DEBUG = True

@@ -43,6 +43,9 @@ def django_test_settings():
     # Disable GYRINX_DEBUG to avoid debug UI elements in test output
     settings.GYRINX_DEBUG = False
 
+    # Disable tracing in tests to avoid loading GCP dependencies
+    settings.TRACING_MODE = "off"
+
     # Use faster password hasher for tests (MD5 instead of PBKDF2)
     settings.PASSWORD_HASHERS = [
         "django.contrib.auth.hashers.MD5PasswordHasher",

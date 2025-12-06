@@ -4,6 +4,9 @@ from .settings import *  # noqa: F403
 from .settings import LOGGING, STORAGES
 from .storage_settings import configure_gcs_storage
 
+# Use GCP tracing in production
+TRACING_MODE = "gcp"
+
 # GCP Project ID - required for trace correlation in logging
 # Uses env var with hardcoded fallback (same approach as storage_settings.py)
 GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
