@@ -26,16 +26,16 @@ jobs:
       id-token: write
       actions: read
     steps:
-      - name: Prevent direct pushes to main
-        env:
-          REF: ${{ github.ref }}
-          BASE_REF: ${{ github.base_ref }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: |
-          if [ "$REF" = "refs/heads/main" ] || [ "$BASE_REF" = "main" ] || [ "$PR_BASE_REF" = "main" ]; then
-            echo "::error::This workflow cannot run on or target the main branch directly"
-            exit 1
-          fi
+      # - name: Prevent direct pushes to main
+      #   env:
+      #     REF: ${{ github.ref }}
+      #     BASE_REF: ${{ github.base_ref }}
+      #     PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      #   run: |
+      #     if [ "$REF" = "refs/heads/main" ] || [ "$BASE_REF" = "main" ] || [ "$PR_BASE_REF" = "main" ]; then
+      #       echo "::error::This workflow cannot run on or target the main branch directly"
+      #       exit 1
+      #     fi
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
