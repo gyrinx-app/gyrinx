@@ -4,6 +4,67 @@ This document explains the design philosophy and architectural decisions behind 
 
 > **See also:** [Fighter Cost System Reference](fighter-cost-system-reference.md) for implementation details, code locations, and API reference.
 
+## Quick Overview
+
+```
+LIST
+├── cost_int() = sum(fighter.cost_int()) + stash_fighter.cost_int() + credits_current
+│
+├── ListFighter (non-archived, non-stash)
+│   └── cost_int() = _base_cost_int + _advancement_cost_int + sum(assignment.cost_int())
+│   │
+│   ├── _base_cost_int
+│   │   ├── cost_override (direct override on ListFighter)
+│   │   ├── ContentFighterHouseOverride.cost (house-specific)
+│   │   └── ContentFighter.cost_int() (base template cost)
+│   │
+│   ├── _advancement_cost_int
+│   │   └── ListFighterAdvancement.cost_increase (non-archived only)
+│   │
+│   └── ListFighterEquipmentAssignment (via VirtualListFighterEquipmentAssignment wrapper)
+│       └── cost_int() = base_cost + profiles_cost + accessories_cost + upgrades_cost
+│       │
+│       ├── base_cost_int
+│       │   ├── total_cost_override (if set)
+│       │   ├── cost_override (if set)
+│       │   ├── linked_equipment_parent → returns 0
+│       │   ├── ContentFighterEquipmentListItem.cost (fighter-specific)
+│       │   └── ContentEquipment.cost_int() (base equipment cost)
+│       │
+│       ├── weapon_profiles_cost_int
+│       │   └── ContentWeaponProfile (M2M: weapon_profiles_field)
+│       │       ├── ContentFighterEquipmentListItem.cost (override)
+│       │       ├── ContentEquipmentListExpansion cost (override)
+│       │       └── ContentWeaponProfile.cost_int() (base)
+│       │
+│       ├── weapon_accessories_cost_int
+│       │   └── ContentWeaponAccessory (M2M: weapon_accessories_field)
+│       │       ├── cost_expression (% of weapon base cost)
+│       │       ├── ContentFighterEquipmentListWeaponAccessory.cost
+│       │       ├── ContentEquipmentListExpansion cost
+│       │       └── ContentWeaponAccessory.cost_int()
+│       │
+│       └── upgrade_cost_int
+│           └── ContentEquipmentUpgrade (M2M: upgrades_field)
+│               ├── cumulative calc (for SINGLE mode)
+│               ├── ContentFighterEquipmentListUpgrade.cost
+│               └── ContentEquipmentUpgrade.cost
+│
+├── Stash Fighter (special ListFighter where content_fighter.is_stash=True)
+│   └── stash_fighter_cost_int (same structure as above)
+│
+└── credits_current (IntegerField on List)
+```
+
+### Special Cost Cases
+
+| Condition                                             | Cost Behavior      |
+|-------------------------------------------------------|--------------------|
+| Default equipment (`ContentFighterDefaultAssignment`) | Cost = 0           |
+| Linked equipment (`child_fighter` set)                | Cost = 0           |
+| Sold fighter (`capture_info.sold_to_guilders=True`)   | Cost = 0           |
+| Archived fighter/advancement                          | Excluded from cost |
+
 ## Why This Complexity?
 
 The fighter cost system might seem complex at first glance, but this complexity serves specific game mechanics from Necromunda. The system needs to handle:
