@@ -16,6 +16,7 @@ from gyrinx.core.models.list import (
     List,
     ListFighter,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -30,6 +31,7 @@ class FighterArchiveResult:
     list_action: Optional[ListAction]
 
 
+@traced("handle_fighter_archive_toggle")
 @transaction.atomic
 def handle_fighter_archive_toggle(
     *,

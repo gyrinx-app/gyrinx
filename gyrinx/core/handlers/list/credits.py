@@ -8,6 +8,7 @@ from django.db import transaction
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import List
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -26,6 +27,7 @@ class CreditsModificationResult:
     campaign_action: Optional[CampaignAction]
 
 
+@traced("handle_credits_modification")
 @transaction.atomic
 def handle_credits_modification(
     *,

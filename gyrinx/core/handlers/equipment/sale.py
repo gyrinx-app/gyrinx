@@ -22,6 +22,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -45,6 +46,7 @@ class EquipmentSaleResult:
     campaign_action: Optional[CampaignAction]
 
 
+@traced("handle_equipment_sale")
 @transaction.atomic
 def handle_equipment_sale(
     *,

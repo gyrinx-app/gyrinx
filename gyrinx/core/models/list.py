@@ -73,6 +73,7 @@ from gyrinx.models import (
     QuerySetOf,
     format_cost_display,
 )
+from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
@@ -264,6 +265,7 @@ class List(AppBase):
     #
 
     @admin.display(description="Cost / Wealth")
+    @traced("list_cost_int")
     def cost_int(self):
         """
         Calculate the total wealth of the list.
@@ -286,6 +288,7 @@ class List(AppBase):
         return wealth
 
     @cached_property
+    @traced("list_cost_int_cached")
     def cost_int_cached(self):
         """
         Max-in-memory-cached version of cost_int().
@@ -500,6 +503,7 @@ class List(AppBase):
     def cost_cache_key(self):
         return f"list_cost_{self.id}"
 
+    @traced("list_update_cost_cache")
     def update_cost_cache(self):
         cache = caches["core_list_cache"]
         cache_key = self.cost_cache_key()
@@ -520,6 +524,7 @@ class List(AppBase):
 
         return ListAction.objects.latest_for_list(self.id)
 
+    @traced("list_create_action")
     def create_action(
         self, update_credits: bool = False, **kwargs
     ) -> Optional[ListAction]:
@@ -708,6 +713,7 @@ class List(AppBase):
         self.save(update_fields=["credits_current"])
         return True
 
+    @traced("list_clone")
     def clone(self, name=None, owner=None, for_campaign=None, **kwargs) -> "List":
         """Clone the list, creating a new list with the same fighters.
 
@@ -783,18 +789,19 @@ class List(AppBase):
                 cloned_list=str(clone.id),
             )
 
-        # Clone fighters, but skip linked fighters and stash fighters
-        for fighter in self.fighters():
-            # Skip if this fighter is linked to an equipment assignment
-            is_linked = (
-                hasattr(fighter, "source_assignment")
-                and fighter.source_assignment.exists()
-            )
-            # Skip if this is a stash fighter
-            is_stash = fighter.content_fighter.is_stash
+        with span("list_clone_fighters"):
+            # Clone fighters, but skip linked fighters and stash fighters
+            for fighter in self.fighters():
+                # Skip if this fighter is linked to an equipment assignment
+                is_linked = (
+                    hasattr(fighter, "source_assignment")
+                    and fighter.source_assignment.exists()
+                )
+                # Skip if this is a stash fighter
+                is_stash = fighter.content_fighter.is_stash
 
-            if not is_linked and not is_stash:
-                fighter.clone(list=clone)
+                if not is_linked and not is_stash:
+                    fighter.clone(list=clone)
 
         # Clone stash fighter
         original_stash = self.listfighter_set.filter(
@@ -851,6 +858,7 @@ class List(AppBase):
     sender=List,
     dispatch_uid="update_list_cost_cache_from_list_change",
 )
+@traced("signal_update_list_cost_cache_from_list_change")
 def update_list_cost_cache_from_list_change(sender, instance: List, **kwargs):
     instance.update_cost_cache()
 
@@ -2548,6 +2556,7 @@ class ListFighter(AppBase):
                 owner=target_fighter.owner,
             )
 
+    @traced("list_fighter_clone")
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
 
@@ -2764,6 +2773,7 @@ class ListFighter(AppBase):
 
 
 @receiver(post_save, sender=ListFighter, dispatch_uid="create_linked_objects")
+@traced("signal_create_linked_objects")
 def create_linked_objects(sender, instance, **kwargs):
     # Find the default assignments where the equipment has a fighter profile
     default_assigns = instance.content_fighter.default_assignments.exclude(
@@ -2800,6 +2810,7 @@ def create_linked_objects(sender, instance, **kwargs):
     sender=ListFighter,
     dispatch_uid="update_list_cost_cache",
 )
+@traced("signal_update_list_cost_cache")
 def update_list_cost_cache(sender, instance: ListFighter, **kwargs):
     instance.list.update_cost_cache()
 
@@ -3427,6 +3438,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     #  Behaviour
 
+    @traced("list_fighter_equipment_assignment_clone")
     def clone(self, list_fighter=None):
         """Clone the assignment, creating a new assignment with the same weapon profiles."""
         if not list_fighter:
@@ -3474,6 +3486,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="create_related_objects",
 )
+@traced("signal_create_related_objects")
 def create_related_objects(sender, instance, **kwargs):
     equipment_fighter_profile = ContentEquipmentFighterProfile.objects.filter(
         equipment=instance.content_equipment,
@@ -3534,6 +3547,7 @@ def create_related_objects(sender, instance, **kwargs):
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="delete_related_objects_pre_delete",
 )
+@traced("signal_delete_related_objects_pre_delete")
 def delete_related_objects_pre_delete(sender, instance, **kwargs):
     for child in instance.linked_equipment_children.all():
         child.delete()
@@ -3544,6 +3558,7 @@ def delete_related_objects_pre_delete(sender, instance, **kwargs):
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="delete_related_objects_post_delete",
 )
+@traced("signal_delete_related_objects_post_delete")
 def delete_related_objects_post_delete(sender, instance, **kwargs):
     if instance.child_fighter:
         instance.child_fighter.delete()
@@ -3554,6 +3569,7 @@ def delete_related_objects_post_delete(sender, instance, **kwargs):
     sender=ListFighterEquipmentAssignment,
     dispatch_uid="update_list_cache_for_assignment",
 )
+@traced("signal_update_list_cache_for_assignment")
 def update_list_cache_for_assignment(
     sender, instance: ListFighterEquipmentAssignment, **kwargs
 ):
@@ -3571,6 +3587,7 @@ def update_list_cache_for_assignment(
     sender=ListFighterEquipmentAssignment.weapon_profiles_field.through,
     dispatch_uid="update_list_cache_for_weapon_profiles",
 )
+@traced("signal_update_list_cache_for_weapon_profiles")
 def update_list_cache_for_weapon_profiles(sender, instance, **kwargs):
     # Update list cost cache
     instance.list_fighter.list.update_cost_cache()
@@ -3581,6 +3598,7 @@ def update_list_cache_for_weapon_profiles(sender, instance, **kwargs):
     sender=ListFighterEquipmentAssignment.weapon_accessories_field.through,
     dispatch_uid="update_list_cache_for_weapon_accessories",
 )
+@traced("signal_update_list_cache_for_weapon_accessories")
 def update_list_cache_for_weapon_accessories(sender, instance, **kwargs):
     # Clear cached properties that depend on weapon accessories
     instance.list_fighter.list.update_cost_cache()
@@ -3591,6 +3609,7 @@ def update_list_cache_for_weapon_accessories(sender, instance, **kwargs):
     sender=ListFighterEquipmentAssignment.upgrades_field.through,
     dispatch_uid="update_list_cache_for_upgrades",
 )
+@traced("signal_update_list_cache_for_upgrades")
 def update_list_cache_for_upgrades(sender, instance, **kwargs):
     instance.list_fighter.list.update_cost_cache()
 

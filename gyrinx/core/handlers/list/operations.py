@@ -9,6 +9,7 @@ from django.db import transaction
 from gyrinx.content.models import ContentFighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import List, ListFighter
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -20,6 +21,7 @@ class ListCreationResult:
     initial_action: Optional[ListAction]
 
 
+@traced("handle_list_creation")
 @transaction.atomic
 def handle_list_creation(
     *,
@@ -94,6 +96,7 @@ class ListCloneResult:
     cloned_action: Optional[ListAction]
 
 
+@traced("handle_list_clone")
 @transaction.atomic
 def handle_list_clone(
     *,

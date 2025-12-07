@@ -24,6 +24,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -70,6 +71,7 @@ class EquipmentUpgradeResult:
     campaign_action: Optional[CampaignAction]
 
 
+@traced("handle_equipment_purchase")
 @transaction.atomic
 def handle_equipment_purchase(
     *,
@@ -158,6 +160,7 @@ def handle_equipment_purchase(
     )
 
 
+@traced("handle_accessory_purchase")
 @transaction.atomic
 def handle_accessory_purchase(
     *,
@@ -245,6 +248,7 @@ def handle_accessory_purchase(
     )
 
 
+@traced("handle_weapon_profile_purchase")
 @transaction.atomic
 def handle_weapon_profile_purchase(
     *,
@@ -333,6 +337,7 @@ def handle_weapon_profile_purchase(
     )
 
 
+@traced("handle_equipment_upgrade")
 @transaction.atomic
 def handle_equipment_upgrade(
     *,

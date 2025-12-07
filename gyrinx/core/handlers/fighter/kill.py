@@ -12,6 +12,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -26,6 +27,7 @@ class FighterKillResult:
     description: str
 
 
+@traced("handle_fighter_kill")
 @transaction.atomic
 def handle_fighter_kill(
     *,
