@@ -114,7 +114,7 @@ def _calculate_cost_delta(
     return new_effective_cost - old_effective_cost
 
 
-@traced("detect_field_changes")
+@traced("_detect_field_changes")
 def _detect_field_changes(
     fighter: ListFighter,
     old_name: Optional[str],
