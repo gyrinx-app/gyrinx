@@ -170,7 +170,7 @@ def handle_campaign_start(
     )
 
 
-@traced("distribute_budget_to_list")
+@traced("_distribute_budget_to_list")
 def _distribute_budget_to_list(
     *,
     user,

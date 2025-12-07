@@ -79,7 +79,7 @@ def _generate_field_description(
     return f"Changed {field_name} from {old_value} to {new_value}"
 
 
-@traced("calculate_cost_delta")
+@traced("_calculate_cost_delta")
 def _calculate_cost_delta(
     fighter: ListFighter,
     old_cost_override: Optional[int],
