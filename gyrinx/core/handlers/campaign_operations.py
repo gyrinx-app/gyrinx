@@ -10,6 +10,7 @@ from django.db import transaction
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignListResource
 from gyrinx.core.models.list import List
+from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class CampaignStartResult:
     overall_campaign_action: CampaignAction
 
 
+@traced("handle_campaign_start")
 @transaction.atomic
 def handle_campaign_start(
     *,
@@ -168,6 +170,7 @@ def handle_campaign_start(
     )
 
 
+@traced("_distribute_budget_to_list")
 def _distribute_budget_to_list(
     *,
     user,

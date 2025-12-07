@@ -31,9 +31,11 @@ from django.dispatch import receiver
 
 from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
+from gyrinx.tracing import traced
 
 
 @receiver(user_logged_in)
+@traced("signal_user_logged_in")
 def log_user_login(request, user, **kwargs):
     """Log when a user signs in via allauth."""
     log_event(
@@ -46,6 +48,7 @@ def log_user_login(request, user, **kwargs):
 
 
 @receiver(user_logged_out)
+@traced("signal_user_logged_out")
 def log_user_logout(sender, request, user, **kwargs):
     """Log when a user logs out."""
     if user and user.is_authenticated:
@@ -58,6 +61,7 @@ def log_user_logout(sender, request, user, **kwargs):
 
 
 @receiver(user_signed_up)
+@traced("signal_user_signed_up")
 def log_user_signup(request, user, **kwargs):
     """Log when a new user signs up via allauth."""
     log_event(
@@ -70,6 +74,7 @@ def log_user_signup(request, user, **kwargs):
 
 
 @receiver(user_signed_up)
+@traced("signal_create_user_profile_and_record_tos")
 def create_user_profile_and_record_tos(request, user, **kwargs):
     """Create UserProfile and record ToS agreement when a new user signs up."""
     # Create the user profile if it doesn't exist
@@ -82,6 +87,7 @@ def create_user_profile_and_record_tos(request, user, **kwargs):
 
 
 @receiver(email_confirmed)
+@traced("signal_email_confirmed")
 def log_email_confirmed(request, email_address, **kwargs):
     """Log when a user confirms their email address."""
     log_event(
@@ -96,6 +102,7 @@ def log_email_confirmed(request, email_address, **kwargs):
 
 
 @receiver(email_confirmation_sent)
+@traced("signal_email_confirmation_sent")
 def log_email_confirmation_sent(request, confirmation, signup, **kwargs):
     """Log when an email confirmation is sent."""
     log_event(
@@ -108,6 +115,7 @@ def log_email_confirmation_sent(request, confirmation, signup, **kwargs):
 
 
 @receiver(password_set)
+@traced("signal_password_set")
 def log_password_set(request, user, **kwargs):
     """Log when a user sets their password for the first time."""
     log_event(
@@ -120,6 +128,7 @@ def log_password_set(request, user, **kwargs):
 
 
 @receiver(password_changed)
+@traced("signal_password_changed")
 def log_password_changed(request, user, **kwargs):
     """Log when a user changes their password."""
     log_event(
@@ -132,6 +141,7 @@ def log_password_changed(request, user, **kwargs):
 
 
 @receiver(password_reset)
+@traced("signal_password_reset")
 def log_password_reset(request, user, **kwargs):
     """Log when a user resets their password."""
     log_event(
@@ -144,6 +154,7 @@ def log_password_reset(request, user, **kwargs):
 
 
 @receiver(email_changed)
+@traced("signal_email_changed")
 def log_email_changed(request, user, from_email_address, to_email_address, **kwargs):
     """Log when a user changes their primary email address."""
     log_event(
@@ -158,6 +169,7 @@ def log_email_changed(request, user, from_email_address, to_email_address, **kwa
 
 
 @receiver(email_added)
+@traced("signal_email_added")
 def log_email_added(request, user, email_address, **kwargs):
     """Log when a user adds a new email address."""
     log_event(
@@ -172,6 +184,7 @@ def log_email_added(request, user, email_address, **kwargs):
 
 
 @receiver(email_removed)
+@traced("signal_email_removed")
 def log_email_removed(request, user, email_address, **kwargs):
     """Log when a user removes an email address."""
     log_event(
@@ -185,6 +198,7 @@ def log_email_removed(request, user, email_address, **kwargs):
 
 
 @receiver(authenticator_added)
+@traced("signal_authenticator_added")
 def log_authenticator_added(request, user, authenticator: Authenticator.Type, **kwargs):
     """Log when a user adds a new authenticator for MFA."""
     log_event(
@@ -200,6 +214,7 @@ def log_authenticator_added(request, user, authenticator: Authenticator.Type, **
 
 
 @receiver(authenticator_removed)
+@traced("signal_authenticator_removed")
 def log_authenticator_removed(
     request, user, authenticator: Authenticator.Type, **kwargs
 ):
@@ -217,6 +232,7 @@ def log_authenticator_removed(
 
 
 @receiver(authenticator_reset)
+@traced("signal_authenticator_reset")
 def log_authenticator_reset(request, user, **kwargs):
     """Log when a user resets their authenticators."""
     log_event(
@@ -229,6 +245,7 @@ def log_authenticator_reset(request, user, **kwargs):
 
 
 @receiver(session_client_changed)
+@traced("signal_session_client_changed")
 def log_session_client_changed(sender, request, from_session, to_session, **kwargs):
     """Log when a user changes their session client."""
     log_event(
@@ -243,6 +260,7 @@ def log_session_client_changed(sender, request, from_session, to_session, **kwar
 
 
 @receiver(post_save, sender=Event)
+@traced("signal_update_list_modified_on_event")
 def update_list_modified_on_event(sender, instance, created, **kwargs):
     """
     Update the list's modified timestamp when an event is created
@@ -284,6 +302,7 @@ def update_list_modified_on_event(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Event)
+@traced("signal_update_campaign_modified_on_event")
 def update_campaign_modified_on_event(sender, instance, created, **kwargs):
     """
     Update the campaign's modified timestamp when an event is created

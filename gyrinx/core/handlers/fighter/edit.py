@@ -9,6 +9,7 @@ from gyrinx.content.models import ContentFighter
 from gyrinx.core.handlers.fighter.advancement import _is_fighter_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -32,6 +33,7 @@ class FighterEditResult:
     list_actions: list[ListAction] = field(default_factory=list)
 
 
+@traced("_generate_field_description")
 def _generate_field_description(
     field_name: str,
     old_value: Any,
@@ -77,6 +79,7 @@ def _generate_field_description(
     return f"Changed {field_name} from {old_value} to {new_value}"
 
 
+@traced("_calculate_cost_delta")
 def _calculate_cost_delta(
     fighter: ListFighter,
     old_cost_override: Optional[int],
@@ -111,6 +114,7 @@ def _calculate_cost_delta(
     return new_effective_cost - old_effective_cost
 
 
+@traced("_detect_field_changes")
 def _detect_field_changes(
     fighter: ListFighter,
     old_name: Optional[str],
@@ -219,6 +223,7 @@ class _Unchanged:
 _UNCHANGED = _Unchanged()
 
 
+@traced("handle_fighter_edit")
 @transaction.atomic
 def handle_fighter_edit(
     *,

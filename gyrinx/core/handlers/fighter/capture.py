@@ -13,6 +13,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -68,6 +69,7 @@ class FighterReleaseResult:
     campaign_action: Optional[CampaignAction]
 
 
+@traced("handle_fighter_capture")
 @transaction.atomic
 def handle_fighter_capture(
     *,
@@ -228,6 +230,7 @@ def handle_fighter_capture(
     )
 
 
+@traced("handle_fighter_sell_to_guilders")
 @transaction.atomic
 def handle_fighter_sell_to_guilders(
     *,
@@ -314,6 +317,7 @@ def handle_fighter_sell_to_guilders(
     )
 
 
+@traced("handle_fighter_return_to_owner")
 @transaction.atomic
 def handle_fighter_return_to_owner(
     *,
@@ -476,6 +480,7 @@ def handle_fighter_return_to_owner(
     )
 
 
+@traced("handle_fighter_release")
 @transaction.atomic
 def handle_fighter_release(
     *,

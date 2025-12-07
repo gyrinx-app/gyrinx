@@ -12,6 +12,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -82,6 +83,7 @@ def _generate_description(
         )
 
 
+@traced("handle_equipment_cost_override")
 @transaction.atomic
 def handle_equipment_cost_override(
     *,

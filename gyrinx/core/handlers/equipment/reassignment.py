@@ -18,6 +18,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
 
@@ -34,6 +35,7 @@ class EquipmentReassignmentResult:
     campaign_action: Optional[CampaignAction]
 
 
+@traced("handle_equipment_reassignment")
 @transaction.atomic
 def handle_equipment_reassignment(
     *,

@@ -16,6 +16,7 @@ from gyrinx.core.models.list import (
     ListFighterAdvancement,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class FighterAdvancementResult:
     equipment_assignment: Optional[ListFighterEquipmentAssignment]
 
 
+@traced("_is_fighter_stash_linked")
 def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     """
     Detect if a fighter's cost changes should go to stash instead of rating.
@@ -73,6 +75,7 @@ def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
     return False
 
 
+@traced("handle_fighter_advancement")
 @transaction.atomic
 def handle_fighter_advancement(
     *,
@@ -336,6 +339,7 @@ class FighterAdvancementDeletionResult:
     warnings: list[str]
 
 
+@traced("handle_fighter_advancement_deletion")
 @transaction.atomic
 def handle_fighter_advancement_deletion(
     *,
@@ -443,6 +447,7 @@ def handle_fighter_advancement_deletion(
     )
 
 
+@traced("_reverse_stat_advancement")
 def _reverse_stat_advancement(
     advancement: ListFighterAdvancement,
     fighter: ListFighter,
@@ -525,6 +530,7 @@ def _calculate_stat_value(base_value: str, improvement_count: int) -> str:
             return base_value
 
 
+@traced("_reverse_skill_advancement")
 def _reverse_skill_advancement(
     advancement: ListFighterAdvancement,
     fighter: ListFighter,
@@ -548,6 +554,7 @@ def _reverse_skill_advancement(
         _recalculate_category_override(fighter, advancement)
 
 
+@traced("_recalculate_category_override")
 def _recalculate_category_override(
     fighter: ListFighter,
     advancement_being_deleted: ListFighterAdvancement,

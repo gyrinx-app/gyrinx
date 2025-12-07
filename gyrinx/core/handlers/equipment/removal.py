@@ -25,6 +25,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -52,6 +53,7 @@ class EquipmentComponentRemovalResult:
     list_action: Optional[ListAction]
 
 
+@traced("handle_equipment_removal")
 @transaction.atomic
 def handle_equipment_removal(
     *,
@@ -139,6 +141,7 @@ def handle_equipment_removal(
     )
 
 
+@traced("handle_equipment_component_removal")
 @transaction.atomic
 def handle_equipment_component_removal(
     *,

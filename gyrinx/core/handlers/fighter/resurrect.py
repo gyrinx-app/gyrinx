@@ -8,6 +8,7 @@ from django.db import transaction
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import ListFighter
+from gyrinx.tracing import traced
 
 
 @dataclass
@@ -21,6 +22,7 @@ class FighterResurrectResult:
     description: str
 
 
+@traced("handle_fighter_resurrect")
 @transaction.atomic
 def handle_fighter_resurrect(
     *,
