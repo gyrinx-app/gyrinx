@@ -53,8 +53,13 @@ def site_banner(request):
 
     # Only show banner if user hasn't dismissed it
     if live_banner:
-        dismissed_banners = request.session.get("dismissed_banners", [])
-        if str(live_banner.id) not in dismissed_banners:
+        # Check if session is available (may not be in ASGI error handling contexts)
+        if hasattr(request, "session"):
+            dismissed_banners = request.session.get("dismissed_banners", [])
+            if str(live_banner.id) not in dismissed_banners:
+                context["banner"] = live_banner
+        else:
+            # Show banner if we can't check dismissed status
             context["banner"] = live_banner
 
     return context
