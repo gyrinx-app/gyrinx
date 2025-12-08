@@ -6090,6 +6090,13 @@ def accept_invitation(request, id, invitation_id):
         status=CampaignInvitation.PENDING,
     )
 
+    # Check if the campaign is completed
+    if invitation.campaign.is_post_campaign:
+        messages.error(
+            request, "This campaign has ended. You cannot join a completed campaign."
+        )
+        return HttpResponseRedirect(reverse("core:list-invitations", args=(lst.id,)))
+
     # Accept the invitation
     if invitation.accept():
         # Log the acceptance event
