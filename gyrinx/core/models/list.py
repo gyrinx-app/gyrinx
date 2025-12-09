@@ -249,6 +249,12 @@ class List(AppBase):
         help_text="Total credits ever earned",
     )
 
+    dirty = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="True if cached values may be stale due to content changes",
+    )
+
     # Gang attributes (Alignment, Alliance, Affiliation, etc.)
     attributes = models.ManyToManyField(
         ContentAttributeValue,
@@ -1248,6 +1254,17 @@ class ListFighter(AppBase):
         null=True,
         blank=True,
         help_text="If set, this will be base cost of this fighter.",
+    )
+
+    rating_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Cached total rating of this fighter (base + equipment + advancements)",
+    )
+
+    dirty = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="True if cached values may be stale",
     )
 
     # Assigments
@@ -2867,6 +2884,17 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         null=True,
         blank=True,
         help_text="If set, this will be the total cost of this assignment, ignoring profiles, accessories, and upgrades",
+    )
+
+    rating_current = models.PositiveIntegerField(
+        default=0,
+        help_text="Cached total rating of this assignment",
+    )
+
+    dirty = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="True if cached values may be stale",
     )
 
     # This is a many-to-many field because we want to be able to assign equipment
