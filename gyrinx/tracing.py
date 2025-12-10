@@ -255,6 +255,17 @@ def _reset_tracing() -> None:
     and resets all module-level variables.
 
     WARNING: This should only be used in tests!
+
+    Note: This function performs incomplete cleanup. It resets module-level
+    variables but does NOT:
+    - Uninstrument Django or logging instrumentors that were registered
+    - Clean up span processors or tracer providers set globally
+    - Remove any existing spans in flight
+
+    For test purposes, this is acceptable because:
+    - Tests typically use mock tracers rather than real OpenTelemetry
+    - Each test worker process is isolated from others
+    - The global OpenTelemetry state doesn't affect mock-based tests
     """
     global _tracing_enabled, _tracer, _initialized
     _tracing_enabled = False

@@ -1,6 +1,6 @@
 """Tests for OpenTelemetry tracing utilities."""
 
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, call
 
 import pytest
 from django.conf import settings
@@ -248,8 +248,11 @@ def test_nested_spans_work_when_enabled(tracing_enabled):
     assert results == ["outer_start", "inner", "outer_end"]
     assert outer_span is mock_span
     assert inner_span is mock_span
-    # Verify both spans were created
+    # Verify both spans were created with correct names in order
     assert tracing._tracer.start_as_current_span.call_count == 2
+    tracing._tracer.start_as_current_span.assert_has_calls(
+        [call("outer"), call("inner")], any_order=False
+    )
 
 
 def test_traced_decorator_propagates_exceptions_when_enabled(tracing_enabled):
