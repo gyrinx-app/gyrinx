@@ -44,7 +44,15 @@ def django_test_settings():
     settings.GYRINX_DEBUG = False
 
     # Disable tracing in tests to avoid loading GCP dependencies
+    # We need to reset tracing state because it was already initialized
+    # during module import with settings_dev.py (which has TRACING_MODE="console")
     settings.TRACING_MODE = "off"
+
+    # Reset and reinitialize tracing with the new setting
+    from gyrinx import tracing
+
+    tracing._reset_tracing()
+    tracing._init_tracing()
 
     # Use faster password hasher for tests (MD5 instead of PBKDF2)
     settings.PASSWORD_HASHERS = [

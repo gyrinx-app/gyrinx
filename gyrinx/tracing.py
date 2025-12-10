@@ -247,5 +247,20 @@ def is_tracing_enabled() -> bool:
     return _tracing_enabled
 
 
+def _reset_tracing() -> None:
+    """Reset tracing state for testing purposes.
+
+    This is intended for test scenarios where you need to re-initialize
+    tracing with different settings. It clears the initialization state
+    and resets all module-level variables.
+
+    WARNING: This should only be used in tests!
+    """
+    global _tracing_enabled, _tracer, _initialized
+    _tracing_enabled = False
+    _tracer = None
+    _initialized = False
+
+
 # Initialize tracing on module import
 _init_tracing()
