@@ -3,11 +3,14 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from django.conf import settings
+
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
 if TYPE_CHECKING:
     from gyrinx.core.models.list import (
+        List,
         ListFighter,
         ListFighterEquipmentAssignment,
     )
@@ -19,6 +22,7 @@ class TransactDelta:
 
     old_rating: int
     new_rating: int
+    list: "List"
 
     @property
     def delta(self) -> int:
@@ -29,6 +33,15 @@ class TransactDelta:
     def has_change(self) -> bool:
         """Check if there's an actual change in rating."""
         return self.delta != 0
+
+
+def _should_propagate(lst: "List") -> bool:
+    """
+    Check if propagation should occur based on feature flag.
+
+    Matches the guard condition in List.create_action().
+    """
+    return bool(lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL)
 
 
 @traced("propagate_from_assignment")
@@ -49,6 +62,9 @@ def propagate_from_assignment(
 
     This should be called within a transaction.
 
+    Only propagates when the list action system is enabled (list has a
+    latest_action and FEATURE_LIST_ACTION_CREATE_INITIAL is True).
+
     Args:
         assignment: The equipment assignment whose cost changed
         rating_delta: The change in the assignment's rating
@@ -56,11 +72,15 @@ def propagate_from_assignment(
     Returns:
         TransactDelta representing the rating change (for future use)
     """
+    if not _should_propagate(rating_delta.list):
+        return rating_delta
+
     if not rating_delta.has_change:
         # No change, return zero-delta
         return TransactDelta(
             old_rating=0,
             new_rating=0,
+            list=rating_delta.list,
         )
 
     if rating_delta.new_rating < 0:
@@ -98,6 +118,7 @@ def propagate_from_assignment(
     return TransactDelta(
         old_rating=rating_delta.old_rating,
         new_rating=rating_delta.new_rating,
+        list=rating_delta.list,
     )
 
 
@@ -121,6 +142,9 @@ def propagate_from_fighter(
 
     This should be called within a transaction (typically inside transact()).
 
+    Only propagates when the list action system is enabled (list has a
+    latest_action and FEATURE_LIST_ACTION_CREATE_INITIAL is True).
+
     Args:
         fighter: The fighter whose cost changed
         rating_delta: The change in the fighter's rating
@@ -128,11 +152,15 @@ def propagate_from_fighter(
     Returns:
         TransactDelta representing the rating change (for future use)
     """
+    if not _should_propagate(rating_delta.list):
+        return rating_delta
+
     if not rating_delta.has_change:
         # No change, return zero-delta
         return TransactDelta(
             old_rating=0,
             new_rating=0,
+            list=rating_delta.list,
         )
 
     if rating_delta.new_rating < 0:
@@ -153,4 +181,5 @@ def propagate_from_fighter(
     return TransactDelta(
         old_rating=rating_delta.old_rating,
         new_rating=rating_delta.new_rating,
+        list=rating_delta.list,
     )

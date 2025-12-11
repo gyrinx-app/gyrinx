@@ -12,20 +12,22 @@ from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 
 @pytest.mark.django_db
-def test_transact_delta_properties():
+def test_transact_delta_properties(make_list):
     """Test TransactDelta dataclass properties."""
+    lst = make_list("Test List")
+
     # Positive delta
-    delta = TransactDelta(old_rating=100, new_rating=150)
+    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
     assert delta.delta == 50
     assert delta.has_change is True
 
     # Negative delta
-    delta = TransactDelta(old_rating=150, new_rating=100)
+    delta = TransactDelta(old_rating=150, new_rating=100, list=lst)
     assert delta.delta == -50
     assert delta.has_change is True
 
     # No change
-    delta = TransactDelta(old_rating=100, new_rating=100)
+    delta = TransactDelta(old_rating=100, new_rating=100, list=lst)
     assert delta.delta == 0
     assert delta.has_change is False
 
@@ -56,7 +58,7 @@ def test_propagate_from_assignment_basic(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=0, new_rating=50)
+    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment updated
@@ -112,7 +114,7 @@ def test_propagate_from_assignment_stash(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=0, new_rating=50)
+    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
     propagate_from_assignment(assignment, delta)
 
     # Check assignment updated
@@ -154,7 +156,7 @@ def test_propagate_from_assignment_negative_delta(
     )
 
     # Propagate a cost decrease
-    delta = TransactDelta(old_rating=100, new_rating=50)
+    delta = TransactDelta(old_rating=100, new_rating=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment and fighter decreased
@@ -198,7 +200,7 @@ def test_propagate_from_assignment_zero_delta(
     )
 
     # Propagate zero delta
-    delta = TransactDelta(old_rating=50, new_rating=50)
+    delta = TransactDelta(old_rating=50, new_rating=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment not updated when there's no change
@@ -235,7 +237,7 @@ def test_propagate_from_fighter_basic(user, make_list, content_fighter):
     )
 
     # Propagate a fighter cost change (e.g., from advancement)
-    delta = TransactDelta(old_rating=100, new_rating=150)
+    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
     result = propagate_from_fighter(fighter, delta)
 
     # Check fighter updated
@@ -279,7 +281,7 @@ def test_propagate_from_fighter_stash(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=100, new_rating=150)
+    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
     propagate_from_fighter(fighter, delta)
 
     # Check fighter updated
@@ -456,7 +458,7 @@ def test_propagate_from_assignment_clamps_negative_assignment_rating(
 
     # Propagate a delta that would result in negative rating
     # e.g., cost override reduced the cost below the original
-    delta = TransactDelta(old_rating=50, new_rating=-10)
+    delta = TransactDelta(old_rating=50, new_rating=-10, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Assignment rating should be clamped to 0, not -10
@@ -506,7 +508,7 @@ def test_propagate_from_assignment_clamps_negative_fighter_rating(
 
     # Propagate a large negative delta that would make fighter rating negative
     # Fighter has 50, delta is -100, would result in -50
-    delta = TransactDelta(old_rating=100, new_rating=0)
+    delta = TransactDelta(old_rating=100, new_rating=0, list=lst)
     propagate_from_assignment(assignment, delta)
 
     # Assignment rating should be 0
@@ -541,7 +543,7 @@ def test_propagate_from_fighter_clamps_negative_rating(
     )
 
     # Propagate a delta that would result in negative rating
-    delta = TransactDelta(old_rating=50, new_rating=-20)
+    delta = TransactDelta(old_rating=50, new_rating=-20, list=lst)
     result = propagate_from_fighter(fighter, delta)
 
     # Fighter rating should be clamped to 0, not -20
@@ -557,3 +559,91 @@ def test_propagate_from_fighter_clamps_negative_rating(
     assert result.old_rating == 50
     assert result.new_rating == -20
     assert result.delta == -70
+
+
+@pytest.mark.django_db
+def test_propagate_from_assignment_skips_without_latest_action(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test assignment propagation is skipped when list has no latest_action.
+
+    When the list action system is not enabled (no latest_action), propagation
+    should be skipped and the input delta returned unchanged.
+    """
+    lst = make_list("Test List", create_initial_action=False)
+    lst.rating_current = 0
+    lst.stash_current = 0
+    lst.save()
+    # Note: create_initial_action=False means no latest_action, so propagation is skipped
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=0,
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=0,
+        dirty=True,
+    )
+
+    # Propagate a cost increase - should be skipped
+    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
+    result = propagate_from_assignment(assignment, delta)
+
+    # Check assignment NOT updated (propagation skipped)
+    assignment.refresh_from_db()
+    assert assignment.rating_current == 0
+    assert assignment.dirty is True  # Still dirty
+
+    # Check fighter NOT updated
+    fighter.refresh_from_db()
+    assert fighter.rating_current == 0
+
+    # Check return value is the same as input
+    assert result is delta
+    assert result.old_rating == 0
+    assert result.new_rating == 50
+
+
+@pytest.mark.django_db
+def test_propagate_from_fighter_skips_without_latest_action(
+    user, make_list, content_fighter
+):
+    """Test fighter propagation is skipped when list has no latest_action.
+
+    When the list action system is not enabled (no latest_action), propagation
+    should be skipped and the input delta returned unchanged.
+    """
+    lst = make_list("Test List", create_initial_action=False)
+    lst.rating_current = 100
+    lst.stash_current = 0
+    lst.save()
+    # Note: create_initial_action=False means no latest_action, so propagation is skipped
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+        dirty=True,
+    )
+
+    # Propagate a fighter cost change - should be skipped
+    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
+    result = propagate_from_fighter(fighter, delta)
+
+    # Check fighter NOT updated (propagation skipped)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == 100
+    assert fighter.dirty is True  # Still dirty
+
+    # Check return value is the same as input
+    assert result is delta
+    assert result.old_rating == 100
+    assert result.new_rating == 150
