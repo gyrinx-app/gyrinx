@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from gyrinx.tracing import traced
+from gyrinx.tracker import track
 
 if TYPE_CHECKING:
     from gyrinx.core.models.list import (
@@ -62,14 +63,33 @@ def propagate_from_assignment(
             new_rating=0,
         )
 
+    if rating_delta.new_rating < 0:
+        track(
+            "negative_rating_propagation_assignment_from_assignment",
+            assignment_id=str(assignment.id),
+            old_rating=rating_delta.old_rating,
+            new_rating=rating_delta.new_rating,
+        )
+
     # Update assignment
-    assignment.rating_current = rating_delta.new_rating
+    assignment.rating_current = max(0, rating_delta.new_rating)
     assignment.dirty = False
     assignment.save(update_fields=["rating_current", "dirty"])
 
     # Walk up to fighter
     fighter = assignment.list_fighter
-    fighter.rating_current += rating_delta.delta
+    new_fighter_rating = int(fighter.rating_current + rating_delta.delta)
+
+    if new_fighter_rating < 0:
+        track(
+            "negative_rating_propagation_fighter_from_assignment",
+            assignment_id=str(assignment.id),
+            fighter_id=str(fighter.id),
+            old_rating=rating_delta.old_rating,
+            new_rating=rating_delta.new_rating,
+        )
+
+    fighter.rating_current = max(0, new_fighter_rating)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
@@ -115,8 +135,16 @@ def propagate_from_fighter(
             new_rating=0,
         )
 
+    if rating_delta.new_rating < 0:
+        track(
+            "negative_rating_propagation_fighter_from_fighter",
+            fighter_id=str(fighter.id),
+            old_rating=rating_delta.old_rating,
+            new_rating=rating_delta.new_rating,
+        )
+
     # Update fighter
-    fighter.rating_current = rating_delta.new_rating
+    fighter.rating_current = max(0, rating_delta.new_rating)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 

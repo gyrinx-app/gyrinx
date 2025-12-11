@@ -148,7 +148,7 @@ def handle_equipment_cost_override(
 
     # Apply the change
     assignment.total_cost_override = new_total_cost_override
-    assignment.save()
+    assignment.save(update_fields=["total_cost_override"])
 
     # Propagate to maintain intermediate node caches (assignment.rating_current, fighter.rating_current)
     delta = TransactDelta(old_rating=old_total_cost, new_rating=new_total_cost)

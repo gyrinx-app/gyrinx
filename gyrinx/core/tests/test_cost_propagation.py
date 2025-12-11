@@ -424,3 +424,136 @@ def test_is_stash_linked_child_fighter_on_regular(
 
     # Child fighter should NOT be stash-linked
     assert is_stash_linked(vehicle_fighter) is False
+
+
+@pytest.mark.django_db
+def test_propagate_from_assignment_clamps_negative_assignment_rating(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test assignment propagation clamps negative assignment ratings to zero.
+
+    This can happen when a cost override makes an equipment item "free" or
+    negative-cost, resulting in a negative new_rating in the delta.
+    """
+    lst = make_list("Test List")
+    lst.rating_current = 100
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=50,
+        dirty=True,
+    )
+
+    # Propagate a delta that would result in negative rating
+    # e.g., cost override reduced the cost below the original
+    delta = TransactDelta(old_rating=50, new_rating=-10)
+    result = propagate_from_assignment(assignment, delta)
+
+    # Assignment rating should be clamped to 0, not -10
+    assignment.refresh_from_db()
+    assert assignment.rating_current == 0
+    assert assignment.dirty is False
+
+    # Fighter rating should decrease by the full delta (-60)
+    # but also be clamped if it goes negative
+    fighter.refresh_from_db()
+    assert fighter.rating_current == 40  # 100 + (-60) = 40
+
+    # Return value reflects the actual delta values
+    assert result.old_rating == 50
+    assert result.new_rating == -10
+    assert result.delta == -60
+
+
+@pytest.mark.django_db
+def test_propagate_from_assignment_clamps_negative_fighter_rating(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test assignment propagation clamps negative fighter ratings to zero.
+
+    This can happen when the delta is large enough to make the fighter's
+    total rating go negative (e.g., removing expensive equipment from a
+    fighter that had a lower total).
+    """
+    lst = make_list("Test List")
+    lst.rating_current = 50
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,
+    )
+    equipment = make_equipment("Test Equipment", cost="100")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=100,
+        dirty=True,
+    )
+
+    # Propagate a large negative delta that would make fighter rating negative
+    # Fighter has 50, delta is -100, would result in -50
+    delta = TransactDelta(old_rating=100, new_rating=0)
+    propagate_from_assignment(assignment, delta)
+
+    # Assignment rating should be 0
+    assignment.refresh_from_db()
+    assert assignment.rating_current == 0
+
+    # Fighter rating should be clamped to 0, not -50
+    fighter.refresh_from_db()
+    assert fighter.rating_current == 0
+
+
+@pytest.mark.django_db
+def test_propagate_from_fighter_clamps_negative_rating(
+    user, make_list, content_fighter
+):
+    """Test fighter propagation clamps negative ratings to zero.
+
+    This can happen when a fighter's cost is reduced below zero through
+    some mechanic (though rare in practice).
+    """
+    lst = make_list("Test List")
+    lst.rating_current = 100
+    lst.save()
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,
+        dirty=True,
+    )
+
+    # Propagate a delta that would result in negative rating
+    delta = TransactDelta(old_rating=50, new_rating=-20)
+    result = propagate_from_fighter(fighter, delta)
+
+    # Fighter rating should be clamped to 0, not -20
+    fighter.refresh_from_db()
+    assert fighter.rating_current == 0
+    assert fighter.dirty is False
+
+    # List should NOT be updated by propagation
+    lst.refresh_from_db()
+    assert lst.rating_current == 100
+
+    # Return value reflects the actual delta values
+    assert result.old_rating == 50
+    assert result.new_rating == -20
+    assert result.delta == -70
