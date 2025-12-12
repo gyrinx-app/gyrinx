@@ -34,9 +34,11 @@ def test_transact_delta_properties(make_list):
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_basic(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test basic assignment propagation updates assignment and fighter, but NOT list."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 0
     lst.stash_current = 0
@@ -84,9 +86,11 @@ def test_propagate_from_assignment_basic(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_stash(
-    user, make_list, content_house, make_content_fighter, make_equipment
+    settings, user, make_list, content_house, make_content_fighter, make_equipment
 ):
     """Test assignment propagation updates fighter but NOT list (even for stash)."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 0
     lst.stash_current = 0
@@ -133,9 +137,11 @@ def test_propagate_from_assignment_stash(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_negative_delta(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles cost decreases."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.stash_current = 0
@@ -176,9 +182,11 @@ def test_propagate_from_assignment_negative_delta(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_zero_delta(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles no change gracefully."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.stash_current = 0
@@ -221,8 +229,10 @@ def test_propagate_from_assignment_zero_delta(
 
 
 @pytest.mark.django_db
-def test_propagate_from_fighter_basic(user, make_list, content_fighter):
+def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter):
     """Test basic fighter propagation updates fighter but NOT list."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.stash_current = 0
@@ -257,9 +267,11 @@ def test_propagate_from_fighter_basic(user, make_list, content_fighter):
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_stash(
-    user, make_list, content_house, make_content_fighter
+    settings, user, make_list, content_house, make_content_fighter
 ):
     """Test fighter propagation updates fighter but NOT list (even for stash)."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 0
     lst.stash_current = 100
@@ -297,9 +309,11 @@ def test_propagate_from_fighter_stash(
 
 @pytest.mark.django_db
 def test_is_stash_linked_direct_stash_fighter(
-    user, make_list, content_house, make_content_fighter
+    settings, user, make_list, content_house, make_content_fighter
 ):
     """Test is_stash_linked identifies direct stash fighters."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     stash_fighter_template = make_content_fighter(
         type="Stash",
@@ -319,8 +333,10 @@ def test_is_stash_linked_direct_stash_fighter(
 
 
 @pytest.mark.django_db
-def test_is_stash_linked_regular_fighter(user, make_list, content_fighter):
+def test_is_stash_linked_regular_fighter(settings, user, make_list, content_fighter):
     """Test is_stash_linked returns False for regular fighters."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Regular Fighter",
@@ -334,9 +350,11 @@ def test_is_stash_linked_regular_fighter(user, make_list, content_fighter):
 
 @pytest.mark.django_db
 def test_is_stash_linked_child_fighter_on_stash(
-    user, make_list, content_house, make_content_fighter, make_equipment
+    settings, user, make_list, content_house, make_content_fighter, make_equipment
 ):
     """Test is_stash_linked identifies child fighters linked to stash."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
 
     # Create stash fighter
@@ -383,6 +401,7 @@ def test_is_stash_linked_child_fighter_on_stash(
 
 @pytest.mark.django_db
 def test_is_stash_linked_child_fighter_on_regular(
+    settings,
     user,
     make_list,
     content_fighter,
@@ -391,6 +410,8 @@ def test_is_stash_linked_child_fighter_on_regular(
     make_equipment,
 ):
     """Test is_stash_linked returns False for child fighters on regular fighters."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
 
     # Create regular fighter
@@ -430,13 +451,15 @@ def test_is_stash_linked_child_fighter_on_regular(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_clamps_negative_assignment_rating(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation clamps negative assignment ratings to zero.
 
     This can happen when a cost override makes an equipment item "free" or
     negative-cost, resulting in a negative new_rating in the delta.
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.save()
@@ -479,7 +502,7 @@ def test_propagate_from_assignment_clamps_negative_assignment_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_clamps_negative_fighter_rating(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation clamps negative fighter ratings to zero.
 
@@ -487,6 +510,8 @@ def test_propagate_from_assignment_clamps_negative_fighter_rating(
     total rating go negative (e.g., removing expensive equipment from a
     fighter that had a lower total).
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 50
     lst.save()
@@ -522,13 +547,15 @@ def test_propagate_from_assignment_clamps_negative_fighter_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_clamps_negative_rating(
-    user, make_list, content_fighter
+    settings, user, make_list, content_fighter
 ):
     """Test fighter propagation clamps negative ratings to zero.
 
     This can happen when a fighter's cost is reduced below zero through
     some mechanic (though rare in practice).
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.save()
@@ -563,13 +590,15 @@ def test_propagate_from_fighter_clamps_negative_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_skips_without_latest_action(
-    user, make_list, content_fighter, make_equipment
+    settings, user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation is skipped when list has no latest_action.
 
     When the list action system is not enabled (no latest_action), propagation
     should be skipped and the input delta returned unchanged.
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List", create_initial_action=False)
     lst.rating_current = 0
     lst.stash_current = 0
@@ -612,13 +641,15 @@ def test_propagate_from_assignment_skips_without_latest_action(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_skips_without_latest_action(
-    user, make_list, content_fighter
+    settings, user, make_list, content_fighter
 ):
     """Test fighter propagation is skipped when list has no latest_action.
 
     When the list action system is not enabled (no latest_action), propagation
     should be skipped and the input delta returned unchanged.
     """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
     lst = make_list("Test List", create_initial_action=False)
     lst.rating_current = 100
     lst.stash_current = 0
