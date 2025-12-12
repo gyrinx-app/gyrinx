@@ -6,7 +6,7 @@ from typing import Any, Optional
 from django.db import transaction
 
 from gyrinx.content.models import ContentFighter
-from gyrinx.core.handlers.fighter.advancement import _is_fighter_stash_linked
+from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter
 from gyrinx.tracing import traced
@@ -266,7 +266,7 @@ def handle_fighter_edit(
     credits_before = lst.credits_current
 
     # Determine if this fighter's cost changes go to stash
-    is_stash_linked = _is_fighter_stash_linked(fighter)
+    is_stash_linked = check_is_stash_linked(fighter)
 
     # Detect all changes by comparing old values with fighter's current (new) values
     changes = _detect_field_changes(

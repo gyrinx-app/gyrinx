@@ -66,11 +66,13 @@ def test_handle_equipment_cost_override_set(
         content_fighter=content_fighter,
         list=lst,
         owner=user,
+        rating_current=50,  # Initialize to match calculated cost
     )
     equipment = make_equipment("Test Weapon", cost="50")
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=equipment,
+        rating_current=50,  # Initialize cached rating
     )
 
     # Simulate form applying new value
@@ -118,12 +120,14 @@ def test_handle_equipment_cost_override_clear(
         content_fighter=content_fighter,
         list=lst,
         owner=user,
+        rating_current=75,  # Initialize to match assignment cost
     )
     equipment = make_equipment("Test Weapon", cost="50")
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=equipment,
         total_cost_override=75,  # Was overridden to 75
+        rating_current=75,  # Initialize cached rating
     )
 
     # Simulate form clearing the value
@@ -168,12 +172,14 @@ def test_handle_equipment_cost_override_change(
         content_fighter=content_fighter,
         list=lst,
         owner=user,
+        rating_current=75,  # Initialize to match current override
     )
     equipment = make_equipment("Test Weapon", cost="50")
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=equipment,
         total_cost_override=75,
+        rating_current=75,  # Initialize cached rating
     )
 
     # Simulate form changing value from 75 to 100
@@ -219,12 +225,14 @@ def test_handle_equipment_cost_override_stash_fighter(
         content_fighter=stash_fighter_type,
         list=lst,
         owner=user,
+        rating_current=50,  # Initialize to match calculated cost
     )
 
     equipment = make_equipment("Stash Weapon", cost="50")
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash_fighter,
         content_equipment=equipment,
+        rating_current=50,  # Initialize cached rating
     )
 
     # Simulate form applying new value
@@ -261,6 +269,7 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
         content_fighter=content_fighter,
         list=lst,
         owner=user,
+        rating_current=75,  # Initialize to match calculated cost (50 + 25)
     )
 
     weapon, accessory = make_weapon_with_accessory(cost=50, accessory_cost=25)
@@ -268,6 +277,7 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=weapon,
+        rating_current=75,  # Initialize cached rating (50 + 25)
     )
     assignment.weapon_accessories_field.add(accessory)
 
@@ -306,11 +316,13 @@ def test_handle_equipment_cost_override_zero_delta(
         content_fighter=content_fighter,
         list=lst,
         owner=user,
+        rating_current=50,  # Initialize to match calculated cost
     )
     equipment = make_equipment("Test Weapon", cost="50")
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=equipment,
+        rating_current=50,  # Initialize cached rating
     )
 
     # Simulate form applying new value
@@ -386,6 +398,7 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
         owner=user,
         content_fighter=vehicle_fighter_type,
         name="Child Vehicle",
+        rating_current=50,  # Initialize to match calculated cost
     )
     child_fighter.source_assignment.add(stash_vehicle_assignment)
 
@@ -394,6 +407,7 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     child_equipment_assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=child_fighter,
         content_equipment=weapon,
+        rating_current=50,  # Initialize cached rating
     )
 
     # Simulate form applying new value
