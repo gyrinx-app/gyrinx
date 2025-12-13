@@ -906,6 +906,17 @@ def test_handle_equipment_reassignment_stash_to_regular(
     )
     equipment_cost = assignment.cost_int()
 
+    # Initialize rating_current fields and capture before values
+    initial_assignment_rating = 50
+    initial_stash_rating = 50
+    initial_fighter_rating = 100
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    stash.rating_current = initial_stash_rating
+    stash.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     # Call handler (handler will perform the reassignment)
     result = handle_equipment_reassignment(
         user=user,
@@ -925,6 +936,19 @@ def test_handle_equipment_reassignment_stash_to_regular(
         assert result.list_action.rating_before == 500
         assert result.list_action.stash_before == 100
         assert result.list_action.credits_before == 1000
+
+        # Verify rating_current propagation
+        # Propagation only happens if list has latest_action
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            stash.refresh_from_db()
+            fighter.refresh_from_db()
+            # Assignment rating_current should stay the same
+            assert assignment.rating_current == initial_assignment_rating
+            # Stash should lose the equipment cost
+            assert stash.rating_current == initial_stash_rating - equipment_cost
+            # Fighter should gain the equipment cost
+            assert fighter.rating_current == initial_fighter_rating + equipment_cost
     else:
         assert result.list_action is None
 
@@ -977,6 +1001,17 @@ def test_handle_equipment_reassignment_regular_to_stash(
     )
     equipment_cost = assignment.cost_int()
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 50
+    initial_fighter_rating = 150
+    initial_stash_rating = 0
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+    stash.rating_current = initial_stash_rating
+    stash.save(update_fields=["rating_current"])
+
     # Call handler (handler will perform the reassignment)
     result = handle_equipment_reassignment(
         user=user,
@@ -991,6 +1026,18 @@ def test_handle_equipment_reassignment_regular_to_stash(
         assert result.list_action.rating_delta == -equipment_cost
         assert result.list_action.stash_delta == equipment_cost
         assert result.list_action.credits_delta == 0
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            fighter.refresh_from_db()
+            stash.refresh_from_db()
+            # Assignment rating_current should stay the same
+            assert assignment.rating_current == initial_assignment_rating
+            # Fighter should lose the equipment cost
+            assert fighter.rating_current == initial_fighter_rating - equipment_cost
+            # Stash should gain the equipment cost
+            assert stash.rating_current == initial_stash_rating + equipment_cost
     else:
         assert result.list_action is None
 
@@ -1041,6 +1088,18 @@ def test_handle_equipment_reassignment_regular_to_regular(
         content_equipment=equipment,
     )
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 50
+    initial_fighter1_rating = 200
+    initial_fighter2_rating = 100
+    equipment_cost = assignment.cost_int()
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter1.rating_current = initial_fighter1_rating
+    fighter1.save(update_fields=["rating_current"])
+    fighter2.rating_current = initial_fighter2_rating
+    fighter2.save(update_fields=["rating_current"])
+
     # Call handler (handler will perform the reassignment)
     result = handle_equipment_reassignment(
         user=user,
@@ -1055,6 +1114,19 @@ def test_handle_equipment_reassignment_regular_to_regular(
         assert result.list_action.rating_delta == 0
         assert result.list_action.stash_delta == 0
         assert result.list_action.credits_delta == 0
+
+        # Verify rating_current propagation (even though list delta is 0)
+        # The fighters still exchange the equipment cost
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            fighter1.refresh_from_db()
+            fighter2.refresh_from_db()
+            # Assignment rating_current should stay the same
+            assert assignment.rating_current == initial_assignment_rating
+            # Fighter1 should lose the equipment cost
+            assert fighter1.rating_current == initial_fighter1_rating - equipment_cost
+            # Fighter2 should gain the equipment cost
+            assert fighter2.rating_current == initial_fighter2_rating + equipment_cost
     else:
         assert result.list_action is None
 
@@ -1355,6 +1427,17 @@ def test_handle_equipment_sale_entire_assignment(
         content_equipment=equipment,
     )
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 50
+    initial_stash_rating = 50
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    stash.rating_current = initial_stash_rating
+    stash.save(update_fields=["rating_current"])
+
+    # Store ID before deletion
+    assignment_id = assignment.id
+
     # Sale items (dice roll scenario)
     sale_items = [SaleItemDetail(name="Lasgun", cost=50, sale_price=30, dice_roll=2)]
 
@@ -1388,6 +1471,13 @@ def test_handle_equipment_sale_entire_assignment(
         assert result.list_action.rating_delta == 0  # Selling from stash, not rating
         assert result.list_action.stash_before == 100
         assert result.list_action.credits_before == 500
+
+        # Verify rating_current propagation (before assignment is deleted)
+        # Note: assignment gets deleted after propagation, so we check stash only
+        if lst.latest_action:
+            stash.refresh_from_db()
+            # Stash delta is -50, so stash rating_current should decrease
+            assert stash.rating_current == initial_stash_rating - 50
     else:
         assert result.list_action is None
 
@@ -1407,7 +1497,7 @@ def test_handle_equipment_sale_entire_assignment(
         assert lst.stash_current == 100  # Unchanged without ListAction tracking
 
     # Verify assignment deleted
-    assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+    assert not ListFighterEquipmentAssignment.objects.filter(id=assignment_id).exists()
 
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
@@ -1456,6 +1546,14 @@ def test_handle_equipment_sale_individual_profile(
     )
     assignment.weapon_profiles_field.add(profile)
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 75  # weapon (50) + profile (25)
+    initial_stash_rating = 75
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    stash.rating_current = initial_stash_rating
+    stash.save(update_fields=["rating_current"])
+
     # Sale items (manual price)
     sale_items = [
         SaleItemDetail(name=profile.name, cost=25, sale_price=20, dice_roll=None)
@@ -1482,6 +1580,14 @@ def test_handle_equipment_sale_individual_profile(
     if feature_flag_enabled:
         assert result.list_action.stash_delta == -25
         assert result.list_action.credits_delta == 20
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            stash.refresh_from_db()
+            # Stash delta is -25, so both should decrease
+            assert assignment.rating_current == initial_assignment_rating - 25
+            assert stash.rating_current == initial_stash_rating - 25
     else:
         assert result.list_action is None
 
@@ -1540,6 +1646,14 @@ def test_handle_equipment_sale_individual_accessory(
     )
     assignment.weapon_accessories_field.add(accessory)
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 80  # weapon (50) + accessory (30)
+    initial_stash_rating = 80
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    stash.rating_current = initial_stash_rating
+    stash.save(update_fields=["rating_current"])
+
     # Sale items
     sale_items = [
         SaleItemDetail(name=accessory.name, cost=30, sale_price=15, dice_roll=2)
@@ -1566,6 +1680,14 @@ def test_handle_equipment_sale_individual_accessory(
     if feature_flag_enabled:
         assert result.list_action.stash_delta == -30
         assert result.list_action.credits_delta == 15
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            stash.refresh_from_db()
+            # Stash delta is -30, so both should decrease
+            assert assignment.rating_current == initial_assignment_rating - 30
+            assert stash.rating_current == initial_stash_rating - 30
     else:
         assert result.list_action is None
 

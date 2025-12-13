@@ -100,14 +100,7 @@
                     </div>
                 {% endif %}
             {% endif %}
-            {% if gyrinx_debug %}
-                <div class="bg-warning-subtle border border-warning rounded px-2 py-1 fs-7 font-monospace d-flex align-items-center gap-3">
-                    <span class="text-warning-emphasis fw-bold">DEBUG</span>
-                    <span class="text-muted">|</span>
-                    <span>R: {{ fighter.rating_current }}¢</span>
-                    {% if fighter.dirty %}<span> · <i class="bi-flag-fill text-success"></i> Dirty</span>{% endif %}
-                </div>
-            {% endif %}
+            {% include "core/debug/fighter_debug.html" %}
             {% if not print %}
                 <div class="hstack align-items-center gap-2">
                     <!-- Tab navigation -->

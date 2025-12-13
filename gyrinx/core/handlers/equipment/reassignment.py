@@ -11,6 +11,7 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -78,12 +79,18 @@ def handle_equipment_reassignment(
     # changes, consider optimizing, but both calculations are required for correctness.
     cost_before = assignment.cost_int()
 
+    # Propagate to from_fighter BEFORE reassignment (decrease their rating)
+    propagate_from_fighter(from_fighter, Delta(delta=-cost_before, list=lst))
+
     # Perform the reassignment
     assignment.list_fighter = to_fighter
     assignment.save_with_user(user=user)
 
     # Calculate cost AFTER reassignment
     cost_after = assignment.cost_int()
+
+    # Propagate to to_fighter AFTER reassignment (increase their rating)
+    propagate_from_fighter(to_fighter, Delta(delta=cost_after, list=lst))
 
     # Use the cost after reassignment for deltas
     equipment_cost = cost_after

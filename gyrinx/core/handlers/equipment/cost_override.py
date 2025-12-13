@@ -151,8 +151,7 @@ def handle_equipment_cost_override(
     assignment.save(update_fields=["total_cost_override"])
 
     # Propagate to maintain intermediate node caches (assignment.rating_current, fighter.rating_current)
-    delta = Delta(delta=cost_delta, list=lst)
-    propagate_from_assignment(assignment, delta)
+    propagate_from_assignment(assignment, Delta(delta=cost_delta, list=lst))
 
     # Create ListAction
     list_action = lst.create_action(

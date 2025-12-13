@@ -15,6 +15,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -158,6 +159,8 @@ def handle_equipment_sale(
             dice_results=dice_rolls,
             dice_total=sum(dice_rolls) if dice_rolls else 0,
         )
+
+    propagate_from_assignment(assignment, Delta(delta=stash_delta, list=lst))
 
     # Create ListAction with update_credits=True to apply the credits delta
     list_action = lst.create_action(
