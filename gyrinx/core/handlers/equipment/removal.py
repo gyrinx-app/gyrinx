@@ -18,7 +18,11 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
     VirtualWeaponProfile,
 )
-from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
+from gyrinx.core.cost.propagation import (
+    Delta,
+    propagate_from_assignment,
+    propagate_from_fighter,
+)
 from gyrinx.core.handlers.refund import calculate_refund_credits
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
@@ -106,6 +110,11 @@ def handle_equipment_removal(
         request_refund=request_refund,
     )
 
+    # Propagate rating changes to fighter (assignment will be deleted, no need to update it)
+    # Use the appropriate delta based on fighter type
+    fighter_delta = stash_delta if is_stash else rating_delta
+    propagate_from_fighter(fighter, Delta(delta=fighter_delta, list=lst))
+
     # Delete the assignment
     assignment.delete()
 
@@ -113,8 +122,6 @@ def handle_equipment_removal(
     description = f"Removed {equipment_name} from {fighter.name} ({equipment_cost}¢)"
     if refund_applied:
         description += f" - refund applied (+{equipment_cost}¢)"
-
-    propagate_from_assignment(assignment, Delta(delta=rating_delta, list=lst))
 
     # Create ListAction
     list_action = lst.create_action(
