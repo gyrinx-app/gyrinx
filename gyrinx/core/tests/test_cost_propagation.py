@@ -3,7 +3,7 @@
 import pytest
 
 from gyrinx.core.cost.propagation import (
-    TransactDelta,
+    Delta,
     propagate_from_assignment,
     propagate_from_fighter,
 )
@@ -17,17 +17,17 @@ def test_transact_delta_properties(make_list):
     lst = make_list("Test List")
 
     # Positive delta
-    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
+    delta = Delta(rating_before=100, rating_after=150, list=lst)
     assert delta.delta == 50
     assert delta.has_change is True
 
     # Negative delta
-    delta = TransactDelta(old_rating=150, new_rating=100, list=lst)
+    delta = Delta(rating_before=150, rating_after=100, list=lst)
     assert delta.delta == -50
     assert delta.has_change is True
 
     # No change
-    delta = TransactDelta(old_rating=100, new_rating=100, list=lst)
+    delta = Delta(rating_before=100, rating_after=100, list=lst)
     assert delta.delta == 0
     assert delta.has_change is False
 
@@ -60,7 +60,7 @@ def test_propagate_from_assignment_basic(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
+    delta = Delta(rating_before=0, rating_after=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment updated
@@ -79,8 +79,8 @@ def test_propagate_from_assignment_basic(
     assert lst.stash_current == 0
 
     # Check return value
-    assert result.old_rating == 0
-    assert result.new_rating == 50
+    assert result.rating_before == 0
+    assert result.rating_after == 50
     assert result.delta == 50
 
 
@@ -118,7 +118,7 @@ def test_propagate_from_assignment_stash(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
+    delta = Delta(rating_before=0, rating_after=50, list=lst)
     propagate_from_assignment(assignment, delta)
 
     # Check assignment updated
@@ -162,7 +162,7 @@ def test_propagate_from_assignment_negative_delta(
     )
 
     # Propagate a cost decrease
-    delta = TransactDelta(old_rating=100, new_rating=50, list=lst)
+    delta = Delta(rating_before=100, rating_after=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment and fighter decreased
@@ -208,7 +208,7 @@ def test_propagate_from_assignment_zero_delta(
     )
 
     # Propagate zero delta
-    delta = TransactDelta(old_rating=50, new_rating=50, list=lst)
+    delta = Delta(rating_before=50, rating_after=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment not updated when there's no change
@@ -247,7 +247,7 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
     )
 
     # Propagate a fighter cost change (e.g., from advancement)
-    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
+    delta = Delta(rating_before=100, rating_after=150, list=lst)
     result = propagate_from_fighter(fighter, delta)
 
     # Check fighter updated
@@ -260,8 +260,8 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
     assert lst.rating_current == 100  # Still 100!
 
     # Check return value
-    assert result.old_rating == 100
-    assert result.new_rating == 150
+    assert result.rating_before == 100
+    assert result.rating_after == 150
     assert result.delta == 50
 
 
@@ -293,7 +293,7 @@ def test_propagate_from_fighter_stash(
     )
 
     # Propagate a cost increase
-    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
+    delta = Delta(rating_before=100, rating_after=150, list=lst)
     propagate_from_fighter(fighter, delta)
 
     # Check fighter updated
@@ -481,7 +481,7 @@ def test_propagate_from_assignment_clamps_negative_assignment_rating(
 
     # Propagate a delta that would result in negative rating
     # e.g., cost override reduced the cost below the original
-    delta = TransactDelta(old_rating=50, new_rating=-10, list=lst)
+    delta = Delta(rating_before=50, rating_after=-10, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Assignment rating should be clamped to 0, not -10
@@ -495,8 +495,8 @@ def test_propagate_from_assignment_clamps_negative_assignment_rating(
     assert fighter.rating_current == 40  # 100 + (-60) = 40
 
     # Return value reflects the actual delta values
-    assert result.old_rating == 50
-    assert result.new_rating == -10
+    assert result.rating_before == 50
+    assert result.rating_after == -10
     assert result.delta == -60
 
 
@@ -533,7 +533,7 @@ def test_propagate_from_assignment_clamps_negative_fighter_rating(
 
     # Propagate a large negative delta that would make fighter rating negative
     # Fighter has 50, delta is -100, would result in -50
-    delta = TransactDelta(old_rating=100, new_rating=0, list=lst)
+    delta = Delta(rating_before=100, rating_after=0, list=lst)
     propagate_from_assignment(assignment, delta)
 
     # Assignment rating should be 0
@@ -570,7 +570,7 @@ def test_propagate_from_fighter_clamps_negative_rating(
     )
 
     # Propagate a delta that would result in negative rating
-    delta = TransactDelta(old_rating=50, new_rating=-20, list=lst)
+    delta = Delta(rating_before=50, rating_after=-20, list=lst)
     result = propagate_from_fighter(fighter, delta)
 
     # Fighter rating should be clamped to 0, not -20
@@ -583,8 +583,8 @@ def test_propagate_from_fighter_clamps_negative_rating(
     assert lst.rating_current == 100
 
     # Return value reflects the actual delta values
-    assert result.old_rating == 50
-    assert result.new_rating == -20
+    assert result.rating_before == 50
+    assert result.rating_after == -20
     assert result.delta == -70
 
 
@@ -621,7 +621,7 @@ def test_propagate_from_assignment_skips_without_latest_action(
     )
 
     # Propagate a cost increase - should be skipped
-    delta = TransactDelta(old_rating=0, new_rating=50, list=lst)
+    delta = Delta(rating_before=0, rating_after=50, list=lst)
     result = propagate_from_assignment(assignment, delta)
 
     # Check assignment NOT updated (propagation skipped)
@@ -635,8 +635,8 @@ def test_propagate_from_assignment_skips_without_latest_action(
 
     # Check return value is the same as input
     assert result is delta
-    assert result.old_rating == 0
-    assert result.new_rating == 50
+    assert result.rating_before == 0
+    assert result.rating_after == 50
 
 
 @pytest.mark.django_db
@@ -666,7 +666,7 @@ def test_propagate_from_fighter_skips_without_latest_action(
     )
 
     # Propagate a fighter cost change - should be skipped
-    delta = TransactDelta(old_rating=100, new_rating=150, list=lst)
+    delta = Delta(rating_before=100, rating_after=150, list=lst)
     result = propagate_from_fighter(fighter, delta)
 
     # Check fighter NOT updated (propagation skipped)
@@ -676,5 +676,5 @@ def test_propagate_from_fighter_skips_without_latest_action(
 
     # Check return value is the same as input
     assert result is delta
-    assert result.old_rating == 100
-    assert result.new_rating == 150
+    assert result.rating_before == 100
+    assert result.rating_after == 150

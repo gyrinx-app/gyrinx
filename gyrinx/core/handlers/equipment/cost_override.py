@@ -5,7 +5,7 @@ from typing import Optional
 
 from django.db import transaction
 
-from gyrinx.core.cost.propagation import TransactDelta, propagate_from_assignment
+from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
 from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
@@ -151,9 +151,7 @@ def handle_equipment_cost_override(
     assignment.save(update_fields=["total_cost_override"])
 
     # Propagate to maintain intermediate node caches (assignment.rating_current, fighter.rating_current)
-    delta = TransactDelta(
-        old_rating=old_total_cost, new_rating=new_total_cost, list=lst
-    )
+    delta = Delta(rating_before=old_total_cost, rating_after=new_total_cost, list=lst)
     propagate_from_assignment(assignment, delta)
 
     # Create ListAction

@@ -1,33 +1,33 @@
 """Cost propagation functions for updating cached rating fields."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from django.conf import settings
 
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
-if TYPE_CHECKING:
-    from gyrinx.core.models.list import (
-        List,
-        ListFighter,
-        ListFighterEquipmentAssignment,
-    )
-
 
 @dataclass
-class TransactDelta:
+class Delta:
     """Represents a rating change to propagate."""
 
-    old_rating: int
-    new_rating: int
-    list: "List"
+    # Core fields
+    rating_before: int
+    rating_after: int
+
+    # References
+    list: List
 
     @property
     def delta(self) -> int:
         """Calculate the difference between new and old rating."""
-        return self.new_rating - self.old_rating
+        return self.rating_after - self.rating_before
 
     @property
     def has_change(self) -> bool:
@@ -47,8 +47,8 @@ def _should_propagate(lst: "List") -> bool:
 @traced("propagate_from_assignment")
 def propagate_from_assignment(
     assignment: "ListFighterEquipmentAssignment",
-    rating_delta: TransactDelta,
-) -> TransactDelta:
+    delta: Delta,
+) -> Delta:
     """
     Propagate rating changes to assignment and fighter cached fields.
 
@@ -72,41 +72,37 @@ def propagate_from_assignment(
     Returns:
         TransactDelta representing the rating change (for future use)
     """
-    if not _should_propagate(rating_delta.list):
-        return rating_delta
+    if not _should_propagate(delta.list):
+        return delta
 
-    if not rating_delta.has_change:
+    if not delta.has_change:
         # No change, return zero-delta
-        return TransactDelta(
-            old_rating=0,
-            new_rating=0,
-            list=rating_delta.list,
-        )
+        return delta
 
-    if rating_delta.new_rating < 0:
+    if delta.rating_after < 0:
         track(
             "negative_rating_propagation_assignment_from_assignment",
             assignment_id=str(assignment.id),
-            old_rating=rating_delta.old_rating,
-            new_rating=rating_delta.new_rating,
+            old_rating=delta.rating_before,
+            new_rating=delta.rating_after,
         )
 
     # Update assignment
-    assignment.rating_current = max(0, rating_delta.new_rating)
+    assignment.rating_current = max(0, delta.rating_after)
     assignment.dirty = False
     assignment.save(update_fields=["rating_current", "dirty"])
 
     # Walk up to fighter
     fighter = assignment.list_fighter
-    new_fighter_rating = int(fighter.rating_current + rating_delta.delta)
+    new_fighter_rating = int(fighter.rating_current + delta.delta)
 
     if new_fighter_rating < 0:
         track(
             "negative_rating_propagation_fighter_from_assignment",
             assignment_id=str(assignment.id),
             fighter_id=str(fighter.id),
-            old_rating=rating_delta.old_rating,
-            new_rating=rating_delta.new_rating,
+            old_rating=delta.rating_before,
+            new_rating=delta.rating_after,
         )
 
     fighter.rating_current = max(0, new_fighter_rating)
@@ -115,18 +111,14 @@ def propagate_from_assignment(
 
     # Return delta for future use
     # NOTE: List is NOT updated here - create_action() does that
-    return TransactDelta(
-        old_rating=rating_delta.old_rating,
-        new_rating=rating_delta.new_rating,
-        list=rating_delta.list,
-    )
+    return delta
 
 
 @traced("propagate_from_fighter")
 def propagate_from_fighter(
     fighter: "ListFighter",
-    rating_delta: TransactDelta,
-) -> TransactDelta:
+    delta: Delta,
+) -> Delta:
     """
     Propagate a rating change from a fighter.
 
@@ -152,34 +144,26 @@ def propagate_from_fighter(
     Returns:
         TransactDelta representing the rating change (for future use)
     """
-    if not _should_propagate(rating_delta.list):
-        return rating_delta
+    if not _should_propagate(delta.list):
+        return delta
 
-    if not rating_delta.has_change:
+    if not delta.has_change:
         # No change, return zero-delta
-        return TransactDelta(
-            old_rating=0,
-            new_rating=0,
-            list=rating_delta.list,
-        )
+        return delta
 
-    if rating_delta.new_rating < 0:
+    if delta.rating_after < 0:
         track(
             "negative_rating_propagation_fighter_from_fighter",
             fighter_id=str(fighter.id),
-            old_rating=rating_delta.old_rating,
-            new_rating=rating_delta.new_rating,
+            old_rating=delta.rating_before,
+            new_rating=delta.rating_after,
         )
 
     # Update fighter
-    fighter.rating_current = max(0, rating_delta.new_rating)
+    fighter.rating_current = max(0, delta.rating_after)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
     # Return delta for future use
     # NOTE: List is NOT updated here - create_action() does that
-    return TransactDelta(
-        old_rating=rating_delta.old_rating,
-        new_rating=rating_delta.new_rating,
-        list=rating_delta.list,
-    )
+    return delta
