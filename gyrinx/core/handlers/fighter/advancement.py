@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from gyrinx.content.models import ContentAdvancementAssignment, ContentSkill
+from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -38,41 +39,6 @@ class FighterAdvancementResult:
 
     # What was created/modified (for logging)
     equipment_assignment: Optional[ListFighterEquipmentAssignment]
-
-
-@traced("_is_fighter_stash_linked")
-def _is_fighter_stash_linked(fighter: ListFighter) -> bool:
-    """
-    Detect if a fighter's cost changes should go to stash instead of rating.
-
-    This function is used for COST ROUTING only, not advancement eligibility.
-    Direct stash fighters are rejected separately before this is called.
-
-    A fighter is stash-linked if:
-    1. It IS a stash fighter directly, OR
-    2. It's a child fighter (vehicle/exotic beast) linked to equipment
-       owned by a stash fighter.
-
-    Note: Child fighters linked to stash CAN receive advancements (they are
-    not is_stash=True themselves), but their cost changes go to stash_delta.
-
-    Args:
-        fighter: The fighter to check
-
-    Returns:
-        True if cost increases should go to stash_delta instead of rating_delta
-    """
-    # Direct stash fighter
-    if fighter.is_stash:
-        return True
-
-    # Child fighter (vehicle/exotic beast) linked to stash via source_assignment
-    if fighter.is_child_fighter:
-        parent_assignment = fighter.source_assignment.first()
-        if parent_assignment:
-            return parent_assignment.list_fighter.is_stash
-
-    return False
 
 
 @traced("handle_fighter_advancement")
@@ -164,7 +130,7 @@ def handle_fighter_advancement(
     # Determine where cost delta should go:
     # - Stash-linked fighters affect stash_current
     # - Regular fighters affect rating_current
-    is_stash_linked = _is_fighter_stash_linked(fighter)
+    is_stash_linked = check_is_stash_linked(fighter)
 
     # Create the advancement object
     advancement = ListFighterAdvancement(
@@ -388,7 +354,7 @@ def handle_fighter_advancement_deletion(
     credits_before = lst.credits_current
 
     # Determine where cost delta should go
-    is_stash_linked = _is_fighter_stash_linked(fighter)
+    is_stash_linked = check_is_stash_linked(fighter)
 
     # Store advancement details before archiving
     advancement_id = advancement.id

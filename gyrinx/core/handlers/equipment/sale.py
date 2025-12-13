@@ -15,6 +15,11 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.core.cost.propagation import (
+    Delta,
+    propagate_from_assignment,
+    propagate_from_fighter,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -121,10 +126,15 @@ def handle_equipment_sale(
     # Store assignment ID before potential deletion
     assignment_id = assignment.id
 
-    # Delete assignment or remove individual components
+    # Propagate rating changes
+    delta = Delta(delta=stash_delta, list=lst)
     if sell_assignment:
+        # Selling entire assignment - just update fighter, assignment will be deleted
+        propagate_from_fighter(fighter, delta)
         assignment.delete()
     else:
+        # Selling individual components - update both assignment and fighter
+        propagate_from_assignment(assignment, delta)
         # Remove individual profiles
         for profile in profiles_to_remove:
             assignment.weapon_profiles_field.remove(profile)

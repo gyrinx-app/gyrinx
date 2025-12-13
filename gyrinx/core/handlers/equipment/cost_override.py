@@ -5,7 +5,8 @@ from typing import Optional
 
 from django.db import transaction
 
-from gyrinx.core.handlers.fighter.advancement import _is_fighter_stash_linked
+from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
+from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
@@ -132,9 +133,9 @@ def handle_equipment_cost_override(
     )
 
     # Determine if this goes to stash or rating
-    # Use _is_fighter_stash_linked to handle child fighters (vehicles/exotic beasts)
+    # Use check_is_stash_linked to handle child fighters (vehicles/exotic beasts)
     # whose parent equipment is on a stash fighter
-    is_stash = _is_fighter_stash_linked(fighter)
+    is_stash = check_is_stash_linked(fighter)
 
     # Generate description
     description = _generate_description(
@@ -147,7 +148,10 @@ def handle_equipment_cost_override(
 
     # Apply the change
     assignment.total_cost_override = new_total_cost_override
-    assignment.save()
+    assignment.save(update_fields=["total_cost_override"])
+
+    # Propagate to maintain intermediate node caches (assignment.rating_current, fighter.rating_current)
+    propagate_from_assignment(assignment, Delta(delta=cost_delta, list=lst))
 
     # Create ListAction
     list_action = lst.create_action(

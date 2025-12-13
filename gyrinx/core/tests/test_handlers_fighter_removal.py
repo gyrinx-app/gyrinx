@@ -54,6 +54,15 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
         content_equipment=equipment,
     )
     equipment_cost = assignment.cost_int()
+
+    # Initialize rating_current fields
+    initial_assignment_rating = 50
+    initial_fighter_rating = 150
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     assignment_id = assignment.id  # Store before deletion
 
     # Call handler with refund requested
@@ -85,6 +94,13 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
         assert result.list_action.credits_delta == equipment_cost  # Refund
         assert result.list_action.rating_before == 1000
         assert result.list_action.credits_before == 500
+
+        # Verify rating_current propagation (before deletion)
+        if lst.latest_action:
+            fighter.refresh_from_db()
+            # Rating delta is -50, so fighter rating_current should decrease
+            assert fighter.rating_current == initial_fighter_rating - equipment_cost
+            # Assignment was deleted, so we can't check it
     else:
         assert result.list_action is None
 
@@ -231,6 +247,14 @@ def test_handle_equipment_removal_stash_fighter(
     )
     equipment_cost = assignment.cost_int()
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 30
+    initial_fighter_rating = 50
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     result = handle_equipment_removal(
         user=user,
         lst=lst,
@@ -246,6 +270,12 @@ def test_handle_equipment_removal_stash_fighter(
         assert (
             result.list_action.credits_delta == equipment_cost
         )  # Refund still applies
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            fighter.refresh_from_db()
+            # Stash delta is -30, so fighter rating_current should decrease
+            assert fighter.rating_current == initial_fighter_rating - equipment_cost
     else:
         assert result.list_action is None
 
@@ -334,6 +364,14 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
 
     upgrade_cost = assignment._upgrade_cost_with_override(upgrade)
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 70  # equipment (50) + upgrade (20)
+    initial_fighter_rating = 150
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     result = handle_equipment_component_removal(
         user=user,
         lst=lst,
@@ -360,6 +398,14 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
         assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
         assert result.list_action.rating_delta == -upgrade_cost
         assert result.list_action.credits_delta == upgrade_cost  # Refund
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            fighter.refresh_from_db()
+            # Rating delta is -20, so both should decrease
+            assert assignment.rating_current == initial_assignment_rating - upgrade_cost
+            assert fighter.rating_current == initial_fighter_rating - upgrade_cost
     else:
         assert result.list_action is None
 
@@ -401,6 +447,14 @@ def test_handle_equipment_component_removal_profile_with_refund(
     virtual_profile = VirtualWeaponProfile(profile=profile)
     profile_cost = assignment.profile_cost_int(virtual_profile)
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 80  # weapon (50) + profile (30)
+    initial_fighter_rating = 150
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     result = handle_equipment_component_removal(
         user=user,
         lst=lst,
@@ -423,6 +477,14 @@ def test_handle_equipment_component_removal_profile_with_refund(
     if feature_flag_enabled:
         assert result.list_action is not None
         assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            fighter.refresh_from_db()
+            # Rating delta is -30, so both should decrease
+            assert assignment.rating_current == initial_assignment_rating - profile_cost
+            assert fighter.rating_current == initial_fighter_rating - profile_cost
     else:
         assert result.list_action is None
 
@@ -461,6 +523,14 @@ def test_handle_equipment_component_removal_accessory_with_refund(
 
     accessory_cost = assignment.accessory_cost_int(accessory)
 
+    # Initialize rating_current fields
+    initial_assignment_rating = 75  # weapon (50) + accessory (25)
+    initial_fighter_rating = 150
+    assignment.rating_current = initial_assignment_rating
+    assignment.save(update_fields=["rating_current"])
+    fighter.rating_current = initial_fighter_rating
+    fighter.save(update_fields=["rating_current"])
+
     result = handle_equipment_component_removal(
         user=user,
         lst=lst,
@@ -483,6 +553,16 @@ def test_handle_equipment_component_removal_accessory_with_refund(
     if feature_flag_enabled:
         assert result.list_action is not None
         assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+
+        # Verify rating_current propagation
+        if lst.latest_action:
+            assignment.refresh_from_db()
+            fighter.refresh_from_db()
+            # Rating delta is -25, so both should decrease
+            assert (
+                assignment.rating_current == initial_assignment_rating - accessory_cost
+            )
+            assert fighter.rating_current == initial_fighter_rating - accessory_cost
     else:
         assert result.list_action is None
 
