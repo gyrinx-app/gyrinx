@@ -18,16 +18,10 @@ class Delta:
     """Represents a rating change to propagate."""
 
     # Core fields
-    rating_before: int
-    rating_after: int
+    delta: int
 
     # References
     list: List
-
-    @property
-    def delta(self) -> int:
-        """Calculate the difference between new and old rating."""
-        return self.rating_after - self.rating_before
 
     @property
     def has_change(self) -> bool:
@@ -79,16 +73,18 @@ def propagate_from_assignment(
         # No change, return zero-delta
         return delta
 
-    if delta.rating_after < 0:
+    new_assignment_rating = int(assignment.rating_current + delta.delta)
+
+    if new_assignment_rating < 0:
         track(
             "negative_rating_propagation_assignment_from_assignment",
             assignment_id=str(assignment.id),
-            old_rating=delta.rating_before,
-            new_rating=delta.rating_after,
+            old_rating=assignment.rating_current,
+            new_rating=new_assignment_rating,
         )
 
     # Update assignment
-    assignment.rating_current = max(0, delta.rating_after)
+    assignment.rating_current = max(0, new_assignment_rating)
     assignment.dirty = False
     assignment.save(update_fields=["rating_current", "dirty"])
 
@@ -101,8 +97,8 @@ def propagate_from_assignment(
             "negative_rating_propagation_fighter_from_assignment",
             assignment_id=str(assignment.id),
             fighter_id=str(fighter.id),
-            old_rating=delta.rating_before,
-            new_rating=delta.rating_after,
+            old_rating=fighter.rating_current,
+            new_rating=new_fighter_rating,
         )
 
     fighter.rating_current = max(0, new_fighter_rating)
@@ -151,16 +147,18 @@ def propagate_from_fighter(
         # No change, return zero-delta
         return delta
 
-    if delta.rating_after < 0:
+    new_fighter_rating = int(fighter.rating_current + delta.delta)
+
+    if new_fighter_rating < 0:
         track(
             "negative_rating_propagation_fighter_from_fighter",
             fighter_id=str(fighter.id),
-            old_rating=delta.rating_before,
-            new_rating=delta.rating_after,
+            old_rating=fighter.rating_current,
+            new_rating=new_fighter_rating,
         )
 
     # Update fighter
-    fighter.rating_current = max(0, delta.rating_after)
+    fighter.rating_current = max(0, new_fighter_rating)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 

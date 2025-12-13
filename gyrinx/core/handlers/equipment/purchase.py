@@ -17,6 +17,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
     VirtualWeaponProfile,
 )
+from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -138,6 +139,9 @@ def handle_equipment_purchase(
     else:
         description = f"Added {assignment.content_equipment.name} to {fighter.name} ({total_cost}¢)"
 
+    delta = Delta(delta=total_cost, list=lst)
+    propagate_from_assignment(assignment, delta)
+
     # Create list action
     list_action = lst.create_action(
         user=user,
@@ -227,6 +231,9 @@ def handle_accessory_purchase(
 
     description = f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)"
 
+    delta = Delta(delta=accessory_cost, list=lst)
+    propagate_from_assignment(assignment, delta)
+
     # Create ListAction to track the accessory addition
     list_action = lst.create_action(
         user=user,
@@ -315,6 +322,9 @@ def handle_weapon_profile_purchase(
     assignment.weapon_profiles_field.add(profile)
 
     description = f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)"
+
+    delta = Delta(delta=profile_cost, list=lst)
+    propagate_from_assignment(assignment, delta)
 
     # Create ListAction to track the profile addition
     list_action = lst.create_action(
@@ -424,6 +434,9 @@ def handle_equipment_upgrade(
         description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
     else:
         description = f"Removed upgrades from {assignment.content_equipment.name} on {fighter.name}"
+
+    delta = Delta(delta=cost_difference, list=lst)
+    propagate_from_assignment(assignment, delta)
 
     list_action = lst.create_action(
         user=user,
