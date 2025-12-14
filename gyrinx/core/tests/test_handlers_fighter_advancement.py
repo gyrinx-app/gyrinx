@@ -647,6 +647,43 @@ def test_handle_fighter_advancement_skill_with_promotion(
     assert "Gained Mentor skill" in result.outcome
 
 
+@pytest.mark.django_db
+def test_handle_fighter_advancement_propagates_to_fighter_rating_current(
+    user, fighter_with_xp, settings
+):
+    """Test that advancement propagates positive delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    # Set initial fighter rating_current
+    fighter_with_xp.rating_current = 50
+    fighter_with_xp.save()
+    fighter_with_xp.refresh_from_db()
+    initial_fighter_rating = fighter_with_xp.rating_current
+
+    cost_increase = 20
+
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=cost_increase,
+        advancement_choice="stat_weapon_skill",
+        stat_increased="weapon_skill",
+    )
+
+    # Verify rating_delta is positive
+    assert result.update_action.rating_delta == cost_increase
+
+    # Verify fighter.rating_current propagated (+20)
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.rating_current == initial_fighter_rating + cost_increase
+
+
 # --- Advancement Deletion Tests ---
 
 
@@ -939,3 +976,48 @@ def test_handle_fighter_advancement_deletion_multiple_promotions(
     # Should have no override
     fighter_with_xp.refresh_from_db()
     assert fighter_with_xp.category_override is None
+
+
+@pytest.mark.django_db
+def test_handle_fighter_advancement_deletion_propagates_to_fighter_rating_current(
+    user, fighter_with_xp, settings
+):
+    """Test that deleting advancement propagates negative delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    lst = fighter_with_xp.list
+    lst.rating_current = 500
+    lst.save()
+
+    cost_increase = 20
+
+    # Create advancement
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        xp_cost=10,
+        cost_increase=cost_increase,
+        advancement_choice="stat_weapon_skill",
+        stat_increased="weapon_skill",
+    )
+
+    # Set fighter rating_current after advancement
+    fighter_with_xp.rating_current = 70  # Initial + cost_increase
+    fighter_with_xp.save()
+    fighter_with_xp.refresh_from_db()
+    rating_after_advancement = fighter_with_xp.rating_current
+
+    # Delete advancement
+    delete_result = handle_fighter_advancement_deletion(
+        user=user,
+        fighter=fighter_with_xp,
+        advancement=result.advancement,
+    )
+
+    # Verify negative rating_delta
+    assert delete_result.list_action.rating_delta == -cost_increase
+
+    # Verify fighter.rating_current propagated (-20)
+    fighter_with_xp.refresh_from_db()
+    assert fighter_with_xp.rating_current == rating_after_advancement - cost_increase

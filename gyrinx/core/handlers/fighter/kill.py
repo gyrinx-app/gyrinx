@@ -5,6 +5,7 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -119,7 +120,10 @@ def handle_fighter_kill(
     # Mark fighter as dead and set cost to 0
     fighter.injury_state = ListFighter.DEAD
     fighter.cost_override = 0
-    fighter.save()
+    fighter.save(update_fields=["injury_state", "cost_override"])
+
+    # Propagate the cost reduction (fighter_cost_before → 0)
+    propagate_from_fighter(fighter, Delta(delta=-fighter_cost_before, list=lst))
 
     # Build description
     equipment_desc = (

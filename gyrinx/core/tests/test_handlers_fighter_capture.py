@@ -746,3 +746,112 @@ def test_list_building_mode_no_campaign_actions(
 
     # No CampaignAction in list building mode
     assert result.campaign_action is None
+
+
+@pytest.mark.django_db
+def test_handle_fighter_capture_propagates_to_fighter_rating_current(
+    two_gang_campaign,
+    settings,
+):
+    """Test that capturing a fighter propagates negative delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    data = two_gang_campaign
+    fighter = data["fighter"]
+    gang2 = data["gang2"]
+    owner1 = data["owner1"]
+
+    # Set initial fighter rating_current
+    fighter.rating_current = 50
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+    fighter_cost = fighter.cost_int()
+
+    result = handle_fighter_capture(
+        user=owner1,
+        fighter=fighter,
+        capturing_list=gang2,
+    )
+
+    # Verify negative rating_delta
+    assert result.capture_list_action.rating_delta == -fighter_cost
+
+    # Verify fighter.rating_current propagated (reduced to 0)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating - fighter_cost
+
+
+@pytest.mark.django_db
+def test_handle_fighter_return_propagates_to_fighter_rating_current(
+    two_gang_campaign,
+    settings,
+):
+    """Test that returning a fighter propagates positive delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    data = two_gang_campaign
+    fighter = data["fighter"]
+    gang2 = data["gang2"]
+    owner1 = data["owner1"]
+
+    # Capture the fighter
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=gang2,
+        owner=owner1,
+    )
+
+    # Fighter starts with rating_current = 0 (captured)
+    fighter.rating_current = 0
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    result = handle_fighter_return_to_owner(
+        user=owner1,
+        captured_fighter=captured,
+        ransom_amount=0,
+    )
+
+    # Verify positive rating_delta
+    assert result.original_list_action.rating_delta == result.fighter_cost
+
+    # Verify fighter.rating_current propagated (restored from 0)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating + result.fighter_cost
+
+
+@pytest.mark.django_db
+def test_handle_fighter_release_propagates_to_fighter_rating_current(
+    two_gang_campaign,
+    settings,
+):
+    """Test that releasing a fighter propagates positive delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    data = two_gang_campaign
+    fighter = data["fighter"]
+    gang2 = data["gang2"]
+    owner2 = data["owner2"]
+
+    captured = CapturedFighter.objects.create(
+        fighter=fighter,
+        capturing_list=gang2,
+        owner=data["owner1"],
+    )
+
+    # Fighter starts with rating_current = 0 (captured)
+    fighter.rating_current = 0
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    result = handle_fighter_release(
+        user=owner2,
+        captured_fighter=captured,
+    )
+
+    # Verify positive rating_delta
+    assert result.release_list_action.rating_delta == result.fighter_cost
+
+    # Verify fighter.rating_current propagated (restored from 0)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating + result.fighter_cost

@@ -5,6 +5,7 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -173,6 +174,10 @@ def handle_fighter_capture(
         capturing_list=capturing_list,
         owner=user,
     )
+
+    # Propagate the cost reduction (fighter_cost → 0)
+    if fighter_cost > 0:
+        propagate_from_fighter(fighter, Delta(delta=-fighter_cost, list=original_list))
 
     # 5. Calculate deltas for capture action
     # Child fighters: fighter_cost is 0, so rating_delta is 0
@@ -383,6 +388,10 @@ def handle_fighter_return_to_owner(
     # Calculate restored fighter cost (after capture record deleted)
     fighter_cost = fighter.cost_int()
 
+    # Propagate the cost restoration
+    if fighter_cost > 0:
+        propagate_from_fighter(fighter, Delta(delta=fighter_cost, list=original_list))
+
     # Calculate deltas for original gang (rating increases, credits decrease if ransom)
     orig_rating_delta = fighter_cost
     orig_stash_delta = 0
@@ -524,6 +533,10 @@ def handle_fighter_release(
 
     # Calculate restored fighter cost
     fighter_cost = fighter.cost_int()
+
+    # Propagate the cost restoration
+    if fighter_cost > 0:
+        propagate_from_fighter(fighter, Delta(delta=fighter_cost, list=original_list))
 
     # Calculate deltas (only rating changes)
     rating_delta = fighter_cost

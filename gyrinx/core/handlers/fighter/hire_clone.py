@@ -88,6 +88,9 @@ def handle_fighter_hire(
     if lst.is_campaign_mode:
         lst.spend_credits(fighter_cost, description=f"Hiring {fighter.name}")
 
+    # Initialize rating_current before saving
+    fighter.rating_current = fighter_cost
+
     # Save the fighter
     fighter.save()
 
@@ -173,6 +176,10 @@ def handle_fighter_clone(
 
     # Calculate cost after creation
     fighter_cost = new_fighter.cost_int()
+
+    # Initialize rating_current and re-save
+    new_fighter.rating_current = fighter_cost
+    new_fighter.save(update_fields=["rating_current"])
 
     # Determine deltas based on fighter type
     rating_delta = fighter_cost if not new_fighter.is_stash else 0
