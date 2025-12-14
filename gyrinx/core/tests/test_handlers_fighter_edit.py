@@ -443,3 +443,86 @@ def test_handle_fighter_edit_feature_flag_disabled(
     # Fighter should still be updated
     fighter.refresh_from_db()
     assert fighter.name == "New Name"
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_cost_override_propagates_to_fighter_rating_current(
+    user, make_list, content_fighter, settings
+):
+    """Test that cost_override changes propagate to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # content_fighter has base_cost=100
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Fighter starts with rating_current = 0 (just created)
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form applying new value: set override to 150
+    fighter.cost_override = 150
+
+    # Call handler with old value (None)
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_cost_override=None,
+    )
+
+    # Delta = 150 - 100 = +50
+    assert result.changes[0].rating_delta == 50
+
+    # Verify fighter.rating_current propagated (+50)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating + 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_cost_override_clear_propagates_to_fighter_rating_current(
+    user, make_list, content_fighter, settings
+):
+    """Test that clearing cost_override propagates negative delta to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 650
+    lst.save()
+
+    # content_fighter has base_cost=100, override set to 150
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        cost_override=150,
+    )
+
+    # Set initial rating_current manually
+    fighter.rating_current = 150
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form clearing override
+    fighter.cost_override = None
+
+    # Call handler with old value (150)
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_cost_override=150,
+    )
+
+    # Delta = 100 - 150 = -50
+    assert result.changes[0].rating_delta == -50
+
+    # Verify fighter.rating_current propagated (-50)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating - 50

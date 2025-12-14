@@ -164,10 +164,10 @@
                                             <a class="dropdown-item"
                                                href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
                                         </li>
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
                                     {% endif %}
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
                                     <li>
                                         <a class="dropdown-item disabled"
                                            href="#"
@@ -206,10 +206,10 @@
                                                    href="{% url 'core:list-fighter-resurrect' list.id fighter.id %}"><i class="bi-heart-pulse"></i> Resurrect</a>
                                             </li>
                                         {% endif %}
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
                                     {% endif %}
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
                                     <li>
                                         <a class="dropdown-item"
                                            href="{% url 'core:list-fighter-clone' list.id fighter.id %}"><i class="bi-copy"></i> Clone</a>

@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from gyrinx.content.models import ContentAdvancementAssignment, ContentSkill
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
@@ -184,6 +185,10 @@ def handle_fighter_advancement(
 
     # Apply the advancement (modifies fighter stats/skills, creates equipment, deducts XP)
     advancement.apply_advancement()
+
+    # Propagate the cost increase
+    if cost_increase > 0:
+        propagate_from_fighter(fighter, Delta(delta=cost_increase, list=lst))
 
     # For equipment advancements, find the created equipment assignment
     created_equipment = None
@@ -378,6 +383,10 @@ def handle_fighter_advancement_deletion(
     # Restore XP to fighter
     fighter.xp_current += xp_restored
     fighter.save()
+
+    # Propagate the cost decrease
+    if cost_decrease > 0:
+        propagate_from_fighter(fighter, Delta(delta=-cost_decrease, list=lst))
 
     # Archive the advancement
     advancement.archive()

@@ -954,3 +954,68 @@ def test_handle_fighter_clone_no_category_override(
         assert result.list_action.action_type == ListActionType.ADD_FIGHTER
     else:
         assert result.list_action is None
+
+
+# ===== Rating Current Initialization Tests =====
+
+
+@pytest.mark.django_db
+def test_handle_fighter_hire_initializes_rating_current(
+    user, list_with_campaign, content_fighter, settings
+):
+    """Test that hiring a fighter initializes rating_current to cost."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    fighter = ListFighter(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Test Fighter",
+    )
+
+    result = handle_fighter_hire(user=user, lst=lst, fighter=fighter)
+
+    # Verify rating_current initialized
+    fighter.refresh_from_db()
+    assert fighter.rating_current == result.fighter_cost
+    assert fighter.rating_current == fighter.cost_int()
+
+
+@pytest.mark.django_db
+def test_handle_fighter_clone_initializes_rating_current(
+    user, list_with_campaign, content_fighter, settings
+):
+    """Test that cloning a fighter initializes rating_current on clone."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+    lst.credits_current = 1000
+    lst.save()
+
+    # Create source fighter
+    source = ListFighter.objects.create(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name="Source",
+    )
+
+    clone_params = FighterCloneParams(
+        name="Clone",
+        content_fighter=content_fighter,
+        target_list=lst,
+    )
+
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=source,
+        clone_params=clone_params,
+    )
+
+    # Verify rating_current initialized
+    clone = result.fighter
+    clone.refresh_from_db()
+    assert clone.rating_current == result.fighter_cost
+    assert clone.rating_current == clone.cost_int()

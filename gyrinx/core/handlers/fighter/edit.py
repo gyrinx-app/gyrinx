@@ -6,6 +6,7 @@ from typing import Any, Optional
 from django.db import transaction
 
 from gyrinx.content.models import ContentFighter
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter
@@ -285,6 +286,15 @@ def handle_fighter_edit(
 
     # Save fighter (the new values were already applied by the form)
     fighter.save()
+
+    # Propagate cost_override changes to fighter.rating_current
+    for change in changes:
+        if change.field_name == "cost_override" and (
+            change.rating_delta != 0 or change.stash_delta != 0
+        ):
+            delta = change.rating_delta + change.stash_delta
+            propagate_from_fighter(fighter, Delta(delta=delta, list=lst))
+            break  # Only one cost_override change possible
 
     # Create ListAction for each change
     list_actions = []

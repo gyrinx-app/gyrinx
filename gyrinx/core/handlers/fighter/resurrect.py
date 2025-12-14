@@ -5,6 +5,7 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import ListFighter
@@ -78,7 +79,10 @@ def handle_fighter_resurrect(
     # Apply mutations
     fighter.injury_state = ListFighter.ACTIVE
     fighter.cost_override = None  # Restores original cost
-    fighter.save()
+    fighter.save(update_fields=["injury_state", "cost_override"])
+
+    # Propagate the cost restoration (0 → restored_cost)
+    propagate_from_fighter(fighter, Delta(delta=restored_cost, list=lst))
 
     # Build description
     description = f"{fighter.name} resurrected (rating +{restored_cost}¢)"
