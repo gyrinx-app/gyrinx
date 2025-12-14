@@ -15,6 +15,11 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
 )
+from gyrinx.core.cost.propagation import (
+    Delta,
+    propagate_from_assignment,
+    propagate_from_fighter,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -106,6 +111,9 @@ def handle_vehicle_purchase(
             name=crew_name,
             content_fighter=crew_fighter,
         )
+
+        # Initialize rating_current to match cost_int()
+        propagate_from_fighter(crew, Delta(delta=crew_cost, list=lst))
     else:
         # We are adding to stash, so make sure there's stash fighter
         crew = lst.ensure_stash()
@@ -115,6 +123,9 @@ def handle_vehicle_purchase(
         list_fighter=crew,
         content_equipment=vehicle_equipment,
     )
+
+    # Propagate to initialize assignment.rating_current and update crew.rating_current
+    propagate_from_assignment(assignment, Delta(delta=vehicle_cost, list=lst))
 
     # Create campaign action for vehicle purchase in campaign mode
     campaign_action = None
