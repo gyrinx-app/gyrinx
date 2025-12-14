@@ -218,7 +218,7 @@ class AdvancementTypeForm(forms.Form):
     cost_increase = forms.IntegerField(
         initial=0,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
-        help_text="Fighter cost increase from this advancement.",
+        help_text="Fighter rating increase from this advancement.",
     )
 
     campaign_action_id = forms.UUIDField(

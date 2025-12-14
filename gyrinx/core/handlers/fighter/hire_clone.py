@@ -6,6 +6,7 @@ from typing import Optional
 from django.db import transaction
 
 from gyrinx.content.models import ContentFighter
+from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import List, ListFighter
@@ -89,7 +90,10 @@ def handle_fighter_hire(
         lst.spend_credits(fighter_cost, description=f"Hiring {fighter.name}")
 
     # Initialize rating_current before saving
-    fighter.rating_current = fighter_cost
+    propagate_from_fighter(
+        fighter,
+        Delta(delta=fighter_cost, list=lst),
+    )
 
     # Save the fighter
     fighter.save()
@@ -178,8 +182,10 @@ def handle_fighter_clone(
     fighter_cost = new_fighter.cost_int()
 
     # Initialize rating_current and re-save
-    new_fighter.rating_current = fighter_cost
-    new_fighter.save(update_fields=["rating_current"])
+    propagate_from_fighter(
+        new_fighter,
+        Delta(delta=fighter_cost, list=target_list),
+    )
 
     # Determine deltas based on fighter type
     rating_delta = fighter_cost if not new_fighter.is_stash else 0
