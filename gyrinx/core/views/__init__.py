@@ -87,6 +87,7 @@ def index(request):
                     owner=request.user,
                     status=List.CAMPAIGN_MODE,
                     campaign__status=Campaign.IN_PROGRESS,
+                    campaign__archived=False,
                 )
                 .select_related("campaign", "content_house")
                 .order_by("-modified")[:5]
@@ -95,9 +96,10 @@ def index(request):
             # Campaigns - where user is owner or has lists participating
             campaigns = (
                 Campaign.objects.filter(
-                    Q(owner=request.user)  # User is campaign admin
-                    | Q(
-                        campaign_lists__owner=request.user
+                    Q(archived=False)
+                    & (
+                        Q(owner=request.user)  # User is campaign admin
+                        | Q(campaign_lists__owner=request.user)
                     )  # User has lists in the campaign
                 )
                 .distinct()

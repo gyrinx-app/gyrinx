@@ -171,6 +171,94 @@ def test_homepage_no_campaigns():
 
 
 @pytest.mark.django_db
+def test_homepage_archived_campaigns_excluded():
+    """Test that archived campaigns and their gangs don't appear on homepage."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="password")
+
+    # Create test house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create an active campaign with a gang
+    active_campaign = Campaign.objects.create(
+        name="Active Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+        archived=False,
+    )
+    active_campaign_gang = List.objects.create(
+        name="Active Campaign Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=active_campaign,
+    )
+
+    # Create an archived campaign with a gang
+    archived_campaign = Campaign.objects.create(
+        name="Archived Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+        archived=True,
+    )
+    archived_campaign_gang = List.objects.create(
+        name="Archived Campaign Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=archived_campaign,
+    )
+
+    # Create another user with an archived campaign where our user participates
+    other_user = User.objects.create_user(username="otheruser", password="password")
+    other_archived_campaign = Campaign.objects.create(
+        name="Other Archived Campaign",
+        owner=other_user,
+        status=Campaign.IN_PROGRESS,
+        archived=True,
+    )
+    other_archived_gang = List.objects.create(
+        name="Gang in Other Archived Campaign",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=other_archived_campaign,
+    )
+
+    # Test authenticated user view
+    client = Client()
+    client.login(username="testuser", password="password")
+    response = client.get(reverse("core:index"))
+
+    assert response.status_code == 200
+
+    # Check context - archived campaigns should be excluded
+    campaigns = response.context["campaigns"]
+    assert active_campaign in campaigns
+    assert archived_campaign not in campaigns
+    assert other_archived_campaign not in campaigns
+
+    # Check context - gangs from archived campaigns should be excluded
+    campaign_gangs = response.context["campaign_gangs"]
+    assert active_campaign_gang in campaign_gangs
+    assert archived_campaign_gang not in campaign_gangs
+    assert other_archived_gang not in campaign_gangs
+
+    # Check content rendering
+    content = response.content.decode()
+
+    # Active campaign and gang should appear
+    assert "Active Campaign" in content
+    assert "Active Campaign Gang" in content
+
+    # Archived campaigns and gangs should not appear
+    assert "Archived Campaign" not in content
+    assert "Archived Campaign Gang" not in content
+    assert "Other Archived Campaign" not in content
+    assert "Gang in Other Archived Campaign" not in content
+
+
+@pytest.mark.django_db
 def test_homepage_anonymous_user():
     """Test that anonymous users don't see campaign modules."""
     client = Client()
