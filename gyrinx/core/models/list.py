@@ -3539,9 +3539,8 @@ def create_related_objects(sender, instance, **kwargs):
             list=instance.list_fighter.list,
             owner=instance.list_fighter.list.owner,
         )
-        lf.dirty = (
-            False  # Child fighters start with rating_current = 0 matching cost_int()
-        )
+        # Child fighters start with rating_current = 0 matching cost_int()
+        lf.dirty = False
         instance.child_fighter = lf
         lf.save()
         instance.save()
