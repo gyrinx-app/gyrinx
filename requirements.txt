@@ -10,9 +10,9 @@ django-csp==4.0
 django-debug-toolbar==6.1.0
 django-extensions==4.1
 django-multiselectfield==1.0.1
-django-polymorphic==4.1.0
+django-polymorphic==4.4.0
 django-recaptcha==4.1.0
-django-simple-history==3.10.1
+django-simple-history==3.11.0
 django-storages[google]==1.14.6
 django-tinymce==5.0.0
 djlint==1.36.4
@@ -33,13 +33,13 @@ opentelemetry-propagator-gcp>=1.8.0
 # OpenTelemetry - Cloud Trace integration
 opentelemetry-sdk>=1.28.0
 Pillow==12.0.0
-playwright==1.56.0
+playwright==1.57.0
 pre-commit==4.5.0
 psycopg2-binary==2.9.11
 pydantic==2.12.5
 pydot==4.0.1
 pyparsing==3.2.5
-pytest==9.0.1
+pytest==9.0.2
 pytest-django==4.11.1
 pytest-watcher==0.4.3
 pytest-xdist==3.8.0
@@ -47,7 +47,7 @@ python-dotenv==1.2.1
 qrcode==8.2
 referencing==0.37.0
 rich==14.2.0
-ruff==0.14.7
+ruff==0.14.9
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.4
