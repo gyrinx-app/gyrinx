@@ -39,6 +39,7 @@ from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.utils import safe_redirect
+from gyrinx.models import is_int, is_valid_uuid
 
 # Constants for transaction limits
 MAX_CREDITS = 10000
@@ -947,18 +948,18 @@ class CampaignActionList(generic.ListView):
 
         # Apply gang filter if provided
         gang_id = self.request.GET.get("gang")
-        if gang_id:
+        if gang_id and is_valid_uuid(gang_id):
             # Filter actions by the specific list/gang
             actions = actions.filter(list_id=gang_id)
 
-        # Apply author filter if provided
+        # Apply author filter if provided (user IDs are integers, not UUIDs)
         author_id = self.request.GET.get("author")
-        if author_id:
+        if author_id and is_int(author_id):
             actions = actions.filter(user__id=author_id)
 
         # Apply battle filter if provided
         battle_id = self.request.GET.get("battle")
-        if battle_id:
+        if battle_id and is_valid_uuid(battle_id):
             # Filter actions by the specific battle
             actions = actions.filter(battle_id=battle_id)
 
