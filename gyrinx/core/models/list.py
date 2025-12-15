@@ -63,6 +63,7 @@ from gyrinx.content.models import (
 from gyrinx.core.models.action import ListAction
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.facts import AssignmentFacts, FighterFacts, ListFacts
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.core.models.util import ModContext
@@ -339,6 +340,83 @@ class List(AppBase):
     @cached_property
     def wealth_current(self):
         return self.rating_current + self.stash_current + self.credits_current
+
+    def facts(self) -> Optional[ListFacts]:
+        """
+        Return cached facts about this list.
+
+        Fast O(1) read from cached fields.
+        Returns None if dirty=True.
+        """
+        if self.dirty:
+            return None
+
+        return ListFacts(
+            rating=self.rating_current,
+            stash=self.stash_current,
+            credits=self.credits_current,
+        )
+
+    def facts_from_db(self, update: bool = True) -> ListFacts:
+        """
+        Recalculate facts from database by walking all fighters.
+
+        Args:
+            update: If True, updates rating_current, stash_current and clears dirty flag.
+
+        Returns:
+            ListFacts with recalculated values.
+
+        Calls cost_int() on each fighter to get fresh values, routing to
+        rating or stash based on is_stash flag.
+
+        Optimized to use prefetched data when available (e.g., after
+        with_related_data(with_fighters=True)).
+        """
+        rating = 0
+        stash = 0
+
+        # Use prefetched fighters if available to avoid additional queries
+        use_prefetch = (
+            hasattr(self, "_prefetched_objects_cache")
+            and "listfighter_set" in self._prefetched_objects_cache
+        )
+
+        if use_prefetch:
+            # Filter in Python to preserve prefetched data
+            fighters = [
+                f
+                for f in self._prefetched_objects_cache["listfighter_set"]
+                if not f.archived
+            ]
+        else:
+            # Fall back to queryset
+            fighters = self.fighters()
+
+        # Walk all fighters and calculate
+        for fighter in fighters:
+            # Use cost_int_cached when prefetched (avoids queries), cost_int otherwise
+            fighter_cost = (
+                fighter.cost_int_cached if use_prefetch else fighter.cost_int()
+            )
+
+            if fighter.content_fighter.is_stash:
+                stash += fighter_cost
+            else:
+                rating += fighter_cost
+
+        # Optionally update cache
+        if update:
+            self.rating_current = rating
+            self.stash_current = stash
+            self.dirty = False
+            self.save(update_fields=["rating_current", "stash_current", "dirty"])
+
+        return ListFacts(
+            rating=rating,
+            stash=stash,
+            credits=self.credits_current,
+        )
 
     def check_wealth_sync(self, wealth_calculated):
         """
@@ -1051,6 +1129,7 @@ class ListFighterQuerySet(models.QuerySet):
                 "advancements",
                 "stat_overrides",
                 "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
+                "listfighterequipmentassignment_set__weapon_profiles_field",
                 "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
                 "listfighterequipmentassignment_set__upgrades_field__modifiers",
@@ -1631,6 +1710,42 @@ class ListFighter(AppBase):
 
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
+
+    def facts(self) -> Optional[FighterFacts]:
+        """
+        Return cached facts about this fighter.
+
+        Fast O(1) read from rating_current field.
+        Returns None if dirty=True.
+        """
+        if self.dirty:
+            return None
+
+        return FighterFacts(rating=self.rating_current)
+
+    def facts_from_db(self, update: bool = True) -> FighterFacts:
+        """
+        Recalculate facts from database using existing cost_int() method.
+
+        Args:
+            update: If True, updates rating_current and clears dirty flag.
+
+        Returns:
+            FighterFacts with recalculated rating.
+
+        Uses existing heavily-tested cost_int() method which walks entire
+        equipment tree.
+        """
+        # Use existing tested cost calculation (walks full tree)
+        rating = self.cost_int()
+
+        # Optionally update cache
+        if update:
+            self.rating_current = rating
+            self.dirty = False
+            self.save(update_fields=["rating_current", "dirty"])
+
+        return FighterFacts(rating=rating)
 
     @cached_property
     def is_active(self):
@@ -3134,6 +3249,41 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
+
+    def facts(self) -> Optional[AssignmentFacts]:
+        """
+        Return cached facts about this assignment.
+
+        Fast O(1) read from rating_current field.
+        Returns None if dirty=True.
+        """
+        if self.dirty:
+            return None
+
+        return AssignmentFacts(rating=self.rating_current)
+
+    def facts_from_db(self, update: bool = True) -> AssignmentFacts:
+        """
+        Recalculate facts from database using existing cost_int() method.
+
+        Args:
+            update: If True, updates rating_current and clears dirty flag.
+
+        Returns:
+            AssignmentFacts with recalculated rating.
+
+        Uses existing heavily-tested cost_int() method for calculation.
+        """
+        # Use existing tested cost calculation
+        rating = self.cost_int()
+
+        # Optionally update cache
+        if update:
+            self.rating_current = rating
+            self.dirty = False
+            self.save(update_fields=["rating_current", "dirty"])
+
+        return AssignmentFacts(rating=rating)
 
     def _get_expansion_cost_override(
         self, content_equipment, weapon_profile, expansion_inputs
