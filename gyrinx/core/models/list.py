@@ -10,7 +10,7 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import (
     Case,
     F,
@@ -157,7 +157,43 @@ class ListQuerySet(models.QuerySet):
 
 
 class ListManager(HistoryAwareManager):
-    pass
+    def create_with_facts(self, user=None, **kwargs):
+        """
+        Create a List and immediately calculate facts from database.
+
+        Use this when the List is complete at creation (no m2m relationships
+        need to be added). For Lists needing m2m setup first, use regular
+        create() followed by manual facts_from_db().
+
+        Args:
+            user: Optional user for history tracking
+            **kwargs: Fields for the new List
+
+        Returns:
+            The created List with correct cached values and dirty=False
+
+        Note:
+            Filters out *_current fields and dirty since they're calculated
+            fresh. Creation and facts calculation are atomic.
+        """
+        # Filter out cached fields that we'll recalculate
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if not k.endswith("_current") and k != "dirty"
+        }
+
+        with transaction.atomic():
+            # Use parent's create_with_user if user provided
+            if user is not None:
+                obj = super().create_with_user(user=user, **filtered_kwargs)
+            else:
+                obj = super().create(**filtered_kwargs)
+
+            # Calculate and cache facts from database
+            obj.facts_from_db(update=True)
+
+        return obj
 
 
 class List(AppBase):
@@ -1095,6 +1131,46 @@ class ListFighterManager(models.Manager):
                 output_field=models.UUIDField(),
             ),
         )
+
+    def create_with_facts(self, user=None, **kwargs):
+        """
+        Create a ListFighter and immediately calculate facts from database.
+
+        Use this when the fighter is complete at creation (no equipment
+        assignments need to be added). For fighters needing equipment first,
+        use regular create() followed by manual facts_from_db().
+
+        Args:
+            user: Optional user for history tracking
+            **kwargs: Fields for the new ListFighter
+
+        Returns:
+            The created ListFighter with correct cached values and dirty=False
+
+        Note:
+            Filters out *_current fields and dirty since they're calculated
+            fresh. Creation and facts calculation are atomic.
+        """
+        # Filter out cached fields that we'll recalculate
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if not k.endswith("_current") and k != "dirty"
+        }
+
+        with transaction.atomic():
+            obj = self.model(**filtered_kwargs)
+
+            # Handle history tracking if user provided
+            if user is not None and hasattr(obj, "save_with_user"):
+                obj.save_with_user(user=user)
+            else:
+                obj.save()
+
+            # Calculate and cache facts from database
+            obj.facts_from_db(update=True)
+
+        return obj
 
 
 class ListFighterQuerySet(models.QuerySet):
@@ -2965,6 +3041,46 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
         ).prefetch_related(
             "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
         )
+
+    def create_with_facts(self, user=None, **kwargs):
+        """
+        Create a ListFighterEquipmentAssignment and calculate facts from database.
+
+        Use this when the assignment is complete at creation (no m2m relationships
+        like weapon_profiles_field need to be added). For assignments needing m2m
+        setup first, use regular create() followed by manual facts_from_db().
+
+        Args:
+            user: Optional user for history tracking
+            **kwargs: Fields for the new assignment
+
+        Returns:
+            The created assignment with correct cached values and dirty=False
+
+        Note:
+            Filters out *_current fields and dirty since they're calculated
+            fresh. Creation and facts calculation are atomic.
+        """
+        # Filter out cached fields that we'll recalculate
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if not k.endswith("_current") and k != "dirty"
+        }
+
+        with transaction.atomic():
+            obj = self.model(**filtered_kwargs)
+
+            # Handle history tracking if user provided
+            if user is not None and hasattr(obj, "save_with_user"):
+                obj.save_with_user(user=user)
+            else:
+                obj.save()
+
+            # Calculate and cache facts from database
+            obj.facts_from_db(update=True)
+
+        return obj
 
 
 class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
