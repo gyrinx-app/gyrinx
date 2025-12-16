@@ -115,6 +115,12 @@
             </span>
         {% endif %}
         <span class="text-muted">|</span>
-        <span>R: {{ list.rating_current }}¢ · C: {{ list.credits_current }}¢ · S: {{ list.stash_current }}¢ · W: {{ list.wealth_current }}¢</span>
+        {% with facts=list.facts %}
+            {% if facts %}
+                <span>R: {{ facts.rating }}¢ · C: {{ facts.credits }}¢ · S: {{ facts.stash }}¢ · W: {{ facts.wealth }}¢</span>
+            {% else %}
+                <span><i class="bi-flag-fill text-success"></i> Dirty</span>
+            {% endif %}
+        {% endwith %}
     </div>
 {% endif %}
