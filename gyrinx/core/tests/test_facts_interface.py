@@ -625,11 +625,4 @@ def test_facts_from_db_with_prefetch_filters_archived(
 
     # Should only include the 2 active fighters
     # Each has 100 base cost + 100 equipment = 200 per fighter = 400 total
-    expected_min = 200  # At least base costs
-    assert facts.rating >= expected_min, (
-        f"Expected at least {expected_min}, got {facts.rating}"
-    )
-
-    # Archived fighter should not be included
-    # If it were included, rating would be higher
-    assert facts.rating < 500, "Archived fighter should not be included"
+    assert facts.rating == 400, f"Expected rating of 400, got {facts.rating}"
