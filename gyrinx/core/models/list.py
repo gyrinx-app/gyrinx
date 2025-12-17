@@ -173,14 +173,15 @@ class ListManager(HistoryAwareManager):
             The created List with correct cached values and dirty=False
 
         Note:
-            Filters out *_current fields and dirty since they're calculated
-            fresh. Creation and facts calculation are atomic.
+            Filters out rating_current, stash_current, and dirty since they're
+            calculated fresh. Other *_current fields (like credits_current) are
+            preserved. Creation and facts calculation are atomic.
         """
         # Filter out cached fields that we'll recalculate
         filtered_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if not k.endswith("_current") and k != "dirty"
+            if k not in ("rating_current", "stash_current", "dirty")
         }
 
         with transaction.atomic():
@@ -797,8 +798,8 @@ class List(AppBase):
             },
         )
 
-        # Create the stash ListFighter
-        new_stash = ListFighter.objects.create(
+        # Create the stash ListFighter with correct cached values
+        new_stash = ListFighter.objects.create_with_facts(
             name="Stash",
             content_fighter=stash_fighter,
             list=self,
@@ -862,8 +863,7 @@ class List(AppBase):
             "public": self.public,
             "narrative": self.narrative,
             "theme_color": self.theme_color,
-            "rating_current": self.rating_current,
-            "stash_current": self.stash_current,
+            # Don't copy rating_current/stash_current - they'll be recalculated
             "credits_current": self.credits_current,
             "credits_earned": self.credits_earned,
             **kwargs,
@@ -959,6 +959,11 @@ class List(AppBase):
             for_campaign=str(for_campaign.id) if for_campaign else "",
             action=str(la.id) if la else "",
         )
+
+        # Recalculate cached values now that all fighters are cloned
+        # Only do this if propagation system won't handle it
+        if not (clone.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL):
+            clone.facts_from_db(update=True)
 
         return clone
 
@@ -1148,14 +1153,15 @@ class ListFighterManager(models.Manager):
             The created ListFighter with correct cached values and dirty=False
 
         Note:
-            Filters out *_current fields and dirty since they're calculated
-            fresh. Creation and facts calculation are atomic.
+            Filters out rating_current, stash_current, and dirty since they're
+            calculated fresh. Other *_current fields (like credits_current) are
+            preserved. Creation and facts calculation are atomic.
         """
         # Filter out cached fields that we'll recalculate
         filtered_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if not k.endswith("_current") and k != "dirty"
+            if k not in ("rating_current", "stash_current", "dirty")
         }
 
         with transaction.atomic():
@@ -2872,6 +2878,13 @@ class ListFighter(AppBase):
                 owner=clone.owner,
             )
 
+        # Recalculate cached values now that all equipment is cloned
+        # Only do this if propagation system won't handle it
+        if not (
+            clone.list.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+        ):
+            clone.facts_from_db(update=True)
+
         return clone
 
     @property
@@ -3004,13 +3017,12 @@ def create_linked_objects(sender, instance, **kwargs):
             # This will trigger the ListFighterEquipmentAssignment logic to
             # create the linked objects
             instance.toggle_default_assignment(assign, enable=False)
-            new_assign = ListFighterEquipmentAssignment(
+            ListFighterEquipmentAssignment.objects.create_with_facts(
                 list_fighter=instance,
                 content_equipment=assign.equipment,
                 cost_override=0,
                 from_default_assignment=assign,
             )
-            new_assign.save()
 
 
 @receiver(
@@ -3058,14 +3070,15 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
             The created assignment with correct cached values and dirty=False
 
         Note:
-            Filters out *_current fields and dirty since they're calculated
-            fresh. Creation and facts calculation are atomic.
+            Filters out rating_current, stash_current, and dirty since they're
+            calculated fresh. Other *_current fields (like credits_current) are
+            preserved. Creation and facts calculation are atomic.
         """
         # Filter out cached fields that we'll recalculate
         filtered_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if not k.endswith("_current") and k != "dirty"
+            if k not in ("rating_current", "stash_current", "dirty")
         }
 
         with transaction.atomic():
@@ -3757,6 +3770,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         clone.save()
 
+        # Recalculate cached values now that all m2m are added
+        # Only do this if propagation system won't handle it
+        if not (
+            clone.list_fighter.list.latest_action
+            and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+        ):
+            clone.facts_from_db(update=True)
+
         return clone
 
     def clean(self):
@@ -3805,10 +3826,11 @@ def create_related_objects(sender, instance, **kwargs):
             list=instance.list_fighter.list,
             owner=instance.list_fighter.list.owner,
         )
-        # Child fighters start with rating_current = 0 matching cost_int()
+        # Child fighters have cost_int() = 0, set rating_current accordingly
+        lf.rating_current = 0
         lf.dirty = False
+        lf.save(update_fields=["rating_current", "dirty"])
         instance.child_fighter = lf
-        lf.save()
         instance.save()
 
     equipment_equipment_profile = ContentEquipmentEquipmentProfile.objects.filter(
@@ -3831,7 +3853,7 @@ def create_related_objects(sender, instance, **kwargs):
         ).exists():
             continue
 
-        ListFighterEquipmentAssignment.objects.create(
+        ListFighterEquipmentAssignment.objects.create_with_facts(
             list_fighter=instance.list_fighter,
             content_equipment=equip_to_create,
             linked_equipment_parent=instance,
@@ -4765,6 +4787,8 @@ class ListFighterAdvancement(AppBase):
                 assignment.upgrades_field.set(
                     self.equipment_assignment.upgrades_field.all()
                 )
+                # Recalculate cached values now that upgrades are added
+                assignment.facts_from_db(update=True)
         elif self.advancement_type == self.ADVANCEMENT_OTHER:
             # For "other" advancements, nothing specific to apply
             # The description is just stored for display purposes

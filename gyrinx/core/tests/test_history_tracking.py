@@ -78,14 +78,16 @@ def test_history_tracking_via_view():
     assert list_obj is not None
 
     # Check history
+    # NOTE: We now create 2 history entries: one for initial save, one for facts_from_db update
     history = list_obj.history.all()
-    assert history.count() == 1
-    assert history[0].history_type == "+"
+    assert history.count() == 2
+    assert history[0].history_type == "~"  # Most recent: update from facts_from_db
+    assert history[1].history_type == "+"  # Initial creation
     assert history[0].name == "Test List"
 
-    # Check if user was tracked by middleware
-    print(f"History user: {history[0].history_user}")
-    print(f"History user id: {history[0].history_user_id}")
+    # Check if user was tracked by middleware (check the creation entry)
+    print(f"History user: {history[1].history_user}")
+    print(f"History user id: {history[1].history_user_id}")
     # This is the key test - is the middleware tracking the user?
     assert history[0].history_user == user
 

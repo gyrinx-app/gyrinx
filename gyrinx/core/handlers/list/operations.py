@@ -46,6 +46,9 @@ def handle_list_creation(
     # Save the list
     lst.save()
 
+    # Initialize cached values for the new list
+    lst.facts_from_db(update=True)
+
     # Create stash fighter if requested
     stash_fighter = None
     if create_stash:
@@ -60,8 +63,8 @@ def handle_list_creation(
             },
         )
 
-        # Create the stash ListFighter
-        stash_fighter = ListFighter.objects.create(
+        # Create the stash ListFighter with correct cached values
+        stash_fighter = ListFighter.objects.create_with_facts(
             name="Stash",
             content_fighter=stash_fighter_type,
             list=lst,

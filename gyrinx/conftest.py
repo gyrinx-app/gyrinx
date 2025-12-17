@@ -333,7 +333,7 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
             "owner": user,
             **kwargs,
         }
-        lst = List.objects.create(name=name, **kwargs)
+        lst = List.objects.create_with_facts(name=name, **kwargs)
 
         # Create initial LIST_CREATE action so other actions can be created
         if create_initial_action:

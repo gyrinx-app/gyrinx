@@ -768,8 +768,8 @@ def show_stash(request, id):
             },
         )
 
-        # Create the stash ListFighter
-        ListFighter.objects.create(
+        # Create the stash ListFighter with correct cached values
+        ListFighter.objects.create_with_facts(
             name="Stash",
             content_fighter=stash_fighter,
             list=lst,
