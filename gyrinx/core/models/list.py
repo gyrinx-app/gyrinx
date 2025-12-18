@@ -3842,12 +3842,11 @@ def create_related_objects(sender, instance, **kwargs):
             list=instance.list_fighter.list,
             owner=instance.list_fighter.list.owner,
         )
-        # Child fighters have cost_int() = 0, set rating_current accordingly
-        lf.rating_current = 0
-        lf.dirty = False
-        lf.save(update_fields=["rating_current", "dirty"])
+        # Establish the link FIRST so is_child_fighter returns True
         instance.child_fighter = lf
         instance.save()
+        # NOW cost_int() returns 0 (child fighters don't contribute to list cost)
+        lf.facts_from_db(update=True)
 
     equipment_equipment_profile = ContentEquipmentEquipmentProfile.objects.filter(
         equipment=instance.content_equipment,
