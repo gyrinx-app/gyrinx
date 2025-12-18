@@ -953,6 +953,9 @@ class List(AppBase):
             if original_stash:
                 for assignment in original_stash._direct_assignments():
                     assignment.clone(list_fighter=new_stash)
+                # Update stash fighter's rating after all equipment is cloned
+                # (assignment.clone only updates the assignment, not the fighter)
+                new_stash.facts_from_db(update=True)
 
         # Clone attributes
         for attribute_assignment in self.listattributeassignment_set.filter(
@@ -978,10 +981,9 @@ class List(AppBase):
             action=str(la.id) if la else "",
         )
 
-        # Recalculate cached values now that all fighters are cloned
-        # Only do this if propagation system won't handle it
-        if not (clone.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL):
-            clone.facts_from_db(update=True)
+        # Always recalculate cached values after cloning
+        # Cloning is not part of the action/propagation system - it needs explicit recalculation
+        clone.facts_from_db(update=True)
 
         return clone
 
@@ -2909,8 +2911,9 @@ class ListFighter(AppBase):
                 owner=clone.owner,
             )
 
-        # Recalculate cached values now that all equipment is cloned
-        # Only do this if propagation system won't handle it
+        # Recalculate cached values if propagation system is not active
+        # When propagation IS active (latest_action exists), the handler will call
+        # propagate_from_fighter() which updates rating_current
         if not (
             clone.list.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
         ):
@@ -3801,13 +3804,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         clone.save()
 
-        # Recalculate cached values now that all m2m are added
-        # Only do this if propagation system won't handle it
-        if not (
-            clone.list_fighter.list.latest_action
-            and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
-        ):
-            clone.facts_from_db(update=True)
+        # Always recalculate cached values after cloning
+        # Cloning is not part of the action/propagation system - it needs explicit recalculation
+        clone.facts_from_db(update=True)
 
         return clone
 
