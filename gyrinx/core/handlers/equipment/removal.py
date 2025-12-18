@@ -120,11 +120,10 @@ def handle_equipment_removal(
     )
 
     # Propagate to FIGHTER using equipment-only cost (child fighter was never part of parent)
-    fighter_delta = -equipment_only_cost if not is_stash else 0
-    fighter_stash_delta = -equipment_only_cost if is_stash else 0
+    # The delta is always -equipment_only_cost regardless of stash status
     propagate_from_fighter(
         fighter,
-        Delta(delta=fighter_stash_delta if is_stash else fighter_delta, list=lst),
+        Delta(delta=-equipment_only_cost, list=lst),
     )
 
     # Delete the assignment
