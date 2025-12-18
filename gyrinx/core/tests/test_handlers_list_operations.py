@@ -163,11 +163,11 @@ def test_handle_list_creation_transaction_rollback(user, content_house, monkeypa
     initial_list_count = List.objects.count()
     initial_fighter_count = ListFighter.objects.count()
 
-    # Monkeypatch ListFighter.objects.create to raise an error
+    # Monkeypatch ListFighter.objects.create_with_facts to raise an error
     def failing_create(*args, **kwargs):
         raise RuntimeError("Simulated error")
 
-    monkeypatch.setattr(ListFighter.objects, "create", failing_create)
+    monkeypatch.setattr(ListFighter.objects, "create_with_facts", failing_create)
 
     # Call the handler - should raise error and rollback
     with pytest.raises(RuntimeError):

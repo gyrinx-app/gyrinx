@@ -244,8 +244,10 @@ def test_list_clone_copies_cost_fields(make_list):
 
     # Assert
     assert clone.credits_current == 500
-    assert clone.rating_current == 1000
-    assert clone.stash_current == 150
+    # rating_current and stash_current are recalculated from actual content
+    # Since there are no fighters, they should be 0
+    assert clone.rating_current == 0
+    assert clone.stash_current == 0
     assert clone.credits_earned == 2000
 
 
@@ -389,7 +391,8 @@ def test_handle_list_clone_handler(make_list, user, settings, feature_flag_enabl
     else:
         assert result.original_action is None
 
-    # Assert cost fields copied
+    # Assert cost fields - credits_current is copied, rating/stash recalculated
     assert result.cloned_list.credits_current == 500
-    assert result.cloned_list.rating_current == 1000
-    assert result.cloned_list.stash_current == 150
+    # rating_current and stash_current are recalculated from actual content
+    assert result.cloned_list.rating_current == 0
+    assert result.cloned_list.stash_current == 0

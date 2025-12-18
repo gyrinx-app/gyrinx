@@ -626,3 +626,210 @@ def test_facts_from_db_with_prefetch_filters_archived(
     # Should only include the 2 active fighters
     # Each has 100 base cost + 100 equipment = 200 per fighter = 400 total
     assert facts.rating == 400, f"Expected rating of 400, got {facts.rating}"
+
+
+@pytest.mark.django_db
+def test_list_create_with_facts_sets_correct_values(user, content_house):
+    """Test that List.objects.create_with_facts() sets correct cached values."""
+    lst = List.objects.create_with_facts(
+        name="Test List", content_house=content_house, owner=user
+    )
+
+    # Should have correct initial values
+    assert lst.rating_current == 0
+    assert lst.stash_current == 0
+    assert lst.dirty is False
+
+
+@pytest.mark.django_db
+def test_list_create_with_facts_filters_kwargs(user, content_house):
+    """Test that create_with_facts() filters out *_current fields."""
+    # Try to pass rating_current - should be ignored
+    lst = List.objects.create_with_facts(
+        name="Test List",
+        content_house=content_house,
+        owner=user,
+        rating_current=999,  # Should be ignored
+        stash_current=888,  # Should be ignored
+        dirty=True,  # Should be ignored
+    )
+
+    # Should use calculated values, not provided ones
+    assert lst.rating_current == 0
+    assert lst.stash_current == 0
+    assert lst.dirty is False
+
+
+@pytest.mark.django_db
+def test_list_create_with_facts_with_user(user, content_house):
+    """Test that create_with_facts() supports user parameter for history."""
+    lst = List.objects.create_with_facts(
+        name="Test List", content_house=content_house, owner=user, user=user
+    )
+
+    # Should have created the object with history
+    assert lst.rating_current == 0
+    assert lst.dirty is False
+    # Check that history was created
+    assert lst.history.count() > 0
+
+
+@pytest.mark.django_db
+def test_fighter_create_with_facts_sets_correct_values(
+    user, make_list, content_fighter
+):
+    """Test that ListFighter.objects.create_with_facts() sets correct values."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create_with_facts(
+        name="Test Fighter", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    # Should have correct initial values
+    expected_rating = content_fighter.base_cost
+    assert fighter.rating_current == expected_rating
+    assert fighter.dirty is False
+
+
+@pytest.mark.django_db
+def test_fighter_create_with_facts_filters_kwargs(user, make_list, content_fighter):
+    """Test that create_with_facts() filters out *_current fields."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+    # Try to pass rating_current - should be ignored
+    fighter = ListFighter.objects.create_with_facts(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=999,  # Should be ignored
+        dirty=True,  # Should be ignored
+    )
+
+    # Should use calculated value, not provided one
+    expected_rating = content_fighter.base_cost
+    assert fighter.rating_current == expected_rating
+    assert fighter.dirty is False
+
+
+@pytest.mark.django_db
+def test_fighter_create_with_facts_with_user(user, make_list, content_fighter):
+    """Test that create_with_facts() supports user parameter."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create_with_facts(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        user=user,
+    )
+
+    # Should have created the object
+    assert fighter.rating_current == content_fighter.base_cost
+    assert fighter.dirty is False
+
+
+@pytest.mark.django_db
+def test_assignment_create_with_facts_sets_correct_values(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that Assignment.objects.create_with_facts() sets correct values."""
+    from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", content_fighter=content_fighter, list=lst, owner=user
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+
+    assignment = ListFighterEquipmentAssignment.objects.create_with_facts(
+        list_fighter=fighter, content_equipment=equipment
+    )
+
+    # Should have correct initial value
+    assert assignment.rating_current == 50
+    assert assignment.dirty is False
+
+
+@pytest.mark.django_db
+def test_assignment_create_with_facts_filters_kwargs(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that create_with_facts() filters out *_current fields."""
+    from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter", content_fighter=content_fighter, list=lst, owner=user
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+
+    # Try to pass rating_current - should be ignored
+    assignment = ListFighterEquipmentAssignment.objects.create_with_facts(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=999,  # Should be ignored
+        dirty=True,  # Should be ignored
+    )
+
+    # Should use calculated value, not provided one
+    assert assignment.rating_current == 50
+    assert assignment.dirty is False
+
+
+@pytest.mark.django_db
+def test_create_with_facts_matches_manual_facts_from_db(
+    user, make_list, content_fighter
+):
+    """Test that create_with_facts() produces same result as create + facts_from_db."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+
+    # Method 1: create_with_facts
+    fighter1 = ListFighter.objects.create_with_facts(
+        name="Fighter 1", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    # Method 2: create + facts_from_db
+    fighter2 = ListFighter.objects.create(
+        name="Fighter 2", content_fighter=content_fighter, list=lst, owner=user
+    )
+    fighter2.facts_from_db(update=True)
+
+    # Should have identical results
+    assert fighter1.rating_current == fighter2.rating_current
+    assert fighter1.dirty == fighter2.dirty
+    assert fighter1.dirty is False
+
+
+@pytest.mark.django_db
+def test_create_with_facts_transaction_rollback_on_error(
+    user, make_list, content_fighter, monkeypatch
+):
+    """Test that create_with_facts() rolls back if facts_from_db() fails."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+
+    # Count fighters before
+    initial_count = ListFighter.objects.count()
+
+    # Mock facts_from_db to raise an exception
+    def failing_facts_from_db(self, update=True):
+        raise ValueError("Simulated failure")
+
+    monkeypatch.setattr(ListFighter, "facts_from_db", failing_facts_from_db)
+
+    # Should raise the exception and rollback
+    with pytest.raises(ValueError, match="Simulated failure"):
+        ListFighter.objects.create_with_facts(
+            name="Test Fighter", content_fighter=content_fighter, list=lst, owner=user
+        )
+
+    # Fighter should NOT have been created (transaction rolled back)
+    assert ListFighter.objects.count() == initial_count

@@ -246,7 +246,7 @@ def test_handle_vehicle_purchase_child_fighter_rating_current(
 
         # Child fighters have cost_int() = 0
         assert vehicle_fighter_child.cost_int() == 0
-        # rating_current should match
-        assert vehicle_fighter_child.rating_current == 0
+        # rating_current should match cost_int()
+        assert vehicle_fighter_child.rating_current == vehicle_fighter_child.cost_int()
         # dirty should be False (synchronized at creation)
         assert not vehicle_fighter_child.dirty

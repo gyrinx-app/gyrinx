@@ -40,6 +40,7 @@ class EquipmentRemovalResult:
     assignment_id: UUID
     equipment_name: str
     equipment_cost: int
+    child_fighter_cost: int
     refund_applied: bool
     description: str
     list_action: Optional[ListAction]
@@ -94,34 +95,46 @@ def handle_equipment_removal(
     credits_before = lst.credits_current
 
     # Calculate cost BEFORE deletion
-    equipment_cost = assignment.cost_int()
+    equipment_only_cost = assignment.cost_int()  # Just the equipment assignment
     equipment_name = assignment.content_equipment.name
     assignment_id = assignment.id
 
-    # Calculate deltas based on fighter type
-    is_stash = fighter.is_stash
-    rating_delta = -equipment_cost if not is_stash else 0
-    stash_delta = -equipment_cost if is_stash else 0
+    # Calculate child fighter cost separately (cascade-deleted, but not part of parent fighter)
+    child_fighter_cost = 0
+    if assignment.child_fighter:
+        child_fighter_cost = assignment.child_fighter.cost_int()
 
-    # Validate and calculate refund
+    # Total cost for list = equipment + child fighter
+    total_cost = equipment_only_cost + child_fighter_cost
+
+    # Calculate deltas for LIST (sees total_cost including child fighter)
+    is_stash = fighter.is_stash
+    rating_delta = -total_cost if not is_stash else 0
+    stash_delta = -total_cost if is_stash else 0
+
+    # Validate and calculate refund (based on total cost)
     credits_delta, refund_applied = calculate_refund_credits(
         lst=lst,
-        cost=equipment_cost,
+        cost=total_cost,
         request_refund=request_refund,
     )
 
-    # Propagate rating changes to fighter (assignment will be deleted, no need to update it)
-    # Use the appropriate delta based on fighter type
-    fighter_delta = stash_delta if is_stash else rating_delta
-    propagate_from_fighter(fighter, Delta(delta=fighter_delta, list=lst))
+    # Propagate to FIGHTER using equipment-only cost (child fighter was never part of parent)
+    # The delta is always -equipment_only_cost regardless of stash status
+    propagate_from_fighter(
+        fighter,
+        Delta(delta=-equipment_only_cost, list=lst),
+    )
 
     # Delete the assignment
     assignment.delete()
 
     # Build description
-    description = f"Removed {equipment_name} from {fighter.name} ({equipment_cost}¢)"
+    description = f"Removed {equipment_name} from {fighter.name} ({total_cost}¢)"
+    if child_fighter_cost > 0:
+        description += f" (including linked fighter: {child_fighter_cost}¢)"
     if refund_applied:
-        description += f" - refund applied (+{equipment_cost}¢)"
+        description += f" - refund applied (+{total_cost}¢)"
 
     # Create ListAction
     list_action = lst.create_action(
@@ -144,7 +157,8 @@ def handle_equipment_removal(
     return EquipmentRemovalResult(
         assignment_id=assignment_id,
         equipment_name=equipment_name,
-        equipment_cost=equipment_cost,
+        equipment_cost=total_cost,
+        child_fighter_cost=child_fighter_cost,
         refund_applied=refund_applied,
         description=description,
         list_action=list_action,

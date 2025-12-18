@@ -1,13 +1,20 @@
 {% if gyrinx_debug %}
-    <div class="bg-warning-subtle border border-warning rounded px-2 py-1 fs-7 font-monospace d-flex align-items-center gap-3">
-        <span class="text-warning-emphasis fw-bold">DEBUG</span>
-        <span class="text-muted">|</span>
-        {% with facts=fighter.facts %}
+    {% with facts=fighter.facts %}
+        <div class="my-2 {% if fighter.debug_facts_in_sync %}bg-warning-subtle border border-warning{% else %}bg-danger-subtle border border-danger{% endif %} rounded px-2 py-1 fs-7 font-monospace d-flex align-items-center gap-3">
+            <span class="{% if fighter.debug_facts_in_sync %}text-warning-emphasis{% else %}text-danger-emphasis{% endif %} fw-bold">DEBUG</span>
             {% if facts %}
-                <span>R: {{ facts.rating }}¢</span>
+                <span>
+                    {% if not fighter.debug_facts_in_sync %}
+                        <i class="bi-flag-fill text-danger"
+                           bs-tooltip
+                           data-bs-toggle="tooltip"
+                           title="Cached rating out of sync"></i>
+                    {% endif %}
+                    R: {{ facts.rating }}¢
+                </span>
             {% else %}
                 <span>R: <i class="bi-flag-fill text-success"></i> Dirty</span>
             {% endif %}
-        {% endwith %}
-    </div>
+        </div>
+    {% endwith %}
 {% endif %}

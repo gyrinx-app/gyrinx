@@ -176,7 +176,7 @@ class ListFighterForm(forms.ModelForm):
             # The instance only has a content_fighter if it is being edited
             if hasattr(inst, "content_fighter"):
                 self.fields["cost_override"].widget.attrs["placeholder"] = (
-                    inst._base_cost_int
+                    inst.content_fighter.cost_for_house(inst.list.content_house)
                 )
 
                 # Disable legacy content fighter if the content fighter is not a legacy
@@ -218,13 +218,13 @@ class ListFighterForm(forms.ModelForm):
             "content_fighter": "{term_singular} Type",
             "legacy_content_fighter": "Gang Legacy",
             "category_override": "Category Override",
-            "cost_override": "Manually Set Cost",
+            "cost_override": "Manually Set Rating",
         }
         help_texts = {
             "name": "The name you use to identify this {term_singular}. This may be public.",
             "legacy_content_fighter": "The Gang Legacy for this fighter.",
-            "category_override": "Override the {term_singular}'s category without changing their type or special rules.",
-            "cost_override": "Only change this if you want to override the default base cost of the {term_singular}.",
+            "category_override": "Overrides the {term_singular}'s category without changing their type or special rules.",
+            "cost_override": "Overrides the default base rating of the {term_singular}, before weapons, gear and advancements are applied.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
