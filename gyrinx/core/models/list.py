@@ -1173,25 +1173,18 @@ class ListFighterManager(models.Manager):
             The created ListFighter with correct cached values and dirty=False
 
         Note:
-            Filters out rating_current, stash_current, and dirty since they're
-            calculated fresh. Other *_current fields (like credits_current) are
-            preserved. Creation and facts calculation are atomic.
+            Filters out rating_current and dirty since they're calculated fresh.
+            Creation and facts calculation are atomic.
         """
         # Filter out cached fields that we'll recalculate
         filtered_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ("rating_current", "stash_current", "dirty")
+            k: v for k, v in kwargs.items() if k not in ("rating_current", "dirty")
         }
 
         with transaction.atomic():
             obj = self.model(**filtered_kwargs)
-
-            # Handle history tracking if user provided
-            if user is not None and hasattr(obj, "save_with_user"):
-                obj.save_with_user(user=user)
-            else:
-                obj.save()
+            # Use save_with_user for proper history tracking (from HistoryMixin)
+            obj.save_with_user(user=user)
 
             # Calculate and cache facts from database
             obj.facts_from_db(update=True)
@@ -3104,25 +3097,18 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
             The created assignment with correct cached values and dirty=False
 
         Note:
-            Filters out rating_current, stash_current, and dirty since they're
-            calculated fresh. Other *_current fields (like credits_current) are
-            preserved. Creation and facts calculation are atomic.
+            Filters out rating_current and dirty since they're calculated fresh.
+            Creation and facts calculation are atomic.
         """
         # Filter out cached fields that we'll recalculate
         filtered_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ("rating_current", "stash_current", "dirty")
+            k: v for k, v in kwargs.items() if k not in ("rating_current", "dirty")
         }
 
         with transaction.atomic():
             obj = self.model(**filtered_kwargs)
-
-            # Handle history tracking if user provided
-            if user is not None and hasattr(obj, "save_with_user"):
-                obj.save_with_user(user=user)
-            else:
-                obj.save()
+            # Use save_with_user for proper history tracking (from HistoryMixin)
+            obj.save_with_user(user=user)
 
             # Calculate and cache facts from database
             obj.facts_from_db(update=True)
