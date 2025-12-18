@@ -33,6 +33,26 @@ def _should_propagate(lst: "List") -> bool:
     """
     Check if propagation should occur based on feature flag.
 
+    This guard condition is critical for avoiding double-counting bugs. The codebase
+    has TWO systems for keeping cached values (rating_current, etc.) in sync:
+
+    1. **Facts System** (pull-based): `facts_from_db()` recalculates from database
+    2. **Propagation System** (push-based): `propagate_from_*()` applies incremental deltas
+
+    Only ONE system should update cached values for any given operation:
+
+    - When guard is TRUE: Handlers use propagation, clone methods do NOT call facts_from_db()
+    - When guard is FALSE: facts_from_db() must be called explicitly after creation/cloning
+
+    The guard requires BOTH conditions:
+    - `lst.latest_action`: List has recorded initial state (bootstrap action exists)
+    - `FEATURE_LIST_ACTION_CREATE_INITIAL`: Feature flag is enabled
+
+    This same condition appears in:
+    - ListFighter.clone() - decides whether to call facts_from_db()
+    - List.create_action() - decides whether to record actions
+    - All propagate_from_*() functions - decides whether to update cached fields
+
     Matches the guard condition in List.create_action().
     """
     return bool(lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL)
