@@ -178,3 +178,89 @@ def test_refresh_list_cost_get_request_redirects(client, user, content_house):
 
     assert response.status_code == 302
     assert response.url == reverse("core:list", args=[lst.id])
+
+
+@pytest.mark.django_db
+def test_refresh_list_cost_syncs_facts_when_out_of_sync(client, user, content_house):
+    """Test that refresh syncs facts when rating_current doesn't match cost_int()."""
+    lst = List.objects.create(
+        owner=user,
+        content_house=content_house,
+        name="Test List",
+    )
+
+    fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=100,
+    )
+
+    ListFighter.objects.create(
+        owner=user,
+        list=lst,
+        content_fighter=fighter,
+        name="Test Fighter",
+    )
+
+    # Manually set rating_current to wrong value to simulate out-of-sync state
+    lst.rating_current = 0
+    lst.dirty = False
+    lst.save(update_fields=["rating_current", "dirty"])
+
+    # Verify list is out of sync
+    lst.refresh_from_db()
+    assert lst.cost_int() == 100
+    assert lst.rating_current == 0  # Out of sync
+
+    client.force_login(user)
+    url = reverse("core:list-refresh-cost", args=[lst.id])
+    response = client.post(url)
+
+    assert response.status_code == 302
+
+    # Verify facts were synced
+    lst.refresh_from_db()
+    assert lst.rating_current == 100  # Now in sync
+    assert lst.dirty is False
+
+
+@pytest.mark.django_db
+def test_refresh_list_cost_no_change_when_facts_in_sync(client, user, content_house):
+    """Test that refresh doesn't unnecessarily update when facts are already in sync."""
+    lst = List.objects.create(
+        owner=user,
+        content_house=content_house,
+        name="Test List",
+    )
+
+    fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=75,
+    )
+
+    ListFighter.objects.create(
+        owner=user,
+        list=lst,
+        content_fighter=fighter,
+        name="Test Fighter",
+    )
+
+    # Ensure facts are in sync
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    assert lst.cost_int() == 75
+    assert lst.rating_current == 75  # In sync
+
+    client.force_login(user)
+    url = reverse("core:list-refresh-cost", args=[lst.id])
+    response = client.post(url)
+
+    assert response.status_code == 302
+
+    # Verify facts remain in sync
+    lst.refresh_from_db()
+    assert lst.rating_current == 75
+    assert lst.dirty is False

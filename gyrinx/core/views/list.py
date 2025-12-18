@@ -110,6 +110,7 @@ from gyrinx.core.utils import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import FighterCategoryChoices, QuerySetOf, is_int, is_valid_uuid
+from gyrinx.tracker import track
 
 
 class ListsListView(generic.ListView):
@@ -803,12 +804,37 @@ def refresh_list_cost(request, id):
     if request.method == "POST":
         wealth = lst.cost_int()
 
+        # Check if CACHED values match calculated values
+        # facts() returns cached values (or None if dirty)
+        # facts_from_db() recalculates - don't use it for comparison
+        cached_facts = lst.facts()
+        if cached_facts is None:
+            # dirty flag is set, definitely out of sync
+            facts_match = False
+        else:
+            facts_match = cached_facts.wealth == wealth
+
         cache = caches["core_list_cache"]
         cache_key = lst.cost_cache_key()
+        cached_value = cache.get(cache_key)
+
         cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
 
         if "cost_int_cached" in lst.__dict__:
             del lst.__dict__["cost_int_cached"]
+
+        if not facts_match:
+            lst.facts_from_db(update=True)
+
+        track(
+            "list_cost_refresh",
+            list_id=str(lst.id),
+            old_cost=cached_value,
+            new_cost=wealth,
+            delta=wealth - (cached_value or 0),
+            was_dirty=cached_facts is None,
+            facts_match=facts_match,
+        )
 
     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
