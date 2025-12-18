@@ -99,28 +99,36 @@
     </div>
 </div>
 {% if gyrinx_debug %}
-    <div class="bg-warning-subtle border border-warning rounded px-2 py-1 mb-2 fs-7 font-monospace d-flex align-items-center gap-3">
-        <span class="text-warning-emphasis fw-bold">DEBUG</span>
-        {% if list.latest_action %}
-            <a href="{% url 'debug_list_actions' list.id %}"
-               class="text-decoration-none"
-               bs-tooltip
-               data-bs-toggle="tooltip"
-               title="{{ list.latest_action.action_type }}: {{ list.latest_action.description }}">
-                <i class="bi-flag-fill text-success"></i> <span class="text-body">Has actions</span>
-            </a>
-        {% else %}
-            <span bs-tooltip data-bs-toggle="tooltip" title="No actions recorded">
-                <i class="bi-flag text-secondary"></i> No actions
-            </span>
-        {% endif %}
-        <span class="text-muted">|</span>
-        {% with facts=list.facts %}
+    {% with facts=list.facts %}
+        <div class="{% if list.debug_facts_in_sync %}bg-warning-subtle border border-warning{% else %}bg-danger-subtle border border-danger{% endif %} rounded px-2 py-1 mb-2 fs-7 font-monospace d-flex align-items-center gap-3">
+            <span class="{% if list.debug_facts_in_sync %}text-warning-emphasis{% else %}text-danger-emphasis{% endif %} fw-bold">DEBUG</span>
+            {% if list.latest_action %}
+                <a href="{% url 'debug_list_actions' list.id %}"
+                   class="text-decoration-none"
+                   bs-tooltip
+                   data-bs-toggle="tooltip"
+                   title="{{ list.latest_action.action_type }}: {{ list.latest_action.description }}">
+                    <i class="bi-flag-fill text-success"></i> <span class="text-body">Has actions</span>
+                </a>
+            {% else %}
+                <span bs-tooltip data-bs-toggle="tooltip" title="No actions recorded">
+                    <i class="bi-flag text-secondary"></i> No actions
+                </span>
+            {% endif %}
+            <span class="text-muted">|</span>
             {% if facts %}
-                <span>R: {{ facts.rating }}¢ · C: {{ facts.credits }}¢ · S: {{ facts.stash }}¢ · W: {{ facts.wealth }}¢</span>
+                <span>
+                    {% if not list.debug_facts_in_sync %}
+                        <i class="bi-flag-fill text-danger"
+                           bs-tooltip
+                           data-bs-toggle="tooltip"
+                           title="Cached values out of sync"></i>
+                    {% endif %}
+                    R: {{ facts.rating }}¢ · C: {{ facts.credits }}¢ · S: {{ facts.stash }}¢ · W: {{ facts.wealth }}¢
+                </span>
             {% else %}
                 <span><i class="bi-flag-fill text-success"></i> Dirty</span>
             {% endif %}
-        {% endwith %}
-    </div>
+        </div>
+    {% endwith %}
 {% endif %}

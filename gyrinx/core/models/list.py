@@ -394,6 +394,24 @@ class List(AppBase):
             credits=self.credits_current,
         )
 
+    @property
+    def debug_facts_in_sync(self) -> bool:
+        """
+        Check if cached facts match calculated values.
+
+        Used by debug menu to show red flag when out of sync.
+        """
+        facts = self.facts()
+        if facts is None:
+            return False  # Dirty state means not in sync
+
+        return (
+            facts.rating == self.rating
+            and facts.credits == self.credits_current
+            and facts.stash == self.stash_fighter_cost_int
+            and facts.wealth == self.wealth_current
+        )
+
     def facts_from_db(self, update: bool = True) -> ListFacts:
         """
         Recalculate facts from database by walking all fighters.
@@ -1804,6 +1822,19 @@ class ListFighter(AppBase):
             return None
 
         return FighterFacts(rating=self.rating_current)
+
+    @property
+    def debug_facts_in_sync(self) -> bool:
+        """
+        Check if cached facts match calculated values.
+
+        Used by debug menu to show red flag when out of sync.
+        """
+        facts = self.facts()
+        if facts is None:
+            return False  # Dirty state means not in sync
+
+        return facts.rating == self.cost_int()
 
     def facts_from_db(self, update: bool = True) -> FighterFacts:
         """

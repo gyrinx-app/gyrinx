@@ -71,7 +71,7 @@ Examples of when to ask for human help:
 Format these as:
 ```
 🧑‍💻 **Human Action Required**
-STOP HERE and ask the user to perform the following action:
+STOP HERE and ask the user:
 
 Please run this command and tell me the result:
 `python manage.py shell -c "print(MyModel.objects.count())"`

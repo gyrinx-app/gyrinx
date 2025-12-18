@@ -70,11 +70,13 @@ def _generate_field_description(
 
     if field_name == "cost_override":
         if old_value is None and new_value is not None:
-            return f"Set cost override to {new_value}\u00a2 ({cost_delta:+}\u00a2)"
+            return f"Set rating override to {new_value}\u00a2 ({cost_delta:+}\u00a2)"
         elif old_value is not None and new_value is None:
-            return f"Removed cost override of {old_value}\u00a2 ({cost_delta:+}\u00a2)"
+            return (
+                f"Removed rating override of {old_value}\u00a2 ({cost_delta:+}\u00a2)"
+            )
         else:
-            return f"Changed cost override from {old_value}\u00a2 to {new_value}\u00a2 ({cost_delta:+}\u00a2)"
+            return f"Changed rating override from {old_value}\u00a2 to {new_value}\u00a2 ({cost_delta:+}\u00a2)"
 
     # Fallback for unknown fields
     return f"Changed {field_name} from {old_value} to {new_value}"
