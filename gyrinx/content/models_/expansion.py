@@ -5,6 +5,8 @@ from typing import Optional
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Count, F, Q, When
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
@@ -22,6 +24,7 @@ from gyrinx.models import (
     FighterCategoryChoices,
     format_cost_display,
 )
+from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +271,31 @@ class ContentEquipmentListExpansionItem(Content):
                 {"weapon_profile": "Weapon profile must match the equipment selected."}
             )
 
+    def set_dirty(self) -> None:
+        """Mark all ListFighterEquipmentAssignments dirty that could be affected by this expansion cost.
+
+        Since expansions apply based on complex rules (house, attributes, fighter categories),
+        we conservatively mark all assignments with this equipment dirty. Expansion cost
+        changes are rare admin operations, so this is safe and correct.
+        """
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        filter_kwargs = {
+            "content_equipment": self.equipment,
+            "archived": False,
+        }
+
+        # If this item has a specific weapon profile, only mark assignments with that profile
+        if self.weapon_profile is not None:
+            filter_kwargs["content_weapon_profile"] = self.weapon_profile
+
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            **filter_kwargs
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
     class Meta:
         verbose_name = "Equipment List Expansion Item"
         verbose_name_plural = "Equipment List Expansion Items"
@@ -422,3 +450,44 @@ class ContentEquipmentListExpansionRuleByFighterCategory(
     class Meta:
         verbose_name = "Expansion Rule by Fighter Category"
         verbose_name_plural = "Expansion Rules by Fighter Category"
+
+
+# Signal handlers for cost change dirty propagation
+
+
+def _get_old_cost(sender, instance, field_name):
+    """Get the old cost value from the database, or None if this is a new instance."""
+    if not instance.pk:
+        return None
+
+    try:
+        old_instance = sender.objects.only(field_name).get(pk=instance.pk)
+        return getattr(old_instance, field_name)
+    except sender.DoesNotExist:
+        return None
+
+
+def _get_new_cost(instance, field_name):
+    """Get the new cost value from the instance."""
+    return getattr(instance, field_name)
+
+
+@receiver(
+    pre_save,
+    sender=ContentEquipmentListExpansionItem,
+    dispatch_uid="content_expansion_item_cost_change",
+)
+@traced("signal_content_expansion_item_cost_change")
+def handle_expansion_item_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentEquipmentListExpansionItem.cost changes.
+
+    This model provides cost overrides for equipment in expansion lists.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()

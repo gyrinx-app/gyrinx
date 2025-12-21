@@ -412,6 +412,20 @@ class List(AppBase):
             and facts.wealth == self.wealth_current
         )
 
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this list as dirty.
+
+        This is the terminal propagation point - List does not propagate further.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
     def facts_from_db(self, update: bool = True) -> ListFacts:
         """
         Recalculate facts from database with lazy child evaluation.
@@ -1373,6 +1387,7 @@ class ListFighter(AppBase):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
+        db_index=True,
         related_name="list_fighter_legacy",
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
     )
@@ -1835,6 +1850,21 @@ class ListFighter(AppBase):
             return False  # Dirty state means not in sync
 
         return facts.rating == self.cost_int()
+
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this fighter as dirty and propagate to parent list.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
+        # Propagate to parent list
+        self.list.set_dirty(save=save)
 
     def facts_from_db(self, update: bool = True) -> FighterFacts:
         """
@@ -3445,6 +3475,21 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         return AssignmentFacts(rating=self.rating_current)
 
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this assignment as dirty and propagate to parent fighter.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
+        # Propagate to parent fighter
+        self.list_fighter.set_dirty(save=save)
+
     def facts_from_db(self, update: bool = True) -> AssignmentFacts:
         """
         Recalculate facts from database using existing cost_int() method.
@@ -3844,6 +3889,13 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
         verbose_name_plural = "Fighter Equipment Assignments"
+
+        indexes = [
+            models.Index(
+                fields=["content_equipment"],
+                name="idx_assignment_content_equip",
+            ),
+        ]
 
 
 @receiver(

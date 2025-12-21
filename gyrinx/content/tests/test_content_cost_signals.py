@@ -1,0 +1,658 @@
+"""
+Tests for content model cost change signals.
+
+When a Content model's cost field changes, affected core objects
+(assignments, fighters, lists) should be marked as dirty.
+"""
+
+import pytest
+
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentEquipmentUpgrade,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponAccessory,
+    ContentWeaponProfile,
+)
+from gyrinx.core.models.list import (
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
+from gyrinx.models import FighterCategoryChoices
+
+
+@pytest.fixture
+def content_house():
+    """Create a test house."""
+    return ContentHouse.objects.create(name="Test House")
+
+
+@pytest.fixture
+def content_fighter(content_house):
+    """Create a test content fighter."""
+    return ContentFighter.objects.create(
+        type="Test Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+
+
+@pytest.fixture
+def equipment_category():
+    """Create a test equipment category."""
+    return ContentEquipmentCategory.objects.create(name="Test Category", group="Gear")
+
+
+@pytest.fixture
+def content_equipment(equipment_category):
+    """Create a test equipment with cost."""
+    return ContentEquipment.objects.create(
+        name="Test Equipment", category=equipment_category, cost="100"
+    )
+
+
+@pytest.fixture
+def content_weapon_equipment(equipment_category):
+    """Create a test weapon equipment."""
+    return ContentEquipment.objects.create(
+        name="Test Weapon", category=equipment_category, cost="75"
+    )
+
+
+@pytest.fixture
+def content_weapon_profile(content_weapon_equipment):
+    """Create a test weapon profile."""
+    return ContentWeaponProfile.objects.create(
+        equipment=content_weapon_equipment, name="Long Range", cost=25
+    )
+
+
+@pytest.fixture
+def content_accessory():
+    """Create a test weapon accessory."""
+    return ContentWeaponAccessory.objects.create(name="Test Scope", cost=15)
+
+
+@pytest.fixture
+def content_upgrade(content_equipment):
+    """Create a test equipment upgrade."""
+    return ContentEquipmentUpgrade.objects.create(
+        equipment=content_equipment, name="Basic Upgrade", position=1, cost=20
+    )
+
+
+# ============================================================================
+# ContentEquipment.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_marks_assignment_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentEquipment.cost changes, affected assignments should be marked dirty."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=150,
+        dirty=False,
+    )
+
+    # Create assignment using the equipment
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert assignment.dirty is False
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change equipment cost - this should trigger the signal
+    content_equipment.cost = "150"
+    content_equipment.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
+def test_equipment_cost_no_change_does_not_mark_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentEquipment.cost stays the same, no dirty flags should be set."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=150,
+        dirty=False,
+    )
+
+    # Create assignment using the equipment
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Save without changing cost
+    content_equipment.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # Should still be clean
+    assert assignment.dirty is False
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+
+@pytest.mark.django_db
+def test_new_equipment_does_not_trigger_dirty(equipment_category):
+    """Creating new equipment should not trigger dirty flag signals."""
+    # This is a new instance - no assignments exist yet
+    equipment = ContentEquipment.objects.create(
+        name="New Equipment", category=equipment_category, cost="100"
+    )
+    # If this doesn't raise, we're good - no assignments to mark dirty
+    assert equipment.pk is not None
+
+
+# ============================================================================
+# ContentFighter.base_cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_fighter_base_cost_change_marks_list_fighter_dirty(
+    user, make_list, content_fighter
+):
+    """When ContentFighter.base_cost changes, affected ListFighters should be marked dirty."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change base cost - this should trigger the signal
+    content_fighter.base_cost = 75
+    content_fighter.save()
+
+    # Refresh from database
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # Both should now be dirty
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# ContentWeaponProfile.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_weapon_profile_cost_change_marks_assignment_dirty(
+    user, make_list, content_fighter, content_weapon_equipment, content_weapon_profile
+):
+    """When ContentWeaponProfile.cost changes, affected assignments should be marked dirty."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Create assignment with the weapon profile
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_weapon_equipment,
+        rating_current=100,
+        dirty=False,
+    )
+    assignment.weapon_profiles_field.add(content_weapon_profile)
+
+    # Verify initial state
+    assert assignment.dirty is False
+
+    # Change profile cost
+    content_weapon_profile.cost = 50
+    content_weapon_profile.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# ContentWeaponAccessory.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_weapon_accessory_cost_change_marks_assignment_dirty(
+    user,
+    make_list,
+    content_fighter,
+    content_weapon_equipment,
+    content_accessory,
+):
+    """When ContentWeaponAccessory.cost changes, affected assignments should be marked dirty."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Create assignment with the accessory
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_weapon_equipment,
+        rating_current=100,
+        dirty=False,
+    )
+    assignment.weapon_accessories_field.add(content_accessory)
+
+    # Verify initial state
+    assert assignment.dirty is False
+
+    # Change accessory cost
+    content_accessory.cost = 30
+    content_accessory.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# ContentEquipmentUpgrade.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_equipment_upgrade_cost_change_marks_assignment_dirty(
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    content_upgrade,
+):
+    """When ContentEquipmentUpgrade.cost changes, affected assignments should be marked dirty."""
+    # Create list and fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Create assignment with the upgrade
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        rating_current=100,
+        dirty=False,
+    )
+    assignment.upgrades_field.add(content_upgrade)
+
+    # Verify initial state
+    assert assignment.dirty is False
+
+    # Change upgrade cost
+    content_upgrade.cost = 40
+    content_upgrade.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# ContentFighterEquipmentListItem.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_equipment_list_item_cost_change_marks_assignment_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentFighterEquipmentListItem.cost changes, affected assignments should be marked dirty."""
+    from gyrinx.content.models import ContentFighterEquipmentListItem
+
+    # Create an equipment list item for this fighter/equipment combo
+    list_item = ContentFighterEquipmentListItem.objects.create(
+        fighter=content_fighter,
+        equipment=content_equipment,
+        cost=50,  # Override cost
+    )
+
+    # Create list and fighter using that content fighter
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=100,
+        dirty=False,
+    )
+
+    # Create assignment with the equipment
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert assignment.dirty is False
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change the equipment list item cost
+    list_item.cost = 75
+    list_item.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# Multiple lists affected tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_marks_multiple_lists_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentEquipment.cost changes, ALL affected lists should be marked dirty."""
+    # Create two lists with the same equipment
+    lst1 = make_list("Test List 1")
+    lst2 = make_list("Test List 2")
+
+    fighter1 = ListFighter.objects.create(
+        name="Fighter 1",
+        content_fighter=content_fighter,
+        list=lst1,
+        owner=user,
+        dirty=False,
+    )
+    fighter2 = ListFighter.objects.create(
+        name="Fighter 2",
+        content_fighter=content_fighter,
+        list=lst2,
+        owner=user,
+        dirty=False,
+    )
+
+    assignment1 = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter1,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+    assignment2 = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter2,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+
+    # Change equipment cost
+    content_equipment.cost = "200"
+    content_equipment.save()
+
+    # Refresh all from database
+    assignment1.refresh_from_db()
+    assignment2.refresh_from_db()
+    fighter1.refresh_from_db()
+    fighter2.refresh_from_db()
+    lst1.refresh_from_db()
+    lst2.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment1.dirty is True
+    assert assignment2.dirty is True
+    assert fighter1.dirty is True
+    assert fighter2.dirty is True
+    assert lst1.dirty is True
+    assert lst2.dirty is True
+
+
+# ============================================================================
+# set_dirty() method tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_list_set_dirty_only_sets_own_flag(user, make_list):
+    """List.set_dirty() should only set its own dirty flag."""
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.save(update_fields=["dirty"])
+
+    # Call set_dirty
+    lst.set_dirty()
+
+    lst.refresh_from_db()
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
+def test_fighter_set_dirty_propagates_to_list(user, make_list, content_fighter):
+    """ListFighter.set_dirty() should propagate to parent list."""
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.save(update_fields=["dirty"])
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+
+    # Call set_dirty on fighter
+    fighter.set_dirty()
+
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
+def test_assignment_set_dirty_propagates_to_fighter_and_list(
+    user, make_list, content_fighter, content_equipment
+):
+    """ListFighterEquipmentAssignment.set_dirty() should propagate to fighter and list."""
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.save(update_fields=["dirty"])
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+
+    # Call set_dirty on assignment
+    assignment.set_dirty()
+
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
+def test_set_dirty_idempotent_when_already_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """set_dirty() should be idempotent when object is already dirty."""
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,  # Already dirty
+    )
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,  # Already dirty
+    )
+
+    # Call set_dirty - should not raise or cause issues
+    assignment.set_dirty()
+    fighter.set_dirty()
+    lst.set_dirty()
+
+    # All should still be dirty
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+# ============================================================================
+# get_clean_list_or_404 tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_get_clean_list_or_404_refreshes_dirty_list(user, make_list, content_fighter):
+    """get_clean_list_or_404 should refresh a dirty list's cached facts."""
+    from gyrinx.core.models.list import List
+    from gyrinx.core.views.list import get_clean_list_or_404
+
+    # Create a list with a fighter
+    lst = make_list("Test List")
+    ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Mark the list as dirty with stale rating
+    lst.dirty = True
+    lst.rating_current = 999  # Wrong value
+    lst.save(update_fields=["dirty", "rating_current"])
+
+    # get_clean_list_or_404 should refresh the list
+    clean_list = get_clean_list_or_404(List, id=lst.id)
+
+    # After refresh, the list should be clean with correct rating
+    assert clean_list.dirty is False
+    assert clean_list.rating_current == 50  # Fighter's base cost
+
+
+@pytest.mark.django_db
+def test_get_clean_list_or_404_skips_clean_list(user, make_list):
+    """get_clean_list_or_404 should not call facts_from_db for clean lists."""
+    from gyrinx.core.models.list import List
+    from gyrinx.core.views.list import get_clean_list_or_404
+
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.rating_current = 100
+    lst.save(update_fields=["dirty", "rating_current"])
+
+    # get_clean_list_or_404 should return the list without refreshing
+    clean_list = get_clean_list_or_404(List, id=lst.id)
+
+    # The list should still have its original rating (not recalculated)
+    assert clean_list.dirty is False
+    assert clean_list.rating_current == 100

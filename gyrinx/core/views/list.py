@@ -113,6 +113,32 @@ from gyrinx.models import FighterCategoryChoices, QuerySetOf, is_int, is_valid_u
 from gyrinx.tracker import track
 
 
+def get_clean_list_or_404(model_or_queryset, *args, **kwargs):
+    """
+    Get a List object and ensure its cached facts are fresh.
+
+    If the list is marked as dirty (e.g., due to content cost changes),
+    this function will refresh the cached facts before returning.
+
+    Args:
+        model_or_queryset: A model class (List) or queryset to filter
+        *args, **kwargs: Additional arguments passed to get_object_or_404
+
+    Returns:
+        List: The list object with fresh cached facts
+
+    Usage:
+        get_clean_list_or_404(List, id=id, owner=request.user)
+        get_clean_list_or_404(List.objects.filter(...), id=id)
+    """
+    obj = get_object_or_404(model_or_queryset, *args, **kwargs)
+
+    if obj.dirty:
+        obj.facts_from_db(update=True)
+
+    return obj
+
+
 class ListsListView(generic.ListView):
     """
     Display a list of public :model:`core.List` objects.
@@ -263,8 +289,11 @@ class ListDetailView(generic.DetailView):
     def get_object(self):
         """
         Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
         """
-        return get_object_or_404(
+        return get_clean_list_or_404(
             List.objects.with_related_data(with_fighters=True),
             id=self.kwargs["id"],
         )
@@ -321,8 +350,11 @@ class ListPerformanceView(generic.DetailView):
     def get_object(self):
         """
         Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
         """
-        return get_object_or_404(
+        return get_clean_list_or_404(
             List.objects.with_related_data(with_fighters=True),
             id=self.kwargs["id"],
         )
@@ -356,8 +388,11 @@ class ListAboutDetailView(generic.DetailView):
     def get_object(self):
         """
         Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
         """
-        return get_object_or_404(List, id=self.kwargs["id"])
+        return get_clean_list_or_404(List, id=self.kwargs["id"])
 
 
 class ListPrintView(generic.DetailView):
@@ -384,8 +419,11 @@ class ListPrintView(generic.DetailView):
     def get_object(self):
         """
         Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
         """
-        return get_object_or_404(List, id=self.kwargs["id"])
+        return get_clean_list_or_404(List, id=self.kwargs["id"])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -586,7 +624,7 @@ def edit_list_credits(request, id):
     from gyrinx.core.forms.list import EditListCreditsForm
     from gyrinx.core.handlers.list import handle_credits_modification
 
-    lst = get_object_or_404(
+    lst = get_clean_list_or_404(
         List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
         id=id,
     )
@@ -674,7 +712,7 @@ def archive_list(request, id):
 
     :template:`core/list_archive.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     # Check if the list is in any active campaigns
     active_campaigns = lst.campaigns.filter(status="in_progress")
@@ -752,7 +790,7 @@ def show_stash(request, id):
     ``list``
         The :model:`core.List` to add a stash fighter to.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     # Check if the list already has a stash fighter
     has_stash = lst.listfighter_set.filter(content_fighter__is_stash=True).exists()
@@ -794,7 +832,7 @@ def refresh_list_cost(request, id):
 
     Can be accessed by either the list owner or the campaign owner (if list is in a campaign).
     """
-    lst = get_object_or_404(List, id=id)
+    lst = get_clean_list_or_404(List, id=id)
 
     if lst.owner != request.user and (
         not lst.campaign or lst.campaign.owner != request.user
@@ -922,7 +960,7 @@ def new_list_fighter(request, id):
 
     :template:`core/list_fighter_new.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = ListFighter(list=lst, owner=lst.owner)
 
     error_message = None
@@ -997,7 +1035,7 @@ def edit_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1076,7 +1114,7 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
 
     :template:`core/list_fighter_clone.html`
     """
-    lst = get_object_or_404(List, id=id)
+    lst = get_clean_list_or_404(List, id=id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1174,7 +1212,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     :template:`core/list_fighter_skills_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1345,7 +1383,7 @@ def add_list_fighter_skill(request, id, fighter_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1389,7 +1427,7 @@ def remove_list_fighter_skill(request, id, fighter_id, skill_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1629,7 +1667,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
     :template:`core/list_fighter_narrative_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1702,7 +1740,7 @@ def edit_list_fighter_info(request, id, fighter_id):
 
     :template:`core/list_fighter_info_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1783,7 +1821,7 @@ def list_fighter_stats_edit(request, id, fighter_id):
 
     :template:`core/list_fighter_stats_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1890,7 +1928,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2299,7 +2337,7 @@ def edit_list_fighter_assign_cost(
 
     :template:`core/list_fighter_assign_cost_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2388,7 +2426,7 @@ def delete_list_fighter_assign(
 
     :template:`core/list_fighter_assign_delete_confirm.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2465,7 +2503,7 @@ def delete_list_fighter_gear_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_delete_confirm.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2559,7 +2597,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_weapons_accessories_edit.html`
 
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2723,7 +2761,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_weapon_edit.html`
 
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2855,7 +2893,7 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
     :template:`core/list_fighter_weapon_profile_delete.html`
 
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -2932,7 +2970,7 @@ def delete_list_fighter_weapon_accessory(
 
     :template:`core/list_fighter_weapons_accessory_delete.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3023,7 +3061,7 @@ def edit_list_fighter_weapon_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3103,7 +3141,7 @@ def disable_list_fighter_default_assign(
 
     :template:`core/list_fighter_assign_disable.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3157,7 +3195,7 @@ def convert_list_fighter_default_assign(
     **Template**
     :template:`core/list_fighter_assign_convert.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3202,7 +3240,7 @@ def archive_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_archive.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3268,7 +3306,7 @@ def kill_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_kill.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3337,7 +3375,7 @@ def resurrect_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_resurrect.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3408,7 +3446,7 @@ def delete_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_delete.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3468,7 +3506,7 @@ def embed_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_embed.html`
     """
-    lst = get_object_or_404(List, id=id)
+    lst = get_clean_list_or_404(List, id=id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3540,7 +3578,7 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     :template:`core/list_fighter_injuries_edit.html`
     """
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3586,7 +3624,7 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3694,7 +3732,7 @@ def mark_fighter_captured(request, id, fighter_id):
 
     from gyrinx.core.handlers.fighter.capture import handle_fighter_capture
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3811,7 +3849,7 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3927,7 +3965,7 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -4018,7 +4056,7 @@ def edit_list_fighter_xp(request, id, fighter_id):
     from gyrinx.core.forms.list import EditFighterXPForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4158,7 +4196,7 @@ def list_fighter_advancements(request, id, fighter_id):
     :template:`core/list_fighter_advancements.html`
     """
 
-    lst = get_object_or_404(List, id=id)
+    lst = get_clean_list_or_404(List, id=id)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4205,7 +4243,7 @@ def delete_list_fighter_advancement(request, id, fighter_id, advancement_id):
 
     :template:`core/list_fighter_advancement_delete.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4265,7 +4303,7 @@ def list_fighter_advancement_start(request, id, fighter_id):
     """
     Redirect to the appropriate advancement flow entry point.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4295,7 +4333,7 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
     :template:`core/list_fighter_advancement_dice_choice.html`
     """
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4582,7 +4620,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
     :template:`core/list_fighter_advancement_type.html`
     """
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4679,7 +4717,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
 
     :template:`core/list_fighter_advancement_confirm.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -4938,7 +4976,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
     :template:`core/list_fighter_advancement_select.html`
     """
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -5176,7 +5214,7 @@ def list_fighter_advancement_other(request, id, fighter_id):
 
     from gyrinx.core.forms.advancement import OtherAdvancementForm
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
@@ -5246,7 +5284,7 @@ def reassign_list_fighter_equipment(
     """
     from gyrinx.core.forms.list import EquipmentReassignForm
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5345,7 +5383,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     """
     from gyrinx.core.forms.list import EquipmentSellSelectionForm
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5696,7 +5734,7 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
     """
     Edit attributes for a list.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     # Check if list is archived
     if lst.archived:
@@ -5774,7 +5812,7 @@ def edit_list_fighter_rules(request, id, fighter_id):
 
     :template:`core/list_fighter_rules_edit.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5864,7 +5902,7 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5917,7 +5955,7 @@ def toggle_list_fighter_skill(request, id, fighter_id, skill_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5970,7 +6008,7 @@ def add_list_fighter_rule(request, id, fighter_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -6016,7 +6054,7 @@ def remove_list_fighter_rule(request, id, fighter_id, rule_id):
     if request.method != "POST":
         raise Http404()
 
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -6067,7 +6105,7 @@ def list_invitations(request, id):
 
     :template:`core/list/list_invitations.html`
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     # Get pending invitations for this list
     from gyrinx.core.models.invitation import CampaignInvitation
@@ -6105,7 +6143,7 @@ def accept_invitation(request, id, invitation_id):
 
     None - redirects after processing.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     from gyrinx.core.models.invitation import CampaignInvitation
 
@@ -6167,7 +6205,7 @@ def decline_invitation(request, id, invitation_id):
 
     None - redirects after processing.
     """
-    lst = get_object_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
 
     from gyrinx.core.models.invitation import CampaignInvitation
 

@@ -18,6 +18,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
 from django.db.models.functions import Cast, Coalesce, Lower
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 from django.utils.functional import cached_property
 from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
@@ -35,6 +37,7 @@ from gyrinx.models import (
     equipment_category_group_choices,
     format_cost_display,
 )
+from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
@@ -742,6 +745,24 @@ class ContentEquipment(FighterCostMixin, Content):
 
         return self.contentweaponprofile_set.with_cost_for_fighter(content_fighter)
 
+    def set_dirty(self) -> None:
+        """
+        Mark all ListFighterEquipmentAssignments using this equipment as dirty.
+
+        Propagates to parent fighters and lists via their set_dirty() methods.
+        Called when this equipment's cost field changes.
+        """
+        # Lazy import to avoid circular dependency
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find all assignments using this equipment
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            content_equipment=self, archived=False
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
     class Meta:
         verbose_name = "Equipment"
         verbose_name_plural = "Equipment"
@@ -1032,6 +1053,24 @@ class ContentFighter(Content):
 
         return self.cost_int()
 
+    def set_dirty(self) -> None:
+        """
+        Mark all ListFighters using this content fighter as dirty.
+
+        Propagates to parent lists via their set_dirty() methods.
+        Called when this fighter's base_cost field changes.
+        """
+        # Lazy import to avoid circular dependency
+        from gyrinx.core.models.list import ListFighter
+
+        # Find all list fighters using this content fighter
+        fighters = ListFighter.objects.filter(
+            content_fighter=self, archived=False
+        ).select_related("list")
+
+        for fighter in fighters:
+            fighter.set_dirty(save=True)
+
     def statline(self, ignore_custom=False):
         """
         Returns a list of dictionaries describing the fighter's core stats,
@@ -1291,6 +1330,29 @@ class ContentFighterEquipmentListItem(CostMixin, Content):
                 {"weapon_profile": "Weapon profile must match the equipment selected."}
             )
 
+    def set_dirty(self) -> None:
+        """
+        Mark affected ListFighterEquipmentAssignments as dirty.
+
+        Finds assignments where:
+        - The equipment matches this item's equipment
+        - The fighter's content_fighter (or legacy) matches this item's fighter
+        """
+        from django.db.models import Q
+
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find assignments for this equipment on fighters using this content fighter
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            Q(list_fighter__content_fighter=self.fighter)
+            | Q(list_fighter__legacy_content_fighter=self.fighter),
+            content_equipment=self.equipment,
+            archived=False,
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
 
 class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
     """
@@ -1324,6 +1386,29 @@ class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
         if self.cost_int() < 0:
             raise ValidationError("Cost cannot be negative.")
 
+    def set_dirty(self) -> None:
+        """
+        Mark affected ListFighterEquipmentAssignments as dirty.
+
+        Finds assignments where:
+        - The assignment has this accessory
+        - The fighter's content_fighter (or legacy) matches this item's fighter
+        """
+        from django.db.models import Q
+
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find assignments with this accessory on fighters using this content fighter
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            Q(list_fighter__content_fighter=self.fighter)
+            | Q(list_fighter__legacy_content_fighter=self.fighter),
+            weapon_accessories_field=self.weapon_accessory,
+            archived=False,
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
 
 class ContentFighterEquipmentListUpgrade(CostMixin, Content):
     """
@@ -1356,6 +1441,29 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
         """
         if self.cost_int() < 0:
             raise ValidationError("Cost cannot be negative.")
+
+    def set_dirty(self) -> None:
+        """
+        Mark affected ListFighterEquipmentAssignments as dirty.
+
+        Finds assignments where:
+        - The assignment has this upgrade
+        - The fighter's content_fighter (or legacy) matches this item's fighter
+        """
+        from django.db.models import Q
+
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find assignments with this upgrade on fighters using this content fighter
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            Q(list_fighter__content_fighter=self.fighter)
+            | Q(list_fighter__legacy_content_fighter=self.fighter),
+            upgrades_field=self.upgrade,
+            archived=False,
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
 
 
 class ContentWeaponTrait(Content):
@@ -1698,6 +1806,24 @@ class ContentWeaponProfile(FighterCostMixin, Content):
                 }
             )
 
+    def set_dirty(self) -> None:
+        """
+        Mark all ListFighterEquipmentAssignments using this weapon profile as dirty.
+
+        Propagates to parent fighters and lists via their set_dirty() methods.
+        Called when this profile's cost field changes.
+        """
+        # Lazy import to avoid circular dependency
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find all assignments using this weapon profile (via M2M)
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            weapon_profiles_field=self, archived=False
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
@@ -1814,6 +1940,24 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
             )
             return self.cost
 
+    def set_dirty(self) -> None:
+        """
+        Mark all ListFighterEquipmentAssignments using this accessory as dirty.
+
+        Propagates to parent fighters and lists via their set_dirty() methods.
+        Called when this accessory's cost field changes.
+        """
+        # Lazy import to avoid circular dependency
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find all assignments using this weapon accessory (via M2M)
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            weapon_accessories_field=self, archived=False
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
+
     class Meta:
         verbose_name = "Weapon Accessory"
         verbose_name_plural = "Weapon Accessories"
@@ -1919,6 +2063,24 @@ class ContentEquipmentUpgrade(CostMixin, Content):
 
     def __str__(self):
         return f"{self.equipment.upgrade_stack_name_display} – {self.name} ({self.equipment.name})"
+
+    def set_dirty(self) -> None:
+        """
+        Mark all ListFighterEquipmentAssignments using this upgrade as dirty.
+
+        Propagates to parent fighters and lists via their set_dirty() methods.
+        Called when this upgrade's cost field changes.
+        """
+        # Lazy import to avoid circular dependency
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        # Find all assignments using this equipment upgrade (via M2M)
+        assignments = ListFighterEquipmentAssignment.objects.filter(
+            upgrades_field=self, archived=False
+        ).select_related("list_fighter__list")
+
+        for assignment in assignments:
+            assignment.set_dirty(save=True)
 
     objects = ContentEquipmentUpgradeManager.from_queryset(
         ContentEquipmentUpgradeQuerySet
@@ -2070,6 +2232,25 @@ class ContentFighterHouseOverride(Content):
 
     def __str__(self):
         return f"{self.fighter} for {self.house}"
+
+    def set_dirty(self) -> None:
+        """Mark all ListFighters dirty that are affected by this house cost override.
+
+        When a house override cost changes, ListFighters of this fighter type
+        in lists belonging to this house need to be marked dirty.
+        """
+        from django.db.models import Q
+
+        from gyrinx.core.models.list import ListFighter
+
+        list_fighters = ListFighter.objects.filter(
+            Q(content_fighter=self.fighter) | Q(legacy_content_fighter=self.fighter),
+            list__content_house=self.house,
+            archived=False,
+        ).select_related("list")
+
+        for list_fighter in list_fighters:
+            list_fighter.set_dirty(save=True)
 
 
 def check(rule, category, name):
@@ -3407,3 +3588,216 @@ class ContentAdvancementEquipment(Content):
             raise ValidationError(
                 "At least one selection type (random or chosen) must be enabled."
             )
+
+
+# =============================================================================
+# Content Model Cost Change Signals
+#
+# These signals detect when cost fields change on content models and mark
+# affected core objects (assignments, fighters, lists) as dirty.
+#
+# The set_dirty() methods on each content model handle finding affected
+# assignments and propagating the dirty flag up the hierarchy.
+# =============================================================================
+
+
+def _get_old_cost(model_class, instance, cost_field="cost"):
+    """
+    Get the old cost value for an instance being updated.
+
+    Returns None if this is a new instance or the instance doesn't exist.
+    """
+    if instance._state.adding or not instance.pk:
+        return None
+
+    try:
+        old_instance = model_class.objects.get(pk=instance.pk)
+        old_value = getattr(old_instance, cost_field)
+        # Handle CharField cost fields (e.g., ContentEquipment)
+        if isinstance(old_value, str):
+            return int(old_value) if old_value.isdigit() else 0
+        return old_value or 0
+    except model_class.DoesNotExist:
+        return None
+
+
+def _get_new_cost(instance, cost_field="cost"):
+    """
+    Get the new cost value for an instance being saved.
+    """
+    new_value = getattr(instance, cost_field)
+    # Handle CharField cost fields (e.g., ContentEquipment)
+    if isinstance(new_value, str):
+        return int(new_value) if new_value.isdigit() else 0
+    return new_value or 0
+
+
+@receiver(
+    pre_save, sender=ContentEquipment, dispatch_uid="content_equipment_cost_change"
+)
+@traced("signal_content_equipment_cost_change")
+def handle_equipment_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentEquipment.cost changes.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save, sender=ContentFighter, dispatch_uid="content_fighter_base_cost_change"
+)
+@traced("signal_content_fighter_base_cost_change")
+def handle_fighter_base_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected list fighters dirty when ContentFighter.base_cost changes.
+    """
+    old_cost = _get_old_cost(sender, instance, "base_cost")
+    if old_cost is None:
+        return  # New instance, no existing list fighters
+
+    new_cost = _get_new_cost(instance, "base_cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save, sender=ContentWeaponProfile, dispatch_uid="content_profile_cost_change"
+)
+@traced("signal_content_profile_cost_change")
+def handle_profile_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentWeaponProfile.cost changes.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save,
+    sender=ContentWeaponAccessory,
+    dispatch_uid="content_accessory_cost_change",
+)
+@traced("signal_content_accessory_cost_change")
+def handle_accessory_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentWeaponAccessory.cost changes.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save, sender=ContentEquipmentUpgrade, dispatch_uid="content_upgrade_cost_change"
+)
+@traced("signal_content_upgrade_cost_change")
+def handle_upgrade_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentEquipmentUpgrade.cost changes.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save,
+    sender=ContentFighterEquipmentListItem,
+    dispatch_uid="content_equipment_list_item_cost_change",
+)
+@traced("signal_content_equipment_list_item_cost_change")
+def handle_equipment_list_item_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentFighterEquipmentListItem.cost changes.
+
+    This model provides cost overrides for equipment on specific fighter types.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save,
+    sender=ContentFighterEquipmentListWeaponAccessory,
+    dispatch_uid="content_equipment_list_accessory_cost_change",
+)
+@traced("signal_content_equipment_list_accessory_cost_change")
+def handle_equipment_list_accessory_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentFighterEquipmentListWeaponAccessory.cost changes.
+
+    This model provides cost overrides for weapon accessories on specific fighter types.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save,
+    sender=ContentFighterEquipmentListUpgrade,
+    dispatch_uid="content_equipment_list_upgrade_cost_change",
+)
+@traced("signal_content_equipment_list_upgrade_cost_change")
+def handle_equipment_list_upgrade_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected assignments dirty when ContentFighterEquipmentListUpgrade.cost changes.
+
+    This model provides cost overrides for equipment upgrades on specific fighter types.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing assignments
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
+
+
+@receiver(
+    pre_save,
+    sender=ContentFighterHouseOverride,
+    dispatch_uid="content_fighter_house_override_cost_change",
+)
+@traced("signal_content_fighter_house_override_cost_change")
+def handle_fighter_house_override_cost_change(sender, instance, **kwargs):
+    """
+    Mark affected fighters dirty when ContentFighterHouseOverride.cost changes.
+
+    This model provides cost overrides for fighters in specific houses.
+    """
+    old_cost = _get_old_cost(sender, instance, "cost")
+    if old_cost is None:
+        return  # New instance, no existing fighters
+
+    new_cost = _get_new_cost(instance, "cost")
+    if old_cost != new_cost:
+        instance.set_dirty()
