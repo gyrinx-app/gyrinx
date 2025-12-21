@@ -287,7 +287,7 @@ class ContentEquipmentListExpansionItem(Content):
 
         # If this item has a specific weapon profile, only mark assignments with that profile
         if self.weapon_profile is not None:
-            filter_kwargs["content_weapon_profile"] = self.weapon_profile
+            filter_kwargs["weapon_profiles_field"] = self.weapon_profile
 
         assignments = ListFighterEquipmentAssignment.objects.filter(
             **filter_kwargs

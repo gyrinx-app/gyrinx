@@ -36,6 +36,7 @@ from gyrinx.models import (
     QuerySetOf,
     equipment_category_group_choices,
     format_cost_display,
+    is_int,
 )
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
@@ -3615,7 +3616,7 @@ def _get_old_cost(model_class, instance, cost_field="cost"):
         old_value = getattr(old_instance, cost_field)
         # Handle CharField cost fields (e.g., ContentEquipment)
         if isinstance(old_value, str):
-            return int(old_value) if old_value.isdigit() else 0
+            return int(old_value) if is_int(old_value) else 0
         return old_value or 0
     except model_class.DoesNotExist:
         return None
@@ -3628,7 +3629,7 @@ def _get_new_cost(instance, cost_field="cost"):
     new_value = getattr(instance, cost_field)
     # Handle CharField cost fields (e.g., ContentEquipment)
     if isinstance(new_value, str):
-        return int(new_value) if new_value.isdigit() else 0
+        return int(new_value) if is_int(new_value) else 0
     return new_value or 0
 
 

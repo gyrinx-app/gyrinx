@@ -656,3 +656,61 @@ def test_get_clean_list_or_404_skips_clean_list(user, make_list):
     # The list should still have its original rating (not recalculated)
     assert clean_list.dirty is False
     assert clean_list.rating_current == 100
+
+
+# ============================================================================
+# ContentEquipmentListExpansionItem.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_expansion_item_cost_change_marks_assignment_dirty(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentEquipmentListExpansionItem.cost changes, affected assignments should be marked dirty."""
+    from gyrinx.content.models_.expansion import (
+        ContentEquipmentListExpansion,
+        ContentEquipmentListExpansionItem,
+    )
+
+    # Create expansion with item
+    expansion = ContentEquipmentListExpansion.objects.create(name="Test Expansion")
+    expansion_item = ContentEquipmentListExpansionItem.objects.create(
+        expansion=expansion,
+        equipment=content_equipment,
+        cost=50,
+    )
+
+    # Create list, fighter, and assignment
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert assignment.dirty is False
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change the expansion item cost
+    expansion_item.cost = 75
+    expansion_item.save()
+
+    # Refresh from database
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # All should now be dirty
+    assert assignment.dirty is True
+    assert fighter.dirty is True
+    assert lst.dirty is True
