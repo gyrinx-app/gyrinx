@@ -833,3 +833,329 @@ def test_create_with_facts_transaction_rollback_on_error(
 
     # Fighter should NOT have been created (transaction rolled back)
     assert ListFighter.objects.count() == initial_count
+
+
+# ==============================================================================
+# VirtualListFighterEquipmentAssignment tests
+# ==============================================================================
+
+
+@pytest.mark.django_db
+def test_virtual_assignment_facts_delegates_for_real_assignment(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that VirtualListFighterEquipmentAssignment.facts delegates to real assignment."""
+    from gyrinx.core.models.list import (
+        ListFighter,
+        ListFighterEquipmentAssignment,
+        VirtualListFighterEquipmentAssignment,
+    )
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Create virtual wrapper
+    virtual = VirtualListFighterEquipmentAssignment.from_assignment(assignment)
+
+    # Facts should delegate to underlying assignment
+    facts = virtual.facts
+    assert facts is not None
+    assert facts.rating == 50
+
+
+@pytest.mark.django_db
+def test_virtual_assignment_facts_returns_none_for_default(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that VirtualListFighterEquipmentAssignment.facts returns None for defaults."""
+    from gyrinx.core.models.list import ListFighter
+
+    # Add a default assignment to the content fighter
+    default_equipment = make_equipment("Default Equipment", cost="25")
+    content_fighter.default_assignments.create(equipment=default_equipment)
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+
+    # Get assignments (should include default equipment)
+    assignments = list(fighter.assignments())
+    # Find a default assignment (kind == 'default')
+    default_assignments = [a for a in assignments if a.kind() == "default"]
+
+    assert len(default_assignments) > 0, "Should have default assignments"
+    # Default assignments should return None for facts
+    assert default_assignments[0].facts is None
+
+
+@pytest.mark.django_db
+def test_virtual_assignment_dirty_delegates_for_real_assignment(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that VirtualListFighterEquipmentAssignment.dirty delegates to real assignment."""
+    from gyrinx.core.models.list import (
+        ListFighter,
+        ListFighterEquipmentAssignment,
+        VirtualListFighterEquipmentAssignment,
+    )
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    equipment = make_equipment("Test Equipment", cost="50")
+
+    # Create clean assignment
+    clean_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+        rating_current=50,
+        dirty=False,
+    )
+    virtual_clean = VirtualListFighterEquipmentAssignment.from_assignment(
+        clean_assignment
+    )
+    assert virtual_clean.dirty is False
+
+    # Create dirty assignment
+    dirty_equipment = make_equipment("Dirty Equipment", cost="25")
+    dirty_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=dirty_equipment,
+        rating_current=0,
+        dirty=True,
+    )
+    virtual_dirty = VirtualListFighterEquipmentAssignment.from_assignment(
+        dirty_assignment
+    )
+    assert virtual_dirty.dirty is True
+
+
+@pytest.mark.django_db
+def test_virtual_assignment_dirty_returns_false_for_default(
+    user, make_list, content_fighter, make_equipment
+):
+    """Test that VirtualListFighterEquipmentAssignment.dirty returns False for defaults."""
+    from gyrinx.core.models.list import ListFighter
+
+    # Add a default assignment to the content fighter
+    default_equipment = make_equipment("Default Equipment", cost="25")
+    content_fighter.default_assignments.create(equipment=default_equipment)
+
+    lst = make_list("Test List")
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+
+    # Get assignments (should include default equipment)
+    assignments = list(fighter.assignments())
+    # Find a default assignment (kind == 'default')
+    default_assignments = [a for a in assignments if a.kind() == "default"]
+
+    assert len(default_assignments) > 0, "Should have default assignments"
+    # Default assignments should return False for dirty
+    assert default_assignments[0].dirty is False
+
+
+# ==============================================================================
+# Lazy evaluation tests
+# ==============================================================================
+
+
+@pytest.mark.django_db
+def test_list_facts_from_db_lazy_evaluation_skips_clean_fighters(
+    user, make_list, content_fighter, make_equipment, monkeypatch
+):
+    """Test that List.facts_from_db() uses cached facts for clean fighters."""
+    from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+
+    lst = make_list("Test List")
+
+    # Create a clean fighter with equipment
+    clean_fighter = ListFighter.objects.create(
+        name="Clean Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=150,  # Pre-set cached value
+        dirty=False,
+    )
+    equipment = make_equipment("Equipment", cost="50")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=clean_fighter,
+        content_equipment=equipment,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Create a dirty fighter
+    dirty_fighter = ListFighter.objects.create(
+        name="Dirty Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=0,
+        dirty=True,
+    )
+    dirty_equipment = make_equipment("Dirty Equipment", cost="25")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=dirty_fighter,
+        content_equipment=dirty_equipment,
+        rating_current=0,
+        dirty=True,
+    )
+
+    # Track calls to fighter.facts_from_db()
+    facts_from_db_calls = []
+    original_facts_from_db = ListFighter.facts_from_db
+
+    def tracking_facts_from_db(self, update=True):
+        facts_from_db_calls.append(self.name)
+        return original_facts_from_db(self, update=update)
+
+    monkeypatch.setattr(ListFighter, "facts_from_db", tracking_facts_from_db)
+
+    # Calculate list facts
+    lst.facts_from_db(update=False)
+
+    # Only the dirty fighter should have had facts_from_db called
+    assert "Dirty Fighter" in facts_from_db_calls
+    assert "Clean Fighter" not in facts_from_db_calls
+
+
+@pytest.mark.django_db
+def test_fighter_facts_from_db_lazy_evaluation_skips_clean_assignments(
+    user, make_list, content_fighter, make_equipment, monkeypatch
+):
+    """Test that ListFighter.facts_from_db() uses cached facts for clean assignments."""
+    from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+
+    lst = make_list("Test List")
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=0,
+        dirty=True,
+    )
+
+    # Create a clean assignment
+    clean_equipment = make_equipment("Clean Equipment", cost="50")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=clean_equipment,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Create a dirty assignment
+    dirty_equipment = make_equipment("Dirty Equipment", cost="25")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=dirty_equipment,
+        rating_current=0,
+        dirty=True,
+    )
+
+    # Track calls to assignment.facts_from_db()
+    facts_from_db_calls = []
+    original_facts_from_db = ListFighterEquipmentAssignment.facts_from_db
+
+    def tracking_facts_from_db(self, update=True):
+        facts_from_db_calls.append(self.content_equipment.name)
+        return original_facts_from_db(self, update=update)
+
+    monkeypatch.setattr(
+        ListFighterEquipmentAssignment, "facts_from_db", tracking_facts_from_db
+    )
+
+    # Calculate fighter facts
+    fighter.facts_from_db(update=False)
+
+    # Only the dirty assignment should have had facts_from_db called
+    assert "Dirty Equipment" in facts_from_db_calls
+    assert "Clean Equipment" not in facts_from_db_calls
+
+
+@pytest.mark.django_db
+def test_list_facts_from_db_propagates_update_flag_to_fighters(
+    user, make_list, content_fighter, monkeypatch
+):
+    """Test that List.facts_from_db(update=X) passes update flag to fighters."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+
+    # Create a dirty fighter
+    ListFighter.objects.create(
+        name="Dirty Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=0,
+        dirty=True,
+    )
+
+    # Track update flag passed to fighter.facts_from_db()
+    update_flags = []
+    original_facts_from_db = ListFighter.facts_from_db
+
+    def tracking_facts_from_db(self, update=True):
+        update_flags.append(update)
+        return original_facts_from_db(self, update=update)
+
+    monkeypatch.setattr(ListFighter, "facts_from_db", tracking_facts_from_db)
+
+    # Call with update=False
+    lst.facts_from_db(update=False)
+
+    # Fighter should have received update=False
+    assert False in update_flags
+
+    # Reset and call with update=True
+    update_flags.clear()
+    lst.dirty = True
+    lst.save()
+
+    # Create another dirty fighter
+    ListFighter.objects.create(
+        name="Dirty Fighter 2",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=0,
+        dirty=True,
+    )
+
+    lst.facts_from_db(update=True)
+
+    # Fighter should have received update=True
+    assert True in update_flags

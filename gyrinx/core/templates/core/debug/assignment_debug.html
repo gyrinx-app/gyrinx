@@ -1,0 +1,17 @@
+{% if gyrinx_debug and assign.kind == 'assigned' %}
+    {% with facts=assign.facts %}
+        <tr>
+            <td colspan="10"
+                class="{% if assign.dirty %}bg-danger-subtle{% else %}bg-warning-subtle{% endif %} py-0 px-2">
+                <span class="fs-7 font-monospace {% if assign.dirty %}text-danger-emphasis{% else %}text-warning-emphasis{% endif %}">
+                    <span class="fw-bold">DEBUG</span>
+                    {% if facts %}
+                        R: {{ facts.rating }}¢
+                    {% else %}
+                        R: <i class="bi-flag-fill text-success"></i> Dirty
+                    {% endif %}
+                </span>
+            </td>
+        </tr>
+    {% endwith %}
+{% endif %}

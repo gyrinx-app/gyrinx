@@ -58,6 +58,7 @@
                                                 {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
+                                            {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
@@ -93,6 +94,7 @@
                                             {% spaceless %}
                                                 {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                {% include "core/debug/assignment_debug_inline.html" %}
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% empty %}
@@ -139,6 +141,7 @@
                                                 {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
+                                            {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
@@ -174,6 +177,7 @@
                                             {% spaceless %}
                                                 {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
                                                 {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                                {% include "core/debug/assignment_debug_inline.html" %}
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% empty %}
@@ -226,6 +230,7 @@
                                             {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                         {% if assign.is_linked %}</span>{% endif %}
                                     {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
+                                    {% include "core/debug/assignment_debug_inline.html" %}
                                     {% if list.owner_cached == user and not print %}
                                         {% if assign.kind == 'assigned' and not assign.is_linked %}
                                             {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
@@ -254,6 +259,7 @@
                                         {% comment %} All this faff to avoid spaces {% endcomment %}
                                         {% include "core/includes/gear_assign_name.html" with assign=assign %}
                                         {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
+                                        {% include "core/debug/assignment_debug_inline.html" %}
                                         {% if not forloop.last %}<span>,</span>{% endif %}
                                     {% endfor %}
                                 {% endspaceless %}

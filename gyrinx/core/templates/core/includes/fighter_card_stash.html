@@ -74,6 +74,7 @@
                                                 {% endif %}
                                                 {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
+                                            {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
                                                     <br>
@@ -162,6 +163,7 @@
                             {% if list.owner_cached == user and not print %}
                                 {% include "core/includes/fighter_card_weapon_menu.html" with assign=assign fighter=fighter list=list %}
                             {% endif %}
+                            {% include "core/debug/assignment_debug.html" %}
                         </tbody>
                     {% empty %}
                         <tbody>
