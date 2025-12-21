@@ -414,16 +414,18 @@ class List(AppBase):
 
     def facts_from_db(self, update: bool = True) -> ListFacts:
         """
-        Recalculate facts from database by walking all fighters.
+        Recalculate facts from database with lazy child evaluation.
 
         Args:
             update: If True, updates rating_current, stash_current and clears dirty flag.
+                    Also passed to child fighters for recursive updates.
 
         Returns:
             ListFacts with recalculated values.
 
-        Calls cost_int() on each fighter to get fresh values, routing to
-        rating or stash based on is_stash flag.
+        Uses lazy evaluation: tries fighter.facts() first, only calling
+        fighter.facts_from_db(update) if facts() returns None (dirty).
+        This minimizes DB writes when fighter subtrees are already clean.
 
         Optimized to use prefetched data when available (e.g., after
         with_related_data(with_fighters=True)).
@@ -448,12 +450,15 @@ class List(AppBase):
             # Fall back to queryset
             fighters = self.fighters()
 
-        # Walk all fighters and calculate
+        # Walk all fighters and calculate with lazy evaluation
         for fighter in fighters:
-            # Use cost_int_cached when prefetched (avoids queries), cost_int otherwise
-            fighter_cost = (
-                fighter.cost_int_cached if use_prefetch else fighter.cost_int()
-            )
+            # Try cached facts first
+            fighter_facts = fighter.facts()
+            if fighter_facts is None:
+                # Dirty - recalculate and optionally update
+                fighter_facts = fighter.facts_from_db(update=update)
+
+            fighter_cost = fighter_facts.rating
 
             if fighter.content_fighter.is_stash:
                 stash += fighter_cost
@@ -1833,19 +1838,48 @@ class ListFighter(AppBase):
 
     def facts_from_db(self, update: bool = True) -> FighterFacts:
         """
-        Recalculate facts from database using existing cost_int() method.
+        Recalculate facts from database with lazy child evaluation.
 
         Args:
             update: If True, updates rating_current and clears dirty flag.
+                    Also passed to child assignments for recursive updates.
 
         Returns:
             FighterFacts with recalculated rating.
 
-        Uses existing heavily-tested cost_int() method which walks entire
-        equipment tree.
+        Uses lazy evaluation: tries assignment.facts() first, only calling
+        assignment.facts_from_db(update) if facts() returns None (dirty).
+        This minimizes DB writes when equipment subtree is already clean.
         """
-        # Use existing tested cost calculation (walks full tree)
-        rating = self.cost_int()
+        # Captured or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            rating = 0
+        else:
+            # Calculate base cost (content fighter + overrides)
+            base_cost = self._base_cost_int
+
+            # Include advancement cost increases (uses annotation if prefetched)
+            advancement_cost = self._advancement_cost_int
+
+            # Calculate equipment cost with lazy evaluation
+            # Note: assignments() returns VirtualListFighterEquipmentAssignment wrappers
+            equipment_cost = 0
+            for virtual_assignment in self.assignments():
+                # Check if this is a real assignment (not default equipment)
+                real_assignment = virtual_assignment._assignment
+                if isinstance(real_assignment, ListFighterEquipmentAssignment):
+                    # Try cached facts first
+                    assignment_facts = real_assignment.facts()
+                    if assignment_facts is None:
+                        # Dirty - recalculate and optionally update
+                        assignment_facts = real_assignment.facts_from_db(update=update)
+                    equipment_cost += assignment_facts.rating
+                else:
+                    # Default assignments (ContentFighterDefaultAssignment) or None
+                    # have cost 0 or use the virtual wrapper's cost_int()
+                    equipment_cost += virtual_assignment.cost_int()
+
+            rating = base_cost + advancement_cost + equipment_cost
 
         # Optionally update cache
         if update:
@@ -4022,6 +4056,30 @@ class VirtualListFighterEquipmentAssignment:
             return "default"
 
         return "assigned"
+
+    @property
+    def facts(self):
+        """
+        Return facts for the underlying assignment.
+
+        For real ListFighterEquipmentAssignment: delegates to _assignment.facts()
+        For defaults and virtuals: returns None (no cached state to display)
+        """
+        if isinstance(self._assignment, ListFighterEquipmentAssignment):
+            return self._assignment.facts()
+        return None
+
+    @property
+    def dirty(self):
+        """
+        Return dirty state for the underlying assignment.
+
+        For real ListFighterEquipmentAssignment: delegates to _assignment.dirty
+        For defaults and virtuals: returns False (no cached state, always "clean")
+        """
+        if isinstance(self._assignment, ListFighterEquipmentAssignment):
+            return self._assignment.dirty
+        return False
 
     def is_from_default_assignment(self):
         return (
