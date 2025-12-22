@@ -1065,9 +1065,10 @@ class ContentFighter(Content):
         # Lazy import to avoid circular dependency
         from gyrinx.core.models.list import ListFighter
 
-        # Find all list fighters using this content fighter
+        # Find all list fighters using this content fighter (including legacy)
         fighters = ListFighter.objects.filter(
-            content_fighter=self, archived=False
+            Q(content_fighter=self) | Q(legacy_content_fighter=self),
+            archived=False,
         ).select_related("list")
 
         for fighter in fighters:
@@ -3856,9 +3857,12 @@ def _create_content_cost_change_actions(instance):
             .distinct()
         )
     elif model_name == "ContentFighter":
-        # Fighter templates used by list fighters
+        # Fighter templates used by list fighters (including legacy)
         list_ids = (
-            ListFighter.objects.filter(content_fighter=instance, archived=False)
+            ListFighter.objects.filter(
+                Q(content_fighter=instance) | Q(legacy_content_fighter=instance),
+                archived=False,
+            )
             .values_list("list_id", flat=True)
             .distinct()
         )
@@ -3866,7 +3870,8 @@ def _create_content_cost_change_actions(instance):
         # Fighter house overrides - find fighters using this override's fighter in this house
         list_ids = (
             ListFighter.objects.filter(
-                content_fighter=instance.fighter,
+                Q(content_fighter=instance.fighter)
+                | Q(legacy_content_fighter=instance.fighter),
                 list__content_house=instance.house,
                 archived=False,
             )
@@ -3877,8 +3882,9 @@ def _create_content_cost_change_actions(instance):
         # Equipment list items - cost overrides for equipment on specific fighter types
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
+                Q(list_fighter__content_fighter=instance.fighter)
+                | Q(list_fighter__legacy_content_fighter=instance.fighter),
                 content_equipment=instance.equipment,
-                list_fighter__content_fighter=instance.fighter,
                 archived=False,
             )
             .select_related("list_fighter__list")
@@ -3889,8 +3895,9 @@ def _create_content_cost_change_actions(instance):
         # Weapon accessory cost overrides on specific fighter types
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
+                Q(list_fighter__content_fighter=instance.fighter)
+                | Q(list_fighter__legacy_content_fighter=instance.fighter),
                 weapon_accessories_field=instance.weapon_accessory,
-                list_fighter__content_fighter=instance.fighter,
                 archived=False,
             )
             .select_related("list_fighter__list")
@@ -3901,8 +3908,9 @@ def _create_content_cost_change_actions(instance):
         # Equipment upgrade cost overrides on specific fighter types
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
+                Q(list_fighter__content_fighter=instance.fighter)
+                | Q(list_fighter__legacy_content_fighter=instance.fighter),
                 upgrades_field=instance.upgrade,
-                list_fighter__content_fighter=instance.fighter,
                 archived=False,
             )
             .select_related("list_fighter__list")

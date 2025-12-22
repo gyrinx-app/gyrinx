@@ -543,6 +543,8 @@ def create_expansion_item_cost_action(sender, instance, created, **kwargs):
 
                 # In campaign mode, adjust credits
                 total_delta = rating_delta + stash_delta
+                if total_delta == 0:
+                    continue
                 is_campaign = lst.is_campaign_mode
                 credits_delta = -total_delta if is_campaign else 0
 

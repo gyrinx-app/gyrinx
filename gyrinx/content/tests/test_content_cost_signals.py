@@ -848,7 +848,7 @@ def test_equipment_cost_change_creates_action(
         owner=user,
         dirty=True,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=True,
@@ -908,7 +908,7 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
         owner=user,
         dirty=True,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=True,
@@ -958,7 +958,7 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
         owner=user,
         dirty=True,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=True,
@@ -1008,7 +1008,7 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
         owner=user,
         dirty=True,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=True,
@@ -1053,7 +1053,7 @@ def test_no_action_created_for_list_without_initial_action(
         owner=user,
         dirty=False,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=False,
@@ -1159,7 +1159,7 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
         owner=user,
         dirty=True,
     )
-    _assignment = ListFighterEquipmentAssignment.objects.create(
+    ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
         content_equipment=content_equipment,
         dirty=True,
