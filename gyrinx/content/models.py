@@ -3922,15 +3922,18 @@ def _create_content_cost_change_actions(instance):
 
     # Get the instance name for the action description
     # Most models have a name field/method, but some need special handling
-    if model_name in (
-        "ContentFighterEquipmentListItem",
-        "ContentFighterEquipmentListWeaponAccessory",
-        "ContentFighterEquipmentListUpgrade",
-    ):
-        # These models reference equipment via relationships, use equipment name
-        instance_name = (
-            instance.equipment.name if hasattr(instance, "equipment") else str(instance)
-        )
+    if model_name == "ContentFighterEquipmentListItem":
+        # This model has equipment FK
+        instance_name = instance.equipment.name
+    elif model_name == "ContentFighterEquipmentListWeaponAccessory":
+        # This model has weapon_accessory FK
+        instance_name = instance.weapon_accessory.name
+    elif model_name == "ContentFighterEquipmentListUpgrade":
+        # This model has upgrade FK
+        instance_name = instance.upgrade.name
+    elif hasattr(instance, "equipment"):
+        # Generic equipment reference (e.g., ContentWeaponProfile, ContentEquipmentUpgrade)
+        instance_name = instance.equipment.name
     elif hasattr(instance, "name"):
         instance_name = instance.name() if callable(instance.name) else instance.name
     else:
