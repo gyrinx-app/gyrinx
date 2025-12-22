@@ -15,7 +15,7 @@ from typing import Optional
 
 from django.core.cache import caches
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Case, Exists, OuterRef, Q, Subquery, When
 from django.db.models.functions import Cast, Coalesce, Lower
 from django.db.models.signals import post_save, pre_save
@@ -3967,52 +3967,62 @@ def _create_content_cost_change_actions(instance):
         instance_name = str(instance)
 
     # For each list, recalculate and create action
+    # Each list is processed in its own transaction for consistency:
+    # either all changes succeed (facts updated, action created, credits applied)
+    # or none do (transaction rolls back, list stays dirty for later recalculation)
     for list_id in list_ids:
         try:
-            lst = List.objects.get(id=list_id)
+            with transaction.atomic():
+                lst = List.objects.get(id=list_id)
+
+                # Only create actions for lists that have an initial action
+                # Lists without latest_action will have dirty flag set via set_dirty()
+                # and will be recalculated when viewed
+                if not lst.latest_action:
+                    continue
+
+                # Capture before state
+                old_rating = lst.rating_current
+                old_stash = lst.stash_current
+
+                # Recalculate with the new content costs (clears dirty flags on list and children)
+                facts = lst.facts_from_db(update=True)
+
+                # Compute deltas
+                rating_delta = facts.rating - old_rating
+                stash_delta = facts.stash - old_stash
+
+                # In campaign mode, adjust credits (charge more or refund)
+                # Positive delta = cost increased = charge credits (negative)
+                # Negative delta = cost decreased = refund credits (positive)
+                total_delta = rating_delta + stash_delta
+                is_campaign = lst.is_campaign_mode
+                credits_delta = -total_delta if is_campaign else 0
+
+                # Format the cost change for the description
+                cost_change_str = format_cost_display(total_delta, show_sign=True)
+
+                # Create the action. Skip applying rating/stash deltas since facts_from_db
+                # already updated those values. Credits delta is still applied.
+                lst.create_action(
+                    action_type=ListActionType.CONTENT_COST_CHANGE,
+                    description=f"{instance_name} changed cost ({cost_change_str})",
+                    rating_before=old_rating,
+                    stash_before=old_stash,
+                    rating_delta=rating_delta,
+                    stash_delta=stash_delta,
+                    credits_delta=credits_delta,
+                    update_credits=is_campaign,
+                    skip_apply=["rating", "stash"],
+                )
         except List.DoesNotExist:
             continue
-
-        # Only create actions for lists that have an initial action
-        # Lists without latest_action will have dirty flag set via set_dirty()
-        # and will be recalculated when viewed
-        if not lst.latest_action:
-            continue
-
-        # Capture before state
-        old_rating = lst.rating_current
-        old_stash = lst.stash_current
-
-        # Recalculate with the new content costs (clears dirty flags on list and children)
-        facts = lst.facts_from_db(update=True)
-
-        # Compute deltas
-        rating_delta = facts.rating - old_rating
-        stash_delta = facts.stash - old_stash
-
-        # In campaign mode, adjust credits (charge more or refund)
-        # Positive delta = cost increased = charge credits (negative)
-        # Negative delta = cost decreased = refund credits (positive)
-        total_delta = rating_delta + stash_delta
-        is_campaign = lst.is_campaign_mode
-        credits_delta = -total_delta if is_campaign else 0
-
-        # Format the cost change for the description
-        cost_change_str = format_cost_display(total_delta, show_sign=True)
-
-        # Create the action. Skip applying rating/stash deltas since facts_from_db
-        # already updated those values. Credits delta is still applied.
-        lst.create_action(
-            action_type=ListActionType.CONTENT_COST_CHANGE,
-            description=f"{instance_name} changed cost ({cost_change_str})",
-            rating_before=old_rating,
-            stash_before=old_stash,
-            rating_delta=rating_delta,
-            stash_delta=stash_delta,
-            credits_delta=credits_delta,
-            update_credits=is_campaign,
-            skip_apply=["rating", "stash"],
-        )
+        except Exception as e:
+            # Log error but continue processing other lists
+            # The failed list will remain dirty and be recalculated on next view
+            logger.error(
+                f"Failed to create CONTENT_COST_CHANGE action for list {list_id}: {e}"
+            )
 
 
 # Post-save signal handlers that create actions after content saves
