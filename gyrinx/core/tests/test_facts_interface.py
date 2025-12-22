@@ -348,8 +348,12 @@ def test_list_facts_with_fallback_calculates_when_dirty(
         owner=user,
     )
 
-    # Mock track to verify it's called
-    with patch("gyrinx.core.models.list.track") as mock_track:
+    # Mock track and the background task enqueue
+    # (ImmediateBackend runs tasks synchronously, which would update dirty flag)
+    with (
+        patch("gyrinx.core.models.list.track") as mock_track,
+        patch("gyrinx.core.models.list.refresh_list_facts") as mock_task,
+    ):
         # Should calculate and emit track event
         facts = lst.facts_with_fallback()
         assert facts is not None
@@ -360,7 +364,10 @@ def test_list_facts_with_fallback_calculates_when_dirty(
         # Verify track was called
         mock_track.assert_called_once_with("facts_fallback", list_id=str(lst.pk))
 
-    # Verify it did NOT update the cache (dirty still True)
+        # Verify background task was enqueued
+        mock_task.enqueue.assert_called_once_with(list_id=str(lst.pk))
+
+    # With task mocked, dirty remains True (facts_with_fallback itself doesn't update)
     lst.refresh_from_db()
     assert lst.dirty is True
 

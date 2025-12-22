@@ -13,7 +13,7 @@ Usage:
     ]
 """
 
-from gyrinx.core.tasks import hello_world
+from gyrinx.core.tasks import hello_world, refresh_list_facts
 from gyrinx.tasks import TaskRoute
 
 # =============================================================================
@@ -30,6 +30,7 @@ from gyrinx.tasks import TaskRoute
 
 tasks: list[TaskRoute] = [
     TaskRoute(hello_world),
+    TaskRoute(refresh_list_facts),
 ]
 
 
