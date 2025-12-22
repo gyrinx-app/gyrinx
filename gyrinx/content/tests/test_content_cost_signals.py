@@ -723,10 +723,12 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_creates_action(
-    user, make_list, content_fighter, content_equipment
+    user, make_list, content_fighter, content_equipment, settings
 ):
     """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
     from gyrinx.core.models.action import ListAction, ListActionType
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create list with initial action (required for create_action to work)
     lst = make_list("Test List", create_initial_action=True)
@@ -775,11 +777,13 @@ def test_equipment_cost_change_creates_action(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_increase(
-    user, make_list, content_fighter, content_equipment
+    user, make_list, content_fighter, content_equipment, settings
 ):
     """In campaign mode, cost increase should charge credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with initial action
     lst = make_list("Campaign List", create_initial_action=True)
@@ -823,11 +827,13 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_decrease(
-    user, make_list, content_fighter, content_equipment
+    user, make_list, content_fighter, content_equipment, settings
 ):
     """In campaign mode, cost decrease should refund credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with initial action
     lst = make_list("Campaign List", create_initial_action=True)
@@ -871,11 +877,13 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
-    user, make_list, content_fighter, content_equipment
+    user, make_list, content_fighter, content_equipment, settings
 ):
     """In campaign mode, credits can go negative when cost increases."""
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with low credits
     lst = make_list("Campaign List", create_initial_action=True)
@@ -957,10 +965,12 @@ def test_no_action_created_for_list_without_initial_action(
 
 @pytest.mark.django_db
 def test_content_cost_change_clears_dirty_flags_on_children(
-    user, make_list, content_fighter, content_equipment
+    user, make_list, content_fighter, content_equipment, settings
 ):
     """Content cost change should clear dirty flags on list, fighter, and assignment."""
     from gyrinx.core.models.action import ListAction, ListActionType
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List", create_initial_action=True)
 
