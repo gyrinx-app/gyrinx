@@ -394,6 +394,46 @@ class List(AppBase):
             credits=self.credits_current,
         )
 
+    def facts_with_fallback(self) -> ListFacts:
+        """
+        Get facts using cache if clean, otherwise calculate from scratch.
+
+        MIGRATION PERIOD ONLY: This method provides a performance optimization
+        during the rollout of the action system. It returns cached facts when
+        available (dirty=False), falling back to the original calculation when
+        the cache is stale or not yet populated.
+
+        Intended for use in views like the homepage where many lists are
+        displayed and we want to use cached values when available without
+        forcing a full recalculation via facts_from_db().
+
+        Unlike facts_from_db(), this method does NOT update the cache - it
+        simply reads cached values or calculates on the fly without persisting.
+
+        Once all lists have been bootstrapped with initial actions and the
+        action system is fully rolled out, this method should be removed.
+
+        Returns:
+            ListFacts with rating, stash, and credits values.
+
+        Monitoring:
+            Emits 'facts_fallback' track event when fallback is used, allowing
+            operators to monitor rollout progress via log aggregation.
+        """
+        # Try cached facts first (fast path - O(1) field reads)
+        cached = self.facts()
+        if cached is not None:
+            return cached
+
+        # Fallback to calculation (original behavior)
+        track("facts_fallback", list_id=str(self.pk))
+
+        return ListFacts(
+            rating=self.rating,
+            stash=self.stash_fighter_cost_int,
+            credits=self.credits_current,
+        )
+
     @property
     def debug_facts_in_sync(self) -> bool:
         """

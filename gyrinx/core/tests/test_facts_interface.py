@@ -306,6 +306,66 @@ def test_list_facts_returns_cached_when_clean(user, content_house, make_list):
 
 
 @pytest.mark.django_db
+def test_list_facts_with_fallback_returns_cached_when_clean(
+    user, content_house, make_list
+):
+    """Test that facts_with_fallback() returns cached values when dirty=False."""
+    lst = make_list("Test List")
+    lst.rating_current = 100
+    lst.stash_current = 50
+    lst.credits_current = 25
+    lst.dirty = False
+    lst.save()
+
+    # Should return cached values (fast path)
+    facts = lst.facts_with_fallback()
+    assert facts is not None
+    assert isinstance(facts, ListFacts)
+    assert facts.rating == 100
+    assert facts.stash == 50
+    assert facts.credits == 25
+
+
+@pytest.mark.django_db
+def test_list_facts_with_fallback_calculates_when_dirty(
+    user, make_list, content_fighter
+):
+    """Test that facts_with_fallback() calculates and tracks when dirty=True."""
+    from unittest.mock import patch
+
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Test List")
+    lst.credits_current = 25
+    lst.dirty = True
+    lst.save()
+
+    # Create a fighter to have some rating
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Mock track to verify it's called
+    with patch("gyrinx.core.models.list.track") as mock_track:
+        # Should calculate and emit track event
+        facts = lst.facts_with_fallback()
+        assert facts is not None
+        assert isinstance(facts, ListFacts)
+        assert facts.rating == fighter.cost_int()
+        assert facts.credits == 25
+
+        # Verify track was called
+        mock_track.assert_called_once_with("facts_fallback", list_id=str(lst.pk))
+
+    # Verify it did NOT update the cache (dirty still True)
+    lst.refresh_from_db()
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
 def test_list_facts_from_db_calculates_correctly(
     user, make_list, content_fighter, make_equipment
 ):

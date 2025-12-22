@@ -123,7 +123,7 @@
                                 <div class="row align-items-center">
                                     <div class="col">
                                         <h6 class="mb-1">
-                                            <strong>{% list_with_theme list %}</strong>
+                                            <a href="{% url 'core:list' list.id %}" target="_blank" rel="noopener"><strong>{% list_with_theme list %}</strong></a>
                                             {% if list.content_house %}• {{ list.content_house_name }}{% endif %}
                                         </h6>
                                         <p class="mb-0 text-muted small">
@@ -132,7 +132,9 @@
                                             {% else %}
                                                 By {{ list.owner.username }}
                                             {% endif %}
-                                            • {{ list.cost_int_cached }}¢
+                                            {% with facts=list.facts_with_fallback %}
+                                                • R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
+                                            {% endwith %}
                                         </p>
                                     </div>
                                     <div class="col-auto">
