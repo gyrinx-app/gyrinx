@@ -12,6 +12,7 @@ from gyrinx.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterEquipmentListItem,
     ContentFighterHouseOverride,
     ContentHouse,
     ContentWeaponAccessory,
@@ -1121,3 +1122,74 @@ def test_content_cost_change_clears_dirty_flags_on_children(
     assert lst.dirty is False, "List dirty flag should be cleared"
     assert fighter.dirty is False, "Fighter dirty flag should be cleared"
     assert assignment.dirty is False, "Assignment dirty flag should be cleared"
+
+
+# ============================================================================
+# Zero-delta skip tests (when override is in place)
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_no_action_when_equipment_cost_change_has_zero_delta(
+    user, make_list, content_fighter, content_equipment, settings
+):
+    """
+    When ContentEquipment.cost changes but an override (ContentFighterEquipmentListItem)
+    takes precedence, no CONTENT_COST_CHANGE action should be created because the
+    effective cost for the list hasn't actually changed.
+    """
+    from gyrinx.core.models.action import ListAction
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+
+    # Create an equipment list item that overrides the equipment cost for this fighter
+    # This simulates a fighter-specific cost for equipment in the rulebook
+    override = ContentFighterEquipmentListItem.objects.create(
+        fighter=content_fighter,
+        equipment=content_equipment,
+        cost=75,  # Override cost (different from content_equipment.cost of 100)
+    )
+
+    # Create list with initial action
+    lst = make_list("Test List", create_initial_action=True)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,
+    )
+    lst.dirty = True
+    lst.save()
+
+    # Recalculate to get correct initial rating
+    # Should be 50 (fighter base) + 75 (overridden equipment cost) = 125
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    initial_rating = lst.rating_current
+    assert initial_rating == 125  # Sanity check: using override cost, not base cost
+
+    initial_action_count = ListAction.objects.filter(list=lst).count()
+
+    # Change the BASE equipment cost (which is overridden for this fighter)
+    content_equipment.cost = "200"  # Changed from 100 to 200
+    content_equipment.save()
+
+    # No action should be created because the override (75) still applies
+    # and the list's actual cost hasn't changed
+    lst.refresh_from_db()
+    final_action_count = ListAction.objects.filter(list=lst).count()
+    assert final_action_count == initial_action_count, (
+        "No action should be created when an override is in place"
+    )
+
+    # Rating should still be the same
+    assert lst.rating_current == 125
+
+    # Clean up
+    override.delete()

@@ -3964,11 +3964,17 @@ def _create_content_cost_change_actions(instance):
                 # Compute deltas
                 rating_delta = facts.rating - old_rating
                 stash_delta = facts.stash - old_stash
+                total_delta = rating_delta + stash_delta
+
+                # Skip if no actual cost change (e.g., override in place)
+                # This happens when a base cost changes but a fighter-specific
+                # override (ContentFighterEquipmentListItem, etc.) takes precedence
+                if total_delta == 0:
+                    continue
 
                 # In campaign mode, adjust credits (charge more or refund)
                 # Positive delta = cost increased = charge credits (negative)
                 # Negative delta = cost decreased = refund credits (positive)
-                total_delta = rating_delta + stash_delta
                 is_campaign = lst.is_campaign_mode
                 credits_delta = -total_delta if is_campaign else 0
 
