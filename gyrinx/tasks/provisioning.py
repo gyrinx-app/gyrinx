@@ -15,6 +15,7 @@ from google.cloud import pubsub_v1
 from google.protobuf import duration_pb2
 
 from gyrinx.tasks.registry import get_all_tasks
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ def provision_task_infrastructure():
             )
         except Exception as e:
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
+            track("task_provisioning_failed", task_name=route.name, error=str(e))
 
 
 def _provision_task(

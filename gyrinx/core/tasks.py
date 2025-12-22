@@ -7,7 +7,8 @@ logger = logging.getLogger(__name__)
 
 @task
 def hello_world(name: str = "World"):
-    print(f"Hello, {name}!")
+    """Demo task for testing the task framework."""
+    logger.info(f"Hello, {name}!")
     return f"Greeted {name}"
 
 

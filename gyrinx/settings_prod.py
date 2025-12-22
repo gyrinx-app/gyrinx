@@ -70,13 +70,10 @@ CDN_DOMAIN = gcs_config["CDN_DOMAIN"]
 MEDIA_URL = gcs_config["MEDIA_URL"]
 
 # Background tasks - use Pub/Sub backend in production
-TASKS = {
-    **TASKS,
-    "default": {
-        "BACKEND": "gyrinx.tasks.backend.PubSubBackend",
-        "OPTIONS": {
-            "project_id": GCP_PROJECT_ID,
-        },
+TASKS["default"] = {
+    "BACKEND": "gyrinx.tasks.backend.PubSubBackend",
+    "OPTIONS": {
+        "project_id": GCP_PROJECT_ID,
     },
 }
 TASKS_ENVIRONMENT = "prod"
