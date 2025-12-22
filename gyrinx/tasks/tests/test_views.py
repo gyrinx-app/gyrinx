@@ -42,33 +42,37 @@ def _test_task(name: str = "World"):
     return f"Hello, {name}!"
 
 
+@pytest.fixture
+def bypass_oidc():
+    """Fixture to bypass OIDC verification for tests."""
+    with patch("gyrinx.tasks.views._verify_oidc_token", return_value=True):
+        yield
+
+
 # =============================================================================
-# Basic Request Handling Tests (with OIDC bypassed via DEBUG=True)
+# Basic Request Handling Tests (with OIDC bypassed)
 # =============================================================================
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_get(client, settings):
+def test_pubsub_handler_rejects_get(client, bypass_oidc):
     """GET requests should return 405."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     response = client.get(url)
     assert response.status_code == 405
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_invalid_json(client, settings):
+def test_pubsub_handler_rejects_invalid_json(client, bypass_oidc):
     """Invalid JSON should return 400."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     response = client.post(url, data="not json", content_type="application/json")
     assert response.status_code == 400
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_missing_data(client, settings):
+def test_pubsub_handler_rejects_missing_data(client, bypass_oidc):
     """Missing data field should return 400."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     response = client.post(
         url,
@@ -79,9 +83,8 @@ def test_pubsub_handler_rejects_missing_data(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_unknown_task(client, settings):
+def test_pubsub_handler_rejects_unknown_task(client, bypass_oidc):
     """Unknown task name should return 400."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     envelope = make_pubsub_message("nonexistent_task")
     response = client.post(
@@ -95,9 +98,8 @@ def test_pubsub_handler_rejects_unknown_task(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_missing_task_name(client, settings):
+def test_pubsub_handler_rejects_missing_task_name(client, bypass_oidc):
     """Missing task_name should return 400."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     data = {
         "task_id": "test-123",
@@ -121,9 +123,8 @@ def test_pubsub_handler_rejects_missing_task_name(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_executes_registered_task(client, settings):
+def test_pubsub_handler_executes_registered_task(client, bypass_oidc):
     """Registered tasks should execute and return 200."""
-    settings.DEBUG = True
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -140,9 +141,8 @@ def test_pubsub_handler_executes_registered_task(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_returns_500_on_task_error(client, settings):
+def test_pubsub_handler_returns_500_on_task_error(client, bypass_oidc):
     """Task exceptions should return 500 for retry."""
-    settings.DEBUG = True
 
     def failing_task():
         raise ValueError("Task failed!")
@@ -163,9 +163,8 @@ def test_pubsub_handler_returns_500_on_task_error(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_passes_args_and_kwargs(client, settings):
+def test_pubsub_handler_passes_args_and_kwargs(client, bypass_oidc):
     """Task should receive args and kwargs from message."""
-    settings.DEBUG = True
     received = {}
 
     def capture_task(*args, **kwargs):
@@ -198,55 +197,37 @@ def test_pubsub_handler_passes_args_and_kwargs(client, settings):
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_without_auth_in_production(client, settings):
-    """In production (DEBUG=False), requests without OIDC token are rejected."""
-    settings.DEBUG = False
-
+def test_pubsub_handler_rejects_when_oidc_fails(client):
+    """Requests are rejected when OIDC verification fails."""
     url = reverse("tasks:pubsub")
     envelope = make_pubsub_message("_test_task")
-    response = client.post(
-        url,
-        data=json.dumps(envelope),
-        content_type="application/json",
-    )
+
+    with patch("gyrinx.tasks.views._verify_oidc_token", return_value=False):
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
 
     assert response.status_code == 403
     assert response.content == b"Unauthorized"
 
 
 @pytest.mark.django_db
-def test_pubsub_handler_rejects_invalid_bearer_token_in_production(client, settings):
-    """In production, requests with invalid bearer tokens are rejected."""
-    settings.DEBUG = False
-
-    url = reverse("tasks:pubsub")
-    envelope = make_pubsub_message("_test_task")
-    response = client.post(
-        url,
-        data=json.dumps(envelope),
-        content_type="application/json",
-        HTTP_AUTHORIZATION="Bearer invalid-token",
-    )
-
-    assert response.status_code == 403
-    assert response.content == b"Unauthorized"
-
-
-@pytest.mark.django_db
-def test_pubsub_handler_allows_requests_in_debug_mode(client, settings):
-    """In DEBUG mode, OIDC verification is skipped for easier local testing."""
-    settings.DEBUG = True
-
+def test_pubsub_handler_allows_when_oidc_succeeds(client):
+    """Requests are allowed when OIDC verification succeeds."""
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with (
+        patch("gyrinx.tasks.views._verify_oidc_token", return_value=True),
+        patch("gyrinx.tasks.registry.tasks", routes),
+    ):
         envelope = make_pubsub_message("_test_task")
         response = client.post(
             url,
             data=json.dumps(envelope),
             content_type="application/json",
-            # No Authorization header provided
         )
 
     assert response.status_code == 200
