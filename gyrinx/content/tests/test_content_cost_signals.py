@@ -94,8 +94,8 @@ def test_equipment_cost_change_marks_assignment_dirty(
     user, make_list, content_fighter, content_equipment
 ):
     """When ContentEquipment.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -192,8 +192,8 @@ def test_fighter_base_cost_change_marks_list_fighter_dirty(
     user, make_list, content_fighter
 ):
     """When ContentFighter.base_cost changes, affected ListFighters should be marked dirty."""
-    # Create list and fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -230,8 +230,8 @@ def test_weapon_profile_cost_change_marks_assignment_dirty(
     user, make_list, content_fighter, content_weapon_equipment, content_weapon_profile
 ):
     """When ContentWeaponProfile.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -282,8 +282,8 @@ def test_weapon_accessory_cost_change_marks_assignment_dirty(
     content_accessory,
 ):
     """When ContentWeaponAccessory.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -334,8 +334,8 @@ def test_equipment_upgrade_cost_change_marks_assignment_dirty(
     content_upgrade,
 ):
     """When ContentEquipmentUpgrade.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -391,8 +391,8 @@ def test_equipment_list_item_cost_change_marks_assignment_dirty(
         cost=50,  # Override cost
     )
 
-    # Create list and fighter using that content fighter
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -440,9 +440,9 @@ def test_equipment_cost_change_marks_multiple_lists_dirty(
     user, make_list, content_fighter, content_equipment
 ):
     """When ContentEquipment.cost changes, ALL affected lists should be marked dirty."""
-    # Create two lists with the same equipment
-    lst1 = make_list("Test List 1")
-    lst2 = make_list("Test List 2")
+    # Create two lists (without initial action to test dirty propagation in isolation)
+    lst1 = make_list("Test List 1", create_initial_action=False)
+    lst2 = make_list("Test List 2", create_initial_action=False)
 
     fighter1 = ListFighter.objects.create(
         name="Fighter 1",
@@ -681,8 +681,8 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
         cost=50,
     )
 
-    # Create list, fighter, and assignment
-    lst = make_list("Test List")
+    # Create list and fighter (without initial action to test dirty propagation in isolation)
+    lst = make_list("Test List", create_initial_action=False)
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -714,3 +714,293 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
     assert assignment.dirty is True
     assert fighter.dirty is True
     assert lst.dirty is True
+
+
+# ============================================================================
+# CONTENT_COST_CHANGE action creation tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_creates_action(
+    user, make_list, content_fighter, content_equipment
+):
+    """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    # Create list with initial action (required for create_action to work)
+    lst = make_list("Test List", create_initial_action=True)
+    # Create fighter and assignment with dirty=True so facts_from_db will recalculate
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,
+    )
+    # Also mark list dirty
+    lst.dirty = True
+    lst.save()
+
+    # Recalculate to get correct initial rating (150 = 50 fighter + 100 equipment)
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    initial_rating = lst.rating_current
+    assert initial_rating == 150  # Sanity check
+
+    initial_action_count = ListAction.objects.filter(list=lst).count()
+
+    # Change equipment cost from 100 to 150 (increase of 50)
+    content_equipment.cost = "150"
+    content_equipment.save()
+
+    # Check action was created
+    lst.refresh_from_db()
+    new_action_count = ListAction.objects.filter(list=lst).count()
+    assert new_action_count == initial_action_count + 1
+
+    # Verify action properties
+    action = ListAction.objects.filter(list=lst).order_by("-created").first()
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert "changed cost" in action.description
+    assert "(+50¢)" in action.description  # Shows the cost increase
+    assert action.rating_delta == 50  # Cost increased by 50
+    assert action.credits_delta == 0  # Not campaign mode
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_campaign_mode_credits_increase(
+    user, make_list, content_fighter, content_equipment
+):
+    """In campaign mode, cost increase should charge credits."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+    from gyrinx.core.models.list import List
+
+    # Create campaign mode list with initial action
+    lst = make_list("Campaign List", create_initial_action=True)
+    lst.status = List.CAMPAIGN_MODE
+    lst.credits_current = 500
+    lst.dirty = True
+    lst.save()
+
+    # Create fighter and assignment with dirty=True so facts_from_db will recalculate
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,
+    )
+
+    # Recalculate to get correct initial state
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    initial_credits = lst.credits_current
+
+    # Change equipment cost from 100 to 150 (increase of 50)
+    content_equipment.cost = "150"
+    content_equipment.save()
+
+    # Check credits were charged
+    lst.refresh_from_db()
+    action = ListAction.objects.filter(list=lst).order_by("-created").first()
+
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert action.rating_delta == 50  # Cost increased by 50
+    assert action.credits_delta == -50  # Charged 50 credits
+    assert lst.credits_current == initial_credits - 50
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_campaign_mode_credits_decrease(
+    user, make_list, content_fighter, content_equipment
+):
+    """In campaign mode, cost decrease should refund credits."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+    from gyrinx.core.models.list import List
+
+    # Create campaign mode list with initial action
+    lst = make_list("Campaign List", create_initial_action=True)
+    lst.status = List.CAMPAIGN_MODE
+    lst.credits_current = 200
+    lst.dirty = True
+    lst.save()
+
+    # Create fighter and assignment with dirty=True so facts_from_db will recalculate
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,
+    )
+
+    # Recalculate to get correct initial state
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    initial_credits = lst.credits_current
+
+    # Change equipment cost from 100 to 60 (decrease of 40)
+    content_equipment.cost = "60"
+    content_equipment.save()
+
+    # Check credits were refunded
+    lst.refresh_from_db()
+    action = ListAction.objects.filter(list=lst).order_by("-created").first()
+
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert action.rating_delta == -40  # Cost decreased by 40
+    assert action.credits_delta == 40  # Refunded 40 credits
+    assert lst.credits_current == initial_credits + 40
+
+
+@pytest.mark.django_db
+def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
+    user, make_list, content_fighter, content_equipment
+):
+    """In campaign mode, credits can go negative when cost increases."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+    from gyrinx.core.models.list import List
+
+    # Create campaign mode list with low credits
+    lst = make_list("Campaign List", create_initial_action=True)
+    lst.status = List.CAMPAIGN_MODE
+    lst.credits_current = 20  # Only 20 credits
+    lst.dirty = True
+    lst.save()
+
+    # Create fighter and assignment with dirty=True so facts_from_db will recalculate
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=True,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=True,
+    )
+
+    # Recalculate to get correct initial state
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+
+    # Change equipment cost from 100 to 200 (increase of 100, more than credits)
+    content_equipment.cost = "200"
+    content_equipment.save()
+
+    # Check credits went negative
+    lst.refresh_from_db()
+    action = ListAction.objects.filter(list=lst).order_by("-created").first()
+
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert action.credits_delta == -100  # Charged 100 credits
+    assert lst.credits_current == 20 - 100  # = -80 (negative!)
+
+
+@pytest.mark.django_db
+def test_no_action_created_for_list_without_initial_action(
+    user, content_house, content_fighter, content_equipment
+):
+    """Lists without an initial action should not get CONTENT_COST_CHANGE actions."""
+    from gyrinx.core.models.action import ListAction
+    from gyrinx.core.models.list import List
+
+    # Create list WITHOUT initial action
+    lst = List.objects.create(
+        name="No Action List",
+        content_house=content_house,
+        owner=user,
+    )
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    _assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+
+    initial_action_count = ListAction.objects.filter(list=lst).count()
+    assert initial_action_count == 0  # No initial action
+
+    # Change equipment cost
+    content_equipment.cost = "150"
+    content_equipment.save()
+
+    # No action should be created
+    final_action_count = ListAction.objects.filter(list=lst).count()
+    assert final_action_count == 0
+
+
+@pytest.mark.django_db
+def test_content_cost_change_clears_dirty_flags_on_children(
+    user, make_list, content_fighter, content_equipment
+):
+    """Content cost change should clear dirty flags on list, fighter, and assignment."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    lst = make_list("Test List", create_initial_action=True)
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+
+    # Recalculate to get correct initial state
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    fighter.refresh_from_db()
+    assignment.refresh_from_db()
+
+    # Verify all clean initially
+    assert lst.dirty is False
+    assert fighter.dirty is False
+    assert assignment.dirty is False
+
+    # Change equipment cost (triggers set_dirty on assignment -> fighter -> list)
+    content_equipment.cost = "200"
+    content_equipment.save()
+
+    # Verify action was created
+    action = ListAction.objects.filter(list=lst).order_by("-created").first()
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+
+    # Verify ALL dirty flags are now False (not just the list)
+    lst.refresh_from_db()
+    fighter.refresh_from_db()
+    assignment.refresh_from_db()
+
+    assert lst.dirty is False, "List dirty flag should be cleared"
+    assert fighter.dirty is False, "Fighter dirty flag should be cleared"
+    assert assignment.dirty is False, "Assignment dirty flag should be cleared"
