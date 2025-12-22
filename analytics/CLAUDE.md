@@ -17,8 +17,8 @@ streamlit run analytics/streamlit/app.py
 
 ## Directory Structure
 
-- `@structure.sql` - Full database schema (regenerated on each restore)
-- `@query_patterns.md` - Common query patterns from the application
+- @structure.sql - Full database schema (regenerated on each restore)
+- @query_patterns.md - Common query patterns from the application
 - `streamlit/` - Streamlit analytics dashboard
 
 ## Database Connection
@@ -85,5 +85,5 @@ LEFT JOIN auth_user u ON e.owner_id = u.id;
 
 ## See Also
 
-- `query_patterns.md` - More query examples from the codebase
-- `structure.sql` - Full schema reference
+- @query_patterns.md - More query examples from the codebase
+- @structure.sql - Full schema reference
