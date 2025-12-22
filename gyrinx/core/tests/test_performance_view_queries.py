@@ -280,6 +280,12 @@ def performance_test_data(db):
         cost=12,  # Reduced cost in expansion
     )
 
+    # Clean the list by recalculating cached values.
+    # This simulates a real workflow where the list has been viewed at least once.
+    # Without this, the test would measure the "first view after creation" which
+    # includes many UPDATE queries to populate cached rating values.
+    gang_list.facts_from_db(update=True)
+
     return {
         "user": user,
         "list": gang_list,

@@ -412,6 +412,20 @@ class List(AppBase):
             and facts.wealth == self.wealth_current
         )
 
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this list as dirty.
+
+        This is the terminal propagation point - List does not propagate further.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
     def facts_from_db(self, update: bool = True) -> ListFacts:
         """
         Recalculate facts from database with lazy child evaluation.
@@ -670,7 +684,10 @@ class List(AppBase):
 
     @traced("list_create_action")
     def create_action(
-        self, update_credits: bool = False, **kwargs
+        self,
+        update_credits: bool = False,
+        skip_apply: Optional[list[str]] = None,
+        **kwargs,
     ) -> Optional[ListAction]:
         """
         Create a ListAction to track changes to this list.
@@ -679,6 +696,11 @@ class List(AppBase):
             update_credits: If True, applies credits_delta to the list's credits_current.
                            This works regardless of whether the feature flag is enabled -
                            credits are always updated when this is True.
+            skip_apply: List of delta field names to skip applying. Valid values:
+                       ["rating", "stash"]. Use this when facts_from_db(update=True)
+                       has already updated rating_current/stash_current. The deltas
+                       are still recorded in the action for history.
+                       Note: credits is controlled by update_credits, not this param.
             **kwargs: Additional fields for the ListAction (action_type, description,
                      rating_delta, stash_delta, credits_delta, etc.)
 
@@ -686,6 +708,7 @@ class List(AppBase):
             The created ListAction if feature flag is enabled, None otherwise.
             Note: Even when returning None, credits are still updated if update_credits=True.
         """
+        skip_apply = skip_apply or []
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
         if self.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
@@ -727,8 +750,13 @@ class List(AppBase):
             # Update key fields
             # Currently we don't apply credits delta by default in actions because spend_credits exists
             # but we should refactor in that direction later.
-            rating_delta = kwargs.get("rating_delta", 0)
-            stash_delta = kwargs.get("stash_delta", 0)
+            # skip_apply allows skipping rating/stash when already applied via facts_from_db
+            rating_delta = (
+                kwargs.get("rating_delta", 0) if "rating" not in skip_apply else 0
+            )
+            stash_delta = (
+                kwargs.get("stash_delta", 0) if "stash" not in skip_apply else 0
+            )
             credits_delta = kwargs.get("credits_delta", 0) if update_credits else 0
 
             try:
@@ -1373,6 +1401,7 @@ class ListFighter(AppBase):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
+        db_index=True,
         related_name="list_fighter_legacy",
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
     )
@@ -1835,6 +1864,21 @@ class ListFighter(AppBase):
             return False  # Dirty state means not in sync
 
         return facts.rating == self.cost_int()
+
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this fighter as dirty and propagate to parent list.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
+        # Propagate to parent list
+        self.list.set_dirty(save=save)
 
     def facts_from_db(self, update: bool = True) -> FighterFacts:
         """
@@ -3445,6 +3489,21 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         return AssignmentFacts(rating=self.rating_current)
 
+    def set_dirty(self, save: bool = True) -> None:
+        """
+        Mark this assignment as dirty and propagate to parent fighter.
+
+        Args:
+            save: If True, immediately saves the dirty flag to the database.
+        """
+        if not self.dirty:
+            self.dirty = True
+            if save:
+                self.save(update_fields=["dirty"])
+
+        # Propagate to parent fighter
+        self.list_fighter.set_dirty(save=save)
+
     def facts_from_db(self, update: bool = True) -> AssignmentFacts:
         """
         Recalculate facts from database using existing cost_int() method.
@@ -3844,6 +3903,13 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     class Meta:
         verbose_name = "Fighter Equipment Assignment"
         verbose_name_plural = "Fighter Equipment Assignments"
+
+        indexes = [
+            models.Index(
+                fields=["content_equipment"],
+                name="idx_assignment_content_equip",
+            ),
+        ]
 
 
 @receiver(
