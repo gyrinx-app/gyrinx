@@ -34,12 +34,11 @@ gsutil lifecycle set /tmp/lifecycle.json gs://gyrinx-app-bootstrap-dump
 ### 1.2 Grant Cloud SQL service account access
 
 ```bash
-# Get the Cloud SQL instance's service account
-gcloud sql instances describe gyrinx-app-bootstrap-db \
-  --format='value(serviceAccountEmailAddress)'
+# Get the Cloud SQL instance's service account and store it
+GY_SA_DB_EMAIL=$(gcloud sql instances describe gyrinx-app-bootstrap-db \
+  --format='value(serviceAccountEmailAddress)')
 
 # Grant it write access to the bucket
-# Replace <SERVICE_ACCOUNT_EMAIL> with the value from above
 gcloud storage buckets add-iam-policy-binding gs://gyrinx-app-bootstrap-dump \
   --member=serviceAccount:$GY_SA_DB_EMAIL \
   --role=roles/storage.objectAdmin
@@ -301,17 +300,3 @@ gcloud scheduler jobs describe analytics-export-daily --location=europe-west2
 ```bash
 gcloud workflows executions list analytics-export --location=europe-west2 --limit=5
 ```
-
-## Checklist
-
-- [ ] Set lifecycle policy on `gs://gyrinx-app-bootstrap-dump` for `analytics/` prefix
-- [ ] Grant Cloud SQL service account access to bucket (if not already)
-- [x] Test manual export
-- [x] Deploy Cloud Workflow
-- [x] Grant workflow service account `roles/cloudsql.admin`
-- [ ] Create Cloud Scheduler job
-- [ ] Grant scheduler service account `roles/workflows.invoker`
-- [x] Test scheduled workflow
-- [ ] Add `postgres-analytics` service to docker-compose.yml
-- [ ] Create `scripts/analytics_restore.sh`
-- [ ] Test local restore
