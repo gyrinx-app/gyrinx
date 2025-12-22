@@ -129,6 +129,15 @@ def pubsub_push_handler(request):
     args = data.get("args", [])
     kwargs = data.get("kwargs", {})
 
+    # Validate args/kwargs types (defense in depth)
+    if not isinstance(args, list):
+        logger.error("Invalid 'args' in message payload: expected list")
+        return HttpResponseBadRequest("Invalid message format")
+
+    if not isinstance(kwargs, dict):
+        logger.error("Invalid 'kwargs' in message payload: expected dict")
+        return HttpResponseBadRequest("Invalid message format")
+
     if not task_name:
         logger.error("Missing task_name in message payload")
         return HttpResponseBadRequest("Missing task_name")

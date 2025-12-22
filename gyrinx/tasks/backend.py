@@ -100,7 +100,14 @@ class PubSubBackend(BaseTaskBackend):
             "enqueued_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        data = json.dumps(message_data).encode("utf-8")
+        try:
+            data = json.dumps(message_data).encode("utf-8")
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Task arguments for '{task_name}' are not JSON-serializable. "
+                "Ensure args/kwargs contain only JSON-serializable types "
+                "(dict, list, str, int, float, bool, None)."
+            ) from e
 
         try:
             future = self.publisher.publish(topic_path, data)

@@ -119,7 +119,7 @@ INSTALLED_APPS = [
     "gyrinx.analytics",
     "gyrinx.pages",
     "gyrinx.api",
-    "gyrinx.tasks",
+    "gyrinx.tasks.apps.TasksConfig",
     "tinymce",
     "storages",
     # "csp"
