@@ -26,6 +26,8 @@ from gyrinx.models import (
 )
 from gyrinx.tracing import traced
 
+from gyrinx.content.signals import get_new_cost, get_old_cost
+
 logger = logging.getLogger(__name__)
 
 ##
@@ -455,23 +457,6 @@ class ContentEquipmentListExpansionRuleByFighterCategory(
 # Signal handlers for cost change dirty propagation
 
 
-def _get_old_cost(sender, instance, field_name):
-    """Get the old cost value from the database, or None if this is a new instance."""
-    if not instance.pk:
-        return None
-
-    try:
-        old_instance = sender.objects.only(field_name).get(pk=instance.pk)
-        return getattr(old_instance, field_name)
-    except sender.DoesNotExist:
-        return None
-
-
-def _get_new_cost(instance, field_name):
-    """Get the new cost value from the instance."""
-    return getattr(instance, field_name)
-
-
 @receiver(
     pre_save,
     sender=ContentEquipmentListExpansionItem,
@@ -484,11 +469,11 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
 
     This model provides cost overrides for equipment in expansion lists.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()

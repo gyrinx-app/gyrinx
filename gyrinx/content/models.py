@@ -36,10 +36,11 @@ from gyrinx.models import (
     QuerySetOf,
     equipment_category_group_choices,
     format_cost_display,
-    is_int,
 )
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
+
+from gyrinx.content.signals import get_new_cost, get_old_cost
 
 logger = logging.getLogger(__name__)
 
@@ -3602,37 +3603,6 @@ class ContentAdvancementEquipment(Content):
 # =============================================================================
 
 
-def _get_old_cost(model_class, instance, cost_field="cost"):
-    """
-    Get the old cost value for an instance being updated.
-
-    Returns None if this is a new instance or the instance doesn't exist.
-    """
-    if instance._state.adding or not instance.pk:
-        return None
-
-    try:
-        old_instance = model_class.objects.get(pk=instance.pk)
-        old_value = getattr(old_instance, cost_field)
-        # Handle CharField cost fields (e.g., ContentEquipment)
-        if isinstance(old_value, str):
-            return int(old_value) if is_int(old_value) else 0
-        return old_value or 0
-    except model_class.DoesNotExist:
-        return None
-
-
-def _get_new_cost(instance, cost_field="cost"):
-    """
-    Get the new cost value for an instance being saved.
-    """
-    new_value = getattr(instance, cost_field)
-    # Handle CharField cost fields (e.g., ContentEquipment)
-    if isinstance(new_value, str):
-        return int(new_value) if is_int(new_value) else 0
-    return new_value or 0
-
-
 @receiver(
     pre_save, sender=ContentEquipment, dispatch_uid="content_equipment_cost_change"
 )
@@ -3641,11 +3611,11 @@ def handle_equipment_cost_change(sender, instance, **kwargs):
     """
     Mark affected assignments dirty when ContentEquipment.cost changes.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3659,11 +3629,11 @@ def handle_fighter_base_cost_change(sender, instance, **kwargs):
     """
     Mark affected list fighters dirty when ContentFighter.base_cost changes.
     """
-    old_cost = _get_old_cost(sender, instance, "base_cost")
+    old_cost = get_old_cost(sender, instance, "base_cost")
     if old_cost is None:
         return  # New instance, no existing list fighters
 
-    new_cost = _get_new_cost(instance, "base_cost")
+    new_cost = get_new_cost(instance, "base_cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3677,11 +3647,11 @@ def handle_profile_cost_change(sender, instance, **kwargs):
     """
     Mark affected assignments dirty when ContentWeaponProfile.cost changes.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3697,11 +3667,11 @@ def handle_accessory_cost_change(sender, instance, **kwargs):
     """
     Mark affected assignments dirty when ContentWeaponAccessory.cost changes.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3715,11 +3685,11 @@ def handle_upgrade_cost_change(sender, instance, **kwargs):
     """
     Mark affected assignments dirty when ContentEquipmentUpgrade.cost changes.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3737,11 +3707,11 @@ def handle_equipment_list_item_cost_change(sender, instance, **kwargs):
 
     This model provides cost overrides for equipment on specific fighter types.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3759,11 +3729,11 @@ def handle_equipment_list_accessory_cost_change(sender, instance, **kwargs):
 
     This model provides cost overrides for weapon accessories on specific fighter types.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3781,11 +3751,11 @@ def handle_equipment_list_upgrade_cost_change(sender, instance, **kwargs):
 
     This model provides cost overrides for equipment upgrades on specific fighter types.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
@@ -3803,11 +3773,11 @@ def handle_fighter_house_override_cost_change(sender, instance, **kwargs):
 
     This model provides cost overrides for fighters in specific houses.
     """
-    old_cost = _get_old_cost(sender, instance, "cost")
+    old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing fighters
 
-    new_cost = _get_new_cost(instance, "cost")
+    new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()

@@ -12,6 +12,7 @@ from gyrinx.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
     ContentFighter,
+    ContentFighterHouseOverride,
     ContentHouse,
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -218,6 +219,112 @@ def test_fighter_base_cost_change_marks_list_fighter_dirty(
     # Both should now be dirty
     assert fighter.dirty is True
     assert lst.dirty is True
+
+
+# ============================================================================
+# ContentFighterHouseOverride.cost change tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_fighter_house_override_cost_change_marks_matching_fighter_dirty(
+    user, make_list, content_fighter, content_house
+):
+    """
+    When ContentFighterHouseOverride.cost changes, only ListFighters using
+    that fighter type in that specific house should be marked dirty.
+
+    This test verifies the bug fix for using the correct field name
+    (instance.fighter, not instance.content_fighter).
+    """
+    # Create a house override for this fighter in this house
+    override = ContentFighterHouseOverride.objects.create(
+        fighter=content_fighter,
+        house=content_house,
+        cost=75,  # Different from base_cost (50)
+    )
+
+    # Create list in the same house (without initial action to test dirty propagation)
+    lst = make_list("Test List", create_initial_action=False)
+    # Ensure the list uses the correct house
+    lst.content_house = content_house
+    lst.save()
+
+    # Create a fighter that matches the override (same fighter type, same house)
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=75,
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change the house override cost - this should trigger the signal
+    override.cost = 100
+    override.save()
+
+    # Refresh from database
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # Both should now be dirty
+    assert fighter.dirty is True
+    assert lst.dirty is True
+
+
+@pytest.mark.django_db
+def test_fighter_house_override_cost_change_does_not_mark_other_house_dirty(
+    user, make_list, content_fighter, content_house
+):
+    """
+    When ContentFighterHouseOverride.cost changes, ListFighters in
+    different houses should NOT be marked dirty.
+    """
+    # Create a second house
+    other_house = ContentHouse.objects.create(name="Other House")
+
+    # Create a house override for the fighter in the FIRST house
+    override = ContentFighterHouseOverride.objects.create(
+        fighter=content_fighter,
+        house=content_house,
+        cost=75,
+    )
+
+    # Create list in the OTHER house
+    lst = make_list("Test List", create_initial_action=False)
+    lst.content_house = other_house
+    lst.save()
+
+    # Create a fighter using the same fighter type but in the other house
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,  # Using base cost since no override for this house
+        dirty=False,
+    )
+
+    # Verify initial state
+    assert fighter.dirty is False
+    assert lst.dirty is False
+
+    # Change the house override cost
+    override.cost = 100
+    override.save()
+
+    # Refresh from database
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+
+    # Should NOT be dirty since this list is in a different house
+    assert fighter.dirty is False
+    assert lst.dirty is False
 
 
 # ============================================================================
