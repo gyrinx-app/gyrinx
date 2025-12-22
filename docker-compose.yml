@@ -63,9 +63,25 @@ services:
     profiles:
       - app
 
+  postgres-analytics:
+    image: postgres:16.4
+    container_name: postgres-analytics
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_analytics_data:/var/lib/postgresql/data
+    profiles:
+      - analytics
+
 volumes:
   pgadmin-data: # To persist postgres connection details
   postgres_data:
+  postgres_analytics_data:
 
 configs:
   pgpass:
