@@ -59,7 +59,7 @@
                                         </h3>
                                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                                             <div>{{ gang.content_house.name }}</div>
-                                            <div class="badge text-bg-primary">{{ gang.cost_display }}</div>
+                                            <div class="badge text-bg-primary">{% credits gang.facts_with_fallback.wealth %}</div>
                                         </div>
                                         <div class="small">
                                             <i class="bi-award"
@@ -152,7 +152,7 @@
                                         </h3>
                                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                                             <div>{{ list.content_house_name }}</div>
-                                            <div class="badge text-bg-primary">{{ list.cost_display }}</div>
+                                            <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
                                         </div>
                                         {% load tz %}
                                         <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>

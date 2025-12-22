@@ -18,6 +18,7 @@ from django.utils.safestring import mark_safe
 
 from gyrinx.content.models import ContentPageRef
 from gyrinx.core import url
+from gyrinx.models import format_cost_display
 
 register = template.Library()
 
@@ -314,6 +315,22 @@ def cachebuster():
 @register.simple_tag
 def dot():
     return mark_safe("&nbsp;·&nbsp;")
+
+
+@register.simple_tag
+def credits(value, show_sign=False):
+    """
+    Format an integer cost value with the credits symbol.
+
+    Args:
+        value: Integer cost value
+        show_sign: If True, show '+' for positive values (default: False)
+
+    Usage:
+        {% credits list.facts_with_fallback.wealth %}
+        {% credits delta show_sign=True %}
+    """
+    return format_cost_display(value, show_sign=show_sign)
 
 
 @register.simple_tag(takes_context=True)

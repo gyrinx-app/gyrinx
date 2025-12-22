@@ -5,5 +5,7 @@
 </h6>
 <p class="mb-0 text-muted small">
     <i class="bi-person"></i> {{ list.owner.username }}
-    • {{ list.cost_int_cached }}¢
+    {% with facts=list.facts_with_fallback %}
+        • R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
+    {% endwith %}
 </p>

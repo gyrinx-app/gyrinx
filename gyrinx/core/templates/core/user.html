@@ -39,7 +39,7 @@
                         </div>
                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                             <div>{{ list.content_house_name }}</div>
-                            <div class="badge text-bg-primary">{{ list.cost_int_cached }}</div>
+                            <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
                         </div>
                     </div>
                     <div class="ms-auto d-md-none">
