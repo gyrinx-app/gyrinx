@@ -27,3 +27,4 @@ latest.json
 logs/
 # Ignore Pycharm project files
 .idea/
+data/analytics/
