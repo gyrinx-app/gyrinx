@@ -1,7 +1,7 @@
 import os
 
 from .settings import *  # noqa: F403
-from .settings import LOGGING, STORAGES
+from .settings import LOGGING, STORAGES, TASKS
 from .storage_settings import configure_gcs_storage
 
 # Use GCP tracing in production
@@ -68,3 +68,15 @@ GS_QUERYSTRING_AUTH = gcs_config["GS_QUERYSTRING_AUTH"]
 GS_OBJECT_PARAMETERS = gcs_config["GS_OBJECT_PARAMETERS"]
 CDN_DOMAIN = gcs_config["CDN_DOMAIN"]
 MEDIA_URL = gcs_config["MEDIA_URL"]
+
+# Background tasks - use Pub/Sub backend in production
+TASKS = {
+    **TASKS,
+    "default": {
+        "BACKEND": "gyrinx.tasks.backend.PubSubBackend",
+        "OPTIONS": {
+            "project_id": GCP_PROJECT_ID,
+        },
+    },
+}
+TASKS_ENVIRONMENT = "prod"
