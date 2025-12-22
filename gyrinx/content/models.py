@@ -3896,7 +3896,7 @@ def _create_content_cost_change_actions(instance):
         # Fighter house overrides - find fighters using this override's fighter in this house
         list_ids = (
             ListFighter.objects.filter(
-                content_fighter=instance.content_fighter,
+                content_fighter=instance.fighter,
                 list__content_house=instance.house,
                 archived=False,
             )
