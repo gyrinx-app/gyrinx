@@ -77,7 +77,7 @@ PATREON_HOOK_SECRET = os.getenv("PATREON_HOOK_SECRET", "")
 # Features
 
 FEATURE_LIST_ACTION_CREATE_INITIAL = (
-    os.getenv("FEATURE_LIST_ACTION_CREATE_INITIAL", "") == "True"
+    os.getenv("FEATURE_LIST_ACTION_CREATE_INITIAL", "True") == "True"
 )
 
 # Enable background task enqueue in facts_with_fallback
