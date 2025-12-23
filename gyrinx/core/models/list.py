@@ -67,6 +67,7 @@ from gyrinx.core.models.facts import AssignmentFacts, FighterFacts, ListFacts
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.core.models.util import ModContext
+from gyrinx.core.tasks import refresh_list_facts
 from gyrinx.models import (
     Archived,
     Base,
@@ -74,7 +75,6 @@ from gyrinx.models import (
     QuerySetOf,
     format_cost_display,
 )
-from gyrinx.core.tasks import refresh_list_facts
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 
@@ -478,6 +478,7 @@ class List(AppBase):
             if save:
                 self.save(update_fields=["dirty"])
 
+    @traced("list_facts_from_db")
     def facts_from_db(self, update: bool = True) -> ListFacts:
         """
         Recalculate facts from database with lazy child evaluation.
@@ -535,10 +536,19 @@ class List(AppBase):
         if update:
             # Use max(0, rating) to prevent PositiveIntegerField constraint violation
             # (cost_int can return negative values via cost overrides)
-            self.rating_current = max(0, rating)
+            rating_value = max(0, rating)
+            # Use QuerySet.update() to bypass signals - facts_from_db is already
+            # computing correct values, we don't want to trigger expensive
+            # signal_update_list_cost_cache recalculations
+            List.objects.filter(pk=self.pk).update(
+                rating_current=rating_value,
+                stash_current=stash,
+                dirty=False,
+            )
+            # Update instance to reflect DB changes
+            self.rating_current = rating_value
             self.stash_current = stash
             self.dirty = False
-            self.save(update_fields=["rating_current", "stash_current", "dirty"])
 
         return ListFacts(
             rating=rating,
@@ -1934,6 +1944,7 @@ class ListFighter(AppBase):
         # Propagate to parent list
         self.list.set_dirty(save=save)
 
+    @traced("list_fighter_facts_from_db")
     def facts_from_db(self, update: bool = True) -> FighterFacts:
         """
         Recalculate facts from database with lazy child evaluation.
@@ -1983,9 +1994,17 @@ class ListFighter(AppBase):
         if update:
             # Use max(0, rating) to prevent PositiveIntegerField constraint violation
             # (cost_int can return negative values via cost overrides)
-            self.rating_current = max(0, rating)
+            rating_value = max(0, rating)
+            # Use QuerySet.update() to bypass signals - facts_from_db is already
+            # computing correct values, we don't want to trigger expensive
+            # signal_update_list_cost_cache recalculations
+            ListFighter.objects.filter(pk=self.pk).update(
+                rating_current=rating_value,
+                dirty=False,
+            )
+            # Update instance to reflect DB changes
+            self.rating_current = rating_value
             self.dirty = False
-            self.save(update_fields=["rating_current", "dirty"])
 
         return FighterFacts(rating=rating)
 
@@ -3560,6 +3579,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         # Propagate to parent fighter
         self.list_fighter.set_dirty(save=save)
 
+    @traced("list_fighter_assignment_facts_from_db")
     def facts_from_db(self, update: bool = True) -> AssignmentFacts:
         """
         Recalculate facts from database using existing cost_int() method.
@@ -3579,9 +3599,17 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         if update:
             # Use max(0, rating) to prevent PositiveIntegerField constraint violation
             # (cost_int can return negative values via cost overrides)
-            self.rating_current = max(0, rating)
+            rating_value = max(0, rating)
+            # Use QuerySet.update() to bypass signals - facts_from_db is already
+            # computing correct values, we don't want to trigger expensive
+            # signal_update_list_cache_for_assignment recalculations
+            ListFighterEquipmentAssignment.objects.filter(pk=self.pk).update(
+                rating_current=rating_value,
+                dirty=False,
+            )
+            # Update instance to reflect DB changes
+            self.rating_current = rating_value
             self.dirty = False
-            self.save(update_fields=["rating_current", "dirty"])
 
         return AssignmentFacts(rating=rating)
 

@@ -78,17 +78,15 @@ def test_history_tracking_via_view():
     assert list_obj is not None
 
     # Check history
-    # NOTE: We now create 2 history entries: one for initial save, one for facts_from_db update
+    # NOTE: facts_from_db uses QuerySet.update() to bypass signals, so it doesn't
+    # create history entries. Only the initial creation is tracked.
     history = list_obj.history.all()
-    assert history.count() == 2
-    assert history[0].history_type == "~"  # Most recent: update from facts_from_db
-    assert history[1].history_type == "+"  # Initial creation
+    assert history.count() == 1
+    assert history[0].history_type == "+"  # Initial creation
     assert history[0].name == "Test List"
 
-    # Check if user was tracked by middleware for both entries
-    # The middleware should track the user for both creation and update
-    assert history[1].history_user == user  # Creation entry
-    assert history[0].history_user == user  # Update entry (from facts_from_db)
+    # Check if user was tracked by middleware
+    assert history[0].history_user == user  # Creation entry
 
 
 @pytest.mark.django_db
