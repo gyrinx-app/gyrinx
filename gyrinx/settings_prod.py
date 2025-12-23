@@ -16,7 +16,7 @@ GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
 # Note: RequestMiddleware in settings.py handles trace correlation
 # The project_id is required for proper trace correlation formatting
 LOGGING["handlers"]["structured_console"] = {
-    "class": "google.cloud.logging_v2.handlers.StructuredLogHandler",
+    "class": "gyrinx.logging_filter.TraceAwareStructuredLogHandler",
     "project_id": GCP_PROJECT_ID,
 }
 
