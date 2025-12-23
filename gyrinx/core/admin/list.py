@@ -84,7 +84,12 @@ def initialize_action_tracking(modeladmin, request, queryset):
         ListAction.objects.filter(list__in=queryset).values_list("list_id", flat=True)
     )
 
-    lists_to_process = [lst for lst in queryset if lst.id not in list_ids_with_actions]
+    # Only fetch IDs to minimize memory usage for large querysets
+    lists_to_process = [
+        lst_id
+        for lst_id in queryset.values_list("id", flat=True)
+        if lst_id not in list_ids_with_actions
+    ]
     skipped_count = queryset.count() - len(lists_to_process)
 
     if not lists_to_process:
@@ -107,15 +112,15 @@ def initialize_action_tracking(modeladmin, request, queryset):
         user=request.user.username,
     )
 
-    for lst in lists_to_process:
+    for lst_id in lists_to_process:
         try:
-            backfill_list_action.enqueue(list_id=str(lst.id))
+            backfill_list_action.enqueue(list_id=str(lst_id))
             enqueued_count += 1
         except Exception as e:
-            logger.error(f"Failed to enqueue backfill task for list {lst.id}: {e}")
+            logger.error(f"Failed to enqueue backfill task for list {lst_id}: {e}")
             track(
                 "admin_initialize_action_tracking_enqueue_failed",
-                list_id=str(lst.id),
+                list_id=str(lst_id),
                 error=str(e),
             )
             failed_count += 1
@@ -135,7 +140,15 @@ def initialize_action_tracking(modeladmin, request, queryset):
     if failed_count:
         msg_parts.append(f"Failed to enqueue {failed_count} (check logs).")
 
-    level = messages.SUCCESS if failed_count == 0 else messages.WARNING
+    # Determine message level based on outcome
+    if enqueued_count == 0 and len(lists_to_process) > 0:
+        # All enqueues failed - likely a task backend configuration issue
+        level = messages.ERROR
+        msg_parts.append("Check task queue configuration.")
+    elif failed_count > 0:
+        level = messages.WARNING
+    else:
+        level = messages.SUCCESS
     modeladmin.message_user(request, " ".join(msg_parts), level)
 
 

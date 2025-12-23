@@ -52,6 +52,11 @@ def backfill_list_action(list_id: str):
 
     try:
         with transaction.atomic():
+            # select_for_update() prevents race condition where concurrent tasks
+            # for the same list could both pass the exists() check before either commits.
+            # We lock the row first, then fetch with related data separately because
+            # FOR UPDATE cannot be applied to outer joins used in with_related_data().
+            List.objects.select_for_update().filter(pk=list_id).get()
             lst: List = List.objects.with_related_data(with_fighters=True).get(
                 pk=list_id
             )
@@ -123,3 +128,5 @@ def backfill_list_action(list_id: str):
             list_id=list_id,
             error=str(e),
         )
+        # Re-raise to allow task framework to handle retries for transient failures
+        raise

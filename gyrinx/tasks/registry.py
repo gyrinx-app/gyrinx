@@ -44,7 +44,9 @@ def _get_tasks() -> list[TaskRoute]:
             TaskRoute(refresh_list_facts),
             # Backfill task: longer ack_deadline since it does facts_from_db
             # which can be expensive for large lists. Longer retry delays
-            # to naturally throttle processing rate.
+            # naturally throttle the backfill rate so we don't overwhelm
+            # the database with many concurrent expensive facts_from_db
+            # calculations during bulk backfills.
             TaskRoute(
                 backfill_list_action,
                 ack_deadline=300,  # 5 minutes to complete
