@@ -1,9 +1,14 @@
+import logging
+
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.db.models import Exists, OuterRef
 
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
+from gyrinx.core.models.action import ListAction
 from gyrinx.forms import group_select
+from gyrinx.tracker import track
 
 from ..models.list import (
     List,
@@ -12,6 +17,8 @@ from ..models.list import (
     ListFighterEquipmentAssignment,
     ListFighterPsykerPowerAssignment,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @admin.display(description="Cost")
@@ -37,6 +44,101 @@ class ListForm(forms.ModelForm):
     pass
 
 
+class HasActionTrackingFilter(admin.SimpleListFilter):
+    """Filter lists by whether they have action tracking (initial ListAction)."""
+
+    title = "action tracking"
+    parameter_name = "has_action_tracking"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("yes", "Has action tracking"),
+            ("no", "Missing action tracking"),
+        ]
+
+    def queryset(self, request, queryset):
+        # Subquery to check if list has any actions
+        has_action = Exists(ListAction.objects.filter(list=OuterRef("pk")))
+
+        if self.value() == "yes":
+            return queryset.filter(has_action)
+        if self.value() == "no":
+            return queryset.filter(~has_action)
+        return queryset
+
+
+@admin.action(description="Initialize action tracking (enqueue background tasks)")
+def initialize_action_tracking(modeladmin, request, queryset):
+    """
+    Enqueue background tasks to backfill initial ListAction for selected lists.
+
+    This action filters to only lists without existing actions and enqueues
+    a background task for each one. The task will:
+    1. Recalculate cached values via facts_from_db()
+    2. Create an initial CREATE action as a snapshot
+    """
+    from gyrinx.core.tasks import backfill_list_action
+
+    # Filter to only lists without actions (idempotent, but avoids unnecessary tasks)
+    list_ids_with_actions = set(
+        ListAction.objects.filter(list__in=queryset).values_list("list_id", flat=True)
+    )
+
+    lists_to_process = [lst for lst in queryset if lst.id not in list_ids_with_actions]
+    skipped_count = queryset.count() - len(lists_to_process)
+
+    if not lists_to_process:
+        modeladmin.message_user(
+            request,
+            "All selected lists already have action tracking.",
+            messages.WARNING,
+        )
+        return
+
+    # Enqueue tasks
+    enqueued_count = 0
+    failed_count = 0
+
+    track(
+        "admin_initialize_action_tracking_started",
+        total_selected=queryset.count(),
+        to_process=len(lists_to_process),
+        skipped=skipped_count,
+        user=request.user.username,
+    )
+
+    for lst in lists_to_process:
+        try:
+            backfill_list_action.enqueue(list_id=str(lst.id))
+            enqueued_count += 1
+        except Exception as e:
+            logger.error(f"Failed to enqueue backfill task for list {lst.id}: {e}")
+            track(
+                "admin_initialize_action_tracking_enqueue_failed",
+                list_id=str(lst.id),
+                error=str(e),
+            )
+            failed_count += 1
+
+    track(
+        "admin_initialize_action_tracking_completed",
+        enqueued=enqueued_count,
+        failed=failed_count,
+        skipped=skipped_count,
+        user=request.user.username,
+    )
+
+    # Build message
+    msg_parts = [f"Enqueued {enqueued_count} backfill task(s)."]
+    if skipped_count:
+        msg_parts.append(f"Skipped {skipped_count} (already have actions).")
+    if failed_count:
+        msg_parts.append(f"Failed to enqueue {failed_count} (check logs).")
+
+    level = messages.SUCCESS if failed_count == 0 else messages.WARNING
+    modeladmin.message_user(request, " ".join(msg_parts), level)
+
+
 @admin.register(List)
 class ListAdmin(BaseAdmin):
     form = ListForm
@@ -55,8 +157,9 @@ class ListAdmin(BaseAdmin):
     ]
     readonly_fields = ["original_list", "campaign"]
     list_display = ["name", "content_house", "owner", "status", "public"]
-    list_filter = ["status", "public", "content_house"]
+    list_filter = ["status", "public", "content_house", HasActionTrackingFilter]
     search_fields = ["name", "content_house__name", "campaign__name"]
+    actions = [initialize_action_tracking]
 
     inlines = [ListFighterInline, ListAttributeAssignmentInline]
 

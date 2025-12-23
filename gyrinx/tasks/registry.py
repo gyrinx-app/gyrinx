@@ -33,11 +33,24 @@ def _get_tasks() -> list[TaskRoute]:
     """
     global _tasks
     if _tasks is None:
-        from gyrinx.core.tasks import hello_world, refresh_list_facts
+        from gyrinx.core.tasks import (
+            backfill_list_action,
+            hello_world,
+            refresh_list_facts,
+        )
 
         _tasks = [
             TaskRoute(hello_world),
             TaskRoute(refresh_list_facts),
+            # Backfill task: longer ack_deadline since it does facts_from_db
+            # which can be expensive for large lists. Longer retry delays
+            # to naturally throttle processing rate.
+            TaskRoute(
+                backfill_list_action,
+                ack_deadline=300,  # 5 minutes to complete
+                min_retry_delay=30,  # Wait 30s before retry
+                max_retry_delay=600,  # Max 10 min backoff
+            ),
         ]
     return _tasks
 
