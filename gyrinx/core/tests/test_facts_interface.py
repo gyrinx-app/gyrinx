@@ -328,7 +328,7 @@ def test_list_facts_with_fallback_returns_cached_when_clean(
 
 @pytest.mark.django_db
 def test_list_facts_with_fallback_calculates_when_dirty(
-    user, make_list, content_fighter
+    user, make_list, content_fighter, settings
 ):
     """Test that facts_with_fallback() calculates and tracks when dirty=True."""
     from unittest.mock import patch
@@ -348,6 +348,9 @@ def test_list_facts_with_fallback_calculates_when_dirty(
         owner=user,
     )
 
+    # Enable the feature flag for this test
+    settings.FEATURE_FACTS_FALLBACK_ENQUEUE = True
+
     # Mock track and the background task enqueue
     # (ImmediateBackend runs tasks synchronously, which would update dirty flag)
     with (
@@ -364,7 +367,7 @@ def test_list_facts_with_fallback_calculates_when_dirty(
         # Verify track was called
         mock_track.assert_called_once_with("facts_fallback", list_id=str(lst.pk))
 
-        # Verify background task was enqueued
+        # Verify background task was enqueued (when feature is enabled)
         mock_task.enqueue.assert_called_once_with(list_id=str(lst.pk))
 
     # With task mocked, dirty remains True (facts_with_fallback itself doesn't update)

@@ -429,13 +429,17 @@ class List(AppBase):
         # Fallback to calculation (original behavior)
         track("facts_fallback", list_id=str(self.pk))
 
-        # Try to enqueue a background refresh (best effort)
-        try:
-            refresh_list_facts.enqueue(list_id=str(self.pk))
-        except Exception as e:
-            # Task system is new - don't break facts_with_fallback if it fails
-            logger.warning(f"Failed to enqueue facts refresh for list {self.pk}: {e}")
-            track("task_enqueue_failed", list_id=str(self.pk), error=str(e))
+        # Optionally enqueue a background refresh
+        # Disabled by default because Pub/Sub publish is synchronous and blocks page loads
+        if settings.FEATURE_FACTS_FALLBACK_ENQUEUE:
+            try:
+                refresh_list_facts.enqueue(list_id=str(self.pk))
+            except Exception as e:
+                # Task system is new - don't break facts_with_fallback if it fails
+                logger.warning(
+                    f"Failed to enqueue facts refresh for list {self.pk}: {e}"
+                )
+                track("task_enqueue_failed", list_id=str(self.pk), error=str(e))
 
         return ListFacts(
             rating=self.rating,
