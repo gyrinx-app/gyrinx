@@ -110,6 +110,7 @@ from gyrinx.core.utils import (
 )
 from gyrinx.core.views import make_query_params_str
 from gyrinx.models import FighterCategoryChoices, QuerySetOf, is_int, is_valid_uuid
+from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
 
@@ -160,6 +161,7 @@ class ListsListView(generic.ListView):
     paginate_by = 20
     page_kwarg = "page"
 
+    @traced("ListsListView_get_queryset")
     def get_queryset(self):
         """
         Return :model:`core.List` objects that are public and in list building mode.
@@ -230,11 +232,13 @@ class ListsListView(generic.ListView):
 
         return queryset
 
+    @traced("ListsListView_get_context_data")
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["houses"] = ContentHouse.objects.all().order_by("name")
         return context
 
+    @traced("ListsListView_get")
     def get(self, request, *args, **kwargs):
         """
         Override get to handle pagination errors.
@@ -286,6 +290,7 @@ class ListDetailView(generic.DetailView):
     template_name = "core/list.html"
     context_object_name = "list"
 
+    @traced("ListDetailView_get_object")
     def get_object(self):
         """
         Retrieve the :model:`core.List` by its `id`.
@@ -298,6 +303,7 @@ class ListDetailView(generic.DetailView):
             id=self.kwargs["id"],
         )
 
+    @traced("ListDetailView_get_context_data")
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         list_obj = context["list"]
