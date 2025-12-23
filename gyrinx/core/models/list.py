@@ -74,6 +74,7 @@ from gyrinx.models import (
     QuerySetOf,
     format_cost_display,
 )
+from gyrinx.core.tasks import refresh_list_facts
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 
@@ -427,6 +428,14 @@ class List(AppBase):
 
         # Fallback to calculation (original behavior)
         track("facts_fallback", list_id=str(self.pk))
+
+        # Try to enqueue a background refresh (best effort)
+        try:
+            refresh_list_facts.enqueue(list_id=str(self.pk))
+        except Exception as e:
+            # Task system is new - don't break facts_with_fallback if it fails
+            logger.warning(f"Failed to enqueue facts refresh for list {self.pk}: {e}")
+            track("task_enqueue_failed", list_id=str(self.pk), error=str(e))
 
         return ListFacts(
             rating=self.rating,

@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     "gyrinx.analytics",
     "gyrinx.pages",
     "gyrinx.api",
+    "gyrinx.tasks.apps.TasksConfig",
     "tinymce",
     "storages",
     # "csp"
@@ -444,3 +445,14 @@ SQLCOMMENTER_WITH_APP_NAME = True
 # Tracing configuration
 # Options: "off" (no-op), "console" (print to stdout), "gcp" (Google Cloud Trace)
 TRACING_MODE = os.getenv("TRACING_MODE", "off")
+
+# Background tasks configuration
+# https://docs.djangoproject.com/en/6.0/topics/tasks/
+TASKS = {
+    "default": {
+        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+    }
+}
+
+# Environment for task topic naming (dev/staging/prod)
+TASKS_ENVIRONMENT = os.getenv("TASKS_ENVIRONMENT", "dev")
