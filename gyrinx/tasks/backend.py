@@ -28,6 +28,12 @@ class PubSubBackend(BaseTaskBackend):
     Each registered task gets its own topic, allowing independent
     configuration of retry policies and ack deadlines.
 
+    IMPORTANT: This backend uses fire-and-forget publishing for low latency.
+    Messages are published without waiting for Pub/Sub confirmation. A callback
+    handles success/failure tracking via track(). This means message loss is
+    possible on network issues, but the tradeoff is that enqueue() returns
+    immediately without blocking the calling thread.
+
     Configuration in settings.py:
         TASKS = {
             "default": {
@@ -70,13 +76,18 @@ class PubSubBackend(BaseTaskBackend):
         """
         Publish task to its dedicated Pub/Sub topic.
 
+        This method returns immediately after initiating the publish (fire-and-forget).
+        A callback tracks success/failure via track(). We don't wait for Pub/Sub
+        confirmation because blocking the request thread causes slow page loads
+        when multiple tasks are enqueued.
+
         Args:
             task: The Task instance to enqueue
             args: Positional arguments for the task
             kwargs: Keyword arguments for the task
 
         Returns:
-            TaskResult with the task ID
+            TaskResult with the task ID (status is READY, though publish may still be in flight)
 
         Raises:
             ValueError: If task is not registered in registry.py
@@ -111,43 +122,48 @@ class PubSubBackend(BaseTaskBackend):
                 "(dict, list, str, int, float, bool, None)."
             ) from e
 
-        try:
-            future = self.publisher.publish(topic_path, data)
-            # Wait for publish confirmation; 10s is generous for Pub/Sub RTT
-            message_id = future.result(timeout=10)
+        # Publish without waiting - use callback for tracking
+        future = self.publisher.publish(topic_path, data)
 
-            enqueued_at = datetime.now(timezone.utc)
+        def on_publish_complete(f):
+            """Callback to track publish success/failure."""
+            try:
+                message_id = f.result()
+                track(
+                    "task_published",
+                    task_id=task_id,
+                    task_name=task_name,
+                    topic=route.topic_name,
+                    message_id=message_id,
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to publish task: {e}",
+                    extra={"task_id": task_id, "task_name": task_name},
+                    exc_info=True,
+                )
+                track(
+                    "task_publish_failed",
+                    task_id=task_id,
+                    task_name=task_name,
+                    error=str(e),
+                )
 
-            track(
-                "task_published",
-                task_id=task_id,
-                task_name=task_name,
-                topic=route.topic_name,
-                message_id=message_id,
-            )
+        future.add_done_callback(on_publish_complete)
 
-            return TaskResult(
-                task=task,
-                id=task_id,
-                status=TaskResultStatus.READY,
-                enqueued_at=enqueued_at,
-                started_at=None,
-                finished_at=None,
-                last_attempted_at=None,
-                args=list(args),
-                kwargs=dict(kwargs),
-                backend=self.alias,
-                errors=[],
-                worker_ids=[],
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Failed to publish task: {e}",
-                extra={
-                    "task_id": task_id,
-                    "task_name": task_name,
-                },
-                exc_info=True,
-            )
-            raise
+        # Return immediately - publish happens async
+        enqueued_at = datetime.now(timezone.utc)
+        return TaskResult(
+            task=task,
+            id=task_id,
+            status=TaskResultStatus.READY,
+            enqueued_at=enqueued_at,
+            started_at=None,
+            finished_at=None,
+            last_attempted_at=None,
+            args=list(args),
+            kwargs=dict(kwargs),
+            backend=self.alias,
+            errors=[],
+            worker_ids=[],
+        )

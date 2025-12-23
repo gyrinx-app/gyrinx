@@ -81,9 +81,9 @@ FEATURE_LIST_ACTION_CREATE_INITIAL = (
 )
 
 # Enable background task enqueue in facts_with_fallback
-# Disabled by default because the synchronous Pub/Sub publish blocks page loads
+# Uses fire-and-forget publishing so it doesn't block page loads
 FEATURE_FACTS_FALLBACK_ENQUEUE = (
-    os.getenv("FEATURE_FACTS_FALLBACK_ENQUEUE", "") == "True"
+    os.getenv("FEATURE_FACTS_FALLBACK_ENQUEUE", "True") == "True"
 )
 
 # Gyrinx debug mode - shows debug info in templates (not the same as Django DEBUG)
