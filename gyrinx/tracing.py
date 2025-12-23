@@ -121,7 +121,6 @@ def _init_tracing() -> None:
     try:
         from opentelemetry import trace
         from opentelemetry.instrumentation.django import DjangoInstrumentor
-        from opentelemetry.instrumentation.logging import LoggingInstrumentor
         from opentelemetry.propagate import set_global_textmap
         from opentelemetry.propagators.cloud_trace_propagator import (
             CloudTraceFormatPropagator,
@@ -147,9 +146,9 @@ def _init_tracing() -> None:
         # Auto-instrument Django (adds automatic request spans)
         DjangoInstrumentor().instrument()
 
-        # Auto-instrument logging (injects trace context into log records)
-        # This ensures StructuredLogHandler uses OpenTelemetry span IDs
-        LoggingInstrumentor().instrument(set_logging_format=False)
+        # Note: We don't use LoggingInstrumentor here because our custom
+        # TraceAwareCloudLoggingFilter in logging_filter.py handles trace context
+        # injection with proper parent/child spanId handling.
 
         # Get tracer for manual spans
         _tracer = trace.get_tracer("gyrinx.tracing")
