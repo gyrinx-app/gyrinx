@@ -472,11 +472,12 @@ class List(AppBase):
 
         Args:
             save: If True, immediately saves the dirty flag to the database.
+                  Uses QuerySet.update() to bypass signals and avoid thrashing.
         """
         if not self.dirty:
             self.dirty = True
             if save:
-                self.save(update_fields=["dirty"])
+                List.objects.filter(pk=self.pk).update(dirty=True)
 
     @traced("list_facts_from_db")
     def facts_from_db(self, update: bool = True) -> ListFacts:
@@ -1935,11 +1936,12 @@ class ListFighter(AppBase):
 
         Args:
             save: If True, immediately saves the dirty flag to the database.
+                  Uses QuerySet.update() to bypass signals and avoid thrashing.
         """
         if not self.dirty:
             self.dirty = True
             if save:
-                self.save(update_fields=["dirty"])
+                ListFighter.objects.filter(pk=self.pk).update(dirty=True)
 
         # Propagate to parent list
         self.list.set_dirty(save=save)
@@ -3570,11 +3572,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         Args:
             save: If True, immediately saves the dirty flag to the database.
+                  Uses QuerySet.update() to bypass signals and avoid thrashing.
         """
         if not self.dirty:
             self.dirty = True
             if save:
-                self.save(update_fields=["dirty"])
+                ListFighterEquipmentAssignment.objects.filter(pk=self.pk).update(
+                    dirty=True
+                )
 
         # Propagate to parent fighter
         self.list_fighter.set_dirty(save=save)
