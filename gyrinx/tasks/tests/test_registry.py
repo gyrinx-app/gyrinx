@@ -31,7 +31,7 @@ def test_get_all_tasks_returns_list():
 def test_get_task_with_registered_task():
     """get_task returns the route for registered tasks."""
     routes = [TaskRoute(sample_task), TaskRoute(other_task)]
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with patch("gyrinx.tasks.registry._tasks", routes):
         result = get_task("sample_task")
         assert result is not None
         assert result.name == "sample_task"
@@ -44,7 +44,7 @@ def test_get_task_with_registered_task():
 def test_get_all_tasks_with_registered_tasks():
     """get_all_tasks returns all registered tasks."""
     routes = [TaskRoute(sample_task), TaskRoute(other_task)]
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with patch("gyrinx.tasks.registry._tasks", routes):
         result = get_all_tasks()
         assert len(result) == 2
         names = [r.name for r in result]

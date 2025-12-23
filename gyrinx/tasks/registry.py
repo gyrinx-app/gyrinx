@@ -11,27 +11,35 @@ Usage:
         TaskRoute(send_welcome_email),
         TaskRoute(generate_report, ack_deadline=600),
     ]
+
+Note: Task imports are done lazily in _get_tasks() to avoid circular imports
+during Django startup. The backend imports this module before Django's task
+framework is fully initialized.
 """
 
-from gyrinx.core.tasks import hello_world, refresh_list_facts
 from gyrinx.tasks import TaskRoute
 
-# =============================================================================
-# REGISTER YOUR TASKS HERE
-# =============================================================================
+# Cache for lazily-loaded tasks
+_tasks: list[TaskRoute] | None = None
 
-# Example (uncomment when you have tasks):
-# from gyrinx.core.tasks import send_welcome_email, generate_report
-#
-# tasks = [
-#     TaskRoute(send_welcome_email),
-#     TaskRoute(generate_report, ack_deadline=600, min_retry_delay=30),
-# ]
 
-tasks: list[TaskRoute] = [
-    TaskRoute(hello_world),
-    TaskRoute(refresh_list_facts),
-]
+def _get_tasks() -> list[TaskRoute]:
+    """
+    Lazily load and cache the task list.
+
+    This avoids circular imports that occur when importing task functions
+    at module level (gyrinx.core.tasks uses @task decorator from django.tasks,
+    which triggers backend loading, which imports this registry).
+    """
+    global _tasks
+    if _tasks is None:
+        from gyrinx.core.tasks import hello_world, refresh_list_facts
+
+        _tasks = [
+            TaskRoute(hello_world),
+            TaskRoute(refresh_list_facts),
+        ]
+    return _tasks
 
 
 # =============================================================================
@@ -49,7 +57,7 @@ def get_task(name: str) -> TaskRoute | None:
     Returns:
         TaskRoute if found, None otherwise
     """
-    for route in tasks:
+    for route in _get_tasks():
         if route.name == name:
             return route
     return None
@@ -57,4 +65,4 @@ def get_task(name: str) -> TaskRoute | None:
 
 def get_all_tasks() -> list[TaskRoute]:
     """Get all registered tasks."""
-    return tasks
+    return _get_tasks()

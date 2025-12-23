@@ -128,7 +128,7 @@ def test_pubsub_handler_executes_registered_task(client, bypass_oidc):
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message("_test_task", kwargs={"name": "Test"})
         response = client.post(
             url,
@@ -150,7 +150,7 @@ def test_pubsub_handler_returns_500_on_task_error(client, bypass_oidc):
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(failing_task)]
 
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message("failing_task")
         response = client.post(
             url,
@@ -174,7 +174,7 @@ def test_pubsub_handler_passes_args_and_kwargs(client, bypass_oidc):
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(capture_task)]
 
-    with patch("gyrinx.tasks.registry.tasks", routes):
+    with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "capture_task",
             args=["arg1", "arg2"],
@@ -221,7 +221,7 @@ def test_pubsub_handler_allows_when_oidc_succeeds(client):
 
     with (
         patch("gyrinx.tasks.views._verify_oidc_token", return_value=True),
-        patch("gyrinx.tasks.registry.tasks", routes),
+        patch("gyrinx.tasks.registry._tasks", routes),
     ):
         envelope = make_pubsub_message("_test_task")
         response = client.post(
