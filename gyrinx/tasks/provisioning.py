@@ -69,6 +69,7 @@ def provision_task_infrastructure():
                 project_id=project_id,
                 route=route,
                 push_endpoint=push_endpoint,
+                service_url=service_url,
                 service_account=service_account,
             )
         except Exception as e:
@@ -82,6 +83,7 @@ def _provision_task(
     project_id: str,
     route,
     push_endpoint: str,
+    service_url: str,
     service_account: str,
 ):
     """Provision topic and subscription for a single task."""
@@ -97,10 +99,13 @@ def _provision_task(
         logger.debug(f"Topic exists: {route.topic_name}")
 
     # Configure push subscription with OIDC authentication
+    # Audience must be the base service URL (not the full endpoint path)
+    # to match what the view expects in CLOUD_RUN_SERVICE_URL
     push_config = pubsub_v1.types.PushConfig(
         push_endpoint=push_endpoint,
         oidc_token=pubsub_v1.types.PushConfig.OidcToken(
             service_account_email=service_account,
+            audience=service_url,
         ),
     )
 
