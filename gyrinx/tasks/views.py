@@ -102,25 +102,70 @@ def pubsub_push_handler(request):
     # Parse the Pub/Sub envelope
     with span("parse_envelope"):
         try:
-            envelope = json.loads(request.body)
+            raw_body = request.body
+            # Log the raw request for debugging
+            logger.info(
+                "Received Pub/Sub push request",
+                extra={
+                    "content_type": request.content_type,
+                    "body_length": len(raw_body),
+                },
+            )
+            envelope = json.loads(raw_body)
             message = envelope.get("message", {})
             message_id = message.get("messageId", "unknown")
+            logger.debug(
+                "Parsed Pub/Sub envelope",
+                extra={
+                    "message_id": message_id,
+                    "envelope_keys": list(envelope.keys()),
+                    "message_keys": list(message.keys()) if message else [],
+                },
+            )
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in Pub/Sub push: {e}")
+            # Log truncated body for debugging (avoid logging huge payloads)
+            body_preview = raw_body[:500].decode("utf-8", errors="replace")
+            logger.error(
+                f"Invalid JSON in Pub/Sub push: {e}",
+                extra={"body_preview": body_preview},
+            )
             return HttpResponseBadRequest("Invalid JSON")
 
     # Decode the message data
     with span("decode_message", message_id=message_id):
         data_b64 = message.get("data")
         if not data_b64:
-            logger.error("Missing 'data' field in Pub/Sub message")
+            logger.error(
+                "Missing 'data' field in Pub/Sub message",
+                extra={
+                    "message_id": message_id,
+                    "message_keys": list(message.keys()),
+                    "message_attributes": message.get("attributes", {}),
+                },
+            )
             return HttpResponseBadRequest("Missing data field")
 
         try:
             data_json = base64.b64decode(data_b64).decode("utf-8")
             data = json.loads(data_json)
+            logger.debug(
+                "Decoded message data",
+                extra={
+                    "message_id": message_id,
+                    "data_keys": list(data.keys()) if isinstance(data, dict) else None,
+                },
+            )
         except (ValueError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to decode message data: {e}")
+            # Log what we tried to decode (truncated)
+            data_preview = data_b64[:200] if len(data_b64) > 200 else data_b64
+            logger.error(
+                f"Failed to decode message data: {e}",
+                extra={
+                    "message_id": message_id,
+                    "data_b64_preview": data_preview,
+                    "data_b64_length": len(data_b64),
+                },
+            )
             return HttpResponseBadRequest("Invalid message data")
 
     # Extract task info
@@ -129,24 +174,69 @@ def pubsub_push_handler(request):
     args = data.get("args", [])
     kwargs = data.get("kwargs", {})
 
+    logger.info(
+        "Processing task from Pub/Sub",
+        extra={
+            "message_id": message_id,
+            "task_id": task_id,
+            "task_name": task_name,
+            "args_count": len(args) if isinstance(args, list) else None,
+            "kwargs_keys": list(kwargs.keys()) if isinstance(kwargs, dict) else None,
+        },
+    )
+
     # Validate args/kwargs types (defense in depth)
     if not isinstance(args, list):
-        logger.error("Invalid 'args' in message payload: expected list")
+        logger.error(
+            "Invalid 'args' in message payload: expected list",
+            extra={
+                "message_id": message_id,
+                "task_name": task_name,
+                "args_type": type(args).__name__,
+                "args_value": str(args)[:200],
+            },
+        )
         return HttpResponseBadRequest("Invalid message format")
 
     if not isinstance(kwargs, dict):
-        logger.error("Invalid 'kwargs' in message payload: expected dict")
+        logger.error(
+            "Invalid 'kwargs' in message payload: expected dict",
+            extra={
+                "message_id": message_id,
+                "task_name": task_name,
+                "kwargs_type": type(kwargs).__name__,
+                "kwargs_value": str(kwargs)[:200],
+            },
+        )
         return HttpResponseBadRequest("Invalid message format")
 
     if not task_name:
-        logger.error("Missing task_name in message payload")
+        logger.error(
+            "Missing task_name in message payload",
+            extra={
+                "message_id": message_id,
+                "data_keys": list(data.keys()),
+                "data_preview": str(data)[:500],
+            },
+        )
         return HttpResponseBadRequest("Missing task_name")
 
     # Look up the task
     with span("lookup_task", task_name=task_name, task_id=task_id):
         route = get_task(task_name)
         if not route:
-            logger.error(f"Unknown task: {task_name}")
+            from gyrinx.tasks.registry import get_all_tasks
+
+            registered_task_names = [t.name for t in get_all_tasks()]
+            logger.error(
+                f"Unknown task: {task_name}",
+                extra={
+                    "message_id": message_id,
+                    "task_id": task_id,
+                    "task_name": task_name,
+                    "registered_tasks": registered_task_names,
+                },
+            )
             # Return 400 to ack and prevent infinite retries for unknown tasks
             # Don't include task_name in response to prevent information disclosure
             return HttpResponseBadRequest("Unknown task")
