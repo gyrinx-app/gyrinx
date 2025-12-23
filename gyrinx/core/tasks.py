@@ -22,7 +22,7 @@ def refresh_list_facts(list_id: str):
     from gyrinx.core.models import List
 
     try:
-        lst = List.objects.with_related_data(with_fighters=True).get(pk=list_id)
+        lst: List = List.objects.with_related_data(with_fighters=True).get(pk=list_id)
         lst.facts_from_db(update=True)
         logger.info(f"Refreshed facts for list {list_id}")
     except List.DoesNotExist:
