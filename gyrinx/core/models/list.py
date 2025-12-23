@@ -429,8 +429,7 @@ class List(AppBase):
         # Fallback to calculation (original behavior)
         track("facts_fallback", list_id=str(self.pk))
 
-        # Optionally enqueue a background refresh
-        # Disabled by default because Pub/Sub publish is synchronous and blocks page loads
+        # Enqueue a background refresh (fire-and-forget, doesn't block page loads)
         if settings.FEATURE_FACTS_FALLBACK_ENQUEUE:
             try:
                 refresh_list_facts.enqueue(list_id=str(self.pk))
