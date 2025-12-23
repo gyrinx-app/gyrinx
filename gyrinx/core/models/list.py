@@ -521,7 +521,9 @@ class List(AppBase):
 
         # Optionally update cache
         if update:
-            self.rating_current = rating
+            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
+            # (cost_int can return negative values via cost overrides)
+            self.rating_current = max(0, rating)
             self.stash_current = stash
             self.dirty = False
             self.save(update_fields=["rating_current", "stash_current", "dirty"])
@@ -1967,7 +1969,9 @@ class ListFighter(AppBase):
 
         # Optionally update cache
         if update:
-            self.rating_current = rating
+            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
+            # (cost_int can return negative values via cost overrides)
+            self.rating_current = max(0, rating)
             self.dirty = False
             self.save(update_fields=["rating_current", "dirty"])
 
@@ -3561,7 +3565,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         # Optionally update cache
         if update:
-            self.rating_current = rating
+            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
+            # (cost_int can return negative values via cost overrides)
+            self.rating_current = max(0, rating)
             self.dirty = False
             self.save(update_fields=["rating_current", "dirty"])
 
