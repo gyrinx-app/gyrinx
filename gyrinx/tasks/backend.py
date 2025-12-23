@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from django.conf import settings
 from django.tasks import TaskResult
 from django.tasks.backends.base import BaseTaskBackend
+from django.tasks.base import TaskResultStatus
 
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracker import track
@@ -115,6 +116,8 @@ class PubSubBackend(BaseTaskBackend):
             # Wait for publish confirmation; 10s is generous for Pub/Sub RTT
             message_id = future.result(timeout=10)
 
+            enqueued_at = datetime.now(timezone.utc)
+
             track(
                 "task_published",
                 task_id=task_id,
@@ -123,7 +126,20 @@ class PubSubBackend(BaseTaskBackend):
                 message_id=message_id,
             )
 
-            return TaskResult(task=task, id=task_id, backend=self.alias)
+            return TaskResult(
+                task=task,
+                id=task_id,
+                status=TaskResultStatus.READY,
+                enqueued_at=enqueued_at,
+                started_at=None,
+                finished_at=None,
+                last_attempted_at=None,
+                args=list(args),
+                kwargs=dict(kwargs),
+                backend=self.alias,
+                errors=[],
+                worker_ids=[],
+            )
 
         except Exception as e:
             logger.error(
