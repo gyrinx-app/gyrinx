@@ -48,8 +48,9 @@ class PubSubBackend(BaseTaskBackend):
     # To support priority: use separate topics per priority level
     supports_priority = False
 
-    def __init__(self, options):
-        super().__init__(options)
+    def __init__(self, alias, params):
+        super().__init__(alias, params)
+        options = params.get("OPTIONS", {})
         self.project_id = options.get("project_id") or getattr(
             settings, "GCP_PROJECT_ID", None
         )
