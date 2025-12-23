@@ -353,6 +353,11 @@ class List(AppBase):
         return wealth
 
     def cost_display(self):
+        """Display the list's total wealth (rating + stash + credits)."""
+        if self.can_use_facts:
+            facts = self.facts()
+            if facts is not None:
+                return format_cost_display(facts.wealth)
         return format_cost_display(self.cost_int_cached)
 
     @cached_property
@@ -361,6 +366,11 @@ class List(AppBase):
 
     @cached_property
     def rating_display(self):
+        """Display the list's rating (sum of active fighter costs)."""
+        if self.can_use_facts:
+            facts = self.facts()
+            if facts is not None:
+                return format_cost_display(facts.rating)
         return format_cost_display(self.rating)
 
     @cached_property
@@ -369,6 +379,11 @@ class List(AppBase):
 
     @cached_property
     def stash_fighter_cost_display(self):
+        """Display the stash fighter's cost."""
+        if self.can_use_facts:
+            facts = self.facts()
+            if facts is not None:
+                return format_cost_display(facts.stash)
         return format_cost_display(self.stash_fighter_cost_int)
 
     @cached_property
@@ -464,6 +479,7 @@ class List(AppBase):
             and facts.wealth == self.wealth_current
         )
 
+    @traced("list_set_dirty")
     def set_dirty(self, save: bool = True) -> None:
         """
         Mark this list as dirty.
@@ -590,49 +606,74 @@ class List(AppBase):
     # Fighter & other properties
     #
 
+    @traced("list_fighters")
     def fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.with_related_data().filter(archived=False)
 
+    @traced("list_archived_fighters")
     def archived_fighters(self) -> QuerySetOf["ListFighter"]:
         return self.listfighter_set.with_related_data().filter(archived=True)
 
     @cached_property
+    @traced("list_fighters_cached")
     def fighters_cached(self) -> QuerySetOf["ListFighter"]:
         return self.fighters()
 
     @cached_property
+    @traced("list_archived_fighters_cached")
     def archived_fighters_cached(self) -> QuerySetOf["ListFighter"]:
         return self.archived_fighters()
 
     @cached_property
+    @traced("list_fighters_minimal_cached")
     def fighters_minimal_cached(self):
         return self.listfighter_set.filter(archived=False).values("id", "name")
 
     @cached_property
+    @traced("list_active_fighters")
     def active_fighters(self) -> QuerySetOf["ListFighter"]:
         """Get all fighters that could participate in a battle."""
         return self.fighters().exclude(content_fighter__is_stash=True)
 
     @cached_property
+    @traced("list_stash_fighter")
     def stash_fighter(self):
-        """Get the stash fighter for this list, if it exists."""
+        """Get the stash fighter for this list, if it exists.
+
+        Uses prefetched data when available to avoid additional queries.
+        """
+        # Use prefetched fighters if available
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "listfighter_set" in self._prefetched_objects_cache
+        ):
+            for f in self._prefetched_objects_cache["listfighter_set"]:
+                if not f.archived and f.content_fighter.is_stash:
+                    return f
+            return None
+
+        # Fall back to queryset
         return self.fighters().filter(content_fighter__is_stash=True).first()
 
     @cached_property
+    @traced("list_owner_cached")
     def owner_cached(self):
         return self.owner
 
     @cached_property
+    @traced("list_content_house_cached")
     def content_house_cached(self):
         """Cache the content_house object to prevent repeated queries."""
         return self.content_house
 
     @cached_property
+    @traced("list_content_house_name")
     def content_house_name(self):
         """Cache the house name which is frequently accessed in templates."""
         return self.content_house.name if self.content_house_id else ""
 
     @cached_property
+    @traced("list_content_house_id_cached")
     def content_house_id_cached(self):
         """Cache the house ID to prevent object access."""
         return self.content_house_id
@@ -646,6 +687,7 @@ class List(AppBase):
         return self.status == self.CAMPAIGN_MODE
 
     @cached_property
+    @traced("list_active_attributes_cached")
     def active_attributes_cached(self):
         if hasattr(self, "active_attribute_assignments"):
             return self.active_attribute_assignments
@@ -656,6 +698,7 @@ class List(AppBase):
         )
 
     @cached_property
+    @traced("list_all_attributes")
     def all_attributes(self):
         # Build a map of attribute_id to value names
 
@@ -689,6 +732,7 @@ class List(AppBase):
         return attributes
 
     @cached_property
+    @traced("list_fighter_type_summary")
     def fighter_type_summary(self):
         """
         Returns a summary of fighter types and their counts for active fighters.
@@ -737,6 +781,7 @@ class List(AppBase):
             del self.__dict__["cost_int_cached"]
 
     @cached_property
+    @traced("list_latest_action")
     def latest_action(self) -> Optional[ListAction]:
         """Get the latest ListAction for this list, if any.
 
@@ -746,6 +791,27 @@ class List(AppBase):
             return self.latest_actions[0]
 
         return ListAction.objects.latest_for_list(self.id)
+
+    @property
+    def can_use_facts(self) -> bool:
+        """
+        Check if facts system can be used for display methods.
+
+        Returns True only if:
+        - latest_actions was prefetched via with_related_data()
+        - AND there is at least one action (list has action tracking)
+
+        Returns False if:
+        - Not prefetched (to avoid database query)
+        - Or prefetched but empty (no action tracking yet)
+
+        This is used by display methods to avoid expensive cost_int calculations
+        when cached facts are available.
+        """
+        # Only check prefetched data - never query the database
+        if hasattr(self, "latest_actions"):
+            return bool(self.latest_actions)
+        return False
 
     @traced("list_create_action")
     def create_action(
@@ -1685,6 +1751,7 @@ class ListFighter(AppBase):
         return self.content_fighter_cached.is_vehicle
 
     @cached_property
+    @traced("listfighter_category_terms")
     def _category_terms(self):
         if not hasattr(self, "annotated_category_terms"):
             return ContentFighterCategoryTerms.objects.filter(
@@ -1792,6 +1859,7 @@ class ListFighter(AppBase):
         return FighterCategoryChoices[category].label
 
     @cached_property
+    @traced("listfighter_fully_qualified_name")
     def fully_qualified_name(self) -> str:
         """
         Returns the fully qualified name of the fighter, including type and category.
@@ -1810,6 +1878,7 @@ class ListFighter(AppBase):
             return f"{self.name} - {cf.name()}"
 
     @admin.display(description="Total Cost with Equipment")
+    @traced("listfighter_cost_int")
     def cost_int(self):
         # Captured or sold fighters contribute 0 to gang total cost
         if self.should_have_zero_cost:
@@ -1829,6 +1898,7 @@ class ListFighter(AppBase):
         )
 
     @cached_property
+    @traced("listfighter_cost_int_cached")
     def cost_int_cached(self):
         # Captured or sold fighters contribute 0 to gang total cost
         if self.should_have_zero_cost:
@@ -1841,6 +1911,7 @@ class ListFighter(AppBase):
         )
 
     @cached_property
+    @traced("listfighter_base_cost_int")
     def _base_cost_int(self):
         # Captured or sold fighters contribute 0 to gang total cost
         if self.should_have_zero_cost:
@@ -1856,6 +1927,7 @@ class ListFighter(AppBase):
 
         return self._base_cost_before_override()
 
+    @traced("listfighter_base_cost_before_override")
     def _base_cost_before_override(self):
         # Or by the house...
         # Is this an override? Yes, but not set on the fighter itself.
@@ -1887,6 +1959,7 @@ class ListFighter(AppBase):
         return format_cost_display(self._base_cost_before_override())
 
     @cached_property
+    @traced("listfighter_advancement_cost_int")
     def _advancement_cost_int(self):
         if hasattr(self, "annotated_advancement_total_cost"):
             return self.annotated_advancement_total_cost
@@ -1902,7 +1975,14 @@ class ListFighter(AppBase):
     def advancement_cost_display(self):
         return format_cost_display(self._advancement_cost_int)
 
+    @admin.display(description="Total Cost Display")
+    @traced("listfighter_cost_display")
     def cost_display(self):
+        """Display the fighter's total cost."""
+        if self.can_use_facts:
+            facts = self.facts()
+            if facts is not None:
+                return format_cost_display(facts.rating)
         return format_cost_display(self.cost_int_cached)
 
     def facts(self) -> Optional[FighterFacts]:
@@ -1918,18 +1998,30 @@ class ListFighter(AppBase):
         return FighterFacts(rating=self.rating_current)
 
     @property
+    def can_use_facts(self) -> bool:
+        """
+        Check if facts system can be used for display methods.
+
+        Delegates to parent list's can_use_facts property.
+        Relies on list being prefetched via with_related_data().
+        """
+        return self.list.can_use_facts
+
+    @property
     def debug_facts_in_sync(self) -> bool:
         """
         Check if cached facts match calculated values.
 
         Used by debug menu to show red flag when out of sync.
+        Uses cost_int_cached to avoid expensive recalculation.
         """
         facts = self.facts()
         if facts is None:
             return False  # Dirty state means not in sync
 
-        return facts.rating == self.cost_int()
+        return facts.rating == self.cost_int_cached
 
+    @traced("listfighter_set_dirty")
     def set_dirty(self, save: bool = True) -> None:
         """
         Mark this fighter as dirty and propagate to parent list.
@@ -2032,6 +2124,7 @@ class ListFighter(AppBase):
     # Stats & rules
 
     @cached_property
+    @traced("listfighter_mods")
     def _mods(self):
         # Remember: virtual and needs flattening!
         equipment_mods = [
@@ -2061,6 +2154,7 @@ class ListFighter(AppBase):
 
         return equipment_mods + injury_mods + advancement_mods
 
+    @traced("listfighter_apply_mods")
     def _apply_mods(
         self,
         stat: str,
@@ -2079,6 +2173,7 @@ class ListFighter(AppBase):
                 )
         return current_value
 
+    @traced("listfighter_get_primary_skill_categories")
     def get_primary_skill_categories(self):
         """
         Get primary skill categories for this fighter, including equipment modifications.
@@ -2100,6 +2195,7 @@ class ListFighter(AppBase):
 
         return categories
 
+    @traced("listfighter_get_secondary_skill_categories")
     def get_secondary_skill_categories(self):
         """
         Get secondary skill categories for this fighter, including equipment modifications.
@@ -2121,6 +2217,7 @@ class ListFighter(AppBase):
 
         return categories
 
+    @traced("listfighter_get_available_psyker_disciplines")
     def get_available_psyker_disciplines(self):
         """
         Get available psyker disciplines for this fighter, including equipment modifications.
@@ -2142,6 +2239,7 @@ class ListFighter(AppBase):
 
         return disciplines
 
+    @traced("listfighter_statmods")
     def _statmods(self, stat: str):
         """
         Get the stat mods for this fighter.
@@ -2171,6 +2269,7 @@ class ListFighter(AppBase):
         return [mod for mod in self._mods if isinstance(mod, ContentModFighterSkill)]
 
     @cached_property
+    @traced("listfighter_statline")
     def statline(self) -> pylist[StatlineDisplay]:
         """
         Get the statline for this fighter.
@@ -2254,6 +2353,7 @@ class ListFighter(AppBase):
         return stats
 
     @cached_property
+    @traced("listfighter_content_fighter_statline")
     def content_fighter_statline(self) -> pylist[dict]:
         """
         Get the base statline for the content fighter.
@@ -2279,6 +2379,7 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
+    @traced("listfighter_ruleline")
     def ruleline(self):
         """
         Get the ruleline for this fighter.
@@ -2309,6 +2410,7 @@ class ListFighter(AppBase):
 
     # Assignments
 
+    @traced("listfighter_assign")
     def assign(
         self,
         equipment,
@@ -2351,10 +2453,12 @@ class ListFighter(AppBase):
         assign.save()
         return assign
 
+    @traced("listfighter_direct_assignments")
     def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
         return self.listfighterequipmentassignment_set.all()
 
     @cached_property
+    @traced("listfighter_default_assignments")
     def _default_assignments(self):
         # Performance: this is done in Python because when we prefetch these, these queries are
         # already optimized and won't hit the database again.
@@ -2364,6 +2468,7 @@ class ListFighter(AppBase):
             if a not in self.disabled_default_assignments.all()
         ]
 
+    @traced("listfighter_assignments")
     def assignments(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return [
             VirtualListFighterEquipmentAssignment.from_assignment(a)
@@ -2388,6 +2493,7 @@ class ListFighter(AppBase):
         return self.source_assignment.exists()
 
     @cached_property
+    @traced("listfighter_parent_list_fighter")
     def parent_list_fighter(self):
         """
         Returns the actual parent fighter object for this child fighter, if it exists.
@@ -2404,6 +2510,7 @@ class ListFighter(AppBase):
             return source_assignments[0].list_fighter
         return None
 
+    @traced("listfighter_skilline")
     def skilline(self):
         # Start with default skills from ContentFighter
         default_skills = list(self.content_fighter_cached.skills.all())
@@ -2424,9 +2531,11 @@ class ListFighter(AppBase):
         return [s.name for s in skills]
 
     @cached_property
+    @traced("listfighter_skilline_cached")
     def skilline_cached(self):
         return self.skilline()
 
+    @traced("listfighter_weapons")
     def weapons(self):
         return sorted(
             [e for e in self.assignments_cached if e.is_weapon_cached],
@@ -2437,6 +2546,7 @@ class ListFighter(AppBase):
     def weapons_cached(self):
         return self.weapons()
 
+    @traced("listfighter_wargear")
     def wargear(self):
         # For stash fighters, show all non-weapon gear regardless of restrictions
         if self.is_stash:
@@ -2473,6 +2583,7 @@ class ListFighter(AppBase):
         return self.wargearline()
 
     @cached_property
+    @traced("listfighter_has_house_additional_gear")
     def has_house_additional_gear(self):
         """
         Check if this fighter has access to house-restricted or expansion equipment categories.
@@ -2506,6 +2617,7 @@ class ListFighter(AppBase):
         return False
 
     @cached_property
+    @traced("listfighter_house_additional_gearline_display")
     def house_additional_gearline_display(self):
         """
         Get display info for house-restricted and expansion equipment categories.
@@ -2513,6 +2625,8 @@ class ListFighter(AppBase):
         1. restricted_equipment_categories on the house
         2. actual assigned gear categories
         3. available categories as a result of expansions
+
+        Optimized to batch all database queries upfront to avoid N+1 issues.
         """
         from gyrinx.content.models_.expansion import (
             ContentEquipmentListExpansion,
@@ -2521,6 +2635,28 @@ class ListFighter(AppBase):
 
         gearlines = []
         seen_categories = set()
+
+        # === BATCH QUERIES UPFRONT ===
+
+        # 1. Get expansion equipment once (reused multiple times)
+        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
+        expansion_equipment_qs = (
+            ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
+            .select_related("category")
+            .prefetch_related("category__restricted_to")
+        )
+        # Evaluate queryset once and cache results
+        expansion_equipment_list = list(expansion_equipment_qs)
+        expansion_category_ids = {eq.category_id for eq in expansion_equipment_list}
+
+        # 2. Get all equipment list category IDs for this fighter (single query)
+        equipment_list_category_ids = set(
+            ContentFighterEquipmentListItem.objects.filter(
+                fighter__in=self.equipment_list_fighters
+            ).values_list("equipment__category_id", flat=True)
+        )
+
+        # === PROCESS CATEGORIES ===
 
         # 1. House restricted categories
         for (
@@ -2538,27 +2674,12 @@ class ListFighter(AppBase):
                 # Check if any assignments exist for this category
                 if assignments:
                     has_equipment_in_category = True
-                else:
-                    # Check equipment list items for this fighter
-                    equipment_list_items = (
-                        ContentFighterEquipmentListItem.objects.filter(
-                            fighter__in=self.equipment_list_fighters,
-                            equipment__category=cat,
-                        ).exists()
-                    )
-                    if equipment_list_items:
-                        has_equipment_in_category = True
-
-                    # Also check expansion equipment
-                    if not has_equipment_in_category:
-                        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-                        expansion_equipment = (
-                            ContentEquipmentListExpansion.get_expansion_equipment(
-                                rule_inputs
-                            )
-                        )
-                        if expansion_equipment.filter(category=cat).exists():
-                            has_equipment_in_category = True
+                # Check equipment list items (using pre-fetched set)
+                elif cat.id in equipment_list_category_ids:
+                    has_equipment_in_category = True
+                # Check expansion equipment (using pre-fetched set)
+                elif cat.id in expansion_category_ids:
+                    has_equipment_in_category = True
 
                 # Skip this category if no equipment found
                 if not has_equipment_in_category:
@@ -2598,14 +2719,20 @@ class ListFighter(AppBase):
                     }
                 )
 
-        # 3. Categories from expansions
-        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-        expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
-            rule_inputs
-        )
-        for equipment in expansion_equipment.select_related("category"):
+        # 3. Categories from expansions (using pre-fetched list)
+        for equipment in expansion_equipment_list:
             cat = equipment.category
-            if cat.id not in seen_categories and cat.restricted_to.exists():
+            # Use prefetched restricted_to - check if it has any items
+            has_restrictions = (
+                hasattr(cat, "_prefetched_objects_cache")
+                and "restricted_to" in cat._prefetched_objects_cache
+                and len(cat._prefetched_objects_cache["restricted_to"]) > 0
+            ) or (
+                not hasattr(cat, "_prefetched_objects_cache")
+                and cat.restricted_to.exists()
+            )
+
+            if cat.id not in seen_categories and has_restrictions:
                 seen_categories.add(cat.id)
 
                 # Get assignments for this category (including expansion items)
@@ -2642,6 +2769,7 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
+    @traced("listfighter_has_category_restricted_gear")
     def has_category_restricted_gear(self):
         """Check if this fighter has access to any category-restricted equipment."""
 
@@ -2655,6 +2783,7 @@ class ListFighter(AppBase):
         ).exists()
 
     @cached_property
+    @traced("listfighter_category_restricted_gearline_display")
     def category_restricted_gearline_display(self):
         """Returns equipment categories restricted to this fighter's category."""
 
@@ -2726,6 +2855,7 @@ class ListFighter(AppBase):
 
         return gearlines
 
+    @traced("listfighter_category_restricted_assignments")
     def category_restricted_assignments(self, category: ContentEquipmentCategory):
         """Get assignments for a category-restricted equipment category."""
         return [
@@ -2743,6 +2873,7 @@ class ListFighter(AppBase):
             )
         ]
 
+    @traced("listfighter_powers")
     def powers(self):
         """
         Get the psyker powers assigned to this fighter.
@@ -2756,6 +2887,7 @@ class ListFighter(AppBase):
     def powers_cached(self):
         return self.powers()
 
+    @traced("listfighter_psyker_default_powers")
     def psyker_default_powers(self):
         default_powers = self.content_fighter_cached.default_psyker_powers.exclude(
             Q(pk__in=self.disabled_pskyer_default_powers.all())
@@ -2769,6 +2901,7 @@ class ListFighter(AppBase):
     def psyker_default_powers_cached(self):
         return self.psyker_default_powers()
 
+    @traced("listfighter_psyker_assigned_powers")
     def psyker_assigned_powers(self):
         return [
             VirtualListFighterPsykerPowerAssignment.from_assignment(p)
@@ -2780,6 +2913,7 @@ class ListFighter(AppBase):
         return self.psyker_assigned_powers()
 
     @property
+    @traced("listfighter_is_psyker")
     def is_psyker(self):
         """
         Check if this fighter is a psyker by examining their full rules list
@@ -2793,11 +2927,13 @@ class ListFighter(AppBase):
         return any(rule.value.lower() in psyker_rules for rule in rules)
 
     @property
+    @traced("listfighter_should_have_zero_cost")
     def should_have_zero_cost(self):
         """Check if this fighter should contribute 0 to gang total cost."""
         return self.is_captured or self.is_sold_to_guilders
 
     @property
+    @traced("listfighter_active_advancement_count")
     def active_advancement_count(self):
         """Return count of non-archived advancements."""
         return self.advancements.filter(archived=False).count()
@@ -2805,6 +2941,7 @@ class ListFighter(AppBase):
     def has_overridden_cost(self):
         return self.cost_override is not None or self.should_have_zero_cost
 
+    @traced("listfighter_toggle_default_assignment")
     def toggle_default_assignment(
         self, assign: ContentFighterDefaultAssignment, enable=False
     ):
@@ -2820,6 +2957,7 @@ class ListFighter(AppBase):
 
         self.save()
 
+    @traced("listfighter_convert_default_assignment")
     def convert_default_assignment(
         self,
         assign: "VirtualListFighterEquipmentAssignment | ContentFighterDefaultAssignment",
@@ -2844,6 +2982,7 @@ class ListFighter(AppBase):
             cost_override=0,
         )
 
+    @traced("list_fighter_copy_attributes_to")
     def copy_attributes_to(self, target_fighter, include_equipment=True):
         """Copy attributes from this fighter to another fighter.
 
@@ -3131,6 +3270,7 @@ class ListFighter(AppBase):
         cf = self.content_fighter
         return f"{self.name} – {cf.type} ({cf.category})"
 
+    @traced("listfighter_clean_fields")
     def clean_fields(self, exclude=None):
         super().clean_fields()
         if "list" not in exclude:
@@ -3381,6 +3521,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     # Information & Display
 
+    @traced("listfighterequipmentassignment_name")
     def name(self):
         profile_name = self.weapon_profiles_names()
         return f"{self.content_equipment_cached}" + (
@@ -3398,6 +3539,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     # Profiles
 
+    @traced("listfighterequipmentassignment_assign_profile")
     def assign_profile(self, profile: "ContentWeaponProfile"):
         """Assign a weapon profile to this equipment."""
         if profile.equipment != self.content_equipment_cached:
@@ -3406,6 +3548,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             )
         self.weapon_profiles_field.add(profile)
 
+    @traced("listfighterequipmentassignment_profile_cost_int")
     def weapon_profiles(self):
         return [
             VirtualWeaponProfile(p, self._mods)
@@ -3427,6 +3570,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             for p in self.weapon_profiles_cached
         ]
 
+    @traced("listfighterequipmentassignment_all_profiles")
     def all_profiles(self) -> list["VirtualWeaponProfile"]:
         """Return all profiles for the equipment, including the default profiles."""
         standard_profiles = self.standard_profiles_cached
@@ -3444,6 +3588,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def all_profiles_cached(self) -> list["VirtualWeaponProfile"]:
         return self.all_profiles()
 
+    @traced("listfighterequipmentassignment_standard_profiles")
     def standard_profiles(self):
         # TODO: There is nothing in the prefetch cache here
         return [
@@ -3462,6 +3607,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     # Accessories
 
+    @traced("listfighterequipmentassignment_weapon_accessories")
     def weapon_accessories(self):
         return list(self.weapon_accessories_field.all())
 
@@ -3472,6 +3618,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     # Mods
 
     @cached_property
+    @traced("listfighterequipmentassignment_mods")
     def _mods(self):
         """
         Get the mods for this assignment.
@@ -3640,6 +3787,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         return None
 
+    @traced("listfighterequipmentassignment_equipment_cost_with_override")
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
         if self.cost_override is not None:
@@ -3705,6 +3853,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def _equipment_cost_with_override_cached(self):
         return self._equipment_cost_with_override()
 
+    @traced("listfighterequipmentassignment_profile_cost_with_override")
     def _profile_cost_with_override(self):
         profiles = self.weapon_profiles_cached
         if not profiles:
@@ -3719,6 +3868,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def _profile_cost_with_override_cached(self):
         return self._profile_cost_with_override()
 
+    @traced("listfighterequipmentassignment_profile_cost_with_override_for_profile")
     def _profile_cost_with_override_for_profile(self, profile: "VirtualWeaponProfile"):
         # Cache the results of this method for each profile so we don't have to recalculate
         # by fetching the override each time.
@@ -3807,6 +3957,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def profile_cost_display(self, profile):
         return format_cost_display(self.profile_cost_int(profile), show_sign=True)
 
+    @traced("listfighterequipmentassignment_accessories_cost_with_override")
     def _accessories_cost_with_override(self):
         accessories = self.weapon_accessories_cached
         if not accessories:
@@ -3815,6 +3966,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         after_overrides = [self._accessory_cost_with_override(a) for a in accessories]
         return sum(after_overrides)
 
+    @traced("listfighterequipmentassignment_accessory_cost_with_override")
     def _accessory_cost_with_override(self, accessory: "ContentWeaponAccessory"):
         if self.from_default_assignment:
             # If this is a default assignment and the default assignment contains this accessory,
@@ -3858,6 +4010,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def accessory_cost_display(self, accessory):
         return format_cost_display(self.accessory_cost_int(accessory), show_sign=True)
 
+    @traced("listfighterequipmentassignment_upgrade_cost_with_override")
     def _upgrade_cost_with_override(self, upgrade):
         """Calculate upgrade cost with fighter-specific overrides, respecting cumulative costs."""
         # For MULTI mode, just return the individual cost (with override if present)
