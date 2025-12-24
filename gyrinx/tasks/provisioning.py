@@ -20,6 +20,7 @@ from google.cloud import pubsub_v1, scheduler_v1
 from google.protobuf import duration_pb2
 
 from gyrinx.tasks.registry import get_all_tasks
+from gyrinx.tasks.route import TaskRoute
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
@@ -204,21 +205,23 @@ def _provision_scheduler_job(
     publisher: pubsub_v1.PublisherClient,
     project_id: str,
     location: str,
-    route,
+    route: TaskRoute,
 ):
     """
     Create or update a Cloud Scheduler job for a single scheduled task.
 
-    The job publishes to the task's Pub/Sub topic with the same message format
-    as task.enqueue(), so the existing push handler executes it.
+    The job publishes to the task's Pub/Sub topic with a message format
+    compatible with the existing push handler.
     """
     job_name = (
         f"projects/{project_id}/locations/{location}/jobs/{route.scheduler_job_name}"
     )
     topic_path = publisher.topic_path(project_id, route.topic_name)
 
-    # Build message payload - same format as backend.enqueue()
-    # Use a static task_id since each execution should be independent
+    # Build message payload compatible with push handler.
+    # Note: Unlike backend.enqueue(), we omit enqueued_at since this is a
+    # static template reused for every execution. The Pub/Sub message ID
+    # provides uniqueness for each delivery.
     message_data = json.dumps(
         {
             "task_id": f"scheduled-{route.name}",
