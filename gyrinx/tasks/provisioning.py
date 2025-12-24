@@ -8,6 +8,10 @@ This module creates:
 All subscriptions point to the same /tasks/pubsub/ endpoint; routing is handled
 by the task_name field in the message payload. Scheduled tasks publish to the
 same topics, reusing the existing push handler.
+
+Orphan cleanup: When scheduled tasks are removed from the registry, this module
+detects and deletes the corresponding Cloud Scheduler jobs to prevent stale
+jobs from running.
 """
 
 import json
@@ -25,13 +29,16 @@ from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
+# Prefix used for scheduler job names to identify jobs managed by this system
+SCHEDULER_JOB_PREFIX = "gyrinx-scheduler"
+
 
 def get_service_url() -> str:
     """
     Get the Cloud Run service URL for push subscriptions.
 
-    Cloud Run sets CLOUD_RUN_SERVICE_URL automatically. Falls back to
-    localhost for local development testing.
+    CLOUD_RUN_SERVICE_URL must be set manually in production (Cloud Run does
+    not set this automatically). Falls back to localhost for local development.
     """
     return os.getenv("CLOUD_RUN_SERVICE_URL", "http://localhost:8000")
 
@@ -47,6 +54,9 @@ def provision_task_infrastructure():
     - Topics: {env}--gyrinx.tasks--{task.path}
     - Subscriptions: {topic_name}-sub -> /tasks/pubsub/
     - Scheduler jobs: {env}--gyrinx-scheduler--{task.path} (for scheduled tasks)
+
+    Also cleans up orphaned scheduler jobs that no longer have a corresponding
+    task in the registry.
     """
     project_id = getattr(settings, "GCP_PROJECT_ID", None)
     if not project_id:
@@ -80,19 +90,20 @@ def provision_task_infrastructure():
                 service_url=service_url,
                 service_account=service_account,
             )
+            track("task_provisioned", task_name=route.name)
         except Exception as e:
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
             track("task_provisioning_failed", task_name=route.name, error=str(e))
 
     # Provision Cloud Scheduler jobs for scheduled tasks
-    _provision_scheduled_tasks(project_id=project_id, publisher=publisher)
+    _provision_scheduled_tasks(project_id=project_id, publisher=publisher, tasks=tasks)
 
 
 def _provision_task(
     publisher: pubsub_v1.PublisherClient,
     subscriber: pubsub_v1.SubscriberClient,
     project_id: str,
-    route,
+    route: TaskRoute,
     push_endpoint: str,
     service_url: str,
     service_account: str,
@@ -159,6 +170,7 @@ def _provision_task(
 def _provision_scheduled_tasks(
     project_id: str,
     publisher: pubsub_v1.PublisherClient,
+    tasks: list[TaskRoute],
 ):
     """
     Provision Cloud Scheduler jobs for tasks with schedules configured.
@@ -166,18 +178,30 @@ def _provision_scheduled_tasks(
     Cloud Scheduler jobs publish to the task's Pub/Sub topic on their cron
     schedule. The existing push handler receives and executes them like any
     other task.
+
+    Also cleans up orphaned scheduler jobs that no longer have a corresponding
+    scheduled task in the registry.
     """
     location = getattr(settings, "SCHEDULER_LOCATION", "europe-west2")
-    tasks = get_all_tasks()
+    env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
     scheduled_tasks = [t for t in tasks if t.is_scheduled]
+
+    scheduler = scheduler_v1.CloudSchedulerClient()
+
+    # Clean up orphaned scheduler jobs first
+    _cleanup_orphaned_scheduler_jobs(
+        scheduler=scheduler,
+        project_id=project_id,
+        location=location,
+        env=env,
+        scheduled_tasks=scheduled_tasks,
+    )
 
     if not scheduled_tasks:
         logger.debug("No scheduled tasks to provision")
         return
 
     logger.info(f"Provisioning {len(scheduled_tasks)} scheduled tasks")
-
-    scheduler = scheduler_v1.CloudSchedulerClient()
 
     for route in scheduled_tasks:
         try:
@@ -198,6 +222,62 @@ def _provision_scheduled_tasks(
                 task_name=route.name,
                 error=str(e),
             )
+
+
+def _cleanup_orphaned_scheduler_jobs(
+    scheduler: scheduler_v1.CloudSchedulerClient,
+    project_id: str,
+    location: str,
+    env: str,
+    scheduled_tasks: list[TaskRoute],
+):
+    """
+    Delete Cloud Scheduler jobs that no longer have a corresponding task.
+
+    This prevents stale jobs from running after a scheduled task is removed
+    from the registry. Only jobs with our naming prefix are considered.
+    """
+    parent = f"projects/{project_id}/locations/{location}"
+    job_prefix = f"{env}--{SCHEDULER_JOB_PREFIX}--"
+
+    # Build set of expected job names from current scheduled tasks
+    expected_job_names = {route.scheduler_job_name for route in scheduled_tasks}
+
+    try:
+        # List all jobs in the location
+        for job in scheduler.list_jobs(
+            request=scheduler_v1.ListJobsRequest(parent=parent)
+        ):
+            # Extract job ID from full name (projects/.../locations/.../jobs/JOB_ID)
+            job_id = job.name.split("/")[-1]
+
+            # Only consider jobs with our prefix
+            if not job_id.startswith(job_prefix):
+                continue
+
+            # Delete if not in expected set
+            if job_id not in expected_job_names:
+                try:
+                    scheduler.delete_job(
+                        request=scheduler_v1.DeleteJobRequest(name=job.name)
+                    )
+                    logger.info(f"Deleted orphaned scheduler job: {job_id}")
+                    track("scheduler_job_deleted", job_name=job_id, reason="orphaned")
+                except NotFound:
+                    # Job was already deleted (race condition), that's fine
+                    pass
+                except Exception as e:
+                    logger.error(f"Failed to delete orphaned job {job_id}: {e}")
+                    track(
+                        "scheduler_job_delete_failed",
+                        job_name=job_id,
+                        error=str(e),
+                    )
+
+    except Exception as e:
+        # Don't fail provisioning if cleanup fails - log and continue
+        logger.warning(f"Failed to list scheduler jobs for cleanup: {e}")
+        track("scheduler_cleanup_failed", error=str(e))
 
 
 def _provision_scheduler_job(
@@ -221,7 +301,7 @@ def _provision_scheduler_job(
     # Build message payload compatible with push handler.
     # Note: Unlike backend.enqueue(), we omit enqueued_at since this is a
     # static template reused for every execution. The Pub/Sub message ID
-    # provides uniqueness for each delivery.
+    # provides uniqueness for each delivery (logged in the handler).
     message_data = json.dumps(
         {
             "task_id": f"scheduled-{route.name}",
@@ -231,14 +311,24 @@ def _provision_scheduler_job(
         }
     ).encode("utf-8")
 
+    # Retry configuration for Cloud Scheduler (separate from Pub/Sub retries).
+    # This controls retries when Scheduler fails to publish to Pub/Sub.
+    retry_config = scheduler_v1.RetryConfig(
+        retry_count=3,
+        min_backoff_duration=duration_pb2.Duration(seconds=5),
+        max_backoff_duration=duration_pb2.Duration(seconds=300),
+    )
+
     job = scheduler_v1.Job(
         name=job_name,
+        description=f"Scheduled task: {route.name} ({route.schedule} {route.schedule_timezone})",
         pubsub_target=scheduler_v1.PubsubTarget(
             topic_name=topic_path,
             data=message_data,
         ),
         schedule=route.schedule,
         time_zone=route.schedule_timezone,
+        retry_config=retry_config,
     )
 
     try:
@@ -260,7 +350,15 @@ def _provision_scheduler_job(
         scheduler.update_job(
             request=scheduler_v1.UpdateJobRequest(
                 job=job,
-                update_mask={"paths": ["pubsub_target", "schedule", "time_zone"]},
+                update_mask={
+                    "paths": [
+                        "description",
+                        "pubsub_target",
+                        "schedule",
+                        "time_zone",
+                        "retry_config",
+                    ]
+                },
             )
         )
         logger.debug(f"Updated scheduler job: {route.scheduler_job_name}")

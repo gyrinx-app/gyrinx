@@ -150,3 +150,29 @@ def test_task_route_repr_with_schedule():
     route = TaskRoute(sample_task, schedule="0 3 * * *")
     assert "schedule='0 3 * * *'" in repr(route)
     assert "sample_task" in repr(route)
+
+
+def test_task_route_validates_timezone_on_creation():
+    """TaskRoute validates timezone when schedule is set."""
+    # Valid timezones should work
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="UTC")
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="Europe/London")
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="America/New_York")
+
+
+def test_task_route_rejects_invalid_timezone():
+    """TaskRoute raises ValueError for invalid timezone."""
+    with pytest.raises(ValueError, match="Invalid timezone"):
+        TaskRoute(
+            sample_task, schedule="0 3 * * *", schedule_timezone="Invalid/Timezone"
+        )
+
+    with pytest.raises(ValueError, match="Invalid timezone"):
+        TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="Europe/Londno")
+
+
+def test_task_route_skips_timezone_validation_without_schedule():
+    """TaskRoute skips timezone validation when no schedule is set."""
+    # Should not raise even with invalid timezone if no schedule
+    route = TaskRoute(sample_task, schedule_timezone="Invalid/Timezone")
+    assert route.schedule_timezone == "Invalid/Timezone"

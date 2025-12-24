@@ -5,6 +5,7 @@ Defines the TaskRoute class used to register tasks with their configuration.
 """
 
 import re
+import zoneinfo
 from dataclasses import dataclass
 from typing import Callable
 
@@ -32,6 +33,25 @@ def validate_cron_expression(schedule: str) -> None:
             f"Invalid cron expression: '{schedule}'. "
             f"Expected 5 space-separated fields (minute hour day-of-month month day-of-week). "
             f"Example: '0 3 * * *' (daily at 3am) or '*/10 * * * *' (every 10 minutes)"
+        )
+
+
+def validate_timezone(timezone: str) -> None:
+    """
+    Validate a timezone string against the IANA timezone database.
+
+    Args:
+        timezone: Timezone string (e.g., 'UTC', 'Europe/London')
+
+    Raises:
+        ValueError: If the timezone is not valid
+    """
+    try:
+        zoneinfo.ZoneInfo(timezone)
+    except zoneinfo.ZoneInfoNotFoundError:
+        raise ValueError(
+            f"Invalid timezone: '{timezone}'. "
+            f"Must be a valid IANA timezone (e.g., 'UTC', 'Europe/London', 'America/New_York')"
         )
 
 
@@ -73,6 +93,7 @@ class TaskRoute:
         """Validate configuration after initialization."""
         if self.schedule is not None:
             validate_cron_expression(self.schedule)
+            validate_timezone(self.schedule_timezone)
 
     @property
     def _underlying_func(self) -> Callable:
