@@ -20,6 +20,7 @@ docutils==0.22.3
 fido2==2.0.0
 google-cloud-logging==3.12.1
 google-cloud-pubsub>=2.23.0
+google-cloud-scheduler>=2.14.0
 google-cloud-sqlcommenter==2.0.0
 jsonschema==4.25.1
 jupyter==1.1.1

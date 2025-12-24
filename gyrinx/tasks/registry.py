@@ -35,6 +35,7 @@ def _get_tasks() -> list[TaskRoute]:
     if _tasks is None:
         from gyrinx.core.tasks import (
             backfill_list_action,
+            enqueue_backfill_tasks,
             hello_world,
             refresh_list_facts,
         )
@@ -53,6 +54,8 @@ def _get_tasks() -> list[TaskRoute]:
                 min_retry_delay=30,  # Wait 30s before retry
                 max_retry_delay=600,  # Max 10 min backoff
             ),
+            # Scheduled task: finds lists needing backfill and enqueues them
+            TaskRoute(enqueue_backfill_tasks, schedule="*/10 * * * *"),
         ]
     return _tasks
 

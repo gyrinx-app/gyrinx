@@ -2,6 +2,7 @@
 Tests for TaskRoute configuration.
 """
 
+import pytest
 from django.test import override_settings
 
 from gyrinx.tasks import TaskRoute
@@ -70,3 +71,108 @@ def test_task_route_repr():
     route = TaskRoute(sample_task, ack_deadline=120)
     assert "sample_task" in repr(route)
     assert "120" in repr(route)
+
+
+def test_task_route_no_schedule_by_default():
+    """TaskRoute has no schedule by default."""
+    route = TaskRoute(sample_task)
+    assert route.schedule is None
+    assert route.is_scheduled is False
+
+
+def test_task_route_with_schedule():
+    """TaskRoute accepts a schedule."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert route.schedule == "0 3 * * *"
+    assert route.is_scheduled is True
+
+
+def test_task_route_schedule_timezone_default():
+    """TaskRoute schedule_timezone defaults to UTC."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert route.schedule_timezone == "UTC"
+
+
+def test_task_route_schedule_timezone_custom():
+    """TaskRoute accepts custom schedule_timezone."""
+    route = TaskRoute(
+        sample_task, schedule="0 9 * * *", schedule_timezone="Europe/London"
+    )
+    assert route.schedule_timezone == "Europe/London"
+
+
+@override_settings(TASKS_ENVIRONMENT="prod")
+def test_task_route_scheduler_job_name():
+    """TaskRoute.scheduler_job_name includes environment prefix."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert (
+        route.scheduler_job_name
+        == "prod--gyrinx-scheduler--gyrinx.tasks.tests.test_route.sample_task"
+    )
+
+
+def test_task_route_scheduler_job_name_requires_schedule():
+    """TaskRoute.scheduler_job_name raises if no schedule configured."""
+    route = TaskRoute(sample_task)
+    with pytest.raises(ValueError, match="no schedule configured"):
+        _ = route.scheduler_job_name
+
+
+def test_task_route_validates_cron_on_creation():
+    """TaskRoute validates cron expression format on creation."""
+    # Valid cron expressions should work
+    TaskRoute(sample_task, schedule="0 3 * * *")
+    TaskRoute(sample_task, schedule="*/10 * * * *")
+    TaskRoute(sample_task, schedule="0 0 1 * *")
+    TaskRoute(sample_task, schedule="30 4 1,15 * 0-6")
+
+
+def test_task_route_rejects_invalid_cron():
+    """TaskRoute raises ValueError for invalid cron expressions."""
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="invalid")
+
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="* * *")  # Only 3 fields
+
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="* * * * * *")  # 6 fields
+
+
+def test_task_route_repr_without_schedule():
+    """TaskRoute repr shows name and ack_deadline when no schedule."""
+    route = TaskRoute(sample_task, ack_deadline=120)
+    assert repr(route) == "TaskRoute(sample_task, ack_deadline=120)"
+
+
+def test_task_route_repr_with_schedule():
+    """TaskRoute repr includes schedule when present."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert "schedule='0 3 * * *'" in repr(route)
+    assert "sample_task" in repr(route)
+
+
+def test_task_route_validates_timezone_on_creation():
+    """TaskRoute validates timezone when schedule is set."""
+    # Valid timezones should work
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="UTC")
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="Europe/London")
+    TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="America/New_York")
+
+
+def test_task_route_rejects_invalid_timezone():
+    """TaskRoute raises ValueError for invalid timezone."""
+    with pytest.raises(ValueError, match="Invalid timezone"):
+        TaskRoute(
+            sample_task, schedule="0 3 * * *", schedule_timezone="Invalid/Timezone"
+        )
+
+    with pytest.raises(ValueError, match="Invalid timezone"):
+        TaskRoute(sample_task, schedule="0 3 * * *", schedule_timezone="Europe/Londno")
+
+
+def test_task_route_skips_timezone_validation_without_schedule():
+    """TaskRoute skips timezone validation when no schedule is set."""
+    # Should not raise even with invalid timezone if no schedule
+    route = TaskRoute(sample_task, schedule_timezone="Invalid/Timezone")
+    assert route.schedule_timezone == "Invalid/Timezone"
