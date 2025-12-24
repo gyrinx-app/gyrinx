@@ -228,7 +228,6 @@ def _provision_scheduler_job(
             "task_name": route.name,
             "args": [],
             "kwargs": {},
-            "scheduled": True,
         }
     ).encode("utf-8")
 
