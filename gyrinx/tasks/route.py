@@ -131,8 +131,11 @@ class TaskRoute:
         """
         Cloud Scheduler job name with environment prefix.
 
-        Format: {env}--gyrinx-scheduler--{full.module.path}
-        Example: prod--gyrinx-scheduler--gyrinx.core.tasks.cleanup_old_data
+        Format: {env}--gyrinx-scheduler--{task-path-with-hyphens}
+        Example: prod--gyrinx-scheduler--gyrinx-core-tasks-cleanup_old_data
+
+        Cloud Scheduler job names only allow [a-zA-Z0-9_-], so dots are
+        replaced with hyphens.
 
         Raises:
             ValueError: If the task has no schedule configured.
@@ -140,7 +143,8 @@ class TaskRoute:
         if not self.schedule:
             raise ValueError(f"Task {self.name} has no schedule configured")
         env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
-        return f"{env}--gyrinx-scheduler--{self.path}"
+        safe_path = self.path.replace(".", "-")
+        return f"{env}--gyrinx-scheduler--{safe_path}"
 
     @property
     def is_scheduled(self) -> bool:

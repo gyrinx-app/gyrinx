@@ -103,11 +103,12 @@ def test_task_route_schedule_timezone_custom():
 
 @override_settings(TASKS_ENVIRONMENT="prod")
 def test_task_route_scheduler_job_name():
-    """TaskRoute.scheduler_job_name includes environment prefix."""
+    """TaskRoute.scheduler_job_name includes environment prefix with safe characters."""
     route = TaskRoute(sample_task, schedule="0 3 * * *")
+    # Dots replaced with hyphens for Cloud Scheduler compatibility
     assert (
         route.scheduler_job_name
-        == "prod--gyrinx-scheduler--gyrinx.tasks.tests.test_route.sample_task"
+        == "prod--gyrinx-scheduler--gyrinx-tasks-tests-test_route-sample_task"
     )
 
 
