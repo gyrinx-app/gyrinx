@@ -34,8 +34,6 @@ def _get_tasks() -> list[TaskRoute]:
     global _tasks
     if _tasks is None:
         from gyrinx.core.tasks import (
-            backfill_list_action,
-            enqueue_backfill_tasks,
             hello_world,
             refresh_list_facts,
         )
@@ -43,20 +41,6 @@ def _get_tasks() -> list[TaskRoute]:
         _tasks = [
             TaskRoute(hello_world),
             TaskRoute(refresh_list_facts),
-            # Backfill task: longer ack_deadline since it does facts_from_db
-            # which can be expensive for large lists. Longer retry delays
-            # naturally throttle the backfill rate so we don't overwhelm
-            # the database with many concurrent expensive facts_from_db
-            # calculations during bulk backfills.
-            TaskRoute(
-                backfill_list_action,
-                ack_deadline=300,  # 5 minutes to complete
-                min_retry_delay=30,  # Wait 30s before retry
-                max_retry_delay=600,  # Max 10 min backoff
-            ),
-            # Scheduled task: finds lists needing backfill and enqueues them
-            # Runs every 2 min with small batches to spread load evenly
-            TaskRoute(enqueue_backfill_tasks, schedule="*/2 * * * *"),
         ]
     return _tasks
 
