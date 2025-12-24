@@ -1,6 +1,9 @@
 import logging
+import os
 
 from django.tasks import task
+
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,6 @@ def backfill_list_action(list_id: str):
 
     from gyrinx.core.models import List
     from gyrinx.core.models.action import ListAction, ListActionType
-    from gyrinx.tracker import track
 
     track("backfill_list_action_started", list_id=list_id)
 
@@ -130,3 +132,37 @@ def backfill_list_action(list_id: str):
         )
         # Re-raise to allow task framework to handle retries for transient failures
         raise
+
+
+@task
+def enqueue_backfill_tasks():
+    """
+    Find lists missing their initial ListAction and enqueue backfill tasks.
+
+    Runs on a schedule to gradually backfill all legacy lists.
+    Controlled by ENABLE_BACKFILL_SCHEDULER env var (default: enabled).
+    """
+    from gyrinx.core.models import List
+    from gyrinx.core.models.action import ListAction
+
+    # Kill switch - check env var
+    if os.getenv("ENABLE_BACKFILL_SCHEDULER", "true").lower() != "true":
+        logger.info("Backfill scheduler disabled via ENABLE_BACKFILL_SCHEDULER")
+        return
+
+    # Find lists without any ListAction (up to 100, random sample).
+    # Random ordering reduces overlap if multiple runs happen concurrently.
+    # backfill_list_action is idempotent, so duplicates are harmless.
+    lists_with_actions = ListAction.objects.values_list("list_id", flat=True)
+    lists_to_backfill = list(
+        List.objects.exclude(pk__in=lists_with_actions)
+        .order_by("?")
+        .values_list("pk", flat=True)[:100]
+    )
+
+    for list_id in lists_to_backfill:
+        backfill_list_action.enqueue(list_id=str(list_id))
+
+    if lists_to_backfill:
+        logger.info(f"Enqueued {len(lists_to_backfill)} backfill tasks")
+        track("backfill_scheduler_run", count=len(lists_to_backfill))
