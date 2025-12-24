@@ -77,3 +77,6 @@ TASKS["default"] = {
     },
 }
 TASKS_ENVIRONMENT = "prod"
+
+# Cloud Scheduler location for scheduled tasks
+SCHEDULER_LOCATION = os.getenv("SCHEDULER_LOCATION", "europe-west2")

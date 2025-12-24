@@ -2,6 +2,7 @@
 Tests for TaskRoute configuration.
 """
 
+import pytest
 from django.test import override_settings
 
 from gyrinx.tasks import TaskRoute
@@ -70,3 +71,48 @@ def test_task_route_repr():
     route = TaskRoute(sample_task, ack_deadline=120)
     assert "sample_task" in repr(route)
     assert "120" in repr(route)
+
+
+def test_task_route_no_schedule_by_default():
+    """TaskRoute has no schedule by default."""
+    route = TaskRoute(sample_task)
+    assert route.schedule is None
+    assert route.is_scheduled is False
+
+
+def test_task_route_with_schedule():
+    """TaskRoute accepts a schedule."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert route.schedule == "0 3 * * *"
+    assert route.is_scheduled is True
+
+
+def test_task_route_schedule_timezone_default():
+    """TaskRoute schedule_timezone defaults to UTC."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert route.schedule_timezone == "UTC"
+
+
+def test_task_route_schedule_timezone_custom():
+    """TaskRoute accepts custom schedule_timezone."""
+    route = TaskRoute(
+        sample_task, schedule="0 9 * * *", schedule_timezone="Europe/London"
+    )
+    assert route.schedule_timezone == "Europe/London"
+
+
+@override_settings(TASKS_ENVIRONMENT="prod")
+def test_task_route_scheduler_job_name():
+    """TaskRoute.scheduler_job_name includes environment prefix."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert (
+        route.scheduler_job_name
+        == "prod--gyrinx-scheduler--gyrinx.tasks.tests.test_route.sample_task"
+    )
+
+
+def test_task_route_scheduler_job_name_requires_schedule():
+    """TaskRoute.scheduler_job_name raises if no schedule configured."""
+    route = TaskRoute(sample_task)
+    with pytest.raises(ValueError, match="no schedule configured"):
+        _ = route.scheduler_job_name

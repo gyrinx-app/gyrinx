@@ -1,17 +1,22 @@
 """
-Auto-provision Pub/Sub infrastructure for registered tasks.
+Auto-provision Pub/Sub and Cloud Scheduler infrastructure for registered tasks.
 
-This module creates Pub/Sub topics and push subscriptions on Cloud Run startup.
+This module creates:
+- Pub/Sub topics and push subscriptions for all registered tasks
+- Cloud Scheduler jobs for tasks with a schedule configured
+
 All subscriptions point to the same /tasks/pubsub/ endpoint; routing is handled
-by the task_name field in the message payload.
+by the task_name field in the message payload. Scheduled tasks publish to the
+same topics, reusing the existing push handler.
 """
 
+import json
 import logging
 import os
 
 from django.conf import settings
-from google.api_core.exceptions import AlreadyExists
-from google.cloud import pubsub_v1
+from google.api_core.exceptions import AlreadyExists, NotFound
+from google.cloud import pubsub_v1, scheduler_v1
 from google.protobuf import duration_pb2
 
 from gyrinx.tasks.registry import get_all_tasks
@@ -32,20 +37,22 @@ def get_service_url() -> str:
 
 def provision_task_infrastructure():
     """
-    Create Pub/Sub topics and push subscriptions for all registered tasks.
+    Create Pub/Sub topics, subscriptions, and Cloud Scheduler jobs.
 
     This is idempotent - safe to run on every Cloud Run startup. Existing
-    topics are skipped; existing subscriptions are updated with current config.
+    resources are skipped or updated with current config.
 
-    Topics: {env}--gyrinx.tasks--{task.path}
-    Subscriptions: {topic_name}-sub -> /tasks/pubsub/
+    Creates:
+    - Topics: {env}--gyrinx.tasks--{task.path}
+    - Subscriptions: {topic_name}-sub -> /tasks/pubsub/
+    - Scheduler jobs: {env}--gyrinx-scheduler--{task.path} (for scheduled tasks)
     """
     project_id = getattr(settings, "GCP_PROJECT_ID", None)
     if not project_id:
         logger.warning("GCP_PROJECT_ID not set, skipping task provisioning")
         return
 
-    env = getattr(settings, "TASKS_ENVIRONMENT", "prod")
+    env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
     service_url = get_service_url()
     push_endpoint = f"{service_url}/tasks/pubsub/"
 
@@ -75,6 +82,9 @@ def provision_task_infrastructure():
         except Exception as e:
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
             track("task_provisioning_failed", task_name=route.name, error=str(e))
+
+    # Provision Cloud Scheduler jobs for scheduled tasks
+    _provision_scheduled_tasks(project_id=project_id, publisher=publisher)
 
 
 def _provision_task(
@@ -143,3 +153,119 @@ def _provision_task(
             }
         )
         logger.debug(f"Updated subscription: {subscription_name}")
+
+
+def _provision_scheduled_tasks(
+    project_id: str,
+    publisher: pubsub_v1.PublisherClient,
+):
+    """
+    Provision Cloud Scheduler jobs for tasks with schedules configured.
+
+    Cloud Scheduler jobs publish to the task's Pub/Sub topic on their cron
+    schedule. The existing push handler receives and executes them like any
+    other task.
+    """
+    location = getattr(settings, "SCHEDULER_LOCATION", "europe-west2")
+    tasks = get_all_tasks()
+    scheduled_tasks = [t for t in tasks if t.is_scheduled]
+
+    if not scheduled_tasks:
+        logger.debug("No scheduled tasks to provision")
+        return
+
+    logger.info(f"Provisioning {len(scheduled_tasks)} scheduled tasks")
+
+    scheduler = scheduler_v1.CloudSchedulerClient()
+
+    for route in scheduled_tasks:
+        try:
+            _provision_scheduler_job(
+                scheduler=scheduler,
+                publisher=publisher,
+                project_id=project_id,
+                location=location,
+                route=route,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to provision scheduler job for {route.name}: {e}",
+                exc_info=True,
+            )
+            track(
+                "scheduler_provisioning_failed",
+                task_name=route.name,
+                error=str(e),
+            )
+
+
+def _provision_scheduler_job(
+    scheduler: scheduler_v1.CloudSchedulerClient,
+    publisher: pubsub_v1.PublisherClient,
+    project_id: str,
+    location: str,
+    route,
+):
+    """
+    Create or update a Cloud Scheduler job for a single scheduled task.
+
+    The job publishes to the task's Pub/Sub topic with the same message format
+    as task.enqueue(), so the existing push handler executes it.
+    """
+    job_name = (
+        f"projects/{project_id}/locations/{location}/jobs/{route.scheduler_job_name}"
+    )
+    topic_path = publisher.topic_path(project_id, route.topic_name)
+
+    # Build message payload - same format as backend.enqueue()
+    # Use a static task_id since each execution should be independent
+    message_data = json.dumps(
+        {
+            "task_id": f"scheduled-{route.name}",
+            "task_name": route.name,
+            "args": [],
+            "kwargs": {},
+            "scheduled": True,
+        }
+    ).encode("utf-8")
+
+    job = scheduler_v1.Job(
+        name=job_name,
+        pubsub_target=scheduler_v1.PubsubTarget(
+            topic_name=topic_path,
+            data=message_data,
+        ),
+        schedule=route.schedule,
+        time_zone=route.schedule_timezone,
+    )
+
+    try:
+        scheduler.create_job(
+            request=scheduler_v1.CreateJobRequest(
+                parent=f"projects/{project_id}/locations/{location}",
+                job=job,
+            )
+        )
+        logger.info(f"Created scheduler job: {route.scheduler_job_name}")
+        track(
+            "scheduler_job_created",
+            task_name=route.name,
+            schedule=route.schedule,
+            timezone=route.schedule_timezone,
+        )
+    except AlreadyExists:
+        # Update existing job with current configuration
+        scheduler.update_job(
+            request=scheduler_v1.UpdateJobRequest(
+                job=job,
+                update_mask={"paths": ["pubsub_target", "schedule", "time_zone"]},
+            )
+        )
+        logger.debug(f"Updated scheduler job: {route.scheduler_job_name}")
+    except NotFound:
+        # Parent location doesn't exist - this shouldn't happen with valid config
+        logger.error(
+            f"Location {location} not found. "
+            f"Check SCHEDULER_LOCATION setting matches your GCP region."
+        )
+        raise
