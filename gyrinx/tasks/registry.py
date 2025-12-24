@@ -55,7 +55,8 @@ def _get_tasks() -> list[TaskRoute]:
                 max_retry_delay=600,  # Max 10 min backoff
             ),
             # Scheduled task: finds lists needing backfill and enqueues them
-            TaskRoute(enqueue_backfill_tasks, schedule="*/10 * * * *"),
+            # Runs every 2 min with small batches to spread load evenly
+            TaskRoute(enqueue_backfill_tasks, schedule="*/2 * * * *"),
         ]
     return _tasks
 

@@ -254,14 +254,14 @@ def test_enqueue_backfill_tasks_handles_no_lists_to_backfill(user, make_list):
 
 
 @pytest.mark.django_db
-def test_enqueue_backfill_tasks_limits_to_100_lists(user, make_list):
-    """Test that enqueue_backfill_tasks only processes up to 100 lists per run."""
+def test_enqueue_backfill_tasks_limits_batch_size(user, make_list):
+    """Test that enqueue_backfill_tasks only processes up to 20 lists per run."""
     from unittest.mock import MagicMock, patch
 
     from gyrinx.core.tasks import enqueue_backfill_tasks
 
-    # Create 105 lists without initial actions
-    for i in range(105):
+    # Create 25 lists without initial actions
+    for i in range(25):
         make_list(f"List {i}", create_initial_action=False)
 
     # Mock backfill_list_action at module level
@@ -270,5 +270,5 @@ def test_enqueue_backfill_tasks_limits_to_100_lists(user, make_list):
         # Run the scheduler task
         enqueue_backfill_tasks.func()
 
-        # Verify only 100 were enqueued (batch limit)
-        assert mock_task.enqueue.call_count == 100
+        # Verify only 20 were enqueued (batch limit to avoid connection exhaustion)
+        assert mock_task.enqueue.call_count == 20

@@ -11,6 +11,7 @@ import logging
 import os
 
 from django.conf import settings
+from django.db import OperationalError, connection
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -93,11 +94,25 @@ def pubsub_push_handler(request):
         200: Task executed successfully (acks message)
         400: Bad request (acks message to prevent infinite retries)
         403: Unauthorized (invalid or missing OIDC token)
+        429: Database at capacity (nacks message for retry with backoff)
         500: Task failed (nacks message for retry)
     """
     # Verify OIDC token (skipped in DEBUG mode)
     if not _verify_oidc_token(request):
         return HttpResponseForbidden("Unauthorized")
+
+    # Check database connectivity before processing
+    # If connection pool is exhausted, return 429 to trigger Pub/Sub retry
+    try:
+        connection.ensure_connection()
+    except OperationalError as e:
+        if "connection slots" in str(e) or "too many connections" in str(e).lower():
+            logger.warning(
+                "Database connection pool exhausted, returning 429 for retry",
+                extra={"error": str(e)},
+            )
+            return HttpResponse("Database at capacity", status=429)
+        raise
 
     # Parse the Pub/Sub envelope
     with span("parse_envelope"):

@@ -150,14 +150,15 @@ def enqueue_backfill_tasks():
         logger.info("Backfill scheduler disabled via ENABLE_BACKFILL_SCHEDULER")
         return
 
-    # Find lists without any ListAction (up to 100, random sample).
+    # Find lists without any ListAction (up to 20, random sample).
     # Random ordering reduces overlap if multiple runs happen concurrently.
     # backfill_list_action is idempotent, so duplicates are harmless.
+    # Batch size is kept small to avoid exhausting database connections.
     lists_with_actions = ListAction.objects.values_list("list_id", flat=True)
     lists_to_backfill = list(
         List.objects.exclude(pk__in=lists_with_actions)
         .order_by("?")
-        .values_list("pk", flat=True)[:100]
+        .values_list("pk", flat=True)[:20]
     )
 
     for list_id in lists_to_backfill:
