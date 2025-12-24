@@ -66,9 +66,6 @@ def debug_test_plan_detail(request, filename):
 
 def debug_list_actions(request, list_id):
     """Display all actions for a list, sorted newest first."""
-    if not settings.GYRINX_DEBUG:
-        raise Http404("Debug views are only available when GYRINX_DEBUG is enabled")
-
     lst = get_object_or_404(List, id=list_id)
     actions = lst.actions.select_related("user", "list_fighter").order_by("-created")
 
