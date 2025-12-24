@@ -300,11 +300,11 @@ class TraceURLLoggingMiddleware:
         response = self.get_response(request)
 
         if self._should_log and _tracing_enabled:
-            self._log_trace_url(request)
+            self._log_trace_url(request, response)
 
         return response
 
-    def _log_trace_url(self, request):
+    def _log_trace_url(self, request, response) -> None:
         """Log the GCP trace URL for the current request."""
         try:
             from opentelemetry import trace
@@ -316,7 +316,9 @@ class TraceURLLoggingMiddleware:
                 # Format trace_id as 32-character hex string
                 trace_id = format(span_context.trace_id, "032x")
                 url = get_gcp_trace_url(trace_id)
-                logger.info(f"GCP Trace: {url}")
+                logger.info(
+                    f"Trace {request.method} {request.path} {response.status_code} {url}"
+                )
         except Exception as e:
             logger.debug(f"Could not log trace URL: {e}")
 
