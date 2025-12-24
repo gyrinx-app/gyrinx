@@ -142,6 +142,8 @@ def enqueue_backfill_tasks():
     Runs on a schedule to gradually backfill all legacy lists.
     Controlled by ENABLE_BACKFILL_SCHEDULER env var (default: enabled).
     """
+    import time
+
     from gyrinx.core.models import List
     from gyrinx.core.models.action import ListAction
 
@@ -160,8 +162,14 @@ def enqueue_backfill_tasks():
         .values_list("pk", flat=True)[:100]
     )
 
-    for list_id in lists_to_backfill:
+    # Enqueue in batches of 10 with 5s sleep between batches
+    # to avoid overwhelming the system
+    batch_size = 10
+    for i, list_id in enumerate(lists_to_backfill):
         backfill_list_action.enqueue(list_id=str(list_id))
+        # Sleep after each batch (but not after the last item)
+        if (i + 1) % batch_size == 0 and (i + 1) < len(lists_to_backfill):
+            time.sleep(5)
 
     if lists_to_backfill:
         logger.info(f"Enqueued {len(lists_to_backfill)} backfill tasks")
