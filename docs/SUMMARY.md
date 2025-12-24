@@ -36,6 +36,11 @@
 - [Logging and Tracing Reference](logging-and-tracing-reference.md)
 - [Security Baseline](security-baseline.md)
 - [Statlines](technical-reference/statlines.md)
+- [Task Framework Reference](tasks/reference.md)
+
+## How-To Guides: Tasks
+
+- [Task Framework How-To Guides](tasks/how-to.md)
 
 ## Explanation
 
@@ -47,6 +52,7 @@
 - [Integration Testing](integration_testing.md)
 - [Test Performance Improvements](test-performance-improvements.md)
 - [Changelog Management](developing-gyrinx/changelog-management.md)
+- [Task Framework Architecture](tasks/architecture.md)
 
 ## Operations
 
