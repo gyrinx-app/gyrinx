@@ -4,10 +4,35 @@ Task route configuration.
 Defines the TaskRoute class used to register tasks with their configuration.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Callable
 
 from django.conf import settings
+
+# Cron expression validation
+# Standard cron: 5 fields (minute, hour, day-of-month, month, day-of-week)
+# Each field can be: *, number, range (1-5), step (*/5), list (1,3,5), or combo
+CRON_FIELD_PATTERN = r"(\*|[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*)(\/[0-9]+)?"
+CRON_PATTERN = re.compile(rf"^{CRON_FIELD_PATTERN}(\s+{CRON_FIELD_PATTERN}){{4}}$")
+
+
+def validate_cron_expression(schedule: str) -> None:
+    """
+    Validate a cron expression format.
+
+    Args:
+        schedule: Cron expression string (5 fields)
+
+    Raises:
+        ValueError: If the cron expression is invalid
+    """
+    if not CRON_PATTERN.match(schedule):
+        raise ValueError(
+            f"Invalid cron expression: '{schedule}'. "
+            f"Expected 5 space-separated fields (minute hour day-of-month month day-of-week). "
+            f"Example: '0 3 * * *' (daily at 3am) or '*/10 * * * *' (every 10 minutes)"
+        )
 
 
 @dataclass
@@ -43,6 +68,11 @@ class TaskRoute:
     max_retry_delay: int = 600
     schedule: str | None = None
     schedule_timezone: str = "UTC"
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.schedule is not None:
+            validate_cron_expression(self.schedule)
 
     @property
     def _underlying_func(self) -> Callable:
@@ -97,4 +127,7 @@ class TaskRoute:
         return self.schedule is not None
 
     def __repr__(self) -> str:
-        return f"TaskRoute({self.name}, ack_deadline={self.ack_deadline})"
+        parts = [f"TaskRoute({self.name}", f"ack_deadline={self.ack_deadline}"]
+        if self.schedule:
+            parts.append(f"schedule={self.schedule!r}")
+        return ", ".join(parts) + ")"

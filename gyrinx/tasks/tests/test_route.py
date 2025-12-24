@@ -116,3 +116,37 @@ def test_task_route_scheduler_job_name_requires_schedule():
     route = TaskRoute(sample_task)
     with pytest.raises(ValueError, match="no schedule configured"):
         _ = route.scheduler_job_name
+
+
+def test_task_route_validates_cron_on_creation():
+    """TaskRoute validates cron expression format on creation."""
+    # Valid cron expressions should work
+    TaskRoute(sample_task, schedule="0 3 * * *")
+    TaskRoute(sample_task, schedule="*/10 * * * *")
+    TaskRoute(sample_task, schedule="0 0 1 * *")
+    TaskRoute(sample_task, schedule="30 4 1,15 * 0-6")
+
+
+def test_task_route_rejects_invalid_cron():
+    """TaskRoute raises ValueError for invalid cron expressions."""
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="invalid")
+
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="* * *")  # Only 3 fields
+
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        TaskRoute(sample_task, schedule="* * * * * *")  # 6 fields
+
+
+def test_task_route_repr_without_schedule():
+    """TaskRoute repr shows name and ack_deadline when no schedule."""
+    route = TaskRoute(sample_task, ack_deadline=120)
+    assert repr(route) == "TaskRoute(sample_task, ack_deadline=120)"
+
+
+def test_task_route_repr_with_schedule():
+    """TaskRoute repr includes schedule when present."""
+    route = TaskRoute(sample_task, schedule="0 3 * * *")
+    assert "schedule='0 3 * * *'" in repr(route)
+    assert "sample_task" in repr(route)
