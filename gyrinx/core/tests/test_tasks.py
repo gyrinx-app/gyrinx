@@ -174,3 +174,101 @@ def test_backfill_list_action_via_enqueue(user, make_list, content_fighter):
 
     # Verify action was created
     assert ListAction.objects.filter(list=lst).count() == 1
+
+
+# =============================================================================
+# enqueue_backfill_tasks tests
+# =============================================================================
+
+
+@pytest.mark.django_db
+def test_enqueue_backfill_tasks_finds_lists_without_actions(user, make_list):
+    """Test that enqueue_backfill_tasks finds lists without actions and enqueues tasks."""
+    from unittest.mock import MagicMock, patch
+
+    from gyrinx.core.tasks import enqueue_backfill_tasks
+
+    # Create lists without initial actions
+    lst1 = make_list("List 1", create_initial_action=False)
+    lst2 = make_list("List 2", create_initial_action=False)
+    # Create list WITH initial action (should be skipped)
+    make_list("List 3", create_initial_action=True)
+
+    # Mock backfill_list_action at module level
+    mock_task = MagicMock()
+    with patch("gyrinx.core.tasks.backfill_list_action", mock_task):
+        # Run the scheduler task
+        enqueue_backfill_tasks.func()
+
+        # Verify enqueue was called for each list without actions
+        assert mock_task.enqueue.call_count == 2
+        enqueued_ids = {
+            call.kwargs["list_id"] for call in mock_task.enqueue.call_args_list
+        }
+        assert str(lst1.pk) in enqueued_ids
+        assert str(lst2.pk) in enqueued_ids
+
+
+@pytest.mark.django_db
+def test_enqueue_backfill_tasks_respects_kill_switch(user, make_list, monkeypatch):
+    """Test that enqueue_backfill_tasks respects ENABLE_BACKFILL_SCHEDULER env var."""
+    from unittest.mock import MagicMock, patch
+
+    from gyrinx.core.tasks import enqueue_backfill_tasks
+
+    # Create list without action
+    make_list("List 1", create_initial_action=False)
+
+    # Disable via env var
+    monkeypatch.setenv("ENABLE_BACKFILL_SCHEDULER", "false")
+
+    # Mock backfill_list_action at module level
+    mock_task = MagicMock()
+    with patch("gyrinx.core.tasks.backfill_list_action", mock_task):
+        # Run the scheduler task
+        enqueue_backfill_tasks.func()
+
+        # Verify enqueue was NOT called (kill switch active)
+        assert mock_task.enqueue.call_count == 0
+
+
+@pytest.mark.django_db
+def test_enqueue_backfill_tasks_handles_no_lists_to_backfill(user, make_list):
+    """Test that enqueue_backfill_tasks handles case where all lists have actions."""
+    from unittest.mock import MagicMock, patch
+
+    from gyrinx.core.tasks import enqueue_backfill_tasks
+
+    # Create only lists WITH initial actions
+    make_list("List 1", create_initial_action=True)
+    make_list("List 2", create_initial_action=True)
+
+    # Mock backfill_list_action at module level
+    mock_task = MagicMock()
+    with patch("gyrinx.core.tasks.backfill_list_action", mock_task):
+        # Run the scheduler task
+        enqueue_backfill_tasks.func()
+
+        # Verify enqueue was NOT called (no lists to backfill)
+        assert mock_task.enqueue.call_count == 0
+
+
+@pytest.mark.django_db
+def test_enqueue_backfill_tasks_limits_to_100_lists(user, make_list):
+    """Test that enqueue_backfill_tasks only processes up to 100 lists per run."""
+    from unittest.mock import MagicMock, patch
+
+    from gyrinx.core.tasks import enqueue_backfill_tasks
+
+    # Create 105 lists without initial actions
+    for i in range(105):
+        make_list(f"List {i}", create_initial_action=False)
+
+    # Mock backfill_list_action at module level
+    mock_task = MagicMock()
+    with patch("gyrinx.core.tasks.backfill_list_action", mock_task):
+        # Run the scheduler task
+        enqueue_backfill_tasks.func()
+
+        # Verify only 100 were enqueued (batch limit)
+        assert mock_task.enqueue.call_count == 100
