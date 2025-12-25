@@ -7,7 +7,7 @@ from pathlib import Path
 from django.db import connections
 
 from .settings import *  # noqa: F403
-from .settings import BASE_DIR, STORAGES
+from .settings import BASE_DIR, MIDDLEWARE, STORAGES
 from .settings import LOGGING as BASE_LOGGING
 
 logger = logging.getLogger(__name__)
@@ -29,8 +29,15 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 # Feature flags for development
 FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
-# Tracing configuration
+# Use console tracing in development by default
+# Set TRACING_MODE=gcp in environment to test with GCP Cloud Trace
 TRACING_MODE = os.getenv("TRACING_MODE", "console")
+
+# Add trace URL logging middleware (only active when TRACING_MODE="gcp")
+MIDDLEWARE = [
+    *MIDDLEWARE,
+    "gyrinx.tracing.TraceURLLoggingMiddleware",
+]
 
 USE_REAL_EMAIL_IN_DEV = os.getenv("USE_REAL_EMAIL_IN_DEV", "False").lower() == "true"
 if USE_REAL_EMAIL_IN_DEV:

@@ -89,6 +89,17 @@ def _get_processor(exporter):
         return BatchSpanProcessor(exporter)
 
 
+def _should_force_sampling() -> bool:
+    """Check if we should force sampling on all requests.
+
+    Returns True when DEBUG=True and TRACING_MODE="gcp", which is useful
+    for local development against GCP Cloud Trace.
+    """
+    from django.conf import settings
+
+    return getattr(settings, "DEBUG", False) and _get_tracing_mode() == "gcp"
+
+
 def _init_tracing() -> None:
     """Initialize OpenTelemetry tracing based on TRACING_MODE setting.
 
@@ -101,6 +112,7 @@ def _init_tracing() -> None:
     1. CloudTraceFormatPropagator - parses X-Cloud-Trace-Context header from Cloud Run
     2. Appropriate exporter based on mode
     3. Django auto-instrumentation (automatic request spans)
+    4. ALWAYS_ON sampler when DEBUG=True and TRACING_MODE="gcp" (forces all requests to be traced)
 
     Called automatically on module import.
     """
@@ -127,6 +139,7 @@ def _init_tracing() -> None:
             CloudTraceFormatPropagator,
         )
         from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.sampling import ALWAYS_ON
 
         # Configure Cloud Trace propagator FIRST
         # This tells OpenTelemetry to parse X-Cloud-Trace-Context header (GCP format)
@@ -134,7 +147,9 @@ def _init_tracing() -> None:
         set_global_textmap(CloudTraceFormatPropagator())
 
         # Create tracer provider
-        provider = TracerProvider()
+        # Use ALWAYS_ON sampler in DEBUG+gcp mode to trace every request
+        sampler = ALWAYS_ON if _should_force_sampling() else None
+        provider = TracerProvider(sampler=sampler)
 
         # Add exporter with appropriate processor based on mode
         exporter = _get_exporter()
@@ -155,8 +170,9 @@ def _init_tracing() -> None:
         _tracer = trace.get_tracer("gyrinx.tracing")
         _tracing_enabled = True
 
+        sampler_info = ", forced sampling" if _should_force_sampling() else ""
         logger.info(
-            f"OpenTelemetry tracing enabled (mode={tracing_mode}) "
+            f"OpenTelemetry tracing enabled (mode={tracing_mode}{sampler_info}) "
             f"with {exporter.__class__.__name__}"
         )
 
@@ -245,6 +261,66 @@ def is_tracing_enabled() -> bool:
         True if tracing is enabled and initialized, False otherwise.
     """
     return _tracing_enabled
+
+
+def get_gcp_trace_url(trace_id: str) -> str:
+    """Generate a GCP Cloud Trace console URL for a given trace ID.
+
+    Args:
+        trace_id: The OpenTelemetry trace ID (32 hex characters)
+
+    Returns:
+        A URL to view the trace in Google Cloud Console
+    """
+    project_id = _get_project_id()
+    return (
+        f"https://console.cloud.google.com/traces/explorer"
+        f";traceId={trace_id}?project={project_id}"
+    )
+
+
+class TraceURLLoggingMiddleware:
+    """Django middleware that logs GCP Cloud Trace URLs after each request.
+
+    Only active when DEBUG=True and TRACING_MODE="gcp". Logs a clickable URL
+    to the console that links directly to the trace in Google Cloud Console.
+
+    This is useful for local development when you want to inspect traces
+    in GCP Cloud Trace.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        # Check once at startup if we should log trace URLs
+        self._should_log = _should_force_sampling()
+        if self._should_log:
+            logger.info("TraceURLLoggingMiddleware active - will log GCP trace URLs")
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        if self._should_log and _tracing_enabled:
+            self._log_trace_url(request, response)
+
+        return response
+
+    def _log_trace_url(self, request, response) -> None:
+        """Log the GCP trace URL for the current request."""
+        try:
+            from opentelemetry import trace
+
+            span = trace.get_current_span()
+            span_context = span.get_span_context()
+
+            if span_context.is_valid:
+                # Format trace_id as 32-character hex string
+                trace_id = format(span_context.trace_id, "032x")
+                url = get_gcp_trace_url(trace_id)
+                logger.info(
+                    f"Trace {request.method} {request.path} {response.status_code} {url}"
+                )
+        except Exception as e:
+            logger.debug(f"Could not log trace URL: {e}")
 
 
 def _reset_tracing() -> None:
