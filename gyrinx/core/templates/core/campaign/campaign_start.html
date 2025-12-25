@@ -16,7 +16,7 @@
             </div>
             <h3 class="h5">Gang credit allocation</h3>
             <div class="vstack gap-2">
-                {% for list in campaign.lists.all %}
+                {% for list in lists %}
                     <div class="d-flex justify-content-between align-items-center">
                         <h4 class="fs-6 mb-0">{{ list.name }}</h4>
                         <div>
@@ -24,7 +24,9 @@
                         </div>
                         {% if campaign.budget > 0 %}
                             <div class="badge text-bg-secondary bg-secondary">
-                                {% with credits_to_add=campaign.budget|subtract:list.cost_int %}{{ credits_to_add|max:0 }}¢{% endwith %}
+                                {% with credits_to_add=campaign.budget|subtract:list.facts_with_fallback.wealth %}
+                                    {{ credits_to_add|max:0 }}¢
+                                {% endwith %}
                             </div>
                         {% endif %}
                     </div>

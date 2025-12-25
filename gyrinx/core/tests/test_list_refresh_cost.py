@@ -2,13 +2,11 @@
 Tests for list cost refresh functionality.
 
 Tests the refresh_list_cost view that allows list owners and campaign owners
-to manually refresh the cost cache.
+to manually refresh the list facts via facts_from_db().
 """
 
 import pytest
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.cache import caches
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter
@@ -20,33 +18,33 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_refresh_list_cost_as_owner(client, user, content_house):
-    """Test that list owner can refresh cost cache."""
+    """Test that list owner can refresh list facts."""
     lst = List.objects.create(
         owner=user,
         content_house=content_house,
         name="Test List",
     )
 
+    # Set dirty=True to simulate stale state
+    lst.dirty = True
+    lst.save(update_fields=["dirty"])
+
     client.force_login(user)
     url = reverse("core:list-refresh-cost", args=[lst.id])
-
-    cache = caches["core_list_cache"]
-    cache_key = lst.cost_cache_key()
-    cache.set(cache_key, 999, settings.CACHE_LIST_TTL)
 
     response = client.post(url)
 
     assert response.status_code == 302
     assert response.url == reverse("core:list", args=[lst.id])
 
-    cached_cost = cache.get(cache_key)
-    assert cached_cost == lst.cost_int()
-    assert cached_cost != 999
+    # Verify facts were refreshed
+    lst.refresh_from_db()
+    assert lst.dirty is False
 
 
 @pytest.mark.django_db
 def test_refresh_list_cost_as_campaign_owner(client, user, content_house):
-    """Test that campaign owner can refresh cost cache for lists in their campaign."""
+    """Test that campaign owner can refresh list facts for lists in their campaign."""
     campaign_owner = User.objects.create_user(
         username="campaign_owner", email="campaign@example.com", password="testpass"
     )
@@ -66,21 +64,21 @@ def test_refresh_list_cost_as_campaign_owner(client, user, content_house):
         campaign=campaign,
     )
 
+    # Set dirty=True to simulate stale state
+    lst.dirty = True
+    lst.save(update_fields=["dirty"])
+
     client.force_login(campaign_owner)
     url = reverse("core:list-refresh-cost", args=[lst.id])
-
-    cache = caches["core_list_cache"]
-    cache_key = lst.cost_cache_key()
-    cache.set(cache_key, 999, settings.CACHE_LIST_TTL)
 
     response = client.post(url)
 
     assert response.status_code == 302
     assert response.url == reverse("core:list", args=[lst.id])
 
-    cached_cost = cache.get(cache_key)
-    assert cached_cost == lst.cost_int()
-    assert cached_cost != 999
+    # Verify facts were refreshed
+    lst.refresh_from_db()
+    assert lst.dirty is False
 
 
 @pytest.mark.django_db
@@ -124,8 +122,8 @@ def test_refresh_list_cost_unauthenticated(client, user, content_house):
 
 
 @pytest.mark.django_db
-def test_refresh_list_cost_updates_cache(client, user, content_house):
-    """Test that refresh actually calculates and caches the correct cost."""
+def test_refresh_list_cost_updates_facts(client, user, content_house):
+    """Test that refresh actually calculates and caches the correct facts."""
     lst = List.objects.create(
         owner=user,
         content_house=content_house,
@@ -146,20 +144,22 @@ def test_refresh_list_cost_updates_cache(client, user, content_house):
         name="Test Fighter",
     )
 
+    # Manually set rating_current to wrong value
+    lst.rating_current = 0
+    lst.dirty = True
+    lst.save(update_fields=["rating_current", "dirty"])
+
     client.force_login(user)
     url = reverse("core:list-refresh-cost", args=[lst.id])
-
-    cache = caches["core_list_cache"]
-    cache_key = lst.cost_cache_key()
-    cache.delete(cache_key)
 
     response = client.post(url)
 
     assert response.status_code == 302
 
-    cached_cost = cache.get(cache_key)
-    assert cached_cost is not None
-    assert cached_cost == 50
+    # Verify facts were updated correctly
+    lst.refresh_from_db()
+    assert lst.rating_current == 50
+    assert lst.dirty is False
 
 
 @pytest.mark.django_db
