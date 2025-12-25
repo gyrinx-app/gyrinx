@@ -1072,10 +1072,17 @@ def start_campaign(request, id):
         messages.error(request, "This campaign cannot be started.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
+    # Prefetch lists with latest actions for efficient facts_with_fallback() in template
+    lists = (
+        List.objects.filter(campaign=campaign)
+        .select_related("owner")
+        .with_latest_actions()
+    )
+
     return render(
         request,
         "core/campaign/campaign_start.html",
-        {"campaign": campaign},
+        {"campaign": campaign, "lists": lists},
     )
 
 
