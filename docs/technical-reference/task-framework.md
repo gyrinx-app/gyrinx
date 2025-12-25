@@ -192,21 +192,7 @@ The `PubSubBackend` has the following capability flags:
 
 | Capability | Supported | Notes |
 |------------|-----------|-------|
-| `supports_defer` | No | Would require Pub/Sub scheduled delivery |
-| `supports_async_task` | No | Would require async Pub/Sub client |
-| `supports_get_result` | No | Would require result storage (database/Cloud Storage) |
-| `supports_priority` | No | Would require separate topics per priority |
-
-## File Locations
-
-| File | Purpose |
-|------|---------|
-| `gyrinx/tasks/__init__.py` | Package exports (`TaskRoute`) |
-| `gyrinx/tasks/route.py` | `TaskRoute` dataclass definition |
-| `gyrinx/tasks/registry.py` | Task registration (add tasks here) |
-| `gyrinx/tasks/backend.py` | `PubSubBackend` implementation |
-| `gyrinx/tasks/views.py` | Push handler view |
-| `gyrinx/tasks/provisioning.py` | Auto-provisioning logic |
-| `gyrinx/tasks/apps.py` | Django app config (triggers provisioning) |
-| `gyrinx/tasks/urls.py` | URL routing |
-| `gyrinx/core/tasks.py` | Task function implementations |
+| `supports_defer` | No | To implement, use Pub/Sub scheduled delivery |
+| `supports_async_task` | No | To implement, use async Pub/Sub client |
+| `supports_get_result` | No | To implement, use result storage (database/Cloud Storage) |
+| `supports_priority` | No | Unclear |

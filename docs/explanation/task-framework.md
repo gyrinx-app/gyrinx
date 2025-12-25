@@ -2,34 +2,17 @@
 
 This document explains the design decisions, message flow, and infrastructure provisioning strategy for Gyrinx's background task system.
 
+The basic concepts from Tasks are new in Django 6.0. We have a Pub/Sub backend for asynchronous execution, with support for scheduled tasks via Cloud Scheduler. The [`TaskRoute`](../../gyrinx/tasks/route.py) is custom to Gyrinx, providing configuration options for retries and scheduling.
+
 ## Why Pub/Sub?
 
-We chose Google Cloud Pub/Sub over alternatives for several reasons:
+We like using Google Cloud Platform built-ins in general. Pub/Sub is fully managed, and works well with Cloud Run (pushing to an endpoint), Cloud Scheduler, and IAM. It's fairly cost-effective per message, with no idle infrastructure costs, and we don't have separate worker processes to manage.
 
-### Compared to Celery
+## How we use Pub/Sub
 
-- **No broker to manage**: Pub/Sub is fully managed. Celery requires running Redis or RabbitMQ.
-- **Native GCP integration**: Works seamlessly with Cloud Run, Cloud Scheduler, and IAM.
-- **Cost-effective**: Pay per message, no idle infrastructure costs.
-- **Simpler deployment**: No separate worker processes to manage.
-
-### Compared to Cloud Tasks
-
-- **More flexible retry policies**: Pub/Sub offers configurable exponential backoff.
-- **Better observability**: Native integration with Cloud Monitoring and Logging.
-- **Easier local development**: Messages are just HTTP POSTs; easy to test without emulators.
-
-### Compared to Django Q / Huey
-
-- **Production-grade reliability**: Google's SLA-backed infrastructure.
-- **No database polling**: Push-based delivery is more efficient.
-- **Scales automatically**: No worker pool sizing decisions.
-
-### Trade-offs
-
-- **Fire-and-forget publishing**: We don't wait for Pub/Sub confirmation to keep request latency low. This means message loss is theoretically possible on network failures, though rare in practice.
-- **No result storage**: Unlike Celery, we don't store task results. Tasks that need to report results should write to the database directly.
-- **No task priorities**: All tasks use the same delivery mechanism. For true priority support, we would need separate topics.
+- Fire-and-forget publishing: We don't wait for Pub/Sub confirmation to keep request latency low. This means message loss is theoretically possible on network failures. We could introduce silent retries in the future. See [`PubSubBackend.enqueue()`](../../gyrinx/tasks/backend.py).
+- No result storage: For now, tasks that need to report results should write to the database directly.
+- No task priorities: All tasks use the same delivery mechanism. For true priority support, we'd need separate topics.
 
 ## Message Flow
 
@@ -47,13 +30,15 @@ We chose Google Cloud Pub/Sub over alternatives for several reasons:
                         └─────────────────┘     └─────────────────┘
 ```
 
-1. **Enqueue**: Python code calls `task.enqueue(...)` with arguments
-2. **Publish**: `PubSubBackend.enqueue()` serialises arguments to JSON and publishes to the task-specific topic
-3. **Deliver**: The push subscription sends an HTTP POST to `/tasks/pubsub/` with the message
-4. **Verify**: The handler verifies the OIDC token to ensure the request came from Pub/Sub
-5. **Route**: The handler looks up the task by `task_name` in the registry
-6. **Execute**: The task function runs with the deserialised arguments
-7. **Acknowledge**: HTTP 200 acknowledges the message; other codes trigger retry
+1. Enqueue: Python code calls `task.enqueue(...)` with arguments
+2. Publish: [`PubSubBackend.enqueue()`](../../gyrinx/tasks/backend.py) serialises arguments to JSON and publishes to the task-specific topic
+3. Deliver: The push subscription sends an HTTP POST to `/tasks/pubsub/` with the message
+4. Verify: The handler verifies the OIDC token to ensure the request came from Pub/Sub (see [`_verify_oidc_token()`](../../gyrinx/tasks/views.py))
+5. Route: The handler looks up the task by `task_name` in the [registry](../../gyrinx/tasks/registry.py)
+6. Execute: The task function runs with the deserialised arguments
+7. Acknowledge: HTTP 200 acknowledges the message; other codes trigger retry
+
+The push handler is [`pubsub_push_handler()`](../../gyrinx/tasks/views.py).
 
 ### Scheduled Task Execution
 
@@ -75,13 +60,13 @@ Scheduled tasks work identically to on-demand tasks, except:
 2. Scheduler publishes a pre-configured message to the same topic
 3. The rest of the flow is identical
 
-This design means scheduled and on-demand invocations use the same code path, simplifying testing and debugging.
+This design means scheduled and on-demand invocations use the same code path.
 
 ## Infrastructure Provisioning
 
 ### When Does Provisioning Run?
 
-Provisioning runs automatically during Cloud Run startup when the `K_SERVICE` environment variable is present. This variable is set automatically by Cloud Run.
+Provisioning runs automatically during Cloud Run startup when the `K_SERVICE` environment variable is present. Cloud Run sets this automatically. See [`TasksConfig.ready()`](../../gyrinx/tasks/apps.py).
 
 ```python
 # In gyrinx/tasks/apps.py
@@ -100,15 +85,15 @@ Provisioning is skipped during:
 
 ### What Gets Provisioned?
 
-For each task in the registry:
+For each task in the [registry](../../gyrinx/tasks/registry.py), [`provision_task_infrastructure()`](../../gyrinx/tasks/provisioning.py) creates:
 
-1. **Pub/Sub Topic**: `{env}--gyrinx.tasks--{module.path.task_name}`
-2. **Push Subscription**: Points to `/tasks/pubsub/` with OIDC authentication
-3. **Cloud Scheduler Job** (if scheduled): Publishes to the topic on the cron schedule
+1. Pub/Sub Topic: `{env}--gyrinx.tasks--{module.path.task_name}`
+2. Push Subscription: Points to `/tasks/pubsub/` with OIDC authentication
+3. Cloud Scheduler Job (if scheduled): Publishes to the topic on the cron schedule
 
 ### Idempotency
 
-Provisioning is idempotent - it's safe to run on every startup:
+Provisioning is (in theory!) idempotent—it's safe to run on every startup:
 
 - Topics: Created if missing, skipped if exists
 - Subscriptions: Created if missing, **updated** if exists (to apply config changes)
@@ -118,7 +103,7 @@ This means you can change retry policies or schedules, and the new configuration
 
 ### Orphan Cleanup
 
-When you remove a scheduled task from the registry, the system automatically deletes the corresponding Cloud Scheduler job:
+When you remove a scheduled task from the registry, the system automatically deletes the corresponding Cloud Scheduler job. See [`_cleanup_orphaned_scheduler_jobs()`](../../gyrinx/tasks/provisioning.py):
 
 1. List all jobs with our naming prefix
 2. Compare against current scheduled tasks
@@ -130,7 +115,7 @@ This prevents stale scheduled jobs from continuing to run after a task is remove
 
 ### OIDC Authentication
 
-Push subscriptions use OIDC tokens to authenticate requests:
+Push subscriptions use OIDC tokens to authenticate requests. See [`_verify_oidc_token()`](../../gyrinx/tasks/views.py):
 
 ```
 Pub/Sub → POST /tasks/pubsub/
@@ -167,9 +152,9 @@ Push subscriptions solve this by having Pub/Sub make HTTP requests, which natura
 | 429 | Capacity exceeded | Yes (exponential backoff) |
 | 500 | Transient failure | Yes (exponential backoff) |
 
-### Backpressure: The 429 Pattern
+### Backpressure
 
-When the database connection pool is exhausted, returning 500 would cause rapid retries that worsen the problem. Instead, we return 429:
+When the database connection pool is exhausted, returning 500 would cause rapid retries that worsen the problem. Instead, we [return 429](../../gyrinx/tasks/views.py):
 
 ```python
 try:
@@ -184,9 +169,9 @@ Pub/Sub treats 429 like other retriable errors, applying exponential backoff. Th
 
 ### Retry Policy
 
-Each task can configure:
+Each task can configure via [`TaskRoute`](../../gyrinx/tasks/route.py):
 
-- `ack_deadline`: How long before Pub/Sub assumes the task failed (10-600 seconds)
+- `ack_deadline`: How long before Pub/Sub assumes the task failed (10–600 seconds)
 - `min_retry_delay`: Minimum wait before retry
 - `max_retry_delay`: Maximum wait (caps exponential backoff)
 
@@ -196,7 +181,7 @@ Pub/Sub uses exponential backoff between min and max delay, doubling the wait ti
 
 | Aspect | Development | Production |
 |--------|-------------|------------|
-| Backend | `ImmediateBackend` (sync) | `PubSubBackend` (async) |
+| Backend | `ImmediateBackend` (sync) | [`PubSubBackend`](../../gyrinx/tasks/backend.py) (async) |
 | OIDC verification | Skipped | Enforced |
 | Provisioning | Skipped | Automatic on startup |
 | Topic naming | `dev--gyrinx.tasks--...` | `prod--gyrinx.tasks--...` |
@@ -222,14 +207,6 @@ Currently tasks are fire-and-forget. To support `task.get_result()`:
 1. Store results in the database or Cloud Storage
 2. Implement `get_result()` in the backend
 3. Consider result expiry/cleanup
-
-### Priority Queues
-
-For true priority support:
-
-1. Create separate topics per priority level
-2. Configure different subscription throughput limits
-3. Route tasks based on priority parameter
 
 ### Dead Letter Queues
 

@@ -16,6 +16,7 @@
 - [Analytics Graph Configuration](how-to-guides/analytics-graph-configuration.md)
 - [Tracking and Metrics](tracking.md)
 - [Useful Scripts](useful-scripts.md)
+- [Task Framework](how-to-guides/task-framework.md)
 
 ## Technical Reference
 
@@ -36,11 +37,7 @@
 - [Logging and Tracing Reference](logging-and-tracing-reference.md)
 - [Security Baseline](security-baseline.md)
 - [Statlines](technical-reference/statlines.md)
-- [Task Framework Reference](tasks/reference.md)
-
-## How-To Guides: Tasks
-
-- [Task Framework How-To Guides](tasks/how-to.md)
+- [Task Framework](technical-reference/task-framework.md)
 
 ## Explanation
 
@@ -52,7 +49,7 @@
 - [Integration Testing](integration_testing.md)
 - [Test Performance Improvements](test-performance-improvements.md)
 - [Changelog Management](developing-gyrinx/changelog-management.md)
-- [Task Framework Architecture](tasks/architecture.md)
+- [Task Framework Architecture](explanation/task-framework.md)
 
 ## Operations
 

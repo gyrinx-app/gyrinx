@@ -106,22 +106,29 @@ Kill switches let you disable tasks at runtime without redeploying.
 
 ### Steps
 
-1. **Check an environment variable** at the start of your task:
+1. **Add a setting** in `settings.py` that reads from an environment variable:
 
 ```python
-import os
+# settings.py
+ENABLE_BATCH_JOB = env.bool("ENABLE_BATCH_JOB", default=True)
+```
+
+1. **Check the setting** at the start of your task:
+
+```python
+from django.conf import settings
 from django.tasks import task
 
 @task
 def expensive_batch_job():
-    if os.getenv("ENABLE_BATCH_JOB", "true").lower() != "true":
+    if not settings.ENABLE_BATCH_JOB:
         logger.info("Batch job disabled via ENABLE_BATCH_JOB")
         return
 
     # ... rest of task
 ```
 
-1. **Document the variable** in `docs/deployment-environment-variables.md` and this reference.
+1. **Document the setting** in `docs/deployment-environment-variables.md`.
 
 1. **Disable in production** by setting the environment variable:
 
@@ -129,12 +136,6 @@ def expensive_batch_job():
 # In Cloud Run environment variables
 ENABLE_BATCH_JOB=false
 ```
-
-### Notes
-
-- Default to enabled (`"true"`) for backwards compatibility
-- Log when the kill switch is active for observability
-- Use descriptive variable names: `ENABLE_<TASK_NAME>`
 
 ## Configure Retry Behaviour
 
@@ -294,24 +295,3 @@ my_task("arg1", "arg2")
    - `429`: Database connection pool exhausted (check `CONN_MAX_AGE`, connection limits)
    - `500`: Unhandled exception (check task code)
    - `400`: Message format issues (check enqueue arguments)
-
-## Monitor Task Health
-
-### Metrics to Track
-
-| Metric | Source | Alert Threshold |
-|--------|--------|-----------------|
-| Task success rate | `track("task_completed")` / `track("task_started")` | <95% |
-| Task latency | Time between `enqueued_at` and completion | p95 > 5min |
-| Dead letter queue depth | Pub/Sub metrics | >0 |
-| Database connection errors | `track("task_failed")` with connection errors | Any |
-
-### Using track() Events
-
-The task system emits these tracking events:
-
-- `task_published` - Message sent to Pub/Sub
-- `task_publish_failed` - Failed to publish
-- `task_started` - Handler received message
-- `task_completed` - Task finished successfully
-- `task_failed` - Task raised exception
