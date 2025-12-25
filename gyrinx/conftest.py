@@ -1,5 +1,4 @@
 from typing import Callable
-from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -76,28 +75,6 @@ def warm_contenttype_cache(django_db_setup, django_db_blocker):
 
         ContentType.objects.get_for_model(ContentMod)
         ContentType.objects.get_for_model(ContentModFighterStat)
-
-
-@pytest.fixture(autouse=True)
-def disable_cost_cache_in_tests(request):
-    """
-    Disable expensive cost cache updates in all tests by default.
-
-    The cost cache updates are expensive operations that recalculate
-    the entire list cost on every save. This is unnecessary for most
-    tests and significantly slows down test execution.
-
-    Tests that specifically need to test cost calculations can
-    re-enable this by using the 'with_cost_cache' marker.
-    """
-    # Check if the test has the 'with_cost_cache' marker
-    if request.node.get_closest_marker("with_cost_cache"):
-        # Don't mock for this test
-        yield
-    else:
-        # Mock the cost cache update for performance
-        with patch("gyrinx.core.models.list.List.update_cost_cache"):
-            yield
 
 
 @pytest.fixture(scope="session")
