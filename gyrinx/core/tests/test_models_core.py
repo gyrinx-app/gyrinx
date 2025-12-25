@@ -1937,7 +1937,6 @@ def test_fighter_category_override_equipment_restrictions(content_house):
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
 def test_list_rating_calculation(
     content_house, make_list, make_list_fighter, make_content_fighter, user
 ):
@@ -2025,7 +2024,6 @@ def test_list_rating_calculation(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
 def test_stash_fighter_cost_calculation(
     content_house, make_list, user, content_equipment_categories
 ):
