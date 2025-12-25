@@ -521,8 +521,13 @@ def campaign_add_lists(request, id):
         # Only show public lists from other users
         lists = lists.filter(public=True).exclude(owner=request.user)
 
-    # Exclude and order by name
-    lists = lists.exclude(id__in=excluded_list_ids).order_by("name")
+    # Exclude and order by name, prefetch latest actions for facts system
+    lists = (
+        lists.exclude(id__in=excluded_list_ids)
+        .with_latest_actions()
+        .select_related("content_house", "owner")
+        .order_by("name")
+    )
 
     # Paginate the results
     paginator = Paginator(lists, 20)  # Show 20 lists per page

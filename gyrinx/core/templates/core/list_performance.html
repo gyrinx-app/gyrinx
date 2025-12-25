@@ -39,6 +39,13 @@
     </ul>
     <h2>List Attributes</h2>
     <ul>
+        <li>R: {{ list.facts.rating }}</li>
+        <li>S: {{ list.facts.stash }}</li>
+        <li>Cr: {{ list.facts.credits }}</li>
+        <li>W: {{ list.facts.wealth }}</li>
+    </ul>
+    <h2>List Attributes</h2>
+    <ul>
         {% for attribute_assign in list.active_attributes_cached %}
             <li>{{ attribute_assign.attribute_value.name }}: {{ attribute_assign.attribute_value.attribute }}</li>
         {% empty %}

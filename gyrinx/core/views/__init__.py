@@ -63,9 +63,13 @@ def index(request):
             ).exists()
 
             # Regular lists (not in campaigns) - show 5 most recent
-            lists_queryset = List.objects.filter(
-                owner=request.user, status=List.LIST_BUILDING, archived=False
-            ).select_related("content_house")
+            lists_queryset = (
+                List.objects.filter(
+                    owner=request.user, status=List.LIST_BUILDING, archived=False
+                )
+                .with_latest_actions()
+                .select_related("content_house")
+            )
 
             # Apply search filter for lists
             search_query = request.GET.get("q")
@@ -89,6 +93,7 @@ def index(request):
                     campaign__status=Campaign.IN_PROGRESS,
                     campaign__archived=False,
                 )
+                .with_latest_actions()
                 .select_related("campaign", "content_house")
                 .order_by("-modified")[:5]
             )
@@ -248,8 +253,12 @@ def user(request, slug_or_id):
     else:
         query = Q(username__iexact=slug_or_id)
     user = get_object_or_404(User, query)
-    public_lists = List.objects.filter(
-        owner=user, public=True, status=List.LIST_BUILDING, archived=False
+    public_lists = (
+        List.objects.filter(
+            owner=user, public=True, status=List.LIST_BUILDING, archived=False
+        )
+        .with_latest_actions()
+        .select_related("content_house", "owner")
     )
 
     # Log the user profile view

@@ -106,31 +106,17 @@ def validate_category_override(value):
 
 
 class ListQuerySet(models.QuerySet):
-    def with_related_data(self, with_fighters=False):
+    def with_latest_actions(self):
         """
-        Optimize queries by selecting related content_house and owner,
-        and prefetching fighters with their related data.
+        Prefetch the latest action for each list.
+
+        This enables the facts system by populating the `latest_actions` attribute,
+        which is checked by the `can_use_facts` property.
+
+        Use this lightweight method when only the facts prefetch is needed.
+        For full optimization with related data, use `with_related_data()`.
         """
-        qs = self.select_related(
-            "content_house",
-            "owner",
-            "campaign",
-            "original_list",
-        ).prefetch_related(
-            Prefetch(
-                "listattributeassignment_set",
-                queryset=ListAttributeAssignment.objects.filter(
-                    archived=False
-                ).select_related("attribute_value", "attribute_value__attribute"),
-                to_attr="active_attribute_assignments",
-            ),
-            Prefetch(
-                "campaign_clones",
-                queryset=List.objects.filter(
-                    status=List.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
-                ),
-                to_attr="active_campaign_clones",
-            ),
+        return self.prefetch_related(
             Prefetch(
                 "actions",
                 queryset=ListAction.objects.order_by(
@@ -138,6 +124,37 @@ class ListQuerySet(models.QuerySet):
                 ).distinct("list_id"),
                 to_attr="latest_actions",
             ),
+        )
+
+    def with_related_data(self, with_fighters=False):
+        """
+        Optimize queries by selecting related content_house and owner,
+        and prefetching fighters with their related data.
+        """
+        qs = (
+            self.with_latest_actions()
+            .select_related(
+                "content_house",
+                "owner",
+                "campaign",
+                "original_list",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "listattributeassignment_set",
+                    queryset=ListAttributeAssignment.objects.filter(
+                        archived=False
+                    ).select_related("attribute_value", "attribute_value__attribute"),
+                    to_attr="active_attribute_assignments",
+                ),
+                Prefetch(
+                    "campaign_clones",
+                    queryset=List.objects.filter(
+                        status=List.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS
+                    ),
+                    to_attr="active_campaign_clones",
+                ),
+            )
         )
 
         if with_fighters:
