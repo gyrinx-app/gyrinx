@@ -168,8 +168,10 @@ class ListsListView(generic.ListView):
         Campaign mode lists are only visible within their campaigns.
         Archived lists are excluded from this view unless requested.
         """
-        queryset = List.objects.all().select_related(
-            "content_house", "owner", "campaign"
+        queryset = (
+            List.objects.all()
+            .with_latest_actions()
+            .select_related("content_house", "owner", "campaign")
         )
 
         # Apply "Your Lists" filter (default on if user is authenticated)
