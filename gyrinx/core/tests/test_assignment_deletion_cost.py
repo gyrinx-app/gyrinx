@@ -66,8 +66,7 @@ def test_assignment_deletion_cost_recalculation(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
-def test_assignment_deletion_cached_cost_recalculation(
+def test_assignment_deletion_cost_recalculation_via_cost_int(
     content_fighter,
     make_list,
     make_list_fighter,
@@ -75,7 +74,10 @@ def test_assignment_deletion_cached_cost_recalculation(
     make_weapon_profile,
     content_equipment_categories,
 ):
-    """Test that deleting an assignment correctly recalculates the cached list cost."""
+    """Test that deleting an assignment correctly recalculates the list cost.
+
+    Uses cost_int() directly since cost_int_cached is deprecated (#1215).
+    """
     from gyrinx.core.models.list import List
 
     # Create equipment with a cost
@@ -90,9 +92,9 @@ def test_assignment_deletion_cached_cost_recalculation(
     lst = make_list("Test List")
     fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
 
-    # Initial cached cost
-    initial_fighter_cost_cached = fighter.cost_int_cached
-    initial_list_cost_cached = lst.cost_int_cached
+    # Initial cost
+    initial_fighter_cost = fighter.cost_int()
+    initial_list_cost = lst.cost_int()
 
     # Assign the equipment to the fighter
     assignment = fighter.assign(
@@ -103,12 +105,12 @@ def test_assignment_deletion_cached_cost_recalculation(
     fighter = ListFighter.objects.get(pk=fighter.pk)
     lst = List.objects.get(pk=lst.pk)
 
-    # Cached cost should now include the equipment
-    cost_with_equipment_cached = fighter.cost_int_cached
-    list_cost_with_equipment_cached = lst.cost_int_cached
+    # Cost should now include the equipment
+    cost_with_equipment = fighter.cost_int()
+    list_cost_with_equipment = lst.cost_int()
 
-    assert cost_with_equipment_cached == initial_fighter_cost_cached + 50
-    assert list_cost_with_equipment_cached == initial_list_cost_cached + 50
+    assert cost_with_equipment == initial_fighter_cost + 50
+    assert list_cost_with_equipment == initial_list_cost + 50
 
     # Delete the assignment
     assignment.delete()
@@ -117,15 +119,15 @@ def test_assignment_deletion_cached_cost_recalculation(
     fighter = ListFighter.objects.get(pk=fighter.pk)
     lst = List.objects.get(pk=lst.pk)
 
-    # Cached cost should be back to initial
-    final_fighter_cost_cached = fighter.cost_int_cached
-    final_list_cost_cached = lst.cost_int_cached
+    # Cost should be back to initial
+    final_fighter_cost = fighter.cost_int()
+    final_list_cost = lst.cost_int()
 
-    assert final_fighter_cost_cached == initial_fighter_cost_cached, (
-        f"Fighter cached cost after deletion ({final_fighter_cost_cached}) != initial cached cost ({initial_fighter_cost_cached})"
+    assert final_fighter_cost == initial_fighter_cost, (
+        f"Fighter cost after deletion ({final_fighter_cost}) != initial cost ({initial_fighter_cost})"
     )
-    assert final_list_cost_cached == initial_list_cost_cached, (
-        f"List cached cost after deletion ({final_list_cost_cached}) != initial cached cost ({initial_list_cost_cached})"
+    assert final_list_cost == initial_list_cost, (
+        f"List cost after deletion ({final_list_cost}) != initial cost ({initial_list_cost})"
     )
 
 
@@ -228,8 +230,7 @@ def test_assignment_deletion_immediate_cached_property_update(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
-def test_assignment_deletion_cached_property_with_multiple_assignments(
+def test_assignment_deletion_with_multiple_assignments(
     content_fighter,
     content_equipment_categories,
     make_list,
@@ -237,7 +238,12 @@ def test_assignment_deletion_cached_property_with_multiple_assignments(
     make_equipment,
     make_weapon_profile,
 ):
-    """Test cached property updates when deleting one of multiple assignments."""
+    """Test cost updates when deleting one of multiple assignments.
+
+    Uses cost_int() directly since cost_int_cached is deprecated (#1215).
+    """
+    from gyrinx.core.models.list import List
+
     # Create multiple equipment items
     weapon1 = make_equipment(
         "Weapon 1",
@@ -257,7 +263,7 @@ def test_assignment_deletion_cached_property_with_multiple_assignments(
     lst = make_list("Test List")
     fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
 
-    initial_cost = lst.cost_int_cached
+    initial_cost = lst.cost_int()
 
     # Assign both weapons
     assignment1 = fighter.assign(
@@ -268,16 +274,15 @@ def test_assignment_deletion_cached_property_with_multiple_assignments(
         weapon2, weapon_profiles=[weapon2_profile], weapon_accessories=[]
     )
 
-    # Access cached properties to populate them
-    _ = fighter.cost_int_cached
-    _ = lst.cost_int_cached
-
     # Delete first assignment
     assignment1.delete()
 
-    # Check that cached cost now reflects only the second weapon
+    # Refresh to get updated cost
+    lst = List.objects.get(pk=lst.pk)
+
+    # Check that cost now reflects only the second weapon
     expected_cost = initial_cost + 75  # Only weapon2's cost remains
-    assert lst.cost_int_cached == expected_cost, (
-        f"List cached cost after deleting first assignment ({lst.cost_int_cached}) "
+    assert lst.cost_int() == expected_cost, (
+        f"List cost after deleting first assignment ({lst.cost_int()}) "
         f"!= expected cost ({expected_cost})"
     )
