@@ -353,21 +353,35 @@ class List(AppBase):
     @traced("list_cost_int_cached")
     def cost_int_cached(self):
         """
-        Max-in-memory-cached version of cost_int().
+        DEPRECATED: Legacy cache read path - now uses facts_with_fallback().
 
-        This should preferably be used, as it is expected to be accessed multiple times
-        during typical request handling.
+        This property is being phased out as part of #1215 (remove in-memory cache).
+        It now delegates to facts_with_fallback() and emits tracking when called.
+        In DEBUG mode, raises an exception to catch unexpected usage.
         """
-        cache = caches["core_list_cache"]
-        cache_key = self.cost_cache_key()
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+        # Track that we hit the deprecated cache read path with diagnostic info
+        has_prefetch = hasattr(self, "latest_actions")
+        track(
+            "deprecated_cost_int_cached_read",
+            list_id=str(self.pk),
+            can_use_facts=self.can_use_facts,
+            is_dirty=self.dirty,
+            has_latest_actions_prefetch=has_prefetch,
+            has_actions=bool(self.latest_actions) if has_prefetch else None,
+            facts_returns_none=self.facts() is None,
+        )
 
-        rating = sum([f.cost_int_cached for f in self.active_fighters])
-        wealth = rating + self.stash_fighter_cost_int + self.credits_current
-        cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
-        return wealth
+        # In DEBUG mode, raise to catch unexpected usage during development
+        if settings.DEBUG:
+            raise RuntimeError(
+                f"DEPRECATED: List.cost_int_cached was called for list {self.pk}. "
+                "This code path should no longer be reached. "
+                "Ensure the view uses with_latest_actions() prefetch so can_use_facts=True. "
+                "See issue #1215."
+            )
+
+        # Fallback: use facts system instead of in-memory cache
+        return self.facts_with_fallback().wealth
 
     def cost_display(self):
         """Display the list's total wealth (rating + stash + credits)."""

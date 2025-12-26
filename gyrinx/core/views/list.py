@@ -4,10 +4,9 @@ import uuid
 from typing import Literal, Optional
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
-from django.core.cache import cache, caches
+from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
@@ -835,8 +834,8 @@ def refresh_list_cost(request, id):
     """
     Refresh the cost cache for a :model:`core.List`.
 
-    Only processes POST requests. Recalculates the list cost using cost_int()
-    and updates the cache, then redirects back to the list detail page.
+    Only processes POST requests. Forces recalculation of facts via facts_from_db(),
+    then redirects back to the list detail page.
 
     Can be accessed by either the list owner or the campaign owner (if list is in a campaign).
     """
@@ -848,38 +847,25 @@ def refresh_list_cost(request, id):
         raise Http404("List not found")
 
     if request.method == "POST":
-        wealth = lst.cost_int()
+        # Get old cached facts value (from DB cache, not in-memory cache)
+        old_facts = lst.facts()
+        old_wealth = old_facts.wealth if old_facts else None
+        was_dirty = old_facts is None
 
-        # Check if CACHED values match calculated values
-        # facts() returns cached values (or None if dirty)
-        # facts_from_db() recalculates - don't use it for comparison
-        cached_facts = lst.facts()
-        if cached_facts is None:
-            # dirty flag is set, definitely out of sync
-            facts_match = False
-        else:
-            facts_match = cached_facts.wealth == wealth
+        # Force recalculation and update DB cache
+        new_facts = lst.facts_from_db(update=True)
 
-        cache = caches["core_list_cache"]
-        cache_key = lst.cost_cache_key()
-        cached_value = cache.get(cache_key)
-
-        cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
-
+        # Clear the cached_property if present
         if "cost_int_cached" in lst.__dict__:
             del lst.__dict__["cost_int_cached"]
-
-        if not facts_match:
-            lst.facts_from_db(update=True)
 
         track(
             "list_cost_refresh",
             list_id=str(lst.id),
-            old_cost=cached_value,
-            new_cost=wealth,
-            delta=wealth - (cached_value or 0),
-            was_dirty=cached_facts is None,
-            facts_match=facts_match,
+            old_cost=old_wealth,
+            new_cost=new_facts.wealth,
+            delta=new_facts.wealth - (old_wealth or 0),
+            was_dirty=was_dirty,
         )
 
     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))

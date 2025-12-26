@@ -122,15 +122,17 @@ def handle_campaign_start(
         cloned_lists.append(campaign_clone)
 
         # Distribute budget credits to the cloned list
+        # Use cost_int() to compute fresh from DB; cost_int_cached is deprecated (#1215)
+        original_cost = original_list.cost_int()
         budget_result = _distribute_budget_to_list(
             user=user,
             campaign=campaign,
             campaign_list=campaign_clone,
             # NOTE: This computes the cost from scratch; we would prefer to use *_current but can't yet. #1054
-            list_cost=original_list.cost_int_cached,
+            list_cost=original_cost,
         )
         logger.info(
-            f"Distributed {budget_result.credits_added}¢ to list {campaign_clone.id} for campaign {campaign.id} based on list cost of {original_list.cost_int_cached}¢"
+            f"Distributed {budget_result.credits_added}¢ to list {campaign_clone.id} for campaign {campaign.id} based on list cost of {original_cost}¢"
         )
         list_results.append(budget_result)
 
