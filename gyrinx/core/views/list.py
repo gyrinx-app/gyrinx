@@ -2071,10 +2071,26 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     )
 
     # Filter categories based on fighter category restrictions
+    # Batch-fetch all restrictions to avoid N+1 queries
     fighter_category = fighter.get_category()
+    from collections import defaultdict
+
+    from gyrinx.content.models import ContentEquipmentCategoryFighterRestriction
+
+    all_restrictions = ContentEquipmentCategoryFighterRestriction.objects.filter(
+        equipment_category__in=categories
+    ).values("equipment_category_id", "fighter_category")
+    restrictions_by_category = defaultdict(list)
+    for r in all_restrictions:
+        restrictions_by_category[r["equipment_category_id"]].append(
+            r["fighter_category"]
+        )
+
     restricted_category_ids = []
     for category in categories:
-        if not category.is_available_to_fighter_category(fighter_category):
+        restrictions = restrictions_by_category.get(category.id, [])
+        # If restrictions exist and fighter category is not in them, it's restricted
+        if restrictions and fighter_category not in restrictions:
             restricted_category_ids.append(category.id)
 
     # Remove restricted categories
@@ -2811,6 +2827,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     profiles_qs = (
         ContentWeaponProfile.objects.filter(equipment=assignment.content_equipment)
         .exclude(cost=0)
+        .prefetch_related("traits")
         .order_by("cost", "name")
     )
 
@@ -5821,9 +5838,10 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
 
-    # Get default rules from ContentFighter
+    # Get default rules from ContentFighter (uses prefetched data)
     default_rules = fighter.content_fighter.rules.all()
-    disabled_rule_ids = set(fighter.disabled_rules.values_list("id", flat=True))
+    # Use prefetched disabled_rules instead of values_list query
+    disabled_rule_ids = {r.id for r in fighter.disabled_rules.all()}
 
     # Build default rules with status
     default_rules_display = []

@@ -164,7 +164,9 @@ class ListFighterForm(forms.ModelForm):
 
             self.fields[
                 "legacy_content_fighter"
-            ].queryset = ContentFighter.objects.filter(can_be_legacy=True)
+            ].queryset = ContentFighter.objects.filter(
+                can_be_legacy=True
+            ).select_related("house")
 
             # If the fighter is linked to a parent via an assignment, don't allow the content_fighter to be changed
             if inst.is_child_fighter:

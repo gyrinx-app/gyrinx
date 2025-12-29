@@ -1466,6 +1466,7 @@ class ListFighterQuerySet(models.QuerySet):
                 "skills",
                 "disabled_skills",
                 "disabled_rules",
+                "custom_rules",
                 "disabled_default_assignments",
                 "advancements",
                 "stat_overrides",

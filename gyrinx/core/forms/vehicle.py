@@ -87,20 +87,16 @@ class VehicleSelectionForm(forms.Form):
             self.fields["vehicle_equipment"].content_house = list_instance.content_house
 
             # Group by fighter house using a custom key function
+            # Uses prefetched contentequipmentfighterprofile_set from queryset above
             def equipment_group_key(equipment):
-                # Get the associated fighter
-                profile = (
-                    ContentEquipmentFighterProfile.objects.filter(equipment=equipment)
-                    .select_related("content_fighter__house")
-                    .first()
-                )
-
+                # Use prefetched profiles instead of querying
+                profiles = list(equipment.contentequipmentfighterprofile_set.all())
                 if (
-                    profile
-                    and profile.content_fighter
-                    and profile.content_fighter.house
+                    profiles
+                    and profiles[0].content_fighter
+                    and profiles[0].content_fighter.house
                 ):
-                    return profile.content_fighter.house.name
+                    return profiles[0].content_fighter.house.name
                 return "Other"
 
             group_select(
