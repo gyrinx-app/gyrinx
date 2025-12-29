@@ -760,6 +760,62 @@ class List(AppBase):
         return attributes
 
     @cached_property
+    @traced("list_expansion_equipment_by_category")
+    def expansion_equipment_by_category(self) -> dict[str, pylist]:
+        """
+        Compute expansion equipment for all fighter categories once at list level.
+
+        This is a performance optimization to avoid running expansion queries once
+        per fighter. Instead, we compute expansion equipment for each possible
+        fighter category once, and cache the results keyed by category.
+
+        Returns:
+            dict mapping fighter category string -> list of ContentEquipment instances
+            with expansion_cost_override annotation.
+        """
+        from gyrinx.content.models_.expansion import (
+            ContentEquipmentListExpansion,
+            ExpansionRuleInputs,
+        )
+
+        result = {}
+
+        # Get all unique fighter categories that might be used
+        # We only compute for categories that have fighters in this list to avoid waste
+        categories_in_list = set()
+        for fighter in self.listfighter_set.all():
+            if not fighter.archived:
+                cat = fighter.get_category()
+                if cat:
+                    categories_in_list.add(cat)
+
+        # Also include generic expansion (no fighter category required)
+        # This is computed once with fighter_category=None
+        rule_inputs_no_fighter = ExpansionRuleInputs(list=self)
+        base_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
+            rule_inputs_no_fighter
+        )
+        result[None] = pylist(
+            base_equipment.select_related("category").prefetch_related(
+                "category__restricted_to"
+            )
+        )
+
+        # Compute for each category present in the list
+        for category in categories_in_list:
+            rule_inputs = ExpansionRuleInputs(list=self, fighter_category=category)
+            equipment_qs = ContentEquipmentListExpansion.get_expansion_equipment(
+                rule_inputs
+            )
+            result[category] = pylist(
+                equipment_qs.select_related("category").prefetch_related(
+                    "category__restricted_to"
+                )
+            )
+
+        return result
+
+    @cached_property
     @traced("list_fighter_type_summary")
     def fighter_type_summary(self):
         """
@@ -1400,7 +1456,12 @@ class ListFighterQuerySet(models.QuerySet):
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
+                "content_fighter__house__restricted_equipment_categories",
+                "content_fighter__house__restricted_equipment_categories__restricted_to",
                 "content_fighter__default_assignments__equipment__contentweaponprofile_set",
+                # Prefetch equipment list items for cost override lookups
+                "content_fighter__contentfighterequipmentlistitem_set",
+                "legacy_content_fighter__contentfighterequipmentlistitem_set",
                 "source_assignment",
                 "source_assignment__list_fighter",
                 Prefetch(
@@ -1740,6 +1801,53 @@ class ListFighter(AppBase):
         if self.legacy_content_fighter:
             return [self.legacy_content_fighter, self.content_fighter]
         return [self.content_fighter]
+
+    @cached_property
+    def equipment_list_items_lookup(self) -> dict | None:
+        """
+        Return a lookup dict for equipment list cost overrides.
+
+        Performance optimization: builds an index from prefetched equipment list
+        items to avoid individual DB queries in _equipment_cost_with_override().
+
+        Returns:
+            dict mapping (equipment_id, weapon_profile_id) -> ContentFighterEquipmentListItem
+            If multiple items match (legacy + base), returns the legacy one.
+            Returns None if data was not prefetched (caller should use DB query).
+        """
+        # Check if the equipment list items were prefetched
+        content_fighter = self.content_fighter
+        has_prefetch = (
+            hasattr(content_fighter, "_prefetched_objects_cache")
+            and "contentfighterequipmentlistitem_set"
+            in content_fighter._prefetched_objects_cache
+        )
+        if not has_prefetch:
+            return None
+
+        lookup = {}
+
+        # Process base fighter's equipment list (add first)
+        items = content_fighter.contentfighterequipmentlistitem_set.all()
+        for item in items:
+            key = (item.equipment_id, item.weapon_profile_id)
+            lookup[key] = item
+
+        # Process legacy fighter's equipment list (overrides base)
+        if self.legacy_content_fighter:
+            legacy_has_prefetch = (
+                hasattr(self.legacy_content_fighter, "_prefetched_objects_cache")
+                and "contentfighterequipmentlistitem_set"
+                in self.legacy_content_fighter._prefetched_objects_cache
+            )
+            if legacy_has_prefetch:
+                items = self.legacy_content_fighter.contentfighterequipmentlistitem_set.all()
+                for item in items:
+                    key = (item.equipment_id, item.weapon_profile_id)
+                    # Legacy overrides base
+                    lookup[key] = item
+
+        return lookup
 
     @cached_property
     def is_stash(self):
@@ -2630,27 +2738,29 @@ class ListFighter(AppBase):
         2. actual assigned gear categories
         3. available categories as a result of expansions
 
-        Optimized to batch all database queries upfront to avoid N+1 issues.
+        Optimized to use list-level cached expansion equipment to avoid running
+        expensive expansion queries once per fighter.
         """
-        from gyrinx.content.models_.expansion import (
-            ContentEquipmentListExpansion,
-            ExpansionRuleInputs,
-        )
-
         gearlines = []
         seen_categories = set()
 
         # === BATCH QUERIES UPFRONT ===
 
-        # 1. Get expansion equipment once (reused multiple times)
-        rule_inputs = ExpansionRuleInputs(list=self.list, fighter=self)
-        expansion_equipment_qs = (
-            ContentEquipmentListExpansion.get_expansion_equipment(rule_inputs)
-            .select_related("category")
-            .prefetch_related("category__restricted_to")
-        )
-        # Evaluate queryset once and cache results
-        expansion_equipment_list = list(expansion_equipment_qs)
+        # 1. Get expansion equipment from list-level cache (keyed by fighter category)
+        # This avoids running expensive expansion queries once per fighter
+        fighter_category = self.get_category()
+        expansion_cache = self.list.expansion_equipment_by_category
+        # Combine category-specific equipment with base equipment (no category filter)
+        # Make a copy to avoid modifying the cached list
+        expansion_equipment_list = pylist(expansion_cache.get(fighter_category, []))
+        # Also include base expansion equipment (applies to all fighters regardless of category)
+        base_expansion_equipment = expansion_cache.get(None, [])
+        # Merge: category-specific takes precedence, add base equipment not already included
+        seen_equipment_ids = {eq.id for eq in expansion_equipment_list}
+        for eq in base_expansion_equipment:
+            if eq.id not in seen_equipment_ids:
+                expansion_equipment_list.append(eq)
+                seen_equipment_ids.add(eq.id)
         expansion_category_ids = {eq.category_id for eq in expansion_equipment_list}
 
         # 2. Get all equipment list category IDs for this fighter (single query)
@@ -3819,6 +3929,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             return expansion_cost
 
         # Otherwise check normal equipment list overrides
+        # Performance optimization: use prefetched lookup if available
+        lookup = self.list_fighter.equipment_list_items_lookup
+        lookup_key = (self.content_equipment_id, None)  # None = base equipment cost
+
+        # If we have a prefetched lookup (non-empty dict), use it
+        if lookup is not None:
+            if lookup_key in lookup:
+                # Use prefetched item (already handles legacy preference)
+                return lookup[lookup_key].cost_int()
+            else:
+                # Item not in equipment list, use base equipment cost
+                return self.content_equipment.cost_int()
+
+        # Fallback to DB query if lookup not available (empty dict means prefetched but no items)
         overrides = ContentFighterEquipmentListItem.objects.filter(
             # Check equipment lists from both legacy and base fighters
             fighter__in=fighters,

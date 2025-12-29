@@ -37,10 +37,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ExpansionRuleInputs:
-    """Inputs for evaluating equipment list expansion rules."""
+    """Inputs for evaluating equipment list expansion rules.
+
+    Attributes:
+        list: The List to evaluate rules against.
+        fighter: Optional ListFighter instance.
+        fighter_category: Optional direct category specification (avoids needing a fighter instance).
+                          If provided, takes precedence over fighter.get_category().
+    """
 
     list: Optional[List] = None
     fighter: Optional[ListFighter] = None
+    fighter_category: Optional[str] = None
 
 
 class ContentEquipmentListExpansion(Content):
@@ -78,10 +86,13 @@ class ContentEquipmentListExpansion(Content):
     def get_applicable_expansions(cls, rule_inputs: ExpansionRuleInputs):
         """
         Get all expansions that apply to the given rule inputs.
+
+        Supports both fighter instance and direct fighter_category specification.
         """
 
         input_list = rule_inputs.list
         input_fighter = rule_inputs.fighter
+        input_fighter_category = rule_inputs.fighter_category
 
         # First we find all the rules that match the list and fighter
         list_rules = Q(
@@ -90,11 +101,15 @@ class ContentEquipmentListExpansion(Content):
             ]
         ) | Q(ContentEquipmentListExpansionRuleByHouse___house=input_list.content_house)
 
+        # Support direct category specification for list-level caching
+        fighter_category = input_fighter_category or (
+            input_fighter.get_category() if input_fighter else None
+        )
         fighter_rules = (
             Q(
-                ContentEquipmentListExpansionRuleByFighterCategory___fighter_categories__contains=input_fighter.get_category()
+                ContentEquipmentListExpansionRuleByFighterCategory___fighter_categories__contains=fighter_category
             )
-            if input_fighter
+            if fighter_category
             else None
         )
 
@@ -430,12 +445,18 @@ class ContentEquipmentListExpansionRuleByFighterCategory(
     )
 
     def match(self, rule_inputs: ExpansionRuleInputs) -> bool:
-        """Check if the fighter is one of the required categories."""
-        fighter: "ListFighter" = rule_inputs.fighter
-        if not fighter:
+        """Check if the fighter is one of the required categories.
+
+        Supports both fighter instance and direct category specification via fighter_category.
+        """
+        # Support direct category specification (for list-level caching)
+        if rule_inputs.fighter_category:
+            category = rule_inputs.fighter_category
+        elif rule_inputs.fighter:
+            category = rule_inputs.fighter.get_category()
+        else:
             return False
 
-        category = fighter.get_category()
         if not category:
             return False
 
