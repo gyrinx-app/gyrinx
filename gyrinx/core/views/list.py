@@ -2827,6 +2827,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     profiles_qs = (
         ContentWeaponProfile.objects.filter(equipment=assignment.content_equipment)
         .exclude(cost=0)
+        .prefetch_related("traits")
         .order_by("cost", "name")
     )
 
