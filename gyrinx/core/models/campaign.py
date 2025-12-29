@@ -121,7 +121,7 @@ class Campaign(AppBase):
                     campaign=self,
                     user=self.owner,
                     list=campaign_list,
-                    description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang cost)",
+                    description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang rating)",
                     outcome=f"+{credits_to_add}¢ (to {campaign_list.credits_current}¢)",
                     owner=self.owner,
                 )

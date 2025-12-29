@@ -258,10 +258,12 @@ def vehicle_confirm(request, id):
                     action=params.action,
                 )
 
-                messages.success(
-                    request,
-                    f"Vehicle '{vehicle_equipment.name}' and crew member '{crew.name}' added successfully!",
+                message = (
+                    f"Vehicle '{vehicle_equipment.name}' and crew member '{crew.name}' added"
+                    if not is_stash
+                    else f"Vehicle '{vehicle_equipment.name}' added to stash"
                 )
+                messages.success(request, message)
 
                 # Redirect to list with crew member highlighted
                 query_params = urlencode(dict(flash=crew.id))

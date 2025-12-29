@@ -1,7 +1,4 @@
-import os
-
 import pytest
-from django.core.cache import caches
 from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
@@ -259,54 +256,6 @@ def test_list_cost_variable(content_house, content_fighter):
     assert fighter.cost_int() == content_fighter.cost_int()
     assert fighter2.cost_int() == content_fighter2.cost_int()
     assert lst.cost_int() == content_fighter.cost_int() + content_fighter2.cost_int()
-
-
-@pytest.mark.django_db
-@pytest.mark.with_cost_cache
-@pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") != "true", reason="CI only")
-def test_list_cost_cache(content_house, content_fighter, content_equipment_categories):
-    spoon, _ = ContentEquipment.objects.get_or_create(
-        name="Wooden Spoon",
-        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
-        cost=10,
-    )
-
-    lst = List.objects.create(name="Test List", content_house=content_house)
-    fighter = ListFighter.objects.create(
-        name="Test Fighter", list=lst, content_fighter=content_fighter
-    )
-
-    assert fighter.cost_int() == content_fighter.cost_int()
-    assert lst.cost_int() == fighter.cost_int()
-
-    assert lst.cost_int_cached == fighter.cost_int()
-
-    cache = caches["core_list_cache"]
-    assert cache.has_key(lst.cost_cache_key())
-    assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
-
-    fighter.cost_override = 50
-    fighter.save()
-
-    # Refresh the objects from the database... because caching!
-    fighter = ListFighter.objects.get(pk=fighter.pk)
-    lst = List.objects.get(pk=lst.pk)
-
-    assert cache.get(lst.cost_cache_key()) == fighter.cost_int()
-    assert lst.cost_int() == 50
-    assert lst.cost_int_cached == 50
-
-    pre_spoon_cost = fighter.cost_int()
-    fighter.assign(spoon)
-
-    lst = List.objects.get(pk=lst.pk)
-    fighter = ListFighter.objects.get(pk=fighter.pk)
-    post_spoon_cost = fighter.cost_int()
-
-    assert post_spoon_cost == pre_spoon_cost + spoon.cost_int()
-    assert cache.get(lst.cost_cache_key()) == post_spoon_cost
-    assert lst.cost_int() == post_spoon_cost
-    assert lst.cost_int_cached == post_spoon_cost
 
 
 @pytest.mark.django_db
@@ -1585,17 +1534,14 @@ def test_multi_equipment_upgrades(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
-@pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") != "true", reason="CI only")
-def test_m2m_triggers_update_cost_cache(
+def test_m2m_triggers_cost_recalculation(
     content_fighter,
     content_equipment_categories,
     make_list,
     make_equipment,
     make_list_fighter,
 ):
-    """Test that M2M field changes trigger cost cache updates."""
-    # This test needs real cost cache updates, not mocked ones
+    """Test that M2M field changes result in correct cost calculations."""
     # Create test data
     weapon = make_equipment(
         "Test Weapon",
@@ -1991,7 +1937,6 @@ def test_fighter_category_override_equipment_restrictions(content_house):
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
 def test_list_rating_calculation(
     content_house, make_list, make_list_fighter, make_content_fighter, user
 ):
@@ -2079,7 +2024,6 @@ def test_list_rating_calculation(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
 def test_stash_fighter_cost_calculation(
     content_house, make_list, user, content_equipment_categories
 ):
@@ -2141,7 +2085,6 @@ def test_stash_fighter_cost_calculation(
 
 
 @pytest.mark.django_db
-@pytest.mark.with_cost_cache
 def test_wealth_breakdown_display(
     content_house, make_list, make_list_fighter, make_content_fighter, user
 ):
@@ -2179,10 +2122,14 @@ def test_wealth_breakdown_display(
         owner=user,
     )
 
+    # Sync facts after adding fighters
+    lst.facts_from_db(update=True)
+
+    # Fetch fresh list with proper prefetching so can_use_facts is True
+    lst = List.objects.with_latest_actions().get(id=lst.id)
+
     # Test display methods
     assert lst.credits_current_display == "250¢"
-
-    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should be 100 (from fighter)
     assert lst.rating == 100
@@ -2200,7 +2147,11 @@ def test_wealth_breakdown_display(
     lst.credits_current = 1500
     lst.save()
 
-    lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
+    # Sync facts after changing credits
+    lst.facts_from_db(update=True)
+
+    # Fetch fresh list with proper prefetching
+    lst = List.objects.with_latest_actions().get(id=lst.id)
 
     assert lst.credits_current_display == "1500¢"
     assert lst.cost_int() == 1600

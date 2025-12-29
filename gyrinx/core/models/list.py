@@ -8,7 +8,6 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
-from django.core.cache import caches
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import (
@@ -22,7 +21,7 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce, Concat, JSONObject
-from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
@@ -353,29 +352,42 @@ class List(AppBase):
     @traced("list_cost_int_cached")
     def cost_int_cached(self):
         """
-        Max-in-memory-cached version of cost_int().
+        DEPRECATED: Legacy cache read path - now uses facts_with_fallback().
 
-        This should preferably be used, as it is expected to be accessed multiple times
-        during typical request handling.
+        This property is being phased out as part of #1215 (remove in-memory cache).
+        It now delegates to facts_with_fallback() and emits tracking when called.
+        In DEBUG mode, raises an exception to catch unexpected usage.
         """
-        cache = caches["core_list_cache"]
-        cache_key = self.cost_cache_key()
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+        # Track that we hit the deprecated cache read path with diagnostic info
+        has_prefetch = hasattr(self, "latest_actions")
+        track(
+            "deprecated_cost_int_cached_read",
+            list_id=str(self.pk),
+            can_use_facts=self.can_use_facts,
+            is_dirty=self.dirty,
+            has_latest_actions_prefetch=has_prefetch,
+            has_actions=bool(self.latest_actions) if has_prefetch else None,
+            facts_returns_none=self.facts() is None,
+        )
 
-        rating = sum([f.cost_int_cached for f in self.active_fighters])
-        wealth = rating + self.stash_fighter_cost_int + self.credits_current
-        cache.set(cache_key, wealth, settings.CACHE_LIST_TTL)
-        return wealth
+        # In DEBUG mode, raise to catch unexpected usage during development
+        if settings.DEBUG:
+            raise RuntimeError(
+                f"DEPRECATED: List.cost_int_cached was called for list {self.pk}. "
+                "This code path should no longer be reached. "
+                "Ensure the view uses with_latest_actions() prefetch so can_use_facts=True. "
+                "See issue #1215."
+            )
+
+        # Fallback: use facts system instead of in-memory cache
+        return self.facts_with_fallback().wealth
 
     def cost_display(self):
         """Display the list's total wealth (rating + stash + credits)."""
-        if self.can_use_facts:
-            facts = self.facts()
-            if facts is not None:
-                return format_cost_display(facts.wealth)
-        return format_cost_display(self.cost_int_cached)
+        facts = self.facts()
+        if facts is not None:
+            return format_cost_display(facts.wealth)
+        return format_cost_display(self.facts_with_fallback().wealth)
 
     @cached_property
     def rating(self):
@@ -572,8 +584,7 @@ class List(AppBase):
             # (cost_int can return negative values via cost overrides)
             rating_value = max(0, rating)
             # Use QuerySet.update() to bypass signals - facts_from_db is already
-            # computing correct values, we don't want to trigger expensive
-            # signal_update_list_cost_cache recalculations
+            # computing correct values with the latest data
             List.objects.filter(pk=self.pk).update(
                 rating_current=rating_value,
                 stash_current=stash,
@@ -783,19 +794,6 @@ class List(AppBase):
         ]
 
         return summary
-
-    def cost_cache_key(self):
-        return f"list_cost_{self.id}"
-
-    @traced("list_update_cost_cache")
-    def update_cost_cache(self):
-        cache = caches["core_list_cache"]
-        cache_key = self.cost_cache_key()
-        cache.delete(cache_key)
-        cache.set(cache_key, self.cost_int(), settings.CACHE_LIST_TTL)
-        # Also clear the cached property from the instance
-        if "cost_int_cached" in self.__dict__:
-            del self.__dict__["cost_int_cached"]
 
     @cached_property
     @traced("list_latest_action")
@@ -1177,16 +1175,6 @@ class List(AppBase):
         return self.name
 
     objects = ListManager.from_queryset(ListQuerySet)()
-
-
-@receiver(
-    [post_save, m2m_changed],
-    sender=List,
-    dispatch_uid="update_list_cost_cache_from_list_change",
-)
-@traced("signal_update_list_cost_cache_from_list_change")
-def update_list_cost_cache_from_list_change(sender, instance: List, **kwargs):
-    instance.update_cost_cache()
 
 
 class ListFighterManager(models.Manager):
@@ -2107,8 +2095,7 @@ class ListFighter(AppBase):
             # (cost_int can return negative values via cost overrides)
             rating_value = max(0, rating)
             # Use QuerySet.update() to bypass signals - facts_from_db is already
-            # computing correct values, we don't want to trigger expensive
-            # signal_update_list_cost_cache recalculations
+            # computing correct values with the latest data
             ListFighter.objects.filter(pk=self.pk).update(
                 rating_current=rating_value,
                 dirty=False,
@@ -3107,6 +3094,11 @@ class ListFighter(AppBase):
                 owner=target_fighter.owner,
             )
 
+        # Mark target fighter dirty so facts get recalculated.
+        # Set instance attr for in-memory consistency, update() persists to DB without signals.
+        target_fighter.dirty = True
+        ListFighter.objects.filter(pk=target_fighter.pk).update(dirty=True)
+
     @traced("list_fighter_clone")
     def clone(self, **kwargs):
         """Clone the fighter, creating a new fighter with the same equipment."""
@@ -3362,16 +3354,6 @@ def create_linked_objects(sender, instance, **kwargs):
                 cost_override=0,
                 from_default_assignment=assign,
             )
-
-
-@receiver(
-    [pre_delete, post_save, m2m_changed],
-    sender=ListFighter,
-    dispatch_uid="update_list_cost_cache",
-)
-@traced("signal_update_list_cost_cache")
-def update_list_cost_cache(sender, instance: ListFighter, **kwargs):
-    instance.list.update_cost_cache()
 
 
 class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
@@ -4261,51 +4243,20 @@ def delete_related_objects_post_delete(sender, instance, **kwargs):
 @receiver(
     [post_delete, post_save],
     sender=ListFighterEquipmentAssignment,
-    dispatch_uid="update_list_cache_for_assignment",
+    dispatch_uid="clear_fighter_cached_properties_for_assignment",
 )
-@traced("signal_update_list_cache_for_assignment")
-def update_list_cache_for_assignment(
+@traced("signal_clear_fighter_cached_properties_for_assignment")
+def clear_fighter_cached_properties_for_assignment(
     sender, instance: ListFighterEquipmentAssignment, **kwargs
 ):
-    # Clear the fighter's cached properties that depend on assignments
+    """Clear the fighter's cached properties that depend on assignments."""
     fighter = instance.list_fighter
     for prop in ["cost_int_cached", "assignments_cached", "_mods"]:
         if prop in fighter.__dict__:
             del fighter.__dict__[prop]
-    # Update the list's cost cache (which also clears its cached property)
-    fighter.list.update_cost_cache()
-
-
-@receiver(
-    m2m_changed,
-    sender=ListFighterEquipmentAssignment.weapon_profiles_field.through,
-    dispatch_uid="update_list_cache_for_weapon_profiles",
-)
-@traced("signal_update_list_cache_for_weapon_profiles")
-def update_list_cache_for_weapon_profiles(sender, instance, **kwargs):
-    # Update list cost cache
-    instance.list_fighter.list.update_cost_cache()
-
-
-@receiver(
-    m2m_changed,
-    sender=ListFighterEquipmentAssignment.weapon_accessories_field.through,
-    dispatch_uid="update_list_cache_for_weapon_accessories",
-)
-@traced("signal_update_list_cache_for_weapon_accessories")
-def update_list_cache_for_weapon_accessories(sender, instance, **kwargs):
-    # Clear cached properties that depend on weapon accessories
-    instance.list_fighter.list.update_cost_cache()
-
-
-@receiver(
-    m2m_changed,
-    sender=ListFighterEquipmentAssignment.upgrades_field.through,
-    dispatch_uid="update_list_cache_for_upgrades",
-)
-@traced("signal_update_list_cache_for_upgrades")
-def update_list_cache_for_upgrades(sender, instance, **kwargs):
-    instance.list_fighter.list.update_cost_cache()
+    # Also clear list's cached property
+    if "cost_int_cached" in fighter.list.__dict__:
+        del fighter.list.__dict__["cost_int_cached"]
 
 
 @dataclass

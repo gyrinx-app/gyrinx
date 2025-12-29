@@ -19,6 +19,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.core.models.list import (
+    List,
     ListFighter,
     ListFighterEquipmentAssignment,
 )
@@ -720,7 +721,6 @@ def test_set_dirty_idempotent_when_already_dirty(
 @pytest.mark.django_db
 def test_get_clean_list_or_404_refreshes_dirty_list(user, make_list, content_fighter):
     """get_clean_list_or_404 should refresh a dirty list's cached facts."""
-    from gyrinx.core.models.list import List
     from gyrinx.core.views.list import get_clean_list_or_404
 
     # Create a list with a fighter
@@ -750,7 +750,6 @@ def test_get_clean_list_or_404_refreshes_dirty_list(user, make_list, content_fig
 @pytest.mark.django_db
 def test_get_clean_list_or_404_skips_clean_list(user, make_list):
     """get_clean_list_or_404 should not call facts_from_db for clean lists."""
-    from gyrinx.core.models.list import List
     from gyrinx.core.views.list import get_clean_list_or_404
 
     lst = make_list("Test List")
@@ -889,7 +888,6 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
 ):
     """In campaign mode, cost increase should charge credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
-    from gyrinx.core.models.list import List
 
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
@@ -939,7 +937,6 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
 ):
     """In campaign mode, cost decrease should refund credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
-    from gyrinx.core.models.list import List
 
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
@@ -989,7 +986,6 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
 ):
     """In campaign mode, credits can go negative when cost increases."""
     from gyrinx.core.models.action import ListAction, ListActionType
-    from gyrinx.core.models.list import List
 
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
@@ -1037,7 +1033,6 @@ def test_no_action_created_for_list_without_initial_action(
 ):
     """Lists without an initial action should not get CONTENT_COST_CHANGE actions."""
     from gyrinx.core.models.action import ListAction
-    from gyrinx.core.models.list import List
 
     # Create list WITHOUT initial action
     lst = List.objects.create(

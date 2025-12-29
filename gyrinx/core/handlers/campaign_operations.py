@@ -122,15 +122,16 @@ def handle_campaign_start(
         cloned_lists.append(campaign_clone)
 
         # Distribute budget credits to the cloned list
+        # Calculate cost from scratch - cost_int() computes wealth (rating + stash + credits)
+        list_cost = original_list.cost_int()
         budget_result = _distribute_budget_to_list(
             user=user,
             campaign=campaign,
             campaign_list=campaign_clone,
-            # NOTE: This computes the cost from scratch; we would prefer to use *_current but can't yet. #1054
-            list_cost=original_list.cost_int_cached,
+            list_cost=list_cost,
         )
         logger.info(
-            f"Distributed {budget_result.credits_added}¢ to list {campaign_clone.id} for campaign {campaign.id} based on list cost of {original_list.cost_int_cached}¢"
+            f"Distributed {budget_result.credits_added}¢ to list {campaign_clone.id} for campaign {campaign.id} based on list cost of {list_cost}¢"
         )
         list_results.append(budget_result)
 
@@ -214,7 +215,7 @@ def _distribute_budget_to_list(
             reason="List cost exceeds or meets campaign budget",
         )
 
-    description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang cost)"
+    description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang rating)"
 
     # Update list credits via an action transaction
     list_action = campaign_list.create_action(
