@@ -384,11 +384,10 @@ class List(AppBase):
 
     def cost_display(self):
         """Display the list's total wealth (rating + stash + credits)."""
-        if self.can_use_facts:
-            facts = self.facts()
-            if facts is not None:
-                return format_cost_display(facts.wealth)
-        return format_cost_display(self.cost_int_cached)
+        facts = self.facts()
+        if facts is not None:
+            return format_cost_display(facts.wealth)
+        return format_cost_display(self.facts_with_fallback().wealth)
 
     @cached_property
     def rating(self):
@@ -3094,6 +3093,11 @@ class ListFighter(AppBase):
                 value=stat_override.value,
                 owner=target_fighter.owner,
             )
+
+        # Mark target fighter dirty so facts get recalculated.
+        # Set instance attr for in-memory consistency, update() persists to DB without signals.
+        target_fighter.dirty = True
+        ListFighter.objects.filter(pk=target_fighter.pk).update(dirty=True)
 
     @traced("list_fighter_clone")
     def clone(self, **kwargs):

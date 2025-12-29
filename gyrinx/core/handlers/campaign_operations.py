@@ -215,7 +215,7 @@ def _distribute_budget_to_list(
             reason="List cost exceeds or meets campaign budget",
         )
 
-    description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang cost)"
+    description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang rating)"
 
     # Update list credits via an action transaction
     list_action = campaign_list.create_action(

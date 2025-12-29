@@ -2122,7 +2122,7 @@ def test_wealth_breakdown_display(
         owner=user,
     )
 
-    # Sync facts after adding fighters - this creates a list action with current facts
+    # Sync facts after adding fighters
     lst.facts_from_db(update=True)
 
     # Fetch fresh list with proper prefetching so can_use_facts is True
