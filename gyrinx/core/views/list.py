@@ -5821,9 +5821,10 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
 
-    # Get default rules from ContentFighter
+    # Get default rules from ContentFighter (uses prefetched data)
     default_rules = fighter.content_fighter.rules.all()
-    disabled_rule_ids = set(fighter.disabled_rules.values_list("id", flat=True))
+    # Use prefetched disabled_rules instead of values_list query
+    disabled_rule_ids = {r.id for r in fighter.disabled_rules.all()}
 
     # Build default rules with status
     default_rules_display = []

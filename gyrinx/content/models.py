@@ -892,15 +892,21 @@ class ContentFighterQuerySet(models.QuerySet):
         # Check if the house can hire any fighter
         if house.can_hire_any:
             # Can hire any fighter except stash fighters
-            return self.exclude(category=FighterCategoryChoices.STASH)
+            return self.exclude(category=FighterCategoryChoices.STASH).select_related(
+                "house"
+            )
         else:
             # Normal filtering: only house and generic houses, exclude exotic beasts and stash
             generic_houses = ContentHouse.objects.filter(generic=True).values_list(
                 "id", flat=True
             )
-            return self.filter(
-                house__in=[house.id] + list(generic_houses),
-            ).exclude(category__in=exclude)
+            return (
+                self.filter(
+                    house__in=[house.id] + list(generic_houses),
+                )
+                .exclude(category__in=exclude)
+                .select_related("house")
+            )
 
 
 class ContentFighter(Content):
