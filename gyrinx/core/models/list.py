@@ -816,6 +816,27 @@ class List(AppBase):
         return result
 
     @cached_property
+    def expansion_cost_lookup_by_category(self) -> dict[str, dict]:
+        """
+        Build a cost override lookup from expansion_equipment_by_category.
+
+        This provides O(1) lookup for expansion cost overrides without
+        additional database queries. Leverages the existing cached
+        expansion_equipment_by_category property.
+
+        Returns:
+            dict mapping fighter category -> dict mapping equipment_id -> cost
+        """
+        result = {}
+        for category, equipment_list in self.expansion_equipment_by_category.items():
+            result[category] = {
+                eq.id: eq.expansion_cost_override
+                for eq in equipment_list
+                if hasattr(eq, "expansion_cost_override")
+            }
+        return result
+
+    @cached_property
     @traced("list_fighter_type_summary")
     def fighter_type_summary(self):
         """
@@ -3913,11 +3934,27 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         fighters = self.list_fighter.equipment_list_fighters
 
         # Check for expansion cost overrides first
+        # Performance optimization: use cached lookup from list level if available
+        list_obj = self.list_fighter.list
+        fighter_category = self.list_fighter.get_category()
+
+        # Try cached expansion cost lookup (O(1) instead of DB query)
+        # Only use cache if expansion_equipment_by_category is already computed
+        # to avoid triggering new queries in contexts that don't expect them
+        if "expansion_equipment_by_category" in list_obj.__dict__:
+            expansion_lookup = list_obj.expansion_cost_lookup_by_category
+            category_costs = expansion_lookup.get(fighter_category, {})
+            if not category_costs:
+                # Fall back to generic expansion (no category)
+                category_costs = expansion_lookup.get(None, {})
+
+            if self.content_equipment_id in category_costs:
+                return category_costs[self.content_equipment_id]
+
+        # Fallback to DB query if equipment not in expansion cache
         from gyrinx.content.models_.expansion import ExpansionRuleInputs
 
-        expansion_inputs = ExpansionRuleInputs(
-            list=self.list_fighter.list, fighter=self.list_fighter
-        )
+        expansion_inputs = ExpansionRuleInputs(list=list_obj, fighter=self.list_fighter)
         expansion_cost = self._get_expansion_cost_override(
             content_equipment=self.content_equipment,
             weapon_profile=None,  # Base equipment cost, not profile

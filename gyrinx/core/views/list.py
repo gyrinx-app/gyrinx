@@ -456,10 +456,14 @@ class ListPrintView(generic.DetailView):
         context["print_config"] = print_config
 
         # Get fighters with group keys for display grouping
+        # Use with_related_data() to prefetch all equipment, profiles, and related data
+        # to avoid N+1 queries when templates access fighter properties
         from gyrinx.core.models.list import ListFighter
 
-        fighters_qs = ListFighter.objects.with_group_keys().filter(
-            list=list_obj, archived=False
+        fighters_qs = (
+            ListFighter.objects.with_group_keys()
+            .with_related_data()
+            .filter(list=list_obj, archived=False)
         )
 
         # Apply print config filters if available
