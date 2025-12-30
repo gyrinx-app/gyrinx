@@ -1,8 +1,10 @@
 # Cost Propagation Architecture
 
-**Status**: Design
-**Date**: 2025-12-06
+**Status**: Implemented
+**Date**: 2025-12-06 (implemented December 2025)
 **Issue**: #1158
+
+> **Note**: This document was originally a design proposal. The system has been implemented with some changes from the original design. See the "Current Implementation State" section below for what was actually built.
 
 ## Problem Statement
 
@@ -768,3 +770,96 @@ def campaign_detail_view(request, campaign_id):
 1. Management command to recalculate dirty objects
 2. Can be run on-demand or via cron, or debounced on write
 3. Not required - facts_from_db fallback handles it
+
+---
+
+## Current Implementation State
+
+The following describes what was actually implemented, noting changes from the original design.
+
+### Implementation Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Transaction Wrapper | **Modified** | Kept `create_action()` name, added propagation |
+| Phase 1: Handler Migration | **Complete** | All handlers use propagation pattern |
+| Phase 2: Data Model | **Complete** | Migration `0120_add_cached_rating_and_dirty_fields` |
+| Phase 3: Facts Interface | **Complete** | Simplified facts dataclasses |
+| Phase 4: Propagation | **Complete** | In `gyrinx/core/cost/propagation.py` |
+| Phase 5: Handler Updates | **Complete** | All handlers call `propagate_from_*` |
+| Phase 6: Content Signals | **Complete** | In `gyrinx/content/signals.py` |
+| Phase 7: Batch Recalculation | **Deferred** | Using lazy evaluation instead |
+
+### Key Changes from Original Design
+
+1. **Kept `create_action()` instead of `transact()`** - The original plan to rename to `transact()` with a lambda was not implemented. Instead, handlers call propagation functions directly, then call `create_action()` with pre-calculated deltas.
+
+2. **Simpler Delta dataclass** - The implemented `Delta` is simpler than the proposed `TransactDelta`:
+
+   ```python
+   @dataclass
+   class Delta:
+       delta: int  # The change amount
+       list: List  # Reference for guard condition
+   ```
+
+3. **Propagation does NOT update List** - Unlike the original design, `propagate_from_assignment()` and `propagate_from_fighter()` only update the assignment/fighter levels. The list update is done by `create_action()`.
+
+4. **Simpler FighterFacts** - The implemented `FighterFacts` only has `rating`, not the detailed breakdown:
+
+   ```python
+   @dataclass(frozen=True)
+   class FighterFacts:
+       rating: int
+   ```
+
+5. **Guard condition** - Added `_should_propagate()` check that both systems use to avoid double-counting:
+
+   ```python
+   def _should_propagate(lst):
+       return lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+   ```
+
+6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
+
+### Critical Invariant
+
+**Only ONE system should update cached values for any given operation.**
+
+| Operation | System | Why |
+|-----------|--------|-----|
+| Handler (add/remove equipment) | Propagation | Incremental delta |
+| Clone | Facts | Not in handler context |
+| Direct create | Facts | No delta to propagate |
+| Signal-triggered create | Facts | No handler context |
+
+This invariant is enforced by the guard condition `_should_propagate()`.
+
+### File Locations
+
+| Component | File |
+|-----------|------|
+| Facts dataclasses | `gyrinx/core/models/facts.py` |
+| Propagation functions | `gyrinx/core/cost/propagation.py` |
+| Stash routing | `gyrinx/core/cost/routing.py` |
+| List facts methods | `gyrinx/core/models/list.py` |
+| Content signals | `gyrinx/content/signals.py` |
+| Equipment handlers | `gyrinx/core/handlers/equipment/` |
+| Fighter handlers | `gyrinx/core/handlers/fighter/` |
+
+### Debugging
+
+The implementation includes debug visibility:
+
+```python
+# Check if facts match calculated values
+lst.debug_facts_in_sync       # True if facts() matches calculated
+fighter.debug_facts_in_sync   # True if facts().rating == cost_int()
+```
+
+Used in debug templates to show red flag when out of sync.
+
+### See Also
+
+- [Fighter Cost System Reference](../fighter-cost-system-reference.md) - Facts API documentation
+- [Cost Handler Development Guide](../how-to-guides/handler-development.md) - Handler patterns

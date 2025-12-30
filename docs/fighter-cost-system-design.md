@@ -69,11 +69,11 @@ LIST
 
 The fighter cost system might seem complex at first glance, but this complexity serves specific game mechanics from Necromunda. The system needs to handle:
 
-1. **Multiple Sources of Truth**: Different rulebooks specify different costs for the same equipment depending on the fighter
-2. **House-Specific Rules**: Some houses get discounts or pay premiums for certain fighters
-3. **Campaign Progression**: Fighters become more expensive as they gain experience
-4. **Equipment Flexibility**: The same weapon can have different profiles at different costs
-5. **Legacy Rules**: Special gang rules that allow using equipment from other houses
+1. Multiple sources of truth: Different rulebooks specify different costs for the same equipment depending on the fighter
+2. House-specific rules: Some houses get discounts or pay premiums for certain fighters
+3. Campaign progression: Fighters become more expensive as they gain experience
+4. Equipment flexibility: The same weapon can have different profiles at different costs
+5. Legacy rules: Special gang rules that allow using equipment from other houses
 
 ## Core Design Principles
 
@@ -87,17 +87,17 @@ User Input > Game Rules > Base Values
 
 This hierarchy ensures that:
 
-- **Players have ultimate control**: Manual overrides always win
-- **Special rules are respected**: House and fighter-specific costs apply automatically
-- **Defaults are sensible**: Base costs from the rulebook are the fallback
+- Players have ultimate control: Manual overrides always win
+- Special rules are respected: House and fighter-specific costs apply automatically
+- Defaults are sensible: Base costs from the rulebook are the fallback
 
 ### 2. Zero-Cost Patterns
 
 Several patterns result in zero cost:
 
-- **Default Equipment**: Starting gear doesn't add to fighter cost
-- **Linked Relationships**: Avoid double-counting when equipment creates fighters
-- **Child Items**: Prevents cascading costs in equipment hierarchies
+- Default equipment: Starting gear doesn't add to fighter cost
+- Linked relationships: Avoid double-counting when equipment creates fighters
+- Child items: Prevents cascading costs in equipment hierarchies
 
 These patterns exist because:
 
@@ -109,8 +109,8 @@ These patterns exist because:
 
 The `VirtualListFighterEquipmentAssignment` abstraction exists to unify two different concepts:
 
-- **Default assignments**: Equipment that comes with the fighter
-- **Player assignments**: Equipment added by the player
+- Default assignments: Equipment that comes with the fighter
+- Player assignments: Equipment added by the player
 
 This design allows:
 
@@ -130,25 +130,36 @@ Instead of a single override table, the system uses:
 
 This separation provides:
 
-- **Type safety**: Each override type has appropriate relationships
-- **Query performance**: Indexed lookups for specific override types
-- **Clear semantics**: Each model represents a distinct game concept
+- Type safety: Each override type has appropriate relationships
+- Query performance: Indexed lookups for specific override types
+- Clear semantics: Each model represents a distinct game concept
 
 ### Why Property-Based Calculations?
 
 Costs are calculated via properties (`_base_cost_int`, `cost_int()`) rather than stored values because:
 
-- **Costs change frequently**: Equipment modifications, campaign events
-- **Multiple factors**: Too many variables to efficiently denormalize
-- **Data integrity**: Calculated values can't become stale
+- Costs change frequently: Equipment modifications, campaign events
+- Multiple factors: Too many variables to efficiently denormalize
+- Data integrity: Calculated values can't become stale
 
-### Why Caching at the List Level?
+### Why a Dual Cache Architecture?
 
-The cache operates at the list level rather than individual fighters because:
+The system uses two complementary caching strategies:
 
-- **Invalidation simplicity**: Any change invalidates one cache key
-- **Common access pattern**: Users typically view entire lists
-- **Memory efficiency**: Fewer cache keys to manage
+1. **Facts System (Pull-Based)**: Database fields (`rating_current`, `dirty`) store cached values at every level - List, ListFighter, and ListFighterEquipmentAssignment. Views call `facts()` for O(1) reads.
+
+2. **Propagation System (Push-Based)**: When handlers modify costs, they call `propagate_from_assignment()` or `propagate_from_fighter()` to incrementally update cached values.
+
+This dual approach provides:
+
+- Instant reads: `facts()` returns immediately without calculation
+- Strong consistency: Handler operations keep caches accurate
+- Eventual consistency: Content model changes mark trees dirty
+- Graceful fallback: Dirty objects recalculate on next read
+
+The critical invariant is that **only ONE system updates cached values for any given operation** - handlers use propagation, non-handler operations use facts_from_db().
+
+> **See also:** [Cost Propagation Architecture](technical-design/cost-propagation-architecture.md) for technical details.
 
 ### The Equipment List Fighter Pattern
 
@@ -160,7 +171,7 @@ def equipment_list_fighter(self):
     return self.legacy_content_fighter or self.content_fighter
 ```
 
-This elegant solution:
+This solution:
 
 - Requires no schema changes to existing override models
 - Transparently redirects cost lookups
@@ -172,8 +183,8 @@ This elegant solution:
 
 The term "legacy" in the codebase has dual meaning:
 
-1. **Game mechanic**: The Gang Legacy rule for Venators
-2. **Historical artifact**: This was retrofitted into an existing system
+1. Game mechanic: The Gang Legacy rule for Venators
+2. Historical artifact: This was retrofitted into an existing system
 
 The implementation shows signs of evolution:
 
@@ -191,9 +202,9 @@ The codebase shows evidence of migrating from YAML-based content to database mod
 
 This migration improved:
 
-- **Performance**: Database queries vs. file parsing
-- **Flexibility**: Runtime content modifications
-- **Consistency**: Foreign key constraints ensure data integrity
+- Performance: Database queries vs. file parsing
+- Flexibility: Runtime content modifications
+- Consistency: Foreign key constraints ensure data integrity
 
 ## Trade-offs and Considerations
 
@@ -225,53 +236,43 @@ This transparency helps players understand and trust the system.
 
 ## Future Considerations
 
-### Potential Optimizations
+### Implemented Optimizations
 
-1. **Denormalized cost summaries**: Store calculated costs with generation numbers
-2. **Bulk calculation methods**: Reduce N+1 queries for list views
-3. **Smarter cache invalidation**: Only recalculate affected fighters
+These optimizations from earlier planning are now in place:
+
+1. Denormalized cost summaries: `rating_current` fields at all three levels (List, Fighter, Assignment)
+2. Prefetching methods: `with_related_data()`, `with_latest_actions()` reduce N+1 queries
+3. Smart cache invalidation: `dirty` flags allow lazy recalculation only when needed
+4. Handler-based propagation: Incremental updates avoid full tree traversal
+
+### Remaining Potential Optimizations
+
+1. Background recalculation: Async task to refresh dirty objects during low activity
+2. Batch operations: Bulk update methods for mass equipment changes
 
 ### Extensibility Points
 
 The current design supports future features:
 
-- **Trading post pricing**: Different costs for buying vs. roster value
-- **Campaign cost modifiers**: Territory bonuses, special events
-- **Cost history tracking**: Track how fighter costs change over time
+- Trading post pricing: Different costs for buying vs. roster value
+- Campaign cost modifiers: Territory bonuses, special events
+- Cost history tracking: Track how fighter costs change over time
 
 ### Maintenance Considerations
 
 The system's maintainability relies on:
 
-- **Clear override hierarchy**: New developers can trace cost calculations
-- **Comprehensive tests**: Edge cases are documented in test form
-- **Consistent patterns**: Similar problems solved in similar ways
-
-## Lessons Learned
-
-### 1. Game Rules Drive Architecture
-
-The complexity in the cost system directly maps to complexity in Necromunda's rules. Attempting to simplify would break game fidelity.
-
-### 2. Override Systems Need Hierarchy
-
-Without clear precedence rules, override systems become unpredictable. The explicit hierarchy prevents confusion.
-
-### 3. Caching Is Essential
-
-The calculated nature of costs makes caching critical for performance. The simple list-level cache strikes a good balance.
-
-### 4. Virtual Models Enable Clean APIs
-
-The Virtual assignment pattern provides a clean API over messy underlying data relationships.
+- Clear override hierarchy: New developers can trace cost calculations
+- Comprehensive tests: Edge cases are documented in test form
+- Consistent patterns: Similar problems solved in similar ways
 
 ## Conclusion
 
-The fighter cost system's complexity is a direct reflection of the game it models. Each architectural decision supports specific game mechanics while maintaining reasonable performance and developer experience. The system successfully balances:
+The fighter cost system's complexity is a reflection of the Necromunda's complexity and our need for an easy-to-manage content library. Each architectural decision supports specific game mechanics while maintaining reasonable performance and developer experience. The system tries to balance:
 
-- **Accuracy**: Faithful implementation of game rules
-- **Flexibility**: Support for house rules and customization
-- **Performance**: Responsive user experience through caching
-- **Maintainability**: Clear patterns and comprehensive tests
+- Accuracy: Faithful implementation of game rules
+- Flexibility: Support for house rules and customization
+- Performance: Responsive user experience through caching
+- Maintainability: Clear patterns and comprehensive tests
 
-Understanding these design decisions helps when extending the system or debugging cost calculations. The key insight is that the complexity serves a purpose - enabling players to accurately model their Necromunda gangs with all the nuances the tabletop game provides.
+Understanding these design decisions helps when extending the system or debugging cost calculations.

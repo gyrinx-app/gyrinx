@@ -17,6 +17,7 @@
 - [Tracking and Metrics](tracking.md)
 - [Useful Scripts](useful-scripts.md)
 - [Task Framework](how-to-guides/task-framework.md)
+- [Cost Handler Development](how-to-guides/handler-development.md)
 
 ## Technical Reference
 
@@ -38,6 +39,7 @@
 - [Security Baseline](security-baseline.md)
 - [Statlines](technical-reference/statlines.md)
 - [Task Framework](technical-reference/task-framework.md)
+- [Prefetching Strategy](technical-reference/prefetching-strategy.md)
 
 ## Explanation
 
