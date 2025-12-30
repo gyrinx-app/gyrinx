@@ -288,6 +288,15 @@ list_action = lst.create_action(
 This example shows a handler that sells equipment from stash, demonstrating negative deltas and credit addition:
 
 ```python
+@dataclass
+class EquipmentSaleResult:
+    """Result of a successful equipment sale."""
+    total_sale_credits: int
+    total_equipment_cost: int
+    description: str
+    list_action: ListAction
+
+
 @traced("handle_equipment_sale")
 @transaction.atomic
 def handle_equipment_sale(

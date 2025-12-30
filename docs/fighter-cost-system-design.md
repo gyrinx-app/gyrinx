@@ -268,7 +268,7 @@ The system's maintainability relies on:
 
 ## Conclusion
 
-The fighter cost system's complexity is a reflection of the Necromunda's complexity and our need for an easy-to-manage content library. Each architectural decision supports specific game mechanics while maintaining reasonable performance and developer experience. The system tries to balance:
+The fighter cost system's complexity is a reflection of the complexity of Necromunda and our need for an easy-to-manage content library. Each architectural decision supports specific game mechanics while maintaining reasonable performance and developer experience. The system balances:
 
 - Accuracy: Faithful implementation of game rules
 - Flexibility: Support for house rules and customization
