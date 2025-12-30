@@ -24,7 +24,7 @@ from gyrinx.content.models import (
     ContentStat,
     ContentWeaponProfile,
 )
-from gyrinx.content.models_.expansion import (
+from gyrinx.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByAttribute,

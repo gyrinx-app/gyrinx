@@ -2041,7 +2041,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # Get the appropriate equipment
     # Create expansion rule inputs for cost calculations
-    from gyrinx.content.models_.expansion import ExpansionRuleInputs
+    from gyrinx.content.models import ExpansionRuleInputs
 
     expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
 
@@ -2151,7 +2151,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     ).values_list("equipment_id", flat=True)
 
     # Also include equipment from applicable expansions
-    from gyrinx.content.models_.expansion import ContentEquipmentListExpansion
+    from gyrinx.content.models import ContentEquipmentListExpansion
 
     expansion_equipment = ContentEquipmentListExpansion.get_expansion_equipment(
         expansion_inputs
@@ -2262,7 +2262,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 )
 
                 # Also get weapon profiles from expansions
-                from gyrinx.content.models_.expansion import (
+                from gyrinx.content.models import (
                     ContentEquipmentListExpansion,
                     ContentEquipmentListExpansionItem,
                 )

@@ -12,7 +12,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentHouse,
 )
-from gyrinx.content.models_.expansion import (
+from gyrinx.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByAttribute,
@@ -834,7 +834,7 @@ def test_multiple_expansions_for_same_equipment():
 def test_with_expansion_cost_for_fighter():
     """Test the with_expansion_cost_for_fighter queryset method."""
     from gyrinx.content.models import ContentFighterEquipmentListItem
-    from gyrinx.content.models_.expansion import ExpansionRuleInputs
+    from gyrinx.content.models import ExpansionRuleInputs
 
     # Setup
     house = ContentHouse.objects.create(name="Test House")
@@ -925,7 +925,7 @@ def test_with_expansion_cost_for_fighter():
 def test_with_expansion_cost_for_fighter_no_expansion():
     """Test with_expansion_cost_for_fighter when no expansion applies."""
     from gyrinx.content.models import ContentFighterEquipmentListItem
-    from gyrinx.content.models_.expansion import ExpansionRuleInputs
+    from gyrinx.content.models import ExpansionRuleInputs
 
     # Setup
     house = ContentHouse.objects.create(name="Test House")

@@ -30,6 +30,12 @@ from .models import (
     ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
+    ContentEquipmentListExpansion,
+    ContentEquipmentListExpansionItem,
+    ContentEquipmentListExpansionRule,
+    ContentEquipmentListExpansionRuleByAttribute,
+    ContentEquipmentListExpansionRuleByFighterCategory,
+    ContentEquipmentListExpansionRuleByHouse,
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterCategoryTerms,
@@ -67,14 +73,6 @@ from .models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
-)
-from .models_.expansion import (
-    ContentEquipmentListExpansion,
-    ContentEquipmentListExpansionItem,
-    ContentEquipmentListExpansionRule,
-    ContentEquipmentListExpansionRuleByAttribute,
-    ContentEquipmentListExpansionRuleByFighterCategory,
-    ContentEquipmentListExpansionRuleByHouse,
 )
 
 

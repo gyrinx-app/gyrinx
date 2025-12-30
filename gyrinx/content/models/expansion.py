@@ -1,38 +1,35 @@
+"""
+Equipment list expansion models for content data.
+
+This module contains:
+- ExpansionRuleInputs: Dataclass for rule evaluation inputs
+- ContentEquipmentListExpansion: Equipment list expansions
+- ContentEquipmentListExpansionItem: Individual expansion items
+- ContentEquipmentListExpansionRule: Base polymorphic rule class
+- ContentEquipmentListExpansionRuleByAttribute: Attribute-based rules
+- ContentEquipmentListExpansionRuleByHouse: House-based rules
+- ContentEquipmentListExpansionRuleByFighterCategory: Fighter category rules
+"""
+
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
-from django.db.models import Case, Count, F, Q, When
-from django.db.models.signals import post_save, pre_save
-from django.dispatch import receiver
+from django.db import models
+from django.db.models import Count, F, Q
 from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
-from gyrinx.content.models import (
-    Content,
-    ContentAttribute,
-    ContentAttributeValue,
-    ContentEquipment,
-    ContentHouse,
-    ContentWeaponProfile,
-)
-from gyrinx.core.models.list import List, ListFighter
-from gyrinx.models import (
-    FighterCategoryChoices,
-    format_cost_display,
-)
-from gyrinx.tracing import traced
+from gyrinx.models import FighterCategoryChoices, format_cost_display
 
-from gyrinx.content.signals import get_new_cost, get_old_cost
+from .base import Content
+
+if TYPE_CHECKING:
+    from gyrinx.core.models.list import List, ListFighter
 
 logger = logging.getLogger(__name__)
-
-##
-## Equipment List Expansion Models
-##
 
 
 @dataclass
@@ -46,8 +43,8 @@ class ExpansionRuleInputs:
                           If provided, takes precedence over fighter.get_category().
     """
 
-    list: Optional[List] = None
-    fighter: Optional[ListFighter] = None
+    list: Optional["List"] = None
+    fighter: Optional["ListFighter"] = None
     fighter_category: Optional[str] = None
 
 
@@ -89,6 +86,7 @@ class ContentEquipmentListExpansion(Content):
 
         Supports both fighter instance and direct fighter_category specification.
         """
+        from .attribute import ContentAttribute  # noqa: F401
 
         input_list = rule_inputs.list
         input_fighter = rule_inputs.fighter
@@ -143,8 +141,8 @@ class ContentEquipmentListExpansion(Content):
     def get_applicable_expansion_items_for_equipment(
         cls,
         rule_inputs: ExpansionRuleInputs,
-        equipment: ContentEquipment,
-        weapon_profile: Optional[ContentWeaponProfile] = None,
+        equipment,
+        weapon_profile=None,
         **kwargs,
     ):
         """
@@ -176,6 +174,8 @@ class ContentEquipmentListExpansion(Content):
         Returns a queryset of ContentEquipment with cost annotations.
         Also includes weapon profiles when specified.
         """
+        from .equipment import ContentEquipment
+
         expansions = cls.get_applicable_expansions(rule_inputs)
 
         # Get all equipment IDs and profile IDs from applicable expansions
@@ -207,6 +207,8 @@ class ContentEquipmentListExpansion(Content):
         equipment = ContentEquipment.objects.filter(id__in=equipment_ids)
 
         # Apply cost overrides using Case/When
+        from django.db.models import Case, When
+
         cost_overrides = {
             eq_id: data["cost"]
             for eq_id, data in equipment_data.items()
@@ -253,7 +255,7 @@ class ContentEquipmentListExpansionItem(Content):
         help_text="The expansion this item belongs to",
     )
     equipment = models.ForeignKey(
-        ContentEquipment,
+        "ContentEquipment",
         on_delete=models.CASCADE,
         help_text="The equipment that becomes available",
     )
@@ -359,19 +361,19 @@ class ContentEquipmentListExpansionRuleByAttribute(ContentEquipmentListExpansion
         "Rule that matches based on gang attributes (e.g., affiliation, alignment)."
     )
     attribute = models.ForeignKey(
-        ContentAttribute,
+        "ContentAttribute",
         on_delete=models.CASCADE,
         help_text="The attribute to match on",
     )
     attribute_values = models.ManyToManyField(
-        ContentAttributeValue,
+        "ContentAttributeValue",
         blank=True,
         help_text="Specific values to match (empty = any value except 'not set')",
     )
 
     def match(self, rule_inputs: ExpansionRuleInputs) -> bool:
         """Check if the list has the required attribute value."""
-        list_obj: "List" = rule_inputs.list
+        list_obj = rule_inputs.list
 
         # Get the list's attribute values for this attribute
         list_values = list_obj.attributes.filter(
@@ -414,7 +416,7 @@ class ContentEquipmentListExpansionRuleByHouse(ContentEquipmentListExpansionRule
 
     help_text = "Rule that matches based on the gang's house (e.g., Delaque, Goliath)."
     house = models.ForeignKey(
-        ContentHouse,
+        "ContentHouse",
         on_delete=models.CASCADE,
         help_text="The house to match",
     )
@@ -473,125 +475,3 @@ class ContentEquipmentListExpansionRuleByFighterCategory(
     class Meta:
         verbose_name = "Expansion Rule by Fighter Category"
         verbose_name_plural = "Expansion Rules by Fighter Category"
-
-
-# Signal handlers for cost change dirty propagation
-
-
-@receiver(
-    pre_save,
-    sender=ContentEquipmentListExpansionItem,
-    dispatch_uid="content_expansion_item_cost_change",
-)
-@traced("signal_content_expansion_item_cost_change")
-def handle_expansion_item_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentEquipmentListExpansionItem.cost changes.
-
-    This model provides cost overrides for equipment in expansion lists.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        instance.set_dirty()
-
-
-@receiver(
-    post_save,
-    sender=ContentEquipmentListExpansionItem,
-    dispatch_uid="content_expansion_item_cost_action",
-)
-@traced("signal_content_expansion_item_cost_action")
-def create_expansion_item_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after expansion item cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-
-    from gyrinx.core.models.action import ListActionType
-    from gyrinx.core.models.list import ListFighterEquipmentAssignment
-
-    # Find affected lists - expansion items affect assignments with this equipment/profile
-    filter_kwargs = {
-        "content_equipment": instance.equipment,
-        "archived": False,
-    }
-
-    if instance.weapon_profile is not None:
-        filter_kwargs["weapon_profiles_field"] = instance.weapon_profile
-
-    list_ids = (
-        ListFighterEquipmentAssignment.objects.filter(**filter_kwargs)
-        .select_related("list_fighter__list")
-        .values_list("list_fighter__list_id", flat=True)
-        .distinct()
-    )
-
-    list_ids = list(set(list_ids))
-
-    if not list_ids:
-        instance._cost_changed = False
-        return
-
-    # For each list, recalculate and create action
-    # Each list is processed in its own transaction for consistency:
-    # either all changes succeed (facts updated, action created, credits applied)
-    # or none do (transaction rolls back, list stays dirty for later recalculation)
-    for list_id in list_ids:
-        try:
-            with transaction.atomic():
-                lst = List.objects.get(id=list_id)
-
-                # Only create actions for lists that have an initial action
-                # Lists without latest_action will have dirty flag set via set_dirty()
-                # and will be recalculated when viewed
-                if not lst.latest_action:
-                    continue
-
-                # Capture before state
-                old_rating = lst.rating_current
-                old_stash = lst.stash_current
-
-                # Recalculate with the new content costs (clears dirty flags on list and children)
-                facts = lst.facts_from_db(update=True)
-
-                # Compute deltas
-                rating_delta = facts.rating - old_rating
-                stash_delta = facts.stash - old_stash
-
-                # In campaign mode, adjust credits
-                total_delta = rating_delta + stash_delta
-                if total_delta == 0:
-                    continue
-                is_campaign = lst.is_campaign_mode
-                credits_delta = -total_delta if is_campaign else 0
-
-                # Format the cost change for the description
-                cost_change_str = format_cost_display(total_delta, show_sign=True)
-
-                # Create the action. Skip applying rating/stash deltas since facts_from_db
-                # already updated those values. Credits delta is still applied.
-                lst.create_action(
-                    action_type=ListActionType.CONTENT_COST_CHANGE,
-                    description=f"{instance.equipment.name} changed cost ({cost_change_str})",
-                    rating_before=old_rating,
-                    stash_before=old_stash,
-                    rating_delta=rating_delta,
-                    stash_delta=stash_delta,
-                    credits_delta=credits_delta,
-                    update_credits=is_campaign,
-                    skip_apply=["rating", "stash"],
-                )
-        except List.DoesNotExist:
-            continue
-        except Exception as e:
-            # Log error but continue processing other lists
-            # The failed list will remain dirty and be recalculated on next view
-            logger.error(
-                f"Failed to create CONTENT_COST_CHANGE action for list {list_id}: {e}"
-            )
-
-    instance._cost_changed = False
