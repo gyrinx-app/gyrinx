@@ -1,0 +1,133 @@
+{% comment %}
+Property Schema Editor - allows adding/removing property definitions for asset types.
+Requires: form with property_schema_json field
+{% endcomment %}
+<div>
+    <label class="form-label">
+        Properties
+        <i class="bi-info-circle text-muted"
+           data-bs-toggle="tooltip"
+           data-bs-title="Define properties that assets of this type can have (e.g., Boon, Income, Location)"></i>
+    </label>
+    <small class="form-text text-muted d-block mb-2">Define the properties that can be set on assets of this type.</small>
+    <div id="property-schema-list" class="vstack gap-2 mb-2">
+        <!-- Property rows will be added here by JavaScript -->
+    </div>
+    <button type="button"
+            id="add-property-btn"
+            class="btn btn-outline-secondary btn-sm">
+        <i class="bi-plus-circle"></i> Add Property
+    </button>
+    {{ form.property_schema_json }}
+    {% if form.property_schema_json.errors %}
+        <div class="invalid-feedback d-block">{{ form.property_schema_json.errors }}</div>
+    {% endif %}
+</div>
+<template id="property-row-template">
+    <div class="property-row d-flex flex-column gap-2 p-2 border rounded bg-light">
+        <div class="d-flex flex-column flex-sm-row gap-2">
+            <div class="flex-grow-1">
+                <input type="text"
+                       class="form-control form-control-sm property-label"
+                       placeholder="Label (e.g., Boon)">
+            </div>
+            <div class="flex-shrink-0">
+                <button type="button"
+                        class="btn btn-outline-danger btn-sm remove-property-btn">
+                    <i class="bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div>
+            <input type="text"
+                   class="form-control form-control-sm property-description"
+                   placeholder="Description (optional)">
+        </div>
+    </div>
+</template>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const schemaList = document.getElementById('property-schema-list');
+    const addBtn = document.getElementById('add-property-btn');
+    const jsonField = document.getElementById('property-schema-json');
+    const template = document.getElementById('property-row-template');
+
+    // Generate a safe key from a label
+    function labelToKey(label) {
+        return label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .replace(/^(\d)/, '_$1'); // Prefix with _ if starts with number
+    }
+
+    // Parse initial schema from the hidden field
+    let schema = [];
+    try {
+        schema = JSON.parse(jsonField.value || '[]');
+    } catch (e) {
+        console.error('Failed to parse property schema:', e);
+        schema = [];
+    }
+
+    // Render existing properties
+    schema.forEach(prop => addPropertyRow(prop.label, prop.description || ''));
+
+    // Add new property button handler
+    addBtn.addEventListener('click', function() {
+        addPropertyRow('', '');
+        // Focus the new label input
+        const rows = schemaList.querySelectorAll('.property-row');
+        const lastRow = rows[rows.length - 1];
+        if (lastRow) {
+            lastRow.querySelector('.property-label').focus();
+        }
+        updateJsonField();
+    });
+
+    function addPropertyRow(label, description) {
+        const row = template.content.cloneNode(true);
+        const labelInput = row.querySelector('.property-label');
+        const descInput = row.querySelector('.property-description');
+        const removeBtn = row.querySelector('.remove-property-btn');
+
+        labelInput.value = label || '';
+        descInput.value = description || '';
+
+        // Update JSON on input changes
+        labelInput.addEventListener('input', updateJsonField);
+        descInput.addEventListener('input', updateJsonField);
+
+        // Remove button handler
+        removeBtn.addEventListener('click', function() {
+            this.closest('.property-row').remove();
+            updateJsonField();
+        });
+
+        schemaList.appendChild(row);
+    }
+
+    function updateJsonField() {
+        const rows = schemaList.querySelectorAll('.property-row');
+        const newSchema = [];
+
+        rows.forEach(row => {
+            const label = row.querySelector('.property-label').value.trim();
+            const description = row.querySelector('.property-description').value.trim();
+            if (label) {
+                const key = labelToKey(label);
+                const prop = { key, label };
+                if (description) {
+                    prop.description = description;
+                }
+                newSchema.push(prop);
+            }
+        });
+
+        jsonField.value = JSON.stringify(newSchema);
+    }
+
+    // Initial update to sync
+    updateJsonField();
+});
+</script>

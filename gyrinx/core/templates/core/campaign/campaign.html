@@ -28,7 +28,6 @@
             <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
                 <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
                     <h1 class="mb-0">{{ campaign.name }}</h1>
-                    <div class="ms-md-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</div>
                 </div>
             </div>
             <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
@@ -50,11 +49,6 @@
                             <span data-bs-toggle="tooltip"
                                   data-bs-title="This campaign can only be accessed by users with the direct link"
                                   class="tooltipped">Unlisted</span>
-                        </div>
-                    {% endif %}
-                    {% if campaign.budget > 0 %}
-                        <div>
-                            <i class="bi-coin"></i> {{ campaign.budget }}¢
                         </div>
                     {% endif %}
                 </div>
@@ -107,23 +101,61 @@
                     {% endif %}
                 </div>
             </div>
-            {% if campaign.summary %}
-                <div class="text-muted mt-2 mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>
+        </div>
+        <!-- Campaign Info Section -->
+        <div class="d-flex flex-column flex-md-row align-items-md-stretch gap-3">
+            <!-- Status/Phase/Summary Card -->
+            <div class="col-12 col-md-4">
+                <div class="vstack gap-2">
+                    <table class="mb-0">
+                        <tr>
+                            <th class="fw-bold pe-2 align-top">Status</th>
+                            <td class="text-secondary">
+                                {% if campaign.is_pre_campaign %}
+                                    Pre-Campaign
+                                {% elif campaign.is_in_progress %}
+                                    In Progress
+                                {% elif campaign.is_post_campaign %}
+                                    Post-Campaign
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if campaign.phase %}
+                            <tr>
+                                <th class="fw-bold pe-2 align-top">Phase</th>
+                                <td>
+                                    <div class="text-secondary">{{ campaign.phase }}</div>
+                                    {% if campaign.phase_notes %}
+                                        <div class="text-muted small mb-last-0">{{ campaign.phase_notes|safe_rich_text|safe }}</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% if campaign.budget > 0 %}
+                            <tr>
+                                <th class="fw-bold pe-2 align-top">Budget</th>
+                                <td class="text-secondary">{{ campaign.budget }}¢</td>
+                            </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            <!-- Summary & Narrative (right side on wide, below on narrow) -->
+            {% if campaign.summary or campaign.narrative %}
+                <div class="border-start border-2 ps-3 flex-grow-1 vstack gap-2">
+                    {% if campaign.summary %}<div class="mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>{% endif %}
+                    {% if campaign.narrative %}
+                        <div class="text-secondary small mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
+        {% if not campaign.summary and not campaign.narrative and not campaign.phase %}
+            <div class="text-muted">
+                <i class="bi-info-circle"></i> No campaign details have been added yet.
+            </div>
+        {% endif %}
         <div class="vstack gap-3">
-            {% if campaign.narrative %}
-                <div class="card">
-                    <div class="card-body">
-                        <div class="card-text mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
-                    </div>
-                </div>
-            {% endif %}
-            {% if not campaign.summary and not campaign.narrative %}
-                <div class="text-muted">
-                    <i class="bi-info-circle"></i> No campaign details have been added yet.
-                </div>
-            {% endif %}
             <!-- Campaign Lists -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
@@ -135,7 +167,7 @@
                         </a>
                     {% endif %}
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 py-1">
                     {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations %}
                 </div>
             </div>
@@ -153,25 +185,35 @@
                         <i class="bi-box-seam"></i> View Assets
                     </a>
                 </div>
-                <div class="card-body p-0 vstack gap-3">
+                <div class="card-body p-0 py-1 vstack gap-3">
                     {% if asset_types %}
                         <table class="table table-sm table-borderless mb-0 align-middle">
                             {% for asset_type in asset_types %}
                                 <thead>
                                     <tr>
                                         <th colspan="3"
-                                            class="px-2 px-sm-3 py-2 {% if not forloop.first %}pt-5{% endif %}">
-                                            <h3 class="fs-6 mb-0 fst-italic">{{ asset_type.name_plural }}</h3>
+                                            class="px-2 px-sm-3 pb-2 {% if not forloop.first %}pt-3{% endif %}">
+                                            <h3 class="fs-6 mb-0">{{ asset_type.name_plural }}</h3>
                                         </th>
                                     </tr>
                                 </thead>
                                 {% with assets=asset_type.assets.all %}
                                     {% if assets %}
-                                        <tbody>
+                                        <tbody class="mb-3">
                                             {% for asset in assets %}
                                                 <tr>
-                                                    <td class="ps-2 ps-sm-3">{{ asset.name }}</td>
-                                                    <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %}">
+                                                    <td class="ps-2 ps-sm-3">
+                                                        {{ asset.name }}
+                                                        {% if asset.properties_with_labels %}
+                                                            <div class="small text-muted">
+                                                                {% for label, value in asset.properties_with_labels %}
+                                                                    {% if not forloop.first %}·{% endif %}
+                                                                    {{ label }}: {{ value }}
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %} align-top">
                                                         {% if asset.holder %}
                                                             <a href="{% url 'core:list' asset.holder.id %}"
                                                                class="link-underline-opacity-25 link-underline-opacity-100-hover">
@@ -182,7 +224,7 @@
                                                         {% endif %}
                                                     </td>
                                                     {% if is_owner %}
-                                                        <td class="text-end pe-2 pe-sm-3">
+                                                        <td class="text-end pe-2 pe-sm-3 align-top">
                                                             {% if not campaign.archived %}
                                                                 <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
                                                                    class="icon-link link-sm">
@@ -228,14 +270,20 @@
                         <i class="bi-coin"></i> View Resources
                     </a>
                 </div>
-                <div class="card-body p-0 px-2 px-sm-3">
+                <div class="card-body p-0 py-1 px-2 px-sm-3">
                     {% if resource_types %}
                         <div class="table-responsive">
                             <table class="table table-sm table-borderless mb-0 align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Gang</th>
-                                        {% for resource_type in resource_types %}<th class="text-end">{{ resource_type.name }}</th>{% endfor %}
+                                        <th>
+                                            <h3 class="fs-6 mb-0">Gang</h3>
+                                        </th>
+                                        {% for resource_type in resource_types %}
+                                            <th class="text-end">
+                                                <h3 class="fs-6 mb-0">{{ resource_type.name }}</h3>
+                                            </th>
+                                        {% endfor %}
                                     </tr>
                                 </thead>
                                 <tbody>

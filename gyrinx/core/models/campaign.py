@@ -60,6 +60,15 @@ class Campaign(AppBase):
         default=1500,
         help_text="Starting budget for each gang in credits.",
     )
+    phase = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Current campaign phase (e.g., 'Occupation', 'Takeover', 'Dominion')",
+    )
+    phase_notes = models.TextField(
+        blank=True,
+        help_text="Notes about the current phase - special rules, conditions, etc.",
+    )
 
     history = HistoricalRecords()
 
@@ -264,6 +273,47 @@ class Campaign(AppBase):
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")
 
+    def change_phase(self, new_phase, user, notes=None):
+        """Change the campaign phase and log the action.
+
+        Args:
+            new_phase: The new phase name (can be empty string to clear)
+            user: The User making the change (required for logging)
+            notes: Optional notes about the phase (updates phase_notes if provided)
+
+        Returns:
+            bool: True if phase was changed, False if no change needed
+        """
+        if not user:
+            raise ValueError("User is required for phase changes")
+
+        old_phase = self.phase
+        if old_phase == new_phase and (notes is None or self.phase_notes == notes):
+            return False  # No change needed
+
+        self.phase = new_phase
+        if notes is not None:
+            self.phase_notes = notes
+        self.save()
+
+        # Log the phase change
+        if old_phase != new_phase:
+            if old_phase and new_phase:
+                description = f"Phase Change: {old_phase} → {new_phase}"
+            elif new_phase:
+                description = f"Phase Set: {new_phase}"
+            else:
+                description = f"Phase Cleared (was: {old_phase})"
+
+            CampaignAction.objects.create(
+                campaign=self,
+                user=user,
+                description=description,
+                owner=user,
+            )
+
+        return True
+
 
 class CampaignAction(AppBase):
     """An action taken during a campaign with optional dice rolls"""
@@ -370,6 +420,12 @@ class CampaignAssetType(AppBase):
         blank=True,
         help_text="Description of this asset type",
     )
+    property_schema = models.JSONField(
+        default=pylist,
+        blank=True,
+        help_text="Schema defining available properties for assets of this type. "
+        "Format: [{'key': 'boon', 'label': 'Boon'}, ...]",
+    )
 
     history = HistoricalRecords()
 
@@ -409,6 +465,11 @@ class CampaignAsset(AppBase):
         related_name="held_assets",
         help_text="The list currently holding this asset",
     )
+    properties = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Custom properties for this asset (e.g., boons, income, location)",
+    )
 
     history = HistoricalRecords()
 
@@ -419,6 +480,32 @@ class CampaignAsset(AppBase):
 
     def __str__(self):
         return f"{self.name} ({self.asset_type.name_singular})"
+
+    @property
+    def properties_with_labels(self):
+        """Return properties as a list of (label, value) tuples.
+
+        Looks up the label from the asset_type's property_schema.
+        Falls back to the key if no label is defined.
+        """
+        if not self.properties:
+            return []
+
+        # Build a key -> label lookup from the schema
+        schema_lookup = {}
+        for prop in self.asset_type.property_schema or []:
+            key = prop.get("key", "")
+            label = prop.get("label", key)
+            if key:
+                schema_lookup[key] = label
+
+        # Return properties with labels
+        result = []
+        for key, value in self.properties.items():
+            if value:  # Only include non-empty values
+                label = schema_lookup.get(key, key)
+                result.append((label, value))
+        return result
 
     def transfer_to(self, new_holder, user):
         """Transfer this asset to a new holder and log the action

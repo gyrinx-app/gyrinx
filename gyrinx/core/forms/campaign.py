@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 
 from gyrinx.core.models.campaign import (
@@ -123,13 +125,23 @@ class CampaignActionOutcomeForm(forms.ModelForm):
 class EditCampaignForm(forms.ModelForm):
     class Meta:
         model = Campaign
-        fields = ["name", "summary", "narrative", "public", "budget"]
+        fields = [
+            "name",
+            "summary",
+            "narrative",
+            "public",
+            "budget",
+            "phase",
+            "phase_notes",
+        ]
         labels = {
             "name": "Name",
             "summary": "Summary",
             "narrative": "Narrative",
             "public": "Public",
             "budget": "Starting Budget",
+            "phase": "Phase",
+            "phase_notes": "Phase Notes",
         }
         help_texts = {
             "name": "The name you use to identify this campaign. This may be public.",
@@ -137,6 +149,8 @@ class EditCampaignForm(forms.ModelForm):
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users.",
             "budget": "Starting budget for each gang in credits.",
+            "phase": "Current campaign phase (e.g., 'Occupation', 'Takeover', 'Dominion')",
+            "phase_notes": "Notes about the current phase - special rules, conditions, etc.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -149,11 +163,57 @@ class EditCampaignForm(forms.ModelForm):
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "budget": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "phase": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g., Occupation"}
+            ),
+            "phase_notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        self._old_phase = None
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self._old_phase = self.instance.phase
+
+    def save(self, commit=True, user=None):
+        instance = super().save(commit=False)
+
+        # Track phase change for logging
+        new_phase = self.cleaned_data.get("phase", "")
+        phase_changed = self._old_phase != new_phase
+
+        if commit:
+            instance.save()
+
+            # Log phase change if it changed and user is provided
+            if phase_changed and user:
+                from gyrinx.core.models.campaign import CampaignAction
+
+                if self._old_phase and new_phase:
+                    description = f"Phase Change: {self._old_phase} → {new_phase}"
+                elif new_phase:
+                    description = f"Phase Set: {new_phase}"
+                else:
+                    description = f"Phase Cleared (was: {self._old_phase})"
+
+                CampaignAction.objects.create(
+                    campaign=instance,
+                    user=user,
+                    description=description,
+                    owner=user,
+                )
+
+        return instance
 
 
 class CampaignAssetTypeForm(forms.ModelForm):
     """Form for creating and editing campaign asset types"""
+
+    # Hidden field to store the property schema JSON
+    property_schema_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "property-schema-json"}),
+    )
 
     class Meta:
         model = CampaignAssetType
@@ -179,6 +239,46 @@ class CampaignAssetTypeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.campaign = kwargs.pop("campaign", None)
         super().__init__(*args, **kwargs)
+        # Set initial value for the hidden JSON field
+        if self.instance and self.instance.pk:
+            self.fields["property_schema_json"].initial = json.dumps(
+                self.instance.property_schema or []
+            )
+        else:
+            self.fields["property_schema_json"].initial = "[]"
+
+    def clean_property_schema_json(self):
+        """Validate and parse the property schema JSON"""
+        data = self.cleaned_data.get("property_schema_json", "[]")
+        if not data:
+            return []
+        try:
+            schema = json.loads(data)
+            if not isinstance(schema, list):
+                raise forms.ValidationError("Property schema must be a list")
+            # Validate each item has required fields
+            keys = []
+            for item in schema:
+                if not isinstance(item, dict):
+                    raise forms.ValidationError("Each property must be an object")
+                if "key" not in item or "label" not in item:
+                    raise forms.ValidationError(
+                        "Each property must have 'key' and 'label' fields"
+                    )
+                keys.append(item["key"])
+            # Check for duplicate keys
+            if len(keys) != len(set(keys)):
+                raise forms.ValidationError("Property keys must be unique")
+            return schema
+        except json.JSONDecodeError as e:
+            raise forms.ValidationError(f"Invalid JSON: {e}")
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.property_schema = self.cleaned_data.get("property_schema_json", [])
+        if commit:
+            instance.save()
+        return instance
 
     def clean_name_singular(self):
         """Validate that name_singular is unique for this campaign, excluding the current instance"""
@@ -212,6 +312,12 @@ class CampaignAssetTypeForm(forms.ModelForm):
 class CampaignAssetForm(forms.ModelForm):
     """Form for creating and editing campaign assets"""
 
+    # Hidden field for ad-hoc properties JSON (properties not in schema)
+    extra_properties_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "extra-properties-json"}),
+    )
+
     class Meta:
         model = CampaignAsset
         fields = ["name", "description", "holder"]
@@ -234,27 +340,97 @@ class CampaignAssetForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        asset_type = kwargs.pop("asset_type", None)
+        self.asset_type = kwargs.pop("asset_type", None)
         campaign = kwargs.pop("campaign", None)
         super().__init__(*args, **kwargs)
 
+        # Get asset_type from instance if not provided
+        if not self.asset_type and self.instance and self.instance.pk:
+            self.asset_type = self.instance.asset_type
+
         # Get campaign from asset_type if not provided
-        if not campaign and asset_type:
-            campaign = asset_type.campaign
+        if not campaign and self.asset_type:
+            campaign = self.asset_type.campaign
         elif not campaign and self.instance and self.instance.pk:
             campaign = self.instance.asset_type.campaign
 
         # Hide holder field if campaign is not in progress
         if campaign and not campaign.is_in_progress:
-            del self.fields["holder"]
+            if "holder" in self.fields:
+                del self.fields["holder"]
         else:
             # Limit holder choices to lists in the campaign
-            if asset_type:
-                self.fields["holder"].queryset = asset_type.campaign.lists.all()
+            if self.asset_type:
+                self.fields["holder"].queryset = self.asset_type.campaign.lists.all()
             elif self.instance and self.instance.pk:
                 self.fields[
                     "holder"
                 ].queryset = self.instance.asset_type.campaign.lists.all()
+
+        # Get existing properties from instance
+        existing_properties = {}
+        if self.instance and self.instance.pk:
+            existing_properties = self.instance.properties or {}
+
+        # Add dynamic fields based on property schema
+        self.schema_keys = []
+        if self.asset_type and self.asset_type.property_schema:
+            for prop in self.asset_type.property_schema:
+                key = prop.get("key", "")
+                label = prop.get("label", key)
+                description = prop.get("description", "")
+                if key:
+                    self.schema_keys.append(key)
+                    field_name = f"prop_{key}"
+                    self.fields[field_name] = forms.CharField(
+                        required=False,
+                        label=label,
+                        help_text=description,
+                        widget=forms.TextInput(attrs={"class": "form-control"}),
+                        initial=existing_properties.get(key, ""),
+                    )
+
+        # Collect extra properties (those not in schema) for the hidden field
+        extra_props = {
+            k: v for k, v in existing_properties.items() if k not in self.schema_keys
+        }
+        self.fields["extra_properties_json"].initial = json.dumps(extra_props)
+
+    def clean_extra_properties_json(self):
+        """Parse extra properties JSON"""
+        data = self.cleaned_data.get("extra_properties_json", "{}")
+        if not data:
+            return {}
+        try:
+            props = json.loads(data)
+            if not isinstance(props, dict):
+                raise forms.ValidationError("Extra properties must be an object")
+            return props
+        except json.JSONDecodeError as e:
+            raise forms.ValidationError(f"Invalid JSON: {e}")
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        # Collect all properties
+        properties = {}
+
+        # Add schema-based properties
+        for key in self.schema_keys:
+            field_name = f"prop_{key}"
+            value = self.cleaned_data.get(field_name, "")
+            if value:  # Only store non-empty values
+                properties[key] = value
+
+        # Add extra properties
+        extra_props = self.cleaned_data.get("extra_properties_json", {})
+        properties.update(extra_props)
+
+        instance.properties = properties
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class AssetTransferForm(forms.Form):

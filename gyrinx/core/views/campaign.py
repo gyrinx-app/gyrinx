@@ -242,7 +242,8 @@ class CampaignDetailView(generic.DetailView):
         # Get asset types with their assets for the summary
         context["asset_types"] = campaign.asset_types.prefetch_related(
             models.Prefetch(
-                "assets", queryset=CampaignAsset.objects.select_related("holder")
+                "assets",
+                queryset=CampaignAsset.objects.select_related("holder", "asset_type"),
             )
         )
 
@@ -756,8 +757,8 @@ def edit_campaign(request, id):
     if request.method == "POST":
         form = EditCampaignForm(request.POST, instance=campaign)
         if form.is_valid():
-            updated_campaign = form.save(commit=False)
-            updated_campaign.save()
+            # Pass user to save() for phase change logging
+            updated_campaign = form.save(user=request.user)
 
             # Log the campaign update event
             log_event(
@@ -1309,13 +1310,14 @@ def campaign_assets(request, id):
 
     # Get all asset types for this campaign with their assets
     # Only include assets held by lists that are currently in the campaign (or unowned assets)
+    # select_related("asset_type") is needed for properties_with_labels to access property_schema
     asset_types = campaign.asset_types.prefetch_related(
         models.Prefetch(
             "assets",
             queryset=CampaignAsset.objects.filter(
                 models.Q(holder_id__in=campaign_list_ids)
                 | models.Q(holder__isnull=True)
-            ).select_related("holder"),
+            ).select_related("holder", "asset_type"),
         )
     )
 
