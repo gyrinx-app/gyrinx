@@ -775,7 +775,7 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
     user, make_list, content_fighter, content_equipment
 ):
     """When ContentEquipmentListExpansionItem.cost changes, affected assignments should be marked dirty."""
-    from gyrinx.content.models_.expansion import (
+    from gyrinx.content.models import (
         ContentEquipmentListExpansion,
         ContentEquipmentListExpansionItem,
     )

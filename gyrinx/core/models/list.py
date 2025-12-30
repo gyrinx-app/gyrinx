@@ -773,7 +773,7 @@ class List(AppBase):
             dict mapping fighter category string -> list of ContentEquipment instances
             with expansion_cost_override annotation.
         """
-        from gyrinx.content.models_.expansion import (
+        from gyrinx.content.models import (
             ContentEquipmentListExpansion,
             ExpansionRuleInputs,
         )
@@ -2731,7 +2731,7 @@ class ListFighter(AppBase):
             return True
 
         # Check if any expansions apply that provide equipment
-        from gyrinx.content.models_.expansion import (
+        from gyrinx.content.models import (
             ContentEquipmentListExpansion,
             ExpansionRuleInputs,
         )
@@ -3900,7 +3900,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         self, content_equipment, weapon_profile, expansion_inputs
     ):
         """Helper method to get expansion cost override for equipment or weapon profile."""
-        from gyrinx.content.models_.expansion import (
+        from gyrinx.content.models import (
             ContentEquipmentListExpansion,
         )
 
@@ -3953,7 +3953,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 return category_costs[self.content_equipment_id]
 
         # Fallback to DB query if equipment not in expansion cache
-        from gyrinx.content.models_.expansion import ExpansionRuleInputs
+        from gyrinx.content.models import ExpansionRuleInputs
 
         expansion_inputs = ExpansionRuleInputs(list=list_obj, fighter=self.list_fighter)
         expansion_cost = self._get_expansion_cost_override(
@@ -4066,7 +4066,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             return cost
 
         # Check for expansion cost overrides first
-        from gyrinx.content.models_.expansion import ExpansionRuleInputs
+        from gyrinx.content.models import ExpansionRuleInputs
 
         expansion_inputs = ExpansionRuleInputs(
             list=self.list_fighter.list, fighter=self.list_fighter

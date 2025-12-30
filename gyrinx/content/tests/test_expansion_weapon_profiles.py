@@ -13,7 +13,7 @@ from gyrinx.content.models import (
     ContentWeaponProfile,
 )
 from gyrinx.models import FighterCategoryChoices
-from gyrinx.content.models_.expansion import (
+from gyrinx.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByHouse,
