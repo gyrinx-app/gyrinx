@@ -4,7 +4,7 @@
     XP - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-xp-edit" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h2>Edit XP for {{ fighter.name }}</h2>
         <ul class="fs-5 mb-3 list-group list-group-flush">

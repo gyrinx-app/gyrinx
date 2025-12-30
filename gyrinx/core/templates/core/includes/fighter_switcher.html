@@ -1,0 +1,28 @@
+{# Fighter switcher dropdown for quick navigation between fighters #}
+{# Context variables: list, fighter (current fighter), url_name (current page URL name) #}
+{% load custom_tags %}
+{% if fighter and list %}
+    {% with fighters=list.active_fighters %}
+        {% if fighters|length > 1 %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle text-truncate fighter-switcher-btn"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi-person-fill"></i> {{ fighter.name }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end fighter-switcher-menu">
+                    {% for f in fighters %}
+                        <li>
+                            <a class="dropdown-item text-truncate {% if f.id == fighter.id %}active{% endif %}"
+                               href="{% url url_name list.id f.id %}">
+                                {{ f.name }}
+                                <span class="text-muted">- {{ f.content_fighter.name }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+    {% endwith %}
+{% endif %}

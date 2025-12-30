@@ -163,6 +163,16 @@ label {
     max-width: 35em;
 }
 
+// Fighter switcher dropdown
+.fighter-switcher-btn {
+    max-width: 200px;
+}
+
+.fighter-switcher-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 // Spacing
 
 .mb-last-0 > :last-child {
