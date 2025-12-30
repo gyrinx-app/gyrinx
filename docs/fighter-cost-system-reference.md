@@ -41,10 +41,10 @@ Implementation: `ListFighter.cost_int()` in `gyrinx/core/models/list.py:543`
 
 The base cost follows this priority hierarchy:
 
-1. **User Override**: `ListFighter.cost_override` (if set)
-2. **Child Fighter**: 0 (if fighter is child of another)
-3. **House Override**: `ContentFighterHouseOverride.cost` (if exists)
-4. **Content Fighter**: `ContentFighter.base_cost`
+1. User override: `ListFighter.cost_override` (if set)
+2. Child fighter: 0 (if fighter is child of another)
+3. House override: `ContentFighterHouseOverride.cost` (if exists)
+4. Content fighter: `ContentFighter.base_cost`
 
 Implementation: `ListFighter._base_cost_int` property in `gyrinx/core/models/list.py:567`
 
@@ -68,10 +68,10 @@ Implementation: `ListFighterEquipmentAssignment.cost_int()` in `gyrinx/core/mode
 
 Equipment base cost priority:
 
-1. **Assignment Override**: `ListFighterEquipmentAssignment.cost_override`
-2. **Linked Equipment**: 0 (if equipment is linked/child)
-3. **Fighter Equipment List**: `ContentFighterEquipmentListItem.cost`
-4. **Base Equipment**: `ContentEquipment.cost`
+1. Assignment override: `ListFighterEquipmentAssignment.cost_override`
+2. Linked equipment: 0 (if equipment is linked/child)
+3. Fighter equipment list: `ContentFighterEquipmentListItem.cost`
+4. Base equipment: `ContentEquipment.cost`
 
 Implementation: `ListFighterEquipmentAssignment._equipment_cost_with_override()` in `gyrinx/core/models/list.py:1354`
 
@@ -79,9 +79,9 @@ Implementation: `ListFighterEquipmentAssignment._equipment_cost_with_override()`
 
 Profile costs follow this priority:
 
-1. **Default Assignment**: 0 (if profile is part of default assignment)
-2. **Fighter Equipment List**: `ContentFighterEquipmentListItem.cost` (with weapon_profile)
-3. **Base Profile**: `ContentWeaponProfile.cost`
+1. Default assignment: 0 (if profile is part of default assignment)
+2. Fighter equipment list: `ContentFighterEquipmentListItem.cost` (with weapon_profile)
+3. Base profile: `ContentWeaponProfile.cost`
 
 Implementation: `ListFighterEquipmentAssignment._profile_cost_with_override_for_profile()` in `gyrinx/core/models/list.py:1404`
 
@@ -89,9 +89,9 @@ Implementation: `ListFighterEquipmentAssignment._profile_cost_with_override_for_
 
 Accessory costs follow this priority:
 
-1. **Default Assignment**: 0 (if accessory is part of default assignment)
-2. **Fighter Equipment List**: `ContentFighterEquipmentListWeaponAccessory.cost`
-3. **Base Accessory**: `ContentWeaponAccessory.cost`
+1. Default assignment: 0 (if accessory is part of default assignment)
+2. Fighter equipment list: `ContentFighterEquipmentListWeaponAccessory.cost`
+3. Base accessory: `ContentWeaponAccessory.cost`
 
 Implementation: `ListFighterEquipmentAssignment._accessory_cost_with_override()` in `gyrinx/core/models/list.py:1469`
 
@@ -99,8 +99,8 @@ Implementation: `ListFighterEquipmentAssignment._accessory_cost_with_override()`
 
 Upgrade costs depend on the equipment's upgrade mode:
 
-- **Multi mode**: Individual upgrade cost
-- **Single mode**: Cumulative cost (sum of all upgrades up to selected position)
+- Multi mode: Individual upgrade cost
+- Single mode: Cumulative cost (sum of all upgrades up to selected position)
 
 Implementation: `ContentEquipmentUpgrade.cost_int()` in `gyrinx/content/models.py:1528`
 
@@ -149,9 +149,9 @@ Fields:
 
 The legacy fighter system supports the Venators' Gang Legacy rule, allowing them to use equipment from another house's fighter:
 
-1. **Legacy Fighter**: Set via `ListFighter.legacy_content_fighter`
-2. **Equipment List Fighter**: Property that returns legacy fighter if set, otherwise regular content fighter
-3. **Cost Overrides**: Check equipment_list_fighter for proper legacy support
+1. Legacy fighter: Set via `ListFighter.legacy_content_fighter`
+2. Equipment list fighter: Property that returns legacy fighter if set, otherwise regular content fighter
+3. Cost overrides: Check equipment_list_fighter for proper legacy support
 
 Implementation: `ListFighter.equipment_list_fighter` property
 
@@ -159,10 +159,10 @@ Implementation: `ListFighter.equipment_list_fighter` property
 
 ### Zero Cost Items
 
-- **Stash Fighters**: Must have `base_cost = 0`
-- **Default Assignments**: Always cost 0
-- **Linked Equipment**: Child equipment in linked relationships cost 0
-- **Child Fighters**: Fighters created by equipment profiles cost 0
+- Stash fighters: Must have `base_cost = 0`
+- Default assignments: Always cost 0
+- Linked equipment: Child equipment in linked relationships cost 0
+- Child fighters: Fighters created by equipment profiles cost 0
 
 ### Cost Display
 
@@ -181,15 +181,160 @@ The `VirtualListFighterEquipmentAssignment` class provides a unified interface f
 
 This allows consistent cost calculation regardless of assignment type.
 
-## Caching
+## Facts System API
 
-The system uses Django's caching for performance:
+The facts system provides fast O(1) reads of cached cost values. Each cost-bearing model has database fields (`rating_current`, `dirty`) and methods to access them.
 
-- **Cache Key**: `list_cost_{list_id}`
-- **TTL**: Configured by `CACHE_LIST_TTL` setting
-- **Invalidation**: Automatic on fighter/equipment changes via signals
+### Facts Dataclasses
 
-Implementation: `List.cost_int_cached` property in `gyrinx/core/models/list.py:143`
+Cached values are returned as immutable dataclasses (defined in `gyrinx/core/models/facts.py`):
+
+```python
+@dataclass(frozen=True)
+class AssignmentFacts:
+    rating: int
+
+@dataclass(frozen=True)
+class FighterFacts:
+    rating: int
+
+@dataclass(frozen=True)
+class ListFacts:
+    rating: int   # Sum of active fighter costs
+    stash: int    # Stash fighter cost
+    credits: int  # Liquid credits
+
+    @property
+    def wealth(self) -> int:
+        return self.rating + self.stash + self.credits
+```
+
+### Cache Fields
+
+Each level in the hierarchy has cached fields:
+
+| Model | Fields |
+|-------|--------|
+| `List` | `rating_current`, `stash_current`, `credits_current`, `dirty` |
+| `ListFighter` | `rating_current`, `dirty` |
+| `ListFighterEquipmentAssignment` | `rating_current`, `dirty` |
+
+### Facts Methods
+
+Every cost-bearing model provides three methods:
+
+#### facts() - Fast Cached Read
+
+Returns cached values as a facts dataclass, or `None` if cache is stale:
+
+```python
+def facts(self) -> Optional[ListFacts]:
+    """O(1) read from cached fields. Returns None if dirty=True."""
+    if self.dirty:
+        return None
+    return ListFacts(
+        rating=self.rating_current,
+        stash=self.stash_current,
+        credits=self.credits_current,
+    )
+```
+
+#### facts_from_db() - Full Recalculation
+
+Recalculates from database and optionally updates cache:
+
+```python
+def facts_from_db(self, update: bool = True) -> ListFacts:
+    """
+    Recalculate facts from database.
+
+    If update=True: saves rating_current, clears dirty flag.
+    Uses QuerySet.update() to bypass signals.
+    """
+```
+
+#### facts_with_fallback() - Hybrid Read (List only)
+
+Returns cached facts if clean, otherwise calculates without updating cache:
+
+```python
+def facts_with_fallback(self) -> ListFacts:
+    """
+    Get facts using cache if clean, otherwise calculate.
+    Does NOT update cache - just reads or calculates.
+    """
+    facts = self.facts()
+    if facts is not None:
+        return facts
+    # Calculate without updating cache
+    return self._calculate_facts()
+```
+
+### When to Use Each Method
+
+| Scenario | Method | Why |
+|----------|--------|-----|
+| Display in views | `facts()` then `facts_with_fallback()` | Fast read, fallback if stale |
+| Object creation | `create_with_facts()` | Atomic creation with cache |
+| Handler operations | Don't call - use propagation | Handlers use incremental updates |
+| Manual refresh | `facts_from_db(update=True)` | Full recalculation |
+
+### The create_with_facts() Pattern
+
+For atomic object creation with correct initial cache state:
+
+```python
+# ListManager, ListFighterManager, ListFighterEquipmentAssignmentManager
+def create_with_facts(self, **kwargs):
+    """Create object and immediately calculate facts."""
+    obj = self.create(**kwargs)  # dirty=True by default
+    obj.facts_from_db(update=True)  # Now dirty=False
+    return obj
+```
+
+### Display Methods
+
+Display methods use the facts system internally:
+
+```python
+# List
+def cost_display(self):
+    facts = self.facts()
+    if facts is not None:
+        return format_cost_display(facts.wealth)
+    return format_cost_display(self.facts_with_fallback().wealth)
+
+# Similar for rating_display(), stash_fighter_cost_display()
+```
+
+### Dirty Flag Management
+
+The `dirty` flag indicates cached values may be stale:
+
+```python
+# Mark as dirty (cascades upward)
+assignment.set_dirty(save=True)  # Also marks fighter and list dirty
+fighter.set_dirty(save=True)     # Also marks list dirty
+lst.set_dirty(save=True)         # Only marks list dirty
+
+# Cleared by:
+# - facts_from_db(update=True)
+# - Propagation functions (propagate_from_*)
+```
+
+## Cost Propagation
+
+For write operations, the propagation system incrementally updates cached values rather than recalculating:
+
+```python
+from gyrinx.core.cost.propagation import propagate_from_assignment, Delta
+
+# After adding equipment worth 10 credits
+propagate_from_assignment(assignment, Delta(delta=10, list=lst))
+# Updates: assignment.rating_current += 10, fighter.rating_current += 10
+```
+
+> **See also:** [Cost Handler Development Guide](how-to-guides/handler-development.md) for detailed handler patterns.
 
 ## Database Queries Optimization
 
@@ -200,20 +345,53 @@ The system uses several optimizations:
 - Cached properties to avoid repeated calculations
 - Annotation with cost overrides in querysets
 
+### Prefetching for Facts System
+
+To enable the facts system's `can_use_facts` property, views must use the appropriate prefetch:
+
+```python
+# Enables can_use_facts for list display
+lists = List.objects.with_latest_actions()
+
+# Full prefetch for detail views
+lst = List.objects.with_related_data().get(pk=pk)
+
+# Fighter-level prefetch
+fighters = ListFighter.objects.with_related_data()
+```
+
+The `with_latest_actions()` method prefetches the most recent `ListAction`, which is required for the guard condition that enables the facts system.
+
 ## Common Usage Patterns
+
+### Getting a List's Total Wealth
+
+```python
+# In views, always use prefetching first
+lst = List.objects.with_latest_actions().get(pk=list_id)
+wealth = lst.facts_with_fallback().wealth  # rating + stash + credits
+```
 
 ### Getting a Fighter's Total Cost
 
 ```python
 fighter = ListFighter.objects.get(id=fighter_id)
-total_cost = fighter.cost_int_cached  # Includes all equipment and advancements
+facts = fighter.facts()
+if facts:
+    total_cost = facts.rating  # Fast cached read
+else:
+    total_cost = fighter.cost_int()  # Full calculation
 ```
 
 ### Getting Equipment Cost with Override
 
 ```python
 assignment = ListFighterEquipmentAssignment.objects.get(id=assignment_id)
-cost = assignment.cost_int_cached  # Includes all overrides and sub-costs
+facts = assignment.facts()
+if facts:
+    cost = facts.rating  # Fast cached read
+else:
+    cost = assignment.cost_int()  # Includes all overrides and sub-costs
 ```
 
 ### Checking for Cost Overrides
@@ -266,7 +444,7 @@ class CostMixin(models.Model):
         """Returns a readable cost string with currency symbol."""
 ```
 
-**Key Features:**
+Key features:
 
 - Handles both integer and string cost fields
 - Converts string costs to integers when possible
@@ -274,7 +452,7 @@ class CostMixin(models.Model):
 - Provides formatted display with ¢ symbol
 - Supports custom field names via `cost_field_name` attribute
 
-**Usage Example:**
+Usage example:
 
 ```python
 class MyModel(CostMixin, models.Model):
@@ -296,14 +474,14 @@ class FighterCostMixin(CostMixin):
         """Returns the fighter-specific cost if available."""
 ```
 
-**Key Features:**
+Key features:
 
 - Inherits all functionality from `CostMixin`
 - Adds `cost_for_fighter_int()` method
 - Expects models to be annotated with `cost_for_fighter` attribute
 - Raises `AttributeError` if annotation is missing
 
-**Usage with Querysets:**
+Usage with querysets:
 
 ```python
 # Annotate queryset with fighter-specific costs
@@ -328,12 +506,12 @@ The following models use these mixins:
 
 Some models override the mixin methods for custom behavior:
 
-**ContentWeaponProfile:**
+ContentWeaponProfile:
 
 - `cost_display()` returns empty for standard profiles (no name)
 - Shows "+" prefix for named profiles with positive costs
 
-**ContentEquipmentUpgrade:**
+ContentEquipmentUpgrade:
 
 - `cost_int()` implements cumulative costs in SINGLE mode
 - Sums all upgrades up to current position
