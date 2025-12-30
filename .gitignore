@@ -28,3 +28,8 @@ logs/
 # Ignore Pycharm project files
 .idea/
 data/analytics/
+# Trace playbook I/O (keep structure, ignore contents)
+playbooks/trace/input/*
+!playbooks/trace/input/.gitkeep
+playbooks/trace/output/*
+!playbooks/trace/output/.gitkeep
