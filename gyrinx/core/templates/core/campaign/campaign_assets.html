@@ -5,121 +5,112 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-lg-12 px-0 vstack gap-3">
-        <div class="vstack gap-0 mb-2">
-            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
-                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h1 class="mb-0">Campaign Assets</h1>
-                </div>
+    <div class="col-12 px-0 vstack gap-5">
+        <!-- Header -->
+        <div>
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
+                <h1 class="mb-0">Campaign Assets</h1>
+                {% if is_owner %}
+                    <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
+                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-md-auto">
+                        <i class="bi-plus-circle"></i> Add Asset Type
+                    </a>
+                {% endif %}
             </div>
-            <div class="text-secondary">{{ campaign.name }}</div>
+            <p class="text-muted mb-0">{{ campaign.name }}</p>
         </div>
-        {% if is_owner %}
-            <div class="d-flex justify-content-start mb-2">
-                <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
-                   class="btn btn-primary btn-sm">
-                    <i class="bi-plus-circle"></i> Add Asset Type
-                </a>
-            </div>
-        {% endif %}
-        <div class="vstack gap-3">
-            {% for asset_type in asset_types %}
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h2 class="card-title h5 mb-0">{{ asset_type.name_plural }}</h2>
-                        {% if is_owner %}
-                            <div class="btn-group">
-                                <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
-                                   class="btn btn-primary btn-sm">
-                                    <i class="bi-plus"></i> Add {{ asset_type.name_singular }}
-                                </a>
-                                <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit
-                                </a>
-                                <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
-                                   class="btn btn-outline-danger btn-sm">
-                                    <i class="bi-trash"></i> Remove
-                                </a>
-                            </div>
-                        {% endif %}
-                    </div>
-                    {% if asset_type.description %}
-                        <div class="card-body border-bottom mb-last-0">{{ asset_type.description|safe }}</div>
-                    {% endif %}
-                    <div class="card-body p-0">
-                        {% with assets=asset_type.assets.all %}
-                            {% if assets %}
-                                <div class="list-group list-group-flush">
-                                    {% for asset in assets %}
-                                        <div class="list-group-item">
-                                            <div class="vstack gap-2">
-                                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 gap-md-0">
-                                                    <h6 class="mb-0 me-md-2 col-md-4">{{ asset.name }}</h6>
-                                                    {% if asset.holder %}
-                                                        <div class="d-flex align-items-center gap-1 col-md-4">
-                                                            <i class="bi-person-check text-muted"></i>
-                                                            {% list_with_theme asset.holder %}
-                                                        </div>
-                                                    {% else %}
-                                                        <div class="text-muted col-md-4">
-                                                            <i class="bi-dash-circle"></i> Unowned
-                                                        </div>
-                                                    {% endif %}
-                                                    {% if is_owner %}
-                                                        {% if not campaign.archived %}
-                                                            <div class="small flex-shrink-0 ms-md-auto">
-                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Transfer</a>
-                                                                ·
-                                                                <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
-                                                                ·
-                                                                <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
-                                                                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Remove</a>
-                                                            </div>
-                                                        {% endif %}
-                                                    {% endif %}
-                                                </div>
-                                                {% if asset.description %}<div class="small text-muted mb-last-0">{{ asset.description|safe }}</div>{% endif %}
-                                                {% if asset.properties_with_labels %}
-                                                    <div class="small text-muted">
-                                                        {% for label, value in asset.properties_with_labels %}
-                                                            {% if not forloop.first %}·{% endif %}
-                                                            {{ label }}: {{ value }}
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <div class="p-3 text-center text-muted">
-                                    No {{ asset_type.name_plural|lower }} have been created yet.
-                                    {% if is_owner %}
-                                        <br>
-                                        <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
-                                           class="btn btn-link btn-sm mt-2">Add {{ asset_type.name_singular }} →</a>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
-                        {% endwith %}
-                    </div>
-                </div>
-            {% empty %}
-                <div class="card">
-                    <div class="card-body text-center py-5">
-                        <p class="text-muted mb-3">No asset types have been defined for this campaign yet.</p>
-                        {% if is_owner %}
-                            <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
-                               class="btn btn-primary">
-                                <i class="bi-plus-circle"></i> Create First Asset Type
+        {% for asset_type in asset_types %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h5 mb-0">{{ asset_type.name_plural }}</h2>
+                    {% if is_owner %}
+                        <div class="hstack gap-3">
+                            <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
+                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                <i class="bi-plus-circle"></i> Add {{ asset_type.name_singular }}
                             </a>
-                        {% endif %}
-                    </div>
+                            <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                <i class="bi-pencil"></i> Edit Type
+                            </a>
+                            <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
+                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                <i class="bi-trash"></i> Remove Type
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
-            {% endfor %}
-        </div>
+                {% if asset_type.description %}
+                    <div class="text-muted small mb-3 mb-last-0">{{ asset_type.description|safe }}</div>
+                {% endif %}
+                {% with assets=asset_type.assets.all %}
+                    {% if assets %}
+                        <table class="table table-sm table-borderless mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th class="ps-0 text-muted small text-uppercase fw-semibold">Name</th>
+                                    <th class="text-muted small text-uppercase fw-semibold">Holder</th>
+                                    {% if is_owner and not campaign.archived %}
+                                        <th class="text-end pe-0 text-muted small text-uppercase fw-semibold">Actions</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in assets %}
+                                    <tr>
+                                        <td class="ps-0">
+                                            <div class="fw-semibold">{{ asset.name }}</div>
+                                            {% if asset.description %}<div class="small text-muted mb-last-0">{{ asset.description|safe }}</div>{% endif %}
+                                            {% if asset.properties_with_labels %}
+                                                <div class="small text-muted">
+                                                    {% for label, value in asset.properties_with_labels %}
+                                                        {% if not forloop.first %}·{% endif %}
+                                                        {{ label }}: {{ value }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if asset.holder %}
+                                                <a href="{% url 'core:list' asset.holder.id %}"
+                                                   class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                                            {% else %}
+                                                <span class="text-muted">Unowned</span>
+                                            {% endif %}
+                                        </td>
+                                        {% if is_owner and not campaign.archived %}
+                                            <td class="text-end pe-0 text-nowrap">
+                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Transfer</a>
+                                                ·
+                                                <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                ·
+                                                <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
+                                                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                            </td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted small mb-0">
+                            No {{ asset_type.name_plural|lower }} have been created yet.
+                            {% if is_owner %}
+                                <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}">Add {{ asset_type.name_singular }} →</a>
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                {% endwith %}
+            </section>
+        {% empty %}
+            <p class="text-muted small mb-0">
+                No asset types have been defined for this campaign yet.
+                {% if is_owner %}
+                    <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">Create first asset type →</a>
+                {% endif %}
+            </p>
+        {% endfor %}
     </div>
 {% endblock content %}

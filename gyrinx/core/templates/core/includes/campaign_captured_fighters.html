@@ -3,16 +3,16 @@
     <table class="table table-sm mb-0">
         <thead>
             <tr>
-                <th>Fighter</th>
-                <th>Original Gang</th>
-                <th>Captured By</th>
-                <th>Status</th>
+                <th class="ps-0 text-muted small text-uppercase fw-semibold">Fighter</th>
+                <th class="text-muted small text-uppercase fw-semibold">Original Gang</th>
+                <th class="text-muted small text-uppercase fw-semibold">Captured By</th>
+                <th class="text-muted small text-uppercase fw-semibold">Status</th>
             </tr>
         </thead>
         <tbody>
             {% for captured in captured_fighters|slice:":5" %}
                 <tr>
-                    <td>
+                    <td class="ps-0">
                         <strong>{{ captured.fighter.name }}</strong>
                         <span class="text-secondary small d-block">{{ captured.fighter.content_fighter.type }}</span>
                     </td>

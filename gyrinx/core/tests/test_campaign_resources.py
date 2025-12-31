@@ -417,10 +417,11 @@ def test_campaign_detail_shows_resources():
     assert response.status_code == 200
 
     content = response.content.decode()
-    assert "Campaign Resources" in content
+    # Resources section heading (simplified from "Campaign Resources")
+    assert ">Resources<" in content or "Resources\n" in content
     assert "Meat" in content
     assert "Credits" in content
-    assert "View Resources" in content
+    assert "Manage Resources" in content
 
 
 @pytest.mark.django_db

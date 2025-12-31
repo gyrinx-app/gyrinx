@@ -1,25 +1,22 @@
 {% load allauth custom_tags humanize color_tags %}
 {% if list.is_campaign_mode and list.campaign %}
-    <div class="card g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-        <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
-            <h3 class="h5 mb-0">Actions</h3>
-        </div>
-        <div class="card-body p-0">
-            {% if recent_actions %}
-                <div class="list-group list-group-flush">
-                    {% for action in recent_actions %}
-                        {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
-                    {% endfor %}
-                </div>
-                {% if not print %}
-                    <div class="text-center">
-                        <a href="{% url 'core:campaign-actions' list.campaign.id %}?gang={{ list.id }}"
-                           class="btn btn-sm btn-link">View all actions →</a>
-                    </div>
-                {% endif %}
-            {% else %}
-                <p class="text-muted fs-7 mb-0 p-2">No actions logged yet.</p>
+    <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
+        <h3 class="h5 mb-1">Actions</h3>
+        <p class="text-muted small mb-2">
+            From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
+        </p>
+        {% if recent_actions %}
+            <div class="vstack gap-2">
+                {% for action in recent_actions %}
+                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
+                {% endfor %}
+            </div>
+            {% if not print %}
+                <a href="{% url 'core:campaign-actions' list.campaign.id %}?gang={{ list.id }}"
+                   class="small mt-2 d-inline-block">View all actions →</a>
             {% endif %}
-        </div>
+        {% else %}
+            <p class="text-muted small mb-0">No actions logged yet.</p>
+        {% endif %}
     </div>
 {% endif %}
