@@ -109,7 +109,6 @@ class ContentModStatApplyMixin:
                 stat_name=self.stat,
                 model_class=self.__class__.__name__,
             )
-            pass
 
         # Fallback to hardcoded values for backwards compatibility
         return (

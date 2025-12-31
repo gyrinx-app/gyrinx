@@ -1,0 +1,27 @@
+{% comment %}
+Asset Properties Fields - renders property input fields based on asset type schema.
+Requires: form with property fields (prop_<key>) and extra_properties_json field
+{% endcomment %}
+{% load custom_tags %}
+{% if form.schema_keys %}
+    <fieldset class="border rounded px-3 pb-3">
+        <legend class="float-none w-auto px-2 fs-6 text-muted">Properties</legend>
+        <div class="vstack gap-3">
+            {% for key in form.schema_keys %}
+                {% with field_name="prop_"|add:key %}
+                    {% with field=form|get_item:field_name %}
+                        {% if field %}
+                            <div>
+                                {{ field.label_tag }}
+                                {{ field }}
+                                {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
+                                {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+                {% endwith %}
+            {% endfor %}
+        </div>
+    </fieldset>
+{% endif %}
+{{ form.extra_properties_json }}

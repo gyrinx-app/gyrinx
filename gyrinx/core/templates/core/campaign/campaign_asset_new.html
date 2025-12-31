@@ -28,12 +28,15 @@
                 {% endif %}
                 {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
             </div>
-            <div>
-                {{ form.holder.label_tag }}
-                {{ form.holder }}
-                {% if form.holder.help_text %}<small class="form-text text-muted">{{ form.holder.help_text }}</small>{% endif %}
-                {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
-            </div>
+            {% if form.holder %}
+                <div>
+                    {{ form.holder.label_tag }}
+                    {{ form.holder }}
+                    {% if form.holder.help_text %}<small class="form-text text-muted">{{ form.holder.help_text }}</small>{% endif %}
+                    {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
+                </div>
+            {% endif %}
+            {% include "core/campaign/includes/asset_properties_fields.html" %}
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary" name="save">Create {{ asset_type.name_singular }}</button>
                 <button type="submit" class="btn btn-secondary" name="save_and_add_another">Create and add another</button>

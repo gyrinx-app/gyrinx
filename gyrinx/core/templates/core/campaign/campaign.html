@@ -23,359 +23,319 @@
             {% endif %}
         </div>
     {% endif %}
-    <div class="col-lg-12 px-0 vstack gap-3">
-        <div class="vstack gap-0 mb-2">
-            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
-                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h1 class="mb-0">{{ campaign.name }}</h1>
-                    <div class="ms-md-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</div>
-                </div>
+    <div class="col-lg-12 px-0 vstack gap-5">
+        <!-- Header -->
+        <div class="vstack gap-0">
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
+                <h1 class="mb-0">{{ campaign.name }}</h1>
+                {% if campaign.owner == user %}
+                    <nav class="nav btn-group flex-nowrap ms-md-auto">
+                        <a href="{% url 'core:campaign-edit' campaign.id %}"
+                           class="btn btn-primary btn-sm">
+                            <i class="bi-pencil"></i> Edit
+                        </a>
+                        {% if campaign.can_start_campaign %}
+                            <a href="{% url 'core:campaign-start' campaign.id %}"
+                               class="btn btn-success btn-sm">
+                                <i class="bi-play-circle"></i> Start
+                            </a>
+                        {% elif campaign.can_end_campaign %}
+                            <a href="{% url 'core:campaign-end' campaign.id %}"
+                               class="btn btn-danger btn-sm">
+                                <i class="bi-stop-circle"></i> End
+                            </a>
+                        {% elif campaign.can_reopen_campaign %}
+                            <a href="{% url 'core:campaign-reopen' campaign.id %}"
+                               class="btn btn-success btn-sm">
+                                <i class="bi-arrow-clockwise"></i> Reopen
+                            </a>
+                        {% endif %}
+                        <div class="btn-group" role="group">
+                            <button type="button"
+                                    class="btn btn-secondary btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="More options">
+                                <i class="bi-three-dots"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="{% url 'core:campaign-archive' campaign.id %}">
+                                        <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
+                                        {% if campaign.archived %}
+                                            Unarchive
+                                        {% else %}
+                                            Archive
+                                        {% endif %}
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </nav>
+                {% endif %}
             </div>
-            <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
-                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
+            <div class="d-flex flex-wrap gap-2 text-muted small">
+                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a></span>
+                {% if campaign.public %}
+                    <span data-bs-toggle="tooltip"
+                          data-bs-title="This campaign is visible to all users"><i class="bi-eye"></i> Public</span>
+                {% else %}
+                    <span data-bs-toggle="tooltip"
+                          data-bs-title="This campaign can only be accessed by users with the direct link"><i class="bi-eye-slash"></i> Unlisted</span>
+                {% endif %}
+            </div>
+        </div>
+        <!-- Campaign Info Section -->
+        <div class="vstack gap-2">
+            <div class="d-flex flex-wrap gap-3 border-bottom pb-3 mb-2">
+                <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                    <div class="fw-bold small text-uppercase text-muted">Status</div>
                     <div>
-                        <i class="bi-person"></i>
-                        <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a>
+                        {% if campaign.is_pre_campaign %}
+                            Pre-Campaign
+                        {% elif campaign.is_in_progress %}
+                            In Progress
+                        {% elif campaign.is_post_campaign %}
+                            Post-Campaign
+                        {% endif %}
                     </div>
-                    {% if campaign.public %}
-                        <div>
-                            <i class="bi-eye"></i>
-                            <span data-bs-toggle="tooltip"
-                                  data-bs-title="This campaign is visible to all users"
-                                  class="tooltipped">Public</span>
-                        </div>
-                    {% else %}
-                        <div>
-                            <i class="bi-eye-slash"></i>
-                            <span data-bs-toggle="tooltip"
-                                  data-bs-title="This campaign can only be accessed by users with the direct link"
-                                  class="tooltipped">Unlisted</span>
-                        </div>
-                    {% endif %}
-                    {% if campaign.budget > 0 %}
-                        <div>
-                            <i class="bi-coin"></i> {{ campaign.budget }}¢
-                        </div>
-                    {% endif %}
                 </div>
-                <div class="ms-sm-auto mt-2 mt-sm-0">
-                    {% if campaign.owner == user %}
-                        <nav class="nav btn-group flex-nowrap">
-                            <a href="{% url 'core:campaign-edit' campaign.id %}"
-                               class="btn btn-primary btn-sm">
-                                <i class="bi-pencil"></i> Edit
-                            </a>
-                            {% if campaign.can_start_campaign %}
-                                <a href="{% url 'core:campaign-start' campaign.id %}"
-                                   class="btn btn-success btn-sm">
-                                    <i class="bi-play-circle"></i> Start
-                                </a>
-                            {% elif campaign.can_end_campaign %}
-                                <a href="{% url 'core:campaign-end' campaign.id %}"
-                                   class="btn btn-danger btn-sm">
-                                    <i class="bi-stop-circle"></i> End
-                                </a>
-                            {% elif campaign.can_reopen_campaign %}
-                                <a href="{% url 'core:campaign-reopen' campaign.id %}"
-                                   class="btn btn-success btn-sm">
-                                    <i class="bi-arrow-clockwise"></i> Reopen
-                                </a>
-                            {% endif %}
-                            <div class="btn-group" role="group">
-                                <button type="button"
-                                        class="btn btn-secondary btn-sm dropdown-toggle"
-                                        data-bs-toggle="dropdown"
-                                        aria-expanded="false"
-                                        aria-label="More options">
-                                    <i class="bi-three-dots"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:campaign-archive' campaign.id %}">
-                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
-                                            {% if campaign.archived %}
-                                                Unarchive
-                                            {% else %}
-                                                Archive
-                                            {% endif %}
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </nav>
-                    {% endif %}
-                </div>
+                {% if campaign.phase %}
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="fw-bold small text-uppercase text-muted">Phase</div>
+                        <div>{{ campaign.phase }}</div>
+                        {% if campaign.phase_notes %}
+                            <div class="text-muted small">{{ campaign.phase_notes|safe_rich_text|safe }}</div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {% if campaign.budget > 0 %}
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="fw-bold small text-uppercase text-muted">Budget</div>
+                        <div>{{ campaign.budget }}¢</div>
+                    </div>
+                {% endif %}
             </div>
-            {% if campaign.summary %}
-                <div class="text-muted mt-2 mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>
+            {% if campaign.summary or campaign.narrative %}
+                <div class="vstack gap-1 col-md-9">
+                    {% if campaign.summary %}<div class="mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>{% endif %}
+                    {% if campaign.narrative %}
+                        <div class="text-muted fs-7 mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
-        <div class="vstack gap-3">
-            {% if campaign.narrative %}
-                <div class="card">
-                    <div class="card-body">
-                        <div class="card-text mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
-                    </div>
-                </div>
-            {% endif %}
-            {% if not campaign.summary and not campaign.narrative %}
-                <div class="text-muted">
-                    <i class="bi-info-circle"></i> No campaign details have been added yet.
-                </div>
-            {% endif %}
-            <!-- Campaign Lists -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                    <h2 class="card-title h5 mb-0">Gangs</h2>
-                    {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
-                        <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-plus-circle"></i> Add Gangs
-                        </a>
-                    {% endif %}
-                </div>
-                <div class="card-body p-0">
-                    {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations %}
-                </div>
-            </div>
-            <!-- Campaign Assets -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                    <h2 class="card-title h5 mb-0">
-                        Campaign Assets
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
-                    </h2>
-                    <a href="{% url 'core:campaign-assets' campaign.id %}"
-                       class="btn btn-secondary btn-sm">
-                        <i class="bi-box-seam"></i> View Assets
+        <!-- Gangs -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">Gangs</h2>
+                {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
+                    <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                        <i class="bi-plus-circle"></i> Add Gangs
                     </a>
-                </div>
-                <div class="card-body p-0 vstack gap-3">
-                    {% if asset_types %}
-                        <table class="table table-sm table-borderless mb-0 align-middle">
-                            {% for asset_type in asset_types %}
-                                <thead>
-                                    <tr>
-                                        <th colspan="3"
-                                            class="px-2 px-sm-3 py-2 {% if not forloop.first %}pt-5{% endif %}">
-                                            <h3 class="fs-6 mb-0 fst-italic">{{ asset_type.name_plural }}</h3>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                {% with assets=asset_type.assets.all %}
-                                    {% if assets %}
-                                        <tbody>
-                                            {% for asset in assets %}
-                                                <tr>
-                                                    <td class="ps-2 ps-sm-3">{{ asset.name }}</td>
-                                                    <td class="{% if not is_owner %}text-end pe-2 pe-sm-3{% else %}text-center{% endif %}">
-                                                        {% if asset.holder %}
-                                                            <a href="{% url 'core:list' asset.holder.id %}"
-                                                               class="link-underline-opacity-25 link-underline-opacity-100-hover">
-                                                                {% list_with_theme asset.holder %}
-                                                            </a>
-                                                        {% else %}
-                                                            <span class="text-muted">Unowned</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    {% if is_owner %}
-                                                        <td class="text-end pe-2 pe-sm-3">
-                                                            {% if not campaign.archived %}
-                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                                   class="icon-link link-sm">
-                                                                    <i class="bi-arrow-left-right"></i> Transfer
-                                                                </a>
-                                                            {% endif %}
-                                                        </td>
+                {% endif %}
+            </div>
+            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations %}
+        </section>
+        <!-- Assets -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">
+                    Assets
+                    <i class="bi-info-circle text-muted fs-6 ms-1"
+                       data-bs-toggle="tooltip"
+                       data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
+                </h2>
+                <a href="{% url 'core:campaign-assets' campaign.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Assets →</a>
+            </div>
+            {% if asset_types %}
+                {% for asset_type in asset_types %}
+                    <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                        <div class="text-muted small text-uppercase fw-semibold mb-2">{{ asset_type.name_plural }}</div>
+                        {% with assets=asset_type.assets.all %}
+                            {% if assets %}
+                                <table class="table table-sm table-borderless mb-0 align-middle">
+                                    <tbody>
+                                        {% for asset in assets %}
+                                            <tr>
+                                                <td class="ps-0">
+                                                    <div class="fw-semibold">{{ asset.name }}</div>
+                                                    {% if asset.properties_with_labels %}
+                                                        <div class="small text-muted">
+                                                            {% for label, value in asset.properties_with_labels %}
+                                                                {% if not forloop.first %}·{% endif %}
+                                                                {{ label }}: {{ value }}
+                                                            {% endfor %}
+                                                        </div>
                                                     {% endif %}
-                                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    {% else %}
-                                        <tr>
-                                            <td class="px-2 px-sm-3 pb-3 text-muted small">No {{ asset_type.name_plural|lower }} created yet.</td>
-                                        </tr>
-                                    {% endif %}
-                                {% endwith %}
-                            {% endfor %}
-                        </table>
-                    {% else %}
-                        <div class="py-3 px-2 px-sm-3 text-center text-muted">
-                            No asset types defined yet.
-                            {% if campaign.owner == user %}
-                                <br>
-                                <a href="{% url 'core:campaign-assets' campaign.id %}"
-                                   class="btn btn-link btn-sm mt-2">Manage Assets →</a>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            <!-- Campaign Resources -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                    <h2 class="card-title h5 mb-0">
-                        Campaign Resources
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
-                    </h2>
-                    <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="btn btn-secondary btn-sm">
-                        <i class="bi-coin"></i> View Resources
-                    </a>
-                </div>
-                <div class="card-body p-0 px-2 px-sm-3">
-                    {% if resource_types %}
-                        <div class="table-responsive">
-                            <table class="table table-sm table-borderless mb-0 align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Gang</th>
-                                        {% for resource_type in resource_types %}<th class="text-end">{{ resource_type.name }}</th>{% endfor %}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for list in campaign.lists.all %}
-                                        <tr>
-                                            <td>
-                                                <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list "me-1" %}</a>
-                                            </td>
-                                            {% for resource_type in resource_types %}
-                                                <td class="text-end">
-                                                    {% with list_resources=resource_lookup|lookup:list.id %}
-                                                        {% with res=list_resources|lookup:resource_type.id %}
-                                                            {% if res %}
-                                                                {{ res.amount }}
-                                                                {% if is_owner or res.list.owner == user %}
-                                                                    {% if not campaign.archived %}
-                                                                        <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
-                                                                           class="icon-link text-secondary btn-sm ms-1"
-                                                                           aria-label="Edit {{ resource_type.name }} for {{ list.name }}">
-                                                                            <i class="bi-pencil"></i>
-                                                                        </a>
-                                                                    {% endif %}
-                                                                {% endif %}
-                                                            {% else %}
-                                                                -
-                                                            {% endif %}
-                                                        {% endwith %}
-                                                    {% endwith %}
                                                 </td>
-                                            {% endfor %}
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="p-3 text-center text-muted">
-                            No resource types defined yet.
-                            {% if campaign.owner == user %}
-                                <br>
-                                <a href="{% url 'core:campaign-resources' campaign.id %}"
-                                   class="btn btn-link btn-sm mt-2">Manage Resources →</a>
+                                                <td class="text-end align-top text-nowrap">
+                                                    {% if asset.holder %}
+                                                        <a href="{% url 'core:list' asset.holder.id %}"
+                                                           class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                                                    {% else %}
+                                                        <span class="text-muted">Unowned</span>
+                                                    {% endif %}
+                                                    {% if is_owner and not campaign.archived %}
+                                                        <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p class="text-muted small mb-0">No {{ asset_type.name_plural|lower }} yet.</p>
                             {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            <!-- Campaign Battles -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                    <h2 class="card-title h5 mb-0">Battle Reports</h2>
-                    {% if can_log_actions %}
-                        <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-plus-circle"></i> New Battle
-                        </a>
-                    {% endif %}
-                </div>
-                <div class="card-body p-0">
-                    {% if recent_battles %}
-                        <div class="list-group list-group-flush">
-                            {% for battle in recent_battles %}
-                                {% include "core/includes/battle_summary_card.html" %}
-                            {% endfor %}
-                            {% if campaign.battles.count > battles_limit %}
-                                <div class="list-group-item text-center">
-                                    <a href="{% url 'core:campaign-battles' campaign.id %}"
-                                       class="text-decoration-none">View all {{ campaign.battles.count }} battles →</a>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% else %}
-                        <div class="py-3 px-2 px-sm-3 text-center text-muted">
-                            No battles have been reported yet.
-                            {% if can_log_actions %}
-                                <br>
-                                <a href="{% url 'core:battle-new' campaign.id %}"
-                                   class="btn btn-primary btn-sm mt-2">
-                                    <i class="bi-plus-circle"></i> Create First Battle
-                                </a>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            <!-- Captured Fighters -->
-            {% if campaign.is_in_progress %}
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                        <h2 class="card-title h5 mb-0">Captured Fighters</h2>
-                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                           class="btn btn-secondary btn-sm">
-                            <i class="bi-person-lock"></i> View Captured
-                        </a>
+                        {% endwith %}
                     </div>
-                    <div class="card-body p-0 px-sm-3 py-sm-2">
-                        {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
-                    </div>
-                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted small mb-0">
+                    No asset types defined yet.
+                    {% if campaign.owner == user %}
+                        <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                    {% endif %}
+                </p>
             {% endif %}
-            <!-- Campaign Actions -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center px-2 px-sm-3">
-                    <h2 class="card-title h5 mb-0">
-                        Action Log
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign. This includes key dice rolls, battles, trades, injuries, advancements, and other narrative moments."></i>
-                    </h2>
-                    <div class="hstack gap-2">
-                        {% if can_log_actions and not campaign.archived %}
-                            <a href="{% url 'core:campaign-action-new' campaign.id %}"
-                               class="btn btn-primary btn-sm">
-                                <i class="bi-plus-circle"></i> Log Action
-                            </a>
-                        {% endif %}
-                        <a href="{% url 'core:campaign-actions' campaign.id %}"
-                           class="btn btn-outline-secondary btn-sm">
-                            <i class="bi-list-ul"></i> View All
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    {% with recent_actions=campaign.actions.all|slice:":5" %}
-                        {% if recent_actions %}
-                            <div class="list-group list-group-flush">
-                                {% for action in recent_actions %}
-                                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
+        </section>
+        <!-- Resources -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">
+                    Resources
+                    <i class="bi-info-circle text-muted fs-6 ms-1"
+                       data-bs-toggle="tooltip"
+                       data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
+                </h2>
+                <a href="{% url 'core:campaign-resources' campaign.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Resources →</a>
+            </div>
+            {% if resource_types %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-borderless mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-semibold">Gang</th>
+                                {% for resource_type in resource_types %}
+                                    <th class="text-end text-muted small text-uppercase fw-semibold">{{ resource_type.name }}</th>
                                 {% endfor %}
-                            </div>
-                            <div class="text-center mt-1">
-                                <a href="{% url 'core:campaign-actions' campaign.id %}"
-                                   class="btn btn-sm btn-link">View all actions →</a>
-                            </div>
-                        {% else %}
-                            <div class="p-3 text-center text-muted">No actions logged yet.</div>
-                        {% endif %}
-                    {% endwith %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for list in campaign.lists.all %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list %}</a>
+                                    </td>
+                                    {% for resource_type in resource_types %}
+                                        <td class="text-end">
+                                            {% with list_resources=resource_lookup|lookup:list.id %}
+                                                {% with res=list_resources|lookup:resource_type.id %}
+                                                    {% if res %}
+                                                        {{ res.amount }}
+                                                        {% if is_owner or res.list.owner == user %}
+                                                            {% if not campaign.archived %}
+                                                                <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
+                                                                   class="link-secondary small ms-1"><i class="bi-pencil"></i></a>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                {% endwith %}
+                                            {% endwith %}
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted small mb-0">
+                    No resource types defined yet.
+                    {% if campaign.owner == user %}
+                        <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                    {% endif %}
+                </p>
+            {% endif %}
+        </section>
+        <!-- Battles -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">Battle Reports</h2>
+                {% if can_log_actions %}
+                    <a href="{% url 'core:battle-new' campaign.id %}"
+                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small"><i class="bi-plus-circle"></i> New Battle</a>
+                {% endif %}
+            </div>
+            {% if recent_battles %}
+                <div class="vstack gap-2">
+                    {% for battle in recent_battles %}
+                        {% include "core/includes/battle_summary_card.html" %}
+                    {% endfor %}
+                </div>
+                {% if campaign.battles.count > battles_limit %}
+                    <a href="{% url 'core:campaign-battles' campaign.id %}" class="small">View all {{ campaign.battles.count }} battles →</a>
+                {% endif %}
+            {% else %}
+                <p class="text-muted small mb-0">
+                    No battles reported yet.
+                    {% if can_log_actions %}
+                        <a href="{% url 'core:battle-new' campaign.id %}">Create first battle →</a>
+                    {% endif %}
+                </p>
+            {% endif %}
+        </section>
+        <!-- Captured Fighters -->
+        {% if campaign.is_in_progress %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h5 mb-0">Captured Fighters</h2>
+                    <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                </div>
+                {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
+            </section>
+        {% endif %}
+        <!-- Action Log -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">
+                    Action Log
+                    <i class="bi-info-circle text-muted fs-6 ms-1"
+                       data-bs-toggle="tooltip"
+                       data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign."></i>
+                </h2>
+                <div class="hstack gap-3">
+                    {% if can_log_actions and not campaign.archived %}
+                        <a href="{% url 'core:campaign-action-new' campaign.id %}"
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small"><i class="bi-plus-circle"></i> Log Action</a>
+                    {% endif %}
+                    <a href="{% url 'core:campaign-actions' campaign.id %}"
+                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
                 </div>
             </div>
-        </div>
+            {% with recent_actions=campaign.actions.all|slice:":5" %}
+                {% if recent_actions %}
+                    <div class="vstack gap-2">
+                        {% for action in recent_actions %}
+                            {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
+                        {% endfor %}
+                    </div>
+                    {% if campaign.actions.count > 5 %}
+                        <a href="{% url 'core:campaign-actions' campaign.id %}"
+                           class="small mt-2 d-inline-block">View all {{ campaign.actions.count }} actions →</a>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted small mb-0">No actions logged yet.</p>
+                {% endif %}
+            {% endwith %}
+        </section>
     </div>
 {% endblock content %}

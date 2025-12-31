@@ -6,128 +6,101 @@
 {% block content %}
     {% url 'core:campaign' battle.campaign.id as campaign_url %}
     {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
-    <div class="col-lg-12 px-0 vstack gap-3">
-        <div class="vstack gap-0 mb-2">
-            <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
-                <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h1 class="mb-0">{{ battle.name }}</h1>
-                </div>
+    <div class="col-lg-12 px-0 vstack gap-5">
+        <!-- Header -->
+        <div class="vstack gap-0">
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
+                <h1 class="mb-0">{{ battle.name }}</h1>
+                {% if can_edit %}
+                    <a href="{% url 'core:battle-edit' battle.id %}"
+                       class="btn btn-primary btn-sm ms-md-auto">
+                        <i class="bi-pencil"></i> Edit
+                    </a>
+                {% endif %}
             </div>
-            <div class="d-flex flex-column flex-sm-row row-gap-1 column-gap-2 align-items-sm-center">
-                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2">
-                    <div class="text-secondary">
-                        <i class="bi-calendar"></i>
-                        {{ battle.date|date:"M d, Y" }}
-                    </div>
-                    <div class="text-secondary">
-                        <i class="bi-flag"></i>
-                        Mission: {{ battle.mission }}
-                    </div>
-                    <div class="text-secondary">
-                        <i class="bi-person"></i>
-                        Created by <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a>
-                    </div>
-                </div>
-                <div class="ms-sm-auto mt-2 mt-sm-0">
-                    {% if can_edit %}
-                        <a href="{% url 'core:battle-edit' battle.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
-                    {% endif %}
-                </div>
+            <div class="d-flex flex-wrap gap-2 text-muted small">
+                <span><i class="bi-calendar"></i> {{ battle.date|date:"M d, Y" }}</span>
+                <span><i class="bi-flag"></i> {{ battle.mission }}</span>
+                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
             </div>
         </div>
-        <div class="vstack gap-3">
-            <!-- Participants -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Participants</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-2">
-                        {% for participant in battle.participants.all %}
-                            <div class="col-md-6 col-lg-4">
-                                <div class="d-flex align-items-center gap-2">
-                                    <a href="{% url 'core:list' participant.id %}"
-                                       class="text-decoration-none">{{ participant.name }}</a>
-                                    {% if participant in battle.winners.all %}
-                                        <i class="bi-trophy-fill text-warning"
-                                           data-bs-toggle="tooltip"
-                                           data-bs-title="Winner"></i>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                    {% if not battle.winners.exists %}
-                        <div class="text-muted mt-2">
-                            <i class="bi-info-circle"></i> This battle ended in a draw.
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            <!-- Battle Notes -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Battle Reports</h5>
-                    {% if can_add_notes %}
-                        <a href="{% url 'core:battle-note-add' battle.id %}?return_url={{ request.get_full_path|urlencode }}"
-                           class="btn btn-sm btn-primary">
-                            <i class="bi-plus-circle"></i>
-                            {% if user_note %}
-                                Edit My Note
-                            {% else %}
-                                Add Note
-                            {% endif %}
+        <!-- Participants -->
+        <section>
+            <h2 class="h5 mb-2">Participants</h2>
+            <div class="d-flex flex-wrap gap-3">
+                {% for participant in battle.participants.all %}
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="{% url 'core:list' participant.id %}"
+                           class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                            {% list_with_theme participant %}
                         </a>
-                    {% endif %}
-                </div>
-                <div class="card-body">
-                    {% if notes %}
-                        <div class="vstack gap-3">
-                            {% for note in notes %}
-                                <div class="border rounded p-3">
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <div class="text-muted small">
-                                            <i class="bi-person"></i>
-                                            <a href="{% url 'core:user' note.owner.username %}" class="linked">{{ note.owner }}</a>
-                                            <span class="mx-1">·</span>
-                                            {{ note.created|date:"M d, Y g:i A" }}
-                                        </div>
-                                        {% if note.owner == user %}
-                                            <a href="{% url 'core:battle-note-add' battle.id %}"
-                                               class="btn btn-sm btn-outline-secondary">
-                                                <i class="bi-pencil"></i>
-                                            </a>
-                                        {% endif %}
-                                    </div>
-                                    <div class="mb-last-0">{{ note.content|safe_rich_text|safe }}</div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="text-muted">
-                            <i class="bi-info-circle"></i> No battle reports have been added yet.
-                        </div>
-                    {% endif %}
-                </div>
+                        {% if participant in battle.winners.all %}
+                            <i class="bi-trophy-fill text-warning"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Winner"></i>
+                        {% endif %}
+                    </div>
+                {% endfor %}
             </div>
-            <!-- Related Actions -->
-            {% if actions %}
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Related Campaign Actions</h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for action in actions %}
-                                {% include "core/includes/campaign_action_item.html" with action=action campaign=battle.campaign user=user show_truncated=False %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
+            {% if not battle.winners.exists %}
+                <p class="text-muted small mt-2 mb-0">
+                    <i class="bi-info-circle"></i> This battle ended in a draw.
+                </p>
             {% endif %}
-        </div>
+        </section>
+        <!-- Battle Notes -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">Battle Reports</h2>
+                {% if can_add_notes %}
+                    <a href="{% url 'core:battle-note-add' battle.id %}?return_url={{ request.get_full_path|urlencode }}"
+                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                        <i class="bi-plus-circle"></i>
+                        {% if user_note %}
+                            Edit My Report
+                        {% else %}
+                            Add Battle Report
+                        {% endif %}
+                    </a>
+                {% endif %}
+            </div>
+            {% if notes %}
+                <div class="vstack gap-3">
+                    {% for note in notes %}
+                        <div class="border-start border-2 ps-3">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div class="text-muted small">
+                                    <i class="bi-person"></i>
+                                    <a href="{% url 'core:user' note.owner.username %}" class="linked">{{ note.owner }}</a>
+                                    · {{ note.created|date:"M d, Y g:i A" }}
+                                </div>
+                                {% if note.owner == user %}
+                                    <a href="{% url 'core:battle-note-add' battle.id %}"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                        <i class="bi-pencil"></i> Edit
+                                    </a>
+                                {% endif %}
+                            </div>
+                            <div class="mb-last-0">{{ note.content|safe_rich_text|safe }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-muted small mb-0">
+                    <i class="bi-info-circle"></i> No battle reports have been added yet.
+                </p>
+            {% endif %}
+        </section>
+        <!-- Related Actions -->
+        {% if actions %}
+            <section>
+                <h2 class="h5 mb-2">Related Campaign Actions</h2>
+                <div class="vstack gap-1">
+                    {% for action in actions %}
+                        {% include "core/includes/campaign_action_item.html" with action=action campaign=battle.campaign user=user show_truncated=False %}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
     </div>
 {% endblock content %}

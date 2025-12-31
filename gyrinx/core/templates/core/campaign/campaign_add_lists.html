@@ -5,66 +5,63 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-12 px-0 vstack gap-3">
-        <h1 class="h3">Add Gangs to {{ campaign.name }}</h1>
+    <div class="col-12 px-0 vstack gap-5">
+        <!-- Header -->
+        <div>
+            <h1 class="mb-1">Add Gangs</h1>
+            <p class="text-muted mb-0">{{ campaign.name }}</p>
+        </div>
         {% if error_message %}
-            <div class="alert alert-danger mb-last-0">
-                <p>Error: {{ error_message }}</p>
+            <div class="border border-danger rounded p-3 text-danger">
+                <i class="bi-exclamation-triangle"></i> {{ error_message }}
             </div>
         {% endif %}
         {% if show_confirmation and list_to_confirm %}
-            <div class="alert alert-warning">
-                <h4 class="alert-heading">Confirm Add Gang to Active Campaign</h4>
-                <p>
+            <div class="border border-warning rounded p-3">
+                <h5 class="mb-2">
+                    <i class="bi-exclamation-triangle text-warning"></i> Confirm Add Gang to Active Campaign
+                </h5>
+                <p class="mb-2">
                     This campaign is currently in progress. Adding
                     <strong>{% list_with_theme list_to_confirm %}</strong>
                     will immediately clone it for campaign use.
                 </p>
-                <p class="mb-0">
-                    <strong>Important:</strong> The gang will be cloned to preserve its current state,
-                    and default campaign resources will be allocated to it.
+                <p class="text-muted small mb-3">
+                    The gang will be cloned to preserve its current state, and default campaign resources will be allocated to it.
                 </p>
-                <hr>
                 <div class="d-flex gap-2">
                     <form method="post"
                           action="{% url 'core:campaign-add-lists' campaign.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="list_id" value="{{ list_to_confirm.id }}">
                         <input type="hidden" name="confirm" value="true">
-                        <button type="submit" class="btn btn-warning">
+                        <button type="submit" class="btn btn-warning btn-sm">
                             <i class="bi-check-circle"></i> Yes, Add Gang
                         </button>
                     </form>
                     <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                       class="btn btn-secondary">
+                       class="btn btn-secondary btn-sm">
                         <i class="bi-x-lg"></i> Cancel
                     </a>
                 </div>
             </div>
         {% endif %}
-        <!-- Current Gangs and Invitations -->
+        <!-- Current Gangs -->
         {% if current_lists or pending_invitations %}
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Campaign Gangs</h5>
-                </div>
-                <div class="card-body p-0">
-                    {% include "core/campaign/includes/campaign_lists.html" with lists=current_lists pending_invitations=pending_invitations %}
-                </div>
-            </div>
+            <section>
+                <h2 class="h5 mb-2">Campaign Gangs</h2>
+                {% include "core/campaign/includes/campaign_lists.html" with lists=current_lists pending_invitations=pending_invitations %}
+            </section>
         {% endif %}
-        <!-- Search and Filter Section -->
-        <div>
+        <!-- Search -->
+        <section>
             <form id="search"
                   method="get"
                   action="{% url 'core:campaign-add-lists' campaign.id %}#search"
                   class="vstack gap-3">
                 <input type="hidden" name="flash" value="search">
-                <!-- Search Input -->
                 <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="bi-search"></i>
-                    </span>
+                    <span class="input-group-text"><i class="bi-search"></i></span>
                     <input class="form-control"
                            type="search"
                            placeholder="Search by name, house, or owner"
@@ -74,9 +71,7 @@
                     <button class="btn btn-primary" type="submit">Search</button>
                     {% if request.GET.q %}<a href="?#search" class="btn btn-outline-secondary">Clear</a>{% endif %}
                 </div>
-                <!-- Owner Filter -->
                 <div class="hstack gap-2">
-                    <label class="form-label mb-0 visually-hidden">Filter by owner:</label>
                     <div class="btn-group" role="group">
                         <input type="radio"
                                class="btn-check"
@@ -103,76 +98,70 @@
                                {% if request.GET.owner == "others" %}checked{% endif %}>
                         <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Gangs</label>
                     </div>
-                    <button class="btn btn-link icon-link btn-sm" type="submit">
-                        <i class="bi-arrow-clockwise"></i>
-                        Update
-                    </button>
                 </div>
             </form>
-        </div>
+        </section>
         <!-- Available Lists -->
-        <div class="card {% flash "search" %}">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Available Lists</h5>
-            </div>
-            <div class="card-body p-0">
-                {% if lists %}
-                    <div class="list-group list-group-flush">
+        <section class="{% flash "search" %}">
+            <h2 class="h5 mb-2">Available Gangs</h2>
+            {% if lists %}
+                <table class="table table-sm mb-0 align-middle">
+                    <tbody>
                         {% for list in lists %}
-                            <div class="list-group-item">
-                                <div class="row align-items-center">
-                                    <div class="col">
-                                        <h6 class="mb-1">
-                                            <a href="{% url 'core:list' list.id %}" target="_blank" rel="noopener"><strong>{% list_with_theme list %}</strong></a>
-                                            {% if list.content_house %}• {{ list.content_house_name }}{% endif %}
-                                        </h6>
-                                        <p class="mb-0 text-muted small">
-                                            {% if list.owner == request.user %}
-                                                Your gang
-                                            {% else %}
-                                                By {{ list.owner.username }}
-                                            {% endif %}
-                                            {% with facts=list.facts_with_fallback %}
-                                                • R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
-                                            {% endwith %}
-                                        </p>
+                            <tr>
+                                <td class="ps-0">
+                                    <div class="fw-semibold">
+                                        <a href="{% url 'core:list' list.id %}"
+                                           target="_blank"
+                                           rel="noopener"
+                                           class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme list %}</a>
+                                        {% if list.content_house %}<span class="text-muted fw-normal">· {{ list.content_house_name }}</span>{% endif %}
                                     </div>
-                                    <div class="col-auto">
-                                        <form method="post"
-                                              action="{% url 'core:campaign-add-lists' campaign.id %}">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="list_id" value="{{ list.id }}">
-                                            <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </button>
-                                        </form>
+                                    <div class="small text-muted">
+                                        {% if list.owner == request.user %}
+                                            Your gang
+                                        {% else %}
+                                            {{ list.owner.username }}
+                                        {% endif %}
+                                        {% with facts=list.facts_with_fallback %}
+                                            · R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
+                                        {% endwith %}
                                     </div>
-                                </div>
-                            </div>
+                                </td>
+                                <td class="text-end">
+                                    <form method="post"
+                                          action="{% url 'core:campaign-add-lists' campaign.id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="list_id" value="{{ list.id }}">
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi-plus-lg"></i> Add
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
                         {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="p-3 text-center text-muted">
-                        {% if request.GET.q or request.GET.owner|default:"all" != "all" %}
-                            No gangs found matching your search criteria.
-                        {% else %}
-                            No gangs available to add.
-                        {% endif %}
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted small mb-0">
+                    {% if request.GET.q or request.GET.owner|default:"all" != "all" %}
+                        No gangs found matching your search criteria.
+                    {% else %}
+                        No gangs available to add.
+                    {% endif %}
+                </p>
+            {% endif %}
+        </section>
         <!-- Pagination -->
         {% if page_obj.paginator.num_pages > 1 %}
             <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center">
+                <ul class="pagination justify-content-center mb-0">
                     {% if page_obj.has_previous %}
                         <li class="page-item">
                             <a class="page-link"
                                href="?{% qt request page=page_obj.previous_page_number %}">Previous</a>
                         </li>
                     {% endif %}
-                    <!-- Page numbers -->
                     {% for num in page_obj.paginator.page_range %}
                         {% if page_obj.number == num %}
                             <li class="page-item active">

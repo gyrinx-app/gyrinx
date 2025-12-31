@@ -181,7 +181,7 @@
             </div>
         {% endif %}
     </div>
-    <div class="grid auto-flow-dense {% if print %}gap-2{% endif %}">
+    <div class="grid auto-flow-dense mt-4 {% if print %}gap-2{% endif %}">
         {% if not print %}
             {% include "core/includes/list_campaign_actions.html" with list=list %}
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}

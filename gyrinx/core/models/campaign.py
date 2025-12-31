@@ -60,6 +60,15 @@ class Campaign(AppBase):
         default=1500,
         help_text="Starting budget for each gang in credits.",
     )
+    phase = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Current campaign phase (e.g., 'Occupation', 'Takeover', 'Dominion')",
+    )
+    phase_notes = models.TextField(
+        blank=True,
+        help_text="Notes about the current phase - special rules, conditions, etc.",
+    )
 
     history = HistoricalRecords()
 
@@ -370,6 +379,12 @@ class CampaignAssetType(AppBase):
         blank=True,
         help_text="Description of this asset type",
     )
+    property_schema = models.JSONField(
+        default=pylist,
+        blank=True,
+        help_text="Schema defining available properties for assets of this type. "
+        "Format: [{'key': 'boon', 'label': 'Boon'}, ...]",
+    )
 
     history = HistoricalRecords()
 
@@ -409,6 +424,11 @@ class CampaignAsset(AppBase):
         related_name="held_assets",
         help_text="The list currently holding this asset",
     )
+    properties = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Custom properties for this asset (e.g., boons, income, location)",
+    )
 
     history = HistoricalRecords()
 
@@ -419,6 +439,32 @@ class CampaignAsset(AppBase):
 
     def __str__(self):
         return f"{self.name} ({self.asset_type.name_singular})"
+
+    @property
+    def properties_with_labels(self):
+        """Return properties as a list of (label, value) tuples.
+
+        Looks up the label from the asset_type's property_schema.
+        Falls back to the key if no label is defined.
+        """
+        if not self.properties:
+            return []
+
+        # Build a key -> label lookup from the schema
+        schema_lookup = {}
+        for prop in self.asset_type.property_schema or []:
+            key = prop.get("key", "")
+            label = prop.get("label", key)
+            if key:
+                schema_lookup[key] = label
+
+        # Return properties with labels
+        result = []
+        for key, value in self.properties.items():
+            if value:  # Only include non-empty values
+                label = schema_lookup.get(key, key)
+                result.append((label, value))
+        return result
 
     def transfer_to(self, new_holder, user):
         """Transfer this asset to a new holder and log the action

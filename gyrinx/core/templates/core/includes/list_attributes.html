@@ -1,76 +1,60 @@
 {% load allauth custom_tags humanize %}
-<div class="card g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-    <div class="card-header p-2 bg-secondary-subtle text-secondary-emphasis">
-        <h3 class="h5 mb-0">Attributes</h3>
-    </div>
-    <div class="card-body {% if print %}p-0{% else %}p-2{% endif %}">
-        {% if list.all_attributes %}
-            <table class="table table-sm mb-0 fs-7">
-                <tbody>
-                    {% for attribute in list.all_attributes %}
-                        <tr>
-                            <td>{{ attribute.name }}</td>
-                            <td>
-                                {% if attribute.assignments %}
-                                    {{ attribute.assignments|join:", " }}
-                                {% else %}
-                                    <span class="text-muted">Not set</span>
+<div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
+    <h3 class="h5 mb-2">Attributes</h3>
+    {% if list.all_attributes %}
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <tbody>
+                {% for attribute in list.all_attributes %}
+                    <tr>
+                        <td class="ps-0">{{ attribute.name }}</td>
+                        <td>
+                            {% if attribute.assignments %}
+                                {{ attribute.assignments|join:", " }}
+                            {% else %}
+                                <span class="text-muted">Not set</span>
+                            {% endif %}
+                        </td>
+                        {% if not print %}
+                            <td class="text-end pe-0">
+                                {% if list.owner_cached == user and not list.archived %}
+                                    <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
+                                       class="icon-link link-secondary small">
+                                        <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
+                                           aria-hidden="true"></i>
+                                        {% if attribute.assignments %}
+                                            Edit
+                                        {% else %}
+                                            Add
+                                        {% endif %}
+                                    </a>
                                 {% endif %}
                             </td>
-                            {% if not print %}
-                                <td class="text-end">
-                                    {% if list.owner_cached == user and not list.archived %}
-                                        <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
-                                           class="icon-link link-secondary link-sm">
-                                            <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
-                                               aria-hidden="true"></i>
-                                            {% if attribute.assignments %}
-                                                Edit
-                                            {% else %}
-                                                Add
-                                            {% endif %}
-                                        </a>
-                                    {% endif %}
-                                </td>
-                            {% endif %}
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if list.fighter_type_summary %}
+            <h4 class="text-muted small text-uppercase fw-semibold mb-1 mt-3">Fighter Types</h4>
+            <table class="table table-borderless table-sm mb-0 fs-7">
+                <tbody>
+                    {% for item in list.fighter_type_summary %}
+                        <tr>
+                            <td class="ps-0">{{ item.type }}</td>
+                            <td class="text-muted">{{ item.category }}</td>
+                            <td class="text-end pe-0">{{ item.count }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="ps-0 border-top fw-semibold">Total</td>
+                        <td class="text-end pe-0 border-top fw-semibold">{{ list.active_fighters|length }}</td>
+                    </tr>
+                </tfoot>
             </table>
-            {% if list.fighter_type_summary %}
-                <table class="table table-borderless table-sm mb-0 fs-7">
-                    <thead>
-                        <tr>
-                            <th class="text-secondary-emphasis">Fighter Types</th>
-                            <th class="text-secondary-emphasis">
-                                <span class="visually-hidden">Category</span>
-                            </th>
-                            <th class="text-secondary-emphasis text-end">
-                                <span class="visually-hidden">Count</span> #
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in list.fighter_type_summary %}
-                            <tr>
-                                <td>{{ item.type }}</td>
-                                <td class="text-secondary">{{ item.category }}</td>
-                                <td class="text-end">{{ item.count }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th colspan="2" scope="row">
-                                <span class="visually-hidden"># of Active Fighters</span>
-                            </th>
-                            <td class="text-secondary text-end border-top fw-bold">{{ list.active_fighters|length }}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            {% endif %}
-        {% else %}
-            <p class="text-muted fs-7 mb-0">No attributes available.</p>
         {% endif %}
-    </div>
+    {% else %}
+        <p class="text-muted small mb-0">No attributes available.</p>
+    {% endif %}
 </div>

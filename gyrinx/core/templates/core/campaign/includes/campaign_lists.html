@@ -2,7 +2,7 @@
 {% if campaign.lists.all or pending_invitations %}
     <div class="list-group list-group-flush">
         {% for list in campaign.lists.all %}
-            <div class="list-group-item px-2 px-sm-3">
+            <div class="list-group-item px-0">
                 <div class="d-flex align-items-start">
                     <a href="{% url 'core:list' list.id %}"
                        class="text-decoration-none text-body flex-grow-1">
@@ -10,12 +10,22 @@
                     </a>
                     {% if campaign.owner == user or list.owner == user %}
                         {% if not campaign.is_post_campaign %}
-                            <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                               class="link-danger icon-link ms-2 fs-7"
-                               title="Remove from campaign"
-                               aria-label="Remove from campaign">
-                                <i class="bi-trash"></i> Remove
-                            </a>
+                            <div class="dropdown ms-2">
+                                <button class="btn btn-link btn-sm p-0 text-secondary"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="bi-three-dots"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                                           class="dropdown-item text-danger">
+                                            <i class="bi-trash"></i> Remove from campaign
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         {% endif %}
                     {% endif %}
                 </div>
@@ -23,12 +33,12 @@
         {% endfor %}
         {% if pending_invitations %}
             {% if campaign.lists.all %}
-                <div class="list-group-item px-2 px-sm-3 bg-light">
+                <div class="list-group-item px-0 bg-light">
                     <small class="text-muted fw-bold">Invited</small>
                 </div>
             {% endif %}
             {% for invitation in pending_invitations %}
-                <div class="list-group-item px-2 px-sm-3">
+                <div class="list-group-item px-0">
                     <div class="d-flex align-items-start">
                         <a href="{% url 'core:list' invitation.list.id %}"
                            class="text-decoration-none text-body flex-grow-1">

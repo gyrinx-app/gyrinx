@@ -71,6 +71,21 @@ def lookup(dictionary, key):
     return dictionary.get(key)
 
 
+@register.filter
+def get_item(obj, key):
+    """Get an item from an object by key using [] access.
+
+    Works with forms (to access fields by name), dicts, and any object with __getitem__.
+    Returns None if the key doesn't exist.
+    """
+    if obj is None:
+        return None
+    try:
+        return obj[key]
+    except (KeyError, TypeError, IndexError):
+        return None
+
+
 @register.simple_tag
 def qt(request, **kwargs):
     updated = request.GET.copy()

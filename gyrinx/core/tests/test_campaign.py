@@ -96,9 +96,11 @@ def test_campaign_detail_view_no_content():
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200
 
-    # Check that the no content message is shown
+    # When no summary/narrative, those sections are simply not rendered
     content = response.content.decode()
-    assert "No campaign details have been added yet." in content
+    assert "Empty Campaign" in content
+    # The campaign info section still shows status, just not summary/narrative text
+    assert "Pre-Campaign" in content
 
 
 @pytest.mark.django_db
