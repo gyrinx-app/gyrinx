@@ -273,47 +273,6 @@ class Campaign(AppBase):
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")
 
-    def change_phase(self, new_phase, user, notes=None):
-        """Change the campaign phase and log the action.
-
-        Args:
-            new_phase: The new phase name (can be empty string to clear)
-            user: The User making the change (required for logging)
-            notes: Optional notes about the phase (updates phase_notes if provided)
-
-        Returns:
-            bool: True if phase was changed, False if no change needed
-        """
-        if not user:
-            raise ValueError("User is required for phase changes")
-
-        old_phase = self.phase
-        if old_phase == new_phase and (notes is None or self.phase_notes == notes):
-            return False  # No change needed
-
-        self.phase = new_phase
-        if notes is not None:
-            self.phase_notes = notes
-        self.save()
-
-        # Log the phase change
-        if old_phase != new_phase:
-            if old_phase and new_phase:
-                description = f"Phase Change: {old_phase} → {new_phase}"
-            elif new_phase:
-                description = f"Phase Set: {new_phase}"
-            else:
-                description = f"Phase Cleared (was: {old_phase})"
-
-            CampaignAction.objects.create(
-                campaign=self,
-                user=user,
-                description=description,
-                owner=user,
-            )
-
-        return True
-
 
 class CampaignAction(AppBase):
     """An action taken during a campaign with optional dice rolls"""
