@@ -385,6 +385,13 @@ class CampaignAssetType(AppBase):
         help_text="Schema defining available properties for assets of this type. "
         "Format: [{'key': 'boon', 'label': 'Boon'}, ...]",
     )
+    sub_asset_schema = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Schema defining sub-asset types for this asset type. "
+        "Format: {'structure': {'label': 'Structure', 'label_plural': 'Structures', "
+        "'property_schema': [{'key': 'benefit', 'label': 'Benefit'}, ...]}, ...}",
+    )
 
     history = HistoricalRecords()
 
@@ -464,6 +471,33 @@ class CampaignAsset(AppBase):
             if value:  # Only include non-empty values
                 label = schema_lookup.get(key, key)
                 result.append((label, value))
+        return result
+
+    @property
+    def sub_asset_counts(self):
+        """Return counts of sub-assets by type as a list of (label, count) tuples.
+
+        Example: [("Structures", 3), ("Workers", 2)]
+        """
+        schema = self.asset_type.sub_asset_schema or {}
+        if not schema:
+            return []
+
+        # Count sub-assets by type
+        from collections import Counter
+
+        type_counts = Counter(
+            sub_asset.sub_asset_type for sub_asset in self.sub_assets.all()
+        )
+
+        # Build result with labels in schema order
+        result = []
+        for type_key, type_def in schema.items():
+            count = type_counts.get(type_key, 0)
+            if count > 0:
+                label = type_def.get("label_plural", type_def.get("label", type_key))
+                result.append((label, count))
+
         return result
 
     def transfer_to(self, new_holder, user):
@@ -606,3 +640,75 @@ class CampaignListResource(AppBase):
             dice_count=0,
             owner=user,
         )
+
+
+class CampaignSubAsset(AppBase):
+    """A sub-asset belonging to a campaign asset (e.g., Structure in a Settlement)"""
+
+    parent_asset = models.ForeignKey(
+        CampaignAsset,
+        on_delete=models.CASCADE,
+        related_name="sub_assets",
+        help_text="The parent asset this sub-asset belongs to",
+        db_index=True,
+    )
+    sub_asset_type = models.CharField(
+        max_length=100,
+        help_text="Type of sub-asset (key in parent asset type's sub_asset_schema)",
+        validators=[validators.MinLengthValidator(1)],
+        db_index=True,
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of the sub-asset (e.g., 'Generator Hall')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    properties = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Custom properties for this sub-asset based on schema",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Sub-Asset"
+        verbose_name_plural = "Campaign Sub-Assets"
+        ordering = ["sub_asset_type", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.sub_asset_type})"
+
+    @property
+    def schema_definition(self):
+        """Get the schema definition for this sub-asset type from parent asset type"""
+        sub_asset_schemas = self.parent_asset.asset_type.sub_asset_schema or {}
+        return sub_asset_schemas.get(self.sub_asset_type, {})
+
+    @property
+    def type_label(self):
+        """Get the display label for this sub-asset type"""
+        return self.schema_definition.get("label", self.sub_asset_type)
+
+    @property
+    def properties_with_labels(self):
+        """Return properties as list of (label, value) tuples using schema"""
+        if not self.properties:
+            return []
+
+        schema_def = self.schema_definition
+        property_schema = schema_def.get("property_schema", [])
+
+        schema_lookup = {}
+        for prop in property_schema:
+            key = prop.get("key", "")
+            label = prop.get("label", key)
+            if key:
+                schema_lookup[key] = label
+
+        result = []
+        for key, value in self.properties.items():
+            if value:
+                label = schema_lookup.get(key, key)
+                result.append((label, value))
+        return result

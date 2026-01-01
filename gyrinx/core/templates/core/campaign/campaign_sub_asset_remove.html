@@ -1,0 +1,28 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Remove {{ sub_asset.name }} - {{ asset.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign-asset-edit' campaign.id asset.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Back to Asset" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Remove {{ sub_asset.name }}</h1>
+        <form action="{% url 'core:campaign-sub-asset-remove' campaign.id asset.id sub_asset.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Are you sure?</h4>
+                <p class="mb-0">
+                    This will permanently remove the {{ sub_asset_type_def.label|lower }} <strong>{{ sub_asset.name }}</strong> from {{ asset.name }}.
+                </p>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi-trash"></i> Remove {{ sub_asset_type_def.label }}
+                </button>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

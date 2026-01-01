@@ -8,6 +8,7 @@ from gyrinx.core.models.campaign import (
     CampaignAsset,
     CampaignAssetType,
     CampaignResourceType,
+    CampaignSubAsset,
 )
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
@@ -215,6 +216,12 @@ class CampaignAssetTypeForm(forms.ModelForm):
         widget=forms.HiddenInput(attrs={"id": "property-schema-json"}),
     )
 
+    # Hidden field to store the sub-asset schema JSON
+    sub_asset_schema_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "sub-asset-schema-json"}),
+    )
+
     class Meta:
         model = CampaignAssetType
         fields = ["name_singular", "name_plural", "description"]
@@ -239,13 +246,17 @@ class CampaignAssetTypeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.campaign = kwargs.pop("campaign", None)
         super().__init__(*args, **kwargs)
-        # Set initial value for the hidden JSON field
+        # Set initial value for the hidden JSON fields
         if self.instance and self.instance.pk:
             self.fields["property_schema_json"].initial = json.dumps(
                 self.instance.property_schema or []
             )
+            self.fields["sub_asset_schema_json"].initial = json.dumps(
+                self.instance.sub_asset_schema or {}
+            )
         else:
             self.fields["property_schema_json"].initial = "[]"
+            self.fields["sub_asset_schema_json"].initial = "{}"
 
     def clean_property_schema_json(self):
         """Validate and parse the property schema JSON"""
@@ -273,9 +284,52 @@ class CampaignAssetTypeForm(forms.ModelForm):
         except json.JSONDecodeError as e:
             raise forms.ValidationError(f"Invalid JSON: {e}")
 
+    def clean_sub_asset_schema_json(self):
+        """Validate and parse the sub-asset schema JSON"""
+        data = self.cleaned_data.get("sub_asset_schema_json", "{}")
+        if not data:
+            return {}
+        try:
+            schema = json.loads(data)
+            if not isinstance(schema, dict):
+                raise forms.ValidationError("Sub-asset schema must be an object")
+
+            # Validate each sub-asset type definition
+            for key, definition in schema.items():
+                if not isinstance(definition, dict):
+                    raise forms.ValidationError(
+                        f"Definition for '{key}' must be an object"
+                    )
+                if "label" not in definition:
+                    raise forms.ValidationError(
+                        f"Definition for '{key}' must have a 'label'"
+                    )
+
+                # Validate property schema if present
+                if "property_schema" in definition:
+                    prop_schema = definition["property_schema"]
+                    if not isinstance(prop_schema, list):
+                        raise forms.ValidationError(
+                            f"property_schema for '{key}' must be a list"
+                        )
+                    for item in prop_schema:
+                        if not isinstance(item, dict):
+                            raise forms.ValidationError(
+                                f"Each property in '{key}' must be an object"
+                            )
+                        if "key" not in item or "label" not in item:
+                            raise forms.ValidationError(
+                                f"Each property in '{key}' must have 'key' and 'label' fields"
+                            )
+
+            return schema
+        except json.JSONDecodeError as e:
+            raise forms.ValidationError(f"Invalid JSON: {e}")
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.property_schema = self.cleaned_data.get("property_schema_json", [])
+        instance.sub_asset_schema = self.cleaned_data.get("sub_asset_schema_json", {})
         if commit:
             instance.save()
         return instance
@@ -454,6 +508,85 @@ class AssetTransferForm(forms.Form):
         if asset.holder:
             campaign_lists = campaign_lists.exclude(pk=asset.holder.pk)
         self.fields["new_holder"].queryset = campaign_lists
+
+
+class CampaignSubAssetForm(forms.ModelForm):
+    """Form for creating and editing campaign sub-assets"""
+
+    class Meta:
+        model = CampaignSubAsset
+        fields = ["name"]
+        labels = {
+            "name": "Name",
+        }
+        help_texts = {
+            "name": "Name of this sub-asset",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.parent_asset = kwargs.pop("parent_asset", None)
+        self.sub_asset_type_key = kwargs.pop("sub_asset_type", None)
+        super().__init__(*args, **kwargs)
+
+        # Get parent asset from instance if not provided
+        if not self.parent_asset and self.instance and self.instance.pk:
+            self.parent_asset = self.instance.parent_asset
+
+        # Get sub_asset_type from instance if not provided
+        if not self.sub_asset_type_key and self.instance and self.instance.pk:
+            self.sub_asset_type_key = self.instance.sub_asset_type
+
+        # Get existing properties from instance
+        existing_properties = {}
+        if self.instance and self.instance.pk:
+            existing_properties = self.instance.properties or {}
+
+        # Add dynamic fields based on property schema
+        self.schema_keys = []
+        if self.parent_asset and self.sub_asset_type_key:
+            asset_type = self.parent_asset.asset_type
+            sub_asset_schemas = asset_type.sub_asset_schema or {}
+            schema_def = sub_asset_schemas.get(self.sub_asset_type_key, {})
+            property_schema = schema_def.get("property_schema", [])
+
+            for prop in property_schema:
+                key = prop.get("key", "")
+                label = prop.get("label", key)
+                description = prop.get("description", "")
+                if key:
+                    self.schema_keys.append(key)
+                    field_name = f"prop_{key}"
+                    self.fields[field_name] = forms.CharField(
+                        required=False,
+                        label=label,
+                        help_text=description,
+                        widget=forms.TextInput(attrs={"class": "form-control"}),
+                        initial=existing_properties.get(key, ""),
+                    )
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        # Set sub_asset_type if provided
+        if self.sub_asset_type_key and not instance.sub_asset_type:
+            instance.sub_asset_type = self.sub_asset_type_key
+
+        # Build properties dict from schema fields
+        properties = {}
+        for key in self.schema_keys:
+            field_name = f"prop_{key}"
+            value = self.cleaned_data.get(field_name, "")
+            if value:
+                properties[key] = value
+
+        instance.properties = properties
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class CampaignResourceTypeForm(forms.ModelForm):

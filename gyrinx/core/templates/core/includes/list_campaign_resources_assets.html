@@ -5,7 +5,7 @@
         <div class="vstack gap-3">
             {% if held_assets %}
                 <div>
-                    <h4 class="text-muted small text-uppercase fw-semibold mb-1">Assets</h4>
+                    <h4 class="caps-label mb-1">Assets</h4>
                     <div class="vstack gap-1">
                         {% for asset in held_assets %}
                             <div class="d-flex align-items-center fs-7">
@@ -30,7 +30,7 @@
             {% endif %}
             {% if campaign_resources %}
                 <div>
-                    <h4 class="text-muted small text-uppercase fw-semibold mb-1">Resources</h4>
+                    <h4 class="caps-label mb-1">Resources</h4>
                     <table class="table table-sm table-borderless mb-0 fs-7">
                         <tbody>
                             {% for resource in campaign_resources %}
@@ -61,7 +61,7 @@
             {% endif %}
             {% if captured_fighters %}
                 <div>
-                    <h4 class="text-muted small text-uppercase fw-semibold mb-1">Captured Fighters</h4>
+                    <h4 class="caps-label mb-1">Captured Fighters</h4>
                     <table class="table table-sm table-borderless mb-0 fs-7">
                         <tbody>
                             {% for capture in captured_fighters %}

@@ -512,6 +512,22 @@ urlpatterns = [
         campaign.campaign_asset_remove,
         name="campaign-asset-remove",
     ),
+    # Campaign Sub-Assets
+    path(
+        "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_type>/new",
+        campaign.campaign_sub_asset_new,
+        name="campaign-sub-asset-new",
+    ),
+    path(
+        "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_id>/edit",
+        campaign.campaign_sub_asset_edit,
+        name="campaign-sub-asset-edit",
+    ),
+    path(
+        "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_id>/remove",
+        campaign.campaign_sub_asset_remove,
+        name="campaign-sub-asset-remove",
+    ),
     # Campaign Resources
     path(
         "campaign/<id>/resources",
