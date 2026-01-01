@@ -1,0 +1,214 @@
+{% comment %}
+Sub-Asset Schema Editor - allows adding/removing sub-asset type definitions for asset types.
+Requires: form with sub_asset_schema_json field
+{% endcomment %}
+<div class="mt-4 border-top pt-4">
+    <label class="form-label">
+        Sub-Asset Types
+        <i class="bi-info-circle text-muted"
+           data-bs-toggle="tooltip"
+           data-bs-title="Define types of sub-assets that can be added to assets of this type (e.g., Structures for Settlements)"></i>
+    </label>
+    <small class="form-text text-muted d-block mb-2">Define sub-assets that can be added to assets of this type. Each sub-asset type can have its own properties.</small>
+    <div id="sub-asset-schema-list" class="vstack gap-3 mb-2">
+        <!-- Sub-asset type entries will be added here by JavaScript -->
+    </div>
+    <button type="button"
+            id="add-sub-asset-type-btn"
+            class="btn btn-outline-secondary btn-sm">
+        <i class="bi-plus-circle"></i> Add Sub-Asset Type
+    </button>
+    {{ form.sub_asset_schema_json }}
+    {% if form.sub_asset_schema_json.errors %}
+        <div class="invalid-feedback d-block">{{ form.sub_asset_schema_json.errors }}</div>
+    {% endif %}
+</div>
+<template id="sub-asset-type-template">
+    <div class="sub-asset-type-entry p-3 border rounded bg-light">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <strong class="sub-asset-type-title">New Sub-Asset Type</strong>
+            <button type="button"
+                    class="btn btn-outline-danger btn-sm remove-sub-asset-type-btn">
+                <i class="bi-trash"></i>
+            </button>
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-md-6">
+                <label class="form-label small">Label (singular)</label>
+                <input type="text"
+                       class="form-control form-control-sm sub-asset-label"
+                       placeholder="e.g., Structure">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Label (plural)</label>
+                <input type="text"
+                       class="form-control form-control-sm sub-asset-label-plural"
+                       placeholder="e.g., Structures">
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="form-label small">Description (optional)</label>
+            <input type="text"
+                   class="form-control form-control-sm sub-asset-description"
+                   placeholder="e.g., Buildings within the settlement">
+        </div>
+        <div class="mb-2">
+            <label class="form-label small">Properties</label>
+            <div class="sub-asset-properties-list vstack gap-1">
+                <!-- Property rows will be added here -->
+            </div>
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm mt-1 add-sub-asset-property-btn">
+                <i class="bi-plus"></i> Add Property
+            </button>
+        </div>
+    </div>
+</template>
+<template id="sub-asset-property-template">
+    <div class="sub-asset-property d-flex gap-2 align-items-center">
+        <input type="text"
+               class="form-control form-control-sm sub-asset-prop-label flex-grow-1"
+               placeholder="Property label (e.g., Benefit)">
+        <button type="button"
+                class="btn btn-outline-danger btn-sm remove-sub-asset-property-btn">
+            <i class="bi-x"></i>
+        </button>
+    </div>
+</template>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const schemaList = document.getElementById('sub-asset-schema-list');
+    const addTypeBtn = document.getElementById('add-sub-asset-type-btn');
+    const jsonField = document.getElementById('sub-asset-schema-json');
+    const typeTemplate = document.getElementById('sub-asset-type-template');
+    const propTemplate = document.getElementById('sub-asset-property-template');
+
+    // Generate a safe key from a label
+    function labelToKey(label) {
+        return label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .replace(/^(\d)/, '_$1');
+    }
+
+    // Parse initial schema from the hidden field
+    let schema = {};
+    try {
+        schema = JSON.parse(jsonField.value || '{}');
+    } catch (e) {
+        console.error('Failed to parse sub-asset schema:', e);
+        schema = {};
+    }
+
+    // Render existing sub-asset types
+    Object.entries(schema).forEach(([key, def]) => {
+        addSubAssetTypeEntry(def.label, def.label_plural, def.description, def.property_schema || []);
+    });
+
+    // Add new sub-asset type button handler
+    addTypeBtn.addEventListener('click', function() {
+        addSubAssetTypeEntry('', '', '', []);
+        updateJsonField();
+    });
+
+    function addSubAssetTypeEntry(label, labelPlural, description, properties) {
+        const entry = typeTemplate.content.cloneNode(true);
+        const labelInput = entry.querySelector('.sub-asset-label');
+        const labelPluralInput = entry.querySelector('.sub-asset-label-plural');
+        const descInput = entry.querySelector('.sub-asset-description');
+        const propertiesList = entry.querySelector('.sub-asset-properties-list');
+        const addPropBtn = entry.querySelector('.add-sub-asset-property-btn');
+        const removeBtn = entry.querySelector('.remove-sub-asset-type-btn');
+        const titleEl = entry.querySelector('.sub-asset-type-title');
+
+        labelInput.value = label || '';
+        labelPluralInput.value = labelPlural || '';
+        descInput.value = description || '';
+
+        // Update title dynamically
+        function updateTitle() {
+            titleEl.textContent = labelInput.value || 'New Sub-Asset Type';
+        }
+
+        // Add existing properties
+        properties.forEach(prop => addPropertyRow(propertiesList, prop.label || ''));
+
+        // Event listeners
+        labelInput.addEventListener('input', function() {
+            updateTitle();
+            updateJsonField();
+        });
+        labelPluralInput.addEventListener('input', updateJsonField);
+        descInput.addEventListener('input', updateJsonField);
+
+        addPropBtn.addEventListener('click', function() {
+            addPropertyRow(propertiesList, '');
+            updateJsonField();
+        });
+
+        removeBtn.addEventListener('click', function() {
+            this.closest('.sub-asset-type-entry').remove();
+            updateJsonField();
+        });
+
+        schemaList.appendChild(entry);
+        updateTitle();
+    }
+
+    function addPropertyRow(container, label) {
+        const row = propTemplate.content.cloneNode(true);
+        const labelInput = row.querySelector('.sub-asset-prop-label');
+        const removeBtn = row.querySelector('.remove-sub-asset-property-btn');
+
+        labelInput.value = label || '';
+        labelInput.addEventListener('input', updateJsonField);
+
+        removeBtn.addEventListener('click', function() {
+            this.closest('.sub-asset-property').remove();
+            updateJsonField();
+        });
+
+        container.appendChild(row);
+    }
+
+    function updateJsonField() {
+        const entries = schemaList.querySelectorAll('.sub-asset-type-entry');
+        const newSchema = {};
+
+        entries.forEach(entry => {
+            const label = entry.querySelector('.sub-asset-label').value.trim();
+            const labelPlural = entry.querySelector('.sub-asset-label-plural').value.trim();
+            const description = entry.querySelector('.sub-asset-description').value.trim();
+
+            if (label) {
+                const key = labelToKey(label);
+                const propertyRows = entry.querySelectorAll('.sub-asset-property');
+                const propertySchema = [];
+
+                propertyRows.forEach(row => {
+                    const propLabel = row.querySelector('.sub-asset-prop-label').value.trim();
+                    if (propLabel) {
+                        propertySchema.push({
+                            key: labelToKey(propLabel),
+                            label: propLabel
+                        });
+                    }
+                });
+
+                newSchema[key] = {
+                    label: label,
+                    label_plural: labelPlural || label + 's',
+                    description: description,
+                    property_schema: propertySchema
+                };
+            }
+        });
+
+        jsonField.value = JSON.stringify(newSchema);
+    }
+
+    // Initial update to sync
+    updateJsonField();
+});
+</script>

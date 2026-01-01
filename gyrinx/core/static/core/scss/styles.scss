@@ -169,6 +169,25 @@ label {
     margin-bottom: 0 !important;
 }
 
+// Labels
+
+.caps-label {
+    @extend .small;
+    @extend .text-uppercase;
+    @extend .text-muted;
+    @extend .fw-semibold;
+    letter-spacing: 0.03em;
+}
+
+// Responsive font sizes - small by default, normal at breakpoint
+@each $bp, $bp-value in $grid-breakpoints {
+    @include media-breakpoint-up($bp) {
+        .fs-#{$bp}-normal {
+            font-size: $font-size-base !important;
+        }
+    }
+}
+
 // Custom
 
 .errorlist {
@@ -248,6 +267,33 @@ $em-sizes: (
             .size-em-#{$bp}-#{$size} {
                 width: $value;
                 height: $value;
+            }
+        }
+    }
+}
+
+// Width utilities in em
+$width-em-sizes: (
+    3: 3em,
+    4: 4em,
+    5: 5em,
+    6: 6em,
+    8: 8em,
+    10: 10em,
+    12: 12em,
+);
+
+@each $size, $value in $width-em-sizes {
+    .w-em-#{$size} {
+        width: $value;
+    }
+}
+
+@each $bp, $bp-value in $grid-breakpoints {
+    @include media-breakpoint-up($bp) {
+        @each $size, $value in $width-em-sizes {
+            .w-em-#{$bp}-#{$size} {
+                width: $value;
             }
         }
     }

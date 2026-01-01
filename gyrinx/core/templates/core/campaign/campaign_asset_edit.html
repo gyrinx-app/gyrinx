@@ -37,6 +37,59 @@
                 </div>
             {% endif %}
             {% include "core/campaign/includes/asset_properties_fields.html" %}
+            {% if asset.asset_type.sub_asset_schema %}
+                {% for type_key, type_def in asset.asset_type.sub_asset_schema.items %}
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="h5 mb-0">{{ type_def.label_plural|default:type_def.label }}</h3>
+                            {% if not campaign.archived %}
+                                <a href="{% url 'core:campaign-sub-asset-new' campaign.id asset.id type_key %}"
+                                   class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                    <i class="bi-plus-circle"></i> Add {{ type_def.label }}
+                                </a>
+                            {% endif %}
+                        </div>
+                        {% if type_def.description %}<p class="text-muted small">{{ type_def.description }}</p>{% endif %}
+                        {% with filtered_sub_assets=asset.sub_assets.all %}
+                            {% for sub_asset in filtered_sub_assets %}
+                                {% if sub_asset.sub_asset_type == type_key %}
+                                    <div class="border rounded p-2 mb-2">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <span class="fw-semibold">{{ sub_asset.name }}</span>
+                                                {% if sub_asset.properties_with_labels %}
+                                                    <div class="small text-muted">
+                                                        {% for label, value in sub_asset.properties_with_labels %}
+                                                            {% if not forloop.first %}·{% endif %}
+                                                            {{ label }}: {{ value }}
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            {% if not campaign.archived %}
+                                                <div class="text-nowrap ms-2">
+                                                    <a href="{% url 'core:campaign-sub-asset-edit' campaign.id asset.id sub_asset.id %}"
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                    <a href="{% url 'core:campaign-sub-asset-remove' campaign.id asset.id sub_asset.id %}"
+                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small ms-2">Remove</a>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% empty %}
+                            {% endfor %}
+                            {% with has_any=False %}
+                                {% for sub_asset in filtered_sub_assets %}
+                                    {% if sub_asset.sub_asset_type == type_key %}
+                                        {% with has_any=True %}{% endwith %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endwith %}
+                        {% endwith %}
+                    </div>
+                {% endfor %}
+            {% endif %}
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Update {{ asset.asset_type.name_singular }}</button>
                 <a href="{% url 'core:campaign-assets' campaign.id %}"

@@ -29,14 +29,38 @@
                                class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
                                 <i class="bi-plus-circle"></i> Add {{ asset_type.name_singular }}
                             </a>
+                            <!-- Expanded links for sm and up -->
                             <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small d-none d-sm-inline">
                                 <i class="bi-pencil"></i> Edit Type
                             </a>
                             <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
-                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small d-none d-sm-inline">
                                 <i class="bi-trash"></i> Remove Type
                             </a>
+                            <!-- Dropdown for mobile -->
+                            <div class="dropdown d-sm-none">
+                                <button class="btn btn-sm btn-link text-secondary p-0"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}">
+                                            <i class="bi-pencil"></i> Edit Type
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item text-danger"
+                                           href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}">
+                                            <i class="bi-trash"></i> Remove Type
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     {% endif %}
                 </div>
@@ -48,10 +72,12 @@
                         <table class="table table-sm table-borderless mb-0 align-middle">
                             <thead>
                                 <tr>
-                                    <th class="ps-0 text-muted small text-uppercase fw-semibold">Name</th>
-                                    <th class="text-muted small text-uppercase fw-semibold">Holder</th>
+                                    <th class="caps-label ps-0">Name</th>
+                                    <th class="caps-label w-em-10 w-em-sm-12">Holder</th>
                                     {% if is_owner and not campaign.archived %}
-                                        <th class="text-end pe-0 text-muted small text-uppercase fw-semibold">Actions</th>
+                                        <th class="caps-label text-end pe-0 w-em-3 w-em-sm-12">
+                                            <span class="d-none d-sm-inline">Actions</span>
+                                        </th>
                                     {% endif %}
                                 </tr>
                             </thead>
@@ -65,12 +91,20 @@
                                                 <div class="small text-muted">
                                                     {% for label, value in asset.properties_with_labels %}
                                                         {% if not forloop.first %}·{% endif %}
-                                                        {{ label }}: {{ value }}
+                                                        <span class="text-nowrap">{{ label }}: {{ value }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                            {% if asset.sub_asset_counts %}
+                                                <div class="small text-muted">
+                                                    {% for label, count in asset.sub_asset_counts %}
+                                                        {% if not forloop.first %}·{% endif %}
+                                                        <span class="text-nowrap">{{ count }} {{ label }}</span>
                                                     {% endfor %}
                                                 </div>
                                             {% endif %}
                                         </td>
-                                        <td>
+                                        <td class="small">
                                             {% if asset.holder %}
                                                 <a href="{% url 'core:list' asset.holder.id %}"
                                                    class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
@@ -80,14 +114,46 @@
                                         </td>
                                         {% if is_owner and not campaign.archived %}
                                             <td class="text-end pe-0 text-nowrap">
-                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Transfer</a>
-                                                ·
-                                                <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
-                                                ·
-                                                <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
-                                                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                                <!-- Expanded links for sm and up -->
+                                                <span class="d-none d-sm-inline">
+                                                    <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Transfer</a>
+                                                    ·
+                                                    <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                    ·
+                                                    <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
+                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                                </span>
+                                                <!-- Dropdown for mobile -->
+                                                <div class="dropdown d-sm-none d-inline-block">
+                                                    <button class="btn btn-sm btn-link text-secondary p-0"
+                                                            type="button"
+                                                            data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                        <i class="bi-three-dots-vertical"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li>
+                                                            <a class="dropdown-item"
+                                                               href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}">
+                                                                <i class="bi-arrow-left-right"></i> Transfer
+                                                            </a>
+                                                        </li>
+                                                        <li>
+                                                            <a class="dropdown-item"
+                                                               href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}">
+                                                                <i class="bi-pencil"></i> Edit
+                                                            </a>
+                                                        </li>
+                                                        <li>
+                                                            <a class="dropdown-item text-danger"
+                                                               href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}">
+                                                                <i class="bi-trash"></i> Remove
+                                                            </a>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </td>
                                         {% endif %}
                                     </tr>
