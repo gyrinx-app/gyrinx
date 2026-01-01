@@ -1,7 +1,15 @@
 {% load allauth custom_tags humanize color_tags %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-        <h3 class="h5 mb-1">Actions</h3>
+        <div class="hstack gap-2  align-items-center">
+            <h3 class="h5 mb-1 flex-grow-1">Actions</h3>
+            {% if not list.campaign.archived %}
+                <a href="{% url 'core:campaign-action-new' list.campaign.id %}?gang={{ list.id }}&return_url={{ request.path|urlencode }}&return_text={{ 'Back to '|add:list.name|urlencode }}"
+                   class="icon-link link-sm">
+                    <i class="bi-plus-circle" aria-hidden="true"></i> Log Action
+                </a>
+            {% endif %}
+        </div>
         <p class="text-muted small mb-2">
             From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
         </p>
