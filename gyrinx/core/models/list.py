@@ -2096,6 +2096,10 @@ class ListFighter(AppBase):
     @cached_property
     @traced("listfighter_advancement_cost_int")
     def _advancement_cost_int(self):
+        # Dead, captured, or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            return 0
+
         if hasattr(self, "annotated_advancement_total_cost"):
             return self.annotated_advancement_total_cost
 
@@ -3066,7 +3070,7 @@ class ListFighter(AppBase):
     @traced("listfighter_should_have_zero_cost")
     def should_have_zero_cost(self):
         """Check if this fighter should contribute 0 to gang total cost."""
-        return self.is_captured or self.is_sold_to_guilders
+        return self.is_captured or self.is_sold_to_guilders or self.is_dead
 
     @property
     @traced("listfighter_active_advancement_count")
