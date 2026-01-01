@@ -42,6 +42,7 @@ from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter, List
 from gyrinx.core.utils import safe_redirect
 from gyrinx.models import is_int, is_valid_uuid
+from gyrinx.tracker import track
 
 # Constants for transaction limits
 MAX_CREDITS = 10000
@@ -389,6 +390,11 @@ def campaign_add_lists(request, id):
                                     list_owner=list_to_add.owner.username,
                                     action="invitation_auto_accepted",
                                 )
+
+                                track(
+                                    "campaign_list_added",
+                                    campaign_id=str(campaign.id),
+                                )
                             else:
                                 # If accept() returned False, the invitation was already accepted
                                 if (
@@ -655,6 +661,8 @@ def campaign_remove_list(request, id, list_id):
             list_owner=list_owner_username,
         )
 
+        track("campaign_list_removed", campaign_id=str(campaign.id))
+
         # Show success message
         house_text = f" ({list_house})" if list_house else ""
         messages.success(
@@ -719,6 +727,8 @@ def new_campaign(request):
                 campaign_name=campaign.name,
                 public=campaign.public,
             )
+
+            track("campaign_created", campaign_id=str(campaign.id))
 
             return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     else:
@@ -832,6 +842,12 @@ def campaign_log_action(request, id):
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
                 description=action.description,
+            )
+
+            track(
+                "campaign_action_logged",
+                campaign_id=str(campaign.id),
+                has_dice=bool(action.dice_count),
             )
 
             # Redirect to outcome edit page
@@ -1061,6 +1077,12 @@ def start_campaign(request, id):
                     action="started",
                 )
 
+                track(
+                    "campaign_started",
+                    campaign_id=str(campaign.id),
+                    list_count=len(result.list_results),
+                )
+
                 messages.success(
                     request,
                     f"Campaign has been started! {len(result.list_results)} gang(s) joined.",
@@ -1130,6 +1152,8 @@ def end_campaign(request, id):
                     action="ended",
                 )
 
+                track("campaign_ended", campaign_id=str(campaign.id))
+
                 messages.success(request, "Campaign has been ended!")
             else:
                 messages.error(request, "Campaign cannot be ended.")
@@ -1187,6 +1211,8 @@ def reopen_campaign(request, id):
                     campaign_name=campaign.name,
                     action="reopened",
                 )
+
+                track("campaign_reopened", campaign_id=str(campaign.id))
 
                 messages.success(request, "Campaign has been reopened!")
             else:
@@ -1394,6 +1420,13 @@ def campaign_asset_type_new(request, id):
                 asset_type_plural=asset_type.name_plural,
             )
 
+            track(
+                "campaign_asset_type_created",
+                campaign_id=str(campaign.id),
+                has_properties=bool(asset_type.property_schema),
+                has_sub_assets=bool(asset_type.sub_asset_schema),
+            )
+
             messages.success(
                 request, f"Asset type '{asset_type.name_singular}' created."
             )
@@ -1583,6 +1616,12 @@ def campaign_asset_new(request, id, type_id):
                 asset_type=asset_type.name_singular,
             )
 
+            track(
+                "campaign_asset_created",
+                campaign_id=str(campaign.id),
+                asset_type=asset_type.name_singular,
+            )
+
             messages.success(request, f"Asset '{asset.name}' created.")
 
             # Check which button was clicked
@@ -1730,6 +1769,12 @@ def campaign_asset_transfer(request, id, asset_id):
                 transfer_from=old_holder.name if old_holder else "Unassigned",
                 transfer_to=new_holder.name if new_holder else "Unassigned",
                 action="transfer",
+            )
+
+            track(
+                "campaign_asset_transferred",
+                campaign_id=str(campaign.id),
+                asset_type=asset.asset_type.name_singular,
             )
 
             messages.success(request, "Asset transferred successfully.")
@@ -2155,6 +2200,13 @@ def campaign_resource_modify(request, id, resource_id):
                     new_amount=resource.amount,
                 )
 
+                track(
+                    "campaign_resource_modified",
+                    campaign_id=str(campaign.id),
+                    resource_type=resource.resource_type.name,
+                    delta=modification,
+                )
+
                 messages.success(request, "Resource updated successfully.")
             except ValueError as e:
                 messages.error(request, str(e))
@@ -2318,6 +2370,8 @@ def fighter_sell_to_guilders(request, id, fighter_id):
             credits=credits,
         )
 
+        track("campaign_fighter_sold", campaign_id=str(campaign.id))
+
         messages.success(
             request, f"{result.fighter.name} has been sold to the guilders."
         )
@@ -2419,6 +2473,7 @@ def fighter_return_to_owner(request, id, fighter_id):
                 capturing_list=capturing_list.name,
                 ransom=ransom,
             )
+            track("campaign_fighter_ransomed", campaign_id=str(campaign.id))
 
             messages.success(
                 request, f"{fighter_name} has been returned to {original_list.name}."
@@ -2510,6 +2565,7 @@ def fighter_release(request, id, fighter_id):
             capturing_list=capturing_list.name,
             original_list=original_list.name,
         )
+        track("campaign_fighter_released", campaign_id=str(campaign.id))
 
         messages.success(
             request,
@@ -2631,6 +2687,12 @@ def campaign_sub_asset_new(request, id, asset_id, sub_asset_type):
                 sub_asset_name=sub_asset.name,
                 sub_asset_type=sub_asset_type_def.get("label", sub_asset_type),
                 action="added_sub_asset",
+            )
+
+            track(
+                "campaign_sub_asset_created",
+                campaign_id=str(campaign.id),
+                sub_asset_type=sub_asset_type,
             )
 
             messages.success(
@@ -2779,6 +2841,7 @@ def campaign_sub_asset_remove(request, id, asset_id, sub_asset_id):
 
     if request.method == "POST":
         sub_asset_name = sub_asset.name
+        sub_asset_type_key = sub_asset.sub_asset_type
         sub_asset_type_label = sub_asset_type_def.get("label", sub_asset.sub_asset_type)
         sub_asset.delete()
 
@@ -2793,6 +2856,12 @@ def campaign_sub_asset_remove(request, id, asset_id, sub_asset_id):
             sub_asset_name=sub_asset_name,
             sub_asset_type=sub_asset_type_label,
             action="removed_sub_asset",
+        )
+
+        track(
+            "campaign_sub_asset_removed",
+            campaign_id=str(campaign.id),
+            sub_asset_type=sub_asset_type_key,
         )
 
         messages.success(
