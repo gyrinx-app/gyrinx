@@ -5,6 +5,7 @@ from django import template
 from django.conf import settings
 from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
+from django.core.cache import cache
 from django.db.models import Q
 from django.utils.safestring import mark_safe
 
@@ -186,10 +187,23 @@ def page_depth(page):
 def get_page_by_url(url):
     """
     Return the page with the given URL.
+
+    Results are cached for 5 minutes to avoid repeated database queries,
+    especially useful for navbar links that appear on every page.
     """
+    cache_key = f"flatpage_by_url_{url}"
+    cached_result = cache.get(cache_key)
+
+    if cached_result is not None:
+        # Return None if we cached a miss, otherwise return the cached page
+        return None if cached_result == "" else cached_result
+
     try:
-        return FlatPage.objects.get(url=url)
+        page = FlatPage.objects.get(url=url)
+        cache.set(cache_key, page, 300)  # Cache for 5 minutes
+        return page
     except FlatPage.DoesNotExist:
+        cache.set(cache_key, "", 300)  # Cache the miss for 5 minutes
         return None
 
 
@@ -206,6 +220,30 @@ def slugify(text):
     return text.strip("-")
 
 
+def _normalize_path(path):
+    """Normalize a path to ensure it ends with a trailing slash."""
+    if not path.endswith("/"):
+        return path + "/"
+    return path
+
+
+def _is_flatpage_active(context, url):
+    """
+    Check if the current request path matches the given flatpage URL.
+
+    Normalizes both the request path and the URL to ensure consistent comparison.
+    """
+    request = context.get("request")
+    if not request:
+        return False
+
+    # Normalize both paths to ensure consistent comparison
+    normalized_url = _normalize_path(url)
+    normalized_path = _normalize_path(request.path)
+
+    return normalized_path == normalized_url
+
+
 @register.simple_tag(takes_context=True)
 def active_flatpage(context, url):
     """
@@ -214,15 +252,7 @@ def active_flatpage(context, url):
     Usage:
         {% active_flatpage '/help/' %}
     """
-    request = context.get("request")
-    if not request:
-        return ""
-
-    # Normalize the URL to ensure it ends with a slash
-    if not url.endswith("/"):
-        url = url + "/"
-
-    return "active" if request.path == url else ""
+    return "active" if _is_flatpage_active(context, url) else ""
 
 
 @register.simple_tag(takes_context=True)
@@ -233,15 +263,7 @@ def active_flatpage_aria(context, url):
     Usage:
         {% active_flatpage_aria '/help/' %}
     """
-    request = context.get("request")
-    if not request:
-        return ""
-
-    # Normalize the URL to ensure it ends with a slash
-    if not url.endswith("/"):
-        url = url + "/"
-
-    return 'aria-current="page"' if request.path == url else ""
+    return 'aria-current="page"' if _is_flatpage_active(context, url) else ""
 
 
 @register.filter

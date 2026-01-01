@@ -59,6 +59,30 @@ def test_active_flatpage_normalizes_url_without_trailing_slash():
     assert result == "active"
 
 
+def test_active_flatpage_normalizes_request_path_without_trailing_slash():
+    """Test that active_flatpage handles request paths without trailing slashes."""
+    factory = RequestFactory()
+    # Simulate a request path without trailing slash
+    request = factory.get("/help")
+    context = Context({"request": request})
+
+    # Should match even when request.path lacks trailing slash but url has one
+    result = active_flatpage(context, "/help/")
+    assert result == "active"
+
+
+def test_active_flatpage_aria_normalizes_request_path_without_trailing_slash():
+    """Test that active_flatpage_aria handles request paths without trailing slashes."""
+    factory = RequestFactory()
+    # Simulate a request path without trailing slash
+    request = factory.get("/help")
+    context = Context({"request": request})
+
+    # Should match even when request.path lacks trailing slash but url has one
+    result = active_flatpage_aria(context, "/help/")
+    assert result == 'aria-current="page"'
+
+
 def test_active_flatpage_returns_empty_when_no_request():
     """Test that active_flatpage returns empty string when no request in context."""
     context = Context({})
