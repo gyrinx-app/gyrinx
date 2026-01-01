@@ -765,6 +765,75 @@ def test_get_clean_list_or_404_skips_clean_list(user, make_list):
     assert clean_list.rating_current == 100
 
 
+@pytest.mark.django_db
+def test_get_clean_list_or_404_enables_can_use_facts(user, make_list, content_fighter):
+    """get_clean_list_or_404 should enable can_use_facts for consistent rating display.
+
+    This test verifies the fix for the cost calculation bug where different views
+    showed different rating values because some views used the facts system
+    (via with_latest_actions prefetch) and others didn't.
+    """
+    from gyrinx.core.views.list import get_clean_list_or_404
+
+    # Create a list with an initial action (which enables facts tracking)
+    lst = make_list("Test List", create_initial_action=True)
+
+    # Create a fighter to have some rating
+    ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        rating_current=50,
+        dirty=False,
+    )
+
+    # Refresh the list facts to ensure rating_current is correct
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+
+    # Now get the list using get_clean_list_or_404 with List model class
+    clean_list = get_clean_list_or_404(List, id=lst.id)
+
+    # The returned list should have can_use_facts enabled (via with_latest_actions prefetch)
+    assert clean_list.can_use_facts is True, (
+        "get_clean_list_or_404 should apply with_latest_actions() prefetch "
+        "to enable can_use_facts for consistent rating display"
+    )
+
+    # Verify the latest_actions attribute is populated
+    assert hasattr(clean_list, "latest_actions"), (
+        "get_clean_list_or_404 should prefetch latest_actions"
+    )
+
+
+@pytest.mark.django_db
+def test_get_clean_list_or_404_with_queryset_preserves_original_behavior(
+    user, make_list
+):
+    """get_clean_list_or_404 should not modify querysets passed directly.
+
+    When a queryset is passed (instead of the List model class), the function
+    should use it as-is without adding prefetches.
+    """
+    from gyrinx.core.views.list import get_clean_list_or_404
+
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.save(update_fields=["dirty"])
+
+    # Pass a queryset without with_latest_actions - should work without error
+    queryset = List.objects.filter(id=lst.id)
+    clean_list = get_clean_list_or_404(queryset)
+
+    # The list should be returned successfully
+    assert clean_list.id == lst.id
+
+    # Without the prefetch, can_use_facts will be False (since latest_actions isn't populated)
+    # This is the expected behavior when using a custom queryset
+    assert not hasattr(clean_list, "latest_actions") or not clean_list.latest_actions
+
+
 # ============================================================================
 # ContentEquipmentListExpansionItem.cost change tests
 # ============================================================================
