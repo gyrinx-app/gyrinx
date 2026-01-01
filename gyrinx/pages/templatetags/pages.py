@@ -206,6 +206,44 @@ def slugify(text):
     return text.strip("-")
 
 
+@register.simple_tag(takes_context=True)
+def active_flatpage(context, url):
+    """
+    Return 'active' if the current request path matches the given flatpage URL.
+
+    Usage:
+        {% active_flatpage '/help/' %}
+    """
+    request = context.get("request")
+    if not request:
+        return ""
+
+    # Normalize the URL to ensure it ends with a slash
+    if not url.endswith("/"):
+        url = url + "/"
+
+    return "active" if request.path == url else ""
+
+
+@register.simple_tag(takes_context=True)
+def active_flatpage_aria(context, url):
+    """
+    Return 'aria-current="page"' if the current request path matches the given flatpage URL.
+
+    Usage:
+        {% active_flatpage_aria '/help/' %}
+    """
+    request = context.get("request")
+    if not request:
+        return ""
+
+    # Normalize the URL to ensure it ends with a slash
+    if not url.endswith("/"):
+        url = url + "/"
+
+    return 'aria-current="page"' if request.path == url else ""
+
+
 @register.filter
 def add_heading_links(html):
     """
