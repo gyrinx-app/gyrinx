@@ -53,6 +53,14 @@
                            {% active_aria 'core:campaigns' %}
                            href="{% url 'core:campaigns' %}">Campaigns</a>
                     </li>
+                    {% get_page_by_url '/help/' as help_page %}
+                    {% if help_page %}
+                        <li class="nav-item">
+                            <a class="nav-link {% active_flatpage help_page.url %}"
+                               {% active_flatpage_aria help_page.url %}
+                               href="{{ help_page.url }}">Help</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <button class="btn btn-link nav-link py-2 px-0 px-lg-2 dropdown-toggle d-flex align-items-center"
                                 id="bd-theme"

@@ -4,7 +4,12 @@ from django.contrib.sites.models import Site
 from django.template import Context, Template
 from django.test import RequestFactory
 
-from gyrinx.pages.templatetags.pages import FlatpageNode, pages_path_segment
+from gyrinx.pages.templatetags.pages import (
+    FlatpageNode,
+    active_flatpage,
+    active_flatpage_aria,
+    pages_path_segment,
+)
 
 
 @pytest.mark.django_db
@@ -21,6 +26,97 @@ def test_pages_path_segment():
     assert pages_path_segment("/foo/bar/baz/", 4) == "/foo/bar/baz/"
     assert pages_path_segment("/foo/bar/baz/", 0) == "/"
     assert pages_path_segment("/foo/bar/baz/", -1) == "/"
+
+
+def test_active_flatpage_returns_active_when_path_matches():
+    """Test that active_flatpage returns 'active' when the path matches."""
+    factory = RequestFactory()
+    request = factory.get("/help/")
+    context = Context({"request": request})
+
+    result = active_flatpage(context, "/help/")
+    assert result == "active"
+
+
+def test_active_flatpage_returns_empty_when_path_does_not_match():
+    """Test that active_flatpage returns empty string when path doesn't match."""
+    factory = RequestFactory()
+    request = factory.get("/about/")
+    context = Context({"request": request})
+
+    result = active_flatpage(context, "/help/")
+    assert result == ""
+
+
+def test_active_flatpage_normalizes_url_without_trailing_slash():
+    """Test that active_flatpage handles URLs without trailing slashes."""
+    factory = RequestFactory()
+    request = factory.get("/help/")
+    context = Context({"request": request})
+
+    # URL without trailing slash should still match
+    result = active_flatpage(context, "/help")
+    assert result == "active"
+
+
+def test_active_flatpage_normalizes_request_path_without_trailing_slash():
+    """Test that active_flatpage handles request paths without trailing slashes."""
+    factory = RequestFactory()
+    # Simulate a request path without trailing slash
+    request = factory.get("/help")
+    context = Context({"request": request})
+
+    # Should match even when request.path lacks trailing slash but url has one
+    result = active_flatpage(context, "/help/")
+    assert result == "active"
+
+
+def test_active_flatpage_aria_normalizes_request_path_without_trailing_slash():
+    """Test that active_flatpage_aria handles request paths without trailing slashes."""
+    factory = RequestFactory()
+    # Simulate a request path without trailing slash
+    request = factory.get("/help")
+    context = Context({"request": request})
+
+    # Should match even when request.path lacks trailing slash but url has one
+    result = active_flatpage_aria(context, "/help/")
+    assert result == 'aria-current="page"'
+
+
+def test_active_flatpage_returns_empty_when_no_request():
+    """Test that active_flatpage returns empty string when no request in context."""
+    context = Context({})
+
+    result = active_flatpage(context, "/help/")
+    assert result == ""
+
+
+def test_active_flatpage_aria_returns_aria_when_path_matches():
+    """Test that active_flatpage_aria returns aria attribute when path matches."""
+    factory = RequestFactory()
+    request = factory.get("/help/")
+    context = Context({"request": request})
+
+    result = active_flatpage_aria(context, "/help/")
+    assert result == 'aria-current="page"'
+
+
+def test_active_flatpage_aria_returns_empty_when_path_does_not_match():
+    """Test that active_flatpage_aria returns empty when path doesn't match."""
+    factory = RequestFactory()
+    request = factory.get("/about/")
+    context = Context({"request": request})
+
+    result = active_flatpage_aria(context, "/help/")
+    assert result == ""
+
+
+def test_active_flatpage_aria_returns_empty_when_no_request():
+    """Test that active_flatpage_aria returns empty when no request in context."""
+    context = Context({})
+
+    result = active_flatpage_aria(context, "/help/")
+    assert result == ""
 
 
 @pytest.mark.django_db
