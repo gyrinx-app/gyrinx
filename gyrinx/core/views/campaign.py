@@ -12,7 +12,9 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
+from urllib.parse import urlencode
 
 from gyrinx import messages
 from gyrinx.core.forms.campaign import (
@@ -838,6 +840,8 @@ def campaign_log_action(request, id):
     error_message = None
     if request.method == "POST":
         form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
+        return_url = request.POST.get("return_url")
+        return_text = request.POST.get("return_text") or "Back to Campaign"
         if form.is_valid():
             action = form.save(commit=False)
             action.campaign = campaign
@@ -870,7 +874,16 @@ def campaign_log_action(request, id):
                 f"{outcome_url}?{urlencode({'return_url': return_url})}"
             )
     else:
-        form = CampaignActionForm(campaign=campaign, user=request.user)
+        return_url = request.GET.get("return_url")
+        return_text = request.GET.get("return_text") or "Back to Campaign"
+
+        # Pre-populate gang/list if provided
+        gang = request.GET.get("gang")
+        initial = {}
+        if gang:
+            initial["list"] = gang
+
+        form = CampaignActionForm(campaign=campaign, user=request.user, initial=initial)
 
     return render(
         request,
@@ -917,6 +930,8 @@ def campaign_action_outcome(request, id, action_id):
 
     error_message = None
     if request.method == "POST":
+        return_url = request.POST.get("return_url")
+        return_text = request.POST.get("return_text") or "Back to Campaign"
         form = CampaignActionOutcomeForm(request.POST, instance=action)
         if form.is_valid():
             form.save()
@@ -946,6 +961,8 @@ def campaign_action_outcome(request, id, action_id):
                 # Default: redirect to return URL
                 return safe_redirect(request, return_url, fallback_url=default_url)
     else:
+        return_url = request.GET.get("return_url")
+        return_text = request.GET.get("return_text") or "Back to Campaign"
         form = CampaignActionOutcomeForm(instance=action)
 
     return render(
