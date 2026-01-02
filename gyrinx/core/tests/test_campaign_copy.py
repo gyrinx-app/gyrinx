@@ -370,19 +370,42 @@ def test_campaign_copy_from_view_requires_owner(client, user, make_campaign):
 
 
 @pytest.mark.django_db
-def test_campaign_copy_to_view_requires_owner(client, user, make_campaign):
-    """Test that copy-to view requires campaign ownership."""
+def test_campaign_copy_to_view_requires_ownership_or_public(
+    client, user, make_campaign
+):
+    """Test that copy-to view requires ownership or public campaign."""
+    from gyrinx.core.models.campaign import Campaign
+
     other_user = type(user).objects.create_user(
         username="other", email="other@example.com", password="test123"
     )
-    campaign = make_campaign("Test Campaign")
-    campaign.owner = other_user
-    campaign.save()
+    # Create campaign directly owned by other_user (not using make_campaign)
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=other_user,
+        public=False,
+    )
+    # User needs a campaign to copy TO
+    make_campaign("User's Campaign")
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
 
+    # Private campaign owned by someone else should 404
+    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
     assert response.status_code == 404
+
+    # Public campaign owned by someone else should be accessible
+    campaign.public = True
+    campaign.save()
+    # Add content so it doesn't redirect
+    CampaignAssetType.objects.create(
+        campaign=campaign,
+        owner=other_user,
+        name_singular="Territory",
+        name_plural="Territories",
+    )
+    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db

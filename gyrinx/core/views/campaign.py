@@ -3059,10 +3059,15 @@ def campaign_copy_from(request, id):
 def campaign_copy_to(request, id):
     """Copy assets and resources FROM this campaign TO another campaign.
 
-    This view allows a campaign admin to copy asset types, assets (with sub-assets),
-    and resource types from the current campaign to another campaign they own.
+    This view allows any user to copy asset types, assets (with sub-assets),
+    and resource types from a campaign they can view to their own campaigns.
+    This enables "template campaigns" that others can copy from.
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    # Allow copying from any campaign the user can access (owned or public)
+    campaign = get_object_or_404(
+        Campaign.objects.filter(models.Q(owner=request.user) | models.Q(public=True)),
+        id=id,
+    )
 
     # Check if this campaign has any content to copy
     has_asset_types = campaign.asset_types.exists()
