@@ -727,9 +727,15 @@ class CampaignCopyFromForm(forms.Form):
 
     def _populate_type_choices(self, source_campaign):
         """Populate asset and resource type choices from source campaign."""
+        from django.db.models import Count
+
+        # Use annotate to count assets in a single query (avoid N+1)
+        asset_types = source_campaign.asset_types.annotate(
+            asset_count=Count("assets")
+        ).all()
         self.fields["asset_types"].choices = [
-            (str(at.id), f"{at.name_plural} ({at.assets.count()} assets)")
-            for at in source_campaign.asset_types.all()
+            (str(at.id), f"{at.name_plural} ({at.asset_count} assets)")
+            for at in asset_types
         ]
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in source_campaign.resource_types.all()
@@ -782,9 +788,15 @@ class CampaignCopyToForm(forms.Form):
         self._build_target_campaign_choices()
 
         # Populate asset and resource type choices from source campaign
+        # Use annotate to count assets in a single query (avoid N+1)
+        from django.db.models import Count
+
+        asset_types = self.source_campaign.asset_types.annotate(
+            asset_count=Count("assets")
+        ).all()
         self.fields["asset_types"].choices = [
-            (str(at.id), f"{at.name_plural} ({at.assets.count()} assets)")
-            for at in self.source_campaign.asset_types.all()
+            (str(at.id), f"{at.name_plural} ({at.asset_count} assets)")
+            for at in asset_types
         ]
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in self.source_campaign.resource_types.all()
