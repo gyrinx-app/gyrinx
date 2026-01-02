@@ -842,6 +842,8 @@ class List(AppBase):
         """
         Returns a summary of fighter types and their counts for active fighters.
 
+        Excludes archived fighters, stash fighters, and vehicles (vehicles are not fighters).
+
         Performance: This must use prefetched listfighter_set data from with_related_data,
         so it doesn't issue any additional queries.
 
@@ -853,10 +855,13 @@ class List(AppBase):
         type_counts = OrderedDict()
 
         # Iterate over prefetched listfighter_set and filter in memory to avoid queries
+        # Exclude archived fighters, stash fighters, and vehicles (vehicles are not fighters)
         active_fighters = [
             f
             for f in self.listfighter_set.all()
-            if not f.archived and not f.content_fighter.is_stash
+            if not f.archived
+            and not f.content_fighter.is_stash
+            and not f.content_fighter.is_vehicle
         ]
         for fighter in active_fighters:
             # We use a compound key of (type, category) to differentiate types with same name but different categories,
