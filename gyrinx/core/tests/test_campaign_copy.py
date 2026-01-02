@@ -364,7 +364,7 @@ def test_campaign_copy_from_view_requires_owner(client, user, make_campaign):
     campaign.save()
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-from", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-in", args=[campaign.id]))
 
     assert response.status_code == 404
 
@@ -391,7 +391,7 @@ def test_campaign_copy_to_view_requires_ownership_or_public(
     client.force_login(user)
 
     # Private campaign owned by someone else should 404
-    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-out", args=[campaign.id]))
     assert response.status_code == 404
 
     # Public campaign owned by someone else should be accessible
@@ -404,7 +404,7 @@ def test_campaign_copy_to_view_requires_ownership_or_public(
         name_singular="Territory",
         name_plural="Territories",
     )
-    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-out", args=[campaign.id]))
     assert response.status_code == 200
 
 
@@ -416,7 +416,7 @@ def test_campaign_copy_from_view_redirects_if_archived(client, user, make_campai
     campaign.save()
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-from", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-in", args=[campaign.id]))
 
     assert response.status_code == 302
 
@@ -429,7 +429,7 @@ def test_campaign_copy_from_view_redirects_if_no_other_campaigns(
     campaign = make_campaign("Test Campaign")
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-from", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-in", args=[campaign.id]))
 
     assert response.status_code == 302
 
@@ -441,7 +441,7 @@ def test_campaign_copy_to_view_redirects_if_no_content(client, user, make_campai
     make_campaign("Other Campaign")  # Need another campaign
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-to", args=[campaign.id]))
+    response = client.get(reverse("core:campaign-copy-out", args=[campaign.id]))
 
     assert response.status_code == 302
 
@@ -463,7 +463,7 @@ def test_campaign_copy_to_view_shows_form_when_content_exists(
     )
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-to", args=[source.id]))
+    response = client.get(reverse("core:campaign-copy-out", args=[source.id]))
 
     assert response.status_code == 200
     assert b"Copy To Another Campaign" in response.content
@@ -486,7 +486,7 @@ def test_campaign_copy_from_view_shows_form_when_other_campaigns_exist(
     )
 
     client.force_login(user)
-    response = client.get(reverse("core:campaign-copy-from", args=[target.id]))
+    response = client.get(reverse("core:campaign-copy-in", args=[target.id]))
 
     assert response.status_code == 200
     assert b"Copy From Another Campaign" in response.content
@@ -538,7 +538,7 @@ def test_campaign_copy_to_rejects_archived_target_on_confirm(
     target.save()
 
     response = client.post(
-        reverse("core:campaign-copy-to", args=[source.id]),
+        reverse("core:campaign-copy-out", args=[source.id]),
         {
             "action": "confirm",
             "target_campaign_id": str(target.id),
@@ -574,7 +574,7 @@ def test_campaign_copy_from_rejects_archived_source_on_confirm(
     source.save()
 
     response = client.post(
-        reverse("core:campaign-copy-from", args=[target.id]),
+        reverse("core:campaign-copy-in", args=[target.id]),
         {
             "action": "confirm",
             "source_campaign_id": str(source.id),

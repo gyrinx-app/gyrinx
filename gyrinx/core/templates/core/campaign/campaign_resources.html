@@ -14,9 +14,9 @@
                 {% if is_owner %}
                     <div class="hstack gap-3 ms-md-auto">
                         {% if not campaign.archived %}
-                            <a href="{% url 'core:campaign-copy-from' campaign.id %}"
+                            <a href="{% url 'core:campaign-copy-in' campaign.id %}"
                                class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
-                                <i class="bi-box-arrow-in-down"></i> Copy from campaign
+                                <i class="bi-box-arrow-in-down"></i> Copy from Campaign
                             </a>
                         {% endif %}
                         <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"

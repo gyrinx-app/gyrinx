@@ -1,5 +1,5 @@
 {% load custom_tags %}
-{% if campaign.lists.all or pending_invitations %}
+{% if campaign.has_lists or pending_invitations %}
     <div class="list-group list-group-flush">
         {% for list in campaign.lists.all %}
             <div class="list-group-item px-0">
@@ -32,7 +32,7 @@
             </div>
         {% endfor %}
         {% if pending_invitations %}
-            {% if campaign.lists.all %}
+            {% if campaign.has_lists %}
                 <div class="list-group-item px-0 bg-light">
                     <small class="text-muted fw-bold">Invited</small>
                 </div>

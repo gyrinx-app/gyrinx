@@ -389,7 +389,7 @@ def test_resource_modify_form_validation(content_house):
 
 
 @pytest.mark.django_db
-def test_campaign_detail_shows_resources():
+def test_campaign_detail_shows_resources(content_house):
     """Test that campaign detail view shows resource summary."""
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -411,6 +411,14 @@ def test_campaign_detail_shows_resources():
         name="Credits",
         owner=user,
     )
+
+    # Add a list to the campaign so resources table is shown
+    from gyrinx.core.models import List
+
+    gang = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(gang)
 
     # Test the campaign detail view
     response = client.get(reverse("core:campaign", args=[campaign.id]))

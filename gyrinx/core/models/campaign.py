@@ -99,6 +99,14 @@ class Campaign(AppBase):
         return self.status == self.IN_PROGRESS
 
     @property
+    def has_lists(self):
+        """Check if campaign has lists, using prefetch cache if available."""
+        prefetch_cache = getattr(self, "_prefetched_objects_cache", {})
+        if "lists" in prefetch_cache:
+            return bool(prefetch_cache["lists"])
+        return self.lists.exists()
+
+    @property
     def is_post_campaign(self):
         return self.status == self.POST_CAMPAIGN
 

@@ -99,7 +99,7 @@
                         <div>
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label mb-0">{{ form.source_campaign.label }}</label>
-                                <a href="{% url 'core:campaign-copy-from' campaign.id %}"
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}"
                                    class="small link-secondary">Change</a>
                             </div>
                             <input type="hidden" name="source_campaign" value="{{ source_campaign.id }}">

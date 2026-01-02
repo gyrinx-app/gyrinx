@@ -473,14 +473,14 @@ urlpatterns = [
     ),
     # Campaign Copy
     path(
-        "campaign/<id>/copy-from",
+        "campaign/<id>/copy-in",
         campaign.campaign_copy_from,
-        name="campaign-copy-from",
+        name="campaign-copy-in",
     ),
     path(
-        "campaign/<id>/copy-to",
+        "campaign/<id>/copy-out",
         campaign.campaign_copy_to,
-        name="campaign-copy-to",
+        name="campaign-copy-out",
     ),
     # Campaign Assets
     path(

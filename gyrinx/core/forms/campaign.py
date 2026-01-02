@@ -704,6 +704,7 @@ class CampaignCopyFromForm(forms.Form):
             Campaign.objects.filter(owner=self.user)
             .exclude(pk=self.target_campaign.pk)
             .exclude(template=True)  # Don't duplicate templates
+            .exclude(archived=True)
             .order_by("name")
         )
 
@@ -810,6 +811,7 @@ class CampaignCopyToForm(forms.Form):
         user_campaigns = (
             Campaign.objects.filter(owner=self.user)
             .exclude(pk=self.source_campaign.pk)
+            .exclude(archived=True)
             .order_by("name")
         )
 

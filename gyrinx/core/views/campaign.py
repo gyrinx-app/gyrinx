@@ -217,16 +217,17 @@ class CampaignDetailView(generic.DetailView):
 
     def get_object(self):
         """
-        Retrieve the :model:`core.Campaign` by its `id` with prefetched actions.
+        Retrieve the :model:`core.Campaign` by its `id` with prefetched actions and lists.
         """
         return get_object_or_404(
             Campaign.objects.prefetch_related(
+                "lists",
                 models.Prefetch(
                     "actions",
                     queryset=CampaignAction.objects.select_related(
                         "user", "list"
                     ).order_by("-created"),
-                )
+                ),
             ),
             id=self.kwargs["id"],
         )
