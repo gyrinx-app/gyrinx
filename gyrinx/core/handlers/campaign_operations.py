@@ -72,7 +72,7 @@ def handle_campaign_start(
             raise ValidationError(
                 f"Campaign cannot be started. Current status: {campaign.get_status_display()}"
             )
-        elif not campaign.lists.exists():
+        elif not campaign.has_lists:
             raise ValidationError("Campaign cannot be started without lists.")
         else:
             raise ValidationError("Campaign cannot be started.")

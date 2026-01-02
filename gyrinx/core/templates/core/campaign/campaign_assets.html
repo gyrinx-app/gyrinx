@@ -8,16 +8,25 @@
     <div class="col-12 px-0 vstack gap-5">
         <!-- Header -->
         <div>
-            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
-                <h1 class="mb-0">Campaign Assets</h1>
+            <h1 class="mb-2">Campaign Assets</h1>
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                <p class="text-muted mb-0">{{ campaign.name }}</p>
                 {% if is_owner %}
-                    <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
-                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-md-auto">
-                        <i class="bi-plus-circle"></i> Add Asset Type
-                    </a>
+                    <div class="hstack gap-3 ms-md-auto fs-7">
+                        <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
+                            <i class="bi-plus-circle"></i> Add Asset Type
+                        </a>
+                        or
+                        {% if not campaign.archived %}
+                            <a href="{% url 'core:campaign-copy-in' campaign.id %}"
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                <i class="bi-box-arrow-in-down"></i> Copy from Campaign
+                            </a>
+                        {% endif %}
+                    </div>
                 {% endif %}
             </div>
-            <p class="text-muted mb-0">{{ campaign.name }}</p>
         </div>
         {% for asset_type in asset_types %}
             <section>

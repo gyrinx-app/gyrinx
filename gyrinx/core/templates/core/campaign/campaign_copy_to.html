@@ -1,0 +1,153 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Copy Content To Another Campaign - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-4">
+        <div>
+            <h1 class="mb-2">Copy To Another Campaign</h1>
+            <p class="text-muted mb-0">
+                Copy asset types, assets, and resource types from <strong>{{ campaign.name }}</strong> to another campaign.
+            </p>
+        </div>
+        {% if show_confirmation %}
+            <!-- Confirmation view with conflicts -->
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm">
+                <input type="hidden"
+                       name="target_campaign_id"
+                       value="{{ target_campaign.id }}">
+                {% for at_id in form.cleaned_data.asset_types %}
+                    <input type="hidden" name="selected_asset_types" value="{{ at_id }}">
+                {% endfor %}
+                {% for rt_id in form.cleaned_data.resource_types %}
+                    <input type="hidden" name="selected_resource_types" value="{{ rt_id }}">
+                {% endfor %}
+                <div class="vstack gap-3">
+                    <div class="border rounded p-3">
+                        <h5 class="mb-2">Ready to Copy</h5>
+                        <p class="text-muted small mb-2">
+                            Copying from <strong>{{ campaign.name }}</strong> to <strong>{{ target_campaign.name }}</strong>.
+                        </p>
+                        {% if form.cleaned_data.asset_types %}
+                            <div class="mb-2">
+                                <span class="caps-label">Asset Types</span>
+                                <ul class="mb-0 ps-3">
+                                    {% for choice_id, choice_label in form.fields.asset_types.choices %}
+                                        {% if choice_id in form.cleaned_data.asset_types %}<li class="small">{{ choice_label }}</li>{% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        {% if form.cleaned_data.resource_types %}
+                            <div class="mb-0">
+                                <span class="caps-label">Resource Types</span>
+                                <ul class="mb-0 ps-3">
+                                    {% for choice_id, choice_label in form.fields.resource_types.choices %}
+                                        {% if choice_id in form.cleaned_data.resource_types %}<li class="small">{{ choice_label }}</li>{% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% if conflicts.has_conflicts %}
+                        <div class="border border-warning rounded p-3 bg-warning-subtle">
+                            <h5 class="mb-2 text-warning-emphasis">
+                                <i class="bi-exclamation-triangle"></i> Conflicts Found
+                            </h5>
+                            <p class="small mb-2">
+                                The following items already exist in <strong>{{ target_campaign.name }}</strong> and will be skipped:
+                            </p>
+                            {% if conflicts.asset_type_conflicts %}
+                                <div class="mb-2">
+                                    <span class="caps-label">Asset Types</span>
+                                    <ul class="mb-0 ps-3 small">
+                                        {% for name in conflicts.asset_type_conflicts %}<li>{{ name }}</li>{% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if conflicts.resource_type_conflicts %}
+                                <div class="mb-0">
+                                    <span class="caps-label">Resource Types</span>
+                                    <ul class="mb-0 ps-3 small">
+                                        {% for name in conflicts.resource_type_conflicts %}<li>{{ name }}</li>{% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            <p class="small text-muted mt-2 mb-0">Rename these items in the target campaign first if you want to copy them.</p>
+                        </div>
+                    {% endif %}
+                    <div class="hstack gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi-clipboard"></i> Copy Content
+                        </button>
+                        <a href="{{ campaign.get_absolute_url }}" class="btn btn-link">Cancel</a>
+                    </div>
+                </div>
+            </form>
+        {% else %}
+            <!-- Selection form -->
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="preview">
+                <div class="vstack gap-3">
+                    <div>
+                        <label for="id_target_campaign" class="form-label">{{ form.target_campaign.label }}</label>
+                        {{ form.target_campaign }}
+                        {% if form.target_campaign.help_text %}<div class="form-text">{{ form.target_campaign.help_text }}</div>{% endif %}
+                        {% if form.target_campaign.errors %}
+                            <div class="text-danger small mt-1">{{ form.target_campaign.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    {% if form.fields.asset_types.choices %}
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">{{ form.asset_types.label }}</label>
+                                <a href="#"
+                                   class="small link-secondary"
+                                   onclick="document.querySelectorAll('[name=asset_types]').forEach(cb => cb.checked = true); return false;">Select all</a>
+                            </div>
+                            {% if form.asset_types.help_text %}<div class="form-text mb-2">{{ form.asset_types.help_text }}</div>{% endif %}
+                            {% for choice in form.asset_types %}
+                                <div class="form-check">
+                                    {{ choice.tag }}
+                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                </div>
+                            {% endfor %}
+                            {% if form.asset_types.errors %}<div class="text-danger small mt-1">{{ form.asset_types.errors.0 }}</div>{% endif %}
+                        </div>
+                    {% endif %}
+                    {% if form.fields.resource_types.choices %}
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">{{ form.resource_types.label }}</label>
+                                <a href="#"
+                                   class="small link-secondary"
+                                   onclick="document.querySelectorAll('[name=resource_types]').forEach(cb => cb.checked = true); return false;">Select all</a>
+                            </div>
+                            {% if form.resource_types.help_text %}<div class="form-text mb-2">{{ form.resource_types.help_text }}</div>{% endif %}
+                            {% for choice in form.resource_types %}
+                                <div class="form-check">
+                                    {{ choice.tag }}
+                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                </div>
+                            {% endfor %}
+                            {% if form.resource_types.errors %}
+                                <div class="text-danger small mt-1">{{ form.resource_types.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% if form.non_field_errors %}<div class="text-danger small">{{ form.non_field_errors.0 }}</div>{% endif %}
+                    <div class="hstack gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi-arrow-right"></i> Preview Copy
+                        </button>
+                        <a href="{{ campaign.get_absolute_url }}" class="btn btn-link">Cancel</a>
+                    </div>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock content %}

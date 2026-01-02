@@ -641,3 +641,206 @@ class ResourceModifyForm(forms.Form):
             )
 
         return modification
+
+
+class CampaignCopyFromForm(forms.Form):
+    """Form for copying content from another campaign"""
+
+    source_campaign = forms.ModelChoiceField(
+        queryset=None,
+        required=True,
+        label="Source Campaign",
+        help_text="Select the campaign to copy assets and resources from",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    asset_types = forms.MultipleChoiceField(
+        required=False,
+        label="Asset Types",
+        help_text="Select which asset types to copy. Sub-assets will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
+    resource_types = forms.MultipleChoiceField(
+        required=False,
+        label="Resource Types",
+        help_text="Select which resource types to copy",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.target_campaign = kwargs.pop("target_campaign")
+        self.user = kwargs.pop("user")
+        self.source_campaign_obj = kwargs.pop("source_campaign_obj", None)
+        super().__init__(*args, **kwargs)
+
+        # Build grouped choices for source campaign
+        self._build_source_campaign_choices()
+
+        # If source campaign is provided, populate asset/resource type choices
+        if self.source_campaign_obj:
+            self._populate_type_choices(self.source_campaign_obj)
+        else:
+            # Hide type selection until source is selected
+            self.fields["asset_types"].choices = []
+            self.fields["resource_types"].choices = []
+
+    def _build_source_campaign_choices(self):
+        """Build grouped choices for source campaign dropdown."""
+        choices = [("", "---------")]
+
+        # Get template campaigns (excluding target)
+        templates = (
+            Campaign.objects.filter(template=True)
+            .exclude(pk=self.target_campaign.pk)
+            .order_by("name")
+        )
+        if templates.exists():
+            template_choices = [(str(c.pk), c.name) for c in templates]
+            choices.append(("Templates", template_choices))
+
+        # Get user's campaigns grouped by status (excluding target)
+        user_campaigns = (
+            Campaign.objects.filter(owner=self.user)
+            .exclude(pk=self.target_campaign.pk)
+            .exclude(template=True)  # Don't duplicate templates
+            .exclude(archived=True)
+            .order_by("name")
+        )
+
+        # Group by status
+        status_groups = {}
+        for campaign in user_campaigns:
+            status_label = campaign.get_status_display()
+            if status_label not in status_groups:
+                status_groups[status_label] = []
+            status_groups[status_label].append((str(campaign.pk), campaign.name))
+
+        # Add status groups in a sensible order
+        status_order = ["In Progress", "Pre-Campaign", "Post-Campaign"]
+        for status_label in status_order:
+            if status_label in status_groups:
+                choices.append((status_label, status_groups[status_label]))
+
+        # Set as choices (not queryset) for grouped display
+        self.fields["source_campaign"].choices = choices
+        self.fields["source_campaign"].queryset = Campaign.objects.all()
+
+    def _populate_type_choices(self, source_campaign):
+        """Populate asset and resource type choices from source campaign."""
+        from django.db.models import Count
+
+        # Use annotate to count assets in a single query (avoid N+1)
+        asset_types = source_campaign.asset_types.annotate(
+            asset_count=Count("assets")
+        ).all()
+        self.fields["asset_types"].choices = [
+            (str(at.id), f"{at.name_plural} ({at.asset_count} assets)")
+            for at in asset_types
+        ]
+        self.fields["resource_types"].choices = [
+            (str(rt.id), rt.name) for rt in source_campaign.resource_types.all()
+        ]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset_types = cleaned_data.get("asset_types", [])
+        resource_types = cleaned_data.get("resource_types", [])
+
+        if not asset_types and not resource_types:
+            raise forms.ValidationError(
+                "Please select at least one asset type or resource type to copy."
+            )
+
+        return cleaned_data
+
+
+class CampaignCopyToForm(forms.Form):
+    """Form for copying content to another campaign"""
+
+    target_campaign = forms.ModelChoiceField(
+        queryset=None,
+        required=True,
+        label="Target Campaign",
+        help_text="Select the campaign to copy assets and resources to",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    asset_types = forms.MultipleChoiceField(
+        required=False,
+        label="Asset Types",
+        help_text="Select which asset types to copy. Sub-assets will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
+    resource_types = forms.MultipleChoiceField(
+        required=False,
+        label="Resource Types",
+        help_text="Select which resource types to copy",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.source_campaign = kwargs.pop("source_campaign")
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+
+        # Build grouped choices for target campaign
+        self._build_target_campaign_choices()
+
+        # Populate asset and resource type choices from source campaign
+        # Use annotate to count assets in a single query (avoid N+1)
+        from django.db.models import Count
+
+        asset_types = self.source_campaign.asset_types.annotate(
+            asset_count=Count("assets")
+        ).all()
+        self.fields["asset_types"].choices = [
+            (str(at.id), f"{at.name_plural} ({at.asset_count} assets)")
+            for at in asset_types
+        ]
+        self.fields["resource_types"].choices = [
+            (str(rt.id), rt.name) for rt in self.source_campaign.resource_types.all()
+        ]
+
+    def _build_target_campaign_choices(self):
+        """Build grouped choices for target campaign dropdown."""
+        choices = [("", "---------")]
+
+        # Get user's campaigns grouped by status (excluding source)
+        user_campaigns = (
+            Campaign.objects.filter(owner=self.user)
+            .exclude(pk=self.source_campaign.pk)
+            .exclude(archived=True)
+            .order_by("name")
+        )
+
+        # Group by status
+        status_groups = {}
+        for campaign in user_campaigns:
+            status_label = campaign.get_status_display()
+            if status_label not in status_groups:
+                status_groups[status_label] = []
+            status_groups[status_label].append((str(campaign.pk), campaign.name))
+
+        # Add status groups in a sensible order
+        status_order = ["In Progress", "Pre-Campaign", "Post-Campaign"]
+        for status_label in status_order:
+            if status_label in status_groups:
+                choices.append((status_label, status_groups[status_label]))
+
+        # Set as choices (not queryset) for grouped display
+        self.fields["target_campaign"].choices = choices
+        self.fields["target_campaign"].queryset = Campaign.objects.all()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset_types = cleaned_data.get("asset_types", [])
+        resource_types = cleaned_data.get("resource_types", [])
+
+        if not asset_types and not resource_types:
+            raise forms.ValidationError(
+                "Please select at least one asset type or resource type to copy."
+            )
+
+        return cleaned_data

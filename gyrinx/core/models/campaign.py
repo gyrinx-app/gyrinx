@@ -69,6 +69,11 @@ class Campaign(AppBase):
         blank=True,
         help_text="Notes about the current phase - special rules, conditions, etc.",
     )
+    template = models.BooleanField(
+        default=False,
+        help_text="Template campaigns appear as pre-configured options when copying assets.",
+        db_index=True,
+    )
 
     history = HistoricalRecords()
 
@@ -94,6 +99,14 @@ class Campaign(AppBase):
         return self.status == self.IN_PROGRESS
 
     @property
+    def has_lists(self):
+        """Check if campaign has lists, using prefetch cache if available."""
+        prefetch_cache = getattr(self, "_prefetched_objects_cache", {})
+        if "lists" in prefetch_cache:
+            return bool(prefetch_cache["lists"])
+        return self.lists.exists()
+
+    @property
     def is_post_campaign(self):
         return self.status == self.POST_CAMPAIGN
 
@@ -108,6 +121,14 @@ class Campaign(AppBase):
     def can_reopen_campaign(self):
         """Check if the campaign can be reopened."""
         return self.status == self.POST_CAMPAIGN
+
+    def is_admin(self, user):
+        """Check if user has admin permissions on this campaign.
+
+        Currently, only the campaign owner is an admin.
+        This method exists to allow future expansion of admin permissions.
+        """
+        return self.owner == user
 
     def _distribute_budget_to_list(self, campaign_list):
         """Distribute budget credits to a list based on campaign budget and list cost.

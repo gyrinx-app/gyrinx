@@ -113,6 +113,10 @@ pytest -n auto --reuse-db
 
 # Collect static files before running tests (required for templates with static assets)
 manage collectstatic --noinput
+
+# Refresh test database after adding new migrations
+# Use this when you see errors like "column X does not exist" in tests
+pytest --create-db --migrations path/to/test_file.py
 ```
 
 ### Frontend Development
