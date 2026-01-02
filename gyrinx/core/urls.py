@@ -471,6 +471,17 @@ urlpatterns = [
         campaign.archive_campaign,
         name="campaign-archive",
     ),
+    # Campaign Copy
+    path(
+        "campaign/<id>/copy-from",
+        campaign.campaign_copy_from,
+        name="campaign-copy-from",
+    ),
+    path(
+        "campaign/<id>/copy-to",
+        campaign.campaign_copy_to,
+        name="campaign-copy-to",
+    ),
     # Campaign Assets
     path(
         "campaign/<id>/assets",

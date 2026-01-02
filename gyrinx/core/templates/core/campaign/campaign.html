@@ -59,6 +59,26 @@
                                 <i class="bi-three-dots"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
+                                {% if not campaign.archived %}
+                                    <li>
+                                        <h6 class="dropdown-header">Assets & Resources</h6>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:campaign-copy-from' campaign.id %}">
+                                            <i class="bi-box-arrow-in-down"></i> Copy to this Campaign
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:campaign-copy-to' campaign.id %}">
+                                            <i class="bi-box-arrow-up"></i> Copy from this Campaign
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                {% endif %}
                                 <li>
                                     <a class="dropdown-item"
                                        href="{% url 'core:campaign-archive' campaign.id %}">
@@ -205,7 +225,10 @@
             {% else %}
                 <p class="text-muted small mb-0">
                     No asset types defined yet.
-                    {% if campaign.owner == user %}
+                    {% if campaign.owner == user and not campaign.archived %}
+                        <a href="{% url 'core:campaign-copy-from' campaign.id %}">Copy from another campaign</a>
+                        or <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                    {% elif campaign.owner == user %}
                         <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
                     {% endif %}
                 </p>
@@ -265,7 +288,10 @@
             {% else %}
                 <p class="text-muted small mb-0">
                     No resource types defined yet.
-                    {% if campaign.owner == user %}
+                    {% if campaign.owner == user and not campaign.archived %}
+                        <a href="{% url 'core:campaign-copy-from' campaign.id %}">Copy from another campaign</a>
+                        or <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                    {% elif campaign.owner == user %}
                         <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
                     {% endif %}
                 </p>

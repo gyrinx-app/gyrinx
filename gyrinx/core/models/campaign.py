@@ -109,6 +109,14 @@ class Campaign(AppBase):
         """Check if the campaign can be reopened."""
         return self.status == self.POST_CAMPAIGN
 
+    def is_admin(self, user):
+        """Check if user has admin permissions on this campaign.
+
+        Currently, only the campaign owner is an admin.
+        This method exists to allow future expansion of admin permissions.
+        """
+        return self.owner == user
+
     def _distribute_budget_to_list(self, campaign_list):
         """Distribute budget credits to a list based on campaign budget and list cost.
 

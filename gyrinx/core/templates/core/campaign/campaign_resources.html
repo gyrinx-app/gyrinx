@@ -8,16 +8,24 @@
     <div class="col-12 px-0 vstack gap-5">
         <!-- Header -->
         <div>
-            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
-                <h1 class="mb-0">Campaign Resources</h1>
+            <h1 class="mb-2">Campaign Resources</h1>
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                <p class="text-muted mb-0">{{ campaign.name }}</p>
                 {% if is_owner %}
-                    <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
-                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-md-auto">
-                        <i class="bi-plus-circle"></i> Add Resource Type
-                    </a>
+                    <div class="hstack gap-3 ms-md-auto">
+                        {% if not campaign.archived %}
+                            <a href="{% url 'core:campaign-copy-from' campaign.id %}"
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                <i class="bi-box-arrow-in-down"></i> Copy from campaign
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                            <i class="bi-plus-circle"></i> Add Resource Type
+                        </a>
+                    </div>
                 {% endif %}
             </div>
-            <p class="text-muted mb-0">{{ campaign.name }}</p>
         </div>
         {% for resource_type in resource_types %}
             <section>
