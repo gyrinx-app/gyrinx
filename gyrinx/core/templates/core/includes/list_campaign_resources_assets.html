@@ -1,7 +1,9 @@
 {% load allauth custom_tags humanize %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-        <h3 class="h5 mb-2">Assets & Resources</h3>
+        <div class="bg-body-secondary rounded px-2 py-1 mb-2">
+            <h3 class="h5 mb-0">Assets & Resources</h3>
+        </div>
         <div class="vstack gap-3">
             {% if held_assets %}
                 <div>
