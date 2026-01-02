@@ -101,6 +101,11 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
     cursor: help;
 }
 
+// Links with tooltips should show pointer cursor
+a[data-bs-toggle="tooltip"] {
+    cursor: pointer;
+}
+
 .linked {
     @extend .link-underline-opacity-25;
     @extend .link-underline-opacity-100-hover;

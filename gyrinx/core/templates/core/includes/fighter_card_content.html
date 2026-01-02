@@ -33,10 +33,10 @@
                         </span>
                     {% endif %}
                 {% endif %}
-                {% if fighter.is_captured %}
+                {% if fighter.is_captured and not fighter.is_vehicle %}
                     {% if can_edit and list.campaign and not print %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
-                           class="badge ms-2 bg-warning text-dark text-decoration-none"
+                           class="badge ms-2 bg-warning text-dark text-decoration-none captured-badge-link"
                            data-bs-toggle="tooltip"
                            data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</a>
                     {% else %}
@@ -44,7 +44,7 @@
                               data-bs-toggle="tooltip"
                               data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
                     {% endif %}
-                {% elif fighter.is_sold_to_guilders %}
+                {% elif fighter.is_sold_to_guilders and not fighter.is_vehicle %}
                     {% if can_edit and list.campaign and not print %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
                            class="badge ms-2 bg-secondary text-decoration-none">Sold to Guilders</a>
@@ -159,7 +159,7 @@
                             </button>
                             <ul class="dropdown-menu">
                                 {% if fighter.is_child_fighter %}
-                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders and not fighter.is_vehicle %}
                                         <li>
                                             <a class="dropdown-item"
                                                href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
@@ -169,22 +169,19 @@
                                         </li>
                                     {% endif %}
                                     <li>
-                                        <a class="dropdown-item disabled"
-                                           href="#"
-                                           tabindex="-1"
-                                           aria-disabled="true"><i class="bi-copy"></i> Clone</a>
+                                        <span class="dropdown-item text-muted"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-title="Child fighters are managed through their crew"><i class="bi-copy"></i> Clone</span>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item disabled"
-                                           href="#"
-                                           tabindex="-1"
-                                           aria-disabled="true"><i class="bi-archive"></i> Archive</a>
+                                        <span class="dropdown-item text-muted"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-title="Child fighters are managed through their crew"><i class="bi-archive"></i> Archive</span>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item disabled"
-                                           href="#"
-                                           tabindex="-1"
-                                           aria-disabled="true"><i class="bi-trash"></i> Delete</a>
+                                        <span class="dropdown-item text-muted"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-title="Child fighters are managed through their crew"><i class="bi-trash"></i> Delete</span>
                                     </li>
                                 {% else %}
                                     {% if list.is_campaign_mode %}
