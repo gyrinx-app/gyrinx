@@ -1,6 +1,7 @@
 import hashlib
 import random
 import re
+from urllib.parse import urlencode
 
 import bleach
 import bleach.css_sanitizer
@@ -376,6 +377,52 @@ def safe_referer(context: RequestContext, fallback_url="/"):
 
     # Fall back to the provided fallback URL
     return fallback_url
+
+
+@register.simple_tag(takes_context=True)
+def return_url_param(context: RequestContext):
+    """
+    Generate a return_url query parameter for the current page.
+
+    Use this tag when creating links that should return the user to the current page.
+    The tag URL-encodes the current full path (including query string).
+
+    Usage:
+        <a href="{% url 'core:some-view' obj.id %}?{% return_url_param %}">Edit</a>
+
+    Returns:
+        str: Query parameter like "return_url=%2Fsome%2Fpath%2F"
+    """
+    request = context["request"]
+    current_url = request.get_full_path()
+    return urlencode({"return_url": current_url})
+
+
+@register.simple_tag(takes_context=True)
+def return_url_field(context: RequestContext):
+    """
+    Render a hidden form field for return_url.
+
+    Use this tag inside forms to preserve the return_url through form submission.
+    The tag looks for return_url in the template context.
+
+    Usage:
+        <form method="post">
+            {% csrf_token %}
+            {% return_url_field %}
+            ...
+        </form>
+
+    Returns:
+        str: Hidden input element like '<input type="hidden" name="return_url" value="...">'
+    """
+    return_url = context.get("return_url", "")
+    if return_url:
+        return format_html(
+            '<input type="hidden" name="return_url" value="{}">',
+            return_url,
+        )
+    return ""
 
 
 @register.filter

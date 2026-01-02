@@ -46,7 +46,7 @@ from gyrinx.core.models.campaign import (
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter, List
-from gyrinx.core.utils import safe_redirect
+from gyrinx.core.utils import get_return_url, safe_redirect
 from gyrinx.models import is_int, is_valid_uuid
 from gyrinx.tracker import track
 
@@ -830,6 +830,10 @@ def campaign_log_action(request, id):
         messages.error(request, "You cannot log actions for this campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     error_message = None
     if request.method == "POST":
         form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
@@ -857,9 +861,12 @@ def campaign_log_action(request, id):
                 has_dice=bool(action.dice_count),
             )
 
-            # Redirect to outcome edit page
+            # Redirect to outcome edit page, passing along return_url
+            outcome_url = reverse(
+                "core:campaign-action-outcome", args=(campaign.id, action.id)
+            )
             return HttpResponseRedirect(
-                reverse("core:campaign-action-outcome", args=(campaign.id, action.id))
+                f"{outcome_url}?{urlencode({'return_url': return_url})}"
             )
     else:
         form = CampaignActionForm(campaign=campaign, user=request.user)
@@ -867,7 +874,12 @@ def campaign_log_action(request, id):
     return render(
         request,
         "core/campaign/campaign_log_action.html",
-        {"form": form, "campaign": campaign, "error_message": error_message},
+        {
+            "form": form,
+            "campaign": campaign,
+            "error_message": error_message,
+            "return_url": return_url,
+        },
     )
 
 
@@ -898,6 +910,10 @@ def campaign_action_outcome(request, id, action_id):
     if action.user != request.user:
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     error_message = None
     if request.method == "POST":
         form = CampaignActionOutcomeForm(request.POST, instance=action)
@@ -918,15 +934,14 @@ def campaign_action_outcome(request, id, action_id):
 
             # Check which button was clicked
             if "save_and_new" in request.POST:
-                # Redirect to create another action
-                return HttpResponseRedirect(
-                    reverse("core:campaign-action-new", args=(campaign.id,))
+                # Redirect to create another action, preserving return_url
+                new_action_url = reverse(
+                    "core:campaign-action-new", args=(campaign.id,)
                 )
+                return HttpResponseRedirect(f"{new_action_url}?return_url={return_url}")
             else:
-                # Default: redirect to campaign
-                return HttpResponseRedirect(
-                    reverse("core:campaign", args=(campaign.id,))
-                )
+                # Default: redirect to return URL
+                return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = CampaignActionOutcomeForm(instance=action)
 
@@ -938,6 +953,7 @@ def campaign_action_outcome(request, id, action_id):
             "campaign": campaign,
             "action": action,
             "error_message": error_message,
+            "return_url": return_url,
         },
     )
 
@@ -1756,6 +1772,10 @@ def campaign_asset_transfer(request, id, asset_id):
             reverse("core:campaign-assets", args=(campaign.id,))
         )
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign-assets", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     if request.method == "POST":
         form = AssetTransferForm(request.POST, asset=asset)
         if form.is_valid():
@@ -1785,16 +1805,14 @@ def campaign_asset_transfer(request, id, asset_id):
             )
 
             messages.success(request, "Asset transferred successfully.")
-            return HttpResponseRedirect(
-                reverse("core:campaign-assets", args=(campaign.id,))
-            )
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = AssetTransferForm(asset=asset)
 
     return render(
         request,
         "core/campaign/campaign_asset_transfer.html",
-        {"form": form, "campaign": campaign, "asset": asset},
+        {"form": form, "campaign": campaign, "asset": asset, "return_url": return_url},
     )
 
 
@@ -2185,6 +2203,10 @@ def campaign_resource_modify(request, id, resource_id):
             reverse("core:campaign-resources", args=(campaign.id,))
         )
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign-resources", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     if request.method == "POST":
         form = ResourceModifyForm(request.POST, resource=resource)
         if form.is_valid():
@@ -2217,9 +2239,7 @@ def campaign_resource_modify(request, id, resource_id):
                 messages.success(request, "Resource updated successfully.")
             except ValueError as e:
                 messages.error(request, str(e))
-            return HttpResponseRedirect(
-                reverse("core:campaign-resources", args=(campaign.id,))
-            )
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = ResourceModifyForm(resource=resource)
 
@@ -2231,6 +2251,7 @@ def campaign_resource_modify(request, id, resource_id):
             "campaign": campaign,
             "resource": resource,
             "new_amount_preview": resource.amount,  # Will be updated via JS
+            "return_url": return_url,
         },
     )
 
@@ -2334,6 +2355,10 @@ def fighter_sell_to_guilders(request, id, fighter_id):
     ):
         raise Http404()
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign-captured-fighters", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     if request.method == "POST":
         credits = request.POST.get("credits", 0)
         try:
@@ -2349,9 +2374,7 @@ def fighter_sell_to_guilders(request, id, fighter_id):
             return safe_redirect(
                 request,
                 request.path,
-                fallback_url=reverse(
-                    "core:campaign_captured_fighters", args=[campaign.id]
-                ),
+                fallback_url=default_url,
             )
 
         # Call the handler
@@ -2382,9 +2405,7 @@ def fighter_sell_to_guilders(request, id, fighter_id):
         messages.success(
             request, f"{result.fighter.name} has been sold to the guilders."
         )
-        return HttpResponseRedirect(
-            reverse("core:campaign-captured-fighters", args=(campaign.id,))
-        )
+        return safe_redirect(request, return_url, fallback_url=default_url)
 
     return render(
         request,
@@ -2392,6 +2413,7 @@ def fighter_sell_to_guilders(request, id, fighter_id):
         {
             "campaign": campaign,
             "captured_fighter": captured_fighter,
+            "return_url": return_url,
         },
     )
 
@@ -2431,6 +2453,10 @@ def fighter_return_to_owner(request, id, fighter_id):
     ):
         raise Http404()
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign-captured-fighters", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     if request.method == "POST":
         ransom = request.POST.get("ransom", 0)
         try:
@@ -2446,9 +2472,7 @@ def fighter_return_to_owner(request, id, fighter_id):
             return safe_redirect(
                 request,
                 request.path,
-                fallback_url=reverse(
-                    "core:campaign_captured_fighters", args=[campaign.id]
-                ),
+                fallback_url=default_url,
             )
 
         # Store fighter info before handler (fighter object may be modified)
@@ -2485,18 +2509,14 @@ def fighter_return_to_owner(request, id, fighter_id):
             messages.success(
                 request, f"{fighter_name} has been returned to {original_list.name}."
             )
-            return HttpResponseRedirect(
-                reverse("core:campaign-captured-fighters", args=(campaign.id,))
-            )
+            return safe_redirect(request, return_url, fallback_url=default_url)
 
         except ValidationError as e:
             messages.validation(request, e)
             return safe_redirect(
                 request,
                 request.path,
-                fallback_url=reverse(
-                    "core:campaign_captured_fighters", args=[campaign.id]
-                ),
+                fallback_url=default_url,
             )
 
     return render(
@@ -2505,6 +2525,7 @@ def fighter_return_to_owner(request, id, fighter_id):
         {
             "campaign": campaign,
             "captured_fighter": captured_fighter,
+            "return_url": return_url,
         },
     )
 
@@ -2545,6 +2566,10 @@ def fighter_release(request, id, fighter_id):
     ):
         raise Http404()
 
+    # Get return URL for back/cancel navigation
+    default_url = reverse("core:campaign-captured-fighters", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
     if request.method == "POST":
         # Store info before handler (capture record will be deleted)
         fighter = captured_fighter.fighter
@@ -2579,9 +2604,7 @@ def fighter_release(request, id, fighter_id):
             f"{fighter_name} has been released back to {original_list.name}.",
         )
 
-        return HttpResponseRedirect(
-            reverse("core:campaign-captured-fighters", args=(campaign.id,))
-        )
+        return safe_redirect(request, return_url, fallback_url=default_url)
 
     return render(
         request,
@@ -2589,6 +2612,7 @@ def fighter_release(request, id, fighter_id):
         {
             "campaign": campaign,
             "captured_fighter": captured_fighter,
+            "return_url": return_url,
         },
     )
 

@@ -4,8 +4,7 @@
     Modify {{ resource.resource_type.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:campaign-resources' campaign.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url text="Back to Resources" %}
+    {% include "core/includes/back.html" with text="Back" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Modify {{ resource.resource_type.name }}</h1>
         <h2 class="h5 text-muted">{{ resource.list.name }}</h2>
@@ -21,6 +20,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            {% return_url_field %}
             <div>
                 {{ form.modification.label_tag }}
                 {{ form.modification }}
@@ -42,8 +42,7 @@
             </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Update Resource</button>
-                <a href="{% url 'core:campaign-resources' campaign.id %}"
-                   class="btn btn-link">Cancel</a>
+                {% include "core/includes/cancel.html" %}
             </div>
         </form>
     </div>

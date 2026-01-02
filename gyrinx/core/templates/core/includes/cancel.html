@@ -1,5 +1,5 @@
 {% load custom_tags %}
-<a href="{% if url %}{{ url }}{% else %}{% safe_referer "/" %}{% endif %}"
+<a href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}"
    class="btn btn-link">
     {% if text %}
         {{ text }}

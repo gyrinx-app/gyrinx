@@ -65,6 +65,41 @@ def build_safe_url(request, path=None, query_string=None):
     return path
 
 
+def get_return_url(request, default_url):
+    """
+    Get a validated return URL from request parameters.
+
+    Extracts return_url from POST data (for form submissions) or GET parameters.
+    Validates the URL for security and falls back to default_url if invalid.
+
+    Args:
+        request: The HTTP request object
+        default_url: Fallback URL if return_url is missing or invalid
+
+    Returns:
+        str: A validated URL safe for redirects
+
+    Example:
+        default_url = reverse("core:list", args=(list.id,))
+        return_url = get_return_url(request, default_url)
+    """
+    # Check POST first (form submissions), then GET (query params)
+    return_url = request.POST.get("return_url") or request.GET.get(
+        "return_url", default_url
+    )
+
+    # Validate the URL is safe
+    if return_url and url_has_allowed_host_and_scheme(
+        url=return_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return return_url
+
+    # Fall back to the provided default URL
+    return default_url
+
+
 def get_list_attributes(list_obj):
     """
     Get the attributes and their assigned values for a list.

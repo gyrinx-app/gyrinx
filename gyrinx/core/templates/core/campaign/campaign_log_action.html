@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {{ form.media }}
-    {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
+    {% include "core/includes/back.html" with text="Back" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Log Action</h1>
         <h2 class="h5 text-muted">{{ campaign.name }}</h2>
@@ -13,6 +13,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            {% return_url_field %}
             <div>
                 {{ form.list.label_tag }}
                 {{ form.list }}
@@ -43,7 +44,7 @@
             </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Log Action</button>
-                <a href="{{ campaign.get_absolute_url }}" class="btn btn-link">Cancel</a>
+                {% include "core/includes/cancel.html" %}
             </div>
         </form>
     </div>
