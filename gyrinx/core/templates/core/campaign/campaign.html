@@ -232,7 +232,7 @@
                     No asset types defined yet.
                     {% if campaign.owner == user and not campaign.archived %}
                         <a href="{% url 'core:campaign-copy-from' campaign.id %}">Copy from another campaign</a>
-                        or <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                        or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
                     {% elif campaign.owner == user %}
                         <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
                     {% endif %}
@@ -251,7 +251,7 @@
                 <a href="{% url 'core:campaign-resources' campaign.id %}"
                    class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Resources →</a>
             </div>
-            {% if resource_types %}
+            {% if resource_types and campaign.lists.exists %}
                 <div class="table-responsive">
                     <table class="table table-sm table-borderless mb-0 align-middle">
                         <thead>
@@ -290,12 +290,14 @@
                         </tbody>
                     </table>
                 </div>
+            {% elif resource_types %}
+                <p class="text-muted small mb-0">Resource types are defined but no gangs have joined this campaign yet.</p>
             {% else %}
                 <p class="text-muted small mb-0">
                     No resource types defined yet.
                     {% if campaign.owner == user and not campaign.archived %}
                         <a href="{% url 'core:campaign-copy-from' campaign.id %}">Copy from another campaign</a>
-                        or <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                        or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
                     {% elif campaign.owner == user %}
                         <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
                     {% endif %}
