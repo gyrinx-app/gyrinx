@@ -3042,6 +3042,11 @@ def campaign_copy_from(request, id):
             user=request.user,
         )
 
+    # Get template campaigns (exclude the target campaign)
+    template_campaigns = (
+        Campaign.objects.filter(template=True).exclude(pk=campaign.pk).order_by("name")
+    )
+
     return render(
         request,
         "core/campaign/campaign_copy_from.html",
@@ -3051,6 +3056,7 @@ def campaign_copy_from(request, id):
             "source_campaign": source_campaign,
             "conflicts": conflicts,
             "show_confirmation": show_confirmation,
+            "template_campaigns": template_campaigns,
         },
     )
 

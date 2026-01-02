@@ -674,12 +674,8 @@ class CampaignCopyFromForm(forms.Form):
         self.source_campaign_obj = kwargs.pop("source_campaign_obj", None)
         super().__init__(*args, **kwargs)
 
-        # Only show user's own campaigns, excluding target
-        self.fields["source_campaign"].queryset = (
-            Campaign.objects.filter(owner=self.user)
-            .exclude(pk=self.target_campaign.pk)
-            .order_by("-created")
-        )
+        # Build grouped choices for source campaign
+        self._build_source_campaign_choices()
 
         # If source campaign is provided, populate asset/resource type choices
         if self.source_campaign_obj:
@@ -688,6 +684,46 @@ class CampaignCopyFromForm(forms.Form):
             # Hide type selection until source is selected
             self.fields["asset_types"].choices = []
             self.fields["resource_types"].choices = []
+
+    def _build_source_campaign_choices(self):
+        """Build grouped choices for source campaign dropdown."""
+        choices = [("", "---------")]
+
+        # Get template campaigns (excluding target)
+        templates = (
+            Campaign.objects.filter(template=True)
+            .exclude(pk=self.target_campaign.pk)
+            .order_by("name")
+        )
+        if templates.exists():
+            template_choices = [(str(c.pk), c.name) for c in templates]
+            choices.append(("Templates", template_choices))
+
+        # Get user's campaigns grouped by status (excluding target)
+        user_campaigns = (
+            Campaign.objects.filter(owner=self.user)
+            .exclude(pk=self.target_campaign.pk)
+            .exclude(template=True)  # Don't duplicate templates
+            .order_by("name")
+        )
+
+        # Group by status
+        status_groups = {}
+        for campaign in user_campaigns:
+            status_label = campaign.get_status_display()
+            if status_label not in status_groups:
+                status_groups[status_label] = []
+            status_groups[status_label].append((str(campaign.pk), campaign.name))
+
+        # Add status groups in a sensible order
+        status_order = ["In Progress", "Pre-Campaign", "Post-Campaign"]
+        for status_label in status_order:
+            if status_label in status_groups:
+                choices.append((status_label, status_groups[status_label]))
+
+        # Set as choices (not queryset) for grouped display
+        self.fields["source_campaign"].choices = choices
+        self.fields["source_campaign"].queryset = Campaign.objects.all()
 
     def _populate_type_choices(self, source_campaign):
         """Populate asset and resource type choices from source campaign."""
@@ -742,12 +778,8 @@ class CampaignCopyToForm(forms.Form):
         self.user = kwargs.pop("user")
         super().__init__(*args, **kwargs)
 
-        # Only show user's own campaigns, excluding source
-        self.fields["target_campaign"].queryset = (
-            Campaign.objects.filter(owner=self.user)
-            .exclude(pk=self.source_campaign.pk)
-            .order_by("-created")
-        )
+        # Build grouped choices for target campaign
+        self._build_target_campaign_choices()
 
         # Populate asset and resource type choices from source campaign
         self.fields["asset_types"].choices = [
@@ -757,6 +789,35 @@ class CampaignCopyToForm(forms.Form):
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in self.source_campaign.resource_types.all()
         ]
+
+    def _build_target_campaign_choices(self):
+        """Build grouped choices for target campaign dropdown."""
+        choices = [("", "---------")]
+
+        # Get user's campaigns grouped by status (excluding source)
+        user_campaigns = (
+            Campaign.objects.filter(owner=self.user)
+            .exclude(pk=self.source_campaign.pk)
+            .order_by("name")
+        )
+
+        # Group by status
+        status_groups = {}
+        for campaign in user_campaigns:
+            status_label = campaign.get_status_display()
+            if status_label not in status_groups:
+                status_groups[status_label] = []
+            status_groups[status_label].append((str(campaign.pk), campaign.name))
+
+        # Add status groups in a sensible order
+        status_order = ["In Progress", "Pre-Campaign", "Post-Campaign"]
+        for status_label in status_order:
+            if status_label in status_groups:
+                choices.append((status_label, status_groups[status_label]))
+
+        # Set as choices (not queryset) for grouped display
+        self.fields["target_campaign"].choices = choices
+        self.fields["target_campaign"].queryset = Campaign.objects.all()
 
     def clean(self):
         cleaned_data = super().clean()

@@ -69,6 +69,11 @@ class Campaign(AppBase):
         blank=True,
         help_text="Notes about the current phase - special rules, conditions, etc.",
     )
+    template = models.BooleanField(
+        default=False,
+        help_text="Template campaigns appear as pre-configured options when copying assets.",
+        db_index=True,
+    )
 
     history = HistoricalRecords()
 

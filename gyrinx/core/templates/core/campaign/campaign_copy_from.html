@@ -1,4 +1,5 @@
 {% extends "core/layouts/base.html" %}
+{% load custom_tags %}
 {% block head_title %}
     Copy Content From Another Campaign - {{ campaign.name }}
 {% endblock head_title %}
@@ -93,14 +94,64 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="preview">
                 <div class="vstack gap-3">
-                    <div>
-                        <label for="id_source_campaign" class="form-label">{{ form.source_campaign.label }}</label>
-                        {{ form.source_campaign }}
-                        {% if form.source_campaign.help_text %}<div class="form-text">{{ form.source_campaign.help_text }}</div>{% endif %}
-                        {% if form.source_campaign.errors %}
-                            <div class="text-danger small mt-1">{{ form.source_campaign.errors.0 }}</div>
+                    {% if source_campaign %}
+                        <!-- Show selected source with change link -->
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">{{ form.source_campaign.label }}</label>
+                                <a href="{% url 'core:campaign-copy-from' campaign.id %}"
+                                   class="small link-secondary">Change</a>
+                            </div>
+                            <input type="hidden" name="source_campaign" value="{{ source_campaign.id }}">
+                            {% if source_campaign.template %}
+                                <!-- Template card -->
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-1">{{ source_campaign.name }}</h6>
+                                    {% if source_campaign.summary %}
+                                        <div class="text-muted small mb-0 mb-last-0">{{ source_campaign.summary|safe_rich_text|safe }}</div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <!-- Regular campaign name -->
+                                <div class="border rounded p-2">
+                                    <span>{{ source_campaign.name }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <!-- Source campaign dropdown -->
+                        <div>
+                            <label for="id_source_campaign" class="form-label">{{ form.source_campaign.label }}</label>
+                            {{ form.source_campaign }}
+                            {% if form.source_campaign.help_text %}<div class="form-text">{{ form.source_campaign.help_text }}</div>{% endif %}
+                            {% if form.source_campaign.errors %}
+                                <div class="text-danger small mt-1">{{ form.source_campaign.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        {% if template_campaigns %}
+                            <!-- Show template options -->
+                            <div>
+                                <p class="text-muted small mb-2">Or use a template:</p>
+                                <div class="vstack gap-2">
+                                    {% for tc in template_campaigns %}
+                                        <div class="border rounded p-3">
+                                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                                <div>
+                                                    <h6 class="mb-1">{{ tc.name }}</h6>
+                                                    {% if tc.summary %}<div class="text-muted small mb-0 mb-last-0">{{ tc.summary|safe_rich_text|safe }}</div>{% endif %}
+                                                </div>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-primary flex-shrink-0"
+                                                        onclick="document.getElementById('id_source_campaign').value='{{ tc.id }}'; this.closest('form').submit();">
+                                                    Use this template
+                                                </button>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         {% endif %}
-                    </div>
+                    {% endif %}
                     {% if source_campaign %}
                         {% if form.fields.asset_types.choices %}
                             <div>
@@ -153,7 +204,7 @@
                             </button>
                         {% else %}
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi-arrow-right"></i> Select Campaign
+                                Next <i class="bi-arrow-right"></i>
                             </button>
                         {% endif %}
                         <a href="{{ campaign.get_absolute_url }}" class="btn btn-link">Cancel</a>
