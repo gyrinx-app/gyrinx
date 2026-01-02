@@ -59,15 +59,9 @@
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
+                    <span>{{ fighter.xp_current }} XP</span>
                     {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">
-                            {% if fighter.xp_current == 0 %}
-                                Add XP
-                            {% else %}
-                                Edit XP
-                            {% endif %}
-                        </a>
+                        <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit</a>
                     {% endif %}
                 </td>
             </tr>
@@ -230,7 +224,7 @@
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Gear</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit</a>
+                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add</a>
                     {% else %}
                         <span class="text-muted fst-italic">None</span>
                     {% endif %}
@@ -256,7 +250,7 @@
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit</a>
+                        <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add</a>
                     {% else %}
                         <span class="text-muted fst-italic">None</span>
                     {% endif %}
@@ -290,12 +284,4 @@
 {% comment %} Wargear {% endcomment %}
 {% if fighter.injury_state != 'dead' %}
     {% include "core/includes/list_fighter_weapons.html" with weapons=fighter.weapons_cached show_edit_link=False %}
-    {% if not print %}
-        {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-            <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}"
-               class="fs-7 icon-link mt-1">
-                <i class="bi-plus-lg"></i> Add or edit weapons
-            </a>
-        {% endif %}
-    {% endif %}
 {% endif %}
