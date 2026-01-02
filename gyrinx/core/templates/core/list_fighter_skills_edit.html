@@ -4,7 +4,7 @@
     Skills - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-skills-edit" %}
     <div class="col-12 col-lg-8 px-0 vstack gap-3">
         <h1 class="h3">Skills: {{ fighter.fully_qualified_name }}</h1>
         {# Default skills from ContentFighter #}
