@@ -57,7 +57,9 @@ class PrintConfigIndexView(generic.ListView):
 @login_required
 def print_config_create(request, list_id):
     """Create a new print configuration for a list."""
-    list_obj = get_object_or_404(List, id=list_id, owner=request.user)
+    list_obj = get_object_or_404(
+        List.objects.with_related_data(), id=list_id, owner=request.user
+    )
 
     if request.method == "POST":
         form = PrintConfigForm(request.POST, list_obj=list_obj)
@@ -111,7 +113,9 @@ def print_config_create(request, list_id):
 @login_required
 def print_config_edit(request, list_id, config_id):
     """Edit an existing print configuration."""
-    list_obj = get_object_or_404(List, id=list_id, owner=request.user)
+    list_obj = get_object_or_404(
+        List.objects.with_related_data(), id=list_id, owner=request.user
+    )
     print_config = get_object_or_404(
         PrintConfig, id=config_id, list=list_obj, archived=False
     )

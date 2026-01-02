@@ -4,7 +4,7 @@
     Edit Injuries - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back_to_list.html" with list=list %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="col-lg-8 px-0 vstack gap-3">
         <h1 class="h3">Edit {{ fighter.term_injury_plural }}: {{ fighter.name }}</h1>
         <div class="card">

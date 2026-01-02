@@ -4,6 +4,7 @@
     Sell Equipment - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     {% url "core:list-fighter-gear-edit" list.id fighter.id as gear_edit_url %}
     {% url "core:list-fighter-weapons-edit" list.id fighter.id as weapons_edit_url %}
     <div class="col-12 col-md-8 col-lg-6 vstack gap-4">

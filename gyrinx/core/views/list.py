@@ -407,8 +407,11 @@ class ListAboutDetailView(generic.DetailView):
 
         Uses get_clean_list_or_404 to ensure dirty lists are refreshed
         before display (e.g., after content cost changes).
+        Uses with_related_data() to optimize queries for the list_common_header.
         """
-        return get_clean_list_or_404(List, id=self.kwargs["id"])
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
 
 
 class ListPrintView(generic.DetailView):
@@ -2360,7 +2363,9 @@ def edit_list_fighter_assign_cost(
 
     :template:`core/list_fighter_assign_cost_edit.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(
+        List.objects.with_related_data(), id=id, owner=request.user
+    )
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -3602,7 +3607,9 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     :template:`core/list_fighter_injuries_edit.html`
     """
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(
+        List.objects.with_related_data(), id=id, owner=request.user
+    )
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5308,7 +5315,9 @@ def reassign_list_fighter_equipment(
     """
     from gyrinx.core.forms.list import EquipmentReassignForm
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(
+        List.objects.with_related_data(), id=id, owner=request.user
+    )
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -5407,7 +5416,9 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     """
     from gyrinx.core.forms.list import EquipmentSellSelectionForm
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = get_clean_list_or_404(
+        List.objects.with_related_data(), id=id, owner=request.user
+    )
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,

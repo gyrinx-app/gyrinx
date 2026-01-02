@@ -4,8 +4,7 @@
     {{ title }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:print-config-index' list.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url text="Back to Print Configurations" %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">{{ title }}</h1>
         <form method="post" class="vstack gap-4">
