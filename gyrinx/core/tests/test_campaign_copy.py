@@ -466,7 +466,7 @@ def test_campaign_copy_to_view_shows_form_when_content_exists(
     response = client.get(reverse("core:campaign-copy-out", args=[source.id]))
 
     assert response.status_code == 200
-    assert b"Copy To Another Campaign" in response.content
+    assert b"Copy to another Campaign" in response.content
 
 
 @pytest.mark.django_db
@@ -489,7 +489,7 @@ def test_campaign_copy_from_view_shows_form_when_other_campaigns_exist(
     response = client.get(reverse("core:campaign-copy-in", args=[target.id]))
 
     assert response.status_code == 200
-    assert b"Copy From Another Campaign" in response.content
+    assert b"Copy from another Campaign" in response.content
 
 
 # --- Model Tests ---
