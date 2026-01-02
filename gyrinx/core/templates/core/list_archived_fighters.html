@@ -21,12 +21,8 @@
                             <td>{{ fighter.fully_qualified_name }}</td>
                             {% if not fighter.source_assignment.exists %}
                                 <td>
-                                    <form action="{% url 'core:list-fighter-archive' list.id fighter.id %}"
-                                          method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="archive" value="0">
-                                        <button type="submit" class="btn btn-link">Restore</button>
-                                    </form>
+                                    <a href="{% url 'core:list-fighter-restore' list.id fighter.id %}"
+                                       class="btn btn-link">Restore</a>
                                 </td>
                             {% else %}
                                 <td>

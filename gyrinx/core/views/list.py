@@ -3314,6 +3314,71 @@ def archive_list_fighter(request, id, fighter_id):
 
 
 @login_required
+def restore_list_fighter(request, id, fighter_id):
+    """
+    Restore an archived :model:`core.ListFighter`.
+
+    Shows a confirmation page on GET, performs the restore on POST.
+
+    **Context**
+
+    ``fighter``
+        The archived :model:`core.ListFighter` to be restored.
+    ``list``
+        The :model:`core.List` that owns this fighter.
+    ``fighter_cost``
+        The cost of the fighter in credits.
+
+    **Template**
+
+    :template:`core/list_fighter_restore_confirm.html`
+    """
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    fighter = get_object_or_404(
+        ListFighter.objects.with_related_data(),
+        id=fighter_id,
+        list=lst,
+        owner=lst.owner,
+        archived=True,  # Only allow restoring archived fighters
+    )
+
+    if request.method == "POST":
+        # Call handler to perform business logic (unarchive)
+        handle_fighter_archive_toggle(
+            user=request.user,
+            lst=lst,
+            fighter=fighter,
+            archive=False,  # Unarchive/restore
+            request_refund=False,
+        )
+
+        # Log the restore event
+        log_event(
+            user=request.user,
+            noun=EventNoun.LIST_FIGHTER,
+            verb=EventVerb.RESTORE,
+            object=fighter,
+            request=request,
+            fighter_name=fighter.name,
+            list_id=str(lst.id),
+            list_name=lst.name,
+        )
+
+        return HttpResponseRedirect(
+            reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
+        )
+
+    # Calculate fighter cost for template
+    fighter_cost = fighter.cost_int()
+
+    return render(
+        request,
+        "core/list_fighter_restore_confirm.html",
+        {"fighter": fighter, "list": lst, "fighter_cost": fighter_cost},
+    )
+
+
+@login_required
 def kill_list_fighter(request, id, fighter_id):
     """
     Mark a :model:`core.ListFighter` as dead in campaign mode.
