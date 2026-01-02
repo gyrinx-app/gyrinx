@@ -5,12 +5,11 @@
     {% with fighters=list.active_fighters %}
         {% if fighters|length > 1 %}
             <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle text-truncate fighter-switcher-btn"
+                <button class="btn dropdown-toggle text-secondary text-truncate fighter-switcher-btn fs-4 px-0"
                         type="button"
                         data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                    <i class="bi-person-fill"></i> {{ fighter.name }}
-                </button>
+                        aria-expanded="false"
+                        aria-label="Switch to another fighter">{{ fighter.name }}</button>
                 <ul class="dropdown-menu dropdown-menu-end fighter-switcher-menu">
                     {% for f in fighters %}
                         <li>

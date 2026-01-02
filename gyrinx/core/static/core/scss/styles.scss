@@ -163,13 +163,25 @@ label {
     max-width: 35em;
 }
 
-// Fighter switcher dropdown
+// Fighter switcher dropdown - styled as a title with dropdown
 .fighter-switcher-btn {
-    max-width: 200px;
+    padding: 0.25em 0.5em;
+    border: none;
+    background: transparent;
+
+    &:hover,
+    &:focus {
+        background: transparent;
+        text-decoration: underline;
+    }
+
+    &:active {
+        background: transparent;
+    }
 }
 
 .fighter-switcher-menu {
-    max-height: 300px;
+    max-height: 20em;
     overflow-y: auto;
 }
 
