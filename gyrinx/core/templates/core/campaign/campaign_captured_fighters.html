@@ -1,5 +1,9 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags color_tags %}
+{% comment %}
+    Captured Fighters screen for a campaign.
+    Displays all captured fighters with links to their original gang and capturing gang.
+{% endcomment %}
 {% block head_title %}
     Captured Fighters - {{ campaign.name }}
 {% endblock head_title %}
@@ -31,12 +35,21 @@
                         {% for captured in captured_fighters %}
                             <tr>
                                 <td>
-                                    <strong>{{ captured.fighter.name }}</strong>
+                                    <a href="{% url 'core:list' captured.fighter.list.id %}#{{ captured.fighter.id }}"
+                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                                        <strong>{{ captured.fighter.name }}</strong>
+                                    </a>
                                     <br>
                                     <small class="text-secondary">{{ captured.fighter.content_fighter.type }}</small>
                                 </td>
-                                <td>{{ captured.fighter.list.name }}</td>
-                                <td>{{ captured.capturing_list.name }}</td>
+                                <td>
+                                    <a href="{% url 'core:list' captured.fighter.list.id %}"
+                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme captured.fighter.list %}</a>
+                                </td>
+                                <td>
+                                    <a href="{% url 'core:list' captured.capturing_list.id %}"
+                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme captured.capturing_list %}</a>
+                                </td>
                                 <td>
                                     {% if captured.sold_to_guilders %}
                                         <span class="badge bg-secondary">Sold to Guilders</span>

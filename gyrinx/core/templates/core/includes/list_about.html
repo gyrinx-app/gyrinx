@@ -4,7 +4,9 @@
         <h2>{{ list.name }}</h2>
         <div>{{ list.content_house_name }}</div>
         <div class="text-secondary">
-            <i class="bi-person"></i> {{ list.owner_cached }}
+            <i class="bi-person"></i>
+            <a href="{% url 'core:user' list.owner_cached.username %}"
+               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.owner_cached }}</a>
         </div>
     </div>
     <nav class="nav card card-body flex-column mb-3 p-2">

@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load allauth custom_tags color_tags %}
 {% block head_title %}
     Campaign Resources - {{ campaign.name }}
 {% endblock head_title %}
@@ -62,7 +62,7 @@
                                     <tr>
                                         <td class="ps-0">
                                             <a href="{% url 'core:list' resource.list.id %}"
-                                               class="link-underline-opacity-25 link-underline-opacity-100-hover">{{ resource.list.name }}</a>
+                                               class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme resource.list %}</a>
                                         </td>
                                         <td class="text-end">{{ resource.amount }}</td>
                                         <td class="text-end pe-0">
