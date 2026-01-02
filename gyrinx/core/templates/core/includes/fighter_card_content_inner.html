@@ -230,7 +230,7 @@
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Gear</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add</a>
+                        <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Edit</a>
                     {% else %}
                         <span class="text-muted fst-italic">None</span>
                     {% endif %}
@@ -256,7 +256,7 @@
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add</a>
+                        <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Edit</a>
                     {% else %}
                         <span class="text-muted fst-italic">None</span>
                     {% endif %}

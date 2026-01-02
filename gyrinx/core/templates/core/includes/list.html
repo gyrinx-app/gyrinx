@@ -49,7 +49,7 @@
                                 <i class="bi-copy"
                                    data-bs-toggle="tooltip"
                                    data-bs-title="This list was created via cloning"></i>
-                                Created from <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
+                                Based on <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
                             </div>
                         {% endif %}
                         {% if list.is_list_building and list.active_campaign_clones|length %}

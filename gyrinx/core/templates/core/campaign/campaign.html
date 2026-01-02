@@ -101,7 +101,7 @@
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 text-muted small">
-                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a></span>
+                <span><i class="bi-diamond"></i> <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a></span>
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
                           data-bs-title="This campaign is visible to all users"><i class="bi-eye"></i> Public</span>

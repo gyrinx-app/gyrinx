@@ -19,13 +19,8 @@
                                 {% if list.owner_cached == user and not list.archived %}
                                     <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
                                        class="icon-link link-secondary small">
-                                        <i class="bi-{% if attribute.assignments %}pencil{% else %}plus{% endif %}"
-                                           aria-hidden="true"></i>
-                                        {% if attribute.assignments %}
-                                            Edit
-                                        {% else %}
-                                            Add
-                                        {% endif %}
+                                        <i class="bi-pencil" aria-hidden="true"></i>
+                                        Edit
                                     </a>
                                 {% endif %}
                             </td>
