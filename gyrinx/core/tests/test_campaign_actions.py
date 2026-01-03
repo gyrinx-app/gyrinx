@@ -276,3 +276,43 @@ def test_campaign_log_action_permissions():
     # Optionally, check redirect location:
     assert reverse("core:campaign", args=[campaign.id]) in response["Location"]
     client.logout()
+
+
+@pytest.mark.django_db
+def test_campaign_log_action_form_initialization():
+    """Test that the campaign action form initializes with gang selected if parameter is given."""
+    client = Client()
+
+    # Create users
+    campain_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
+
+    # Create campaign and list
+    campaign = Campaign.objects.create(
+        name="Form Init Campaign",
+        owner=campain_owner,
+        public=True,
+        status=Campaign.IN_PROGRESS,
+    )
+    house = ContentHouse.objects.create(name="House Cawdor")
+    gang = List.objects.create(
+        name="Cawdor Gang",
+        owner=list_owner,
+        content_house=house,
+        campaign=campaign,
+    )
+    campaign.lists.add(gang)
+
+    url = reverse("core:campaign-action-new", args=[campaign.id])
+
+    # Log in as list owner
+    client.login(username="list_owner", password="testpass")
+    response = client.get(url + f"?gang={gang.id}")
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # Check that the gang is pre-selected in the form
+    assert f'<option value="{gang.id}" selected>' in content
+    client.logout()
