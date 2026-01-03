@@ -160,3 +160,119 @@ def test_campaign_action_list_filtering():
     # Check that filter parameters are preserved in pagination links
     assert "page=2" in content  # Next page link should exist
     assert "q=water" in content  # Filter should be preserved
+
+
+@pytest.mark.django_db
+def test_campaign_log_action_list_owner_can_view():
+    """Test that only owners of lists in a campaign can view the campaign action log."""
+    client = Client()
+
+    # Create test users
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    User.objects.create_user(username="other_user", password="testpass")
+
+    # Create a campaign
+    campaign = Campaign.objects.create(
+        name="Owner View Campaign",
+        owner=campaign_owner,
+        public=True,
+        summary="A campaign to test owner view",
+        status=Campaign.IN_PROGRESS,
+    )
+
+    # Create a house and a list for the campaign
+    house = ContentHouse.objects.create(name="House Van Saar")
+    gang = List.objects.create(
+        name="Gang Gamma",
+        owner=list_owner,
+        content_house=house,
+        campaign=campaign,
+    )
+    campaign.lists.add(gang)
+
+    # Create a campaign action
+    CampaignAction.objects.create(
+        campaign=campaign,
+        user=list_owner,
+        owner=list_owner,  # Add owner field
+        list=gang,
+        description="Gang Gamma secures a new territory",
+        outcome="Success",
+        dice_count=4,
+    )
+
+    # Test that the list owner can view the campaign action log
+    client.login(username="list_owner", password="testpass")
+    response = client.get(reverse("core:campaign-actions", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Gang Gamma secures a new territory" in content
+    client.logout()
+
+    # Test that the campaign owner can view the campaign action log
+    client.login(username="campaign_owner", password="testpass")
+    response = client.get(reverse("core:campaign-actions", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Gang Gamma secures a new territory" in content
+    client.logout()
+
+    # Test that another user cannot view the campaign action log
+    client.login(username="other_user", password="testpass")
+    response = client.get(reverse("core:campaign-actions", args=[campaign.id]))
+    assert response.status_code == 303  # Redirect to login or no permission
+    client.logout()
+
+
+@pytest.mark.django_db
+def test_campaign_log_action_permissions():
+    """Test that only campaign owner or list owners can access the log action form."""
+    client = Client()
+
+    # Create users
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="testpass")
+    User.objects.create_user(username="outsider", password="testpass")
+
+    # Create campaign and list
+    campaign = Campaign.objects.create(
+        name="Permission Test Campaign",
+        owner=campaign_owner,
+        public=True,
+        status=Campaign.IN_PROGRESS,
+    )
+    house = ContentHouse.objects.create(name="House Orlock")
+    gang = List.objects.create(
+        name="Orlock Gang",
+        owner=list_owner,
+        content_house=house,
+        campaign=campaign,
+    )
+    campaign.lists.add(gang)
+
+    url = reverse("core:campaign-action-new", args=[campaign.id])
+
+    # Campaign owner can access
+    client.login(username="campaign_owner", password="testpass")
+    response = client.get(url)
+    assert response.status_code == 200
+    client.logout()
+
+    # List owner can access
+    client.login(username="list_owner", password="testpass")
+    response = client.get(url)
+    assert response.status_code == 200
+    client.logout()
+
+    # Outsider is redirected
+    client.login(username="outsider", password="testpass")
+    response = client.get(url)
+    assert response.status_code in (302, 303)
+    # Optionally, check redirect location:
+    assert reverse("core:campaign", args=[campaign.id]) in response["Location"]
+    client.logout()
