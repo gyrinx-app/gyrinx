@@ -29,6 +29,8 @@
         <form action="{% url 'core:campaign-action-outcome' campaign.id action.id %}"
               method="post"
               class="vstack gap-3">
+            {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+            {% if return_text %}<input type="hidden" name="return_text" value="{{ return_text }}">{% endif %}
             {% csrf_token %}
             {% return_url_field %}
             <div>
