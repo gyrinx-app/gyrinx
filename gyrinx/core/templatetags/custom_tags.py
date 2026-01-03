@@ -346,11 +346,11 @@ def nowrap_class(value, threshold=NOWRAP_THRESHOLD):
 
     Args:
         value: The string value to check
-        threshold: Maximum length for nowrap (default: 30 characters)
+        threshold: Maximum length for nowrap (default: 40 characters)
 
     Usage:
         <span class="{{ value|nowrap_class }}">{{ value }}</span>
-        <span class="{{ value|nowrap_class:40 }}">{{ value }}</span>
+        <span class="{{ value|nowrap_class:50 }}">{{ value }}</span>
     """
     if value is None:
         return "text-nowrap"
@@ -369,7 +369,7 @@ def property_nowrap_class(label, value, threshold=NOWRAP_THRESHOLD):
     Args:
         label: The property label
         value: The property value
-        threshold: Maximum length for nowrap (default: 30 characters)
+        threshold: Maximum length for nowrap (default: 40 characters)
 
     Usage:
         <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}</span>
