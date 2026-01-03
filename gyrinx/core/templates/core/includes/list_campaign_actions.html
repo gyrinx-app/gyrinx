@@ -16,7 +16,7 @@
         {% if recent_actions %}
             <div class="vstack gap-2">
                 {% for action in recent_actions %}
-                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
+                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print add_return_url=request.path add_return_text="Back to "|add:list.name %}
                 {% endfor %}
             </div>
             {% if not print %}
