@@ -191,16 +191,22 @@
                                                     {% if asset.properties_with_labels %}
                                                         <div class="small text-muted">
                                                             {% for label, value in asset.properties_with_labels %}
-                                                                {% if not forloop.first %}·{% endif %}
-                                                                <span class="text-nowrap">{{ label }}: {{ value }}</span>
+                                                                {% spaceless %}
+                                                                    <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}
+                                                                        {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                                    </span>
+                                                                {% endspaceless %}
                                                             {% endfor %}
                                                         </div>
                                                     {% endif %}
                                                     {% if asset.sub_asset_counts %}
                                                         <div class="small text-muted">
                                                             {% for label, count in asset.sub_asset_counts %}
-                                                                {% if not forloop.first %}·{% endif %}
-                                                                <span class="text-nowrap">{{ count }} {{ label }}</span>
+                                                                {% spaceless %}
+                                                                    <span class="{% property_nowrap_class count label %}">{{ count }} {{ label }}
+                                                                        {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                                    </span>
+                                                                {% endspaceless %}
                                                             {% endfor %}
                                                         </div>
                                                     {% endif %}
