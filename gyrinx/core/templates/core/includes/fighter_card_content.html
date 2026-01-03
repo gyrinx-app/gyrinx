@@ -276,14 +276,14 @@
                                 </div>
                             {% endif %}
                             {% if not fighter.image and not fighter.save_roll and not fighter.private_notes %}
-                                <div class="text-muted fst-italic">No info added yet.</div>
+                                <div class="text-muted">No info added yet.</div>
                             {% endif %}
                         </div>
                         {% if can_edit %}
                             <div class="mt-2">
                                 <a href="{% url 'core:list-fighter-info-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                    class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit Info
+                                    <i class="bi-pencil"></i> Edit
                                 </a>
                             </div>
                         {% endif %}
@@ -301,7 +301,7 @@
                             <div class="mt-2">
                                 <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                    class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit Lore
+                                    <i class="bi-pencil"></i> Edit
                                 </a>
                             </div>
                         {% endif %}
@@ -311,12 +311,12 @@
                             <div class="mt-2">
                                 <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                    class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-plus"></i> Add Lore
+                                    <i class="bi-pencil"></i> Edit
                                 </a>
                             </div>
                         </div>
                     {% else %}
-                        <div class="text-muted fst-italic">No lore added yet.</div>
+                        <div class="text-muted">No lore added yet.</div>
                     {% endif %}
                 </div>
             </div>
