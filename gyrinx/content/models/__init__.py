@@ -23,7 +23,6 @@ from .statline import (
 )
 from .metadata import (
     ContentBook,
-    ContentPack,
     ContentPageRef,
     ContentPolicy,
     ContentRule,
@@ -133,7 +132,6 @@ __all__ = [
     "ContentStatlineTypeStat",
     # Metadata
     "ContentBook",
-    "ContentPack",
     "ContentPageRef",
     "ContentPolicy",
     "ContentRule",
