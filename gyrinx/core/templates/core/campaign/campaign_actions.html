@@ -12,7 +12,7 @@
                 <h2 class="h5 text-muted">{{ campaign.name }}</h2>
             </div>
             {% if can_log_actions %}
-                <a href="{% url 'core:campaign-action-new' campaign.id %}"
+                <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
                    class="btn btn-primary btn-sm">
                     <i class="bi bi-plus-circle"></i> Log Action
                 </a>

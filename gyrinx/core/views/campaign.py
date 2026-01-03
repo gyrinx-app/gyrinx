@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
@@ -938,7 +939,9 @@ def campaign_action_outcome(request, id, action_id):
                 new_action_url = reverse(
                     "core:campaign-action-new", args=(campaign.id,)
                 )
-                return HttpResponseRedirect(f"{new_action_url}?return_url={return_url}")
+                return HttpResponseRedirect(
+                    f"{new_action_url}?{urlencode({'return_url': return_url})}"
+                )
             else:
                 # Default: redirect to return URL
                 return safe_redirect(request, return_url, fallback_url=default_url)

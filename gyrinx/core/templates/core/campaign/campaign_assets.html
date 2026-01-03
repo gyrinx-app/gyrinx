@@ -125,7 +125,7 @@
                                             <td class="text-end pe-0 text-nowrap">
                                                 <!-- Expanded links for sm and up -->
                                                 <span class="d-none d-sm-inline">
-                                                    <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                    <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                        class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Transfer</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
@@ -145,7 +145,7 @@
                                                     <ul class="dropdown-menu dropdown-menu-end">
                                                         <li>
                                                             <a class="dropdown-item"
-                                                               href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}">
+                                                               href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}">
                                                                 <i class="bi-arrow-left-right"></i> Transfer
                                                             </a>
                                                         </li>

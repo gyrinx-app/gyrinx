@@ -37,8 +37,9 @@
                 {% if form.outcome.help_text %}<small class="form-text text-muted">{{ form.outcome.help_text }}</small>{% endif %}
                 {% if form.outcome.errors %}<div class="invalid-feedback d-block">{{ form.outcome.errors }}</div>{% endif %}
             </div>
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary" name="save">Save Outcome</button>
+            <div class="mt-3 hstack gap-2">
+                <button type="submit" class="btn btn-primary" name="save">Save outcome</button>
+                or
                 <button type="submit" class="btn btn-secondary" name="save_and_new">Save and log another action</button>
                 {% include "core/includes/cancel.html" with text="Skip" %}
             </div>
