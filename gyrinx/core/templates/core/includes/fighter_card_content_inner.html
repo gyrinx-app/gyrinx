@@ -59,9 +59,9 @@
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    <span>{{ fighter.xp_current }} XP</span>
+                    <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
                     {% if not print and can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit</a>
+                        <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
                     {% endif %}
                 </td>
             </tr>
