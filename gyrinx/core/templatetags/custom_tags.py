@@ -332,6 +332,52 @@ def dot():
     return mark_safe("&nbsp;·&nbsp;")
 
 
+# Threshold for applying text-nowrap class to short property values
+NOWRAP_THRESHOLD = 40
+
+
+@register.filter
+def nowrap_class(value, threshold=NOWRAP_THRESHOLD):
+    """
+    Return 'text-nowrap' class if value length is under threshold.
+
+    Use this to prevent short property values from wrapping mid-text
+    while allowing long values to wrap naturally.
+
+    Args:
+        value: The string value to check
+        threshold: Maximum length for nowrap (default: 30 characters)
+
+    Usage:
+        <span class="{{ value|nowrap_class }}">{{ value }}</span>
+        <span class="{{ value|nowrap_class:40 }}">{{ value }}</span>
+    """
+    if value is None:
+        return "text-nowrap"
+    str_value = str(value)
+    return "text-nowrap" if len(str_value) <= threshold else ""
+
+
+@register.simple_tag
+def property_nowrap_class(label, value, threshold=NOWRAP_THRESHOLD):
+    """
+    Return 'text-nowrap' class if combined label+value length is under threshold.
+
+    For asset properties displayed as "Label: Value", this checks if the total
+    display length is short enough to prevent wrapping.
+
+    Args:
+        label: The property label
+        value: The property value
+        threshold: Maximum length for nowrap (default: 30 characters)
+
+    Usage:
+        <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}</span>
+    """
+    combined = f"{label}: {value}"
+    return "text-nowrap" if len(combined) <= threshold else ""
+
+
 @register.simple_tag
 def credits(value, show_sign=False):
     """

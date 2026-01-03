@@ -189,18 +189,20 @@
                                                 <td class="ps-0">
                                                     <div class="fw-semibold">{{ asset.name }}</div>
                                                     {% if asset.properties_with_labels %}
-                                                        <div class="small text-muted">
+                                                        <div class="small text-muted d-flex flex-wrap">
                                                             {% for label, value in asset.properties_with_labels %}
-                                                                {% if not forloop.first %}·{% endif %}
-                                                                <span class="text-nowrap">{{ label }}: {{ value }}</span>
+                                                                <span class="{% property_nowrap_class label value %}">
+                                                                    {% if not forloop.first %}<span class="mx-1">·</span>{% endif %}
+                                                                {{ label }}: {{ value }}</span>
                                                             {% endfor %}
                                                         </div>
                                                     {% endif %}
                                                     {% if asset.sub_asset_counts %}
-                                                        <div class="small text-muted">
+                                                        <div class="small text-muted d-flex flex-wrap">
                                                             {% for label, count in asset.sub_asset_counts %}
-                                                                {% if not forloop.first %}·{% endif %}
-                                                                <span class="text-nowrap">{{ count }} {{ label }}</span>
+                                                                <span class="{% property_nowrap_class count label %}">
+                                                                    {% if not forloop.first %}<span class="mx-1">·</span>{% endif %}
+                                                                {{ count }} {{ label }}</span>
                                                             {% endfor %}
                                                         </div>
                                                     {% endif %}
