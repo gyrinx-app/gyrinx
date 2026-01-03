@@ -4,7 +4,7 @@
     Release Fighter - {{ campaign.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url="core:campaign-captured-fighters" text="Back to Captured Fighters" url_args=campaign.id %}
+    {% include "core/includes/back.html" with text="Back" %}
     <div class="col-lg-8 px-0">
         <div class="vstack gap-0 mb-3">
             <h1 class="mb-0">Release Fighter</h1>
@@ -36,6 +36,7 @@
         </div>
         <form method="post">
             {% csrf_token %}
+            {% return_url_field %}
             <div class="card">
                 <div class="card-body">
                     <h2 class="h5 card-title">Confirm Release</h2>
@@ -51,8 +52,7 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="bi-unlock"></i> Release Fighter
                         </button>
-                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                           class="btn btn-secondary">Cancel</a>
+                        {% include "core/includes/cancel.html" %}
                     </div>
                 </div>
             </div>

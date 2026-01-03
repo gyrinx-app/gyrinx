@@ -219,7 +219,7 @@
                                                         <span class="text-muted">Unowned</span>
                                                     {% endif %}
                                                     {% if is_owner and not campaign.archived %}
-                                                        <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}"
+                                                        <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                            class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
                                                     {% endif %}
                                                 </td>
@@ -280,7 +280,7 @@
                                                         {{ res.amount }}
                                                         {% if is_owner or res.list.owner == user %}
                                                             {% if not campaign.archived %}
-                                                                <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}"
+                                                                <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                                    class="link-secondary small ms-1"><i class="bi-pencil"></i></a>
                                                             {% endif %}
                                                         {% endif %}
@@ -359,7 +359,7 @@
                 </h2>
                 <div class="hstack gap-3">
                     {% if can_log_actions and not campaign.archived %}
-                        <a href="{% url 'core:campaign-action-new' campaign.id %}"
+                        <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
                            class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small"><i class="bi-plus-circle"></i> Log Action</a>
                     {% endif %}
                     <a href="{% url 'core:campaign-actions' campaign.id %}"

@@ -18,7 +18,7 @@
                                 {% if list.campaign.is_pre_campaign %}
                                     <span class="text-muted small ms-auto">Campaign not started</span>
                                 {% elif not list.campaign.archived and not print %}
-                                    <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}"
+                                    <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                                        class="icon-link link-secondary small ms-auto">
                                         <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
                                     </a>
@@ -47,7 +47,7 @@
                                         {% if list.campaign.is_pre_campaign %}
                                             <span class="text-muted small">Campaign not started</span>
                                         {% elif not list.campaign.archived and not print %}
-                                            <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}"
+                                            <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                class="icon-link link-secondary small">
                                                 <i class="bi-pencil" aria-hidden="true"></i> Modify
                                             </a>
@@ -71,13 +71,13 @@
                                         <span class="text-muted">({{ capture.fighter.list.name }})</span>
                                     </td>
                                     <td class="text-end pe-0">
-                                        <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}"
+                                        <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                            class="link-secondary small">Sell</a>
                                         ·
-                                        <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}"
+                                        <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                            class="link-secondary small">Ransom</a>
                                         ·
-                                        <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}"
+                                        <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                            class="link-secondary small">Release</a>
                                     </td>
                                 </tr>

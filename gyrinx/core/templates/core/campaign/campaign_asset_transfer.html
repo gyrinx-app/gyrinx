@@ -4,8 +4,7 @@
     Transfer {{ asset.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:campaign-assets' campaign.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url text="Back to Assets" %}
+    {% include "core/includes/back.html" with text="Back" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Transfer {{ asset.asset_type.name_singular }}</h1>
         <h2 class="h5 text-muted">{{ asset.name }}</h2>
@@ -25,6 +24,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            {% return_url_field %}
             <div>
                 {{ form.new_holder.label_tag }}
                 {{ form.new_holder }}
@@ -38,8 +38,7 @@
             </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Transfer Asset</button>
-                <a href="{% url 'core:campaign-assets' campaign.id %}"
-                   class="btn btn-link">Cancel</a>
+                {% include "core/includes/cancel.html" %}
             </div>
         </form>
     </div>

@@ -66,18 +66,18 @@
                                     {% if not captured.sold_to_guilders %}
                                         {% if captured.capturing_list.owner == request.user or campaign.owner == request.user %}
                                             <div class="btn-group btn-group-sm" role="group">
-                                                <a href="{% url 'core:fighter-sell-to-guilders' campaign.id captured.fighter.id %}"
+                                                <a href="{% url 'core:fighter-sell-to-guilders' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Sell to Guilders</a>
-                                                <a href="{% url 'core:fighter-return-to-owner' campaign.id captured.fighter.id %}"
+                                                <a href="{% url 'core:fighter-return-to-owner' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Return to Owner</a>
-                                                <a href="{% url 'core:fighter-release' campaign.id captured.fighter.id %}"
+                                                <a href="{% url 'core:fighter-release' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Release</a>
                                             </div>
                                         {% elif captured.fighter.list.owner == request.user %}
                                             <div class="btn-group btn-group-sm" role="group">
-                                                <a href="{% url 'core:fighter-return-to-owner' campaign.id captured.fighter.id %}"
+                                                <a href="{% url 'core:fighter-return-to-owner' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Return to Owner</a>
-                                                <a href="{% url 'core:fighter-release' campaign.id captured.fighter.id %}"
+                                                <a href="{% url 'core:fighter-release' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Release</a>
                                             </div>
                                         {% else %}

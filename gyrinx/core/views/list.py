@@ -105,6 +105,7 @@ from gyrinx.core.utils import (
     get_list_campaign_resources,
     get_list_held_assets,
     get_list_recent_campaign_actions,
+    get_return_url,
     safe_redirect,
 )
 from gyrinx.core.views import make_query_params_str
@@ -1685,11 +1686,11 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         owner=lst.owner,
     )
 
-    # Get the return URL from query params, with fallback to default
+    # Get the return URL from query params or POST data, with fallback to default
     default_url = (
         reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
     )
-    return_url = request.GET.get("return_url", default_url)
+    return_url = get_return_url(request, default_url)
 
     error_message = None
     if request.method == "POST":
@@ -1711,10 +1712,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
                 narrative_length=len(fighter.narrative) if fighter.narrative else 0,
             )
 
-            # Get return URL from POST data (in case it was in the form)
-            post_return_url = request.POST.get("return_url", return_url)
-            # Use safe redirect with fallback
-            return safe_redirect(request, post_return_url, fallback_url=default_url)
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = EditListFighterNarrativeForm(instance=fighter)
 
@@ -1758,14 +1756,11 @@ def edit_list_fighter_info(request, id, fighter_id):
         owner=lst.owner,
     )
 
-    # Get the return URL from query params, with fallback to default
+    # Get the return URL from query params or POST data, with fallback to default
     default_url = (
         reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
     )
-    return_url = request.GET.get("return_url", default_url)
-
-    # Validate the return URL for security - safe_redirect will handle validation
-    # If return_url is invalid, it will use default_url as fallback
+    return_url = get_return_url(request, default_url)
 
     error_message = None
     if request.method == "POST":
@@ -1790,10 +1785,7 @@ def edit_list_fighter_info(request, id, fighter_id):
                 has_private_notes=bool(fighter.private_notes),
             )
 
-            # Get return URL from POST data (in case it was in the form)
-            post_return_url = request.POST.get("return_url", return_url)
-            # Use safe redirect with fallback
-            return safe_redirect(request, post_return_url, fallback_url=default_url)
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = EditListFighterInfoForm(instance=fighter)
 
@@ -1839,9 +1831,9 @@ def list_fighter_stats_edit(request, id, fighter_id):
         owner=lst.owner,
     )
 
-    # Get the return URL from query params, with fallback to default
+    # Get the return URL from query params or POST data, with fallback to default
     default_url = reverse("core:list-fighter-edit", args=(lst.id, fighter.id))
-    return_url = request.GET.get("return_url", default_url)
+    return_url = get_return_url(request, default_url)
 
     error_message = None
     if request.method == "POST":
@@ -2549,7 +2541,7 @@ def delete_list_fighter_gear_upgrade(
     )
 
     default_url = reverse(back_name, args=(lst.id, fighter.id))
-    return_url = request.GET.get("return_url", default_url)
+    return_url = get_return_url(request, default_url)
 
     if request.method == "POST":
         # Call handler to perform business logic
@@ -3020,7 +3012,7 @@ def delete_list_fighter_weapon_accessory(
         reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
         + f"?flash={assignment.id}#{str(fighter.id)}"
     )
-    return_url = request.GET.get("return_url", default_url)
+    return_url = get_return_url(request, default_url)
 
     if request.method == "POST":
         # Call handler to perform business logic
