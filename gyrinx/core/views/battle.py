@@ -8,7 +8,7 @@ from django.views import generic
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
-from gyrinx.core.utils import safe_redirect
+from gyrinx.core.utils import get_return_url, safe_redirect
 
 
 class BattleDetailView(generic.DetailView):
@@ -193,7 +193,7 @@ def add_battle_note(request, battle_id):
 
     # Get the return URL from query params, with fallback to default
     default_url = reverse("core:battle", args=[battle.id])
-    return_url = request.GET.get("return_url", default_url)
+    return_url = get_return_url(request, default_url)
 
     # Check if user already has a note
     existing_note = battle.notes.filter(owner=request.user).first()
@@ -225,10 +225,7 @@ def add_battle_note(request, battle_id):
             )
 
             messages.success(request, "Note saved successfully!")
-            # Get return URL from POST data (in case it was in the form)
-            post_return_url = request.POST.get("return_url", return_url)
-            # Use safe redirect with fallback
-            return safe_redirect(request, post_return_url, fallback_url=default_url)
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         if existing_note:
             form = BattleNoteForm(instance=existing_note)
