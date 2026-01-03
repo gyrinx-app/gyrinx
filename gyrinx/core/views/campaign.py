@@ -816,6 +816,12 @@ def campaign_log_action(request, id):
         A CampaignActionForm for entering the action details.
     ``error_message``
         None or a string describing a form error.
+    ``return_url``
+        Optional. A URL to return to after logging the action. Can be provided as a GET or POST parameter. Used for navigation after form submission.
+    ``return_text``
+        Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back to Campaign".
+    ``gang``
+        Optional. If provided as a GET parameter, pre-selects a gang/list in the form.
 
     **Template**
 
@@ -912,6 +918,10 @@ def campaign_action_outcome(request, id, action_id):
         A CampaignActionOutcomeForm for editing the outcome.
     ``error_message``
         None or a string describing a form error.
+    ``return_url``
+        Optional. A URL to return to after editing the outcome. Can be provided as a GET or POST parameter. Used for navigation after form submission.
+    ``return_text``
+        Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back to Campaign".
 
     **Template**
 

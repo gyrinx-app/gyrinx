@@ -228,7 +228,7 @@ def test_campaign_log_action_list_owner_can_view():
 
 
 @pytest.mark.django_db
-def test_campaign_log_action_permissions():
+def test_campaign_action_new_permissions():
     """Test that only campaign owner or list owners can access the log action form."""
     client = Client()
 
@@ -279,12 +279,12 @@ def test_campaign_log_action_permissions():
 
 
 @pytest.mark.django_db
-def test_campaign_log_action_form_initialization():
+def test_campaign_action_new_form_initialization():
     """Test that the campaign action form initializes with gang selected if parameter is given."""
     client = Client()
 
     # Create users
-    campain_owner = User.objects.create_user(
+    campaign_owner = User.objects.create_user(
         username="campaign_owner", password="testpass"
     )
     list_owner = User.objects.create_user(username="list_owner", password="testpass")
@@ -292,7 +292,7 @@ def test_campaign_log_action_form_initialization():
     # Create campaign and list
     campaign = Campaign.objects.create(
         name="Form Init Campaign",
-        owner=campain_owner,
+        owner=campaign_owner,
         public=True,
         status=Campaign.IN_PROGRESS,
     )
@@ -315,4 +315,68 @@ def test_campaign_log_action_form_initialization():
 
     # Check that the gang is pre-selected in the form
     assert f'<option value="{gang.id}" selected>' in content
+    client.logout()
+
+
+@pytest.mark.django_db
+def test_campaign_action_outcome_permissions():
+    """Test that only the action creator can access the outcome form; others are redirected."""
+    client = Client()
+
+    # Create users
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="testpass"
+    )
+    action_creator = User.objects.create_user(
+        username="action_creator", password="testpass"
+    )
+    User.objects.create_user(username="outsider", password="testpass")
+
+    # Create campaign and list
+    campaign = Campaign.objects.create(
+        name="Outcome Permission Campaign",
+        owner=campaign_owner,
+        public=True,
+        status=Campaign.IN_PROGRESS,
+    )
+    house = ContentHouse.objects.create(name="House Delaque")
+    gang = List.objects.create(
+        name="Delaque Gang",
+        owner=action_creator,
+        content_house=house,
+        campaign=campaign,
+    )
+    campaign.lists.add(gang)
+
+    # Create a campaign action
+    action = CampaignAction.objects.create(
+        campaign=campaign,
+        user=action_creator,
+        owner=action_creator,
+        list=gang,
+        description="Delaque Gang infiltrates",
+        outcome="Stealth success",
+        dice_count=2,
+    )
+
+    url = reverse("core:campaign-action-outcome", args=[campaign.id, action.id])
+
+    # Action creator can access
+    client.login(username="action_creator", password="testpass")
+    response = client.get(url)
+    assert response.status_code == 200
+    client.logout()
+
+    # Campaign owner (not action creator) is redirected
+    client.login(username="campaign_owner", password="testpass")
+    response = client.get(url)
+    assert response.status_code in (302, 303)
+    assert reverse("core:campaign", args=[campaign.id]) in response["Location"]
+    client.logout()
+
+    # Outsider is redirected
+    client.login(username="outsider", password="testpass")
+    response = client.get(url)
+    assert response.status_code in (302, 303)
+    assert reverse("core:campaign", args=[campaign.id]) in response["Location"]
     client.logout()
