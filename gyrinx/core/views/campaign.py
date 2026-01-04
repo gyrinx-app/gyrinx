@@ -921,7 +921,7 @@ def campaign_action_outcome(request, id, action_id):
     ``return_url``
         Optional. A URL to return to after editing the outcome. Can be provided as a GET or POST parameter. Used for navigation after form submission.
     ``return_text``
-        Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back to Campaign".
+        Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back".
 
     **Template**
 
@@ -941,7 +941,7 @@ def campaign_action_outcome(request, id, action_id):
     error_message = None
     if request.method == "POST":
         return_url = request.POST.get("return_url")
-        return_text = request.POST.get("return_text") or "Back to Campaign"
+        return_text = request.POST.get("return_text") or "Back"
         form = CampaignActionOutcomeForm(request.POST, instance=action)
         if form.is_valid():
             form.save()
@@ -972,7 +972,7 @@ def campaign_action_outcome(request, id, action_id):
                 return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         return_url = request.GET.get("return_url")
-        return_text = request.GET.get("return_text") or "Back to Campaign"
+        return_text = request.GET.get("return_text") or "Back"
         form = CampaignActionOutcomeForm(instance=action)
 
     return render(

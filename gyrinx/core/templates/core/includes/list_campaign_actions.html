@@ -5,7 +5,7 @@
             <h3 class="h5 mb-1 flex-grow-1">Actions</h3>
             {% if not list.campaign.archived %}
                 <a href="{% url 'core:campaign-action-new' list.campaign.id %}?gang={{ list.id }}&return_url={{ request.path|urlencode }}&return_text={{ 'Back to '|add:list.name|urlencode }}"
-                   class="icon-link link-sm">
+                   class="icon-link small">
                     <i class="bi-plus-circle" aria-hidden="true"></i> Log Action
                 </a>
             {% endif %}
