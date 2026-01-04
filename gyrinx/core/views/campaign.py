@@ -818,7 +818,7 @@ def campaign_log_action(request, id):
         None or a string describing a form error.
     ``return_url``
         Optional. A URL to return to after logging the action. Can be provided as a GET or POST parameter. Used for navigation after form submission.
-    ``return_text``
+    ``back_text``
         Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back to Campaign".
     ``gang``
         Optional. If provided as a GET parameter, pre-selects a gang/list in the form.
@@ -847,7 +847,7 @@ def campaign_log_action(request, id):
     if request.method == "POST":
         form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
         return_url = request.POST.get("return_url")
-        return_text = request.POST.get("return_text") or "Back to Campaign"
+        back_text = request.POST.get("back_text") or "Back to Campaign"
         if form.is_valid():
             action = form.save(commit=False)
             action.campaign = campaign
@@ -881,7 +881,7 @@ def campaign_log_action(request, id):
             )
     else:
         return_url = request.GET.get("return_url")
-        return_text = request.GET.get("return_text") or "Back to Campaign"
+        back_text = request.GET.get("back_text") or "Back to Campaign"
 
         # Pre-populate gang/list if provided
         gang = request.GET.get("gang")
@@ -920,7 +920,7 @@ def campaign_action_outcome(request, id, action_id):
         None or a string describing a form error.
     ``return_url``
         Optional. A URL to return to after editing the outcome. Can be provided as a GET or POST parameter. Used for navigation after form submission.
-    ``return_text``
+    ``back_text``
         Optional. The text to display for the return link/button. Can be provided as a GET or POST parameter. Defaults to "Back".
 
     **Template**
@@ -941,7 +941,7 @@ def campaign_action_outcome(request, id, action_id):
     error_message = None
     if request.method == "POST":
         return_url = request.POST.get("return_url")
-        return_text = request.POST.get("return_text") or "Back"
+        back_text = request.POST.get("back_text") or "Back"
         form = CampaignActionOutcomeForm(request.POST, instance=action)
         if form.is_valid():
             form.save()
@@ -972,7 +972,7 @@ def campaign_action_outcome(request, id, action_id):
                 return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         return_url = request.GET.get("return_url")
-        return_text = request.GET.get("return_text") or "Back"
+        back_text = request.GET.get("back_text") or "Back"
         form = CampaignActionOutcomeForm(instance=action)
 
     return render(

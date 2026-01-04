@@ -4,7 +4,7 @@
         <div class="hstack gap-2  align-items-center">
             <h3 class="h5 mb-1 flex-grow-1">Actions</h3>
             {% if not list.campaign.archived %}
-                <a href="{% url 'core:campaign-action-new' list.campaign.id %}{% querystring gang=list.id return_url=request.path return_text="Back to "|add:list.name %}"
+                <a href="{% url 'core:campaign-action-new' list.campaign.id %}{% querystring gang=list.id return_url=request.path back_text="Back to "|add:list.name %}"
                    class="icon-link small">
                     <i class="bi-plus-circle" aria-hidden="true"></i> Log Action
                 </a>
@@ -16,7 +16,7 @@
         {% if recent_actions %}
             <div class="vstack gap-2">
                 {% for action in recent_actions %}
-                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print add_return_url=request.path add_return_text="Back to "|add:list.name %}
+                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print add_return_url=request.path add_back_text="Back to "|add:list.name %}
                 {% endfor %}
             </div>
             {% if not print %}
