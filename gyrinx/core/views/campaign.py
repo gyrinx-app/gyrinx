@@ -813,11 +813,9 @@ def campaign_log_action(request, id):
     ``form``
         A CampaignActionForm for entering the action details.
     ``error_message``
-        None or a string describing a form error.
+        None or a string describing a form error, set if form submission fails.
     ``return_url``
-        Optional. A URL to return to after logging the action. Can be provided as a GET or POST parameter. Used for navigation after form submission.
-    ``gang``
-        Optional. If provided as a GET parameter, pre-selects a gang/list in the form.
+        A URL to return to after logging the action (for navigation after form submission).
 
     **Template**
 
@@ -842,7 +840,6 @@ def campaign_log_action(request, id):
     error_message = None
     if request.method == "POST":
         form = CampaignActionForm(request.POST, campaign=campaign, user=request.user)
-        return_url = request.POST.get("return_url")
         if form.is_valid():
             action = form.save(commit=False)
             action.campaign = campaign
@@ -875,8 +872,6 @@ def campaign_log_action(request, id):
                 f"{outcome_url}?{urlencode({'return_url': return_url})}"
             )
     else:
-        return_url = request.GET.get("return_url")
-
         # Pre-populate gang/list if provided
         gang = request.GET.get("gang")
         initial = {}
@@ -911,9 +906,9 @@ def campaign_action_outcome(request, id, action_id):
     ``form``
         A CampaignActionOutcomeForm for editing the outcome.
     ``error_message``
-        None or a string describing a form error.
+        None or a string describing a form error, set if form submission fails.
     ``return_url``
-        Optional. A URL to return to after editing the outcome. Can be provided as a GET or POST parameter. Used for navigation after form submission.
+        A URL to return to after editing the outcome (for navigation after form submission).
 
     **Template**
 
@@ -932,7 +927,6 @@ def campaign_action_outcome(request, id, action_id):
 
     error_message = None
     if request.method == "POST":
-        return_url = request.POST.get("return_url")
         form = CampaignActionOutcomeForm(request.POST, instance=action)
         if form.is_valid():
             form.save()
@@ -962,7 +956,6 @@ def campaign_action_outcome(request, id, action_id):
                 # Default: redirect to return URL
                 return safe_redirect(request, return_url, fallback_url=default_url)
     else:
-        return_url = request.GET.get("return_url")
         form = CampaignActionOutcomeForm(instance=action)
 
     return render(
