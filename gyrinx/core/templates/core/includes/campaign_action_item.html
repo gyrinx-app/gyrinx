@@ -48,7 +48,7 @@
         </small>
     {% elif action.user == user %}
         <small>
-            <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}?return_url={{ request.get_full_path|urlencode }}"
+            <a href="{% url 'core:campaign-action-outcome' campaign.id action.id %}{% querystring return_url=request.get_full_path %}"
                class="linked">Add outcome</a>
         </small>
     {% endif %}
