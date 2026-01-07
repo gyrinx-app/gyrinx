@@ -2381,7 +2381,7 @@ def test_fighter_type_summary_excludes_vehicles(user, content_house):
 
 
 @pytest.mark.django_db
-def test_list_type_summary_exludes_dead_fighters(user, content_house):
+def test_list_type_summary_excludes_dead_fighters(user, content_house):
     """Test that fighter_type_summary excludes dead fighters."""
     # Create a list
     lst = List.objects.create(
