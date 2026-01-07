@@ -30,10 +30,10 @@
             </tbody>
         </table>
         {% if list.fighter_type_summary %}
-            <h4 class="caps-label mb-1 mt-3">Active Fighters</h4>
+            <h4 class="caps-label mb-1 mt-3">Fighters</h4>
             <table class="table table-borderless table-sm mb-0 fs-7">
                 <tbody>
-                    {% for item in list.fighter_type_summary %}
+                    {% for item in list.fighter_type_summary.type_totals %}
                         <tr>
                             <td class="ps-0">{{ item.type }}</td>
                             <td class="text-muted">{{ item.category }}</td>
@@ -44,7 +44,7 @@
                 <tfoot>
                     <tr>
                         <td colspan="2" class="ps-0 border-top fw-semibold">Total</td>
-                        <td class="text-end pe-0 border-top fw-semibold">{{ list.active_fighters|length }}</td>
+                        <td class="text-end pe-0 border-top fw-semibold">{{ list.fighter_type_summary.total }}</td>
                     </tr>
                 </tfoot>
             </table>
