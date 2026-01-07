@@ -842,7 +842,7 @@ class List(AppBase):
         """
         Returns a summary of fighter types and their counts for active fighters.
 
-        Excludes archived fighters, stash fighters, and vehicles (vehicles are not fighters).
+        Excludes archived fighters, dead fighters, stash fighters, and vehicles (vehicles are not fighters).
 
         Performance: This must use prefetched listfighter_set data from with_related_data,
         so it doesn't issue any additional queries.
