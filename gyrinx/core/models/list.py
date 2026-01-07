@@ -860,6 +860,7 @@ class List(AppBase):
             f
             for f in self.listfighter_set.all()
             if not f.archived
+            and not f.is_dead
             and not f.content_fighter.is_stash
             and not f.content_fighter.is_vehicle
         ]

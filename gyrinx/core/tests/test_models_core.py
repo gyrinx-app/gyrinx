@@ -2378,3 +2378,61 @@ def test_fighter_type_summary_excludes_vehicles(user, content_house):
         vehicle_template.type,
         FighterCategoryChoices.VEHICLE.label,
     ) not in summary_dict
+
+
+@pytest.mark.django_db
+def test_list_type_summary_exludes_dead_fighters(user, content_house):
+    """Test that fighter_type_summary excludes dead fighters."""
+    # Create a list
+    lst = List.objects.create(
+        name="Test List",
+        content_house=content_house,
+        owner=user,
+    )
+
+    # Create a leader fighter
+    leader_template = ContentFighter.objects.create(
+        type="Example Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=100,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Gang Leader",
+        content_fighter=leader_template,
+        owner=user,
+    )
+
+    # Create a dead fighter
+    dead_fighter_template = ContentFighter.objects.create(
+        type="Fallen Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    ListFighter.objects.create(
+        list=lst,
+        name="Dead Ganger",
+        content_fighter=dead_fighter_template,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+    )
+
+    # Fetch the list with related data
+    lst = List.objects.with_related_data(with_fighters=True).get(id=lst.id)
+
+    summary = lst.fighter_type_summary
+
+    # Should only have leader (dead fighter excluded)
+    assert len(summary) == 1
+
+    summary_dict = {(item["type"], item["category"]): item["count"] for item in summary}
+    assert (
+        summary_dict[(leader_template.type, FighterCategoryChoices.LEADER.label)] == 1
+    )
+    # Dead fighter should not be in summary
+    assert (
+        dead_fighter_template.type,
+        FighterCategoryChoices.GANGER.label,
+    ) not in summary_dict
