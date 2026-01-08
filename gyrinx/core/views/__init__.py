@@ -90,6 +90,7 @@ def index(request):
                 List.objects.filter(
                     owner=request.user,
                     status=List.CAMPAIGN_MODE,
+                    archived=False,
                     campaign__status=Campaign.IN_PROGRESS,
                     campaign__archived=False,
                 )
