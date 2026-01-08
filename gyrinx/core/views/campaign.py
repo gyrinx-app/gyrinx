@@ -813,7 +813,9 @@ def campaign_log_action(request, id):
     ``form``
         A CampaignActionForm for entering the action details.
     ``error_message``
-        None or a string describing a form error.
+        None or a string describing a form error, set if form submission fails.
+    ``return_url``
+        A URL to return to after logging the action (for navigation after form submission).
 
     **Template**
 
@@ -870,7 +872,13 @@ def campaign_log_action(request, id):
                 f"{outcome_url}?{urlencode({'return_url': return_url})}"
             )
     else:
-        form = CampaignActionForm(campaign=campaign, user=request.user)
+        # Pre-populate gang/list if provided
+        gang = request.GET.get("gang")
+        initial = {}
+        if gang:
+            initial["list"] = gang
+
+        form = CampaignActionForm(campaign=campaign, user=request.user, initial=initial)
 
     return render(
         request,
@@ -898,7 +906,9 @@ def campaign_action_outcome(request, id, action_id):
     ``form``
         A CampaignActionOutcomeForm for editing the outcome.
     ``error_message``
-        None or a string describing a form error.
+        None or a string describing a form error, set if form submission fails.
+    ``return_url``
+        A URL to return to after editing the outcome (for navigation after form submission).
 
     **Template**
 
