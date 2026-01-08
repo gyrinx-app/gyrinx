@@ -842,13 +842,15 @@ class List(AppBase):
         """
         Returns a summary of fighter types and their counts for active fighters.
 
-        Excludes archived fighters, stash fighters, and vehicles (vehicles are not fighters).
+        Excludes archived fighters, dead fighters, stash fighters, and vehicles (vehicles are not fighters).
 
         Performance: This must use prefetched listfighter_set data from with_related_data,
         so it doesn't issue any additional queries.
 
         Returns:
-            List of dicts with 'type', 'category' and 'count' keys.
+            dict with keys:
+                'total': int, total number of active fighters
+                'type_totals': list of dicts with 'type', 'category', and 'count' keys
         """
 
         # Use OrderedDict to maintain the order fighters are encountered
@@ -860,6 +862,7 @@ class List(AppBase):
             f
             for f in self.listfighter_set.all()
             if not f.archived
+            and not f.is_dead
             and not f.content_fighter.is_stash
             and not f.content_fighter.is_vehicle
         ]
@@ -870,10 +873,17 @@ class List(AppBase):
             type_counts[fighter_type] = type_counts.get(fighter_type, 0) + 1
 
         # Convert to the expected format while preserving order
-        summary = [
+        type_totals = [
             {"type": fighter_type, "category": category, "count": count}
             for (fighter_type, category), count in type_counts.items()
         ]
+
+        total = sum(item["count"] for item in type_totals)
+
+        summary = {
+            "total": total,
+            "type_totals": type_totals,
+        }
 
         return summary
 
