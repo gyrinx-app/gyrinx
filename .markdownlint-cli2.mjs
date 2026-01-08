@@ -31,7 +31,8 @@ const options = {
         ".claude",
         "staticfiles",
         ".venv",
-        "analytics/streamlit/.venv",
+        "**/.venv",
+        "**/venv",
     ],
 };
 

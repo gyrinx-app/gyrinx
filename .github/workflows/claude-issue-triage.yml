@@ -1,0 +1,208 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  triage:
+    # Run on:
+    # 1. Any newly opened issue (except from dependabot)
+    # 2. Comments containing @claude-triage from any user
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      (
+        (github.event_name == 'issues' && github.event.action == 'opened') ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude-triage'))
+      )
+
+    runs-on: [gyrinx-ubuntu-2]
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO_NAME: ${{ github.repository }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Support @claude-triage mentions for re-triggering
+          trigger_phrase: "@claude-triage"
+
+          # Update the same comment if re-run
+          use_sticky_comment: true
+
+          # Allowed tools: gh CLI for issue management, file reading for codebase context
+          claude_args: |
+            --allowedTools "Bash(gh issue:*),Bash(gh label:*),Bash(gh search:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),View,GlobTool,GrepTool"
+
+          prompt: |
+            You are an expert developer triaging a GitHub issue. Your goal is to:
+            1. Understand what the issue is asking for
+            2. Apply appropriate labels
+            3. Ask clarifying questions if needed
+            4. Provide an implementation plan if the issue is well-specified
+
+            ## Issue Details
+
+            The issue details are available in environment variables:
+            - REPO_NAME: Repository name
+            - ISSUE_NUMBER: Issue number (use this with gh commands)
+            - ISSUE_TITLE: Issue title
+            - ISSUE_BODY: Issue body/description
+            - ISSUE_AUTHOR: Username who created the issue
+
+            Read these environment variables to understand the issue.
+
+            ## Available Labels
+
+            First, list all available labels to see what's available:
+            ```bash
+            gh label list --limit 50
+            ```
+
+            Common labels include:
+
+            **Type labels** (choose one):
+            - `bug` - Something isn't working
+            - `documentation` - Improvements or additions to documentation
+            - `operations` - Tasks we need to perform
+            - `security` - Security-related issues
+
+            **Area labels** (choose one or more):
+            - `core` - Changes to core, user-space functionality
+            - `campaign` - Changes to campaign-related features
+            - `content` - Changes to the content library functionality
+
+            **Quality labels** (optional):
+            - `quality` - Code quality improvements
+            - `performance` - Performance improvements
+            - `a11y` - Accessibility improvements
+
+            **Other labels**:
+            - `good first issue` - Good for newcomers (simple, well-documented issues)
+
+            ## Your Tasks
+
+            ### Step 1: Read the Issue
+            First, read the environment variables to understand what the issue is about:
+            ```bash
+            echo "Issue #$ISSUE_NUMBER: $ISSUE_TITLE"
+            echo "Author: $ISSUE_AUTHOR"
+            echo "Body: $ISSUE_BODY"
+            ```
+
+            ### Step 2: Analyze the Issue
+            Determine:
+            - What type of issue is this? (bug, feature request, documentation, etc.)
+            - Which area(s) of the codebase does it affect?
+            - Is the issue clear and well-specified, or are there ambiguities?
+
+            ### Step 3: Explore the Codebase (if helpful)
+            Use the available tools to understand the relevant parts of the codebase:
+            - Search for related code using grep/rg
+            - Read relevant files to understand current implementation
+            - Check CLAUDE.md for project conventions and patterns
+
+            This context will help you ask better clarifying questions and provide more useful plans.
+
+            ### Step 4: Apply Labels
+            Based on your analysis, apply appropriate labels using:
+            ```bash
+            gh issue edit "$ISSUE_NUMBER" --add-label "label1,label2"
+            ```
+
+            Choose labels that accurately categorize the issue. Always apply at least one type label and one area label if applicable.
+
+            ### Step 5: Decide on Response
+
+            **If the issue is UNCLEAR or MISSING INFORMATION**, post clarifying questions:
+            - What specific behavior is expected vs actual?
+            - Are there screenshots or reproduction steps needed?
+            - Should this be configurable by admins?
+            - What edge cases should be considered?
+            - Is there a specific UI/UX expectation?
+
+            **If the issue is WELL-SPECIFIED**, you have two options:
+
+            a) **Provide an implementation plan** if you can add value:
+               - Identify specific files that need changes
+               - Outline the approach
+               - Note any risks or considerations
+
+            b) **Stay silent** if the issue is already clear and a plan wouldn't add value.
+               In this case, just apply labels and don't post a comment.
+
+            ### Step 6: Post Your Response (if needed)
+
+            If you have clarifying questions OR a useful implementation plan, post a comment using:
+            ```bash
+            gh issue comment "$ISSUE_NUMBER" --body "YOUR COMMENT HERE"
+            ```
+
+            Structure your comment as follows:
+
+            ---
+
+            **For issues needing clarification:**
+
+            ### Clarifying Questions
+
+            Before this can be implemented, I have a few questions:
+
+            1. **[Category]**: [Specific question]
+            2. **[Category]**: [Specific question]
+            ...
+
+            ### Initial Analysis
+
+            [Brief summary of what you understand so far and relevant codebase context]
+
+            ---
+
+            **For well-specified issues:**
+
+            ### Implementation Plan
+
+            [Brief summary of the approach]
+
+            #### Files to Modify
+            - `path/to/file.py` - [what changes]
+            - ...
+
+            #### Approach
+            1. [Step 1]
+            2. [Step 2]
+            ...
+
+            #### Considerations
+            - [Any risks, edge cases, or things to watch out for]
+
+            ---
+
+            ## Important Guidelines
+
+            - Be concise and helpful
+            - Reference specific files and line numbers when relevant
+            - Don't be overly formal or verbose
+            - If the issue is already perfectly clear and well-scoped, just apply labels silently
+            - Focus on being genuinely useful, not just filling space
+            - Remember this is a Django web app (server-rendered, not SPA)
+            - Check CLAUDE.md for project-specific patterns
+
+            Begin your triage now.
