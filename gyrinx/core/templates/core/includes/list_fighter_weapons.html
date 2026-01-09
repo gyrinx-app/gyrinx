@@ -12,6 +12,10 @@
             {% comment %} Propagate the query params {% endcomment %}
             {% if request.GET.filter %}<input type="hidden" name="filter" value="{{ request.GET.filter }}">{% endif %}
             {% if request.GET.q %}<input type="hidden" name="q" value="{{ request.GET.q }}">{% endif %}
+            {% for al_val in request.GET.al %}<input type="hidden" name="al" value="{{ al_val }}">{% endfor %}
+            {% if request.GET.mal %}<input type="hidden" name="mal" value="{{ request.GET.mal }}">{% endif %}
+            {% for cat_val in request.GET.cat %}<input type="hidden" name="cat" value="{{ cat_val }}">{% endfor %}
+            {% if request.GET.mc %}<input type="hidden" name="mc" value="{{ request.GET.mc }}">{% endif %}
         </form>
     {% endfor %}
 {% endif %}

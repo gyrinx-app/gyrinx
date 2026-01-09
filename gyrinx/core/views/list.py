@@ -2000,8 +2000,8 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 if request.POST.get("q"):
                     query_dict["q"] = request.POST.get("q")
 
-                # From GET - category and availability filters
-                cat_list = request.GET.getlist("cat")
+                # From POST - category and availability filters (forms submit via POST)
+                cat_list = request.POST.getlist("cat")
                 if cat_list:
                     # For lists, we need to use QueryDict to properly encode them
                     from django.http import QueryDict
@@ -2011,26 +2011,45 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                         qd[k] = v
                     qd.setlist("cat", cat_list)
 
-                    al_list = request.GET.getlist("al")
+                    al_list = request.POST.getlist("al")
                     if al_list:
                         qd.setlist("al", al_list)
 
-                    mal = request.GET.get("mal")
+                    mal = request.POST.get("mal")
                     if mal:
                         qd["mal"] = mal
 
-                    mc = request.GET.get("mc")
+                    mc = request.POST.get("mc")
                     if mc:
                         qd["mc"] = mc
 
                     query_params = qd.urlencode()
                 else:
-                    # No lists, use simple approach
-                    if request.GET.get("mal"):
-                        query_dict["mal"] = request.GET.get("mal")
-                    if request.GET.get("mc"):
-                        query_dict["mc"] = request.GET.get("mc")
-                    query_params = make_query_params_str(**query_dict)
+                    # No lists, use simple approach - also check for al list
+                    from django.http import QueryDict
+
+                    al_list = request.POST.getlist("al")
+                    if al_list:
+                        qd = QueryDict(mutable=True)
+                        for k, v in query_dict.items():
+                            qd[k] = v
+                        qd.setlist("al", al_list)
+
+                        mal = request.POST.get("mal")
+                        if mal:
+                            qd["mal"] = mal
+
+                        mc = request.POST.get("mc")
+                        if mc:
+                            qd["mc"] = mc
+
+                        query_params = qd.urlencode()
+                    else:
+                        if request.POST.get("mal"):
+                            query_dict["mal"] = request.POST.get("mal")
+                        if request.POST.get("mc"):
+                            query_dict["mc"] = request.POST.get("mc")
+                        query_params = make_query_params_str(**query_dict)
                 return HttpResponseRedirect(
                     reverse(view_name, args=(lst.id, fighter.id))
                     + f"?{query_params}"
