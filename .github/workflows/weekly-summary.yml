@@ -23,9 +23,18 @@ jobs:
       - name: Get date range
         id: dates
         run: |
-          echo "end_date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          echo "start_date=$(date -d '7 days ago' +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          echo "week_of=$(date -d '7 days ago' +%B\ %d)" >> $GITHUB_OUTPUT
+          python3 << 'PY'
+          import datetime
+          import os
+
+          today = datetime.date.today()
+          start = today - datetime.timedelta(days=7)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"end_date={today.strftime('%Y-%m-%d')}\n")
+              f.write(f"start_date={start.strftime('%Y-%m-%d')}\n")
+              f.write(f"week_of={start.strftime('%B %d')}\n")
+          PY
 
       - name: Run Claude Weekly Summary
         id: claude
@@ -76,20 +85,33 @@ jobs:
 
             ## Step 3: Save the result
 
-            After writing the summary, save ONLY the final bullet-point summary text to a file called summary.md in the current directory. Nothing else - no preamble, no "here's the summary", just the bullets.
+            After writing the summary, save ONLY the final bullet-point summary text to a file called summary.md in the current directory. Nothing else - no preamble, no "here's the summary", just the bullets starting with dashes.
 
-            If there were no meaningful changes this week, save: "Quiet week! No major changes landed."
-
-            Use the Write tool to save the file.
+            If there were no meaningful changes this week, save: "- **Quiet week!** No major changes landed."
 
       - name: Create discussion
         env:
           GH_TOKEN: ${{ github.token }}
           WEEK_OF: ${{ steps.dates.outputs.week_of }}
         run: |
-          # Read the summary from file (safer than passing through env var)
+          set -e
+
+          # Validate summary file exists
           if [ ! -f summary.md ]; then
-            echo "No summary file found"
+            echo "::error::No summary.md file found"
+            exit 1
+          fi
+
+          # Validate summary is not empty
+          if [ ! -s summary.md ]; then
+            echo "::error::summary.md is empty"
+            exit 1
+          fi
+
+          # Validate summary contains bullet points
+          if ! grep -qE '^- ' summary.md; then
+            echo "::error::summary.md doesn't contain bullet points (lines starting with '- ')"
+            cat summary.md
             exit 1
           fi
 
@@ -97,8 +119,14 @@ jobs:
 
           # Get repo node ID
           REPO_ID=$(gh api repos/${{ github.repository }} --jq .node_id)
+          if [ -z "$REPO_ID" ]; then
+            echo "::error::Failed to get repository node ID"
+            exit 1
+          fi
 
           # Create the discussion
+          # Category ID is for "Announcements" - found via:
+          # gh api graphql -f query='{ repository(owner:"gyrinx-app",name:"gyrinx") { discussionCategories(first:10) { nodes { id name } } } }'
           gh api graphql -f query='
             mutation($repoId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
               createDiscussion(input: {
