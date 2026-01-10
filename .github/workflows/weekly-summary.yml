@@ -1,0 +1,147 @@
+name: Weekly Summary
+
+on:
+  schedule:
+    # Run every Monday at 9am UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  summary:
+    runs-on: [gyrinx-ubuntu-2]
+    permissions:
+      contents: read
+      discussions: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Need full history for git log
+
+      - name: Get date range
+        id: dates
+        run: |
+          python3 << 'PY'
+          import datetime
+          import os
+
+          today = datetime.date.today()
+          start = today - datetime.timedelta(days=7)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"end_date={today.strftime('%Y-%m-%d')}\n")
+              f.write(f"start_date={start.strftime('%Y-%m-%d')}\n")
+              f.write(f"week_of={start.strftime('%B %d')}\n")
+          PY
+
+      - name: Run Claude Weekly Summary
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          START_DATE: ${{ steps.dates.outputs.start_date }}
+          END_DATE: ${{ steps.dates.outputs.end_date }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          claude_args: |
+            --model claude-sonnet-4-20250514
+            --allowedTools "Bash(git:*),Bash(gh:*)"
+
+          prompt: |
+            Create a casual, friendly summary of what landed in Gyrinx over the last 7 days for our community.
+
+            The date range is $START_DATE to $END_DATE.
+
+            ## Step 1: Get the merged PRs
+
+            Run this command to get the PRs merged in the last 7 days:
+            ```bash
+            gh pr list --state merged --search "merged:>=$START_DATE" --json number,title,body --limit 50
+            ```
+
+            ## Step 2: Write the summary
+
+            Write a bullet-point summary that:
+            - Is casual and non-technical (like you're telling a friend what's new)
+            - For bug fixes, explain what was actually broken in plain English (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
+            - For features, focus on what users can now DO
+            - Skip purely internal/code-cleanup stuff unless it's interesting
+            - Keep each bullet to 1-2 sentences max
+            - Use bold for the key thing in each bullet
+
+            Don't include:
+            - PR numbers or technical jargon
+            - Dependency updates unless they're significant
+            - CI/workflow changes
+
+            Format: Just the bullet points, no intro or outro. Start each line with a dash and bold the main point.
+
+            Example style:
+            - **Dead fighters no longer haunt your gang counts** - they were sneaking into the summary even after dying
+            - **Equipment filters actually stick now** - no more re-setting your filters every time you add something
+
+            ## Step 3: Save the result
+
+            After writing the summary, save ONLY the final bullet-point summary text to a file called summary.md in the current directory. Nothing else - no preamble, no "here's the summary", just the bullets starting with dashes.
+
+            If there were no meaningful changes this week, save: "- **Quiet week!** No major changes landed."
+
+      - name: Create discussion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WEEK_OF: ${{ steps.dates.outputs.week_of }}
+        run: |
+          set -e
+
+          # Validate summary file exists
+          if [ ! -f summary.md ]; then
+            echo "::error::No summary.md file found"
+            exit 1
+          fi
+
+          # Validate summary is not empty
+          if [ ! -s summary.md ]; then
+            echo "::error::summary.md is empty"
+            exit 1
+          fi
+
+          # Validate summary contains bullet points
+          if ! grep -qE '^- ' summary.md; then
+            echo "::error::summary.md doesn't contain bullet points (lines starting with '- ')"
+            cat summary.md
+            exit 1
+          fi
+
+          BODY=$(cat summary.md)
+
+          # Get repo node ID
+          REPO_ID=$(gh api repos/${{ github.repository }} --jq .node_id)
+          if [ -z "$REPO_ID" ]; then
+            echo "::error::Failed to get repository node ID"
+            exit 1
+          fi
+
+          # Create the discussion
+          # Category ID is for "Announcements" - found via:
+          # gh api graphql -f query='{ repository(owner:"gyrinx-app",name:"gyrinx") { discussionCategories(first:10) { nodes { id name } } } }'
+          gh api graphql -f query='
+            mutation($repoId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+              createDiscussion(input: {
+                repositoryId: $repoId,
+                categoryId: $categoryId,
+                title: $title,
+                body: $body
+              }) {
+                discussion {
+                  url
+                }
+              }
+            }
+          ' \
+            -f repoId="$REPO_ID" \
+            -f categoryId="DIC_kwDOM_QUS84C0zc-" \
+            -f title="What's new - week of $WEEK_OF" \
+            -f body="$BODY"
