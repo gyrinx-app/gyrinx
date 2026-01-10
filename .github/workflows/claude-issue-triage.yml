@@ -49,10 +49,10 @@ jobs:
           # Update the same comment if re-run
           use_sticky_comment: true
 
-          # Allowed tools: gh CLI for issue management, file reading for codebase context
+          # Allowed tools: gh CLI for issue management, file reading for codebase context, web access for documentation
           claude_args: |
             --model claude-opus-4-5-20251101
-            --allowedTools "Bash(gh issue:*),Bash(gh label:*),Bash(gh search:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),View,GlobTool,GrepTool"
+            --allowedTools "Bash(gh issue:*),Bash(gh label:*),Bash(gh search:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),View,GlobTool,GrepTool,WebFetch,WebSearch"
 
           prompt: |
             You are an expert developer triaging a GitHub issue. Your goal is to:
