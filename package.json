@@ -15,8 +15,8 @@
     "watch": "nodemon -e html,scss -x \"npm run css\"",
     "test": "npm-run-all css-lint css",
     "js-fmt": "prettier --write \"**/*.js\"",
-    "fmt": "prettier --write \"**/*.{js,css,scss,json,yaml,yml}\"",
-    "fmt-check": "prettier --check \"**/*.{js,css,scss,json,yaml,yml}\"",
+    "fmt": "prettier --write \"**/*.{js,mjs,css,scss,json,yaml,yml}\"",
+    "fmt-check": "prettier --check \"**/*.{js,mjs,css,scss,json,yaml,yml}\"",
     "lint:markdown": "markdownlint-cli2 \"**/*.md\""
   },
   "license": "ISC",
