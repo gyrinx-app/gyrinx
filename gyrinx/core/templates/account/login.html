@@ -18,7 +18,9 @@
                 {% csrf_token %}
                 {% element fields form=form unlabeled=True %}
                 {% endelement %}
-                <div id="email-warning" class="form-text text-warning mb-3 d-none">
+                <div id="email-warning"
+                     class="form-text text-warning mb-3 d-none"
+                     role="alert">
                     <i class="bi bi-info-circle"></i>
                     {% trans "It looks like you've entered an email address. Please use your username to sign in." %}
                 </div>
