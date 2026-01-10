@@ -86,6 +86,9 @@ jobs:
             - `operations` - Tasks we need to perform
             - `security` - Security-related issues
 
+            **Severity labels** (use with `bug` when applicable):
+            - `change-fail` - Something broke in production. Use this WITH `bug` when the issue reports a production outage or regression.
+
             **Area labels** (choose one or more):
             - `core` - Changes to core, user-space functionality
             - `campaign` - Changes to campaign-related features
@@ -98,6 +101,11 @@ jobs:
 
             **Other labels**:
             - `good first issue` - Good for newcomers (simple, well-documented issues)
+
+            **Labels you must NEVER apply** (these are for human use only):
+            - `claude-good`, `claude-ok`, `claude-fail`, `claude-generated`, `claude-code-web` - Claude performance tracking
+            - `duplicate`, `wontfix` - Issue management decisions for humans
+            - `dependencies`, `javascript`, `github_actions`, `python` - Auto-applied to PRs
 
             ## Your Tasks
 
