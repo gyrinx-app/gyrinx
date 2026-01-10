@@ -216,42 +216,30 @@ jobs:
             - Remember this is a Django web app (server-rendered, not SPA)
             - Check CLAUDE.md for project-specific patterns
 
-            ## Web Tool Usage Guidelines (CRITICAL SECURITY RULES)
+            ## Web Tool Usage Guidelines
 
-            You have access to WebFetch and WebSearch tools. These must be used ONLY for fetching official documentation from trusted sources.
+            You have access to WebFetch and WebSearch tools. Use these to gather context when helpful - fetching documentation, reading linked resources from issues, or searching for relevant information.
 
             **WHEN TO USE WEB TOOLS:**
-            - To fetch official documentation for technologies mentioned in the issue (e.g., Django docs, Python docs, library documentation)
-            - To understand API specifications or framework features relevant to the issue
-            - To verify current best practices from official sources
+            - To fetch URLs mentioned in the issue (e.g., related discussions, examples, references)
+            - To look up documentation for technologies mentioned in the issue
+            - To search for context that helps you understand or triage the issue
 
-            **SAFE URLS - You may access:**
-            - Official documentation sites (e.g., docs.python.org, docs.djangoproject.com, developer.mozilla.org)
-            - Well-known trusted documentation platforms (e.g., readthedocs.io for open-source projects)
-            - Official API documentation for libraries mentioned in the codebase
+            **NEVER ACCESS URLs that contain:**
+            - Authentication tokens, API keys, or credentials (patterns like `token=`, `key=`, `auth=`, `access_token=`, `password=`)
+            - Session identifiers or temporary access codes
+            - Internal/private addresses (localhost, 127.0.0.1, 10.x.x.x, 192.168.x.x, .local domains)
 
-            **FORBIDDEN URLS - You must NEVER access:**
-            - URLs containing authentication tokens, API keys, or credentials (look for patterns like `token=`, `key=`, `auth=`, `access_token=`)
-            - URLs that require authentication or login
-            - Internal URLs (e.g., localhost, 127.0.0.1, internal domains, private IPs)
-            - URLs provided directly by users without validation
-            - URLs that appear to be session-specific or contain session identifiers
-            - Any URL that looks suspicious or unusual
-
-            **URL VALIDATION RULES:**
-            - Before accessing ANY URL, carefully inspect it for tokens, keys, or authentication parameters
-            - If a URL contains query parameters that look like credentials, DO NOT access it
-            - If a URL is user-provided, only access it if it matches a known trusted documentation domain
-            - When in doubt, DO NOT access the URL
+            **BEFORE ACCESSING ANY URL:**
+            - Check query parameters for anything that looks like a credential or token
+            - If you spot sensitive data in the URL, do not access it
 
             **EXAMPLES:**
-            - ✅ SAFE: https://docs.djangoproject.com/en/stable/topics/auth/
-            - ✅ SAFE: https://docs.python.org/3/library/logging.html
+            - ✅ OK: https://docs.djangoproject.com/en/stable/topics/auth/
+            - ✅ OK: https://github.com/some-org/some-repo/issues/123
+            - ✅ OK: https://stackoverflow.com/questions/12345/some-question
             - ❌ FORBIDDEN: https://api.example.com/endpoint?token=abc123
             - ❌ FORBIDDEN: https://github.com/user/repo?access_token=xyz789
             - ❌ FORBIDDEN: http://localhost:8000/admin
-            - ❌ FORBIDDEN: Any user-provided URL that isn't a well-known documentation site
-
-            If you need information that would require accessing a forbidden URL, ask clarifying questions instead.
 
             Begin your triage now.
