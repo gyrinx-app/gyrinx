@@ -10,7 +10,7 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.forms.advancement import AdvancementTypeForm
 from gyrinx.core.models import ListFighter
-from gyrinx.core.views.list import AdvancementFlowParams
+from gyrinx.core.views.fighter.advancements import AdvancementFlowParams
 
 
 @pytest.mark.django_db
