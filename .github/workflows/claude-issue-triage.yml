@@ -10,12 +10,14 @@ jobs:
   triage:
     # Run on:
     # 1. Any newly opened issue (except from dependabot)
-    # 2. Comments containing @claude-triage from any user
+    # 2. Comments containing @claude-triage from trusted collaborators
     if: |
       github.actor != 'dependabot[bot]' &&
       (
         (github.event_name == 'issues' && github.event.action == 'opened') ||
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude-triage'))
+        (github.event_name == 'issue_comment' &&
+          contains(github.event.comment.body, '@claude-triage') &&
+          contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
       )
 
     runs-on: [gyrinx-ubuntu-2]
@@ -102,9 +104,9 @@ jobs:
             ### Step 1: Read the Issue
             First, read the environment variables to understand what the issue is about:
             ```bash
-            echo "Issue #$ISSUE_NUMBER: $ISSUE_TITLE"
-            echo "Author: $ISSUE_AUTHOR"
-            echo "Body: $ISSUE_BODY"
+            printf 'Issue #%s: %s\n' "$ISSUE_NUMBER" "$ISSUE_TITLE"
+            printf 'Author: %s\n' "$ISSUE_AUTHOR"
+            printf 'Body: %s\n' "$ISSUE_BODY"
             ```
 
             ### Step 2: Analyze the Issue
