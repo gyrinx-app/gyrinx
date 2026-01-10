@@ -51,6 +51,7 @@ jobs:
 
           # Allowed tools: gh CLI for issue management, file reading for codebase context
           claude_args: |
+            --model claude-opus-4-5-20251101
             --allowedTools "Bash(gh issue:*),Bash(gh label:*),Bash(gh search:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),View,GlobTool,GrepTool"
 
           prompt: |
