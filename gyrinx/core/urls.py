@@ -2,7 +2,20 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import battle, campaign, list, print_config, vehicle
+from .views import battle, campaign, print_config, vehicle
+from .views.fighter import advancements as fighter_advancements
+from .views.fighter import crud as fighter_crud
+from .views.fighter import equipment as fighter_equipment
+from .views.fighter import narrative as fighter_narrative
+from .views.fighter import powers as fighter_powers
+from .views.fighter import rules as fighter_rules
+from .views.fighter import skills as fighter_skills
+from .views.fighter import state as fighter_state
+from .views.fighter import stats as fighter_stats
+from .views.fighter import xp as fighter_xp
+from .views.list import attributes as list_attributes
+from .views.list import invitations as list_invitations
+from .views.list import views as list_views
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -19,29 +32,43 @@ urlpatterns = [
         name="change-username",
     ),
     path("dice/", gyrinx.core.views.dice, name="dice"),
-    path("lists/", list.ListsListView.as_view(), name="lists"),
-    path("lists/new", list.new_list, name="lists-new"),
-    path("list/<id>", list.ListDetailView.as_view(), name="list"),
-    path("list/<id>/perf", list.ListPerformanceView.as_view(), name="list-performance"),
-    path("list/<id>/about", list.ListAboutDetailView.as_view(), name="list-about"),
-    path("list/<id>/archive", list.archive_list, name="list-archive"),
-    path("list/<id>/show-stash", list.show_stash, name="list-show-stash"),
-    path("list/<id>/refresh-cost", list.refresh_list_cost, name="list-refresh-cost"),
-    path("list/<id>/edit", list.edit_list, name="list-edit"),
-    path("list/<id>/credits", list.edit_list_credits, name="list-credits-edit"),
-    path("list/<id>/clone", list.clone_list, name="list-clone"),
-    path("list/<id>/invitations", list.list_invitations, name="list-invitations"),
+    path("lists/", list_views.ListsListView.as_view(), name="lists"),
+    path("lists/new", list_views.new_list, name="lists-new"),
+    path("list/<id>", list_views.ListDetailView.as_view(), name="list"),
+    path(
+        "list/<id>/perf",
+        list_views.ListPerformanceView.as_view(),
+        name="list-performance",
+    ),
+    path(
+        "list/<id>/about", list_views.ListAboutDetailView.as_view(), name="list-about"
+    ),
+    path("list/<id>/archive", list_views.archive_list, name="list-archive"),
+    path("list/<id>/show-stash", list_views.show_stash, name="list-show-stash"),
+    path(
+        "list/<id>/refresh-cost", list_views.refresh_list_cost, name="list-refresh-cost"
+    ),
+    path("list/<id>/edit", list_views.edit_list, name="list-edit"),
+    path("list/<id>/credits", list_views.edit_list_credits, name="list-credits-edit"),
+    path("list/<id>/clone", list_views.clone_list, name="list-clone"),
+    path(
+        "list/<id>/invitations",
+        list_invitations.list_invitations,
+        name="list-invitations",
+    ),
     path(
         "list/<id>/invitations/<invitation_id>/accept",
-        list.accept_invitation,
+        list_invitations.accept_invitation,
         name="invitation-accept",
     ),
     path(
         "list/<id>/invitations/<invitation_id>/decline",
-        list.decline_invitation,
+        list_invitations.decline_invitation,
         name="invitation-decline",
     ),
-    path("list/<id>/fighters/new", list.new_list_fighter, name="list-fighter-new"),
+    path(
+        "list/<id>/fighters/new", fighter_crud.new_list_fighter, name="list-fighter-new"
+    ),
     path("list/<id>/vehicles/new", vehicle.new_vehicle, name="list-vehicle-new"),
     path(
         "list/<id>/vehicles/new/select",
@@ -56,82 +83,82 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighters/archived",
-        list.ListArchivedFightersView.as_view(),
+        fighter_crud.ListArchivedFightersView.as_view(),
         name="list-archived-fighters",
     ),
     path(
         "list/<id>/fighter/<fighter_id>",
-        list.edit_list_fighter,
+        fighter_crud.edit_list_fighter,
         name="list-fighter-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/clone",
-        list.clone_list_fighter,
+        fighter_crud.clone_list_fighter,
         name="list-fighter-clone",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/skills",
-        list.edit_list_fighter_skills,
+        fighter_skills.edit_list_fighter_skills,
         name="list-fighter-skills-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/skills/<skill_id>/toggle",
-        list.toggle_list_fighter_skill,
+        fighter_skills.toggle_list_fighter_skill,
         name="list-fighter-skill-toggle",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/skills/add",
-        list.add_list_fighter_skill,
+        fighter_skills.add_list_fighter_skill,
         name="list-fighter-skill-add",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/skills/<skill_id>/remove",
-        list.remove_list_fighter_skill,
+        fighter_skills.remove_list_fighter_skill,
         name="list-fighter-skill-remove",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/rules",
-        list.edit_list_fighter_rules,
+        fighter_rules.edit_list_fighter_rules,
         name="list-fighter-rules-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/rules/<rule_id>/toggle",
-        list.toggle_list_fighter_rule,
+        fighter_rules.toggle_list_fighter_rule,
         name="list-fighter-rule-toggle",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/rules/add",
-        list.add_list_fighter_rule,
+        fighter_rules.add_list_fighter_rule,
         name="list-fighter-rule-add",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/rules/<rule_id>/remove",
-        list.remove_list_fighter_rule,
+        fighter_rules.remove_list_fighter_rule,
         name="list-fighter-rule-remove",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/powers",
-        list.edit_list_fighter_powers,
+        fighter_powers.edit_list_fighter_powers,
         name="list-fighter-powers-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/narrative",
-        list.edit_list_fighter_narrative,
+        fighter_narrative.edit_list_fighter_narrative,
         name="list-fighter-narrative-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/info",
-        list.edit_list_fighter_info,
+        fighter_narrative.edit_list_fighter_info,
         name="list-fighter-info-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/stats",
-        list.list_fighter_stats_edit,
+        fighter_stats.list_fighter_stats_edit,
         name="list-fighter-stats-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear",
-        list.edit_list_fighter_equipment,
+        fighter_equipment.edit_list_fighter_equipment,
         name="list-fighter-gear-edit",
         kwargs=dict(
             is_weapon=False,
@@ -139,7 +166,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/cost",
-        list.edit_list_fighter_assign_cost,
+        fighter_equipment.edit_list_fighter_assign_cost,
         name="list-fighter-gear-cost-edit",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -148,7 +175,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/delete",
-        list.delete_list_fighter_assign,
+        fighter_equipment.delete_list_fighter_assign,
         name="list-fighter-gear-delete",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -157,7 +184,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/reassign",
-        list.reassign_list_fighter_equipment,
+        fighter_equipment.reassign_list_fighter_equipment,
         name="list-fighter-gear-reassign",
         kwargs=dict(
             is_weapon=False,
@@ -166,12 +193,12 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/sell",
-        list.sell_list_fighter_equipment,
+        fighter_equipment.sell_list_fighter_equipment,
         name="list-fighter-equipment-sell",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade",
-        list.edit_list_fighter_weapon_upgrade,
+        fighter_equipment.edit_list_fighter_weapon_upgrade,
         name="list-fighter-gear-upgrade-edit",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -180,7 +207,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/upgrade/<upgrade_id>/delete",
-        list.delete_list_fighter_gear_upgrade,
+        fighter_equipment.delete_list_fighter_gear_upgrade,
         name="list-fighter-gear-upgrade-delete",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -189,7 +216,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/disable",
-        list.disable_list_fighter_default_assign,
+        fighter_equipment.disable_list_fighter_default_assign,
         name="list-fighter-gear-default-disable",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -198,7 +225,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/gear/<assign_id>/convert",
-        list.convert_list_fighter_default_assign,
+        fighter_equipment.convert_list_fighter_default_assign,
         name="list-fighter-gear-default-convert",
         kwargs=dict(
             back_name="core:list-fighter-gear-edit",
@@ -207,7 +234,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/disable",
-        list.disable_list_fighter_default_assign,
+        fighter_equipment.disable_list_fighter_default_assign,
         name="list-fighter-weapons-default-disable",
         kwargs=dict(
             back_name="core:list-fighter-weapons-edit",
@@ -216,7 +243,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/convert",
-        list.convert_list_fighter_default_assign,
+        fighter_equipment.convert_list_fighter_default_assign,
         name="list-fighter-weapons-default-convert",
         kwargs=dict(
             back_name="core:list-fighter-weapons-edit",
@@ -225,32 +252,32 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/archive",
-        list.archive_list_fighter,
+        fighter_crud.archive_list_fighter,
         name="list-fighter-archive",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/restore",
-        list.restore_list_fighter,
+        fighter_crud.restore_list_fighter,
         name="list-fighter-restore",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/kill",
-        list.kill_list_fighter,
+        fighter_crud.kill_list_fighter,
         name="list-fighter-kill",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/resurrect",
-        list.resurrect_list_fighter,
+        fighter_crud.resurrect_list_fighter,
         name="list-fighter-resurrect",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/delete",
-        list.delete_list_fighter,
+        fighter_crud.delete_list_fighter,
         name="list-fighter-delete",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons",
-        list.edit_list_fighter_equipment,
+        fighter_equipment.edit_list_fighter_equipment,
         name="list-fighter-weapons-edit",
         kwargs=dict(
             is_weapon=True,
@@ -258,7 +285,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/cost",
-        list.edit_list_fighter_assign_cost,
+        fighter_equipment.edit_list_fighter_assign_cost,
         name="list-fighter-weapon-cost-edit",
         kwargs=dict(
             back_name="core:list-fighter-weapons-edit",
@@ -267,7 +294,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/delete",
-        list.delete_list_fighter_assign,
+        fighter_equipment.delete_list_fighter_assign,
         name="list-fighter-weapon-delete",
         kwargs=dict(
             back_name="core:list-fighter-weapons-edit",
@@ -276,7 +303,7 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/reassign",
-        list.reassign_list_fighter_equipment,
+        fighter_equipment.reassign_list_fighter_equipment,
         name="list-fighter-weapon-reassign",
         kwargs=dict(
             is_weapon=True,
@@ -285,27 +312,27 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/accessories",
-        list.edit_list_fighter_weapon_accessories,
+        fighter_equipment.edit_list_fighter_weapon_accessories,
         name="list-fighter-weapon-accessories-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/edit",
-        list.edit_single_weapon,
+        fighter_equipment.edit_single_weapon,
         name="list-fighter-weapon-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/profile/<profile_id>/delete",
-        list.delete_list_fighter_weapon_profile,
+        fighter_equipment.delete_list_fighter_weapon_profile,
         name="list-fighter-weapon-profile-delete",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/accessory/<accessory_id>/delete",
-        list.delete_list_fighter_weapon_accessory,
+        fighter_equipment.delete_list_fighter_weapon_accessory,
         name="list-fighter-weapon-accessory-delete",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/weapons/<assign_id>/upgrade",
-        list.edit_list_fighter_weapon_upgrade,
+        fighter_equipment.edit_list_fighter_weapon_upgrade,
         name="list-fighter-weapon-upgrade-edit",
         kwargs=dict(
             back_name="core:list-fighter-weapons-edit",
@@ -314,81 +341,81 @@ urlpatterns = [
     ),
     path(
         "list/<id>/fighter/<fighter_id>/injuries",
-        list.list_fighter_injuries_edit,
+        fighter_state.list_fighter_injuries_edit,
         name="list-fighter-injuries-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/xp",
-        list.edit_list_fighter_xp,
+        fighter_xp.edit_list_fighter_xp,
         name="list-fighter-xp-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/mark-captured",
-        list.mark_fighter_captured,
+        fighter_state.mark_fighter_captured,
         name="list-fighter-mark-captured",
     ),
     # Fighter advancements
     path(
         "list/<id>/fighter/<fighter_id>/advancements/",
-        list.list_fighter_advancements,
+        fighter_advancements.list_fighter_advancements,
         name="list-fighter-advancements",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new",
-        list.list_fighter_advancement_start,
+        fighter_advancements.list_fighter_advancement_start,
         name="list-fighter-advancement-start",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new/dice",
-        list.list_fighter_advancement_dice_choice,
+        fighter_advancements.list_fighter_advancement_dice_choice,
         name="list-fighter-advancement-dice-choice",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new/type",
-        list.list_fighter_advancement_type,
+        fighter_advancements.list_fighter_advancement_type,
         name="list-fighter-advancement-type",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new/select",
-        list.list_fighter_advancement_select,
+        fighter_advancements.list_fighter_advancement_select,
         name="list-fighter-advancement-select",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new/other",
-        list.list_fighter_advancement_other,
+        fighter_advancements.list_fighter_advancement_other,
         name="list-fighter-advancement-other",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/new/confirm",
-        list.list_fighter_advancement_confirm,
+        fighter_advancements.list_fighter_advancement_confirm,
         name="list-fighter-advancement-confirm",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/advancements/<advancement_id>/delete",
-        list.delete_list_fighter_advancement,
+        fighter_advancements.delete_list_fighter_advancement,
         name="list-fighter-advancement-delete",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/state/edit",
-        list.list_fighter_state_edit,
+        fighter_state.list_fighter_state_edit,
         name="list-fighter-state-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/injury/add",
-        list.list_fighter_add_injury,
+        fighter_state.list_fighter_add_injury,
         name="list-fighter-injury-add",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/injury/<injury_id>/remove",
-        list.list_fighter_remove_injury,
+        fighter_state.list_fighter_remove_injury,
         name="list-fighter-injury-remove",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/embed",
-        list.embed_list_fighter,
+        fighter_crud.embed_list_fighter,
         name="list-fighter-embed",
     ),
-    path("list/<id>/print", list.ListPrintView.as_view(), name="list-print"),
+    path("list/<id>/print", list_views.ListPrintView.as_view(), name="list-print"),
     path(
         "list/<list_id>/print-configs",
         print_config.PrintConfigIndexView.as_view(),
@@ -416,12 +443,12 @@ urlpatterns = [
     ),
     path(
         "list/<id>/attribute/<attribute_id>/edit",
-        list.edit_list_attribute,
+        list_attributes.edit_list_attribute,
         name="list-attribute-edit",
     ),
     path(
         "list/<id>/campaign-clones",
-        list.ListCampaignClonesView.as_view(),
+        list_views.ListCampaignClonesView.as_view(),
         name="list-campaign-clones",
     ),
     # Users

@@ -560,7 +560,9 @@ def test_exotic_beasts_can_roll_dice(client, user, exotic_beast_fighter):
 @pytest.mark.django_db
 def test_can_fighter_roll_dice_for_advancement():
     """Test the can_fighter_roll_dice_for_advancement function."""
-    from gyrinx.core.views.list import can_fighter_roll_dice_for_advancement
+    from gyrinx.core.views.fighter.advancements import (
+        can_fighter_roll_dice_for_advancement,
+    )
 
     # Mock fighters with different categories
     class MockFighter:
@@ -681,7 +683,7 @@ def test_apply_skill_advancement_idempotent_with_campaign_action(
     from unittest.mock import Mock
 
     from gyrinx.core.models.campaign import CampaignAction
-    from gyrinx.core.views.list import (
+    from gyrinx.core.views.fighter.advancements import (
         AdvancementFlowParams,
         apply_skill_advancement,
     )
