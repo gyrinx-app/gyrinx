@@ -216,4 +216,30 @@ jobs:
             - Remember this is a Django web app (server-rendered, not SPA)
             - Check CLAUDE.md for project-specific patterns
 
+            ## Web Tool Usage Guidelines
+
+            You have access to WebFetch and WebSearch tools. Use these to gather context when helpful - fetching documentation, reading linked resources from issues, or searching for relevant information.
+
+            **WHEN TO USE WEB TOOLS:**
+            - To fetch URLs mentioned in the issue (e.g., related discussions, examples, references)
+            - To look up documentation for technologies mentioned in the issue
+            - To search for context that helps you understand or triage the issue
+
+            **NEVER ACCESS URLs that contain:**
+            - Authentication tokens, API keys, or credentials (patterns like `token=`, `key=`, `auth=`, `access_token=`, `password=`)
+            - Session identifiers or temporary access codes
+            - Internal/private addresses (localhost, 127.0.0.1, 10.x.x.x, 192.168.x.x, .local domains)
+
+            **BEFORE ACCESSING ANY URL:**
+            - Check query parameters for anything that looks like a credential or token
+            - If you spot sensitive data in the URL, do not access it
+
+            **EXAMPLES:**
+            - ✅ OK: https://docs.djangoproject.com/en/stable/topics/auth/
+            - ✅ OK: https://github.com/some-org/some-repo/issues/123
+            - ✅ OK: https://stackoverflow.com/questions/12345/some-question
+            - ❌ FORBIDDEN: https://api.example.com/endpoint?token=abc123
+            - ❌ FORBIDDEN: https://github.com/user/repo?access_token=xyz789
+            - ❌ FORBIDDEN: http://localhost:8000/admin
+
             Begin your triage now.
