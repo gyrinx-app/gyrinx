@@ -272,15 +272,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         equipment = equipment.exclude(category_id__in=restricted_category_ids)
 
     # Filter by category if specified
-    cats = (
-        [
-            cat
-            for cat in request.GET.getlist("cat", list())
-            if cat and is_valid_uuid(cat)
-        ]
-        if not is_weapon
-        else request.GET.getlist("cat", list())
-    )
+    cats = [
+        cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
+    ]
 
     if cats and "all" not in cats:
         equipment = equipment.filter(category_id__in=cats)
