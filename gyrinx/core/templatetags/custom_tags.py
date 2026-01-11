@@ -150,6 +150,22 @@ def qt_rm(request, *args):
 
 
 @register.simple_tag
+def qt_getlist(request, key):
+    """
+    Get all values for a query parameter key as a list.
+
+    Use this to properly iterate over multi-value query params (like cat, al).
+    Unlike request.GET.key (which returns only the last value as a string),
+    this uses getlist() to get all values.
+
+    Usage:
+        {% qt_getlist request "cat" as cat_values %}
+        {% for val in cat_values %}<input type="hidden" name="cat" value="{{ val }}">{% endfor %}
+    """
+    return request.GET.getlist(key)
+
+
+@register.simple_tag
 def qt_contains(request, key, value):
     value = str(value)
     return key in request.GET and value in request.GET.getlist(key, list)
