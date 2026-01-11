@@ -27,13 +27,19 @@ jobs:
           import datetime
           import os
 
+          def ordinal(n):
+              return str(n) + ("th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th"))
+
           today = datetime.date.today()
           start = today - datetime.timedelta(days=7)
+
+          # Format: "Jan 4th"
+          week_of = f"{start.strftime('%b')} {ordinal(start.day)}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"end_date={today.strftime('%Y-%m-%d')}\n")
               f.write(f"start_date={start.strftime('%Y-%m-%d')}\n")
-              f.write(f"week_of={start.strftime('%B %d')}\n")
+              f.write(f"week_of={week_of}\n")
           PY
 
       - name: Run Claude Weekly Summary
@@ -68,6 +74,7 @@ jobs:
             Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary of the week.
 
             Then write bullet points that:
+            - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
             - Are casual but slightly technical (aimed at users who understand the app)
             - For bug fixes, explain what was broken in plain terms (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
             - For features, focus on what's now possible
@@ -146,5 +153,5 @@ jobs:
           ' \
             -f repoId="$REPO_ID" \
             -f categoryId="DIC_kwDOM_QUS84C0zc-" \
-            -f title="What's new - week of $WEEK_OF" \
+            -f title="What's new? Week of $WEEK_OF" \
             -f body="$BODY"
