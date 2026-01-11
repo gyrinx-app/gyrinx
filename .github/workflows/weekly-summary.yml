@@ -52,7 +52,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
 
           prompt: |
-            Create a casual, friendly summary of what landed in Gyrinx over the last 7 days for our community.
+            Create a summary of what landed in Gyrinx over the last 7 days.
 
             The date range is $START_DATE to $END_DATE.
 
@@ -65,28 +65,33 @@ jobs:
 
             ## Step 2: Write the summary
 
-            Write a bullet-point summary that:
-            - Is casual and non-technical (like you're telling a friend what's new)
-            - For bug fixes, explain what was actually broken in plain English (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
-            - For features, focus on what users can now DO
+            Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary of the week.
+
+            Then write bullet points that:
+            - Are casual but slightly technical (aimed at users who understand the app)
+            - For bug fixes, explain what was broken in plain terms (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
+            - For features, focus on what's now possible
+            - Use impersonal language (not "your gang" but "gangs" or "the gang page")
             - Skip purely internal/code-cleanup stuff unless it's interesting
             - Keep each bullet to 1-2 sentences max
             - Use bold for the key thing in each bullet
 
             Don't include:
-            - PR numbers or technical jargon
+            - PR numbers
             - Dependency updates unless they're significant
             - CI/workflow changes
 
-            Format: Just the bullet points, no intro or outro. Start each line with a dash and bold the main point.
+            Format: Intro line, blank line, then bullet points starting with dashes.
 
             Example style:
-            - **Dead fighters no longer haunt your gang counts** - they were sneaking into the summary even after dying
-            - **Equipment filters actually stick now** - no more re-setting your filters every time you add something
+            Changes from January 4th to 11th: A week of bug fixes and UI polish.
 
-            If there were no meaningful user-facing changes this week, return: "- **Quiet week!** No major changes landed."
+            - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
+            - **Equipment filters persist** when adding items, instead of resetting each time
 
-            Return your summary in the structured output.
+            If there were no meaningful user-facing changes, return: "Changes from [date range]: Quiet week! No major updates."
+
+            Return the full summary in the structured output.
 
       - name: Create discussion
         env:
@@ -105,9 +110,9 @@ jobs:
             exit 1
           fi
 
-          # Validate summary contains bullet points
-          if ! echo "$BODY" | grep -qE '^- '; then
-            echo "::error::Summary doesn't contain bullet points (lines starting with '- ')"
+          # Validate summary contains expected format (intro line or bullet points)
+          if ! echo "$BODY" | grep -qE '(^- |^Changes from)'; then
+            echo "::error::Summary doesn't contain expected format"
             echo "$BODY"
             exit 1
           fi
