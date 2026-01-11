@@ -49,6 +49,7 @@ jobs:
           claude_args: |
             --model claude-sonnet-4-20250514
             --allowedTools "Bash(git:*),Bash(gh:*)"
+            --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
 
           prompt: |
             Create a casual, friendly summary of what landed in Gyrinx over the last 7 days for our community.
@@ -83,39 +84,36 @@ jobs:
             - **Dead fighters no longer haunt your gang counts** - they were sneaking into the summary even after dying
             - **Equipment filters actually stick now** - no more re-setting your filters every time you add something
 
-            ## Step 3: Save the result
+            If there were no meaningful user-facing changes this week, return: "- **Quiet week!** No major changes landed."
 
-            After writing the summary, save ONLY the final bullet-point summary text to a file called summary.md in the current directory. Nothing else - no preamble, no "here's the summary", just the bullets starting with dashes.
-
-            If there were no meaningful changes this week, save: "- **Quiet week!** No major changes landed."
+            Return your summary in the structured output.
 
       - name: Create discussion
         env:
           GH_TOKEN: ${{ github.token }}
           WEEK_OF: ${{ steps.dates.outputs.week_of }}
+          SUMMARY_JSON: ${{ steps.claude.outputs.structured_output }}
         run: |
           set -e
 
-          # Validate summary file exists
-          if [ ! -f summary.md ]; then
-            echo "::error::No summary.md file found"
-            exit 1
-          fi
+          # Extract summary from structured output
+          BODY=$(echo "$SUMMARY_JSON" | jq -r '.summary')
 
-          # Validate summary is not empty
-          if [ ! -s summary.md ]; then
-            echo "::error::summary.md is empty"
+          if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
+            echo "::error::No summary in structured output"
+            echo "Raw output: $SUMMARY_JSON"
             exit 1
           fi
 
           # Validate summary contains bullet points
-          if ! grep -qE '^- ' summary.md; then
-            echo "::error::summary.md doesn't contain bullet points (lines starting with '- ')"
-            cat summary.md
+          if ! echo "$BODY" | grep -qE '^- '; then
+            echo "::error::Summary doesn't contain bullet points (lines starting with '- ')"
+            echo "$BODY"
             exit 1
           fi
 
-          BODY=$(cat summary.md)
+          echo "Summary:"
+          echo "$BODY"
 
           # Get repo node ID
           REPO_ID=$(gh api repos/${{ github.repository }} --jq .node_id)
