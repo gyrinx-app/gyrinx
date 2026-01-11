@@ -2,7 +2,18 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import battle, campaign, print_config, vehicle
+from .views import battle, print_config, vehicle
+from .views.campaign import actions as campaign_actions
+from .views.campaign import assets as campaign_assets
+from .views.campaign import battles as campaign_battles
+from .views.campaign import captured as campaign_captured
+from .views.campaign import copy as campaign_copy
+from .views.campaign import crud as campaign_crud
+from .views.campaign import lifecycle as campaign_lifecycle
+from .views.campaign import lists as campaign_lists
+from .views.campaign import resources as campaign_resources
+from .views.campaign import sub_assets as campaign_sub_assets
+from .views.campaign import views as campaign_views
 from .views.fighter import advancements as fighter_advancements
 from .views.fighter import crud as fighter_crud
 from .views.fighter import equipment as fighter_equipment
@@ -454,153 +465,153 @@ urlpatterns = [
     # Users
     path("user/<slug_or_id>", gyrinx.core.views.user, name="user"),
     # Campaigns
-    path("campaigns/", campaign.Campaigns.as_view(), name="campaigns"),
-    path("campaigns/new/", campaign.new_campaign, name="campaigns-new"),
-    path("campaign/<id>", campaign.CampaignDetailView.as_view(), name="campaign"),
-    path("campaign/<id>/edit/", campaign.edit_campaign, name="campaign-edit"),
+    path("campaigns/", campaign_views.Campaigns.as_view(), name="campaigns"),
+    path("campaigns/new/", campaign_crud.new_campaign, name="campaigns-new"),
+    path("campaign/<id>", campaign_views.CampaignDetailView.as_view(), name="campaign"),
+    path("campaign/<id>/edit/", campaign_crud.edit_campaign, name="campaign-edit"),
     path(
         "campaign/<id>/lists/add",
-        campaign.campaign_add_lists,
+        campaign_lists.campaign_add_lists,
         name="campaign-add-lists",
     ),
     path(
         "campaign/<id>/list/<list_id>/remove",
-        campaign.campaign_remove_list,
+        campaign_lists.campaign_remove_list,
         name="campaign-remove-list",
     ),
     path(
         "campaign/<id>/action/new",
-        campaign.campaign_log_action,
+        campaign_actions.campaign_log_action,
         name="campaign-action-new",
     ),
     path(
         "campaign/<id>/action/<action_id>/outcome",
-        campaign.campaign_action_outcome,
+        campaign_actions.campaign_action_outcome,
         name="campaign-action-outcome",
     ),
     path(
         "campaign/<id>/actions",
-        campaign.CampaignActionList.as_view(),
+        campaign_actions.CampaignActionList.as_view(),
         name="campaign-actions",
     ),
     path(
         "campaign/<id>/start",
-        campaign.start_campaign,
+        campaign_lifecycle.start_campaign,
         name="campaign-start",
     ),
     path(
         "campaign/<id>/end",
-        campaign.end_campaign,
+        campaign_lifecycle.end_campaign,
         name="campaign-end",
     ),
     path(
         "campaign/<id>/reopen",
-        campaign.reopen_campaign,
+        campaign_lifecycle.reopen_campaign,
         name="campaign-reopen",
     ),
     path(
         "campaign/<id>/archive",
-        campaign.archive_campaign,
+        campaign_lifecycle.archive_campaign,
         name="campaign-archive",
     ),
     # Campaign Copy
     path(
         "campaign/<id>/copy-in",
-        campaign.campaign_copy_from,
+        campaign_copy.campaign_copy_from,
         name="campaign-copy-in",
     ),
     path(
         "campaign/<id>/copy-out",
-        campaign.campaign_copy_to,
+        campaign_copy.campaign_copy_to,
         name="campaign-copy-out",
     ),
     # Campaign Assets
     path(
         "campaign/<id>/assets",
-        campaign.campaign_assets,
+        campaign_assets.campaign_assets,
         name="campaign-assets",
     ),
     path(
         "campaign/<id>/assets/type/new",
-        campaign.campaign_asset_type_new,
+        campaign_assets.campaign_asset_type_new,
         name="campaign-asset-type-new",
     ),
     path(
         "campaign/<id>/assets/type/<type_id>/edit",
-        campaign.campaign_asset_type_edit,
+        campaign_assets.campaign_asset_type_edit,
         name="campaign-asset-type-edit",
     ),
     path(
         "campaign/<id>/assets/type/<type_id>/remove",
-        campaign.campaign_asset_type_remove,
+        campaign_assets.campaign_asset_type_remove,
         name="campaign-asset-type-remove",
     ),
     path(
         "campaign/<id>/assets/type/<type_id>/new",
-        campaign.campaign_asset_new,
+        campaign_assets.campaign_asset_new,
         name="campaign-asset-new",
     ),
     path(
         "campaign/<id>/assets/<asset_id>/edit",
-        campaign.campaign_asset_edit,
+        campaign_assets.campaign_asset_edit,
         name="campaign-asset-edit",
     ),
     path(
         "campaign/<id>/assets/<asset_id>/transfer",
-        campaign.campaign_asset_transfer,
+        campaign_assets.campaign_asset_transfer,
         name="campaign-asset-transfer",
     ),
     path(
         "campaign/<id>/assets/<asset_id>/remove",
-        campaign.campaign_asset_remove,
+        campaign_assets.campaign_asset_remove,
         name="campaign-asset-remove",
     ),
     # Campaign Sub-Assets
     path(
         "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_type>/new",
-        campaign.campaign_sub_asset_new,
+        campaign_sub_assets.campaign_sub_asset_new,
         name="campaign-sub-asset-new",
     ),
     path(
         "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_id>/edit",
-        campaign.campaign_sub_asset_edit,
+        campaign_sub_assets.campaign_sub_asset_edit,
         name="campaign-sub-asset-edit",
     ),
     path(
         "campaign/<id>/assets/<asset_id>/sub-asset/<sub_asset_id>/remove",
-        campaign.campaign_sub_asset_remove,
+        campaign_sub_assets.campaign_sub_asset_remove,
         name="campaign-sub-asset-remove",
     ),
     # Campaign Resources
     path(
         "campaign/<id>/resources",
-        campaign.campaign_resources,
+        campaign_resources.campaign_resources,
         name="campaign-resources",
     ),
     path(
         "campaign/<id>/resources/type/new",
-        campaign.campaign_resource_type_new,
+        campaign_resources.campaign_resource_type_new,
         name="campaign-resource-type-new",
     ),
     path(
         "campaign/<id>/resources/type/<type_id>/edit",
-        campaign.campaign_resource_type_edit,
+        campaign_resources.campaign_resource_type_edit,
         name="campaign-resource-type-edit",
     ),
     path(
         "campaign/<id>/resources/type/<type_id>/remove",
-        campaign.campaign_resource_type_remove,
+        campaign_resources.campaign_resource_type_remove,
         name="campaign-resource-type-remove",
     ),
     path(
         "campaign/<id>/resources/<resource_id>/modify",
-        campaign.campaign_resource_modify,
+        campaign_resources.campaign_resource_modify,
         name="campaign-resource-modify",
     ),
     # Battles
     path(
         "campaign/<id>/battles",
-        campaign.campaign_battles,
+        campaign_battles.campaign_battles,
         name="campaign-battles",
     ),
     path(
@@ -626,22 +637,22 @@ urlpatterns = [
     # Captured fighters
     path(
         "campaign/<id>/captured-fighters",
-        campaign.campaign_captured_fighters,
+        campaign_captured.campaign_captured_fighters,
         name="campaign-captured-fighters",
     ),
     path(
         "campaign/<id>/fighter/<fighter_id>/sell-to-guilders",
-        campaign.fighter_sell_to_guilders,
+        campaign_captured.fighter_sell_to_guilders,
         name="fighter-sell-to-guilders",
     ),
     path(
         "campaign/<id>/fighter/<fighter_id>/return-to-owner",
-        campaign.fighter_return_to_owner,
+        campaign_captured.fighter_return_to_owner,
         name="fighter-return-to-owner",
     ),
     path(
         "campaign/<id>/fighter/<fighter_id>/release",
-        campaign.fighter_release,
+        campaign_captured.fighter_release,
         name="fighter-release",
     ),
     # TinyMCE upload
