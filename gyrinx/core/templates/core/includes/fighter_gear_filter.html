@@ -37,6 +37,11 @@
                     aria-expanded="false"
                     data-bs-auto-close="outside">Category</button>
             <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                <label class="form-label">
+                    <a href="#" id="category-all-link">All</a>
+                    /
+                    <a href="#" id="category-none-link">None</a>
+                </label>
                 {% for cat in categories %}
                     {% qt_contains request "cat" cat.id as contains_id %}
                     <div class="form-check mb-0">
@@ -106,7 +111,9 @@
                         <label for="al" class="form-label">
                             Availability
                             •
-                            <a href="#" id="availability-all-link" class="ms-auto">all</a>
+                            <a href="#" id="availability-all-link" class="ms-auto">All</a>
+                            /
+                            <a href="#" id="availability-none-link">None</a>
                         </label>
                         {% qt_contains request "al" "C" as al_contains_c %}
                         <div class="form-check mb-0">

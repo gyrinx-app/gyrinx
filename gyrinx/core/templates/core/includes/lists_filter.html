@@ -59,6 +59,11 @@
                         aria-expanded="false"
                         data-bs-auto-close="outside">Type</button>
                 <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    <label class="form-label">
+                        <a href="#" id="type-all-link">All</a>
+                        /
+                        <a href="#" id="type-none-link">None</a>
+                    </label>
                     {% qt_contains request "type" "list" as type_contains_list %}
                     {% qt_contains request "type" "gang" as type_contains_gang %}
                     <div class="form-check mb-0">
@@ -104,6 +109,11 @@
                         aria-expanded="false"
                         data-bs-auto-close="outside">House</button>
                 <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    <label class="form-label">
+                        <a href="#" id="house-all-link">All</a>
+                        /
+                        <a href="#" id="house-none-link">None</a>
+                    </label>
                     {% for house in houses %}
                         {% qt_contains request "house" house.id as contains_id %}
                         <div class="form-check mb-0">

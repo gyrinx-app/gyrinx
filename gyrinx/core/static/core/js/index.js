@@ -299,7 +299,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// Handle "all" link in availability dropdown
+// Handle "all" and "none" links in availability dropdown
 document.addEventListener("DOMContentLoaded", () => {
     const allLink = document.getElementById("availability-all-link");
     if (allLink) {
@@ -319,6 +319,181 @@ document.addEventListener("DOMContentLoaded", () => {
             params.append("al", "I");
             params.append("al", "E");
             params.append("al", "U");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+
+    const noneLink = document.getElementById("availability-none-link");
+    if (noneLink) {
+        noneLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with no availability options
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing availability parameters and add empty marker
+            params.delete("al");
+            params.append("al", "");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+});
+
+// Handle "all" and "none" links in category dropdown
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("category-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with all categories selected (reset to default)
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing category parameters and set to all
+            params.delete("cat");
+            params.set("cat", "all");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+
+    const noneLink = document.getElementById("category-none-link");
+    if (noneLink) {
+        noneLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with no categories selected
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing category parameters and add empty marker
+            params.delete("cat");
+            params.append("cat", "");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+});
+
+// Handle "all" and "none" links in type dropdown (Lists & Gangs page)
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("type-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with all types selected
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing type parameters and add all types
+            params.delete("type");
+            params.append("type", "list");
+            params.append("type", "gang");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+
+    const noneLink = document.getElementById("type-none-link");
+    if (noneLink) {
+        noneLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with no types selected
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing type parameters and add empty marker
+            params.delete("type");
+            params.append("type", "");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+});
+
+// Handle "all" and "none" links in house dropdown (Lists & Gangs page)
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("house-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with all houses selected (reset to default)
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing house parameters and set to all
+            params.delete("house");
+            params.set("house", "all");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+
+    const noneLink = document.getElementById("house-none-link");
+    if (noneLink) {
+        noneLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with no houses selected
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing house parameters and add empty marker
+            params.delete("house");
+            params.append("house", "");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+});
+
+// Handle "all" and "none" links in status dropdown (Campaigns page)
+document.addEventListener("DOMContentLoaded", () => {
+    const allLink = document.getElementById("status-all-link");
+    if (allLink) {
+        allLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with all statuses selected (reset to default)
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing status parameters and set to all
+            params.delete("status");
+            params.set("status", "all");
+
+            // Navigate to the new URL with updated query string
+            window.location.href = `${url.pathname}?${params.toString()}#search`;
+        });
+    }
+
+    const noneLink = document.getElementById("status-none-link");
+    if (noneLink) {
+        noneLink.addEventListener("click", (event) => {
+            event.preventDefault();
+
+            // Build query string with no statuses selected
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            // Remove existing status parameters and add empty marker
+            params.delete("status");
+            params.append("status", "");
 
             // Navigate to the new URL with updated query string
             window.location.href = `${url.pathname}?${params.toString()}#search`;

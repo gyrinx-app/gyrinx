@@ -59,6 +59,11 @@
                         aria-expanded="false"
                         data-bs-auto-close="outside">Status</button>
                 <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    <label class="form-label">
+                        <a href="#" id="status-all-link">All</a>
+                        /
+                        <a href="#" id="status-none-link">None</a>
+                    </label>
                     {% for status_value, status_label in status_choices %}
                         {% qt_contains request "status" status_value as status_contains %}
                         <div class="form-check mb-0">
