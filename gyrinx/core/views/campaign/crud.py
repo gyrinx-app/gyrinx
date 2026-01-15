@@ -40,7 +40,7 @@ def new_campaign(request):
                 campaign=campaign,
                 name="Reputation",
                 description="Gang reputation gained during the campaign",
-                default_amount=0,
+                default_amount=1,
                 owner=request.user,
             )
 

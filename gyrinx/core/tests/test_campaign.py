@@ -265,7 +265,7 @@ def test_campaign_create_edit_forms():
     assert (
         reputation_resource.description == "Gang reputation gained during the campaign"
     )
-    assert reputation_resource.default_amount == 0
+    assert reputation_resource.default_amount == 1
 
 
 @pytest.mark.django_db
@@ -302,7 +302,7 @@ def test_campaign_automatically_creates_reputation_resource():
     reputation = campaign.resource_types.first()
     assert reputation.name == "Reputation"
     assert reputation.description == "Gang reputation gained during the campaign"
-    assert reputation.default_amount == 0
+    assert reputation.default_amount == 1
     assert reputation.owner == user
 
     # Create a house for the list
@@ -325,7 +325,7 @@ def test_campaign_automatically_creates_reputation_resource():
     reputation_resource = CampaignListResource.objects.get(
         campaign=campaign, resource_type=reputation, list=cloned_list
     )
-    assert reputation_resource.amount == 0
+    assert reputation_resource.amount == 1
 
 
 @pytest.mark.django_db
