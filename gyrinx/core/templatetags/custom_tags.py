@@ -171,6 +171,12 @@ def qt_contains(request, key, value):
     return key in request.GET and value in request.GET.getlist(key, list)
 
 
+@register.simple_tag
+def qt_has_key(request, key):
+    """Check if a query parameter key exists in the request (even if empty)."""
+    return key in request.GET
+
+
 @register.filter(name="min")
 def fmin(value, arg):
     return min(int(value), int(arg))

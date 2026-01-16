@@ -64,6 +64,7 @@
                         /
                         <a href="#" id="status-none-link">None</a>
                     </label>
+                    {% qt_has_key request "status" as status_key_exists %}
                     {% for status_value, status_label in status_choices %}
                         {% qt_contains request "status" status_value as status_contains %}
                         <div class="form-check mb-0">
@@ -73,7 +74,7 @@
                                    id="status-{{ status_value }}"
                                    name="status"
                                    value="{{ status_value }}"
-                                   {% if status_contains or not request.GET.status %}checked{% endif %}>
+                                   {% if status_contains or not status_key_exists %}checked{% endif %}>
                             <label class="form-check-label" for="status-{{ status_value }}">{{ status_label }}</label>
                             •
                             <a class="ms-auto" href="?{% qt request status=status_value %}#search">only</a>

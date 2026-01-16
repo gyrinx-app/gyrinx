@@ -57,9 +57,14 @@ class Campaigns(generic.ListView):
             queryset = queryset.filter(archived=False)
 
         # Apply status filter
-        status_filters = self.request.GET.getlist("status")
+        status_filters_raw = self.request.GET.getlist("status")
+        # Filter out empty strings and "all" marker
+        status_filters = [s for s in status_filters_raw if s and s != "all"]
         if status_filters:
             queryset = queryset.filter(status__in=status_filters)
+        elif status_filters_raw:
+            # Had values but all filtered out (e.g. empty string for "None") - show nothing
+            queryset = queryset.none()
 
         # Apply search filter
         search_query = self.request.GET.get("q")
