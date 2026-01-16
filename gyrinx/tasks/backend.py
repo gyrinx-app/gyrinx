@@ -50,8 +50,8 @@ class PubSubBackend(BaseTaskBackend):
     supports_defer = False
     # To support async: use aiohttp or async Pub/Sub client in aenqueue()
     supports_async_task = False
-    # To support get_result: store results in database or Cloud Storage
-    supports_get_result = False
+    # Results are stored in database via TaskExecution model
+    supports_get_result = True
     # To support priority: use separate topics per priority level
     supports_priority = False
 
@@ -122,6 +122,19 @@ class PubSubBackend(BaseTaskBackend):
                 "(dict, list, str, int, float, bool, None)."
             ) from e
 
+        # Create TaskExecution record for result persistence
+        enqueued_at = datetime.now(timezone.utc)
+        from gyrinx.tasks.models import TaskExecution
+
+        TaskExecution.objects.create(
+            id=task_id,
+            task_name=task_name,
+            status="READY",
+            args=list(args),
+            kwargs=dict(kwargs),
+            enqueued_at=enqueued_at,
+        )
+
         # Publish without waiting - use callback for tracking
         future = self.publisher.publish(topic_path, data)
 
@@ -152,7 +165,6 @@ class PubSubBackend(BaseTaskBackend):
         future.add_done_callback(on_publish_complete)
 
         # Return immediately - publish happens async
-        enqueued_at = datetime.now(timezone.utc)
         return TaskResult(
             task=task,
             id=task_id,
@@ -165,5 +177,50 @@ class PubSubBackend(BaseTaskBackend):
             kwargs=dict(kwargs),
             backend=self.alias,
             errors=[],
+            worker_ids=[],
+        )
+
+    def get_result(self, result_id):
+        """
+        Retrieve task result from the database.
+
+        Args:
+            result_id: The task ID (UUID string)
+
+        Returns:
+            TaskResult instance with current status and results, or None if not found
+        """
+        from gyrinx.tasks.models import TaskExecution
+
+        try:
+            execution = TaskExecution.objects.get(id=result_id)
+        except TaskExecution.DoesNotExist:
+            return None
+
+        # Map TaskExecution status to TaskResultStatus
+        status_map = {
+            "READY": TaskResultStatus.READY,
+            "RUNNING": TaskResultStatus.RUNNING,
+            "SUCCESSFUL": TaskResultStatus.SUCCESSFUL,
+            "FAILED": TaskResultStatus.FAILED,
+        }
+
+        # Build errors list if failed
+        errors = []
+        if execution.is_failed and execution.error_message:
+            errors = [execution.error_message]
+
+        return TaskResult(
+            task=None,  # We don't have the task object when retrieving results
+            id=str(execution.id),
+            status=status_map.get(execution.status, TaskResultStatus.READY),
+            enqueued_at=execution.enqueued_at,
+            started_at=execution.started_at,
+            finished_at=execution.finished_at,
+            last_attempted_at=execution.started_at,
+            args=execution.args,
+            kwargs=execution.kwargs,
+            backend=self.alias,
+            errors=errors,
             worker_ids=[],
         )

@@ -9,6 +9,7 @@ import base64
 import json
 import logging
 import os
+import traceback
 
 from django.conf import settings
 from django.db import OperationalError, connection
@@ -19,6 +20,57 @@ from django.views.decorators.http import require_POST
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
+
+
+def _update_task_execution_running(task_id, message_id):
+    """Update TaskExecution to RUNNING status."""
+    from django.core.exceptions import ValidationError
+
+    from gyrinx.tasks.models import TaskExecution
+
+    try:
+        execution = TaskExecution.objects.get(id=task_id)
+        execution.mark_running(metadata={"message_id": message_id})
+        return execution
+    except TaskExecution.DoesNotExist:
+        logger.warning(f"TaskExecution not found for task_id={task_id}")
+        return None
+    except ValidationError:
+        # Invalid UUID format - task was not created via our backend
+        logger.warning(f"Invalid task_id format: {task_id}")
+        return None
+
+
+def _update_task_execution_successful(execution, result):
+    """Update TaskExecution to SUCCESSFUL status with return value."""
+    if execution is None:
+        return
+
+    # Try to store the return value if it's JSON-serializable
+    return_value = None
+    if result is not None:
+        try:
+            json.dumps(result)  # Test if serializable
+            return_value = result
+        except (TypeError, ValueError):
+            logger.debug(
+                "Task return value is not JSON-serializable, not storing",
+                extra={"task_id": str(execution.id)},
+            )
+
+    execution.mark_successful(return_value=return_value)
+
+
+def _update_task_execution_failed(execution, error, task_id=None):
+    """Update TaskExecution to FAILED status with error details."""
+    if execution is None:
+        return
+
+    execution.mark_failed(
+        error_message=str(error),
+        error_traceback=traceback.format_exc(),
+    )
+
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +310,9 @@ def pubsub_push_handler(request):
 
     # Execute the task
     with span("execute_task", task_name=task_name, task_id=task_id):
+        # Update task execution to RUNNING
+        execution = _update_task_execution_running(task_id, message_id)
+
         try:
             track(
                 "task_started",
@@ -267,7 +322,10 @@ def pubsub_push_handler(request):
             )
 
             # Call the underlying function directly, not the Task wrapper
-            route._underlying_func(*args, **kwargs)
+            result = route._underlying_func(*args, **kwargs)
+
+            # Update task execution to SUCCESSFUL
+            _update_task_execution_successful(execution, result)
 
             track(
                 "task_completed",
@@ -279,6 +337,9 @@ def pubsub_push_handler(request):
             return HttpResponse("OK", status=200)
 
         except Exception as e:
+            # Update task execution to FAILED
+            _update_task_execution_failed(execution, e, task_id=task_id)
+
             track(
                 "task_failed",
                 task_id=task_id,

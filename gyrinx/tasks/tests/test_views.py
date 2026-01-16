@@ -231,3 +231,340 @@ def test_pubsub_handler_allows_when_oidc_succeeds(client):
         )
 
     assert response.status_code == 200
+
+
+# =============================================================================
+# Task Execution Status Update Tests
+# =============================================================================
+
+
+@pytest.fixture
+def task_execution():
+    """Create a TaskExecution record for testing."""
+    from datetime import timezone as tz
+    from datetime import datetime
+
+    from gyrinx.tasks.models import TaskExecution
+
+    return TaskExecution.objects.create(
+        id="550e8400-e29b-41d4-a716-446655440000",
+        task_name="_test_task",
+        args=[],
+        kwargs={},
+        enqueued_at=datetime.now(tz.utc),
+    )
+
+
+@pytest.mark.django_db
+def test_handler_transitions_to_running_on_start(client, bypass_oidc, task_execution):
+    """Handler should transition TaskExecution to RUNNING when starting."""
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+
+    # Refresh and check status
+    task_execution.refresh_from_db()
+    # Should be SUCCESSFUL since task completed
+    assert task_execution.status == "SUCCESSFUL"
+
+
+@pytest.mark.django_db
+def test_handler_sets_started_at_on_start(client, bypass_oidc, task_execution):
+    """Handler should set started_at when task starts."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    task_execution.refresh_from_db()
+    assert task_execution.started_at is not None
+
+
+@pytest.mark.django_db
+def test_handler_transitions_to_successful_on_success(
+    client, bypass_oidc, task_execution
+):
+    """Handler should transition TaskExecution to SUCCESSFUL on completion."""
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+
+    task_execution.refresh_from_db()
+    assert task_execution.status == "SUCCESSFUL"
+
+
+@pytest.mark.django_db
+def test_handler_sets_finished_at_on_success(client, bypass_oidc, task_execution):
+    """Handler should set finished_at when task completes."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    task_execution.refresh_from_db()
+    assert task_execution.finished_at is not None
+
+
+@pytest.mark.django_db
+def test_handler_stores_return_value_on_success(client, bypass_oidc, task_execution):
+    """Handler should store return_value when task completes successfully."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+            kwargs={"name": "Test"},
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    task_execution.refresh_from_db()
+    assert task_execution.return_value == "Hello, Test!"
+
+
+@pytest.mark.django_db
+def test_handler_transitions_to_failed_on_error(client, bypass_oidc, task_execution):
+    """Handler should transition TaskExecution to FAILED on error."""
+
+    def failing_task():
+        raise ValueError("Task failed!")
+
+    # Update task_execution task_name to match
+    task_execution.task_name = "failing_task"
+    task_execution.save()
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(failing_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "failing_task",
+            task_id=str(task_execution.id),
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 500
+
+    task_execution.refresh_from_db()
+    assert task_execution.status == "FAILED"
+
+
+@pytest.mark.django_db
+def test_handler_stores_error_message_on_failure(client, bypass_oidc, task_execution):
+    """Handler should store error_message when task fails."""
+
+    def failing_task():
+        raise ValueError("Something went wrong!")
+
+    task_execution.task_name = "failing_task"
+    task_execution.save()
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(failing_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "failing_task",
+            task_id=str(task_execution.id),
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    task_execution.refresh_from_db()
+    assert "Something went wrong!" in task_execution.error_message
+
+
+@pytest.mark.django_db
+def test_handler_stores_error_traceback_on_failure(client, bypass_oidc, task_execution):
+    """Handler should store error_traceback when task fails."""
+
+    def failing_task():
+        raise ValueError("Traceback test!")
+
+    task_execution.task_name = "failing_task"
+    task_execution.save()
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(failing_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "failing_task",
+            task_id=str(task_execution.id),
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    task_execution.refresh_from_db()
+    assert "Traceback" in task_execution.error_traceback
+
+
+@pytest.mark.django_db
+def test_handler_missing_task_execution_continues(client, bypass_oidc):
+    """Handler should continue execution if TaskExecution not found."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        # Use a task_id that doesn't exist in the database
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id="00000000-0000-0000-0000-000000000000",
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    # Task should still execute successfully
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_handler_creates_transition_records(client, bypass_oidc, task_execution):
+    """Handler should create StateTransition records."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    # Should have 2 transitions: READY -> RUNNING -> SUCCESSFUL
+    transitions = list(task_execution.get_transitions())
+    assert len(transitions) == 2
+
+
+@pytest.mark.django_db
+def test_full_task_lifecycle_success(client, bypass_oidc, task_execution):
+    """Full successful task lifecycle should be tracked."""
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(_test_task)]
+
+    # Initial state
+    assert task_execution.status == "READY"
+    assert task_execution.started_at is None
+    assert task_execution.finished_at is None
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "_test_task",
+            task_id=str(task_execution.id),
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+
+    # Final state
+    task_execution.refresh_from_db()
+    assert task_execution.status == "SUCCESSFUL"
+    assert task_execution.started_at is not None
+    assert task_execution.finished_at is not None
+    assert task_execution.is_complete is True
+    assert task_execution.is_success is True
+
+
+@pytest.mark.django_db
+def test_full_task_lifecycle_failure(client, bypass_oidc, task_execution):
+    """Full failed task lifecycle should be tracked."""
+
+    def failing_task():
+        raise RuntimeError("Epic failure!")
+
+    task_execution.task_name = "failing_task"
+    task_execution.save()
+
+    url = reverse("tasks:pubsub")
+    routes = [TaskRoute(failing_task)]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        envelope = make_pubsub_message(
+            "failing_task",
+            task_id=str(task_execution.id),
+        )
+        response = client.post(
+            url,
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 500
+
+    task_execution.refresh_from_db()
+    assert task_execution.status == "FAILED"
+    assert task_execution.started_at is not None
+    assert task_execution.finished_at is not None
+    assert task_execution.is_complete is True
+    assert task_execution.is_failed is True
+    assert "Epic failure!" in task_execution.error_message
