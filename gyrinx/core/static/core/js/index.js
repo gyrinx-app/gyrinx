@@ -299,32 +299,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// Handle "all" link in availability dropdown
-document.addEventListener("DOMContentLoaded", () => {
-    const allLink = document.getElementById("availability-all-link");
-    if (allLink) {
-        allLink.addEventListener("click", (event) => {
-            event.preventDefault();
+// Generic handler for "All/None" filter links in dropdown menus
+function setupFilterLinks(config) {
+    const { prefix, param, allValues } = config;
 
-            // Build query string with all availability options
-            const url = new URL(window.location.href);
-            const params = new URLSearchParams(url.search);
+    document.addEventListener("DOMContentLoaded", () => {
+        const allLink = document.getElementById(`${prefix}-all-link`);
+        if (allLink) {
+            allLink.addEventListener("click", (event) => {
+                event.preventDefault();
+                const url = new URL(window.location.href);
+                const params = new URLSearchParams(url.search);
+                params.delete(param);
 
-            // Remove existing availability parameters
-            params.delete("al");
+                if (Array.isArray(allValues)) {
+                    allValues.forEach((v) => params.append(param, v));
+                } else {
+                    params.set(param, allValues);
+                }
 
-            // Add all availability parameters
-            params.append("al", "C");
-            params.append("al", "R");
-            params.append("al", "I");
-            params.append("al", "E");
-            params.append("al", "U");
+                window.location.href = `${url.pathname}?${params.toString()}#search`;
+            });
+        }
 
-            // Navigate to the new URL with updated query string
-            window.location.href = `${url.pathname}?${params.toString()}#search`;
-        });
-    }
+        const noneLink = document.getElementById(`${prefix}-none-link`);
+        if (noneLink) {
+            noneLink.addEventListener("click", (event) => {
+                event.preventDefault();
+                const url = new URL(window.location.href);
+                const params = new URLSearchParams(url.search);
+                params.delete(param);
+                params.append(param, "");
+                window.location.href = `${url.pathname}?${params.toString()}#search`;
+            });
+        }
+    });
+}
+
+// Configure all filter dropdowns with All/None links
+setupFilterLinks({
+    prefix: "availability",
+    param: "al",
+    allValues: ["C", "R", "I", "E", "U"],
 });
+setupFilterLinks({ prefix: "category", param: "cat", allValues: "all" });
+setupFilterLinks({
+    prefix: "type",
+    param: "type",
+    allValues: ["list", "gang"],
+});
+setupFilterLinks({ prefix: "house", param: "house", allValues: "all" });
+setupFilterLinks({ prefix: "status", param: "status", allValues: "all" });
 
 // Add loading spinner to form submit buttons
 document.addEventListener("DOMContentLoaded", () => {

@@ -37,6 +37,12 @@
                     aria-expanded="false"
                     data-bs-auto-close="outside">Category</button>
             <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                <label class="form-label">
+                    <a href="#" id="category-all-link">All</a>
+                    /
+                    <a href="#" id="category-none-link">None</a>
+                </label>
+                {% qt_has_key request "cat" as cat_key_exists %}
                 {% for cat in categories %}
                     {% qt_contains request "cat" cat.id as contains_id %}
                     <div class="form-check mb-0">
@@ -47,7 +53,7 @@
                                id="cat-{{ cat.id }}"
                                name="cat"
                                value="{{ cat.id }}"
-                               {% if contains_id or request.GET.cat == "" or request.GET.cat == "all" or not request.GET.cat %}checked{% endif %}>
+                               {% if contains_id or request.GET.cat == "all" or not cat_key_exists %}checked{% endif %}>
                         <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
                         •
                         <a class="ms-auto" href="?{% qt request cat=cat.id %}#search">only</a>
@@ -106,8 +112,11 @@
                         <label for="al" class="form-label">
                             Availability
                             •
-                            <a href="#" id="availability-all-link" class="ms-auto">all</a>
+                            <a href="#" id="availability-all-link" class="ms-auto">All</a>
+                            /
+                            <a href="#" id="availability-none-link">None</a>
                         </label>
+                        {% qt_has_key request "al" as al_key_exists %}
                         {% qt_contains request "al" "C" as al_contains_c %}
                         <div class="form-check mb-0">
                             <input class="form-check-input"
@@ -117,7 +126,7 @@
                                    id="al-c"
                                    name="al"
                                    value="C"
-                                   {% if not request.GET.al or al_contains_c %}checked{% endif %}>
+                                   {% if al_contains_c or not al_key_exists %}checked{% endif %}>
                             <label class="form-check-label" for="al-c">Common (C)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="C" %}#search">only</a>
@@ -131,7 +140,7 @@
                                    id="al-r"
                                    name="al"
                                    value="R"
-                                   {% if not request.GET.al or al_contains_r %}checked{% endif %}>
+                                   {% if al_contains_r or not al_key_exists %}checked{% endif %}>
                             <label class="form-check-label" for="al-r">Rare (R)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="R" %}#search">only</a>

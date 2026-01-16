@@ -340,8 +340,19 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             )
     else:
         # Apply availability filters (either explicit or default)
-        als = request.GET.getlist("al", ["C", "R"])
-        equipment = equipment.filter(rarity__in=set(als))
+        # Note: `als` is also used later for profile filtering, so we must always set it
+        als_raw = request.GET.getlist("al")
+        als = [a for a in als_raw if a]
+        if als:
+            equipment = equipment.filter(rarity__in=set(als))
+        elif als_raw:
+            # Had values but all filtered out (e.g. empty string for "None") - show nothing
+            equipment = equipment.none()
+            als = []  # No profiles should match either
+        else:
+            # No parameter at all - use defaults
+            als = ["C", "R"]
+            equipment = equipment.filter(rarity__in=set(als))
 
         # Still need profiles for weapons when not in equipment list mode
         if is_weapon:
