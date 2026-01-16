@@ -14,7 +14,7 @@ class ListActionAdmin(BaseAdmin):
         "owner",
         "created",
     ]
-    search_fields = ["list__name", "owner__username", "description"]
+    search_fields = ["list__id", "list__name", "owner__username", "description"]
     list_filter = ["action_type", "subject_type", "created"]
     fields = [
         "list",
