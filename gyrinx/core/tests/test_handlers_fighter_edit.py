@@ -526,3 +526,285 @@ def test_handle_fighter_edit_cost_override_clear_propagates_to_fighter_rating_cu
     # Verify fighter.rating_current propagated (-50)
     fighter.refresh_from_db()
     assert fighter.rating_current == initial_fighter_rating - 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that changing content_fighter creates ListAction with correct delta."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Simulate form changing content_fighter
+    fighter.content_fighter = new_fighter_type
+
+    # Call handler with old value
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+    )
+
+    assert result is not None
+    assert len(result.changes) == 1
+    assert result.changes[0].field_name == "content_fighter"
+    assert result.changes[0].old_value == old_fighter_type
+    assert result.changes[0].new_value == new_fighter_type
+    # Delta = 150 - 100 = +50
+    assert result.changes[0].rating_delta == 50
+
+    # Verify ListAction created with correct delta
+    assert len(result.list_actions) == 1
+    assert result.list_actions[0].rating_delta == 50
+    assert result.list_actions[0].stash_delta == 0
+    assert "+50" in result.list_actions[0].description
+
+    # Verify fighter updated
+    fighter.refresh_from_db()
+    assert fighter.content_fighter == new_fighter_type
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_propagates_to_fighter_rating_current(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that content_fighter changes propagate to fighter.rating_current."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Set initial rating_current
+    fighter.rating_current = 100
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form changing content_fighter
+    fighter.content_fighter = new_fighter_type
+
+    # Call handler with old value
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+    )
+
+    # Delta = 150 - 100 = +50
+    assert result.changes[0].rating_delta == 50
+
+    # Verify fighter.rating_current propagated (+50)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating + 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_with_cost_override(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that content_fighter change doesn't affect cost when cost_override is set."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type and cost_override
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+        cost_override=200,  # Override is set, so base cost doesn't matter
+    )
+
+    # Simulate form changing content_fighter
+    fighter.content_fighter = new_fighter_type
+
+    # Call handler with old value
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+    )
+
+    assert result is not None
+    assert len(result.changes) == 1
+    assert result.changes[0].field_name == "content_fighter"
+    # Delta should be 0 because cost_override takes precedence
+    assert result.changes[0].rating_delta == 0
+    assert result.changes[0].stash_delta == 0
+
+    # Description should NOT include cost delta
+    assert "+0" not in result.list_actions[0].description
+    assert "¢" not in result.list_actions[0].description
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_to_cheaper(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that changing to a cheaper content_fighter creates negative delta."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="ExpensiveType",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=200,
+    )
+    new_fighter_type = make_content_fighter(
+        type="CheapType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=50,
+    )
+
+    # Create fighter with expensive type
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Set initial rating_current
+    fighter.rating_current = 200
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form changing content_fighter to cheaper type
+    fighter.content_fighter = new_fighter_type
+
+    # Call handler with old value
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+    )
+
+    # Delta = 50 - 200 = -150
+    assert result.changes[0].rating_delta == -150
+    assert "-150" in result.list_actions[0].description
+
+    # Verify fighter.rating_current propagated (-150)
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating - 150
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_to_stash_type(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that changing to a stash content_fighter routes delta to stash."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 100
+    lst.stash_current = 200
+    lst.save()
+
+    # Create a regular fighter type
+    regular_fighter_type = make_content_fighter(
+        type="Regular",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=50,
+    )
+
+    # Create a stash fighter type
+    stash_fighter_type = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+
+    fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=regular_fighter_type,
+        list=lst,
+        owner=user,
+    )
+
+    # Simulate form changing content_fighter to stash type
+    fighter.content_fighter = stash_fighter_type
+
+    # Call handler with old value
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=regular_fighter_type,
+    )
+
+    # Delta = 0 - 50 = -50, goes to stash because new content_fighter is stash-linked
+    assert result is not None
+    assert result.changes[0].stash_delta == -50
+    assert result.changes[0].rating_delta == 0
+    assert result.list_actions[0].stash_delta == -50
+    assert result.list_actions[0].rating_delta == 0

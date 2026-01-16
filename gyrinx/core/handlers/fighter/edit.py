@@ -48,6 +48,8 @@ def _generate_field_description(
     if field_name == "content_fighter":
         old_name = old_value.name() if old_value else "None"
         new_name = new_value.name() if new_value else "None"
+        if cost_delta != 0:
+            return f"Changed type from {old_name} to {new_name} ({cost_delta:+}\u00a2)"
         return f"Changed type from {old_name} to {new_name}"
 
     if field_name == "legacy_content_fighter":
@@ -117,6 +119,41 @@ def _calculate_cost_delta(
     return new_effective_cost - old_effective_cost
 
 
+@traced("_calculate_content_fighter_cost_delta")
+def _calculate_content_fighter_cost_delta(
+    fighter: ListFighter,
+    old_content_fighter: ContentFighter,
+) -> int:
+    """
+    Calculate the cost delta when changing content_fighter.
+
+    The delta is the difference between the new content_fighter's base cost
+    and the old content_fighter's base cost, using the house-specific costs.
+
+    If the fighter has a cost_override set, the change doesn't affect the
+    effective cost, so we return 0.
+
+    Args:
+        fighter: The fighter with the new content_fighter already applied
+        old_content_fighter: The previous content fighter
+
+    Returns:
+        The cost delta (new_cost - old_cost), or 0 if cost_override is set
+    """
+    # If cost_override is set, the content_fighter change doesn't affect effective cost
+    if fighter.cost_override is not None:
+        return 0
+
+    # Get house for cost calculation
+    content_house = fighter.list.content_house
+
+    # Calculate old and new costs using house-specific pricing
+    old_cost = old_content_fighter.cost_for_house(content_house)
+    new_cost = fighter.content_fighter.cost_for_house(content_house)
+
+    return new_cost - old_cost
+
+
 @traced("_detect_field_changes")
 def _detect_field_changes(
     fighter: ListFighter,
@@ -153,14 +190,22 @@ def _detect_field_changes(
         old_content_fighter is not None
         and old_content_fighter != fighter.content_fighter
     ):
+        content_fighter_cost_delta = _calculate_content_fighter_cost_delta(
+            fighter, old_content_fighter
+        )
         changes.append(
             FieldChange(
                 field_name="content_fighter",
                 old_value=old_content_fighter,
                 new_value=fighter.content_fighter,
                 description=_generate_field_description(
-                    "content_fighter", old_content_fighter, fighter.content_fighter
+                    "content_fighter",
+                    old_content_fighter,
+                    fighter.content_fighter,
+                    content_fighter_cost_delta,
                 ),
+                rating_delta=content_fighter_cost_delta if not is_stash_linked else 0,
+                stash_delta=content_fighter_cost_delta if is_stash_linked else 0,
             )
         )
 
@@ -245,9 +290,9 @@ def handle_fighter_edit(
     ModelForm validation). This handler compares the old values with the fighter's
     current values to detect changes, saves the fighter, and creates ListActions.
 
-    Creates a separate ListAction for each field that changes. Only cost_override
-    changes include rating/stash deltas; other field changes have zero deltas
-    (audit tracking only).
+    Creates a separate ListAction for each field that changes. Cost-affecting changes
+    (cost_override, content_fighter) include rating/stash deltas and propagate to
+    fighter.rating_current; other field changes have zero deltas (audit tracking only).
 
     Args:
         user: The user performing the edit
@@ -289,14 +334,13 @@ def handle_fighter_edit(
     # Save fighter (the new values were already applied by the form)
     fighter.save()
 
-    # Propagate cost_override changes to fighter.rating_current
+    # Propagate cost changes (cost_override or content_fighter) to fighter.rating_current
     for change in changes:
-        if change.field_name == "cost_override" and (
+        if change.field_name in ("cost_override", "content_fighter") and (
             change.rating_delta != 0 or change.stash_delta != 0
         ):
             delta = change.rating_delta + change.stash_delta
             propagate_from_fighter(fighter, Delta(delta=delta, list=lst))
-            break  # Only one cost_override change possible
 
     # Create ListAction for each change
     list_actions = []
