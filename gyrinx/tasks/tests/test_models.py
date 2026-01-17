@@ -40,16 +40,16 @@ def test_task_execution_has_timestamps():
 
 
 @pytest.mark.django_db
-def test_task_execution_inherits_state_machine():
-    """TaskExecution should have StateMachineMixin methods."""
+def test_task_execution_has_state_machine():
+    """TaskExecution should have state machine via states property."""
     execution = TaskExecution.objects.create(
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
-    # Should have state machine methods
-    assert hasattr(execution, "transition_to")
-    assert hasattr(execution, "can_transition_to")
-    assert hasattr(execution, "get_transitions")
+    # Should have state machine methods via states accessor
+    assert hasattr(execution.states, "transition_to")
+    assert hasattr(execution.states, "can_transition_to")
+    assert hasattr(execution.states, "history")
 
 
 # =============================================================================
@@ -60,7 +60,8 @@ def test_task_execution_inherits_state_machine():
 @pytest.mark.django_db
 def test_has_correct_states():
     """TaskExecution should have READY, RUNNING, SUCCESSFUL, FAILED states."""
-    states = [s[0] for s in TaskExecution.STATES]
+    descriptor = TaskExecution.states
+    states = [s[0] for s in descriptor.states]
     assert "READY" in states
     assert "RUNNING" in states
     assert "SUCCESSFUL" in states
@@ -69,36 +70,54 @@ def test_has_correct_states():
 
 @pytest.mark.django_db
 def test_initial_state_is_ready():
-    """INITIAL_STATE should be READY."""
-    assert TaskExecution.INITIAL_STATE == "READY"
+    """Initial state should be READY."""
+    descriptor = TaskExecution.states
+    assert descriptor.initial == "READY"
 
 
 @pytest.mark.django_db
 def test_transitions_from_ready():
     """READY can transition to RUNNING and FAILED."""
-    valid = TaskExecution.get_valid_transitions("READY")
+    execution = TaskExecution.objects.create(
+        task_name="test_task",
+        enqueued_at=timezone.now(),
+    )
+    valid = execution.states.get_valid_transitions()
     assert set(valid) == {"RUNNING", "FAILED"}
 
 
 @pytest.mark.django_db
 def test_transitions_from_running():
     """RUNNING can transition to SUCCESSFUL and FAILED."""
-    valid = TaskExecution.get_valid_transitions("RUNNING")
+    execution = TaskExecution.objects.create(
+        task_name="test_task",
+        status="RUNNING",
+        enqueued_at=timezone.now(),
+    )
+    valid = execution.states.get_valid_transitions()
     assert set(valid) == {"SUCCESSFUL", "FAILED"}
 
 
 @pytest.mark.django_db
 def test_no_transitions_from_successful():
     """SUCCESSFUL is a terminal state."""
-    valid = TaskExecution.get_valid_transitions("SUCCESSFUL")
-    assert valid == []
+    execution = TaskExecution.objects.create(
+        task_name="test_task",
+        status="SUCCESSFUL",
+        enqueued_at=timezone.now(),
+    )
+    assert execution.states.get_valid_transitions() == []
 
 
 @pytest.mark.django_db
 def test_no_transitions_from_failed():
     """FAILED is a terminal state."""
-    valid = TaskExecution.get_valid_transitions("FAILED")
-    assert valid == []
+    execution = TaskExecution.objects.create(
+        task_name="test_task",
+        status="FAILED",
+        enqueued_at=timezone.now(),
+    )
+    assert execution.states.get_valid_transitions() == []
 
 
 # =============================================================================
@@ -249,7 +268,7 @@ def test_mark_running_with_metadata():
     )
     execution.mark_running(metadata={"message_id": "msg-123"})
 
-    transition = execution.get_latest_transition()
+    transition = execution.states.history.first()
     assert transition.metadata == {"message_id": "msg-123"}
 
 
@@ -452,7 +471,7 @@ def test_cannot_transition_successful_to_running():
     execution.mark_successful()
 
     with pytest.raises(InvalidStateTransition):
-        execution.transition_to("RUNNING")
+        execution.states.transition_to("RUNNING")
 
 
 @pytest.mark.django_db
@@ -465,7 +484,7 @@ def test_cannot_transition_failed_to_running():
     execution.mark_failed(error_message="Error")
 
     with pytest.raises(InvalidStateTransition):
-        execution.transition_to("RUNNING")
+        execution.states.transition_to("RUNNING")
 
 
 # =============================================================================
@@ -483,7 +502,7 @@ def test_full_lifecycle_creates_transitions():
     execution.mark_running()
     execution.mark_successful()
 
-    transitions = list(execution.get_transitions())
+    transitions = list(execution.states.history)
     assert len(transitions) == 2
 
     # Most recent first (RUNNING -> SUCCESSFUL)
@@ -496,14 +515,14 @@ def test_full_lifecycle_creates_transitions():
 
 
 @pytest.mark.django_db
-def test_state_transitions_generic_relation():
-    """state_transitions GenericRelation should work."""
+def test_state_history_returns_transitions():
+    """states.history should return QuerySet of transitions."""
     execution = TaskExecution.objects.create(
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
     execution.mark_running()
 
-    # Access via the GenericRelation
-    transitions = execution.state_transitions.all()
+    # Access via states.history
+    transitions = execution.states.history.all()
     assert transitions.count() == 1

@@ -7,11 +7,10 @@ allowing result retrieval and status tracking for async tasks.
 
 import logging
 
-from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
-from gyrinx.core.models.state_machine import StateMachineMixin
+from gyrinx.core.models.state_machine import StateMachine
 from gyrinx.models import Base
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["TaskExecution"]
 
 
-class TaskExecution(StateMachineMixin, Base):
+class TaskExecution(Base):
     """
     Persistent storage for task execution state and results.
 
@@ -41,25 +40,27 @@ class TaskExecution(StateMachineMixin, Base):
         started_at: When task execution began
         finished_at: When task execution completed
 
-    State Machine:
+    State Machine (via states property):
         READY -> RUNNING: Task picked up by worker
         RUNNING -> SUCCESSFUL: Task completed successfully
         RUNNING -> FAILED: Task raised an exception
         READY -> FAILED: Task failed before starting (e.g., invalid args)
     """
 
-    # State machine configuration using Django's standard TaskResultStatus values
-    STATES = [
-        ("READY", "Ready"),  # Enqueued, waiting to run
-        ("RUNNING", "Running"),  # Currently executing
-        ("SUCCESSFUL", "Successful"),  # Completed successfully
-        ("FAILED", "Failed"),  # Failed with error
-    ]
-    INITIAL_STATE = "READY"
-    TRANSITIONS = {
-        "READY": ["RUNNING", "FAILED"],
-        "RUNNING": ["SUCCESSFUL", "FAILED"],
-    }
+    # State machine configuration
+    states = StateMachine(
+        states=[
+            ("READY", "Ready"),  # Enqueued, waiting to run
+            ("RUNNING", "Running"),  # Currently executing
+            ("SUCCESSFUL", "Successful"),  # Completed successfully
+            ("FAILED", "Failed"),  # Failed with error
+        ],
+        initial="READY",
+        transitions={
+            "READY": ["RUNNING", "FAILED"],
+            "RUNNING": ["SUCCESSFUL", "FAILED"],
+        },
+    )
 
     # Task identification
     task_name = models.CharField(max_length=255, db_index=True)
@@ -77,13 +78,6 @@ class TaskExecution(StateMachineMixin, Base):
     enqueued_at = models.DateTimeField(db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
-
-    # State transitions (GenericRelation for reverse lookups)
-    state_transitions = GenericRelation(
-        "core.StateTransition",
-        content_type_field="content_type",
-        object_id_field="object_id",
-    )
 
     class Meta:
         ordering = ["-enqueued_at"]
@@ -104,11 +98,10 @@ class TaskExecution(StateMachineMixin, Base):
         Args:
             metadata: Optional metadata to store with the transition
         """
-        self.started_at = timezone.now()
-        self.save(update_fields=["started_at", "modified"])
-        self.transition_to("RUNNING", metadata=metadata, save=False)
-        # Save again to ensure status is persisted (transition_to with save=False)
-        self.save(update_fields=["status", "modified"])
+        with transaction.atomic():
+            self.started_at = timezone.now()
+            self.states.transition_to("RUNNING", metadata=metadata, save=False)
+            self.save(update_fields=["started_at", "status", "modified"])
 
     def mark_successful(self, return_value=None, metadata: dict | None = None) -> None:
         """
@@ -118,11 +111,13 @@ class TaskExecution(StateMachineMixin, Base):
             return_value: The return value from the task (must be JSON-serializable)
             metadata: Optional metadata to store with the transition
         """
-        self.finished_at = timezone.now()
-        self.return_value = return_value
-        self.save(update_fields=["finished_at", "return_value", "modified"])
-        self.transition_to("SUCCESSFUL", metadata=metadata, save=False)
-        self.save(update_fields=["status", "modified"])
+        with transaction.atomic():
+            self.finished_at = timezone.now()
+            self.return_value = return_value
+            self.states.transition_to("SUCCESSFUL", metadata=metadata, save=False)
+            self.save(
+                update_fields=["finished_at", "return_value", "status", "modified"]
+            )
 
     def mark_failed(
         self,
@@ -138,19 +133,20 @@ class TaskExecution(StateMachineMixin, Base):
             error_traceback: The full traceback (optional)
             metadata: Optional metadata to store with the transition
         """
-        self.finished_at = timezone.now()
-        self.error_message = error_message
-        self.error_traceback = error_traceback
-        self.save(
-            update_fields=[
-                "finished_at",
-                "error_message",
-                "error_traceback",
-                "modified",
-            ]
-        )
-        self.transition_to("FAILED", metadata=metadata, save=False)
-        self.save(update_fields=["status", "modified"])
+        with transaction.atomic():
+            self.finished_at = timezone.now()
+            self.error_message = error_message
+            self.error_traceback = error_traceback
+            self.states.transition_to("FAILED", metadata=metadata, save=False)
+            self.save(
+                update_fields=[
+                    "finished_at",
+                    "error_message",
+                    "error_traceback",
+                    "status",
+                    "modified",
+                ]
+            )
 
     @property
     def is_complete(self) -> bool:

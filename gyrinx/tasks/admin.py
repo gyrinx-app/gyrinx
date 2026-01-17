@@ -8,8 +8,7 @@ for debugging and monitoring purposes.
 from django.contrib import admin
 from django.utils.html import format_html
 
-from gyrinx.core.models.state_machine import StateTransition
-from gyrinx.tasks.models import TaskExecution
+from gyrinx.tasks.models import TaskExecution, TaskExecutionStateTransition
 
 
 @admin.register(TaskExecution)
@@ -132,23 +131,21 @@ class TaskExecutionAdmin(admin.ModelAdmin):
         return "-"
 
 
-@admin.register(StateTransition)
-class StateTransitionAdmin(admin.ModelAdmin):
-    """Admin view for state transitions."""
+@admin.register(TaskExecutionStateTransition)
+class TaskExecutionStateTransitionAdmin(admin.ModelAdmin):
+    """Admin view for task execution state transitions."""
 
     list_display = [
-        "id",
-        "content_type",
-        "object_id_short",
+        "id_short",
+        "instance_short",
         "transition_display",
         "transitioned_at",
     ]
-    list_filter = ["content_type", "to_status", "from_status"]
-    search_fields = ["object_id"]
+    list_filter = ["to_status", "from_status"]
+    search_fields = ["instance__id"]
     readonly_fields = [
         "id",
-        "content_type",
-        "object_id",
+        "instance",
         "from_status",
         "to_status",
         "transitioned_at",
@@ -169,10 +166,15 @@ class StateTransitionAdmin(admin.ModelAdmin):
         """Disable deleting transitions through admin."""
         return False
 
-    @admin.display(description="Object ID")
-    def object_id_short(self, obj):
+    @admin.display(description="ID")
+    def id_short(self, obj):
         """Display shortened UUID."""
-        return str(obj.object_id)[:8]
+        return str(obj.id)[:8]
+
+    @admin.display(description="Task")
+    def instance_short(self, obj):
+        """Display shortened task ID."""
+        return str(obj.instance_id)[:8]
 
     @admin.display(description="Transition")
     def transition_display(self, obj):

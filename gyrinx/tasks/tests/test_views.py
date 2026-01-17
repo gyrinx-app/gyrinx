@@ -496,7 +496,7 @@ def test_handler_creates_transition_records(client, bypass_oidc, task_execution)
         )
 
     # Should have 2 transitions: READY -> RUNNING -> SUCCESSFUL
-    transitions = list(task_execution.get_transitions())
+    transitions = list(task_execution.states.history)
     assert len(transitions) == 2
 
 
