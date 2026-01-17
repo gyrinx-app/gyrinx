@@ -30,7 +30,7 @@ def pubsub_backend():
 @pytest.fixture
 def mock_publisher():
     """Mock the Pub/Sub publisher."""
-    with patch.object(PubSubBackend, "publisher", new_callable=lambda: MagicMock()):
+    with patch.object(PubSubBackend, "publisher", new_callable=MagicMock):
         yield
 
 

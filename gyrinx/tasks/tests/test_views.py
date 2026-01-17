@@ -4,6 +4,7 @@ Tests for the Pub/Sub push handler view.
 
 import base64
 import json
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -241,9 +242,6 @@ def test_pubsub_handler_allows_when_oidc_succeeds(client):
 @pytest.fixture
 def task_execution():
     """Create a TaskExecution record for testing."""
-    from datetime import timezone as tz
-    from datetime import datetime
-
     from gyrinx.tasks.models import TaskExecution
 
     return TaskExecution.objects.create(
@@ -251,7 +249,7 @@ def task_execution():
         task_name="_test_task",
         args=[],
         kwargs={},
-        enqueued_at=datetime.now(tz.utc),
+        enqueued_at=datetime.now(timezone.utc),
     )
 
 

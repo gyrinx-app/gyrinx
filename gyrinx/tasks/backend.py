@@ -104,13 +104,16 @@ class PubSubBackend(BaseTaskBackend):
 
         topic_path = self.publisher.topic_path(self.project_id, route.topic_name)
 
+        # Compute enqueued_at once for consistency between message and database
+        enqueued_at = datetime.now(timezone.utc)
+
         # Serialize message
         message_data = {
             "task_id": task_id,
             "task_name": task_name,
             "args": list(args),
             "kwargs": dict(kwargs),
-            "enqueued_at": datetime.now(timezone.utc).isoformat(),
+            "enqueued_at": enqueued_at.isoformat(),
         }
 
         try:
@@ -123,7 +126,6 @@ class PubSubBackend(BaseTaskBackend):
             ) from e
 
         # Create TaskExecution record for result persistence
-        enqueued_at = datetime.now(timezone.utc)
         from gyrinx.tasks.models import TaskExecution
 
         TaskExecution.objects.create(

@@ -38,7 +38,6 @@ class StateTransition(models.Model):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
-        db_index=True,
     )
     object_id = models.UUIDField(db_index=True)
     content_object = GenericForeignKey("content_type", "object_id")
@@ -49,6 +48,7 @@ class StateTransition(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        app_label = "core"
         ordering = ["-transitioned_at"]
         indexes = [
             models.Index(fields=["content_type", "object_id"]),

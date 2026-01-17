@@ -21,6 +21,8 @@ from gyrinx.tasks.registry import get_task
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 
+logger = logging.getLogger(__name__)
+
 
 def _update_task_execution_running(task_id, message_id):
     """Update TaskExecution to RUNNING status."""
@@ -64,15 +66,17 @@ def _update_task_execution_successful(execution, result):
 def _update_task_execution_failed(execution, error, task_id=None):
     """Update TaskExecution to FAILED status with error details."""
     if execution is None:
+        if task_id is not None:
+            logger.warning(
+                "Cannot update TaskExecution to FAILED because execution is None",
+                extra={"task_id": str(task_id)},
+            )
         return
 
     execution.mark_failed(
         error_message=str(error),
         error_traceback=traceback.format_exc(),
     )
-
-
-logger = logging.getLogger(__name__)
 
 
 def _verify_oidc_token(request) -> bool:
