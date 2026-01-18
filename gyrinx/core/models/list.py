@@ -1704,9 +1704,9 @@ class ListFighter(AppBase):
         help_text="If set, this will be base cost of this fighter.",
     )
 
-    rating_current = models.PositiveIntegerField(
+    rating_current = models.IntegerField(
         default=0,
-        help_text="Cached total rating of this fighter (base + equipment + advancements)",
+        help_text="Cached total rating of this fighter (base + equipment + advancements). Can be negative if equipment has negative cost.",
     )
 
     dirty = models.BooleanField(
@@ -2246,17 +2246,15 @@ class ListFighter(AppBase):
 
         # Optionally update cache
         if update:
-            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
-            # (cost_int can return negative values via cost overrides)
-            rating_value = max(0, rating)
             # Use QuerySet.update() to bypass signals - facts_from_db is already
             # computing correct values with the latest data
+            # Note: rating can be negative if equipment has negative cost
             ListFighter.objects.filter(pk=self.pk).update(
-                rating_current=rating_value,
+                rating_current=rating,
                 dirty=False,
             )
             # Update instance to reflect DB changes
-            self.rating_current = rating_value
+            self.rating_current = rating
             self.dirty = False
 
         return FighterFacts(rating=rating)
@@ -3601,9 +3599,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         help_text="If set, this will be the total cost of this assignment, ignoring profiles, accessories, and upgrades",
     )
 
-    rating_current = models.PositiveIntegerField(
+    rating_current = models.IntegerField(
         default=0,
-        help_text="Cached total rating of this assignment",
+        help_text="Cached total rating of this assignment. Can be negative if equipment or upgrades have negative cost.",
     )
 
     dirty = models.BooleanField(
@@ -3905,18 +3903,16 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         # Optionally update cache
         if update:
-            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
-            # (cost_int can return negative values via cost overrides)
-            rating_value = max(0, rating)
             # Use QuerySet.update() to bypass signals - facts_from_db is already
             # computing correct values, we don't want to trigger expensive
             # signal_update_list_cache_for_assignment recalculations
+            # Note: rating can be negative if equipment or upgrades have negative cost
             ListFighterEquipmentAssignment.objects.filter(pk=self.pk).update(
-                rating_current=rating_value,
+                rating_current=rating,
                 dirty=False,
             )
             # Update instance to reflect DB changes
-            self.rating_current = rating_value
+            self.rating_current = rating
             self.dirty = False
 
         return AssignmentFacts(rating=rating)
