@@ -396,3 +396,118 @@ def test_handle_list_clone_handler(make_list, user, settings, feature_flag_enabl
     # rating_current and stash_current are recalculated from actual content
     assert result.cloned_list.rating_current == 0
     assert result.cloned_list.stash_current == 0
+
+
+@pytest.mark.django_db
+def test_list_clone_preserves_expansion_equipment_cost(
+    user, make_content_house, make_content_fighter, make_equipment
+):
+    """
+    Test that cloning a list correctly calculates equipment costs from expansion rules.
+
+    This is a regression test for https://github.com/gyrinx-app/gyrinx/issues/1333
+
+    When a list has an affiliation that activates an equipment expansion with cost
+    overrides, the cloned list should use those expansion costs rather than base costs.
+    For example, "Gloves of Ozostium" has a base cost of 0, but an expansion cost of 30
+    when the "Aranthian-aligned" affiliation is active.
+    """
+    from gyrinx.content.models import (
+        ContentAttribute,
+        ContentAttributeValue,
+        ContentEquipmentListExpansion,
+        ContentEquipmentListExpansionItem,
+        ContentEquipmentListExpansionRuleByAttribute,
+    )
+    from gyrinx.core.models import ListAttributeAssignment
+    from gyrinx.models import FighterCategoryChoices
+
+    # Create a house
+    house = make_content_house("Test House")
+
+    # Create the attribute and value (simulating "Aranthian-aligned" affiliation)
+    affiliation = ContentAttribute.objects.create(name="Affiliation")
+    aranthian = ContentAttributeValue.objects.create(
+        attribute=affiliation, name="Aranthian-aligned"
+    )
+
+    # Create equipment with base cost 0 (like Gloves of Ozostium)
+    gloves = make_equipment("Gloves of Ozostium", cost=0)
+
+    # Create expansion rule that activates for Aranthian-aligned gangs
+    expansion = ContentEquipmentListExpansion.objects.create(name="Aranthian Armoury")
+    attr_rule = ContentEquipmentListExpansionRuleByAttribute.objects.create(
+        attribute=affiliation
+    )
+    attr_rule.attribute_values.add(aranthian)
+    expansion.rules.add(attr_rule)
+
+    # Add equipment to expansion with cost override (30 instead of 0)
+    ContentEquipmentListExpansionItem.objects.create(
+        expansion=expansion,
+        equipment=gloves,
+        cost=30,  # Expansion cost override
+    )
+
+    # Create a content fighter
+    content_fighter = make_content_fighter(
+        type="Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+
+    # Create the original list
+    original_list = List.objects.create(
+        name="Original Gang",
+        content_house=house,
+        owner=user,
+    )
+
+    # Add the Aranthian-aligned affiliation to the list
+    ListAttributeAssignment.objects.create(
+        list=original_list,
+        attribute_value=aranthian,
+    )
+
+    # Create a fighter and assign the equipment
+    from gyrinx.core.models.list import ListFighter
+
+    fighter = ListFighter.objects.create(
+        list=original_list,
+        content_fighter=content_fighter,
+        name="Test Leader",
+        owner=user,
+    )
+    fighter.assign(gloves)
+
+    # Recalculate costs on original list
+    original_list.facts_from_db(update=True)
+
+    # The original list should include the expansion cost (30) for the gloves
+    # Fighter cost = 100 (base) + 30 (gloves from expansion) = 130
+    assert original_list.rating_current == 130, (
+        f"Original list rating should be 130 (100 fighter + 30 expansion cost), "
+        f"got {original_list.rating_current}"
+    )
+
+    # Clone the list
+    cloned_list = original_list.clone(name="Cloned Gang")
+
+    # The clone should have the same rating (with expansion cost, not base cost)
+    assert cloned_list.rating_current == 130, (
+        f"Cloned list rating should be 130 (100 fighter + 30 expansion cost), "
+        f"got {cloned_list.rating_current}. "
+        "This indicates the expansion cost was not used during cloning."
+    )
+
+    # Verify the cloned list has the affiliation
+    cloned_attrs = cloned_list.listattributeassignment_set.filter(archived=False)
+    assert cloned_attrs.count() == 1
+    assert cloned_attrs.first().attribute_value == aranthian
+
+    # Verify the cloned fighter has the equipment
+    cloned_fighter = cloned_list.fighters().first()
+    assert cloned_fighter is not None
+    assert cloned_fighter.equipment.count() == 1
+    assert cloned_fighter.equipment.first().name == "Gloves of Ozostium"
