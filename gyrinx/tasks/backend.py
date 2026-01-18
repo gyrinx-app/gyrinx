@@ -14,6 +14,7 @@ from django.conf import settings
 from django.tasks import TaskResult
 from django.tasks.backends.base import BaseTaskBackend
 from django.tasks.base import TaskResultStatus
+from django.tasks.signals import task_enqueued
 
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracker import track
@@ -50,8 +51,8 @@ class PubSubBackend(BaseTaskBackend):
     supports_defer = False
     # To support async: use aiohttp or async Pub/Sub client in aenqueue()
     supports_async_task = False
-    # To support get_result: store results in database or Cloud Storage
-    supports_get_result = False
+    # Results are stored in database via TaskExecution model
+    supports_get_result = True
     # To support priority: use separate topics per priority level
     supports_priority = False
 
@@ -104,13 +105,16 @@ class PubSubBackend(BaseTaskBackend):
 
         topic_path = self.publisher.topic_path(self.project_id, route.topic_name)
 
+        # Compute enqueued_at once for consistency between message and database
+        enqueued_at = datetime.now(timezone.utc)
+
         # Serialize message
         message_data = {
             "task_id": task_id,
             "task_name": task_name,
             "args": list(args),
             "kwargs": dict(kwargs),
-            "enqueued_at": datetime.now(timezone.utc).isoformat(),
+            "enqueued_at": enqueued_at.isoformat(),
         }
 
         try:
@@ -121,6 +125,25 @@ class PubSubBackend(BaseTaskBackend):
                 "Ensure args/kwargs contain only JSON-serializable types "
                 "(dict, list, str, int, float, bool, None)."
             ) from e
+
+        # Create TaskResult for signal (and return value)
+        task_result = TaskResult(
+            task=task,
+            id=task_id,
+            status=TaskResultStatus.READY,
+            enqueued_at=enqueued_at,
+            started_at=None,
+            finished_at=None,
+            last_attempted_at=None,
+            args=list(args),
+            kwargs=dict(kwargs),
+            backend=self.alias,
+            errors=[],
+            worker_ids=[],
+        )
+
+        # Send signal to create TaskExecution record
+        task_enqueued.send(sender=type(self), task_result=task_result)
 
         # Publish without waiting - use callback for tracking
         future = self.publisher.publish(topic_path, data)
@@ -152,18 +175,49 @@ class PubSubBackend(BaseTaskBackend):
         future.add_done_callback(on_publish_complete)
 
         # Return immediately - publish happens async
-        enqueued_at = datetime.now(timezone.utc)
+        return task_result
+
+    def get_result(self, result_id):
+        """
+        Retrieve task result from the database.
+
+        Args:
+            result_id: The task ID (TaskResult.id, not our internal UUID)
+
+        Returns:
+            TaskResult instance with current status and results, or None if not found
+        """
+        from gyrinx.tasks.models import TaskExecution
+
+        try:
+            execution = TaskExecution.objects.get(task_id=result_id)
+        except TaskExecution.DoesNotExist:
+            return None
+
+        # Map TaskExecution status to TaskResultStatus
+        status_map = {
+            "READY": TaskResultStatus.READY,
+            "RUNNING": TaskResultStatus.RUNNING,
+            "SUCCESSFUL": TaskResultStatus.SUCCESSFUL,
+            "FAILED": TaskResultStatus.FAILED,
+        }
+
+        # Build errors list if failed
+        errors = []
+        if execution.is_failed and execution.error_message:
+            errors = [execution.error_message]
+
         return TaskResult(
-            task=task,
-            id=task_id,
-            status=TaskResultStatus.READY,
-            enqueued_at=enqueued_at,
-            started_at=None,
-            finished_at=None,
-            last_attempted_at=None,
-            args=list(args),
-            kwargs=dict(kwargs),
+            task=None,  # We don't have the task object when retrieving results
+            id=execution.task_id,
+            status=status_map.get(execution.status, TaskResultStatus.READY),
+            enqueued_at=execution.enqueued_at,
+            started_at=execution.started_at,
+            finished_at=execution.finished_at,
+            last_attempted_at=execution.started_at,
+            args=execution.args,
+            kwargs=execution.kwargs,
             backend=self.alias,
-            errors=[],
+            errors=errors,
             worker_ids=[],
         )

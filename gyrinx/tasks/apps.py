@@ -22,12 +22,15 @@ class TasksConfig(AppConfig):
 
     def ready(self):
         """
-        Auto-provision Pub/Sub infrastructure on Cloud Run startup.
+        Initialize task infrastructure.
 
-        Only runs in production when K_SERVICE is set (Cloud Run environment).
-        Skipped during migrations, tests, and local development.
+        - Registers signal handlers for TaskExecution lifecycle management
+        - Auto-provisions Pub/Sub topics/subscriptions in Cloud Run
         """
-        # Only provision in Cloud Run environment
+        # Import signal handlers to register them (works with any backend)
+        from gyrinx.tasks import signals  # noqa: F401
+
+        # Only provision Pub/Sub in Cloud Run environment
         if not os.getenv("K_SERVICE"):
             logger.debug("Not in Cloud Run, skipping task provisioning")
             return

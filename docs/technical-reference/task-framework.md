@@ -194,5 +194,16 @@ The `PubSubBackend` has the following capability flags:
 |------------|-----------|-------|
 | `supports_defer` | No | To implement, use Pub/Sub scheduled delivery |
 | `supports_async_task` | No | To implement, use async Pub/Sub client |
-| `supports_get_result` | No | To implement, use result storage (database/Cloud Storage) |
+| `supports_get_result` | Yes | Results stored in `TaskExecution` model |
 | `supports_priority` | No | Unclear |
+
+## Task Execution Tracking
+
+Tasks are tracked via the `TaskExecution` model with a state machine for lifecycle management:
+
+- **READY**: Task enqueued, waiting to run
+- **RUNNING**: Task currently executing
+- **SUCCESSFUL**: Task completed successfully (result stored in `return_value`)
+- **FAILED**: Task raised an exception (error stored in `error_message`, `error_traceback`)
+
+See [State Machine Reference](state-machine.md) for details on the state machine pattern.

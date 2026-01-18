@@ -39,6 +39,7 @@
 - [Security Baseline](security-baseline.md)
 - [Statlines](technical-reference/statlines.md)
 - [Task Framework](technical-reference/task-framework.md)
+- [State Machine](technical-reference/state-machine.md)
 - [Prefetching Strategy](technical-reference/prefetching-strategy.md)
 
 ## Explanation
