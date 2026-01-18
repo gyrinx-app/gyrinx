@@ -626,33 +626,37 @@ def delete_list_fighter_assign(
         list_fighter=fighter,
     )
 
+    error_message = None
     if request.method == "POST":
         # Store equipment name for logging before handler deletes it
         equipment_name = assignment.content_equipment.name
 
-        # Call handler to perform business logic
-        handle_equipment_removal(
-            user=request.user,
-            lst=lst,
-            fighter=fighter,
-            assignment=assignment,
-            request_refund=request.POST.get("refund") == "on",
-        )
+        try:
+            # Call handler to perform business logic
+            handle_equipment_removal(
+                user=request.user,
+                lst=lst,
+                fighter=fighter,
+                assignment=assignment,
+                request_refund=request.POST.get("refund") == "on",
+            )
 
-        # Log the equipment deletion
-        log_event(
-            user=request.user,
-            noun=EventNoun.EQUIPMENT_ASSIGNMENT,
-            verb=EventVerb.DELETE,
-            object=fighter,  # Log against the fighter since assignment is deleted
-            request=request,
-            fighter_name=fighter.name,
-            list_id=str(lst.id),
-            list_name=lst.name,
-            equipment_name=equipment_name,
-        )
+            # Log the equipment deletion
+            log_event(
+                user=request.user,
+                noun=EventNoun.EQUIPMENT_ASSIGNMENT,
+                verb=EventVerb.DELETE,
+                object=fighter,  # Log against the fighter since assignment is deleted
+                request=request,
+                fighter_name=fighter.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                equipment_name=equipment_name,
+            )
 
-        return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+            return HttpResponseRedirect(reverse(back_name, args=(lst.id, fighter.id)))
+        except DjangoValidationError as e:
+            error_message = e.message if hasattr(e, "message") else str(e.messages[0])
 
     return render(
         request,
@@ -663,6 +667,7 @@ def delete_list_fighter_assign(
             "assign": assignment,
             "action_url": action_name,
             "back_url": back_name,
+            "error_message": error_message,
         },
     )
 
