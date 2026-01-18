@@ -15,6 +15,7 @@ from django.urls import reverse
 
 from gyrinx import messages
 from gyrinx.content.models import (
+    ContentAvailabilityPreset,
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
@@ -294,10 +295,25 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     # Check if equipment list filter is active
     # Default to equipment-list when filter is not provided (matches template behavior)
     # But if house has can_buy_any and no filter is provided, redirect to filter=all
+    # Also apply availability preset defaults if no explicit al/mal filters provided
     if house_can_buy_any and "filter" not in request.GET:
         # Redirect to the same URL with filter=all
         query_dict = request.GET.copy()
         query_dict["filter"] = "all"
+
+        # Apply availability preset if no explicit filters provided
+        if "al" not in request.GET and "mal" not in request.GET:
+            preset = ContentAvailabilityPreset.get_preset_for(
+                fighter=fighter.content_fighter,
+                category=fighter.get_category(),
+                house=lst.content_house,
+            )
+            if preset:
+                for al in preset.availability_types_list:
+                    query_dict.appendlist("al", al)
+                if preset.max_availability_level is not None:
+                    query_dict["mal"] = str(preset.max_availability_level)
+
         return HttpResponseRedirect(
             reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
         )

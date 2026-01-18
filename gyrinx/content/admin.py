@@ -24,6 +24,7 @@ from .models import (
     ContentAdvancementEquipment,
     ContentAttribute,
     ContentAttributeValue,
+    ContentAvailabilityPreset,
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -1327,3 +1328,18 @@ class ContentEquipmentListExpansionRuleParentAdmin(PolymorphicParentModelAdmin):
     list_filter = [PolymorphicChildModelFilter]
     list_display = ["__str__", "polymorphic_ctype"]
     search_fields = []
+
+
+@admin.register(ContentAvailabilityPreset)
+class ContentAvailabilityPresetAdmin(ContentAdmin):
+    list_display = [
+        "__str__",
+        "fighter",
+        "category",
+        "house",
+        "availability_types",
+        "max_availability_level",
+    ]
+    list_filter = ["category", "house"]
+    search_fields = ["fighter__type", "house__name"]
+    raw_id_fields = ["fighter", "house"]
