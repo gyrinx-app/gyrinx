@@ -2,6 +2,7 @@
 Tests for the TaskExecution model.
 """
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -9,6 +10,11 @@ from django.utils import timezone
 
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.tasks.models import TaskExecution
+
+
+def make_task_id():
+    """Generate a unique task ID for tests."""
+    return f"test-task-{uuid.uuid4()}"
 
 
 # =============================================================================
@@ -20,6 +26,7 @@ from gyrinx.tasks.models import TaskExecution
 def test_task_execution_has_uuid_pk():
     """TaskExecution should have UUID primary key from Base."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -32,6 +39,7 @@ def test_task_execution_has_uuid_pk():
 def test_task_execution_has_timestamps():
     """TaskExecution should have created and modified from Base."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -43,6 +51,7 @@ def test_task_execution_has_timestamps():
 def test_task_execution_has_state_machine():
     """TaskExecution should have state machine via states property."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -79,6 +88,7 @@ def test_initial_state_is_ready():
 def test_transitions_from_ready():
     """READY can transition to RUNNING and FAILED."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -90,6 +100,7 @@ def test_transitions_from_ready():
 def test_transitions_from_running():
     """RUNNING can transition to SUCCESSFUL and FAILED."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         status="RUNNING",
         enqueued_at=timezone.now(),
@@ -102,6 +113,7 @@ def test_transitions_from_running():
 def test_no_transitions_from_successful():
     """SUCCESSFUL is a terminal state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         status="SUCCESSFUL",
         enqueued_at=timezone.now(),
@@ -113,6 +125,7 @@ def test_no_transitions_from_successful():
 def test_no_transitions_from_failed():
     """FAILED is a terminal state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         status="FAILED",
         enqueued_at=timezone.now(),
@@ -129,6 +142,7 @@ def test_no_transitions_from_failed():
 def test_task_name_field():
     """task_name field should store task name."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="my_important_task",
         enqueued_at=timezone.now(),
     )
@@ -139,6 +153,7 @@ def test_task_name_field():
 def test_args_field_defaults_to_empty_list():
     """args field should default to empty list."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -149,6 +164,7 @@ def test_args_field_defaults_to_empty_list():
 def test_args_field_stores_list():
     """args field should store list of arguments."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         args=["arg1", 42, True],
         enqueued_at=timezone.now(),
@@ -160,6 +176,7 @@ def test_args_field_stores_list():
 def test_kwargs_field_defaults_to_empty_dict():
     """kwargs field should default to empty dict."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -170,6 +187,7 @@ def test_kwargs_field_defaults_to_empty_dict():
 def test_kwargs_field_stores_dict():
     """kwargs field should store dict of keyword arguments."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         kwargs={"key1": "value1", "key2": 42},
         enqueued_at=timezone.now(),
@@ -181,6 +199,7 @@ def test_kwargs_field_stores_dict():
 def test_return_value_field_nullable():
     """return_value field should be nullable."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -191,6 +210,7 @@ def test_return_value_field_nullable():
 def test_return_value_field_stores_json():
     """return_value field should store JSON-serializable values."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         return_value={"result": "success", "count": 42},
         enqueued_at=timezone.now(),
@@ -202,6 +222,7 @@ def test_return_value_field_stores_json():
 def test_error_message_field_blank():
     """error_message field should allow blank."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -212,6 +233,7 @@ def test_error_message_field_blank():
 def test_error_traceback_field_blank():
     """error_traceback field should allow blank."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -223,6 +245,7 @@ def test_timing_fields():
     """Timing fields should be set correctly."""
     now = timezone.now()
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=now,
     )
@@ -240,6 +263,7 @@ def test_timing_fields():
 def test_create_task_in_ready_state():
     """New tasks should start as READY."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -250,6 +274,7 @@ def test_create_task_in_ready_state():
 def test_mark_running():
     """mark_running() should update status and started_at."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -263,6 +288,7 @@ def test_mark_running():
 def test_mark_running_with_metadata():
     """mark_running() should store metadata in transition."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -276,6 +302,7 @@ def test_mark_running_with_metadata():
 def test_mark_successful():
     """mark_successful() should update status, finished_at, and return_value."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -291,6 +318,7 @@ def test_mark_successful():
 def test_mark_successful_without_return_value():
     """mark_successful() should work without return_value."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -305,6 +333,7 @@ def test_mark_successful_without_return_value():
 def test_mark_failed_from_ready():
     """mark_failed() should work from READY state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -318,6 +347,7 @@ def test_mark_failed_from_ready():
 def test_mark_failed_from_running():
     """mark_failed() should work from RUNNING state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -342,6 +372,7 @@ def test_mark_failed_from_running():
 def test_is_complete_property():
     """is_complete should be True for SUCCESSFUL/FAILED."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -358,6 +389,7 @@ def test_is_complete_property():
 def test_is_complete_for_failed():
     """is_complete should be True for FAILED."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -369,6 +401,7 @@ def test_is_complete_for_failed():
 def test_is_success_property():
     """is_success should be True only for SUCCESSFUL."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -385,6 +418,7 @@ def test_is_success_property():
 def test_is_failed_property():
     """is_failed should be True only for FAILED."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -398,6 +432,7 @@ def test_is_failed_property():
 def test_duration_property():
     """duration should return timedelta when finished."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -416,6 +451,7 @@ def test_duration_property():
 def test_duration_none_if_not_finished():
     """duration should return None if task not finished."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -429,6 +465,7 @@ def test_duration_none_if_not_finished():
 def test_duration_none_if_not_started():
     """duration should return None if task not started."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -446,13 +483,14 @@ def test_duration_none_if_not_started():
 def test_str_representation():
     """__str__ should show task name, status, and ID."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
     str_repr = str(execution)
     assert "test_task" in str_repr
     assert "READY" in str_repr
-    assert str(execution.id) in str_repr
+    assert execution.task_id in str_repr
 
 
 # =============================================================================
@@ -464,6 +502,7 @@ def test_str_representation():
 def test_cannot_transition_successful_to_running():
     """Cannot transition from SUCCESSFUL to any other state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -478,6 +517,7 @@ def test_cannot_transition_successful_to_running():
 def test_cannot_transition_failed_to_running():
     """Cannot transition from FAILED to any other state."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -496,6 +536,7 @@ def test_cannot_transition_failed_to_running():
 def test_full_lifecycle_creates_transitions():
     """Full task lifecycle should create transition records."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )
@@ -518,6 +559,7 @@ def test_full_lifecycle_creates_transitions():
 def test_state_history_returns_transitions():
     """states.history should return QuerySet of transitions."""
     execution = TaskExecution.objects.create(
+        task_id=make_task_id(),
         task_name="test_task",
         enqueued_at=timezone.now(),
     )

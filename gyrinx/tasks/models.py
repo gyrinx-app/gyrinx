@@ -30,6 +30,7 @@ class TaskExecution(Base):
     not user-owned (no owner field needed).
 
     Attributes:
+        task_id: External task ID from Django's task framework (TaskResult.id)
         task_name: The name of the task function
         args: Positional arguments passed to the task (JSON)
         kwargs: Keyword arguments passed to the task (JSON)
@@ -63,6 +64,12 @@ class TaskExecution(Base):
     )
 
     # Task identification
+    task_id = models.CharField(
+        max_length=255,
+        unique=True,
+        db_index=True,
+        help_text="External task ID from Django's task framework (TaskResult.id)",
+    )
     task_name = models.CharField(max_length=255, db_index=True)
 
     # Task arguments (stored as JSON)
@@ -89,7 +96,7 @@ class TaskExecution(Base):
         verbose_name_plural = "Task Executions"
 
     def __str__(self):
-        return f"{self.task_name} ({self.status}) - {self.id}"
+        return f"{self.task_name} ({self.status}) - {self.task_id}"
 
     def mark_running(self, metadata: dict | None = None) -> None:
         """

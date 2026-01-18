@@ -245,7 +245,7 @@ def task_execution():
     from gyrinx.tasks.models import TaskExecution
 
     return TaskExecution.objects.create(
-        id="550e8400-e29b-41d4-a716-446655440000",
+        task_id="test-task-550e8400",
         task_name="_test_task",
         args=[],
         kwargs={},
@@ -263,7 +263,7 @@ def test_handler_transitions_to_running_on_start(client, bypass_oidc, task_execu
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         response = client.post(
             url,
@@ -288,7 +288,7 @@ def test_handler_sets_started_at_on_start(client, bypass_oidc, task_execution):
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         client.post(
             url,
@@ -312,7 +312,7 @@ def test_handler_transitions_to_successful_on_success(
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         response = client.post(
             url,
@@ -335,7 +335,7 @@ def test_handler_sets_finished_at_on_success(client, bypass_oidc, task_execution
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         client.post(
             url,
@@ -356,7 +356,7 @@ def test_handler_stores_return_value_on_success(client, bypass_oidc, task_execut
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
             kwargs={"name": "Test"},
         )
         client.post(
@@ -386,7 +386,7 @@ def test_handler_transitions_to_failed_on_error(client, bypass_oidc, task_execut
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "failing_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         response = client.post(
             url,
@@ -416,7 +416,7 @@ def test_handler_stores_error_message_on_failure(client, bypass_oidc, task_execu
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "failing_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         client.post(
             url,
@@ -444,7 +444,7 @@ def test_handler_stores_error_traceback_on_failure(client, bypass_oidc, task_exe
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "failing_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         client.post(
             url,
@@ -487,7 +487,7 @@ def test_handler_creates_transition_records(client, bypass_oidc, task_execution)
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         client.post(
             url,
@@ -514,7 +514,7 @@ def test_full_task_lifecycle_success(client, bypass_oidc, task_execution):
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "_test_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         response = client.post(
             url,
@@ -549,7 +549,7 @@ def test_full_task_lifecycle_failure(client, bypass_oidc, task_execution):
     with patch("gyrinx.tasks.registry._tasks", routes):
         envelope = make_pubsub_message(
             "failing_task",
-            task_id=str(task_execution.id),
+            task_id=task_execution.task_id,
         )
         response = client.post(
             url,

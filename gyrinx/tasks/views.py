@@ -10,13 +10,19 @@ import json
 import logging
 import os
 import traceback
+from datetime import datetime
 
 from django.conf import settings
 from django.db import OperationalError, connection
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.tasks import TaskResult
+from django.tasks.base import TaskError, TaskResultStatus
+from django.tasks.signals import task_finished, task_started
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from gyrinx.tasks.backend import PubSubBackend
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
@@ -24,59 +30,77 @@ from gyrinx.tracker import track
 logger = logging.getLogger(__name__)
 
 
-def _update_task_execution_running(task_id, message_id):
-    """Update TaskExecution to RUNNING status."""
-    from django.core.exceptions import ValidationError
+class _MockTask:
+    """
+    Minimal mock Task to satisfy Django's signal handler logging.
 
-    from gyrinx.tasks.models import TaskExecution
+    Django's built-in task_started/task_finished signal handlers access
+    task_result.task.module_path for logging. Since we're in the push handler
+    and don't have access to the actual Task object, we provide this mock.
+    """
 
-    try:
-        execution = TaskExecution.objects.get(id=task_id)
-        execution.mark_running(metadata={"message_id": message_id})
-        return execution
-    except TaskExecution.DoesNotExist:
-        logger.warning(f"TaskExecution not found for task_id={task_id}")
-        return None
-    except ValidationError:
-        # Invalid UUID format - task was not created via our backend
-        logger.warning(f"Invalid task_id format: {task_id}")
-        return None
+    def __init__(self, name: str):
+        self.module_path = name
 
 
-def _update_task_execution_successful(execution, result):
-    """Update TaskExecution to SUCCESSFUL status with return value."""
-    if execution is None:
-        return
+def _build_task_result(
+    task_id: str,
+    task_name: str,
+    args: list,
+    kwargs: dict,
+    status: TaskResultStatus,
+    enqueued_at: datetime | None = None,
+    return_value=None,
+    error: Exception | None = None,
+) -> TaskResult:
+    """
+    Build a TaskResult object for sending signals.
 
-    # Try to store the return value if it's JSON-serializable
-    return_value = None
-    if result is not None:
+    The push handler needs to construct TaskResult objects to send
+    task_started and task_finished signals.
+    """
+    now = timezone.now()
+
+    errors = []
+    if error is not None:
+        exception_type = type(error)
+        errors.append(
+            TaskError(
+                exception_class_path=f"{exception_type.__module__}.{exception_type.__qualname__}",
+                traceback=traceback.format_exc(),
+            )
+        )
+
+    result = TaskResult(
+        task=_MockTask(task_name),  # Mock task for Django's signal handler logging
+        id=task_id,
+        status=status,
+        enqueued_at=enqueued_at,
+        started_at=now if status == TaskResultStatus.RUNNING else None,
+        finished_at=now
+        if status in (TaskResultStatus.SUCCESSFUL, TaskResultStatus.FAILED)
+        else None,
+        last_attempted_at=now,
+        args=args,
+        kwargs=kwargs,
+        backend="default",
+        errors=errors,
+        worker_ids=[],
+    )
+
+    # Set return value for successful tasks
+    if return_value is not None and status == TaskResultStatus.SUCCESSFUL:
+        # Test if serializable before storing
         try:
-            json.dumps(result)  # Test if serializable
-            return_value = result
+            json.dumps(return_value)
+            object.__setattr__(result, "_return_value", return_value)
         except (TypeError, ValueError):
             logger.debug(
                 "Task return value is not JSON-serializable, not storing",
-                extra={"task_id": str(execution.id)},
+                extra={"task_id": task_id},
             )
 
-    execution.mark_successful(return_value=return_value)
-
-
-def _update_task_execution_failed(execution, error, task_id=None):
-    """Update TaskExecution to FAILED status with error details."""
-    if execution is None:
-        if task_id is not None:
-            logger.warning(
-                "Cannot update TaskExecution to FAILED because execution is None",
-                extra={"task_id": str(task_id)},
-            )
-        return
-
-    execution.mark_failed(
-        error_message=str(error),
-        error_traceback=traceback.format_exc(),
-    )
+    return result
 
 
 def _verify_oidc_token(request) -> bool:
@@ -314,8 +338,26 @@ def pubsub_push_handler(request):
 
     # Execute the task
     with span("execute_task", task_name=task_name, task_id=task_id):
-        # Update task execution to RUNNING
-        execution = _update_task_execution_running(task_id, message_id)
+        # Parse enqueued_at from message if available
+        enqueued_at = None
+        if "enqueued_at" in data:
+            try:
+                from dateutil.parser import isoparse
+
+                enqueued_at = isoparse(data["enqueued_at"])
+            except (ValueError, ImportError):
+                pass
+
+        # Send task_started signal (signal handler calls mark_running)
+        started_result = _build_task_result(
+            task_id=task_id,
+            task_name=task_name,
+            args=args,
+            kwargs=kwargs,
+            status=TaskResultStatus.RUNNING,
+            enqueued_at=enqueued_at,
+        )
+        task_started.send(sender=PubSubBackend, task_result=started_result)
 
         try:
             track(
@@ -328,8 +370,17 @@ def pubsub_push_handler(request):
             # Call the underlying function directly, not the Task wrapper
             result = route._underlying_func(*args, **kwargs)
 
-            # Update task execution to SUCCESSFUL
-            _update_task_execution_successful(execution, result)
+            # Send task_finished signal for success (signal handler calls mark_successful)
+            finished_result = _build_task_result(
+                task_id=task_id,
+                task_name=task_name,
+                args=args,
+                kwargs=kwargs,
+                status=TaskResultStatus.SUCCESSFUL,
+                enqueued_at=enqueued_at,
+                return_value=result,
+            )
+            task_finished.send(sender=PubSubBackend, task_result=finished_result)
 
             track(
                 "task_completed",
@@ -341,8 +392,17 @@ def pubsub_push_handler(request):
             return HttpResponse("OK", status=200)
 
         except Exception as e:
-            # Update task execution to FAILED
-            _update_task_execution_failed(execution, e, task_id=task_id)
+            # Send task_finished signal for failure (signal handler calls mark_failed)
+            failed_result = _build_task_result(
+                task_id=task_id,
+                task_name=task_name,
+                args=args,
+                kwargs=kwargs,
+                status=TaskResultStatus.FAILED,
+                enqueued_at=enqueued_at,
+                error=e,
+            )
+            task_finished.send(sender=PubSubBackend, task_result=failed_result)
 
             track(
                 "task_failed",

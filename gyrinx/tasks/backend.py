@@ -14,6 +14,7 @@ from django.conf import settings
 from django.tasks import TaskResult
 from django.tasks.backends.base import BaseTaskBackend
 from django.tasks.base import TaskResultStatus
+from django.tasks.signals import task_enqueued
 
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracker import track
@@ -125,17 +126,24 @@ class PubSubBackend(BaseTaskBackend):
                 "(dict, list, str, int, float, bool, None)."
             ) from e
 
-        # Create TaskExecution record for result persistence
-        from gyrinx.tasks.models import TaskExecution
-
-        TaskExecution.objects.create(
+        # Create TaskResult for signal (and return value)
+        task_result = TaskResult(
+            task=task,
             id=task_id,
-            task_name=task_name,
-            status="READY",
+            status=TaskResultStatus.READY,
+            enqueued_at=enqueued_at,
+            started_at=None,
+            finished_at=None,
+            last_attempted_at=None,
             args=list(args),
             kwargs=dict(kwargs),
-            enqueued_at=enqueued_at,
+            backend=self.alias,
+            errors=[],
+            worker_ids=[],
         )
+
+        # Send signal to create TaskExecution record
+        task_enqueued.send(sender=type(self), task_result=task_result)
 
         # Publish without waiting - use callback for tracking
         future = self.publisher.publish(topic_path, data)
@@ -167,27 +175,14 @@ class PubSubBackend(BaseTaskBackend):
         future.add_done_callback(on_publish_complete)
 
         # Return immediately - publish happens async
-        return TaskResult(
-            task=task,
-            id=task_id,
-            status=TaskResultStatus.READY,
-            enqueued_at=enqueued_at,
-            started_at=None,
-            finished_at=None,
-            last_attempted_at=None,
-            args=list(args),
-            kwargs=dict(kwargs),
-            backend=self.alias,
-            errors=[],
-            worker_ids=[],
-        )
+        return task_result
 
     def get_result(self, result_id):
         """
         Retrieve task result from the database.
 
         Args:
-            result_id: The task ID (UUID string)
+            result_id: The task ID (TaskResult.id, not our internal UUID)
 
         Returns:
             TaskResult instance with current status and results, or None if not found
@@ -195,7 +190,7 @@ class PubSubBackend(BaseTaskBackend):
         from gyrinx.tasks.models import TaskExecution
 
         try:
-            execution = TaskExecution.objects.get(id=result_id)
+            execution = TaskExecution.objects.get(task_id=result_id)
         except TaskExecution.DoesNotExist:
             return None
 
@@ -214,7 +209,7 @@ class PubSubBackend(BaseTaskBackend):
 
         return TaskResult(
             task=None,  # We don't have the task object when retrieving results
-            id=str(execution.id),
+            id=execution.task_id,
             status=status_map.get(execution.status, TaskResultStatus.READY),
             enqueued_at=execution.enqueued_at,
             started_at=execution.started_at,

@@ -25,9 +25,10 @@ class TaskExecutionAdmin(admin.ModelAdmin):
         "duration_display",
     ]
     list_filter = ["status", "task_name"]
-    search_fields = ["id", "task_name"]
+    search_fields = ["id", "task_id", "task_name"]
     readonly_fields = [
         "id",
+        "task_id",
         "task_name",
         "status",
         "args",
@@ -48,7 +49,7 @@ class TaskExecutionAdmin(admin.ModelAdmin):
         (
             "Task Info",
             {
-                "fields": ("id", "task_name", "status", "args", "kwargs"),
+                "fields": ("id", "task_id", "task_name", "status", "args", "kwargs"),
             },
         ),
         (
@@ -142,7 +143,7 @@ class TaskExecutionStateTransitionAdmin(admin.ModelAdmin):
         "transitioned_at",
     ]
     list_filter = ["to_status", "from_status"]
-    search_fields = ["instance__id"]
+    search_fields = ["instance__id", "instance__task_id"]
     readonly_fields = [
         "id",
         "instance",
