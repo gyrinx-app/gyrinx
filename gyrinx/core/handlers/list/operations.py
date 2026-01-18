@@ -121,7 +121,9 @@ def handle_list_clone(
     Args:
         user: The user performing the clone
         original_list: The list to clone
-        name: Name for the clone (defaults to original name + suffix)
+        name: Name for the clone. If not provided, regular clones default to
+            "<original name> (Clone)", while campaign clones (when for_campaign
+            is provided) default to the original name without a suffix.
         owner: Owner of the clone (defaults to original owner)
         public: Public setting for the clone (defaults to original public)
         for_campaign: If provided, creates a campaign mode clone for this campaign
