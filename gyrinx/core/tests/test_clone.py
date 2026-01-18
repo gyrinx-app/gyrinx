@@ -682,3 +682,118 @@ def test_list_clone_preserves_expansion_equipment_cost(
     assert cloned_fighter is not None
     assert cloned_fighter.equipment.count() == 1
     assert cloned_fighter.equipment.first().name == "Gloves of Ozostium"
+
+
+@pytest.mark.parametrize("feature_flag_enabled", [True, False])
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_no_original_action(
+    make_list, make_campaign, user, settings, feature_flag_enabled
+):
+    """Test that campaign clones do NOT create an action on the original list.
+
+    Campaign clones use a different workflow - they don't record a CLONE action
+    on the original because the original is not being modified in the same way
+    as a regular clone operation.
+    """
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    original = make_list("Original List")
+    campaign = make_campaign("Test Campaign")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - original_action should always be None for campaign clones
+    assert result.original_action is None
+
+    # But the clone should still be created correctly
+    assert result.cloned_list is not None
+    assert result.cloned_list.campaign == campaign
+    assert result.cloned_list.status == List.CAMPAIGN_MODE
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_name_defaults_to_original(
+    make_list, make_campaign, user, settings
+):
+    """Test that campaign clones default to the original name without a suffix.
+
+    Regular clones get "(Clone)" appended, but campaign clones keep the
+    original name since they represent the gang entering a campaign.
+    """
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("My Gang")
+    campaign = make_campaign("Test Campaign")
+
+    # Execute - don't provide a name
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - campaign clone keeps original name (no suffix)
+    assert result.cloned_list.name == "My Gang"
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, settings):
+    """Test that regular clones default to the original name with '(Clone)' suffix."""
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("My Gang")
+
+    # Execute - don't provide a name
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+    )
+
+    # Assert - regular clone gets "(Clone)" suffix
+    assert result.cloned_list.name == "My Gang (Clone)"
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
+    make_list, make_campaign, user, settings
+):
+    """Test that campaign clone's CREATE action has deltas matching original values.
+
+    The CREATE action on a cloned list represents creating the list from nothing
+    to its current state, so the deltas should equal the original's current values.
+    """
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("Original List")
+    original.credits_current = 500
+    original.rating_current = 1000
+    original.stash_current = 150
+    original.save()
+    campaign = make_campaign("Test Campaign")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - cloned_action should have correct deltas
+    assert result.cloned_action is not None
+    assert result.cloned_action.action_type == ListActionType.CREATE
+    assert result.cloned_action.description == "Cloned from 'Original List'"
+
+    # Before values should be 0 (creating from nothing)
+    assert result.cloned_action.rating_before == 0
+    assert result.cloned_action.stash_before == 0
+    assert result.cloned_action.credits_before == 0
+
+    # Deltas should match original's current values
+    assert result.cloned_action.rating_delta == original.rating_current
+    assert result.cloned_action.stash_delta == original.stash_current
+    assert result.cloned_action.credits_delta == original.credits_current
