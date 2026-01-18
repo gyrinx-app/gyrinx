@@ -115,7 +115,7 @@ def handle_list_clone(
     Handle list cloning with cost field copying and ListAction creation.
 
     Creates a clone with copied cost fields and creates ListActions:
-    - On original list: Records that it was cloned (for regular clones only)
+    - On original list: Records that it was cloned
     - On cloned list: Records creation as clone (if FEATURE_LIST_ACTION_CREATE_INITIAL)
 
     Args:
@@ -152,15 +152,12 @@ def handle_list_clone(
         name=name, owner=owner, for_campaign=for_campaign, **kwargs
     )
 
-    # Create ListAction on original list recording the clone (for regular clones only)
-    # Campaign clones don't record on the original since it's a different workflow
-    original_action = None
-    if not for_campaign:
-        original_action = original_list.create_action(
-            user=user,
-            action_type=ListActionType.CLONE,
-            description=f"List cloned to '{cloned_list.name}'",
-        )
+    # Create ListAction on original list recording the clone
+    original_action = original_list.create_action(
+        user=user,
+        action_type=ListActionType.CLONE,
+        description=f"List cloned to '{cloned_list.name}'",
+    )
 
     # Create ListAction on cloned list if feature flag is enabled
     cloned_action = None
