@@ -343,12 +343,12 @@ def test_transition_metadata_defaults_to_empty_dict():
 @pytest.mark.django_db
 def test_transition_model_created():
     """StateMachine creates a transition model dynamically."""
-    from gyrinx.core.tests.test_state_machine import (
-        StateMachineTestModelStateTransition,
-    )
+    # Access via descriptor instead of self-import
+    transition_model = StateMachineTestModel.states.transition_model
 
-    assert StateMachineTestModelStateTransition is not None
-    assert StateMachineTestModelStateTransition._meta.app_label == "core"
+    assert transition_model is not None
+    assert transition_model.__name__ == "StateMachineTestModelStateTransition"
+    assert transition_model._meta.app_label == "core"
 
 
 @pytest.mark.django_db
