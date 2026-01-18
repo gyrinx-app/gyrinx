@@ -171,61 +171,14 @@ class Campaign(AppBase):
     def start_campaign(self):
         """Start the campaign (transition from pre-campaign to in-progress).
 
-        This will clone all associated lists into campaign mode and allocate default resources.
+        This is a convenience method that delegates to handle_campaign_start handler.
+        Use handle_campaign_start directly for more control over the process.
         """
         if self.can_start_campaign():
-            with transaction.atomic():
-                # Clone all lists for the campaign
-                # Only process lists that are not already campaign clones
-                from .list import List
+            from gyrinx.core.handlers.campaign_operations import handle_campaign_start
 
-                original_lists = list(self.lists.filter(status=List.LIST_BUILDING))
-                self.lists.clear()  # Remove all lists
-
-                cloned_lists = []
-                for original_list in original_lists:
-                    # Check if we already have a clone of this list
-                    # Note: We need to search in all lists, not just campaign.lists
-                    # because we just cleared the campaign.lists
-                    existing_clone = List.objects.filter(
-                        original_list=original_list,
-                        campaign=self,
-                        status=List.CAMPAIGN_MODE,
-                    ).first()
-
-                    if existing_clone:
-                        logger.warning(
-                            f"Campaign {self.id} already has a clone of list {original_list.id}, re-adding existing clone"
-                        )
-                        # Re-add the existing clone to the campaign
-                        self.lists.add(existing_clone)
-                        cloned_lists.append(existing_clone)
-                        continue
-
-                    # Clone the list for campaign mode
-                    campaign_clone = original_list.clone(for_campaign=self)
-                    self.lists.add(campaign_clone)
-                    cloned_lists.append(campaign_clone)
-
-                    # Distribute budget credits to each gang
-                    self._distribute_budget_to_list(campaign_clone)
-
-                # Allocate default resources to each list
-                for resource_type in self.resource_types.all():
-                    for cloned_list in cloned_lists:
-                        CampaignListResource.objects.get_or_create(
-                            campaign=self,
-                            resource_type=resource_type,
-                            list=cloned_list,
-                            defaults={
-                                "amount": resource_type.default_amount,
-                                "owner": self.owner,  # Campaign owner owns the resource tracking
-                            },
-                        )
-
-                self.status = self.IN_PROGRESS
-                self.save()
-                return True
+            handle_campaign_start(user=self.owner, campaign=self)
+            return True
         return False
 
     def end_campaign(self):
@@ -244,16 +197,23 @@ class Campaign(AppBase):
             return True
         return False
 
-    def add_list_to_campaign(self, list_to_add):
+    def add_list_to_campaign(self, list_to_add, user=None):
         """Add a list to the campaign, cloning if necessary.
 
         For pre-campaign: adds the list directly.
         For in-progress: clones the list and allocates resources.
 
+        Args:
+            list_to_add: The list to add to the campaign
+            user: The user performing the action (defaults to campaign owner)
+
         Returns a tuple (list, was_added) where:
         - list is the added list (original for pre-campaign, clone for in-progress)
         - was_added is True if the list was newly added, False if it already existed
         """
+        if user is None:
+            user = self.owner
+
         if self.is_pre_campaign:
             # Pre-campaign: check if list is already in campaign
             if list_to_add in self.lists.all():
@@ -271,8 +231,15 @@ class Campaign(AppBase):
                     # Return the existing clone
                     return self.lists.get(original_list=list_to_add), False
 
-                # In-progress: clone the list and allocate resources
-                campaign_clone = list_to_add.clone(for_campaign=self)
+                # In-progress: clone the list using the handler
+                from gyrinx.core.handlers.list import handle_list_clone
+
+                clone_result = handle_list_clone(
+                    user=user,
+                    original_list=list_to_add,
+                    for_campaign=self,
+                )
+                campaign_clone = clone_result.cloned_list
                 self.lists.add(campaign_clone)
 
                 # Distribute budget credits to the new gang

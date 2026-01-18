@@ -7,6 +7,7 @@ from typing import Optional
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from gyrinx.core.handlers.list import handle_list_clone
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignListResource
 from gyrinx.core.models.list import List
@@ -114,8 +115,13 @@ def handle_campaign_start(
             )
             continue
 
-        # Clone the list for campaign mode
-        campaign_clone = original_list.clone(for_campaign=campaign)
+        # Clone the list for campaign mode using the handler
+        clone_result = handle_list_clone(
+            user=user,
+            original_list=original_list,
+            for_campaign=campaign,
+        )
+        campaign_clone = clone_result.cloned_list
 
         # Track cloning
         campaign.lists.add(campaign_clone)

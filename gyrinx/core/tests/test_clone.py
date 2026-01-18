@@ -493,10 +493,14 @@ def test_list_clone_no_action_on_clone_when_feature_disabled(make_list, user, se
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_list_clone_actions_have_zero_deltas(
+def test_list_clone_actions_have_correct_deltas(
     make_list, user, settings, feature_flag_enabled
 ):
-    """Test that ListActions have zero cost deltas (no credits spent)."""
+    """Test that ListActions have correct cost deltas.
+
+    Original's CLONE action: zero deltas (recording the clone event, not a cost change).
+    Clone's CREATE action: deltas equal original values (represents creating list from nothing).
+    """
     # Setup
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
@@ -513,17 +517,18 @@ def test_list_clone_actions_have_zero_deltas(
         owner=user,
     )
 
-    # Assert original's action (only when feature flag enabled)
+    # Assert original's action has zero deltas (recording the clone, not a cost change)
     if feature_flag_enabled:
         assert result.original_action.rating_delta == 0
         assert result.original_action.stash_delta == 0
         assert result.original_action.credits_delta == 0
 
-        # Assert clone's action (if created)
+        # Assert clone's CREATE action has deltas matching original values
+        # (represents creating list from nothing to its current state)
         if result.cloned_action:
-            assert result.cloned_action.rating_delta == 0
-            assert result.cloned_action.stash_delta == 0
-            assert result.cloned_action.credits_delta == 0
+            assert result.cloned_action.rating_delta == original.rating_current
+            assert result.cloned_action.stash_delta == original.stash_current
+            assert result.cloned_action.credits_delta == original.credits_current
 
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
