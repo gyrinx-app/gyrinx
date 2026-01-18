@@ -1165,38 +1165,8 @@ class List(AppBase):
             **values,
         )
 
-        # Create initial ListAction for if feature flag enabled
-        la = None
-        if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-            from gyrinx.core.models.action import ListAction, ListActionType
-
-            la = ListAction.objects.create(
-                user=owner,
-                owner=owner,
-                list=clone,
-                action_type=ListActionType.CREATE,
-                description=f"Cloned from '{self.name}'",
-                applied=True,
-                rating_before=0,
-                stash_before=0,
-                credits_before=0,
-                rating_delta=self.rating_current,
-                stash_delta=self.stash_current,
-                credits_delta=self.credits_current,
-            )
-
-            track(
-                "list_clone_initial_action_created",
-                original_list=str(self.id),
-                cloned_list=str(clone.id),
-                action=str(la.id),
-            )
-        else:
-            track(
-                "list_clone_initial_action_skipped",
-                original_list=str(self.id),
-                cloned_list=str(clone.id),
-            )
+        # Note: ListAction creation for clones is handled by handle_list_clone handler.
+        # The model method only handles the data cloning, not side effects like actions.
 
         with span("list_clone_fighters"):
             # Clone fighters, but skip linked fighters and stash fighters
@@ -1237,19 +1207,11 @@ class List(AppBase):
                 attribute_value=attribute_assignment.attribute_value,
             )
 
-        # Simulate prefetching latest_actions for the clone
-        if la:
-            # Clear any cached None value from the @cached_property
-            clone.__dict__.pop("latest_action", None)
-            # Set the prefetch list that latest_action property will check
-            setattr(clone, "latest_actions", [la])
-
         track(
             "list_cloned",
             original_list=str(self.id),
             cloned_list=str(clone.id),
             for_campaign=str(for_campaign.id) if for_campaign else "",
-            action=str(la.id) if la else "",
         )
 
         # Always recalculate cached values after cloning

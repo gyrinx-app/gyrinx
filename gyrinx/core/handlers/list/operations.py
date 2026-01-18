@@ -95,7 +95,7 @@ class ListCloneResult:
 
     original_list: List
     cloned_list: List
-    original_action: ListAction
+    original_action: Optional[ListAction]
     cloned_action: Optional[ListAction]
 
 
@@ -108,13 +108,14 @@ def handle_list_clone(
     name: str = None,
     owner=None,
     public: bool = None,
+    for_campaign=None,
     **kwargs,
 ) -> ListCloneResult:
     """
     Handle list cloning with cost field copying and ListAction creation.
 
     Creates a clone with copied cost fields and creates ListActions:
-    - On original list: Records that it was cloned
+    - On original list: Records that it was cloned (for regular clones only)
     - On cloned list: Records creation as clone (if FEATURE_LIST_ACTION_CREATE_INITIAL)
 
     Args:
@@ -123,6 +124,7 @@ def handle_list_clone(
         name: Name for the clone (defaults to original name + suffix)
         owner: Owner of the clone (defaults to original owner)
         public: Public setting for the clone (defaults to original public)
+        for_campaign: If provided, creates a campaign mode clone for this campaign
         **kwargs: Additional fields to set on the clone
 
     Returns:
@@ -136,31 +138,53 @@ def handle_list_clone(
     if owner is None:
         owner = original_list.owner
     if name is None:
-        name = f"{original_list_name} (Clone)"
+        if for_campaign:
+            name = original_list_name  # Campaign clones keep the same name
+        else:
+            name = f"{original_list_name} (Clone)"
     if public is not None:
         kwargs["public"] = public
 
     # Clone the list (this now copies cost fields automatically)
-    cloned_list = original_list.clone(name=name, owner=owner, **kwargs)
-
-    # Create ListAction on original list recording the clone
-    original_action = original_list.create_action(
-        user=user,
-        action_type=ListActionType.CLONE,
-        description=f"List cloned to '{cloned_list.name}'",
+    cloned_list = original_list.clone(
+        name=name, owner=owner, for_campaign=for_campaign, **kwargs
     )
+
+    # Create ListAction on original list recording the clone (for regular clones only)
+    # Campaign clones don't record on the original since it's a different workflow
+    original_action = None
+    if not for_campaign:
+        original_action = original_list.create_action(
+            user=user,
+            action_type=ListActionType.CLONE,
+            description=f"List cloned to '{cloned_list.name}'",
+        )
 
     # Create ListAction on cloned list if feature flag is enabled
     cloned_action = None
     if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
+        # The CREATE action represents creating the list from nothing,
+        # so before values are 0 and deltas equal the cloned values.
         cloned_action = ListAction.objects.create(
             user=user,
-            owner=user,
+            owner=owner,
             list=cloned_list,
             action_type=ListActionType.CREATE,
             description=f"Cloned from '{original_list_name}'",
             applied=True,
+            rating_before=0,
+            stash_before=0,
+            credits_before=0,
+            rating_delta=original_list.rating_current,
+            stash_delta=original_list.stash_current,
+            credits_delta=original_list.credits_current,
         )
+
+        # Set up the latest_actions prefetch so that subsequent create_action calls work
+        # Clear any cached None value from the @cached_property
+        cloned_list.__dict__.pop("latest_action", None)
+        # Set the prefetch list that latest_action property will check
+        setattr(cloned_list, "latest_actions", [cloned_action])
 
     return ListCloneResult(
         original_list=original_list,
