@@ -887,10 +887,11 @@ def test_fighter_clone_default_assignment_conversion_to_full(
     assert assignment.weapon_profiles()[1] == spoon_spike_profile
     assert assignment.weapon_accessories()[0] == spoon_scope
     assert assignment.cost_int() == 0
-    # Note this! The assignment is default and not "from" default
-    # assignment.
-    assert assignment.kind() == "default"
-    assert not assignment.is_from_default_assignment()
+    # After the fix for issue #1331, cloning now preserves the converted assignment
+    # instead of reverting to a default assignment. This ensures that any
+    # customizations (upgrades, profiles, accessories) are preserved on the clone.
+    assert assignment.kind() == "assigned"
+    assert assignment.is_from_default_assignment()
 
 
 @pytest.mark.django_db

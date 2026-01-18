@@ -102,6 +102,172 @@ def test_fighter_clone_with_mods(
 
 
 @pytest.mark.django_db
+def test_fighter_clone_with_upgrades_on_converted_default_assignment(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    content_equipment_categories,
+):
+    """Test that upgrades on converted default assignments are preserved when cloning.
+
+    This tests the bug fix for issue #1331 where upgrades (augmentations) were lost
+    when cloning a fighter that had converted a default assignment and added upgrades.
+    """
+    from gyrinx.content.models import (
+        ContentEquipmentCategory,
+        ContentEquipmentUpgrade,
+        ContentFighterDefaultAssignment,
+    )
+
+    # Create equipment with upgrades
+    bolt_launcher = make_equipment(
+        "Bolt Launcher",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=50,
+    )
+
+    # Create upgrades for the equipment (like augmentations)
+    # Note: We create all 3 tiers but only use tier 3 to match the issue scenario
+    ContentEquipmentUpgrade.objects.create(
+        equipment=bolt_launcher, name="Tier 1 Augmentation", cost=20, position=0
+    )
+    ContentEquipmentUpgrade.objects.create(
+        equipment=bolt_launcher, name="Tier 2 Augmentation", cost=40, position=1
+    )
+    upgrade_3 = ContentEquipmentUpgrade.objects.create(
+        equipment=bolt_launcher, name="Tier 3 Augmentation", cost=60, position=2
+    )
+
+    # Create a default assignment for the content fighter
+    default_assign = ContentFighterDefaultAssignment.objects.create(
+        fighter=content_fighter,
+        equipment=bolt_launcher,
+    )
+
+    # Create a list and fighter
+    list_ = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(list_, "Test Fighter")
+
+    # Verify the fighter has the default assignment
+    assert len(fighter.assignments()) == 1
+    assert fighter.assignments()[0].content_equipment == bolt_launcher
+    # Initially it's a default assignment (kind == "default"), not "assigned"
+    assert fighter.assignments()[0].kind() == "default"
+
+    # Convert the default assignment to a direct assignment
+    fighter.convert_default_assignment(default_assign)
+
+    # Refresh the fighter to get updated assignments
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    # Verify conversion worked - should still have 1 assignment but now it's direct
+    assignments = fighter.assignments()
+    assert len(assignments) == 1
+    direct_assign = assignments[0]
+    assert direct_assign.content_equipment == bolt_launcher
+
+    # Get the direct assignment object and add upgrades
+    direct_assignment_obj = fighter._direct_assignments().first()
+    assert direct_assignment_obj is not None
+    assert direct_assignment_obj.from_default_assignment == default_assign
+
+    # Add the tier 3 upgrade (60 credits)
+    direct_assignment_obj.upgrades_field.add(upgrade_3)
+    direct_assignment_obj.save()
+
+    # Verify upgrade is on the assignment
+    assert upgrade_3 in direct_assignment_obj.upgrades_field.all()
+
+    # Clone the fighter
+    cloned_fighter = fighter.clone(name="Cloned Fighter")
+
+    # Verify the clone has the equipment with the upgrade
+    cloned_assignments = cloned_fighter.assignments()
+    assert len(cloned_assignments) == 1
+    cloned_assign = cloned_assignments[0]
+    assert cloned_assign.content_equipment == bolt_launcher
+
+    # Get the cloned direct assignment
+    cloned_direct_assign = cloned_fighter._direct_assignments().first()
+    assert cloned_direct_assign is not None
+
+    # Verify the upgrade was preserved
+    cloned_upgrades = list(cloned_direct_assign.upgrades_field.all())
+    assert len(cloned_upgrades) == 1
+    assert upgrade_3 in cloned_upgrades
+
+    # Verify from_default_assignment is preserved
+    assert cloned_direct_assign.from_default_assignment == default_assign
+
+    # Verify the default is disabled on the clone
+    assert default_assign in cloned_fighter.disabled_default_assignments.all()
+
+
+@pytest.mark.django_db
+def test_list_clone_with_upgrades_on_converted_default_assignment(
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    content_equipment_categories,
+):
+    """Test that upgrades on converted default assignments are preserved when cloning a list.
+
+    This tests the same bug fix as above but at the list level.
+    """
+    from gyrinx.content.models import (
+        ContentEquipmentCategory,
+        ContentEquipmentUpgrade,
+        ContentFighterDefaultAssignment,
+    )
+
+    # Create equipment with upgrades
+    bolt_launcher = make_equipment(
+        "Bolt Launcher",
+        category=ContentEquipmentCategory.objects.get(name="Basic Weapons"),
+        cost=50,
+    )
+
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        equipment=bolt_launcher, name="Augmentation", cost=60, position=0
+    )
+
+    # Create a default assignment for the content fighter
+    default_assign = ContentFighterDefaultAssignment.objects.create(
+        fighter=content_fighter,
+        equipment=bolt_launcher,
+    )
+
+    # Create a list and fighter
+    list_ = make_list("Test List")
+    fighter: ListFighter = make_list_fighter(list_, "Test Fighter")
+
+    # Convert default to direct and add upgrade
+    fighter.convert_default_assignment(default_assign)
+    fighter = ListFighter.objects.get(pk=fighter.pk)
+
+    direct_assignment_obj = fighter._direct_assignments().first()
+    direct_assignment_obj.upgrades_field.add(upgrade)
+    direct_assignment_obj.save()
+
+    # Clone the entire list
+    cloned_list = list_.clone(name="Cloned List")
+
+    # Get the cloned fighter
+    cloned_fighter = cloned_list.fighters().first()
+    assert cloned_fighter is not None
+    assert cloned_fighter.name == "Test Fighter"
+
+    # Verify the upgrade was preserved
+    cloned_direct_assign = cloned_fighter._direct_assignments().first()
+    assert cloned_direct_assign is not None
+    assert upgrade in cloned_direct_assign.upgrades_field.all()
+    assert cloned_direct_assign.from_default_assignment == default_assign
+    assert default_assign in cloned_fighter.disabled_default_assignments.all()
+
+
+@pytest.mark.django_db
 def test_list_clone_includes_stash_fighter(
     make_list, make_list_fighter, make_content_fighter, make_equipment
 ):
