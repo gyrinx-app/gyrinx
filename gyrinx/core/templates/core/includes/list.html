@@ -164,6 +164,20 @@
                                                 </a>
                                             </li>
                                         {% endif %}
+                                        {% if request.user.is_staff %}
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                            <li>
+                                                <h6 class="dropdown-header text-uppercase small">Internal</h6>
+                                            </li>
+                                            <li>
+                                                <a href="{% url 'debug_list_actions' list.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-flag"></i> Actions
+                                                </a>
+                                            </li>
+                                        {% endif %}
                                     </ul>
                                 </div>
                             </nav>
