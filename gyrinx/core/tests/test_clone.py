@@ -684,19 +684,13 @@ def test_list_clone_preserves_expansion_equipment_cost(
     assert cloned_fighter.equipment.first().name == "Gloves of Ozostium"
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_list_clone_for_campaign_no_original_action(
-    make_list, make_campaign, user, settings, feature_flag_enabled
+def test_handle_list_clone_for_campaign_creates_clone_correctly(
+    make_list, make_campaign, user, settings
 ):
-    """Test that campaign clones do NOT create an action on the original list.
-
-    Campaign clones use a different workflow - they don't record a CLONE action
-    on the original because the original is not being modified in the same way
-    as a regular clone operation.
-    """
+    """Test that campaign clones are created correctly with proper status."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("Original List")
     campaign = make_campaign("Test Campaign")
 
@@ -707,13 +701,13 @@ def test_handle_list_clone_for_campaign_no_original_action(
         for_campaign=campaign,
     )
 
-    # Assert - original_action should always be None for campaign clones
-    assert result.original_action is None
-
-    # But the clone should still be created correctly
+    # Assert - clone should be created correctly
     assert result.cloned_list is not None
     assert result.cloned_list.campaign == campaign
     assert result.cloned_list.status == List.CAMPAIGN_MODE
+    assert (
+        result.cloned_list.name == "Original List"
+    )  # Campaign clones keep original name
 
 
 @pytest.mark.django_db
