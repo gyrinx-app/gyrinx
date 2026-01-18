@@ -71,13 +71,15 @@ class ListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if hasattr(self.instance, "list"):
-            self.fields["disabled_default_assignments"].queryset = self.fields[
-                "disabled_default_assignments"
-            ].queryset.filter(fighter=self.instance.content_fighter)
+            if "disabled_default_assignments" in self.fields:
+                self.fields["disabled_default_assignments"].queryset = self.fields[
+                    "disabled_default_assignments"
+                ].queryset.filter(fighter=self.instance.content_fighter)
 
-            self.fields["disabled_pskyer_default_powers"].queryset = self.fields[
-                "disabled_pskyer_default_powers"
-            ].queryset.filter(fighter=self.instance.content_fighter)
+            if "disabled_pskyer_default_powers" in self.fields:
+                self.fields["disabled_pskyer_default_powers"].queryset = self.fields[
+                    "disabled_pskyer_default_powers"
+                ].queryset.filter(fighter=self.instance.content_fighter)
 
         if hasattr(self.instance, "content_fighter"):
             if not self.instance.content_fighter.can_take_legacy:
