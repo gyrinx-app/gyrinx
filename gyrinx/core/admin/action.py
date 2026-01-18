@@ -15,7 +15,19 @@ class ListActionAdmin(BaseAdmin):
         "created",
     ]
     search_fields = ["list__id", "list__name", "owner__username", "description"]
+    list_select_related = [
+        "list",
+        "owner",
+        "list_fighter",
+        "list_fighter_equipment_assignment",
+    ]
     list_filter = ["action_type", "subject_type", "created"]
+    autocomplete_fields = [
+        "owner",
+        "list",
+        "list_fighter",
+        "list_fighter_equipment_assignment",
+    ]
     fields = [
         "list",
         "action_type",
