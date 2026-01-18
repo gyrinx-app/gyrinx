@@ -56,7 +56,13 @@ class ListAdmin(BaseAdmin):
     readonly_fields = ["original_list", "campaign"]
     list_display = ["name", "content_house", "owner", "status", "public"]
     list_filter = ["status", "public", "content_house"]
-    search_fields = ["name", "content_house__name", "campaign__name"]
+    search_fields = [
+        "name",
+        "content_house__name",
+        "campaign__name",
+        "owner__username",
+        "owner__email",
+    ]
 
     inlines = [ListFighterInline, ListAttributeAssignmentInline]
 
