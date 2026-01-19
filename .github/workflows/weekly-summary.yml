@@ -90,6 +90,7 @@ jobs:
             - PR numbers
             - Dependency updates unless they're significant
             - CI/workflow changes
+            - Admin interface changes (at most one bullet if significant)
 
             Format: Intro line, blank line, then bullet points starting with dashes.
 
