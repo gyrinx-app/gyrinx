@@ -225,24 +225,19 @@ class TestAvailabilityPresetMatching:
 
         assert result == full_preset
 
-    def test_most_recent_wins_same_specificity(
-        self, leader_fighter, house, other_house
-    ):
-        """When two presets have same specificity, most recently created wins."""
-        # Create two category-only presets (same specificity)
-        # Both are category-only, so both have specificity=1
-        # But only the LEADER one will match our LEADER fighter
+    def test_higher_specificity_wins(self, leader_fighter, house, other_house):
+        """Higher specificity preset wins over lower specificity preset."""
+        # Create category-only preset (specificity=1)
         ContentAvailabilityPreset.objects.create(
             category=FighterCategoryChoices.LEADER,
             availability_types=["C"],
             max_availability_level=5,
         )
 
-        # Create a newer one for the same category
-        # This simulates editing/replacing the preset
-        newer_preset = ContentAvailabilityPreset.objects.create(
+        # Create category+house preset (specificity=2)
+        more_specific_preset = ContentAvailabilityPreset.objects.create(
             category=FighterCategoryChoices.LEADER,
-            house=house,  # Different combination but same specificity count (2)
+            house=house,
             availability_types=["C", "R"],
             max_availability_level=10,
         )
@@ -262,7 +257,7 @@ class TestAvailabilityPresetMatching:
         )
 
         # category+house (specificity=2) beats category-only (specificity=1)
-        assert result == newer_preset
+        assert result == more_specific_preset
 
     def test_no_match_when_category_differs(self, champion_fighter, house):
         """Category-specific preset doesn't match different category."""
@@ -322,11 +317,6 @@ class TestAvailabilityPresetConstraints:
 
     def test_different_combinations_allowed(self, leader_fighter, house):
         """Different field combinations are allowed."""
-        # All null
-        ContentAvailabilityPreset.objects.create(
-            availability_types=["C"],
-        )
-
         # Category only
         ContentAvailabilityPreset.objects.create(
             category=FighterCategoryChoices.LEADER,
@@ -347,7 +337,16 @@ class TestAvailabilityPresetConstraints:
         )
 
         # All should exist
-        assert ContentAvailabilityPreset.objects.count() == 4
+        assert ContentAvailabilityPreset.objects.count() == 3
+
+    def test_all_null_fields_rejected(self):
+        """Cannot create preset with all null fields (fighter, category, house)."""
+        from django.core.exceptions import ValidationError
+
+        preset = ContentAvailabilityPreset(availability_types=["C", "R"])
+        with pytest.raises(ValidationError) as exc_info:
+            preset.full_clean()
+        assert "At least one of fighter, category, or house" in str(exc_info.value)
 
 
 @pytest.mark.django_db
@@ -355,7 +354,7 @@ class TestAvailabilityPresetViewIntegration:
     """Tests for view integration with availability presets."""
 
     def test_redirect_includes_preset_values(self, house, leader_fighter):
-        """When redirecting can_buy_any house, preset values are included in URL."""
+        """When redirecting can_buy_any house, preset values are in redirect URL."""
         user = User.objects.create_user(username="testuser", password="password")
 
         # Create a preset for leaders
@@ -384,8 +383,8 @@ class TestAvailabilityPresetViewIntegration:
         url = reverse("core:list-fighter-gear-edit", args=[lst.id, list_fighter.id])
         response = client.get(url)
 
+        # Redirect includes filter=all and preset values
         assert response.status_code == 302
-        # Check redirect URL contains preset values
         assert "filter=all" in response.url
         assert "al=C" in response.url
         assert "al=R" in response.url

@@ -292,27 +292,29 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     # Check if the house has can_buy_any flag
     house_can_buy_any = lst.content_house.can_buy_any
 
-    # Check if equipment list filter is active
-    # Default to equipment-list when filter is not provided (matches template behavior)
-    # But if house has can_buy_any and no filter is provided, redirect to filter=all
-    # Also apply availability preset defaults if no explicit al/mal filters provided
+    # Look up availability preset for this fighter/category/house
+    preset = ContentAvailabilityPreset.get_preset_for(
+        fighter=fighter.content_fighter,
+        category=fighter.get_category(),
+        house=lst.content_house,
+    )
+
+    # Get preset values (or defaults if no preset)
+    preset_al = preset.availability_types_list if preset else ["C", "R", "I"]
+    preset_mal = preset.max_availability_level if preset else None
+
+    # If house has can_buy_any and no filter is provided, redirect to filter=all
+    # with preset values applied, unless user has provided explicit values.
     if house_can_buy_any and "filter" not in request.GET:
-        # Redirect to the same URL with filter=all
         query_dict = request.GET.copy()
         query_dict["filter"] = "all"
 
-        # Apply availability preset if no explicit filters provided
-        if "al" not in request.GET and "mal" not in request.GET:
-            preset = ContentAvailabilityPreset.get_preset_for(
-                fighter=fighter.content_fighter,
-                category=fighter.get_category(),
-                house=lst.content_house,
-            )
-            if preset:
-                for al in preset.availability_types_list:
-                    query_dict.appendlist("al", al)
-                if preset.max_availability_level is not None:
-                    query_dict["mal"] = str(preset.max_availability_level)
+        # Apply preset values only if preset exists and user hasn't provided explicit filters
+        if preset and "al" not in request.GET and "mal" not in request.GET:
+            for al in preset_al:
+                query_dict.appendlist("al", al)
+            if preset_mal is not None:
+                query_dict["mal"] = str(preset_mal)
 
         return HttpResponseRedirect(
             reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
@@ -320,6 +322,11 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
+
+    # Determine whether to render preset values in the form (for next submission)
+    # Render preset when: equipment-list mode, OR filter=all with no explicit al/mal in URL
+    render_preset_al = is_equipment_list or "al" not in request.GET
+    render_preset_mal = is_equipment_list or "mal" not in request.GET
 
     # Apply maximum availability level filter if provided
     mal = (
@@ -367,7 +374,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             als = []  # No profiles should match either
         else:
             # No parameter at all - use defaults
-            als = ["C", "R"]
+            als = preset_al
             equipment = equipment.filter(rarity__in=set(als))
 
         # Still need profiles for weapons when not in equipment list mode
@@ -506,6 +513,10 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         "error_message": error_message,
         "is_weapon": is_weapon,
         "is_equipment_list": is_equipment_list,
+        "render_preset_al": render_preset_al,
+        "render_preset_mal": render_preset_mal,
+        "preset_al": preset_al,
+        "preset_mal": preset_mal,
     }
 
     # Add weapons-specific context if needed

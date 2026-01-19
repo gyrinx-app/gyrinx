@@ -201,3 +201,9 @@ class ContentAvailabilityPreset(Content):
                     "max_availability_level": "Maximum availability level must be at least 1"
                 }
             )
+
+        # Require at least one of fighter, category, or house
+        if self.fighter is None and self.category is None and self.house is None:
+            raise ValidationError(
+                "At least one of fighter, category, or house must be specified."
+            )
