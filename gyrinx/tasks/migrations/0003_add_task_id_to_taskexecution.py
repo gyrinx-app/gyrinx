@@ -35,11 +35,12 @@ class Migration(migrations.Migration):
 
     operations = [
         # Step 1: Add field as nullable without unique constraint
+        # Note: db_index=False here to avoid duplicate index creation.
+        # The AlterField in step 3 adds unique=True which creates the index.
         migrations.AddField(
             model_name="taskexecution",
             name="task_id",
             field=models.CharField(
-                db_index=True,
                 default="",
                 help_text="External task ID from Django's task framework (TaskResult.id)",
                 max_length=255,
