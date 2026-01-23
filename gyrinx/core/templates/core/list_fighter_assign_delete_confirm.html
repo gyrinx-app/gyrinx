@@ -39,7 +39,7 @@
                 {% if assign.cost_int < 0 %}
                     <div class="alert alert-warning mt-3" role="alert">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>Note:</strong> This equipment has a negative cost. Removing it will cost you {{ assign.cost_int|slice:"1:" }}¢.
+                        <strong>Note:</strong> This equipment has a negative cost. Removing it will cost you {{ assign.cost_int|abs }}¢.
                     </div>
                     <input type="hidden" name="refund" value="on">
                 {% else %}

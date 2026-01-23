@@ -820,6 +820,106 @@ def test_add_negative_cost_upgrade_grants_credits(
 
 
 @pytest.mark.django_db
+def test_remove_negative_cost_upgrade_deducts_credits(
+    client,
+    user,
+    campaign_list_with_credits,
+    fighter_in_campaign,
+    weapon_equipment,
+    negative_cost_upgrade,
+):
+    """Removing an upgrade with negative cost should deduct credits."""
+    client.login(username="testuser", password="password")
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter_in_campaign,
+        content_equipment=weapon_equipment,
+    )
+
+    # Add the negative-cost upgrade first
+    assignment.upgrades_field.set([negative_cost_upgrade])
+
+    # Simulate having gained credits from the upgrade
+    campaign_list_with_credits.credits_current = 1000
+    campaign_list_with_credits.save()
+
+    initial_credits = campaign_list_with_credits.credits_current
+
+    # Remove the upgrade by submitting with empty upgrades
+    response = client.post(
+        reverse(
+            "core:list-fighter-weapon-upgrade-edit",
+            args=(
+                campaign_list_with_credits.id,
+                fighter_in_campaign.id,
+                assignment.id,
+            ),
+        ),
+        {
+            "upgrades_field": [],
+        },
+    )
+
+    assert response.status_code == 302
+
+    campaign_list_with_credits.refresh_from_db()
+    # Upgrade cost is -15, so removing it costs 15 credits
+    assert campaign_list_with_credits.credits_current == initial_credits - 15
+
+    assignment.refresh_from_db()
+    assert negative_cost_upgrade not in assignment.upgrades_field.all()
+
+
+@pytest.mark.django_db
+def test_remove_negative_cost_upgrade_insufficient_credits(
+    client,
+    user,
+    campaign_list_with_credits,
+    fighter_in_campaign,
+    weapon_equipment,
+    negative_cost_upgrade,
+):
+    """Removing a negative-cost upgrade should fail if insufficient credits."""
+    client.login(username="testuser", password="password")
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter_in_campaign,
+        content_equipment=weapon_equipment,
+    )
+
+    # Add the negative-cost upgrade
+    assignment.upgrades_field.set([negative_cost_upgrade])
+
+    # Set credits very low (less than the 15 needed to pay back)
+    campaign_list_with_credits.credits_current = 5
+    campaign_list_with_credits.save()
+
+    # Try to remove the upgrade
+    response = client.post(
+        reverse(
+            "core:list-fighter-weapon-upgrade-edit",
+            args=(
+                campaign_list_with_credits.id,
+                fighter_in_campaign.id,
+                assignment.id,
+            ),
+        ),
+        {
+            "upgrades_field": [],
+        },
+    )
+
+    # Should show error (page re-rendered with error)
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Insufficient credits" in content
+
+    # Upgrade should still be assigned
+    assignment.refresh_from_db()
+    assert negative_cost_upgrade in assignment.upgrades_field.all()
+
+
+@pytest.mark.django_db
 def test_spend_credits_with_zero_cost(campaign_list_with_credits):
     """Spending 0 credits should succeed without changing balance."""
     initial_credits = campaign_list_with_credits.credits_current

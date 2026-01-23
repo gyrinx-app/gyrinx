@@ -417,9 +417,20 @@ def handle_equipment_upgrade(
     # Handle credit spending for campaign mode (only when credits are involved)
     campaign_action = None
     if lst.is_campaign_mode and involves_credits:
+        if cost_difference < 0:
+            spend_description = (
+                f"Gaining credits from upgrades for {assignment.content_equipment.name}"
+            )
+        elif old_upgrade_cost < 0 and new_upgrade_cost >= 0:
+            spend_description = f"Paying back credits for removed upgrades for {assignment.content_equipment.name}"
+        else:
+            spend_description = (
+                f"Buying upgrades for {assignment.content_equipment.name}"
+            )
+
         lst.spend_credits(
             cost_difference,
-            description=f"Buying upgrades for {assignment.content_equipment.name}",
+            description=spend_description,
         )
 
         # Create campaign action
