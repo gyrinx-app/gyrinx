@@ -10,7 +10,6 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from gyrinx.tracing import traced
-from gyrinx.tracker import track
 
 
 @dataclass
@@ -93,35 +92,14 @@ def propagate_from_assignment(
         # No change, return zero-delta
         return delta
 
-    new_assignment_rating = int(assignment.rating_current + delta.delta)
-
-    if new_assignment_rating < 0:
-        track(
-            "negative_rating_propagation_assignment_from_assignment",
-            assignment_id=str(assignment.id),
-            old_rating=assignment.rating_current,
-            new_rating=new_assignment_rating,
-        )
-
-    # Update assignment
-    assignment.rating_current = max(0, new_assignment_rating)
+    # Update assignment (rating can be negative for negative-cost equipment)
+    assignment.rating_current = int(assignment.rating_current + delta.delta)
     assignment.dirty = False
     assignment.save(update_fields=["rating_current", "dirty"])
 
-    # Walk up to fighter
+    # Walk up to fighter (rating can be negative for negative-cost equipment)
     fighter = assignment.list_fighter
-    new_fighter_rating = int(fighter.rating_current + delta.delta)
-
-    if new_fighter_rating < 0:
-        track(
-            "negative_rating_propagation_fighter_from_assignment",
-            assignment_id=str(assignment.id),
-            fighter_id=str(fighter.id),
-            old_rating=fighter.rating_current,
-            new_rating=new_fighter_rating,
-        )
-
-    fighter.rating_current = max(0, new_fighter_rating)
+    fighter.rating_current = int(fighter.rating_current + delta.delta)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
@@ -167,18 +145,8 @@ def propagate_from_fighter(
         # No change, return zero-delta
         return delta
 
-    new_fighter_rating = int(fighter.rating_current + delta.delta)
-
-    if new_fighter_rating < 0:
-        track(
-            "negative_rating_propagation_fighter_from_fighter",
-            fighter_id=str(fighter.id),
-            old_rating=fighter.rating_current,
-            new_rating=new_fighter_rating,
-        )
-
-    # Update fighter
-    fighter.rating_current = max(0, new_fighter_rating)
+    # Update fighter (rating can be negative for negative-cost equipment)
+    fighter.rating_current = int(fighter.rating_current + delta.delta)
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
