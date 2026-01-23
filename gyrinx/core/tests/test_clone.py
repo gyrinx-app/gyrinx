@@ -432,7 +432,7 @@ def test_list_clone_preserves_expansion_equipment_cost(
     )
 
     # Create equipment with base cost 0 (like Gloves of Ozostium)
-    gloves = make_equipment("Gloves of Ozostium", cost=0)
+    gloves = make_equipment("Gloves of Ozostium", cost="0")
 
     # Create expansion rule that activates for Aranthian-aligned gangs
     expansion = ContentEquipmentListExpansion.objects.create(name="Aranthian Armoury")
