@@ -18,6 +18,7 @@ django-tinymce==5.0.0
 djlint==1.36.4
 docutils==0.22.4
 fido2==2.1.0
+filelock>=3.20.3
 google-cloud-logging==3.13.0
 google-cloud-pubsub>=2.23.0
 google-cloud-scheduler>=2.14.0
@@ -38,6 +39,7 @@ Pillow==12.1.0
 playwright==1.57.0
 pre-commit==4.5.1
 psycopg2-binary==2.9.11
+pyasn1>=0.6.2
 pydantic==2.12.5
 pydot==4.0.1
 pyparsing==3.3.1
@@ -48,9 +50,14 @@ pytest-xdist==3.8.0
 python-dotenv==1.2.1
 qrcode==8.2
 referencing==0.37.0
+requests>=2.32.4
 rich==14.2.0
 ruff==0.14.13
 setuptools==80.9.0
 simpleeval==1.0.3
 sqlparse==0.5.5
+
+# Security: minimum versions for vulnerable transitive dependencies
+urllib3>=2.6.3
+virtualenv>=20.36.1
 whitenoise==6.11.0
