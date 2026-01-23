@@ -1204,6 +1204,17 @@ class List(AppBase):
                 cloned_list=str(clone.id),
             )
 
+        # Clone attributes first - this must happen before fighters so that
+        # equipment cost calculations can use expansion costs from affiliations
+        # See: https://github.com/gyrinx-app/gyrinx/issues/1333
+        for attribute_assignment in self.listattributeassignment_set.filter(
+            archived=False
+        ):
+            ListAttributeAssignment.objects.create(
+                list=clone,
+                attribute_value=attribute_assignment.attribute_value,
+            )
+
         with span("list_clone_fighters"):
             # Clone fighters, but skip linked fighters and stash fighters
             for fighter in self.fighters():
@@ -1233,15 +1244,6 @@ class List(AppBase):
                 # Update stash fighter's rating after all equipment is cloned
                 # (assignment.clone only updates the assignment, not the fighter)
                 new_stash.facts_from_db(update=True)
-
-        # Clone attributes
-        for attribute_assignment in self.listattributeassignment_set.filter(
-            archived=False
-        ):
-            ListAttributeAssignment.objects.create(
-                list=clone,
-                attribute_value=attribute_assignment.attribute_value,
-            )
 
         # Simulate prefetching latest_actions for the clone
         if la:
