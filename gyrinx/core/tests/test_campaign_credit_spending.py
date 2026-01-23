@@ -78,11 +78,18 @@ def test_spend_credits_method_insufficient_funds(campaign_list_with_credits):
 
 @pytest.mark.django_db
 def test_spend_credits_method_negative_amount(campaign_list_with_credits):
-    """Test that spend_credits rejects negative amounts."""
-    with pytest.raises(ValidationError) as exc_info:
-        campaign_list_with_credits.spend_credits(-100, "Invalid")
+    """Test that spend_credits with negative amount grants credits.
 
-    assert "Cannot spend negative credits" in str(exc_info.value)
+    Negative cost equipment (e.g., Goliath gene-smithing) results in credit gains.
+    """
+    initial_credits = campaign_list_with_credits.credits_current
+    result = campaign_list_with_credits.spend_credits(
+        -100, "Credit gain from negative-cost equipment"
+    )
+
+    assert result is True
+    campaign_list_with_credits.refresh_from_db()
+    assert campaign_list_with_credits.credits_current == initial_credits + 100
 
 
 @pytest.mark.django_db

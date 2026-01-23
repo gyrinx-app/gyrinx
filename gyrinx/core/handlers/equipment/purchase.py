@@ -121,7 +121,11 @@ def handle_equipment_purchase(
     # Handle credit spending for campaign mode
     campaign_action = None
     if lst.is_campaign_mode:
-        description = f"Bought {assignment.content_equipment.name} for {fighter.name} ({total_cost}¢)"
+        if total_cost < 0:
+            # Negative cost = credit gain
+            description = f"Gained {abs(total_cost)}¢ from {assignment.content_equipment.name} for {fighter.name}"
+        else:
+            description = f"Bought {assignment.content_equipment.name} for {fighter.name} ({total_cost}¢)"
         lst.spend_credits(
             total_cost,
             description=f"Buying {assignment.content_equipment.name}",
@@ -389,36 +393,58 @@ def handle_equipment_upgrade(
 
     cost_difference = new_upgrade_cost - old_upgrade_cost
 
+    # Determine if this involves credit changes:
+    # - cost_difference > 0: spending credits (buying positive-cost upgrades)
+    # - cost_difference < 0 AND new_upgrade_cost < 0: gaining credits (adding negative-cost upgrades)
+    # - cost_difference < 0 AND just removing upgrades (new_upgrades empty or new_upgrade_cost >= 0): no credit change
+    involves_credits = cost_difference > 0 or (
+        cost_difference < 0 and new_upgrade_cost < 0
+    )
+
     # Build these beforehand so we get the credit values right
-    # Note: cost_difference can be negative (removing upgrades) or zero
     is_stash = fighter.is_stash
     la_args = dict(
         rating_delta=cost_difference if not is_stash else 0,
         stash_delta=cost_difference if is_stash else 0,
         credits_delta=-cost_difference
-        if lst.is_campaign_mode and cost_difference > 0
+        if lst.is_campaign_mode and involves_credits
         else 0,
         rating_before=lst.rating_current,
         stash_before=lst.stash_current,
         credits_before=lst.credits_current,
     )
 
-    # Handle credit spending for campaign mode (only if cost increased)
+    # Handle credit spending for campaign mode (only when credits are involved)
     campaign_action = None
-    if lst.is_campaign_mode and cost_difference > 0:
+    if lst.is_campaign_mode and involves_credits:
+        if cost_difference < 0:
+            spend_description = (
+                f"Gaining credits from upgrades for {assignment.content_equipment.name}"
+            )
+        elif old_upgrade_cost < 0 and new_upgrade_cost >= 0:
+            spend_description = f"Paying back credits for removed upgrades for {assignment.content_equipment.name}"
+        else:
+            spend_description = (
+                f"Buying upgrades for {assignment.content_equipment.name}"
+            )
+
         lst.spend_credits(
             cost_difference,
-            description=f"Buying upgrades for {assignment.content_equipment.name}",
+            description=spend_description,
         )
 
         # Create campaign action
         upgrade_names = ", ".join([u.name for u in new_upgrades])
+        if cost_difference < 0:
+            description_text = f"Gained {abs(cost_difference)}¢ from upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name}"
+        else:
+            description_text = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
             campaign=lst.campaign,
             list=lst,
-            description=f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)",
+            description=description_text,
             outcome=f"Credits remaining: {lst.credits_current}¢",
         )
 
@@ -428,7 +454,10 @@ def handle_equipment_upgrade(
     # Create ListAction to track the upgrade change
     if new_upgrades:
         upgrade_names = ", ".join([u.name for u in new_upgrades])
-        description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
+        if cost_difference < 0:
+            description = f"Gained {abs(cost_difference)}¢ from upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name}"
+        else:
+            description = f"Bought upgrades ({upgrade_names}) for {assignment.content_equipment.name} on {fighter.name} ({cost_difference}¢)"
     else:
         description = f"Removed upgrades from {assignment.content_equipment.name} on {fighter.name}"
 
