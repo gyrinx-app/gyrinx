@@ -6,7 +6,11 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentWeaponAccessory,
 )
-from gyrinx.core.forms import BsCheckboxSelectMultiple, BsClearableFileInput
+from gyrinx.core.forms import (
+    BsCheckboxSelectMultiple,
+    BsClearableFileInput,
+    BsRadioSelect,
+)
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -427,21 +431,56 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
 
 
 class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
+    def _upgrade_label_from_instance(self, obj):
+        return f"{obj.name} ({self.instance.upgrade_cost_display(obj)})"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields[
-            "upgrades_field"
-        ].label = self.instance.content_equipment.upgrade_stack_name_display
-        self.fields[
-            "upgrades_field"
-        ].queryset = ContentEquipmentUpgrade.objects.with_cost_for_fighter(
+        upgrade_queryset = ContentEquipmentUpgrade.objects.with_cost_for_fighter(
             self.instance.list_fighter.equipment_list_fighter
         ).filter(
             equipment=self.instance.content_equipment,
         )
-        self.fields["upgrades_field"].label_from_instance = (
-            lambda obj: f"{obj.name} ({self.instance.upgrade_cost_display(obj)})"
-        )
+        label = self.instance.content_equipment.upgrade_stack_name_display
+
+        if self.instance.content_equipment.upgrade_mode_single:
+            # For SINGLE mode, replace the M2M field with a ModelChoiceField
+            # using radio buttons, including a "None" option
+            self.fields["upgrades_field"] = forms.ModelChoiceField(
+                queryset=upgrade_queryset,
+                label=label,
+                required=False,
+                widget=BsRadioSelect(
+                    attrs={"class": "form-check-input"},
+                ),
+            )
+            # Set empty_label after construction because Django's ModelChoiceField
+            # clears it when using a RadioSelect widget
+            self.fields["upgrades_field"].empty_label = "None"
+            self.fields[
+                "upgrades_field"
+            ].label_from_instance = self._upgrade_label_from_instance
+            # Set initial value from the current upgrades
+            current_upgrades = self.instance.upgrades_field.all()
+            if current_upgrades.exists():
+                self.fields["upgrades_field"].initial = current_upgrades.first().pk
+        else:
+            # For MULTI mode, keep the M2M field with checkboxes
+            self.fields["upgrades_field"].label = label
+            self.fields["upgrades_field"].queryset = upgrade_queryset
+            self.fields[
+                "upgrades_field"
+            ].label_from_instance = self._upgrade_label_from_instance
+
+    def clean_upgrades_field(self):
+        """Normalize single-mode radio value to a list for consistent handling."""
+        value = self.cleaned_data.get("upgrades_field")
+        if self.instance.content_equipment.upgrade_mode_single:
+            # Radio returns a single object or None; wrap in list for the view
+            if value is None:
+                return ContentEquipmentUpgrade.objects.none()
+            return ContentEquipmentUpgrade.objects.filter(pk=value.pk)
+        return value
 
     class Meta:
         model = ListFighterEquipmentAssignment

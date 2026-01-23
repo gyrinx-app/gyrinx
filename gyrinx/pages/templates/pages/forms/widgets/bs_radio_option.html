@@ -1,0 +1,9 @@
+{% include "django/forms/widgets/input.html" %}
+<div class="vstack">
+    <label {% if widget.attrs.id %}for="{{ widget.attrs.id }}"{% endif %}>
+        <div>{{ widget.label }}</div>
+        {% if widget.value.instance.description %}
+            <div class="form-text">{{ widget.value.instance.description }}</div>
+        {% endif %}
+    </label>
+</div>
