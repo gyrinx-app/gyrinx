@@ -105,6 +105,9 @@ from .expansion import (
     ExpansionRuleInputs,
 )
 
+# Availability preset models
+from .availability_preset import ContentAvailabilityPreset
+
 # Import signal handlers to register them
 # This must be done last to avoid circular imports
 from . import signal_handlers  # noqa: F401
@@ -201,6 +204,8 @@ __all__ = [
     "ContentEquipmentListExpansionRuleByFighterCategory",
     "ContentEquipmentListExpansionRuleByHouse",
     "ExpansionRuleInputs",
+    # Availability Presets
+    "ContentAvailabilityPreset",
     # Re-exports from gyrinx.models for backward compatibility
     "FighterCategoryChoices",
 ]

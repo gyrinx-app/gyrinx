@@ -8,6 +8,12 @@
     {% include "core/includes/back.html" with url=full_back_url %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Delete {{ assign.content_equipment.name }} from {{ fighter.fully_qualified_name }}</h1>
+        {% if error_message %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                {{ error_message }}
+            </div>
+        {% endif %}
         <form action="{% url action_url list.id fighter.id assign.id %}"
               method="post">
             {% csrf_token %}
@@ -30,14 +36,22 @@
                 </div>
             {% endif %}
             {% if list.is_campaign_mode %}
-                <div class="form-check mt-3">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           name="refund"
-                           id="refund"
-                           checked>
-                    <label class="form-check-label" for="refund">Apply refund (+{{ assign.cost_int }}¢ to credits)</label>
-                </div>
+                {% if assign.cost_int < 0 %}
+                    <div class="alert alert-warning mt-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Note:</strong> This equipment has a negative cost. Removing it will cost you {{ assign.cost_int|abs }}¢.
+                    </div>
+                    <input type="hidden" name="refund" value="on">
+                {% else %}
+                    <div class="form-check mt-3">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="refund"
+                               id="refund"
+                               checked>
+                        <label class="form-check-label" for="refund">Apply refund (+{{ assign.cost_int }}¢ to credits)</label>
+                    </div>
+                {% endif %}
             {% endif %}
             <div class="mt-3">
                 <input type="hidden" name="remove" value="1">

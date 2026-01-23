@@ -177,6 +177,11 @@ def qt_has_key(request, key):
     return key in request.GET
 
 
+@register.filter(name="abs")
+def fabs(value):
+    return abs(int(value))
+
+
 @register.filter(name="min")
 def fmin(value, arg):
     return min(int(value), int(arg))

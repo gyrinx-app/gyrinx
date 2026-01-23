@@ -12,6 +12,11 @@ class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
 
 
+class BsRadioSelect(forms.RadioSelect):
+    template_name = "pages/forms/widgets/bs_radio_select.html"
+    option_template_name = "pages/forms/widgets/bs_radio_option.html"
+
+
 class BsClearableFileInput(forms.ClearableFileInput):
     template_name = "pages/forms/widgets/bs_clearable_file_input.html"
     clear_checkbox_label = _("Clear image")

@@ -130,11 +130,15 @@ def handle_equipment_removal(
     assignment.delete()
 
     # Build description
-    description = f"Removed {equipment_name} from {fighter.name} ({total_cost}¢)"
-    if child_fighter_cost > 0:
-        description += f" (including linked fighter: {child_fighter_cost}¢)"
-    if refund_applied:
-        description += f" - refund applied (+{total_cost}¢)"
+    if total_cost < 0:
+        # Negative-cost equipment - removing it costs credits
+        description = f"Removed {equipment_name} from {fighter.name} ({total_cost}¢) - cost {abs(total_cost)}¢ to remove"
+    else:
+        description = f"Removed {equipment_name} from {fighter.name} ({total_cost}¢)"
+        if child_fighter_cost > 0:
+            description += f" (including linked fighter: {child_fighter_cost}¢)"
+        if refund_applied:
+            description += f" - refund applied (+{total_cost}¢)"
 
     # Create ListAction
     list_action = lst.create_action(
@@ -245,9 +249,13 @@ def handle_equipment_component_removal(
         assignment.weapon_accessories_field.remove(component)
 
     # Build description
-    description = f"Removed {component_type} {component_name} from {assignment.content_equipment.name} on {fighter.name} ({component_cost}¢)"
-    if refund_applied:
-        description += f" - refund applied (+{component_cost}¢)"
+    if component_cost < 0:
+        # Negative-cost component - removing it costs credits
+        description = f"Removed {component_type} {component_name} from {assignment.content_equipment.name} on {fighter.name} ({component_cost}¢) - cost {abs(component_cost)}¢ to remove"
+    else:
+        description = f"Removed {component_type} {component_name} from {assignment.content_equipment.name} on {fighter.name} ({component_cost}¢)"
+        if refund_applied:
+            description += f" - refund applied (+{component_cost}¢)"
 
     propagate_from_assignment(assignment, Delta(delta=rating_delta, list=lst))
 

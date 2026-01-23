@@ -3,6 +3,7 @@
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -653,7 +654,7 @@ def embed_list_fighter(request, id, fighter_id):
     )
 
 
-class ListArchivedFightersView(generic.ListView):
+class ListArchivedFightersView(LoginRequiredMixin, generic.ListView):
     """
     Display a page with archived :model:`core.ListFighter` objects within a given :model:`core.List`.
 
