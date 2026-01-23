@@ -463,7 +463,9 @@ class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
             # Set initial value from the current upgrades
             current_upgrades = self.instance.upgrades_field.all()
             if current_upgrades.exists():
-                self.fields["upgrades_field"].initial = current_upgrades.first().pk
+                self.initial["upgrades_field"] = current_upgrades.first().pk
+            else:
+                self.initial["upgrades_field"] = None
         else:
             # For MULTI mode, keep the M2M field with checkboxes
             self.fields["upgrades_field"].label = label

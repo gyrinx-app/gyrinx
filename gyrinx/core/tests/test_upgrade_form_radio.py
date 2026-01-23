@@ -178,4 +178,4 @@ def test_single_mode_initial_value_when_upgrade_set(single_assignment, single_up
     upgrade = single_upgrades[0]
     single_assignment.upgrades_field.set([upgrade])
     form = ListFighterEquipmentAssignmentUpgradeForm(instance=single_assignment)
-    assert form.fields["upgrades_field"].initial == upgrade.pk
+    assert form.initial["upgrades_field"] == upgrade.pk
