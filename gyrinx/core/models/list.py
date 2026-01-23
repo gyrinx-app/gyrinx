@@ -3202,12 +3202,21 @@ class ListFighter(AppBase):
         )
 
         if include_equipment:
-            # Copy equipment assignments that weren't converted from default assignments
+            # Copy equipment assignments, including those converted from default assignments
             for assignment in self._direct_assignments():
+                # Clone the assignment, preserving from_default_assignment if present
+                # This ensures upgrades and other customizations are preserved
+                cloned_assignment = assignment.clone(
+                    list_fighter=target_fighter,
+                    preserve_from_default_assignment=True,
+                )
+
+                # If this assignment was converted from a default, disable the default
+                # on the target fighter to match the original state
                 if assignment.from_default_assignment is not None:
-                    # Skip assignments that were converted from default assignments
-                    continue
-                cloned_assignment = assignment.clone(list_fighter=target_fighter)
+                    target_fighter.disabled_default_assignments.add(
+                        assignment.from_default_assignment
+                    )
 
                 # Handle nested linked fighters recursively
                 if assignment.child_fighter:
@@ -3315,18 +3324,26 @@ class ListFighter(AppBase):
             self.disabled_pskyer_default_powers.all()
         )
 
-        # Don't clone equipment assignments that were converted from default assignments
-        # or assignments that were auto-created from equipment-equipment links
+        # Clone equipment assignments, including those converted from default assignments
+        # to preserve upgrades and other customizations
         for assignment in self._direct_assignments():
-            if assignment.from_default_assignment is not None:
-                # Skip assignments that were converted from default assignments
-                # The clone will get these as default assignments instead
-                continue
             if assignment.linked_equipment_parent is not None:
                 # Skip assignments that were auto-created from equipment-equipment links
                 # The clone will get these via the signal when the parent equipment is cloned
                 continue
-            cloned_assignment = assignment.clone(list_fighter=clone)
+
+            # Clone the assignment, preserving from_default_assignment if present
+            cloned_assignment = assignment.clone(
+                list_fighter=clone,
+                preserve_from_default_assignment=True,
+            )
+
+            # If this assignment was converted from a default, disable the default
+            # on the clone to match the original state
+            if assignment.from_default_assignment is not None:
+                clone.disabled_default_assignments.add(
+                    assignment.from_default_assignment
+                )
 
             # If the original assignment has a linked fighter (e.g., vehicle, exotic beast),
             # we need to copy all attributes from that linked fighter to the new linked fighter
@@ -4287,8 +4304,15 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     #  Behaviour
 
     @traced("list_fighter_equipment_assignment_clone")
-    def clone(self, list_fighter=None):
-        """Clone the assignment, creating a new assignment with the same weapon profiles."""
+    def clone(self, list_fighter=None, preserve_from_default_assignment=False):
+        """Clone the assignment, creating a new assignment with the same weapon profiles.
+
+        Args:
+            list_fighter: The ListFighter to associate the clone with.
+            preserve_from_default_assignment: If True, preserve the from_default_assignment
+                field on the clone. This is used when cloning fighters to preserve
+                upgrades on assignments that were converted from default assignments.
+        """
         if not list_fighter:
             list_fighter = self.list_fighter
 
@@ -4296,6 +4320,10 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             list_fighter=list_fighter,
             content_equipment=self.content_equipment,
         )
+
+        # Preserve from_default_assignment if requested
+        if preserve_from_default_assignment and self.from_default_assignment:
+            clone.from_default_assignment = self.from_default_assignment
 
         for profile in self.weapon_profiles_field.all():
             clone.weapon_profiles_field.add(profile)
@@ -4305,6 +4333,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         for upgrade in self.upgrades_field.all():
             clone.upgrades_field.add(upgrade)
+
+        if self.cost_override is not None:
+            clone.cost_override = self.cost_override
 
         if self.total_cost_override is not None:
             clone.total_cost_override = self.total_cost_override
