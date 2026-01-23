@@ -12,6 +12,7 @@ from polymorphic.admin import (
 )
 
 from gyrinx.content.actions import copy_selected_to_fighter, copy_selected_to_house
+from gyrinx.content.models.availability_preset import ContentAvailabilityPreset
 from gyrinx.forms import group_select
 from gyrinx.models import (
     SMART_QUOTES,
@@ -1327,3 +1328,11 @@ class ContentEquipmentListExpansionRuleParentAdmin(PolymorphicParentModelAdmin):
     list_filter = [PolymorphicChildModelFilter]
     list_display = ["__str__", "polymorphic_ctype"]
     search_fields = []
+
+
+@admin.register(ContentAvailabilityPreset)
+class ContentAvailabilityPresetAdmin(ContentAdmin):
+    list_display = ["__str__", "availability_types", "max_availability_level"]
+    list_filter = ["category", "house"]
+    search_fields = ["fighter__type", "house__name"]
+    autocomplete_fields = ["fighter", "house"]

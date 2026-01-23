@@ -225,7 +225,6 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
 // Equipment list filter toggle functionality
 document.addEventListener("DOMContentLoaded", () => {
     const filterSwitch = document.getElementById("filter-switch");
-    const illegalCheckbox = document.getElementById("al-i");
 
     // Find the availability button by its ID
     const availabilityButton = document.getElementById(
@@ -289,11 +288,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     "data-bs-placement",
                 );
                 availabilityButton.parentElement.removeAttribute("title");
-
-                // Automatically tick the illegal checkbox when equipment list is unticked
-                if (illegalCheckbox) {
-                    illegalCheckbox.checked = true;
-                }
             }
         });
     }

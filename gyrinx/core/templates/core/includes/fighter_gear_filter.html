@@ -92,7 +92,7 @@
                                        id="mal-value"
                                        name="mal"
                                        data-gy-sync="mal-value"
-                                       value="{{ request.GET.mal }}"
+                                       value="{% if render_preset_mal %}{{ preset_mal|default:'' }}{% else %}{{ request.GET.mal }}{% endif %}"
                                        min="1"
                                        max="24">
                             </div>
@@ -126,7 +126,10 @@
                                    id="al-c"
                                    name="al"
                                    value="C"
-                                   {% if al_contains_c or not al_key_exists %}checked{% endif %}>
+                                   {% if render_preset_al %}{% if "C" in preset_al %}checked{% endif %}
+                                   {% elif not request.GET.al or al_contains_c %}
+                                   checked
+                                   {% endif %}>
                             <label class="form-check-label" for="al-c">Common (C)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="C" %}#search">only</a>
@@ -140,7 +143,10 @@
                                    id="al-r"
                                    name="al"
                                    value="R"
-                                   {% if al_contains_r or not al_key_exists %}checked{% endif %}>
+                                   {% if render_preset_al %}{% if "R" in preset_al %}checked{% endif %}
+                                   {% elif not request.GET.al or al_contains_r %}
+                                   checked
+                                   {% endif %}>
                             <label class="form-check-label" for="al-r">Rare (R)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="R" %}#search">only</a>
@@ -154,7 +160,10 @@
                                    id="al-i"
                                    name="al"
                                    value="I"
-                                   {% if al_contains_i %}checked{% endif %}>
+                                   {% if render_preset_al %}{% if "I" in preset_al %}checked{% endif %}
+                                   {% elif al_contains_i %}
+                                   checked
+                                   {% endif %}>
                             <label class="form-check-label" for="al-i">Illegal (I)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="I" %}#search">only</a>
@@ -168,7 +177,10 @@
                                    id="al-e"
                                    name="al"
                                    value="E"
-                                   {% if al_contains_e %}checked{% endif %}>
+                                   {% if render_preset_al %}{% if "E" in preset_al %}checked{% endif %}
+                                   {% elif al_contains_e %}
+                                   checked
+                                   {% endif %}>
                             <label class="form-check-label" for="al-e">Exclusive (E)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="E" %}#search">only</a>
@@ -182,7 +194,10 @@
                                    id="al-u"
                                    name="al"
                                    value="U"
-                                   {% if al_contains_u %}checked{% endif %}>
+                                   {% if render_preset_al %}{% if "U" in preset_al %}checked{% endif %}
+                                   {% elif al_contains_u %}
+                                   checked
+                                   {% endif %}>
                             <label class="form-check-label" for="al-u">Unique (U)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="U" %}#search">only</a>
