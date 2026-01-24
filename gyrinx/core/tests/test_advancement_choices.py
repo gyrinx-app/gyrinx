@@ -185,6 +185,7 @@ def test_advancement_type_form_skill_choices():
         ("skill_primary_random", "Random Primary Skill"),
         ("skill_secondary_random", "Random Secondary Skill"),
         ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
+        ("skill_promote_champion", "Promote to Champion"),
         ("skill_any_random", "Random Skill (Any Set)"),
         ("other", "Other"),
     ]
