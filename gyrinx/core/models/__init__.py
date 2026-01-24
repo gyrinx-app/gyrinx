@@ -2,6 +2,7 @@ from .action import *  # noqa: F403
 from .auth import *  # noqa: F403
 from .battle import *  # noqa: F403
 from .campaign import *  # noqa: F403
+from .crew_template import *  # noqa: F403
 from .events import *  # noqa: F403
 from .facts import *  # noqa: F403
 from .invitation import *  # noqa: F403
