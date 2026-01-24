@@ -31,7 +31,7 @@ from gyrinx.models import (
     format_cost_display,
 )
 
-from .base import Content
+from .base import Content, ContentManager, ContentQuerySet
 
 if TYPE_CHECKING:
     from .weapon import ContentWeaponProfile
@@ -144,39 +144,45 @@ class ContentFighterEquipmentCategoryLimit(Content):
             )
 
 
-class ContentEquipmentManager(models.Manager):
+class ContentEquipmentManager(ContentManager):
     """
     Custom manager for :model:`content.ContentEquipment` model, providing annotated
     default querysets (cost as integer, presence of weapon profiles, etc.).
     """
 
-    def get_queryset(self):
-        """
-        Returns the default annotated queryset for equipment.
-        """
-        # Import here to avoid circular import at module level
+    def _annotate_default(self, qs):
+        """Apply the default cost and weapon profile annotations."""
         from .weapon import ContentWeaponProfile
 
-        return (
-            super()
-            .get_queryset()
-            .annotate(
-                cost_cast_int=Case(
-                    When(
-                        Q(cost__regex=r"^-?\d+$"),
-                        then=Cast("cost", models.IntegerField()),
-                    ),
-                    default=0,
+        return qs.annotate(
+            cost_cast_int=Case(
+                When(
+                    Q(cost__regex=r"^-?\d+$"),
+                    then=Cast("cost", models.IntegerField()),
                 ),
-                has_weapon_profiles=Exists(
-                    ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
-                ),
-            )
-            .order_by("category__name", "name", "id")
-        )
+                default=0,
+            ),
+            has_weapon_profiles=Exists(
+                ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
+            ),
+        ).order_by("category__name", "name", "id")
+
+    def get_queryset(self):
+        """
+        Returns the default annotated queryset for equipment, excluding pack content.
+        """
+        return self._annotate_default(super().get_queryset())
+
+    def all_content(self):
+        """Return all equipment including pack content."""
+        return self._annotate_default(super().all_content())
+
+    def with_packs(self, packs):
+        """Return base equipment plus equipment from specified packs."""
+        return self._annotate_default(super().with_packs(packs))
 
 
-class ContentEquipmentQuerySet(models.QuerySet):
+class ContentEquipmentQuerySet(ContentQuerySet):
     """
     Custom QuerySet for ContentEquipment. Provides filtering and annotations
     for weapons vs. non-weapons, and fighter-specific cost.
@@ -524,7 +530,7 @@ class ContentEquipment(FighterCostMixin, Content):
     )()
 
 
-class ContentEquipmentUpgradeQuerySet(models.QuerySet):
+class ContentEquipmentUpgradeQuerySet(ContentQuerySet):
     """
     Custom QuerySet for ContentEquipmentUpgrade. Provides fighter-specific cost overrides.
     """
@@ -550,7 +556,7 @@ class ContentEquipmentUpgradeQuerySet(models.QuerySet):
         )
 
 
-class ContentEquipmentUpgradeManager(models.Manager):
+class ContentEquipmentUpgradeManager(ContentManager):
     """
     Custom manager for ContentEquipmentUpgrade model.
     """

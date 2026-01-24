@@ -25,7 +25,7 @@ from simpleeval import simple_eval
 
 from gyrinx.models import FighterCostMixin, format_cost_display
 
-from .base import Content, StatlineDisplay
+from .base import Content, ContentManager, ContentQuerySet, StatlineDisplay
 
 if TYPE_CHECKING:
     pass
@@ -51,32 +51,37 @@ class ContentWeaponTrait(Content):
         ordering = ["name"]
 
 
-class ContentWeaponProfileManager(models.Manager):
+class ContentWeaponProfileManager(ContentManager):
     """
     Custom manager for :model:`content.ContentWeaponProfile` model.
     """
 
-    def get_queryset(self):
-        return (
-            super()
-            .get_queryset()
-            .annotate(
-                _name_order=Case(
-                    When(name="", then=0),
-                    default=1,
-                    output_field=models.IntegerField(),
-                )
+    def _annotate_default(self, qs):
+        """Apply the default name ordering annotations."""
+        return qs.annotate(
+            _name_order=Case(
+                When(name="", then=0),
+                default=1,
+                output_field=models.IntegerField(),
             )
-            .order_by(
-                "equipment__name",
-                "_name_order",
-                "name",
-                "cost",
-            )
+        ).order_by(
+            "equipment__name",
+            "_name_order",
+            "name",
+            "cost",
         )
 
+    def get_queryset(self):
+        return self._annotate_default(super().get_queryset())
 
-class ContentWeaponProfileQuerySet(models.QuerySet):
+    def all_content(self):
+        return self._annotate_default(super().all_content())
+
+    def with_packs(self, packs):
+        return self._annotate_default(super().with_packs(packs))
+
+
+class ContentWeaponProfileQuerySet(ContentQuerySet):
     """
     Custom QuerySet for :model:`content.ContentWeaponProfile`. Provides fighter-specific cost overrides.
     """
@@ -311,7 +316,7 @@ class ContentWeaponProfile(FighterCostMixin, Content):
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
 
-class ContentWeaponAccessoryManager(models.Manager):
+class ContentWeaponAccessoryManager(ContentManager):
     """
     Custom manager for :model:`content.ContentWeaponAccessory` model. Currently unused but available
     for future extensions.
@@ -320,7 +325,7 @@ class ContentWeaponAccessoryManager(models.Manager):
     pass
 
 
-class ContentWeaponAccessoryQuerySet(models.QuerySet):
+class ContentWeaponAccessoryQuerySet(ContentQuerySet):
     """
     Custom QuerySet for :model:`content.ContentWeaponAccessory`. Provides fighter-specific cost overrides.
     """

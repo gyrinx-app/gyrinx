@@ -9,7 +9,13 @@ All models are re-exported here for backward compatibility with imports like:
 """
 
 # Base classes and shared utilities
-from .base import Content, RulelineDisplay, StatlineDisplay
+from .base import (
+    Content,
+    ContentManager,
+    ContentQuerySet,
+    RulelineDisplay,
+    StatlineDisplay,
+)
 
 # Simple domain models
 from .skill import ContentSkill, ContentSkillCategory
@@ -119,6 +125,8 @@ from gyrinx.models import FighterCategoryChoices  # noqa: F401
 __all__ = [
     # Base
     "Content",
+    "ContentManager",
+    "ContentQuerySet",
     "RulelineDisplay",
     "StatlineDisplay",
     # Skills
