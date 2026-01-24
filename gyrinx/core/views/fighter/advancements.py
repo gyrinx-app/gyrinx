@@ -352,6 +352,7 @@ class AdvancementFlowParams(AdvancementBaseParams):
             "skill_primary_random",
             "skill_secondary_random",
             "skill_promote_specialist",
+            "skill_promote_champion",
             "skill_any_random",
         ]
 
@@ -407,12 +408,13 @@ class AdvancementFlowParams(AdvancementBaseParams):
             "skill_primary_random",
             "skill_secondary_random",
             "skill_promote_specialist",
+            "skill_promote_champion",
             "skill_any_random",
         ]
 
     def is_promote_advancement(self) -> bool:
         """
-        Check if this is a specialist promotion advancement.
+        Check if this is a specialist or champion promotion advancement.
         """
         return self.advancement_choice in [
             "skill_promote_specialist",
@@ -428,6 +430,7 @@ class AdvancementFlowParams(AdvancementBaseParams):
                 "skill_primary_chosen",
                 "skill_primary_random",
                 "skill_promote_specialist",
+                "skill_promote_champion",
             ]:
                 return "primary"
             elif self.advancement_choice in [

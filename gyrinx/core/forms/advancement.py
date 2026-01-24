@@ -162,7 +162,7 @@ class AdvancementTypeForm(forms.Form):
         ),
         "skill_promote_champion": AdvancementConfig(
             name="skill_promote_champion",
-            display_name="Promote to Champion",
+            display_name="Promote to Champion (Random Primary Skill)",
             xp_cost=12,
             cost_increase=40,
             restricted_to_fighter_categories=[FighterCategoryChoices.SPECIALIST],
@@ -196,7 +196,7 @@ class AdvancementTypeForm(forms.Form):
         ("skill_secondary_random", "Random Secondary Skill"),
         ("skill_secondary_chosen", "Chosen Secondary Skill"),
         ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
-        ("skill_promote_champion", "Promote to Champion"),
+        ("skill_promote_champion", "Promote to Champion (Random Primary Skill)"),
         ("skill_any_random", "Random Skill (Any Set)"),
         # Other
         ("other", "Other"),
