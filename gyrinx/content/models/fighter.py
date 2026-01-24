@@ -17,13 +17,42 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.models import FighterCategoryChoices
 
-from .base import Content
+from .base import Content, ContentManager, ContentQuerySet
 
 
-class ContentFighterManager(models.Manager):
+class ContentFighterManager(ContentManager):
     """
     Custom manager for :model:`content.ContentFighter` model.
     """
+
+    def _annotate_default(self, qs):
+        """Apply the default category ordering annotations."""
+        return qs.annotate(
+            _category_order=Case(
+                *[
+                    When(category=category, then=index)
+                    for index, category in enumerate(
+                        [
+                            "STASH",
+                            "LEADER",
+                            "CHAMPION",
+                            "PROSPECT",
+                            "SPECIALIST",
+                            "GANGER",
+                            "JUVE",
+                        ]
+                    )
+                ],
+                # Gang Terrain always sorts last
+                When(category="GANG_TERRAIN", then=999),
+                # Other categories (including ALLY) sort in the middle, undefined
+                default=50,
+            )
+        ).order_by(
+            "house__name",
+            "_category_order",
+            "type",
+        )
 
     def without_stash(self):
         return (
@@ -60,42 +89,20 @@ class ContentFighterManager(models.Manager):
 
     def get_queryset(self):
         """
-        Returns all fighters including stash fighters.
+        Returns all fighters including stash fighters, excluding pack content.
         """
-        return (
-            super()
-            .get_queryset()
-            .annotate(
-                _category_order=Case(
-                    *[
-                        When(category=category, then=index)
-                        for index, category in enumerate(
-                            [
-                                "STASH",
-                                "LEADER",
-                                "CHAMPION",
-                                "PROSPECT",
-                                "SPECIALIST",
-                                "GANGER",
-                                "JUVE",
-                            ]
-                        )
-                    ],
-                    # Gang Terrain always sorts last
-                    When(category="GANG_TERRAIN", then=999),
-                    # Other categories (including ALLY) sort in the middle, undefined
-                    default=50,
-                )
-            )
-            .order_by(
-                "house__name",
-                "_category_order",
-                "type",
-            )
-        )
+        return self._annotate_default(super().get_queryset())
+
+    def all_content(self):
+        """Return all fighters including pack content."""
+        return self._annotate_default(super().all_content())
+
+    def with_packs(self, packs):
+        """Return base fighters plus fighters from specified packs."""
+        return self._annotate_default(super().with_packs(packs))
 
 
-class ContentFighterQuerySet(models.QuerySet):
+class ContentFighterQuerySet(ContentQuerySet):
     """
     Custom QuerySet for :model:`content.ContentFighter`.
     """
