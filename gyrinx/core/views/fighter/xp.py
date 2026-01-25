@@ -2,6 +2,7 @@
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -33,7 +34,20 @@ def edit_list_fighter_xp(request, id, fighter_id):
     from gyrinx.core.forms.list import EditFighterXPForm
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    # Allow both list owner and campaign owner to modify XP
+    lst = get_clean_list_or_404(
+        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        id=id,
+    )
+
+    # Verify permissions
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request, "You don't have permission to modify XP for this fighter."
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     fighter = get_object_or_404(
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )

@@ -2,6 +2,7 @@
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -30,9 +31,23 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     :template:`core/list_fighter_injuries_edit.html`
     """
 
+    # Allow both list owner and campaign owner to manage injuries
     lst = get_clean_list_or_404(
-        List.objects.with_related_data(), id=id, owner=request.user
+        List.objects.with_related_data().filter(
+            Q(owner=request.user) | Q(campaign__owner=request.user)
+        ),
+        id=id,
     )
+
+    # Verify permissions
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request,
+                "You don't have permission to manage injuries for this fighter.",
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -78,7 +93,21 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    # Allow both list owner and campaign owner to manage fighter state
+    lst = get_clean_list_or_404(
+        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        id=id,
+    )
+
+    # Verify permissions
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request,
+                "You don't have permission to manage fighter state for this list.",
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -303,7 +332,21 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    # Allow both list owner and campaign owner to add injuries
+    lst = get_clean_list_or_404(
+        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        id=id,
+    )
+
+    # Verify permissions
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request,
+                "You don't have permission to add injuries to this fighter.",
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -327,7 +370,7 @@ def list_fighter_add_injury(request, id, fighter_id):
                     fighter=fighter,
                     injury=form.cleaned_data["injury"],
                     notes=form.cleaned_data.get("notes", ""),
-                    owner=request.user,
+                    owner=lst.owner,
                 )
 
                 # Update fighter state
@@ -419,7 +462,21 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     from gyrinx.core.models.campaign import CampaignAction
 
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    # Allow both list owner and campaign owner to remove injuries
+    lst = get_clean_list_or_404(
+        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        id=id,
+    )
+
+    # Verify permissions
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.owner == request.user):
+            messages.error(
+                request,
+                "You don't have permission to remove injuries from this fighter.",
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
