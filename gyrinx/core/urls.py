@@ -2,7 +2,7 @@ from django.urls import path
 
 import gyrinx.core.views
 
-from .views import battle, print_config, vehicle
+from .views import battle, crew_template, print_config, vehicle
 from .views.campaign import actions as campaign_actions
 from .views.campaign import assets as campaign_assets
 from .views.campaign import battles as campaign_battles
@@ -451,6 +451,27 @@ urlpatterns = [
         "list/<list_id>/print-configs/<config_id>/print",
         print_config.print_config_print,
         name="print-config-print",
+    ),
+    # Crew Templates
+    path(
+        "list/<list_id>/crew-templates",
+        crew_template.CrewTemplateIndexView.as_view(),
+        name="crew-template-index",
+    ),
+    path(
+        "list/<list_id>/crew-templates/new",
+        crew_template.crew_template_create,
+        name="crew-template-create",
+    ),
+    path(
+        "list/<list_id>/crew-templates/<template_id>/edit",
+        crew_template.crew_template_edit,
+        name="crew-template-edit",
+    ),
+    path(
+        "list/<list_id>/crew-templates/<template_id>/delete",
+        crew_template.crew_template_delete,
+        name="crew-template-delete",
     ),
     path(
         "list/<id>/attribute/<attribute_id>/edit",
