@@ -8,6 +8,7 @@ from django.urls import reverse
 from gyrinx.content.models import ContentFighter, ContentHouse
 from gyrinx.core.forms.list import EditFighterXPForm
 from gyrinx.core.models import CampaignAction, List, ListFighter
+from gyrinx.core.models.campaign import Campaign
 
 
 @pytest.fixture
@@ -592,4 +593,166 @@ def test_archived_fighter_cannot_edit_xp(list_with_fighter):
     url = reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])
     response = client.get(url)
     # Should get 404 because archived fighters are excluded from queries
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_edit_fighter_xp():
+    """Test that campaign owner can edit XP for fighters in their campaign."""
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+
+    house = ContentHouse.objects.create(name="Test House")
+    cf = ContentFighter.objects.create(
+        type="Fighter",
+        house=house,
+        category="GANGER",
+        movement="4",
+        weapon_skill="3+",
+        ballistic_skill="3+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="3+",
+        attacks="1",
+        leadership="7+",
+        cool="7+",
+        willpower="7+",
+        intelligence="7+",
+        base_cost=50,
+    )
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, status=Campaign.IN_PROGRESS
+    )
+    lst = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    fighter = ListFighter.objects.create(
+        list=lst, content_fighter=cf, name="Test Fighter", owner=list_owner
+    )
+
+    client = Client()
+    client.login(username="campaign_owner", password="password")
+
+    url = reverse("core:list-fighter-xp-edit", args=[lst.id, fighter.id])
+    response = client.post(
+        url,
+        data={"operation": "add", "amount": 10, "description": "Arbitrator award"},
+    )
+
+    assert response.status_code == 302
+
+    fighter.refresh_from_db()
+    assert fighter.xp_current == 10
+    assert fighter.xp_total == 10
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_access_xp_edit_view():
+    """Test that campaign owner can access the XP edit view."""
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+
+    house = ContentHouse.objects.create(name="Test House")
+    cf = ContentFighter.objects.create(
+        type="Fighter",
+        house=house,
+        category="GANGER",
+        movement="4",
+        weapon_skill="3+",
+        ballistic_skill="3+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="3+",
+        attacks="1",
+        leadership="7+",
+        cool="7+",
+        willpower="7+",
+        intelligence="7+",
+        base_cost=50,
+    )
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, status=Campaign.IN_PROGRESS
+    )
+    lst = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    fighter = ListFighter.objects.create(
+        list=lst, content_fighter=cf, name="Test Fighter", owner=list_owner
+    )
+
+    client = Client()
+    client.login(username="campaign_owner", password="password")
+
+    url = reverse("core:list-fighter-xp-edit", args=[lst.id, fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert "Edit XP" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_non_owner_cannot_edit_fighter_xp():
+    """Test that users who are neither list nor campaign owner cannot edit XP."""
+    campaign_owner = User.objects.create_user(
+        username="campaign_owner", password="password"
+    )
+    list_owner = User.objects.create_user(username="list_owner", password="password")
+    User.objects.create_user(username="unrelated_user", password="password")
+
+    house = ContentHouse.objects.create(name="Test House")
+    cf = ContentFighter.objects.create(
+        type="Fighter",
+        house=house,
+        category="GANGER",
+        movement="4",
+        weapon_skill="3+",
+        ballistic_skill="3+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="3+",
+        attacks="1",
+        leadership="7+",
+        cool="7+",
+        willpower="7+",
+        intelligence="7+",
+        base_cost=50,
+    )
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=campaign_owner, status=Campaign.IN_PROGRESS
+    )
+    lst = List.objects.create(
+        name="Test Gang",
+        owner=list_owner,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    fighter = ListFighter.objects.create(
+        list=lst, content_fighter=cf, name="Test Fighter", owner=list_owner
+    )
+
+    client = Client()
+    client.login(username="unrelated_user", password="password")
+
+    url = reverse("core:list-fighter-xp-edit", args=[lst.id, fighter.id])
+    response = client.get(url)
+
     assert response.status_code == 404
