@@ -38,21 +38,25 @@ class ContentQuerySet(models.QuerySet):
 
     def exclude_pack_content(self):
         """Exclude content that belongs to any pack."""
-        return self.exclude(
-            pk__in=self._pack_items_for_model().values_list("object_id", flat=True)
-        )
+        from django.db.models import Exists, OuterRef
+
+        pack_exists = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
+        return self.filter(~Exists(pack_exists))
 
     def with_packs(self, packs):
         """Return items not in any pack plus items from specified packs."""
-        all_pack_ids = self._pack_items_for_model().values_list("object_id", flat=True)
-        specified_pack_ids = (
-            self._pack_items_for_model()
-            .filter(pack__in=packs)
-            .values_list("object_id", flat=True)
+        from django.db.models import Exists, OuterRef
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        any_pack = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
+        specified_pack = CustomContentPackItem.objects.filter(
+            content_type__app_label=self.model._meta.app_label,
+            content_type__model=self.model._meta.model_name,
+            object_id=OuterRef("pk"),
+            pack__in=packs,
         )
-        return self.exclude(pk__in=all_pack_ids) | self.filter(
-            pk__in=specified_pack_ids
-        )
+        return self.filter(~Exists(any_pack) | Exists(specified_pack))
 
 
 class ContentManager(models.Manager):
