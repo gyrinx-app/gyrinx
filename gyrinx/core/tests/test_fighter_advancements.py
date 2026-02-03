@@ -2,7 +2,6 @@ from urllib.parse import urlencode
 from django.urls import reverse
 import pytest
 
-from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -12,24 +11,15 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
     user,
     make_content_house,
     make_content_fighter,
+    make_content_skills_in_category,
     make_list,
     make_list_fighter,
 ):
     """Test the flow of creating a champion promotion advancement for a specialist."""
-    # Setup content house, skill, category, and fighter eligible for champion promotion
+    # Setup content house, skills, categories, and fighter eligible for champion promotion
     content_house = make_content_house("Test House")
-    content_skill_category_1, _ = ContentSkillCategory.objects.get_or_create(
-        name="Cunning"
-    )
-    content_skill_category_2, _ = ContentSkillCategory.objects.get_or_create(
-        name="Shooting"
-    )
-    ContentSkill.objects.get_or_create(
-        name="Infiltrate", category=content_skill_category_1
-    )
-    ContentSkill.objects.get_or_create(
-        name="Overwatch", category=content_skill_category_2
-    )
+    _, cunning_category = make_content_skills_in_category(["Infiltrate"], "Cunning")
+    _, shooting_category = make_content_skills_in_category(["Overwatch"], "Shooting")
 
     specialist_content_fighter = make_content_fighter(
         type="Specialist",
@@ -38,10 +28,8 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
         base_cost=50,
     )
 
-    specialist_content_fighter.primary_skill_categories.set([content_skill_category_1])
-    specialist_content_fighter.secondary_skill_categories.set(
-        [content_skill_category_2]
-    )
+    specialist_content_fighter.primary_skill_categories.set([cunning_category])
+    specialist_content_fighter.secondary_skill_categories.set([shooting_category])
     specialist_content_fighter.save()
 
     # Create a list and add an instance of the specialist fighter
@@ -116,6 +104,7 @@ def test_fighter_advancement_flow_promote_specialist_champion(
     user,
     make_content_house,
     make_content_fighter,
+    make_content_skills_in_category,
     make_list,
     make_list_fighter,
 ):
@@ -123,20 +112,10 @@ def test_fighter_advancement_flow_promote_specialist_champion(
     Test the flow of creating a champion promotion advancement for a specialist
     previously promoted from a ganger.
     """
-    # Setup content house, skill, category, and fighter eligible for champion promotion
+    # Setup content house, skills, categories, and fighter eligible for champion promotion
     content_house = make_content_house("Test House")
-    content_skill_category_1, _ = ContentSkillCategory.objects.get_or_create(
-        name="Cunning"
-    )
-    content_skill_category_2, _ = ContentSkillCategory.objects.get_or_create(
-        name="Shooting"
-    )
-    ContentSkill.objects.get_or_create(
-        name="Infiltrate", category=content_skill_category_1
-    )
-    ContentSkill.objects.get_or_create(
-        name="Overwatch", category=content_skill_category_2
-    )
+    _, cunning_category = make_content_skills_in_category(["Infiltrate"], "Cunning")
+    _, shooting_category = make_content_skills_in_category(["Overwatch"], "Shooting")
 
     ganger_content_fighter = make_content_fighter(
         type="Ganger",
@@ -145,8 +124,8 @@ def test_fighter_advancement_flow_promote_specialist_champion(
         base_cost=30,
     )
 
-    ganger_content_fighter.primary_skill_categories.set([content_skill_category_1])
-    ganger_content_fighter.secondary_skill_categories.set([content_skill_category_2])
+    ganger_content_fighter.primary_skill_categories.set([cunning_category])
+    ganger_content_fighter.secondary_skill_categories.set([shooting_category])
 
     # Create a list and add an instance of the ganger fighter
     gang_list = make_list(name="Champion promotion test list", owner=user)

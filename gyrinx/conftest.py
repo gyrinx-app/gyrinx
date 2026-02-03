@@ -281,6 +281,28 @@ def make_content_skill():
 
 
 @pytest.fixture
+def make_content_skills_in_category():
+    """Factory fixture to create multiple ContentSkill objects in a given category."""
+    from gyrinx.content.models import ContentSkill, ContentSkillCategory
+
+    def make_content_skills_in_category_(
+        skill_names: list[str], category_name: str = "Combat", **kwargs
+    ):
+        skill_category, _ = ContentSkillCategory.objects.get_or_create(
+            name=category_name, defaults=kwargs
+        )
+        skills = []
+        for skill_name in skill_names:
+            skill, _ = ContentSkill.objects.get_or_create(
+                name=skill_name, category=skill_category, defaults=kwargs
+            )
+            skills.append(skill)
+        return skills, skill_category
+
+    return make_content_skills_in_category_
+
+
+@pytest.fixture
 def content_fighter(content_house, make_content_fighter):
     return make_content_fighter(
         type="Prospector Digger",
