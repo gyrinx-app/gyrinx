@@ -277,6 +277,27 @@ SQL_DEBUG=True
 - Static files must be collected before running tests that render templates
 - The conftest.py configures tests to use StaticFilesStorage to avoid manifest issues
 
+**IMPORTANT: Use existing fixtures from `gyrinx/conftest.py`.** Read the conftest before writing tests. Do not
+manually create users, houses, fighters, campaigns, or lists inline when a fixture or factory already exists.
+
+Key fixtures:
+
+- `user` - creates user "testuser" with password "password"
+- `make_user(username, password)` - factory for additional users
+- `client` - Django test client (from pytest-django, use with `client.login()` or `client.force_login(user)`)
+- `content_house` - a ContentHouse
+- `content_fighter` - a ContentFighter with full statline
+- `make_content_fighter(type, category, house, base_cost, **kwargs)` - factory for custom fighters
+- `campaign` - an IN_PROGRESS campaign owned by `user`
+- `make_campaign(name, **kwargs)` - factory for campaigns
+- `make_list(name, **kwargs)` - factory for lists (owned by `user`, uses `content_house`)
+- `make_list_fighter(list_, name, **kwargs)` - factory for fighters
+- `list_with_campaign` - a list in CAMPAIGN_MODE with associated campaign
+- `house` - backward-compat alias, creates a separate ContentHouse (prefer `content_house`)
+
+When tests need multiple distinct users (e.g. campaign owner vs list owner), use `make_user` for the extra users
+and override the `owner` kwarg on the factory fixtures.
+
 ### Security
 
 - Run `bandit -c pyproject.toml -r .` to check for security issues in Python code
