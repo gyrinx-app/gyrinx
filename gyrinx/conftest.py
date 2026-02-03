@@ -16,6 +16,7 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign
@@ -266,11 +267,12 @@ def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
 
 
 @pytest.fixture
-def make_content_skill():
+def make_content_skill() -> Callable[[str, str], ContentSkill]:
     """Factory fixture to create ContentSkill objects."""
-    from gyrinx.content.models import ContentSkill, ContentSkillCategory
 
-    def make_content_skill_(name: str, category: str = "Combat", **kwargs):
+    def make_content_skill_(
+        name: str, category: str = "Combat", **kwargs
+    ) -> ContentSkill:
         skill_category, _ = ContentSkillCategory.objects.get_or_create(name=category)
         skill, _ = ContentSkill.objects.get_or_create(
             name=name, category=skill_category, defaults=kwargs
@@ -281,13 +283,14 @@ def make_content_skill():
 
 
 @pytest.fixture
-def make_content_skills_in_category():
+def make_content_skills_in_category() -> Callable[
+    [list[str], str], tuple[list[ContentSkill], ContentSkillCategory]
+]:
     """Factory fixture to create multiple ContentSkill objects in a given category."""
-    from gyrinx.content.models import ContentSkill, ContentSkillCategory
 
     def make_content_skills_in_category_(
         skill_names: list[str], category_name: str = "Combat", **kwargs
-    ):
+    ) -> tuple[list[ContentSkill], ContentSkillCategory]:
         skill_category, _ = ContentSkillCategory.objects.get_or_create(
             name=category_name, defaults=kwargs
         )
