@@ -99,7 +99,7 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
 
 
 @pytest.mark.django_db
-def test_fighter_advancement_flow_promote_specialist_champion(
+def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
     client,
     user,
     make_content_house,
