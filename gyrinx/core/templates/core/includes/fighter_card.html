@@ -1,6 +1,8 @@
 {% load allauth custom_tags %}
 {% if list.owner_cached == user and not list.archived %}
     {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=True print=print classes=classes %}
+{% elif list.campaign and list.campaign.owner == user and list.is_campaign_mode and not list.archived %}
+    {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=False is_arbitrator=True print=print classes=classes %}
 {% else %}
     {% include "core/includes/fighter_card_content.html" with fighter=fighter list=list user=user can_edit=False print=print classes=classes %}
 {% endif %}

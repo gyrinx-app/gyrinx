@@ -452,3 +452,180 @@ def test_add_injury_with_dead_state_redirects_to_kill():
     assert f"{fighter.name} suffered {injury.name}" in action.description
     assert "Mortal wound" in action.description
     assert "was put into Dead" in action.outcome
+
+
+@pytest.fixture
+def campaign_owner(make_user):
+    return make_user("campaign_owner", "testpass")
+
+
+@pytest.fixture
+def list_owner(make_user):
+    return make_user("list_owner", "testpass")
+
+
+@pytest.fixture
+def co_content_fighter(house, make_content_fighter):
+    return make_content_fighter(
+        type="Test Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=100,
+    )
+
+
+@pytest.fixture
+def co_campaign(campaign_owner):
+    return Campaign.objects.create(
+        name="Test Campaign",
+        owner=campaign_owner,
+        status=Campaign.IN_PROGRESS,
+    )
+
+
+@pytest.fixture
+def co_list(list_owner, house, co_campaign):
+    return List.objects.create(
+        name="Test List",
+        content_house=house,
+        owner=list_owner,
+        status=List.CAMPAIGN_MODE,
+        campaign=co_campaign,
+    )
+
+
+@pytest.fixture
+def co_fighter(list_owner, co_content_fighter, co_list):
+    return ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=co_content_fighter,
+        list=co_list,
+        owner=list_owner,
+    )
+
+
+@pytest.fixture
+def co_injuries():
+    return [
+        ContentInjury.objects.get_or_create(
+            name="CO Test Eye Injury",
+            defaults={
+                "description": "Recovery, -1 Ballistic Skill",
+                "phase": ContentInjuryDefaultOutcome.RECOVERY,
+            },
+        )[0],
+    ]
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_view_injuries_edit(
+    client, campaign_owner, co_list, co_fighter
+):
+    """Test that campaign owner can access the injuries edit view."""
+    client.login(username="campaign_owner", password="testpass")
+
+    url = reverse("core:list-fighter-injuries-edit", args=[co_list.id, co_fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_add_injury(
+    client, campaign_owner, list_owner, co_list, co_fighter, co_injuries
+):
+    """Test that campaign owner can add an injury to a fighter."""
+    client.login(username="campaign_owner", password="testpass")
+
+    url = reverse("core:list-fighter-injury-add", args=[co_list.id, co_fighter.id])
+    injury = co_injuries[0]
+
+    response = client.post(
+        url,
+        {
+            "injury": injury.id,
+            "fighter_state": "recovery",
+            "notes": "Arbitrator ruling",
+        },
+    )
+
+    assert response.status_code == 302
+
+    # Check injury was created with list owner as owner
+    assert co_fighter.injuries.count() == 1
+    fighter_injury = co_fighter.injuries.first()
+    assert fighter_injury.injury == injury
+    assert fighter_injury.owner == list_owner
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_remove_injury(
+    client, campaign_owner, list_owner, co_list, co_fighter, co_injuries
+):
+    """Test that campaign owner can remove an injury from a fighter."""
+    client.login(username="campaign_owner", password="testpass")
+
+    # Add an injury first
+    fighter_injury = ListFighterInjury.objects.create(
+        fighter=co_fighter,
+        injury=co_injuries[0],
+        owner=list_owner,
+    )
+
+    url = reverse(
+        "core:list-fighter-injury-remove",
+        args=[co_list.id, co_fighter.id, fighter_injury.id],
+    )
+    response = client.post(url)
+
+    assert response.status_code == 302
+    assert co_fighter.injuries.count() == 0
+
+
+@pytest.mark.django_db
+def test_campaign_owner_can_edit_fighter_state(
+    client, campaign_owner, co_list, co_fighter
+):
+    """Test that campaign owner can edit fighter state."""
+    client.login(username="campaign_owner", password="testpass")
+
+    url = reverse("core:list-fighter-state-edit", args=[co_list.id, co_fighter.id])
+
+    # GET should work
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # POST should change state
+    response = client.post(
+        url,
+        {
+            "fighter_state": ListFighter.RECOVERY,
+            "reason": "Arbitrator decision",
+        },
+    )
+
+    assert response.status_code == 302
+
+    co_fighter.refresh_from_db()
+    assert co_fighter.injury_state == ListFighter.RECOVERY
+
+
+@pytest.mark.django_db
+def test_non_owner_cannot_manage_injuries(
+    client, make_user, co_list, co_fighter, co_injuries
+):
+    """Test that unrelated users cannot manage injuries."""
+    make_user("unrelated_user", "testpass")
+    client.login(username="unrelated_user", password="testpass")
+
+    # Cannot view injuries edit
+    url = reverse("core:list-fighter-injuries-edit", args=[co_list.id, co_fighter.id])
+    assert client.get(url).status_code == 404
+
+    # Cannot add injury
+    url = reverse("core:list-fighter-injury-add", args=[co_list.id, co_fighter.id])
+    assert client.post(url, {"injury": co_injuries[0].id}).status_code == 404
+
+    # Cannot edit state
+    url = reverse("core:list-fighter-state-edit", args=[co_list.id, co_fighter.id])
+    assert client.get(url).status_code == 404

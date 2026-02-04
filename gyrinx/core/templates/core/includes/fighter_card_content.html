@@ -22,11 +22,17 @@
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
-                    {% if can_edit and not print %}
-                        <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
-                           class="badge ms-2 text-decoration-none {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
-                            {{ fighter.get_injury_state_display }}
-                        </a>
+                    {% if not print %}
+                        {% if can_edit or is_arbitrator %}
+                            <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
+                               class="badge ms-2 text-decoration-none {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
+                                {{ fighter.get_injury_state_display }}
+                            </a>
+                        {% else %}
+                            <span class="badge ms-2 {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
+                                {{ fighter.get_injury_state_display }}
+                            </span>
+                        {% endif %}
                     {% else %}
                         <span class="badge ms-2 {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
                             {{ fighter.get_injury_state_display }}
@@ -247,7 +253,7 @@
                      role="tabpanel"
                      aria-labelledby="card-tab-{{ fighter.id }}"
                      tabindex="0">
-                    {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit print=print body_classes_=body_classes_ %}
+                    {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit is_arbitrator=is_arbitrator print=print body_classes_=body_classes_ %}
                 </div>
                 <!-- Info tab -->
                 <div class="tab-pane fade p-2"
@@ -323,7 +329,7 @@
         {% else %}
             <!-- No tabs in print mode -->
             <div class="vstack {{ body_classes_ }}">
-                {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit print=print body_classes_=body_classes_ %}
+                {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit is_arbitrator=is_arbitrator print=print body_classes_=body_classes_ %}
             </div>
         {% endif %}
     </div>
