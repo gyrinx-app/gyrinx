@@ -10,6 +10,7 @@
             <p class="fs-5 col-12 col-md-6 mb-0">
                 Browse and manage campaigns.
                 {% if user.is_authenticated %}
+                    <br>
                     <a href="{% url 'core:campaigns-new' %}">Create a new Campaign</a>.
                 {% endif %}
             </p>
