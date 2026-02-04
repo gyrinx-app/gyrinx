@@ -20,6 +20,14 @@ jobs:
         with:
           fetch-depth: 0 # Need full history for git log
 
+      # Workaround for anthropics/claude-code-action#900: the action's
+      # checkHumanActor calls the GitHub API before checking allowed_bots,
+      # which 404s for bot actors like github-merge-queue[bot]. Override
+      # GITHUB_ACTOR so the action sees a real user.
+      - name: Fix actor for scheduled runs
+        if: github.event_name == 'schedule' && contains(github.actor, '[bot]')
+        run: echo "GITHUB_ACTOR=${{ github.repository_owner }}" >> "$GITHUB_ENV"
+
       - name: Get date range
         id: dates
         run: |
@@ -52,7 +60,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Allow scheduled runs which may have github-merge-queue[bot] as the actor
+          # Belt-and-suspenders: also declare the bot as allowed in case the
+          # GITHUB_ACTOR override above is removed once the upstream bug is fixed.
           allowed_bots: "github-merge-queue[bot]"
 
           claude_args: |
