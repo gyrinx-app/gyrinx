@@ -147,11 +147,8 @@ def test_print_view_default_shows_stash(authenticated_client, test_list_with_sta
 
 
 @pytest.mark.django_db
-def test_specific_fighters_requires_selection(
-    authenticated_client, test_list_with_stash
-):
+def test_specific_fighters_requires_selection(test_list_with_stash):
     """Test that 'Specific fighters' mode requires at least one fighter selected."""
-    client, user = authenticated_client
     test_list, stash_fighter, regular_fighter = test_list_with_stash
 
     form = PrintConfigForm(
@@ -170,11 +167,8 @@ def test_specific_fighters_requires_selection(
 
 
 @pytest.mark.django_db
-def test_specific_fighters_valid_with_selection(
-    authenticated_client, test_list_with_stash
-):
+def test_specific_fighters_valid_with_selection(test_list_with_stash):
     """Test that 'Specific fighters' mode is valid when fighters are selected."""
-    client, user = authenticated_client
     test_list, stash_fighter, regular_fighter = test_list_with_stash
 
     form = PrintConfigForm(

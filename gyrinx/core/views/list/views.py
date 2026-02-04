@@ -373,6 +373,8 @@ class ListPrintView(generic.DetailView):
                             "id", flat=True
                         )
                     )
+                else:
+                    fighters_qs = fighters_qs.none()
             # else: ALL_FIGHTERS - no filtering needed
 
             # Exclude dead fighters if configured (unless mode is NO_FIGHTERS)

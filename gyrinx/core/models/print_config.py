@@ -123,6 +123,8 @@ class PrintConfig(AppBase):
                     ngettext("%(count)d Fighter", "%(count)d Fighters", fighter_count)
                     % {"count": fighter_count}
                 )
+            else:
+                included.append("0 Fighters")
         else:  # ALL_FIGHTERS
             included.append("All Fighters")
 
