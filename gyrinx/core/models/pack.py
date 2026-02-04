@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -75,6 +76,25 @@ class CustomContentPackItem(AppBase):
                 name="idx_pack_item_ct_oid",
             ),
         ]
+
+    def clean(self):
+        super().clean()
+        if self.content_type_id and self.object_id:
+            model_class = self.content_type.model_class()
+            # Use all_content() to bypass pack filtering, since the object
+            # we're linking may itself be pack content.
+            manager = model_class._default_manager
+            if hasattr(manager, "all_content"):
+                qs = manager.all_content()
+            else:
+                qs = manager.all()
+            if not qs.filter(pk=self.object_id).exists():
+                raise ValidationError(
+                    {
+                        "object_id": f"No {model_class._meta.verbose_name} "
+                        f"found with ID {self.object_id}."
+                    }
+                )
 
     def __str__(self):
         return f"{self.pack.name}: {self.content_object}"

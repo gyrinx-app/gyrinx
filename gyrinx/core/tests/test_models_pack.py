@@ -1,5 +1,8 @@
+import uuid
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 
 from gyrinx.content.models import (
     ContentEquipment,
@@ -146,6 +149,38 @@ def test_pack_item_in_multiple_packs(user, house):
     )
     assert pack1.items.count() == 1
     assert pack2.items.count() == 1
+
+
+@pytest.mark.django_db
+def test_pack_item_validates_object_exists(pack):
+    """Creating a pack item with a non-existent object ID should fail validation."""
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    item = CustomContentPackItem(
+        pack=pack,
+        content_type=ct,
+        object_id=uuid.uuid4(),
+        owner=pack.owner,
+    )
+    with pytest.raises(ValidationError, match="object_id"):
+        item.full_clean()
+
+
+@pytest.mark.django_db
+def test_pack_item_validates_object_exists_for_valid_object(pack, house):
+    """Creating a pack item with a valid object ID should pass validation."""
+    fighter = ContentFighter.objects.all_content().create(
+        type="Valid Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+    )
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    item = CustomContentPackItem(
+        pack=pack,
+        content_type=ct,
+        object_id=fighter.pk,
+        owner=pack.owner,
+    )
+    item.full_clean()
 
 
 @pytest.mark.django_db
