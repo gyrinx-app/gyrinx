@@ -7,6 +7,7 @@ from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.validators import HTMLTextMaxLengthValidator
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -36,7 +37,7 @@ class Campaign(AppBase):
     )
     summary = models.TextField(
         blank=True,
-        validators=[validators.MaxLengthValidator(300)],
+        validators=[HTMLTextMaxLengthValidator(300)],
         help_text="A short summary of the campaign. This will be displayed on the campaign list page.",
     )
     narrative = models.TextField(
