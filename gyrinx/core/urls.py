@@ -27,6 +27,7 @@ from .views.fighter import xp as fighter_xp
 from .views.list import attributes as list_attributes
 from .views.list import invitations as list_invitations
 from .views.list import views as list_views
+from .views import pack as pack_views
 
 # Name new URLs like this:
 # * Transaction pages: noun[-noun]-verb
@@ -655,6 +656,11 @@ urlpatterns = [
         campaign_captured.fighter_release,
         name="fighter-release",
     ),
+    # Packs (Customisation)
+    path("packs/", pack_views.PacksView.as_view(), name="packs"),
+    path("packs/new/", pack_views.new_pack, name="packs-new"),
+    path("pack/<id>", pack_views.PackDetailView.as_view(), name="pack"),
+    path("pack/<id>/edit/", pack_views.edit_pack, name="pack-edit"),
     # TinyMCE upload
     path(
         "tinymce/upload/",
