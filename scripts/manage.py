@@ -2,6 +2,15 @@
 
 import os
 import sys
+import warnings
+
+# Filter deprecation warning from Google namespace packages using pkg_resources.
+# This is a third-party issue that we can't fix directly.
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API",
+    category=UserWarning,
+)
 
 
 def main():
