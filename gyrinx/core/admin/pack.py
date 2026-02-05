@@ -5,6 +5,8 @@ from django.utils.html import format_html
 from gyrinx.core.admin.base import BaseAdmin
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
+__all__ = ["CustomContentPackAdmin", "CustomContentPackItemAdmin"]
+
 
 @admin.register(CustomContentPack)
 class CustomContentPackAdmin(BaseAdmin):

@@ -47,16 +47,10 @@ class ContentQuerySet(models.QuerySet):
         """Return items not in any pack plus items from specified packs."""
         from django.db.models import Exists, OuterRef
 
-        from gyrinx.core.models.pack import CustomContentPackItem
-
-        any_pack = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
-        specified_pack = CustomContentPackItem.objects.filter(
-            content_type__app_label=self.model._meta.app_label,
-            content_type__model=self.model._meta.model_name,
-            object_id=OuterRef("pk"),
-            pack__in=packs,
-        )
-        return self.filter(~Exists(any_pack) | Exists(specified_pack))
+        pack_items = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
+        not_in_any_pack = ~Exists(pack_items)
+        in_specified_packs = Exists(pack_items.filter(pack__in=packs))
+        return self.filter(not_in_any_pack | in_specified_packs)
 
 
 class ContentManager(models.Manager):
@@ -67,23 +61,16 @@ class ContentManager(models.Manager):
     content from specific packs.
     """
 
-    def _get_base_queryset(self):
-        """Get the base queryset using ContentQuerySet if no custom queryset class is set."""
-        qs = super().get_queryset()
-        if isinstance(qs, ContentQuerySet):
-            return qs
-        return ContentQuerySet(self.model, using=self._db)
-
     def get_queryset(self):
-        return self._get_base_queryset().exclude_pack_content()
+        return super().get_queryset().exclude_pack_content()
 
     def all_content(self):
         """Return all content including pack items."""
-        return self._get_base_queryset()
+        return super().get_queryset()
 
     def with_packs(self, packs):
         """Return base content plus content from specified packs."""
-        return self._get_base_queryset().with_packs(packs)
+        return super().get_queryset().with_packs(packs)
 
 
 class Content(Base):
