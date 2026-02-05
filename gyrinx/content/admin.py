@@ -84,22 +84,73 @@ class ContentAdmin(admin.ModelAdmin):
             for f in model._meta.fields
             if f.name not in ["created", "modified", "id"]
         ]
+        self.list_display.append("packs_display")
         self.initial_list_display = self.list_display.copy()
         super().__init__(model, admin_site)
+
+    def get_queryset(self, request):
+        manager = self.model._default_manager
+        if hasattr(manager, "all_content"):
+            qs = manager.all_content()
+            ordering = self.get_ordering(request)
+            if ordering:
+                qs = qs.order_by(*ordering)
+            return qs
+        return super().get_queryset(request)
+
+    @admin.display(description="Packs")
+    def packs_display(self, obj):
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        ct = ContentType.objects.get_for_model(obj)
+        items = CustomContentPackItem.objects.filter(
+            content_type=ct, object_id=obj.pk
+        ).select_related("pack")
+        if not items:
+            return "-"
+        return ", ".join(item.pack.name for item in items)
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if "packs_display" not in readonly:
+            readonly.append("packs_display")
+        return readonly
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if "packs_display" not in fields:
+            fields.append("packs_display")
+        return fields
 
 
 class ContentTabularInline(admin.TabularInline):
     show_change_link = True
 
-    def __init__(self, parent_model, admin_site):
-        super().__init__(parent_model, admin_site)
+    def get_queryset(self, request):
+        manager = self.model._default_manager
+        if hasattr(manager, "all_content"):
+            qs = manager.all_content()
+            ordering = self.get_ordering(request)
+            if ordering:
+                qs = qs.order_by(*ordering)
+            return qs
+        return super().get_queryset(request)
 
 
 class ContentStackedInline(admin.StackedInline):
     show_change_link = True
 
-    def __init__(self, parent_model, admin_site):
-        super().__init__(parent_model, admin_site)
+    def get_queryset(self, request):
+        manager = self.model._default_manager
+        if hasattr(manager, "all_content"):
+            qs = manager.all_content()
+            ordering = self.get_ordering(request)
+            if ordering:
+                qs = qs.order_by(*ordering)
+            return qs
+        return super().get_queryset(request)
 
 
 class ContentStackedPolymorphicInline(
