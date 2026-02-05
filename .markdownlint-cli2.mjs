@@ -19,6 +19,8 @@ const options = {
         "heading-increment": false,
         // Use 2-space indentation for lists (standard for markdownlint)
         "ul-indent": { indent: 2 },
+        // Disable table-column-style as it cannot autofix
+        "table-column-style": false,
     }),
     customRules: ["@github/markdownlint-github"],
     markdownItFactory,
