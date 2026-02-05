@@ -16,7 +16,6 @@ warnings.filterwarnings(
     "ignore",
     message="pkg_resources is deprecated as an API",
     category=UserWarning,
-    module=r"google\..*",
 )
 
 from django.core.wsgi import get_wsgi_application  # noqa: E402
