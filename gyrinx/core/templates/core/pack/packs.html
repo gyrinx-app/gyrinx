@@ -1,0 +1,89 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Customisation
+{% endblock head_title %}
+{% block content %}
+    <div class="col-lg-12 px-0 vstack gap-4">
+        <div>
+            <h1 class="mb-1">Customisation</h1>
+            <p class="fs-5 col-12 col-md-6 mb-0">
+                Browse and manage Content Packs.
+                {% if user.is_authenticated %}
+                    <br>
+                    <a href="{% url 'core:packs-new' %}">Create a new Content Pack</a>.
+                {% endif %}
+            </p>
+        </div>
+        <div class="grid">
+            {% url 'core:packs' as action %}
+            {% include "core/includes/packs_filter.html" with action=action %}
+        </div>
+        <div class="vstack gap-4">
+            {% for pack in packs %}
+                <div class="hstack gap-3 position-relative">
+                    <div class="d-flex flex-column gap-1">
+                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                            <h2 class="mb-0 h5">
+                                <a href="{% url 'core:pack' pack.id %}">{{ pack.name }}</a>
+                            </h2>
+                            <div>
+                                <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a>
+                            </div>
+                            {% if not pack.listed %}
+                                <div>
+                                    <span class="badge bg-secondary">Unlisted</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% if pack.summary %}<div class="mb-last-0 text-secondary">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
+                    </div>
+                    <div class="ms-auto d-md-none">
+                        <a href="{% url 'core:pack' pack.id %}" class="p-3 stretched-link">
+                            <i class="bi-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="py-2">No content packs available.</div>
+            {% endfor %}
+            {% if is_paginated %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% qt request page=page_obj.previous_page_number %}">Previous</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Previous</span>
+                            </li>
+                        {% endif %}
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% qt request page=num %}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% qt request page=page_obj.next_page_number %}">Next</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Next</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

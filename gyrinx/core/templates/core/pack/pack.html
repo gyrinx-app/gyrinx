@@ -1,0 +1,61 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url="/packs/" text="Customisation" %}
+    <div class="col-12 col-xl-8 px-0 vstack gap-5">
+        <!-- Header -->
+        <div class="vstack gap-0">
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
+                <h1 class="mb-0">{{ pack.name }}</h1>
+                {% if is_owner %}
+                    <nav class="nav btn-group flex-nowrap ms-md-auto">
+                        <a href="{% url 'core:pack-edit' pack.id %}"
+                           class="btn btn-primary btn-sm">
+                            <i class="bi-pencil"></i> Edit
+                        </a>
+                    </nav>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-2 text-muted small">
+                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a></span>
+                {% if pack.listed %}
+                    <span data-bs-toggle="tooltip"
+                          data-bs-title="This Content Pack is visible to all users"><i class="bi-eye"></i> Public</span>
+                {% else %}
+                    <span data-bs-toggle="tooltip"
+                          data-bs-title="This Content Pack can only be accessed by users with the direct link"><i class="bi-eye-slash"></i> Unlisted</span>
+                {% endif %}
+            </div>
+        </div>
+        <!-- Pack info -->
+        {% if pack.summary or pack.description %}
+            <div class="vstack gap-1 col-md-9">
+                {% if pack.summary %}<div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
+                {% if pack.description %}
+                    <div class="text-muted fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
+                {% endif %}
+            </div>
+        {% endif %}
+        <!-- Content -->
+        {% for section in content_sections %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">
+                        <i class="{{ section.icon }}"></i> {{ section.label }}
+                        {% if section.count > 0 %}<span class="badge bg-primary">{{ section.count }}</span>{% endif %}
+                    </h2>
+                </div>
+                {% if section.items %}
+                    <ul class="list-unstyled mb-0">
+                        {% for item in section.items %}<li class="py-1">{{ item }}</li>{% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                {% endif %}
+            </section>
+        {% endfor %}
+    </div>
+{% endblock content %}
