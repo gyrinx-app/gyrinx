@@ -27,6 +27,7 @@ Error handling is automatic - exceptions are recorded on spans and re-raised.
 
 import logging
 import os
+import sys
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Generator, Optional
@@ -349,5 +350,10 @@ def _reset_tracing() -> None:
     _initialized = False
 
 
-# Initialize tracing on module import
-_init_tracing()
+# Initialize tracing on module import.
+# Skip in the autoreloader's parent process to avoid duplicate startup logs.
+# Django's StatReloader spawns two processes: the parent (watcher) and child
+# (server, identified by RUN_MAIN=true). Both run full Django init, so without
+# this guard every startup message appears twice.
+if os.environ.get("RUN_MAIN") == "true" or "runserver" not in sys.argv:
+    _init_tracing()
