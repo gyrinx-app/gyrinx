@@ -14,6 +14,10 @@ class HTMLTextMaxLengthValidator:
     Strips HTML tags and counts only the visible text characters.
     This is useful for fields that use WYSIWYG editors which store HTML,
     but where the character limit should apply to the user-visible text only.
+
+    When extracting text, elements are joined using a single space as a separator
+    (via ``separator=" "``), and leading/trailing whitespace is stripped. The
+    character count is computed on this normalized text.
     """
 
     message = ngettext_lazy(
@@ -34,6 +38,9 @@ class HTMLTextMaxLengthValidator:
 
         # Strip HTML tags and get plain text
         soup = BeautifulSoup(value, "html.parser")
+        # Remove non-visible content such as scripts and styles before extracting text
+        for element in soup.find_all(["script", "style"]):
+            element.decompose()
         text = soup.get_text(separator=" ", strip=True)
         text_length = len(text)
 
@@ -54,3 +61,6 @@ class HTMLTextMaxLengthValidator:
             and self.message == other.message
             and self.code == other.code
         )
+
+    def __hash__(self):
+        return hash((self.limit_value, self.message, self.code))

@@ -87,7 +87,9 @@ class TestHTMLTextMaxLengthValidator:
         validator = HTMLTextMaxLengthValidator(20)
         # Text with lots of whitespace between elements
         html = "<p>Word1</p>   <p>Word2</p>"
-        # get_text with strip=True normalizes whitespace
+        # The validator uses get_text(strip=True, separator=" "), which strips
+        # leading/trailing whitespace in text nodes and inserts a single space
+        # between elements, collapsing inter-element whitespace.
         validator(html)
 
     def test_error_message_shows_actual_length(self):
@@ -117,6 +119,48 @@ class TestHTMLTextMaxLengthValidator:
         with pytest.raises(ValidationError) as exc_info:
             validator("123456")
         assert "Too long!" in str(exc_info.value)
+
+    def test_script_tags_not_counted(self):
+        """Script tag content should not be counted towards the limit."""
+        validator = HTMLTextMaxLengthValidator(10)
+        # Only "Hello" (5 chars) should be counted, not the script content
+        html = "<p>Hello</p><script>alert('this is a very long script')</script>"
+        validator(html)
+
+    def test_style_tags_not_counted(self):
+        """Style tag content should not be counted towards the limit."""
+        validator = HTMLTextMaxLengthValidator(10)
+        # Only "Hello" (5 chars) should be counted, not the style content
+        html = "<p>Hello</p><style>.class { color: red; background: blue; }</style>"
+        validator(html)
+
+    def test_script_and_style_combined(self):
+        """Both script and style content should be excluded from count."""
+        validator = HTMLTextMaxLengthValidator(5)
+        html = """
+        <script>var x = 'very long script content';</script>
+        <p>Hello</p>
+        <style>.class { color: red; margin: 10px; }</style>
+        """
+        # Only "Hello" (5 chars) should be counted
+        validator(html)
+
+    def test_validator_hashability(self):
+        """Validators should be hashable and usable in sets/dicts."""
+        v1 = HTMLTextMaxLengthValidator(100)
+        v2 = HTMLTextMaxLengthValidator(100)
+        v3 = HTMLTextMaxLengthValidator(200)
+
+        # Equal validators should have equal hashes
+        assert hash(v1) == hash(v2)
+
+        # Should be usable in a set
+        validator_set = {v1, v2, v3}
+        assert len(validator_set) == 2  # v1 and v2 are equal, so only 2 unique
+
+        # Should be usable as dict keys
+        validator_dict = {v1: "first", v3: "third"}
+        assert validator_dict[v2] == "first"  # v2 equals v1
 
 
 @pytest.mark.django_db
