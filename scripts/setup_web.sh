@@ -22,16 +22,17 @@ echo "=== Claude Code on the Web: Gyrinx Environment Setup ==="
 # ---------------------------------------------------------------------------
 echo "--- [1/8] Installing GitHub CLI ---"
 if ! command -v gh &>/dev/null; then
-  (type -p wget >/dev/null || (sudo apt-get update && sudo apt-get install wget -y)) \
-    && sudo mkdir -p -m 755 /etc/apt/keyrings \
-    && out=$(mktemp) \
-    && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    && cat "$out" | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-    && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && sudo apt-get update \
-    && sudo apt-get install gh -y
+  # Install from a direct binary download rather than apt.
+  # The web environment has limited network; apt-get update fails because
+  # it tries to reach every configured apt source (PPAs, etc.).  Direct
+  # download only needs github.com + objects.githubusercontent.com, both
+  # on the allow-list.
+  GH_VERSION="2.67.0"
+  curl -LsSf "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+    -o /tmp/gh.tar.gz
+  tar -xzf /tmp/gh.tar.gz -C /tmp
+  sudo install /tmp/"gh_${GH_VERSION}_linux_amd64"/bin/gh /usr/local/bin/gh
+  rm -rf /tmp/gh.tar.gz /tmp/"gh_${GH_VERSION}_linux_amd64"
   echo "gh installed: $(gh --version | head -1)"
 else
   echo "gh already installed: $(gh --version | head -1)"
