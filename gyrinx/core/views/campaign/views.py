@@ -25,12 +25,12 @@ class Campaigns(generic.ListView):
             Campaign.objects.all().select_related("owner").prefetch_related("lists")
         )
 
-        # Apply "My campaigns only" filter - default to "my" campaigns if user is authenticated
+        # Apply "Your Campaigns Only" filter - default to user's campaigns if authenticated
         if self.request.user.is_authenticated:
             # Check if "my" parameter is explicitly set to "0" to show public campaigns
             show_my_campaigns = self.request.GET.get(
                 "my", "1"
-            )  # Default to "1" (my campaigns)
+            )  # Default to "1" (your campaigns)
             if show_my_campaigns == "1":
                 # Show campaigns where user is owner
                 queryset = queryset.filter(owner=self.request.user)
