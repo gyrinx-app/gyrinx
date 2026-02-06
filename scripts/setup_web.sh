@@ -126,7 +126,7 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "--- Persisting environment variables ---"
   VENV_PATH="${CLAUDE_PROJECT_DIR:-.}/.venv"
   {
-    echo "PATH=$HOME/.local/bin:${VENV_PATH}/bin:$PATH"
+    echo "PATH=${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
     echo "VIRTUAL_ENV=${VENV_PATH}"
     echo "DJANGO_SETTINGS_MODULE=gyrinx.settings_dev"
   } >> "$CLAUDE_ENV_FILE"
