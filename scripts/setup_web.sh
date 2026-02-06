@@ -18,6 +18,25 @@ fi
 echo "=== Claude Code on the Web: Gyrinx Environment Setup ==="
 
 # ---------------------------------------------------------------------------
+# 0. Fix sudo configuration ownership
+# ---------------------------------------------------------------------------
+# In some web environments, /etc/sudo.conf and /etc/sudoers end up owned by
+# the container user instead of root, which breaks all sudo commands.  Since
+# this script runs as root we can fix this before anything else.
+for f in /etc/sudo.conf /etc/sudoers; do
+  if [ -f "$f" ] && [ "$(stat -c '%u' "$f")" != "0" ]; then
+    echo "Fixing ownership of $f ..."
+    chown root:root "$f"
+  fi
+done
+if [ -d /etc/sudoers.d ]; then
+  if [ "$(stat -c '%u' /etc/sudoers.d)" != "0" ]; then
+    echo "Fixing ownership of /etc/sudoers.d/ ..."
+    chown -R root:root /etc/sudoers.d
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 1. Install GitHub CLI
 # ---------------------------------------------------------------------------
 echo "--- [1/8] Installing GitHub CLI ---"
