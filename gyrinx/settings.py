@@ -24,6 +24,27 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_json_env(name, default):
+    """Parse a JSON environment variable, stripping surrounding quotes if present.
+
+    Some environments (e.g. Claude Code on the Web) set env vars with literal
+    wrapping single-quotes like  DB_CONFIG='{"user":"postgres"}'  which causes
+    json.loads to fail.  Strip those before parsing.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    if value and value[0] == "'" and value[-1] == "'":
+        value = value[1:-1]
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Error parsing {name}: {e}")
+        return default
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -35,21 +56,13 @@ CSRF_FAILURE_VIEW = "gyrinx.core.views.csrf_failure"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-try:
-    ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS", "[]"))
-except Exception as e:
-    logger.error(f"Error parsing ALLOWED_HOSTS: {e}")
-    ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _parse_json_env("ALLOWED_HOSTS", [])
 
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
-try:
-    CSRF_TRUSTED_ORIGINS = json.loads(os.getenv("CSRF_TRUSTED_ORIGINS", "[]"))
-except Exception as e:
-    logger.error(f"Error parsing CSRF_TRUSTED_ORIGINS: {e}")
-    CSRF_TRUSTED_ORIGINS = []
+CSRF_TRUSTED_ORIGINS = _parse_json_env("CSRF_TRUSTED_ORIGINS", [])
 
 CSRF_COOKIE_DOMAIN = os.environ.get("CSRF_COOKIE_DOMAIN", None)
 
@@ -188,10 +201,7 @@ ASGI_APPLICATION = "gyrinx.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-try:
-    DB_CONFIG = json.loads(os.getenv("DB_CONFIG", "{}"))
-except json.JSONDecodeError as e:
-    logger.error(f"Error parsing DB_CONFIG: {e}")
+DB_CONFIG = _parse_json_env("DB_CONFIG", {})
 
 if not DB_CONFIG.get("user"):
     logger.error("DB_CONFIG is missing 'user' key")
