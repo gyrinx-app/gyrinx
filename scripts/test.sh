@@ -2,6 +2,11 @@
 
 set -e
 
+# Check if Docker daemon is running (used to decide Docker vs local execution)
+docker_available() {
+    docker info &>/dev/null 2>&1
+}
+
 ARGS=""
 
 # Function to check if requirements changed
@@ -51,13 +56,6 @@ check_requirements_changed() {
     return 1
 }
 
-echo "Checking if requirements have changed..."
-
-# Check if we need to rebuild
-if check_requirements_changed; then
-    ARGS="--build"
-fi
-
 # Check for parallel flag
 PYTEST_ARGS=""
 if [ "$1" = "--parallel" ] || [ "$1" = "-p" ]; then
@@ -70,4 +68,19 @@ if [ $# -gt 0 ]; then
     PYTEST_ARGS="$PYTEST_ARGS $@"
 fi
 
-docker compose run $ARGS --remove-orphans -T app pytest $PYTEST_ARGS
+if docker_available; then
+    echo "Checking if requirements have changed..."
+
+    # Check if we need to rebuild
+    if check_requirements_changed; then
+        ARGS="--build"
+    fi
+
+    docker compose run $ARGS --remove-orphans -T app pytest $PYTEST_ARGS
+else
+    # No Docker — run pytest directly (e.g. Claude Code on the Web, or local
+    # dev without Docker). Assumes PostgreSQL is already running and the venv
+    # is active.
+    echo "Docker not available — running pytest directly"
+    pytest $PYTEST_ARGS
+fi

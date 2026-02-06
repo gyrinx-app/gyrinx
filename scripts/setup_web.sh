@@ -78,6 +78,24 @@ manage setupenv
 # ---------------------------------------------------------------------------
 echo "--- [5/8] Setting up PostgreSQL ---"
 
+# Tune PostgreSQL for parallel test workloads.  The default
+# max_locks_per_transaction (64) is too low when pytest-xdist spins up many
+# workers that each create all tables via syncdb (--nomigrations).
+PG_CONF="/etc/postgresql/16/main/postgresql.conf"
+if [ -f "$PG_CONF" ]; then
+  if ! grep -q 'max_locks_per_transaction = 256' "$PG_CONF" 2>/dev/null; then
+    echo "Tuning PostgreSQL max_locks_per_transaction..."
+    echo "max_locks_per_transaction = 256" | sudo tee -a "$PG_CONF" >/dev/null
+    # Restart PostgreSQL if it's already running so the config change takes effect
+    if pg_isready -q 2>/dev/null; then
+      echo "Restarting PostgreSQL to apply config..."
+      sudo pg_ctlcluster 16 main restart 2>/dev/null \
+        || sudo service postgresql restart 2>/dev/null \
+        || true
+    fi
+  fi
+fi
+
 # Start PostgreSQL if not already running
 if ! pg_isready -q 2>/dev/null; then
   echo "Starting PostgreSQL..."
@@ -100,6 +118,16 @@ done
 
 # Set the postgres user password so TCP connections with password auth work
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null || true
+
+# Read the DB_NAME from .env (falls back to the default used by settings.py)
+DB_NAME=$(grep '^DB_NAME=' .env 2>/dev/null | cut -d'=' -f2 || echo "gyrinx")
+DB_NAME="${DB_NAME:-gyrinx}"
+
+# Create the database if it doesn't already exist
+if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | grep -q 1; then
+  echo "Creating database '${DB_NAME}'..."
+  sudo -u postgres createdb "${DB_NAME}" 2>/dev/null || true
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Database migrations

@@ -100,10 +100,15 @@ npm install
 pre-commit install
 ```
 
+**Note:** In Claude Code on the Web environments, `setup_web.sh` runs automatically on session
+start and configures PostgreSQL directly (no Docker). Skip `docker compose` commands and use
+`pytest` / `manage` directly — the helper scripts (`test.sh`, `migrate.sh`) detect the
+environment automatically.
+
 ### Running the Application
 
 ```bash
-# Start database services
+# Start database services (local dev with Docker only)
 docker compose up -d
 
 # Run migrations
@@ -122,7 +127,7 @@ npm run watch
 ### Testing
 
 ```bash
-# Run full test suite (uses Docker for database)
+# Run full test suite (uses Docker if available, otherwise runs directly)
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing
@@ -343,6 +348,15 @@ and override the `owner` kwarg on the factory fixtures.
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
+- Use conventional commit prefixes for commit messages and PR titles:
+  - `feat:` — new feature or capability
+  - `fix:` — bug fix
+  - `refactor:` — code restructuring with no behaviour change
+  - `docs:` — documentation only
+  - `test:` — adding or updating tests
+  - `chore:` — maintenance, dependencies, CI, tooling
+  - `perf:` — performance improvement
+  - `style:` — formatting, whitespace (no logic change)
 
 ## Common File Locations
 
