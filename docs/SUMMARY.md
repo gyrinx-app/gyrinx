@@ -42,6 +42,23 @@
 - [State Machine](technical-reference/state-machine.md)
 - [Prefetching Strategy](technical-reference/prefetching-strategy.md)
 
+## Content Library
+
+- [Content Library Overview](content-library/README.md)
+- [Houses & Factions](content-library/houses-and-factions.md)
+- [Fighters & Fighter Types](content-library/fighters.md)
+- [Stats & Statlines](content-library/stats-and-statlines.md)
+- [Skills, Rules & Psyker Powers](content-library/skills-rules-and-psyker-powers.md)
+- [Equipment & Weapons](content-library/equipment-and-weapons.md)
+- [Equipment Availability & Restrictions](content-library/equipment-availability.md)
+- [Equipment List Expansions](content-library/equipment-list-expansions.md)
+- [Modifiers](content-library/modifiers.md)
+- [Injuries](content-library/injuries.md)
+- [Gang Attributes](content-library/gang-attributes.md)
+- [Advancements](content-library/advancements.md)
+- [Content Packs](content-library/content-packs.md)
+- [Reference Library](content-library/reference-library.md)
+
 ## Explanation
 
 - [Technology Choices](explanation/technology-choices.md)
