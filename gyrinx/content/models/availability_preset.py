@@ -83,6 +83,11 @@ class ContentAvailabilityPreset(Content):
         help_text="Maximum availability level (rarity roll). Leave blank for no limit.",
     )
 
+    fighter_can_buy_any = models.BooleanField(
+        default=False,
+        help_text="If checked, this fighter defaults to showing all equipment (filter=all) on weapons/gear pages, similar to house-level can_buy_any.",
+    )
+
     history = HistoricalRecords()
 
     class Meta:

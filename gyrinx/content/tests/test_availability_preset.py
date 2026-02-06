@@ -454,6 +454,154 @@ class TestAvailabilityPresetViewIntegration:
 
 
 @pytest.mark.django_db
+class TestFighterCanBuyAny:
+    """Tests for fighter_can_buy_any flag on ContentAvailabilityPreset."""
+
+    def test_fighter_can_buy_any_triggers_redirect(self, house, leader_fighter):
+        """When preset has fighter_can_buy_any=True, page redirects to filter=all."""
+        # Set house.can_buy_any to False to isolate the test
+        house.can_buy_any = False
+        house.save()
+
+        user = User.objects.create_user(
+            username="testuser_buy_any", password="password"
+        )
+
+        # Create a preset with fighter_can_buy_any=True
+        ContentAvailabilityPreset.objects.create(
+            category=FighterCategoryChoices.LEADER,
+            availability_types=["C", "R"],
+            max_availability_level=11,
+            fighter_can_buy_any=True,
+        )
+
+        # Create list and fighter
+        lst = List.objects.create(
+            owner=user,
+            name="Test List",
+            content_house=house,
+        )
+        list_fighter = ListFighter.objects.create(
+            list=lst,
+            content_fighter=leader_fighter,
+            name="Test Leader",
+            owner=user,
+        )
+
+        client = Client()
+        client.login(username="testuser_buy_any", password="password")
+
+        url = reverse("core:list-fighter-gear-edit", args=[lst.id, list_fighter.id])
+        response = client.get(url)
+
+        # Should redirect to filter=all with preset values
+        assert response.status_code == 302
+        assert "filter=all" in response.url
+        assert "al=C" in response.url
+        assert "al=R" in response.url
+        assert "mal=11" in response.url
+
+    def test_fighter_can_buy_any_false_no_redirect(self, leader_fighter):
+        """When preset has fighter_can_buy_any=False and house can_buy_any=False, no redirect occurs."""
+        # Create house without can_buy_any
+        house_no_buy = ContentHouse.objects.create(
+            name="No Buy House", can_buy_any=False
+        )
+
+        user = User.objects.create_user(username="testuser_no_buy", password="password")
+
+        # Create a preset with fighter_can_buy_any=False
+        ContentAvailabilityPreset.objects.create(
+            category=FighterCategoryChoices.LEADER,
+            availability_types=["C", "R"],
+            fighter_can_buy_any=False,
+        )
+
+        # Create leader fighter for this house
+        leader = ContentFighter.objects.create(
+            type="No Buy Leader",
+            house=house_no_buy,
+            category=FighterCategoryChoices.LEADER,
+            base_cost=150,
+            movement="5",
+            weapon_skill="3+",
+            ballistic_skill="3+",
+            strength="3",
+            toughness="3",
+            wounds="2",
+            initiative="3+",
+            attacks="2",
+            leadership="6+",
+            cool="6+",
+            willpower="7+",
+            intelligence="7+",
+        )
+
+        # Create list and fighter
+        lst = List.objects.create(
+            owner=user,
+            name="Test List",
+            content_house=house_no_buy,
+        )
+        list_fighter = ListFighter.objects.create(
+            list=lst,
+            content_fighter=leader,
+            name="Test Leader",
+            owner=user,
+        )
+
+        client = Client()
+        client.login(username="testuser_no_buy", password="password")
+
+        url = reverse("core:list-fighter-gear-edit", args=[lst.id, list_fighter.id])
+        response = client.get(url)
+
+        # Should NOT redirect (page renders directly)
+        assert response.status_code == 200
+
+    def test_fighter_can_buy_any_combined_with_house(self, house, leader_fighter):
+        """Both house can_buy_any and preset fighter_can_buy_any trigger redirect."""
+        user = User.objects.create_user(
+            username="testuser_combined", password="password"
+        )
+
+        # Create a preset with fighter_can_buy_any=True (house already has can_buy_any=True)
+        ContentAvailabilityPreset.objects.create(
+            category=FighterCategoryChoices.LEADER,
+            availability_types=["C", "R", "I"],
+            max_availability_level=15,
+            fighter_can_buy_any=True,
+        )
+
+        # Create list and fighter
+        lst = List.objects.create(
+            owner=user,
+            name="Test List",
+            content_house=house,
+        )
+        list_fighter = ListFighter.objects.create(
+            list=lst,
+            content_fighter=leader_fighter,
+            name="Test Leader",
+            owner=user,
+        )
+
+        client = Client()
+        client.login(username="testuser_combined", password="password")
+
+        url = reverse("core:list-fighter-gear-edit", args=[lst.id, list_fighter.id])
+        response = client.get(url)
+
+        # Should redirect with preset values
+        assert response.status_code == 302
+        assert "filter=all" in response.url
+        assert "al=C" in response.url
+        assert "al=R" in response.url
+        assert "al=I" in response.url
+        assert "mal=15" in response.url
+
+
+@pytest.mark.django_db
 class TestAvailabilityPresetStr:
     """Tests for __str__ representation."""
 
