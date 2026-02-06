@@ -272,31 +272,6 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         categories = categories.exclude(id__in=restricted_category_ids)
         equipment = equipment.exclude(category_id__in=restricted_category_ids)
 
-    # Filter categories based on house restrictions
-    # Batch-fetch all house restrictions to avoid N+1 queries
-    # Categories with restricted_to set should only be shown if the list's house is in
-    # the restriction. This prevents e.g. Ancestry (restricted to Ironhead Squat) from
-    # appearing for Venator lists with a squat gang legacy.
-    house_restrictions_qs = (
-        ContentEquipmentCategory.restricted_to.through.objects.filter(
-            contentequipmentcategory_id__in=categories.values("id")
-        ).values("contentequipmentcategory_id", "contenthouse_id")
-    )
-    house_restrictions_by_category = defaultdict(set)
-    for r in house_restrictions_qs:
-        house_restrictions_by_category[r["contentequipmentcategory_id"]].add(
-            r["contenthouse_id"]
-        )
-
-    house_restricted_category_ids = []
-    for category in categories:
-        restricted_house_ids = house_restrictions_by_category.get(category.id, set())
-        if restricted_house_ids and lst.content_house_id not in restricted_house_ids:
-            house_restricted_category_ids.append(category.id)
-    if house_restricted_category_ids:
-        categories = categories.exclude(id__in=house_restricted_category_ids)
-        equipment = equipment.exclude(category_id__in=house_restricted_category_ids)
-
     # Filter by category if specified
     cats = [
         cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
