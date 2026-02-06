@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Format code: `./scripts/fmt.sh`
 - Run tests: `pytest -n auto`
 - Django commands: Use `manage` (not `python manage.py`)
+- Production shell: `manage prodshell` (read-only access to production database)
 - Don't commit CSS files - they're auto-generated from SCSS
 
 **Key Principles:**
@@ -194,6 +195,20 @@ manage migrate
 # Enable SQL debugging (set in .env)
 SQL_DEBUG=True
 ```
+
+### Production Database Access
+
+```bash
+# Open interactive read-only shell connected to production database
+manage prodshell
+
+# Query production data by piping Python code
+echo 'print(User.objects.count())' | manage prodshell
+echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
+```
+
+**Important:** Read-only mode is enforced — all write operations raise `RuntimeError`. Requires `gcloud` CLI,
+`cloud-sql-proxy`, and valid GCP authentication (both `gcloud auth login` and `gcloud auth application-default login`).
 
 ## Key Models Reference
 

@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-01-23T17:36:45Z",
+  "generated_at": "2026-02-06T12:38:00Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -271,7 +271,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 11,
+      "loc": 17,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -284,7 +284,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 416,
+      "loc": 444,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -323,7 +323,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 990,
+      "loc": 1042,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -375,7 +375,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 168,
+      "loc": 178,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -405,6 +405,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/content/models/availability_preset.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 170,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/content/models/base.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -414,7 +427,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 30,
+      "loc": 74,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -440,7 +453,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 573,
+      "loc": 577,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -479,7 +492,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 462,
+      "loc": 466,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -596,7 +609,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 468,
+      "loc": 470,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -687,7 +700,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 7,
+      "loc": 8,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -769,6 +782,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/core/admin/pack.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 31,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/core/admin/site.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -843,7 +869,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 127,
+      "loc": 101,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -869,7 +895,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 105,
+      "loc": 108,
       "nosec": 0,
       "skipped_tests": 1
     },
@@ -934,7 +960,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 762,
+      "loc": 793,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/core/forms/pack.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 31,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -947,7 +986,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 68,
+      "loc": 70,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -999,7 +1038,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 194,
+      "loc": 200,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1038,7 +1077,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 357,
+      "loc": 380,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1064,7 +1103,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 223,
+      "loc": 229,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1129,7 +1168,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 259,
+      "loc": 318,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1233,7 +1272,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 129,
+      "loc": 146,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1246,7 +1285,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 21,
+      "loc": 38,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/core/management/commands/check_migration_conflicts.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 20,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1275,6 +1327,19 @@
       "loc": 155,
       "nosec": 0,
       "skipped_tests": 1
+    },
+    "./gyrinx/core/management/commands/prodshell.py": {
+      "CONFIDENCE.HIGH": 6,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 6,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 274,
+      "nosec": 0,
+      "skipped_tests": 0
     },
     "./gyrinx/core/management/commands/setupenv.py": {
       "CONFIDENCE.HIGH": 0,
@@ -1311,7 +1376,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 12,
+      "loc": 13,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1376,7 +1441,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 592,
+      "loc": 572,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1454,7 +1519,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 4267,
+      "loc": 4256,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/core/models/pack.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 85,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1467,7 +1545,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 103,
+      "loc": 122,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1597,7 +1675,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 5,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 508,
+      "loc": 539,
       "nosec": 2,
       "skipped_tests": 0
     },
@@ -1649,7 +1727,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 656,
+      "loc": 666,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1666,6 +1744,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/core/validators.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 52,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/core/views/__init__.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -1676,6 +1767,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 27,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/core/views/auth.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 34,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1935,7 +2039,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 913,
+      "loc": 916,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -1948,7 +2052,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 528,
+      "loc": 529,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1961,7 +2065,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1491,
+      "loc": 1516,
       "nosec": 0,
       "skipped_tests": 1
     },
@@ -2039,7 +2143,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 377,
+      "loc": 418,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2065,7 +2169,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 89,
+      "loc": 99,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2143,7 +2247,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 631,
+      "loc": 641,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/core/views/pack.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 275,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2377,7 +2494,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 321,
+      "loc": 325,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2572,7 +2689,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 237,
+      "loc": 239,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2624,7 +2741,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 11,
+      "loc": 17,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2689,7 +2806,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 17,
+      "loc": 23,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2707,15 +2824,15 @@
       "skipped_tests": 0
     },
     "_totals": {
-      "CONFIDENCE.HIGH": 24,
+      "CONFIDENCE.HIGH": 30,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 1,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 3,
-      "SEVERITY.LOW": 9,
+      "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 13,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 36038,
+      "loc": 37437,
       "nosec": 2,
       "skipped_tests": 18
     }
@@ -2738,6 +2855,118 @@
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b324_hashlib.html",
       "test_id": "B324",
       "test_name": "hashlib"
+    },
+    {
+      "code": "4 import socket\n5 import subprocess\n6 import sys\n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 5,
+      "line_range": [5],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "80     def _check_gcloud_auth(self):\n81         result = subprocess.run(\n82             [\"gcloud\", \"auth\", \"print-access-token\"],\n83             capture_output=True,\n84             text=True,\n85         )\n86         if result.returncode != 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 81,
+      "line_range": [81, 82, 83, 84, 85],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "101         \"\"\"Check that Application Default Credentials are valid.\"\"\"\n102         result = subprocess.run(\n103             [\"gcloud\", \"auth\", \"application-default\", \"print-access-token\"],\n104             capture_output=True,\n105             text=True,\n106         )\n107         if result.returncode != 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 102,
+      "line_range": [102, 103, 104, 105, 106],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "118         \"\"\"Fetch DB credentials from the Cloud Run service environment.\"\"\"\n119         result = subprocess.run(\n120             [\n121                 \"gcloud\",\n122                 \"run\",\n123                 \"services\",\n124                 \"describe\",\n125                 CLOUD_RUN_SERVICE,\n126                 f\"--region={GCP_REGION}\",\n127                 f\"--project={project}\",\n128                 \"--format=json\",\n129             ],\n130             capture_output=True,\n131             text=True,\n132         )\n133         if result.returncode != 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 119,
+      "line_range": [
+        119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "193         \"\"\"Fetch a secret value from Google Cloud Secret Manager.\"\"\"\n194         result = subprocess.run(\n195             [\n196                 \"gcloud\",\n197                 \"secrets\",\n198                 \"versions\",\n199                 \"access\",\n200                 version,\n201                 f\"--secret={secret_name}\",\n202                 f\"--project={project}\",\n203             ],\n204             capture_output=True,\n205             text=True,\n206         )\n207         if result.returncode != 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 194,
+      "line_range": [
+        194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "217         instance_connection = f\"{project}:{GCP_REGION}:{CLOUD_SQL_INSTANCE}\"\n218         proxy_process = subprocess.Popen(\n219             [\n220                 \"cloud-sql-proxy\",\n221                 instance_connection,\n222                 f\"--port={port}\",\n223             ],\n224             stdout=subprocess.PIPE,\n225             stderr=subprocess.PIPE,\n226         )\n227 \n",
+      "col_offset": 24,
+      "end_col_offset": 9,
+      "filename": "./gyrinx/core/management/commands/prodshell.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 218,
+      "line_range": [218, 219, 220, 221, 222, 223, 224, 225, 226],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
     },
     {
       "code": "1 import json\n2 import subprocess\n3 from datetime import datetime\n",
@@ -2830,7 +3059,7 @@
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "366         if self.dice_count > 0:\n367             self.dice_results = [random.randint(1, 6) for _ in range(self.dice_count)]\n368             self.dice_total = sum(self.dice_results)\n",
+      "code": "334         if self.dice_count > 0:\n335             self.dice_results = [random.randint(1, 6) for _ in range(self.dice_count)]\n336             self.dice_total = sum(self.dice_results)\n",
       "col_offset": 33,
       "end_col_offset": 53,
       "filename": "./gyrinx/core/models/campaign.py",
@@ -2841,8 +3070,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
-      "line_number": 367,
-      "line_range": [367],
+      "line_number": 335,
+      "line_range": [335],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_calls.html#b311-random",
       "test_id": "B311",
       "test_name": "blacklist"
@@ -2956,7 +3185,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "215 \n216     search_value_hash = hashlib.sha1(search_value.encode(\"utf-8\")).hexdigest()\n217     cache_key = f\"ref_{search_value_hash}\"\n",
+      "code": "220 \n221     search_value_hash = hashlib.sha1(search_value.encode(\"utf-8\")).hexdigest()\n222     cache_key = f\"ref_{search_value_hash}\"\n",
       "col_offset": 24,
       "end_col_offset": 66,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -2967,14 +3196,14 @@
       },
       "issue_severity": "HIGH",
       "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
-      "line_number": 216,
-      "line_range": [216],
+      "line_number": 221,
+      "line_range": [221],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b324_hashlib.html",
       "test_id": "B324",
       "test_name": "hashlib"
     },
     {
-      "code": "221         kwargs[\"category\"] = category\n222         cat_hash = hashlib.sha1(category.encode(\"utf-8\")).hexdigest()\n223         cache_key += f\"_{cat_hash}\"\n",
+      "code": "226         kwargs[\"category\"] = category\n227         cat_hash = hashlib.sha1(category.encode(\"utf-8\")).hexdigest()\n228         cache_key += f\"_{cat_hash}\"\n",
       "col_offset": 19,
       "end_col_offset": 57,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -2985,14 +3214,14 @@
       },
       "issue_severity": "HIGH",
       "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
-      "line_number": 222,
-      "line_range": [222],
+      "line_number": 227,
+      "line_range": [227],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b324_hashlib.html",
       "test_id": "B324",
       "test_name": "hashlib"
     },
     {
-      "code": "254 \n255     return mark_safe(code)\n256 \n",
+      "code": "259 \n260     return mark_safe(code)\n261 \n",
       "col_offset": 11,
       "end_col_offset": 26,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -3003,14 +3232,14 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Potential XSS on mark_safe function.",
-      "line_number": 255,
-      "line_range": [255],
+      "line_number": 260,
+      "line_range": [260],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b703_django_mark_safe.html",
       "test_id": "B703",
       "test_name": "django_mark_safe"
     },
     {
-      "code": "254 \n255     return mark_safe(code)\n256 \n",
+      "code": "259 \n260     return mark_safe(code)\n261 \n",
       "col_offset": 11,
       "end_col_offset": 26,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -3021,14 +3250,14 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 255,
-      "line_range": [255],
+      "line_number": 260,
+      "line_range": [260],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_calls.html#b308-mark-safe",
       "test_id": "B308",
       "test_name": "blacklist"
     },
     {
-      "code": "354 def dot():\n355     return mark_safe(\"&nbsp;\u00b7&nbsp;\")\n356 \n",
+      "code": "359 def dot():\n360     return mark_safe(\"&nbsp;\u00b7&nbsp;\")\n361 \n",
       "col_offset": 11,
       "end_col_offset": 38,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -3039,14 +3268,14 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 355,
-      "line_range": [355],
+      "line_number": 360,
+      "line_range": [360],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_calls.html#b308-mark-safe",
       "test_id": "B308",
       "test_name": "blacklist"
     },
     {
-      "code": "659 \n660     return mark_safe(cleaned)\n",
+      "code": "705 \n706     return mark_safe(cleaned)\n",
       "col_offset": 11,
       "end_col_offset": 29,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -3057,14 +3286,14 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Potential XSS on mark_safe function.",
-      "line_number": 660,
-      "line_range": [660],
+      "line_number": 706,
+      "line_range": [706],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b703_django_mark_safe.html",
       "test_id": "B703",
       "test_name": "django_mark_safe"
     },
     {
-      "code": "659 \n660     return mark_safe(cleaned)\n",
+      "code": "705 \n706     return mark_safe(cleaned)\n",
       "col_offset": 11,
       "end_col_offset": 29,
       "filename": "./gyrinx/core/templatetags/custom_tags.py",
@@ -3075,8 +3304,8 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 660,
-      "line_range": [660],
+      "line_number": 706,
+      "line_range": [706],
       "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_calls.html#b308-mark-safe",
       "test_id": "B308",
       "test_name": "blacklist"
