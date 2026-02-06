@@ -417,6 +417,35 @@ $width-em-sizes: (
     }
 }
 
+// Flatpage heading link icons - only visible on hover
+// Icons are positioned absolutely so they don't affect layout
+.flatpage-content a > h1,
+.flatpage-content a > h2,
+.flatpage-content a > h3,
+.flatpage-content a > h4,
+.flatpage-content a > h5,
+.flatpage-content a > h6 {
+    position: relative;
+
+    .bi-link-45deg {
+        position: absolute;
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+        margin-left: 0.25em;
+    }
+}
+
+.flatpage-content a:hover > h1,
+.flatpage-content a:hover > h2,
+.flatpage-content a:hover > h3,
+.flatpage-content a:hover > h4,
+.flatpage-content a:hover > h5,
+.flatpage-content a:hover > h6 {
+    .bi-link-45deg {
+        opacity: 1;
+    }
+}
+
 // Fighter card grids
 .auto-flow-dense {
     grid-auto-flow: row dense;
