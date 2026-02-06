@@ -3,12 +3,14 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 
 from gyrinx.content.models.house import ContentHouse
+from gyrinx.content.models.metadata import ContentRule
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
 @pytest.fixture
 def custom_content_group():
-    return Group.objects.create(name="Custom Content")
+    group, _ = Group.objects.get_or_create(name="Custom Content")
+    return group
 
 
 @pytest.fixture
@@ -526,3 +528,237 @@ def test_pack_activity_shows_view_all_link(client, group_user, pack):
     response = client.get(f"/pack/{pack.id}")
     assert response.status_code == 200
     assert f"/pack/{pack.id}/activity/".encode() in response.content
+
+
+# --- Pack item CRUD (Rules) ---
+
+
+@pytest.fixture
+def pack_rule(pack, group_user):
+    """A rule added to a pack."""
+    rule = ContentRule.objects.all_content().create(
+        name="Test Rule", description="A test rule description"
+    )
+    ct = ContentType.objects.get_for_model(ContentRule)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=rule.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+    return item
+
+
+@pytest.mark.django_db
+def test_add_rule_form_loads(client, group_user, pack):
+    """Test that the add rule form page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/rule/")
+    assert response.status_code == 200
+    assert b"Add Rule" in response.content
+
+
+@pytest.mark.django_db
+def test_add_rule_creates_rule_and_item(client, group_user, pack):
+    """Test that submitting the add rule form creates a rule and pack item."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "My Custom Rule", "description": "Rule description"},
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    # Verify rule was created
+    rule = ContentRule.objects.all_content().get(name="My Custom Rule")
+    assert rule.description == "Rule description"
+
+    # Verify pack item was created
+    ct = ContentType.objects.get_for_model(ContentRule)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=rule.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_rule_requires_name(client, group_user, pack):
+    """Test that the name field is required."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "", "description": "No name rule"},
+    )
+    assert response.status_code == 200  # Re-renders form with errors
+
+
+@pytest.mark.django_db
+def test_add_rule_requires_login(client, pack):
+    """Test that adding a rule requires login."""
+    response = client.get(f"/pack/{pack.id}/add/rule/")
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_rule_requires_ownership(client, pack, custom_content_group, make_user):
+    """Test that only the pack owner can add rules."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/add/rule/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_add_rule_requires_group(client, pack, make_user):
+    """Test that adding a rule requires Custom Content group."""
+    non_member = make_user("nonmember", "password")
+    client.force_login(non_member)
+    response = client.get(f"/pack/{pack.id}/add/rule/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_rules_section(client, group_user, pack):
+    """Test that the pack detail page shows the Rules section."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Rules" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_add_rule_button(client, group_user, pack):
+    """Test that the pack detail shows an Add button for rules to the owner."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert f"/pack/{pack.id}/add/rule/".encode() in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_hides_add_button_for_non_owner(
+    client, pack, custom_content_group, make_user
+):
+    """Test that the Add button is hidden for non-owners."""
+    other_user = make_user("viewer", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert f"/pack/{pack.id}/add/rule/".encode() not in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_rule_items(client, group_user, pack, pack_rule):
+    """Test that rules added to a pack appear in the detail view."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test Rule" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_rule_form_loads(client, group_user, pack, pack_rule):
+    """Test that the edit rule form loads with existing data."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
+    assert response.status_code == 200
+    assert b"Edit Rule" in response.content
+    assert b"Test Rule" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_rule_updates_content(client, group_user, pack, pack_rule):
+    """Test that submitting the edit form updates the rule."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_rule.id}/edit/",
+        {"name": "Updated Rule", "description": "Updated description"},
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+    assert rule.name == "Updated Rule"
+    assert rule.description == "Updated description"
+
+
+@pytest.mark.django_db
+def test_edit_rule_requires_ownership(
+    client, pack, pack_rule, custom_content_group, make_user
+):
+    """Test that only the pack owner can edit rules."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_rule_confirmation_loads(client, group_user, pack, pack_rule):
+    """Test that the delete confirmation page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    assert response.status_code == 200
+    assert b"Remove Rule" in response.content
+    assert b"Test Rule" in response.content
+
+
+@pytest.mark.django_db
+def test_delete_rule_removes_item_and_content(client, group_user, pack, pack_rule):
+    """Test that deleting a rule removes both the pack item and the content object."""
+    rule_pk = pack_rule.object_id
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    assert not CustomContentPackItem.objects.filter(id=pack_rule.id).exists()
+    assert not ContentRule.objects.all_content().filter(pk=rule_pk).exists()
+
+
+@pytest.mark.django_db
+def test_delete_rule_requires_ownership(
+    client, pack, pack_rule, custom_content_group, make_user
+):
+    """Test that only the pack owner can delete rules."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_add_rule_unsupported_slug_returns_404(client, group_user, pack):
+    """Test that an invalid content type slug returns 404."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/invalid/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_add_house_slug_returns_404(client, group_user, pack):
+    """Test that house slug returns 404 (no form class configured)."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/house/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_add_rule_tracks_history(client, group_user, pack):
+    """Test that adding a rule creates history records for both item and content."""
+    client.force_login(group_user)
+    client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "History Rule", "description": ""},
+    )
+    ct = ContentType.objects.get_for_model(ContentRule)
+    item = CustomContentPackItem.objects.get(pack=pack, content_type=ct)
+    assert item.history.count() == 1
+    assert item.history.first().history_user == group_user
+
+    # Content object should also have history with user tracked
+    rule = ContentRule.objects.all_content().get(name="History Rule")
+    assert rule.history.count() == 1
+    assert rule.history.first().history_user == group_user

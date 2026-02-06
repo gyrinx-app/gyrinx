@@ -47,10 +47,28 @@
                         <i class="{{ section.icon }}"></i> {{ section.label }}
                         {% if section.count > 0 %}<span class="badge bg-primary">{{ section.count }}</span>{% endif %}
                     </h2>
+                    {% if is_owner and section.can_add %}
+                        <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
+                           class="btn btn-primary btn-sm">
+                            <i class="bi-plus-lg"></i> Add
+                        </a>
+                    {% endif %}
                 </div>
                 {% if section.items %}
                     <ul class="list-unstyled mb-0">
-                        {% for item in section.items %}<li class="py-1">{{ item }}</li>{% endfor %}
+                        {% for entry in section.items %}
+                            <li class="py-1 d-flex justify-content-between align-items-center">
+                                <span>{{ entry.content_object }}</span>
+                                {% if is_owner and section.can_add %}
+                                    <span class="d-flex gap-2">
+                                        <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                        <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                    </span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
                     </ul>
                 {% else %}
                     <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>

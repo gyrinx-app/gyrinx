@@ -13,7 +13,8 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx.content.models.house import ContentHouse
-from gyrinx.core.forms.pack import PackForm
+from gyrinx.content.models.metadata import ContentRule
+from gyrinx.core.forms.pack import ContentRuleForm, PackForm
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
@@ -21,15 +22,28 @@ from gyrinx.core.views.auth import (
 )
 
 # Content types that can be added to packs, in display order.
-# Each entry: (model_class, label, description, icon)
+# Each entry: (model_class, label, description, icon, form_class, url_slug)
 SUPPORTED_CONTENT_TYPES = [
     (
         ContentHouse,
         "Houses",
         "Custom factions and houses for your fighters.",
         "bi-house-door",
+        None,
+        "house",
+    ),
+    (
+        ContentRule,
+        "Rules",
+        "Custom rules for your Content Pack.",
+        "bi-journal-text",
+        ContentRuleForm,
+        "rule",
     ),
 ]
+
+# Lookup from URL slug to content type entry.
+_CONTENT_TYPE_BY_SLUG = {entry[5]: entry for entry in SUPPORTED_CONTENT_TYPES}
 
 
 # Fields to exclude from change diffs (internal/inherited fields).
@@ -241,14 +255,24 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
 
         context["is_owner"] = user.is_authenticated and user == pack.owner
 
-        # Group prefetched items by content type to avoid N+1 queries
+        # Group prefetched items by content type to avoid N+1 queries.
+        # Each entry stores (pack_item, content_object) for edit/delete URLs.
         items_by_ct = defaultdict(list)
         for item in pack.items.all():
             if item.content_object is not None:
-                items_by_ct[item.content_type_id].append(item.content_object)
+                items_by_ct[item.content_type_id].append(
+                    {"pack_item": item, "content_object": item.content_object}
+                )
 
         content_sections = []
-        for model_class, label, description, icon in SUPPORTED_CONTENT_TYPES:
+        for (
+            model_class,
+            label,
+            description,
+            icon,
+            form_class,
+            slug,
+        ) in SUPPORTED_CONTENT_TYPES:
             ct = ContentType.objects.get_for_model(model_class)
             items = items_by_ct.get(ct.id, [])
             content_sections.append(
@@ -258,6 +282,8 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                     "icon": icon,
                     "items": items,
                     "count": len(items),
+                    "slug": slug,
+                    "can_add": form_class is not None,
                 }
             )
 
@@ -346,3 +372,147 @@ class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
         context["is_owner"] = user.is_authenticated and user == pack.owner
 
         return context
+
+
+def _get_content_type_entry(slug):
+    """Look up a SUPPORTED_CONTENT_TYPES entry by URL slug, or raise 404."""
+    entry = _CONTENT_TYPE_BY_SLUG.get(slug)
+    if entry is None or entry[4] is None:
+        raise Http404
+    return entry
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def add_pack_item(request, id, content_type_slug):
+    """Add a new content item to a pack."""
+    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    model_class, label, _desc, icon, form_class, slug = _get_content_type_entry(
+        content_type_slug
+    )
+    singular_label = label.rstrip("s")
+
+    if request.method == "POST":
+        form = form_class(request.POST)
+        if form.is_valid():
+            content_obj = form.save(commit=False)
+            content_obj._history_user = request.user
+            content_obj.save()
+            ct = ContentType.objects.get_for_model(model_class)
+            item = CustomContentPackItem(
+                pack=pack,
+                content_type=ct,
+                object_id=content_obj.pk,
+                owner=request.user,
+            )
+            item.save_with_user(user=request.user)
+            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+    else:
+        form = form_class()
+
+    return render(
+        request,
+        "core/pack/pack_item_add.html",
+        {
+            "form": form,
+            "pack": pack,
+            "label": singular_label,
+            "icon": icon,
+            "slug": slug,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def edit_pack_item(request, id, item_id):
+    """Edit a content item in a pack."""
+    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+    )
+
+    content_obj = pack_item.content_object
+    if content_obj is None:
+        raise Http404
+
+    # Find the matching entry and form class
+    entry = None
+    for e in SUPPORTED_CONTENT_TYPES:
+        ct = ContentType.objects.get_for_model(e[0])
+        if ct == pack_item.content_type and e[4] is not None:
+            entry = e
+            break
+    if entry is None:
+        raise Http404
+
+    model_class, label, _desc, icon, form_class, slug = entry
+    singular_label = label.rstrip("s")
+
+    if request.method == "POST":
+        form = form_class(request.POST, instance=content_obj)
+        if form.is_valid():
+            form.instance._history_user = request.user
+            form.save()
+            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+    else:
+        form = form_class(instance=content_obj)
+
+    return render(
+        request,
+        "core/pack/pack_item_edit.html",
+        {
+            "form": form,
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_obj": content_obj,
+            "label": singular_label,
+            "icon": icon,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def delete_pack_item(request, id, item_id):
+    """Delete a content item from a pack."""
+    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+    )
+
+    content_obj = pack_item.content_object
+    if content_obj is None:
+        raise Http404
+
+    # Find the matching entry
+    entry = None
+    for e in SUPPORTED_CONTENT_TYPES:
+        ct = ContentType.objects.get_for_model(e[0])
+        if ct == pack_item.content_type:
+            entry = e
+            break
+
+    label = entry[1].rstrip("s") if entry else "Item"
+    icon = entry[3] if entry else ""
+
+    if request.method == "POST":
+        pack_item.delete()
+        content_obj.delete()
+        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+    return render(
+        request,
+        "core/pack/pack_item_delete.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_obj": content_obj,
+            "label": label,
+            "icon": icon,
+        },
+    )
