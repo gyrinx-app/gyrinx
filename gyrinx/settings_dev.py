@@ -43,10 +43,10 @@ USE_REAL_EMAIL_IN_DEV = os.getenv("USE_REAL_EMAIL_IN_DEV", "False").lower() == "
 if USE_REAL_EMAIL_IN_DEV:
     # Email configuration - all values from environment variables
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-    EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.sendgrid.net")
+    EMAIL_HOST = os.getenv("EMAIL_HOST")
     EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
     EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
-    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "apikey")
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
     EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 
