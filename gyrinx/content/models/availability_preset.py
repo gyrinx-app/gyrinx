@@ -124,6 +124,20 @@ class ContentAvailabilityPreset(Content):
         return f"{descriptor}: [{types}{level_str}]"
 
     @property
+    def preset_name(self):
+        """Generate a descriptive name from the preset's configuration."""
+        parts = []
+
+        if self.fighter:
+            parts.append(str(self.fighter))
+        if self.category:
+            parts.append(self.get_category_display())
+        if self.house:
+            parts.append(str(self.house))
+
+        return " / ".join(parts) if parts else "Global"
+
+    @property
     def availability_types_list(self) -> list:
         """Return availability types as a list."""
         if isinstance(self.availability_types, str):

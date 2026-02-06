@@ -1383,7 +1383,15 @@ class ContentEquipmentListExpansionRuleParentAdmin(PolymorphicParentModelAdmin):
 
 @admin.register(ContentAvailabilityPreset)
 class ContentAvailabilityPresetAdmin(ContentAdmin):
-    list_display = ["__str__", "availability_types", "max_availability_level"]
     list_filter = ["category", "house"]
     search_fields = ["fighter__type", "house__name"]
     autocomplete_fields = ["fighter", "house"]
+
+    def __init__(self, model, admin_site):
+        super().__init__(model, admin_site)
+        self.list_display = ["preset_name_display"] + self.list_display
+        self.list_display_links = ["preset_name_display"]
+
+    @admin.display(description="Name")
+    def preset_name_display(self, obj):
+        return obj.preset_name
