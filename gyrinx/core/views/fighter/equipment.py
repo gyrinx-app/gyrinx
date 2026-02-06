@@ -272,6 +272,21 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         categories = categories.exclude(id__in=restricted_category_ids)
         equipment = equipment.exclude(category_id__in=restricted_category_ids)
 
+    # Filter categories based on house restrictions
+    # Categories with restricted_to set should only be shown if the list's house is in
+    # the restriction. This prevents e.g. Ancestry (restricted to Ironhead Squat) from
+    # appearing for Venator lists with a squat gang legacy.
+    house_restricted_category_ids = []
+    for category in categories.prefetch_related("restricted_to"):
+        if (
+            category.restricted_to.exists()
+            and lst.content_house not in category.restricted_to.all()
+        ):
+            house_restricted_category_ids.append(category.id)
+    if house_restricted_category_ids:
+        categories = categories.exclude(id__in=house_restricted_category_ids)
+        equipment = equipment.exclude(category_id__in=house_restricted_category_ids)
+
     # Filter by category if specified
     cats = [
         cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
