@@ -65,6 +65,21 @@ class TestPreflightChecks:
     def test_check_cloud_sql_proxy_found(self, mock_which, cmd):
         cmd._check_cloud_sql_proxy()
 
+    @patch(
+        "subprocess.run",
+        return_value=MagicMock(returncode=1, stderr="not set"),
+    )
+    def test_check_adc_not_authenticated(self, mock_run, cmd):
+        with pytest.raises(CommandError, match="Application Default Credentials"):
+            cmd._check_adc()
+
+    @patch(
+        "subprocess.run",
+        return_value=MagicMock(returncode=0, stdout="token"),
+    )
+    def test_check_adc_ok(self, mock_run, cmd):
+        cmd._check_adc()
+
 
 class TestFetchDbCredentials:
     def _make_cloud_run_response(self, env_vars):
@@ -135,6 +150,41 @@ class TestFetchDbCredentials:
             cmd._fetch_db_credentials("test-project")
 
     @patch("subprocess.run")
+    def test_fetch_credentials_missing_password(self, mock_run, cmd):
+        env_vars = {
+            "DB_CONFIG": json.dumps({"user": "u"}),
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=self._make_cloud_run_response(env_vars),
+        )
+        with pytest.raises(CommandError, match="Could not extract"):
+            cmd._fetch_db_credentials("test-project")
+
+    @patch("subprocess.run")
+    def test_fetch_credentials_malformed_db_config(self, mock_run, cmd):
+        env_vars = {
+            "DB_CONFIG": "not-json",
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=self._make_cloud_run_response(env_vars),
+        )
+        with pytest.raises(CommandError, match="Failed to parse DB_CONFIG"):
+            cmd._fetch_db_credentials("test-project")
+
+    @patch("subprocess.run")
+    def test_fetch_credentials_malformed_json(self, mock_run, cmd):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="not-json",
+        )
+        with pytest.raises(
+            CommandError, match="Failed to parse Cloud Run service config"
+        ):
+            cmd._fetch_db_credentials("test-project")
+
+    @patch("subprocess.run")
     def test_fetch_credentials_no_containers(self, mock_run, cmd):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -145,8 +195,10 @@ class TestFetchDbCredentials:
 
 
 class TestPortCheck:
-    def test_port_not_open(self):
-        # Port 19999 should not be open
+    @patch("socket.socket")
+    def test_port_not_open(self, mock_socket):
+        mock_sock_instance = mock_socket.return_value.__enter__.return_value
+        mock_sock_instance.connect_ex.return_value = 1
         assert Command._port_is_open(19999) is False
 
 
@@ -160,3 +212,38 @@ class TestProxyStartup:
 
         with pytest.raises(CommandError, match="exited unexpectedly"):
             cmd._start_proxy("test-project", 5433)
+
+    @patch(
+        "gyrinx.core.management.commands.prodshell.Command._port_is_open",
+        return_value=True,
+    )
+    @patch("subprocess.Popen")
+    def test_proxy_starts_successfully(self, mock_popen, mock_port_is_open, cmd):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # still running
+        mock_popen.return_value = mock_proc
+
+        result = cmd._start_proxy("test-project", 5433)
+        assert result is mock_proc
+
+    @patch("gyrinx.core.management.commands.prodshell.time.monotonic")
+    @patch(
+        "gyrinx.core.management.commands.prodshell.Command._port_is_open",
+        return_value=False,
+    )
+    @patch("gyrinx.core.management.commands.prodshell.time.sleep")
+    @patch("subprocess.Popen")
+    def test_proxy_startup_timeout(
+        self, mock_popen, mock_sleep, mock_port_is_open, mock_monotonic, cmd
+    ):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # still running
+        mock_popen.return_value = mock_proc
+
+        # Simulate time exceeding PROXY_STARTUP_TIMEOUT
+        mock_monotonic.side_effect = [0.0, 0.0, 20.0]
+
+        with pytest.raises(CommandError, match="did not start within"):
+            cmd._start_proxy("test-project", 5433)
+
+        mock_proc.terminate.assert_called_once()

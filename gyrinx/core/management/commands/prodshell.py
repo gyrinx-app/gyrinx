@@ -208,7 +208,7 @@ class Command(BaseCommand):
             raise CommandError(
                 f"Failed to fetch secret '{secret_name}':\n{result.stderr}"
             )
-        return result.stdout
+        return result.stdout.strip()
 
     # -- Cloud SQL Auth Proxy --
 
@@ -221,7 +221,7 @@ class Command(BaseCommand):
                 instance_connection,
                 f"--port={port}",
             ],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
 
@@ -300,7 +300,11 @@ DATABASE_ROUTERS = [
         settings_path = Path(gyrinx.__file__).parent / "_prodshell_settings.py"
 
         try:
-            settings_path.write_text(settings_content)
+            fd = os.open(
+                str(settings_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(settings_content)
 
             env = {**os.environ, "DJANGO_SETTINGS_MODULE": "gyrinx._prodshell_settings"}
 
