@@ -493,10 +493,14 @@ def test_list_clone_no_action_on_clone_when_feature_disabled(make_list, user, se
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_list_clone_actions_have_zero_deltas(
+def test_list_clone_actions_have_correct_deltas(
     make_list, user, settings, feature_flag_enabled
 ):
-    """Test that ListActions have zero cost deltas (no credits spent)."""
+    """Test that ListActions have correct cost deltas.
+
+    Original's CLONE action: zero deltas (recording the clone event, not a cost change).
+    Clone's CREATE action: deltas equal original values (represents creating list from nothing).
+    """
     # Setup
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
@@ -513,17 +517,18 @@ def test_list_clone_actions_have_zero_deltas(
         owner=user,
     )
 
-    # Assert original's action (only when feature flag enabled)
+    # Assert original's action has zero deltas (recording the clone, not a cost change)
     if feature_flag_enabled:
         assert result.original_action.rating_delta == 0
         assert result.original_action.stash_delta == 0
         assert result.original_action.credits_delta == 0
 
-        # Assert clone's action (if created)
+        # Assert clone's CREATE action has deltas matching original values
+        # (represents creating list from nothing to its current state)
         if result.cloned_action:
-            assert result.cloned_action.rating_delta == 0
-            assert result.cloned_action.stash_delta == 0
-            assert result.cloned_action.credits_delta == 0
+            assert result.cloned_action.rating_delta == original.rating_current
+            assert result.cloned_action.stash_delta == original.stash_current
+            assert result.cloned_action.credits_delta == original.credits_current
 
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
@@ -677,3 +682,112 @@ def test_list_clone_preserves_expansion_equipment_cost(
     assert cloned_fighter is not None
     assert cloned_fighter.equipment.count() == 1
     assert cloned_fighter.equipment.first().name == "Gloves of Ozostium"
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_creates_clone_correctly(
+    make_list, make_campaign, user, settings
+):
+    """Test that campaign clones are created correctly with proper status."""
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("Original List")
+    campaign = make_campaign("Test Campaign")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - clone should be created correctly
+    assert result.cloned_list is not None
+    assert result.cloned_list.campaign == campaign
+    assert result.cloned_list.status == List.CAMPAIGN_MODE
+    assert (
+        result.cloned_list.name == "Original List"
+    )  # Campaign clones keep original name
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_name_defaults_to_original(
+    make_list, make_campaign, user, settings
+):
+    """Test that campaign clones default to the original name without a suffix.
+
+    Regular clones get "(Clone)" appended, but campaign clones keep the
+    original name since they represent the gang entering a campaign.
+    """
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("My Gang")
+    campaign = make_campaign("Test Campaign")
+
+    # Execute - don't provide a name
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - campaign clone keeps original name (no suffix)
+    assert result.cloned_list.name == "My Gang"
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, settings):
+    """Test that regular clones default to the original name with '(Clone)' suffix."""
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("My Gang")
+
+    # Execute - don't provide a name
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+    )
+
+    # Assert - regular clone gets "(Clone)" suffix
+    assert result.cloned_list.name == "My Gang (Clone)"
+
+
+@pytest.mark.django_db
+def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
+    make_list, make_campaign, user, settings
+):
+    """Test that campaign clone's CREATE action has deltas matching original values.
+
+    The CREATE action on a cloned list represents creating the list from nothing
+    to its current state, so the deltas should equal the original's current values.
+    """
+    # Setup
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    original = make_list("Original List")
+    original.credits_current = 500
+    original.rating_current = 1000
+    original.stash_current = 150
+    original.save()
+    campaign = make_campaign("Test Campaign")
+
+    # Execute
+    result = handle_list_clone(
+        user=user,
+        original_list=original,
+        for_campaign=campaign,
+    )
+
+    # Assert - cloned_action should have correct deltas
+    assert result.cloned_action is not None
+    assert result.cloned_action.action_type == ListActionType.CREATE
+    assert result.cloned_action.description == "Cloned from 'Original List'"
+
+    # Before values should be 0 (creating from nothing)
+    assert result.cloned_action.rating_before == 0
+    assert result.cloned_action.stash_before == 0
+    assert result.cloned_action.credits_before == 0
+
+    # Deltas should match original's current values
+    assert result.cloned_action.rating_delta == original.rating_current
+    assert result.cloned_action.stash_delta == original.stash_current
+    assert result.cloned_action.credits_delta == original.credits_current
