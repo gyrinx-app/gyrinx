@@ -8,6 +8,7 @@ from gyrinx.core.handlers.campaign_copy import (
     copy_campaign_content,
 )
 from gyrinx.core.models.campaign import (
+    Campaign,
     CampaignAsset,
     CampaignAssetType,
     CampaignResourceType,
@@ -374,8 +375,6 @@ def test_campaign_copy_to_view_requires_ownership_or_public(
     client, user, make_campaign
 ):
     """Test that copy-to view requires ownership or public campaign."""
-    from gyrinx.core.models.campaign import Campaign
-
     other_user = type(user).objects.create_user(
         username="other", email="other@example.com", password="test123"
     )
@@ -585,3 +584,113 @@ def test_campaign_copy_from_rejects_archived_source_on_confirm(
     # Should redirect back to target campaign with error
     assert response.status_code == 302
     assert f"/campaign/{target.id}" in response.url
+
+
+# --- Template Campaign Tests ---
+
+
+@pytest.mark.django_db
+def test_campaign_copy_from_template_preview(client, user, make_campaign, make_user):
+    """Test that copy-from allows selecting a template campaign as the source."""
+    target = make_campaign("Target Campaign")
+
+    # Create a template campaign owned by a different user
+    admin_user = make_user("admin", "password")
+    template = Campaign.objects.create(
+        name="Dominion Template",
+        owner=admin_user,
+        template=True,
+    )
+    asset_type = CampaignAssetType.objects.create(
+        campaign=template,
+        owner=admin_user,
+        name_singular="Territory",
+        name_plural="Territories",
+    )
+
+    client.force_login(user)
+
+    # POST to select the template as the source campaign (preview step)
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "preview",
+            "source_campaign": str(template.id),
+            "asset_types": [str(asset_type.id)],
+        },
+    )
+
+    # Should show the confirmation page (200), not a 404
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_campaign_copy_from_template_confirm(client, user, make_campaign, make_user):
+    """Test that copy-from confirm works with a template campaign as the source."""
+    target = make_campaign("Target Campaign")
+
+    # Create a template campaign owned by a different user
+    admin_user = make_user("admin", "password")
+    template = Campaign.objects.create(
+        name="Dominion Template",
+        owner=admin_user,
+        template=True,
+    )
+    asset_type = CampaignAssetType.objects.create(
+        campaign=template,
+        owner=admin_user,
+        name_singular="Territory",
+        name_plural="Territories",
+    )
+    CampaignAsset.objects.create(
+        asset_type=asset_type,
+        owner=admin_user,
+        name="The Sump",
+        description="A murky place",
+    )
+
+    client.force_login(user)
+
+    # POST to confirm copying from the template
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "confirm",
+            "source_campaign_id": str(template.id),
+            "selected_asset_types": [str(asset_type.id)],
+        },
+    )
+
+    # Should redirect to the target campaign after successful copy
+    assert response.status_code == 302
+    assert f"/campaign/{target.id}" in response.url
+
+    # Verify the content was actually copied
+    assert target.asset_types.count() == 1
+    copied_type = target.asset_types.get()
+    assert copied_type.name_singular == "Territory"
+    assert copied_type.assets.count() == 1
+    assert copied_type.assets.get().name == "The Sump"
+
+
+@pytest.mark.django_db
+def test_campaign_copy_from_accessible_with_only_templates(
+    client, user, make_campaign, make_user
+):
+    """Test that copy-from page is accessible when user has no other campaigns but templates exist."""
+    target = make_campaign("Target Campaign")
+
+    # Create a template campaign (owned by someone else)
+    admin_user = make_user("admin", "password")
+    Campaign.objects.create(
+        name="Dominion Template",
+        owner=admin_user,
+        template=True,
+    )
+
+    client.force_login(user)
+
+    # GET the copy-from page - should show the form (200), not redirect (302)
+    response = client.get(reverse("core:campaign-copy-in", args=[target.id]))
+
+    assert response.status_code == 200

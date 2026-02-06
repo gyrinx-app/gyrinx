@@ -22,7 +22,8 @@ def campaign_copy_from(request, id):
     """Copy assets and resources FROM another campaign TO this campaign.
 
     This view allows a campaign admin to copy asset types, assets (with sub-assets),
-    and resource types from another campaign they own into the current campaign.
+    and resource types from another campaign they own or from template campaigns
+    into the current campaign.
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
 
@@ -30,11 +31,14 @@ def campaign_copy_from(request, id):
         messages.error(request, "Cannot copy to an archived campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    # Check if user has other campaigns to copy from
+    # Check if user has other campaigns or template campaigns to copy from
     other_campaigns = Campaign.objects.filter(owner=request.user).exclude(
         pk=campaign.pk
     )
-    if not other_campaigns.exists():
+    template_campaigns_exist = (
+        Campaign.objects.filter(template=True).exclude(pk=campaign.pk).exists()
+    )
+    if not other_campaigns.exists() and not template_campaigns_exist:
         messages.info(
             request,
             "You don't have any other campaigns to copy from. "
@@ -54,7 +58,10 @@ def campaign_copy_from(request, id):
             source_id = request.POST.get("source_campaign_id")
             if source_id:
                 source_campaign = get_object_or_404(
-                    Campaign, id=source_id, owner=request.user
+                    Campaign.objects.filter(
+                        models.Q(owner=request.user) | models.Q(template=True)
+                    ),
+                    id=source_id,
                 )
 
                 # Validate source campaign is not archived (race condition check)
@@ -134,7 +141,10 @@ def campaign_copy_from(request, id):
         source_id = request.POST.get("source_campaign")
         if source_id:
             source_campaign = get_object_or_404(
-                Campaign, id=source_id, owner=request.user
+                Campaign.objects.filter(
+                    models.Q(owner=request.user) | models.Q(template=True)
+                ),
+                id=source_id,
             )
 
             # Create form with source campaign for type selection
