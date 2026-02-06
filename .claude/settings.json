@@ -9,6 +9,14 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/setup_web.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/activate_venv_hook.sh"
+          }
+        ]
       }
     ]
   },
