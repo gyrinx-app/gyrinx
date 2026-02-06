@@ -51,6 +51,8 @@ fi
 echo "--- [2/8] Installing uv ---"
 if ! command -v uv &>/dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Venv doesn't exist yet, so $HOME/.local/bin goes first just to pick up uv.
+  # The persisted PATH (below) puts the venv bin first once it's been created.
   export PATH="$HOME/.local/bin:$PATH"
 fi
 echo "uv: $(uv --version)"
