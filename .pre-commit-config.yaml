@@ -103,6 +103,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: check-migration-conflicts
+        name: Check for migration conflicts
+        entry: ./scripts/check_migration_conflicts.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  - repo: local
+    hooks:
       - id: markdownlint
         name: markdownlint
         entry: npx markdownlint-cli2 --fix

@@ -73,6 +73,11 @@ jobs:
           source .venv/bin/activate && \
           npm run fmt-check
 
+      - name: Check for migration conflicts
+        run: |
+          source .venv/bin/activate && \
+          ./scripts/check_migration_conflicts.sh
+
       - name: Check Jupyter notebooks are stripped
         run: |
           source .venv/bin/activate
