@@ -43,7 +43,7 @@ jobs:
 
           # Claude configuration via CLI arguments
           claude_args: |
-            --model claude-opus-4-5-20251101
+            --model claude-opus-4-6
             --allowedTools "Bash(./scripts/fmt.sh:*),Bash(./scripts/check_migrations.sh:*),Bash(python -m pytest:*),Bash(pytest:*)"
 
           # Automated PR review prompt
