@@ -16,6 +16,7 @@ from gyrinx.content.models import (
     ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
+    ContentWeaponProfile,
 )
 from gyrinx.core.models.list import ListFighter
 from gyrinx.models import FighterCategoryChoices
@@ -393,6 +394,149 @@ def test_no_redirect_when_house_matches_restriction(
     # Both items should be visible for a matching house
     assert "Ancestral Heirloom" in content
     assert "Filter Plugs" in content
+
+
+@pytest.mark.django_db
+def test_cross_page_cat_ids_stripped_on_weapons_page(
+    client,
+    user,
+    venator_house,
+    venator_hunt_leader,
+    squat_charter_master,
+    normal_gear,
+    gear_category,
+    make_list,
+):
+    """
+    When navigating from gear to weapons (via {% querystring %}), gear
+    category IDs carried in the URL should be stripped because they don't
+    match any weapon category on the weapons page.
+    """
+    weapon_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Basic Weapons",
+        defaults={"group": "Weapons & Ammo"},
+    )
+    weapon = ContentEquipment.objects.create(
+        name="Test Sword",
+        category=weapon_category,
+        rarity="C",
+        cost="20",
+    )
+    # Create a weapon profile so the equipment is identified as a weapon
+    ContentWeaponProfile.objects.create(
+        equipment=weapon,
+        name="Test Sword",
+        cost=0,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=venator_hunt_leader,
+        equipment=weapon,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=venator_hunt_leader,
+        equipment=normal_gear,
+    )
+
+    lst = make_list("Venator List", content_house=venator_house)
+    fighter = ListFighter.objects.create(
+        list=lst,
+        name="Test Hunter",
+        owner=user,
+        content_fighter=venator_hunt_leader,
+        legacy_content_fighter=squat_charter_master,
+    )
+
+    # Visit the weapons page with a gear category ID in the URL
+    # (simulates clicking "Edit weapons" from the gear page)
+    url = reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+    response = client.get(
+        url,
+        {
+            "filter": "all",
+            "cat": str(gear_category.id),  # This is a gear category, not a weapon one
+        },
+    )
+
+    # Should redirect to strip the invalid gear cat ID
+    assert response.status_code == 302
+
+    parsed = urlparse(response.url)
+    params = parse_qs(parsed.query)
+
+    # The gear category should be removed since it doesn't exist on the weapons page
+    cat_ids = params.get("cat", [])
+    assert str(gear_category.id) not in cat_ids
+
+
+@pytest.mark.django_db
+def test_weapons_page_does_not_show_gear_categories(
+    client,
+    user,
+    venator_house,
+    venator_hunt_leader,
+    squat_charter_master,
+    ancestry_gear,
+    ancestry_category_restricted,
+    normal_gear,
+    gear_category,
+    make_list,
+):
+    """
+    The weapons page should not show gear-only categories (like Armour
+    or Ancestry) even when they are in the equipment list via legacy.
+    The default_to_all combine should only add back weapon-type items.
+    """
+    weapon_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Basic Weapons",
+        defaults={"group": "Weapons & Ammo"},
+    )
+    weapon = ContentEquipment.objects.create(
+        name="Test Blade",
+        category=weapon_category,
+        rarity="C",
+        cost="15",
+    )
+    # Create a weapon profile so the equipment is identified as a weapon
+    ContentWeaponProfile.objects.create(
+        equipment=weapon,
+        name="Test Blade",
+        cost=0,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=venator_hunt_leader,
+        equipment=weapon,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=squat_charter_master,
+        equipment=ancestry_gear,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=venator_hunt_leader,
+        equipment=normal_gear,
+    )
+
+    lst = make_list("Venator List", content_house=venator_house)
+    fighter = ListFighter.objects.create(
+        list=lst,
+        name="Test Hunter",
+        owner=user,
+        content_fighter=venator_hunt_leader,
+        legacy_content_fighter=squat_charter_master,
+    )
+
+    # Follow the full redirect chain to the weapons page
+    url = reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
+    response = client.get(url)
+    assert response.status_code == 302
+    response = client.get(response.url)
+    assert response.status_code == 200
+
+    content = response.content.decode()
+    # Gear items should NOT appear on the weapons page
+    assert "Ancestral Heirloom" not in content
+    assert "Filter Plugs" not in content
+    # Weapons should appear
+    assert "Test Blade" in content
 
 
 @pytest.mark.django_db

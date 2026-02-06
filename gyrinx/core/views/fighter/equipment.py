@@ -299,6 +299,25 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
     ]
 
+    # Strip cat IDs that don't match any available category for this page.
+    # This handles cross-page navigation (e.g. gear cat IDs carried to the
+    # weapons page via {% querystring %} in template links).
+    if cats and "all" not in cats:
+        valid_cat_ids = {str(c.id) for c in categories}
+        valid_cats = [c for c in cats if c in valid_cat_ids]
+        if cats != valid_cats:
+            query_dict = request.GET.copy()
+            if valid_cats:
+                query_dict.setlist("cat", valid_cats)
+            else:
+                # No valid cats remain - remove cat key to trigger default logic
+                del query_dict["cat"]
+            return HttpResponseRedirect(
+                reverse(view_name, args=(lst.id, fighter.id))
+                + f"?{query_dict.urlencode()}"
+            )
+        cats = valid_cats
+
     if cats and "all" not in cats:
         equipment = equipment.filter(category_id__in=cats)
 
@@ -459,14 +478,27 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # If defaulting to all (house or preset), also include equipment from equipment list
     if default_to_all:
+        # Filter equipment list items to match the current equipment type
+        # (weapons or non-weapons) to prevent cross-type items from leaking
+        # into the combine (e.g. Armour appearing on the weapons page).
+        equipment_type_qs = (
+            ContentEquipment.objects.weapons()
+            if is_weapon
+            else ContentEquipment.objects.non_weapons()
+        )
+        filtered_list_ids = list(
+            equipment_type_qs.filter(id__in=equipment_list_ids).values_list(
+                "id", flat=True
+            )
+        )
+
         # When category filter is active, also filter equipment list items by
         # the selected categories to prevent house-restricted items from being
         # re-added via the combine (e.g. Ancestry items via squat legacy).
-        filtered_list_ids = equipment_list_ids
         if cats and "all" not in cats:
             filtered_list_ids = list(
                 ContentEquipment.objects.filter(
-                    id__in=equipment_list_ids, category_id__in=cats
+                    id__in=filtered_list_ids, category_id__in=cats
                 ).values_list("id", flat=True)
             )
 
