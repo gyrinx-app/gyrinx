@@ -10,6 +10,16 @@ from gyrinx.core.models.base import AppBase
 class PrintConfig(AppBase):
     """Configuration for customizing print output of a list."""
 
+    # Fighter selection mode choices
+    ALL_FIGHTERS = "all"
+    SPECIFIC_FIGHTERS = "specific"
+    NO_FIGHTERS = "none"
+    FIGHTER_SELECTION_CHOICES = [
+        (ALL_FIGHTERS, "All current & future fighters"),
+        (SPECIFIC_FIGHTERS, "Specific fighters"),
+        (NO_FIGHTERS, "None"),
+    ]
+
     name = models.CharField(
         max_length=255,
         validators=[validators.MinLengthValidator(1)],
@@ -62,6 +72,14 @@ class PrintConfig(AppBase):
         help_text="Number of blank vehicle/crew cards to include (max 20).",
     )
 
+    # Fighter selection mode
+    fighter_selection_mode = models.CharField(
+        max_length=20,
+        choices=FIGHTER_SELECTION_CHOICES,
+        default=ALL_FIGHTERS,
+        help_text="How to select which fighters to include in the print output.",
+    )
+
     # Fighter selection - many-to-many relationship with ListFighter
     included_fighters = models.ManyToManyField(
         "ListFighter",
@@ -95,13 +113,19 @@ class PrintConfig(AppBase):
         if self.include_dead_fighters:
             included.append("Dead Fighters")
 
-        fighter_count = self.included_fighters.count()
-        if self.included_fighters.exists():
-            included.append(
-                ngettext("%(count)d Fighter", "%(count)d Fighters", fighter_count)
-                % {"count": fighter_count}
-            )
-        else:
+        # Handle fighter selection based on mode
+        if self.fighter_selection_mode == self.NO_FIGHTERS:
+            included.append("No Fighters")
+        elif self.fighter_selection_mode == self.SPECIFIC_FIGHTERS:
+            fighter_count = self.included_fighters.count()
+            if fighter_count > 0:
+                included.append(
+                    ngettext("%(count)d Fighter", "%(count)d Fighters", fighter_count)
+                    % {"count": fighter_count}
+                )
+            else:
+                included.append("0 Fighters")
+        else:  # ALL_FIGHTERS
             included.append("All Fighters")
 
         if self.blank_fighter_cards > 0:

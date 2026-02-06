@@ -7,12 +7,6 @@ from gyrinx.core.models import ListFighter, PrintConfig
 class PrintConfigForm(forms.ModelForm):
     """Form for creating and editing print configurations."""
 
-    select_all_fighters = forms.BooleanField(
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
-    )
-
     class Meta:
         model = PrintConfig
         fields = [
@@ -24,6 +18,7 @@ class PrintConfigForm(forms.ModelForm):
             "include_dead_fighters",
             "blank_fighter_cards",
             "blank_vehicle_cards",
+            "fighter_selection_mode",
             "included_fighters",
         ]
         widgets = {
@@ -42,6 +37,9 @@ class PrintConfigForm(forms.ModelForm):
             ),
             "blank_vehicle_cards": forms.NumberInput(
                 attrs={"class": "form-control", "min": "0", "max": "20"}
+            ),
+            "fighter_selection_mode": forms.RadioSelect(
+                attrs={"class": "form-check-input"}
             ),
             "included_fighters": CheckboxSelectMultiple(
                 attrs={"class": "form-check-input"}
@@ -67,19 +65,18 @@ class PrintConfigForm(forms.ModelForm):
                 lambda obj: f"{obj.name} ({obj.get_injury_state_display()})"
             )
 
-            # Set the initial state of select_all_fighters based on whether fighters are selected
-            if self.instance.pk:
-                # Editing existing config - check if any fighters are selected
-                self.fields[
-                    "select_all_fighters"
-                ].initial = not self.instance.included_fighters.exists()
-            else:
-                # New config - default to all fighters
-                self.fields["select_all_fighters"].initial = True
+    def clean(self):
+        """Validate fighter selection and clear included_fighters for non-specific modes."""
+        cleaned_data = super().clean()
+        mode = cleaned_data.get("fighter_selection_mode")
 
-    def save_m2m(self):
-        """Override save_m2m to handle the select_all_fighters logic."""
-        if not self.cleaned_data.get("select_all_fighters"):
-            # Only save selected fighters if "all fighters" is not checked
-            super().save_m2m()
-        # If "all fighters" is checked, we don't save any specific fighters
+        if mode == PrintConfig.SPECIFIC_FIGHTERS:
+            if not cleaned_data.get("included_fighters"):
+                self.add_error(
+                    "included_fighters",
+                    "Select at least one Fighter, or use a different selection mode.",
+                )
+        else:
+            cleaned_data["included_fighters"] = []
+
+        return cleaned_data

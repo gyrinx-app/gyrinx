@@ -1,4 +1,4 @@
-"""Test that print configuration respects include_stash setting."""
+"""Tests for print configuration."""
 
 import pytest
 from django.contrib.auth.models import User
@@ -6,6 +6,7 @@ from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.core.forms.print_config import PrintConfigForm
 from gyrinx.core.models import List, ListFighter, PrintConfig
 
 
@@ -143,3 +144,42 @@ def test_print_view_default_shows_stash(authenticated_client, test_list_with_sta
     assert response.status_code == 200
     # By default (no print_config), stash should be shown
     assert "Stash" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_specific_fighters_requires_selection(test_list_with_stash):
+    """Test that 'Specific fighters' mode requires at least one fighter selected."""
+    test_list, stash_fighter, regular_fighter = test_list_with_stash
+
+    form = PrintConfigForm(
+        data={
+            "name": "Test Config",
+            "fighter_selection_mode": PrintConfig.SPECIFIC_FIGHTERS,
+            "included_fighters": [],
+            "blank_fighter_cards": 0,
+            "blank_vehicle_cards": 0,
+        },
+        list_obj=test_list,
+    )
+
+    assert not form.is_valid()
+    assert "included_fighters" in form.errors
+
+
+@pytest.mark.django_db
+def test_specific_fighters_valid_with_selection(test_list_with_stash):
+    """Test that 'Specific fighters' mode is valid when fighters are selected."""
+    test_list, stash_fighter, regular_fighter = test_list_with_stash
+
+    form = PrintConfigForm(
+        data={
+            "name": "Test Config",
+            "fighter_selection_mode": PrintConfig.SPECIFIC_FIGHTERS,
+            "included_fighters": [regular_fighter.id],
+            "blank_fighter_cards": 0,
+            "blank_vehicle_cards": 0,
+        },
+        list_obj=test_list,
+    )
+
+    assert form.is_valid()
