@@ -86,6 +86,13 @@ if [ -f "$PG_CONF" ]; then
   if ! grep -q 'max_locks_per_transaction = 256' "$PG_CONF" 2>/dev/null; then
     echo "Tuning PostgreSQL max_locks_per_transaction..."
     echo "max_locks_per_transaction = 256" | sudo tee -a "$PG_CONF" >/dev/null
+    # Restart PostgreSQL if it's already running so the config change takes effect
+    if pg_isready -q 2>/dev/null; then
+      echo "Restarting PostgreSQL to apply config..."
+      sudo pg_ctlcluster 16 main restart 2>/dev/null \
+        || sudo service postgresql restart 2>/dev/null \
+        || true
+    fi
   fi
 fi
 
