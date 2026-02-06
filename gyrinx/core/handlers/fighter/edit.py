@@ -89,6 +89,7 @@ def _calculate_cost_delta(
     fighter: ListFighter,
     old_cost_override: Optional[int],
     new_cost_override: Optional[int],
+    old_base_cost: Optional[int] = None,
 ) -> int:
     """
     Calculate the cost delta when changing cost_override.
@@ -100,21 +101,32 @@ def _calculate_cost_delta(
     2. Has override -> Clear override: calculated_cost - old_override
     3. Change override: new_override - old_override
     4. No change: 0
+
+    Args:
+        fighter: The fighter with new values already applied
+        old_cost_override: The previous cost_override value
+        new_cost_override: The new cost_override value
+        old_base_cost: The previous base cost (before override) - used when
+            content_fighter also changed in the same edit. If None, uses
+            fighter's current _base_cost_before_override().
     """
     # Get the calculated cost (without any override)
-    calculated_cost = fighter._base_cost_before_override()
+    # Use old_base_cost if provided (when content_fighter changed simultaneously)
+    current_calculated_cost = fighter._base_cost_before_override()
 
-    # Determine old effective cost
+    # Determine old effective cost - use old_base_cost if provided and no override was set
     if old_cost_override is not None:
         old_effective_cost = old_cost_override
+    elif old_base_cost is not None:
+        old_effective_cost = old_base_cost
     else:
-        old_effective_cost = calculated_cost
+        old_effective_cost = current_calculated_cost
 
     # Determine new effective cost
     if new_cost_override is not None:
         new_effective_cost = new_cost_override
     else:
-        new_effective_cost = calculated_cost
+        new_effective_cost = current_calculated_cost
 
     return new_effective_cost - old_effective_cost
 
@@ -123,6 +135,7 @@ def _calculate_cost_delta(
 def _calculate_content_fighter_cost_delta(
     fighter: ListFighter,
     old_content_fighter: ContentFighter,
+    old_cost_override: Optional[int] = None,
 ) -> int:
     """
     Calculate the cost delta when changing content_fighter.
@@ -130,18 +143,25 @@ def _calculate_content_fighter_cost_delta(
     The delta is the difference between the new content_fighter's base cost
     and the old content_fighter's base cost, using the house-specific costs.
 
-    If the fighter has a cost_override set, the change doesn't affect the
-    effective cost, so we return 0.
+    If the fighter has a cost_override set (now or before), the change doesn't
+    affect the effective cost, so we return 0.
 
     Args:
         fighter: The fighter with the new content_fighter already applied
         old_content_fighter: The previous content fighter
+        old_cost_override: The previous cost_override value (if cost_override
+            also changed in the same edit)
 
     Returns:
-        The cost delta (new_cost - old_cost), or 0 if cost_override is set
+        The cost delta (new_cost - old_cost), or 0 if cost_override is/was set
     """
-    # If cost_override is set, the content_fighter change doesn't affect effective cost
+    # If cost_override is set NOW, the content_fighter change doesn't affect effective cost
     if fighter.cost_override is not None:
+        return 0
+
+    # If cost_override WAS set before, the content_fighter change also doesn't affect
+    # effective cost - the cost_override delta handles the full transition
+    if old_cost_override is not None:
         return 0
 
     # Get house for cost calculation
@@ -190,8 +210,13 @@ def _detect_field_changes(
         old_content_fighter is not None
         and old_content_fighter != fighter.content_fighter
     ):
+        # Pass old_cost_override so we can detect if cost_override also changed.
+        # If it did, the content_fighter change shouldn't affect effective cost.
+        effective_old_cost_override = (
+            old_cost_override if old_cost_override is not _UNCHANGED else None
+        )
         content_fighter_cost_delta = _calculate_content_fighter_cost_delta(
-            fighter, old_content_fighter
+            fighter, old_content_fighter, effective_old_cost_override
         )
         changes.append(
             FieldChange(
@@ -243,7 +268,20 @@ def _detect_field_changes(
     if old_cost_override is not _UNCHANGED:
         new_value = fighter.cost_override
         if old_cost_override != new_value:
-            cost_delta = _calculate_cost_delta(fighter, old_cost_override, new_value)
+            # If content_fighter also changed, we need to use the OLD content_fighter's
+            # base cost when calculating the cost_override delta. Otherwise, the delta
+            # would be calculated against the NEW content_fighter's cost, which is wrong.
+            old_base_cost = None
+            if (
+                old_content_fighter is not None
+                and old_content_fighter != fighter.content_fighter
+            ):
+                content_house = fighter.list.content_house
+                old_base_cost = old_content_fighter.cost_for_house(content_house)
+
+            cost_delta = _calculate_cost_delta(
+                fighter, old_cost_override, new_value, old_base_cost
+            )
             changes.append(
                 FieldChange(
                     field_name="cost_override",

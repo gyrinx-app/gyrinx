@@ -808,3 +808,227 @@ def test_handle_fighter_edit_content_fighter_change_to_stash_type(
     assert result.changes[0].rating_delta == 0
     assert result.list_actions[0].stash_delta == -50
     assert result.list_actions[0].rating_delta == 0
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_and_cost_override_change_simultaneously(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test that changing both content_fighter and cost_override correctly calculates delta.
+
+    This is a critical edge case: when both fields change in the same edit, the delta
+    should be calculated as:
+      new_effective_cost - old_effective_cost
+
+    Where:
+    - old_effective_cost = old_cost_override (if set) or old_content_fighter.cost
+    - new_effective_cost = new_cost_override (if set) or new_content_fighter.cost
+
+    Scenario: Fighter A (100) with no override -> Fighter B (150) with override 200
+    Expected delta: 200 - 100 = +100
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type and no override
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+    )
+    fighter.rating_current = 100
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form changing BOTH content_fighter AND setting cost_override
+    fighter.content_fighter = new_fighter_type
+    fighter.cost_override = 200
+
+    # Call handler with old values for both fields
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+        old_cost_override=None,
+    )
+
+    assert result is not None
+    # Two changes: content_fighter and cost_override
+    assert len(result.changes) == 2
+
+    # Find the changes by field name
+    content_fighter_change = next(
+        c for c in result.changes if c.field_name == "content_fighter"
+    )
+    cost_override_change = next(
+        c for c in result.changes if c.field_name == "cost_override"
+    )
+
+    # content_fighter delta should be 0 because cost_override is now set
+    # (the override takes precedence for effective cost)
+    assert content_fighter_change.rating_delta == 0
+
+    # cost_override delta should be: 200 (new override) - 100 (old base cost) = +100
+    # NOT: 200 - 150 = +50 (which would be wrong - using new content_fighter cost)
+    assert cost_override_change.rating_delta == 100
+
+    # Total delta propagated should be +100
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating + 100
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_and_cost_override_clear_simultaneously(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test clearing cost_override while changing content_fighter.
+
+    Scenario: Fighter A (100) with override 200 -> Fighter B (150) with no override
+    Expected delta: 150 - 200 = -50
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type and cost override
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+        cost_override=200,
+    )
+    fighter.rating_current = 200
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form changing content_fighter AND clearing cost_override
+    fighter.content_fighter = new_fighter_type
+    fighter.cost_override = None
+
+    # Call handler with old values for both fields
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+        old_cost_override=200,
+    )
+
+    assert result is not None
+    assert len(result.changes) == 2
+
+    # Find the changes by field name
+    content_fighter_change = next(
+        c for c in result.changes if c.field_name == "content_fighter"
+    )
+    cost_override_change = next(
+        c for c in result.changes if c.field_name == "cost_override"
+    )
+
+    # content_fighter delta should be 0 because cost_override WAS set before
+    # (the old effective cost was determined by the override, not the content_fighter)
+    assert content_fighter_change.rating_delta == 0
+
+    # cost_override delta should be: 150 (new base cost, no override) - 200 (old override) = -50
+    assert cost_override_change.rating_delta == -50
+
+    # Total delta propagated should be -50
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating - 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_edit_content_fighter_change_with_existing_override_unchanged(
+    user, make_list, make_content_fighter, content_house, settings
+):
+    """Test changing content_fighter when there's an existing cost_override that doesn't change.
+
+    Scenario: Fighter A (100) with override 200 -> Fighter B (150) with override 200 (unchanged)
+    Expected delta: 0 (override is still 200, effective cost unchanged)
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list("Test List")
+    lst.rating_current = 500
+    lst.save()
+
+    # Create two different fighter types with different costs
+    old_fighter_type = make_content_fighter(
+        type="OldType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+    new_fighter_type = make_content_fighter(
+        type="NewType",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=150,
+    )
+
+    # Create fighter with old type and cost override
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=old_fighter_type,
+        list=lst,
+        owner=user,
+        cost_override=200,
+    )
+    fighter.rating_current = 200
+    fighter.save()
+    fighter.refresh_from_db()
+    initial_fighter_rating = fighter.rating_current
+
+    # Simulate form changing ONLY content_fighter (cost_override stays 200)
+    fighter.content_fighter = new_fighter_type
+
+    # Call handler - only providing old_content_fighter, not old_cost_override
+    result = handle_fighter_edit(
+        user=user,
+        fighter=fighter,
+        old_content_fighter=old_fighter_type,
+    )
+
+    assert result is not None
+    assert len(result.changes) == 1
+    assert result.changes[0].field_name == "content_fighter"
+
+    # content_fighter delta should be 0 because cost_override is set
+    assert result.changes[0].rating_delta == 0
+
+    # No change in effective cost
+    fighter.refresh_from_db()
+    assert fighter.rating_current == initial_fighter_rating
