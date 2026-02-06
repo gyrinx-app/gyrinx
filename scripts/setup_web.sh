@@ -113,8 +113,8 @@ done
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null || true
 
 # Read the DB_NAME from .env (falls back to the default used by settings.py)
-DB_NAME=$(grep '^DB_NAME=' .env 2>/dev/null | cut -d'=' -f2 || echo "postgres")
-DB_NAME="${DB_NAME:-postgres}"
+DB_NAME=$(grep '^DB_NAME=' .env 2>/dev/null | cut -d'=' -f2 || echo "gyrinx")
+DB_NAME="${DB_NAME:-gyrinx}"
 
 # Create the database if it doesn't already exist
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | grep -q 1; then
