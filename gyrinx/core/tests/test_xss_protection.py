@@ -12,7 +12,7 @@ from django.test import Client
 from django.urls import reverse
 
 from gyrinx.core.models import BattleNote, Campaign, List
-from gyrinx.core.templatetags.custom_tags import safe_rich_text
+from gyrinx.core.templatetags.custom_tags import plain_text_truncate, safe_rich_text
 from gyrinx.content.models import ContentHouse
 
 
@@ -310,3 +310,135 @@ def test_complex_nested_xss_is_sanitized():
     result = safe_rich_text(style_xss)
     assert "javascript:" not in result
     assert "Text</div>" in result
+
+
+# Tests for plain_text_truncate filter
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_strips_all_html():
+    """Test that plain_text_truncate removes all HTML tags."""
+    # Basic HTML tags
+    assert plain_text_truncate("<p>Hello world</p>") == "Hello world"
+    assert plain_text_truncate("<strong>Bold</strong> text") == "Bold text"
+    assert (
+        plain_text_truncate("<em>Italic</em> and <u>underline</u>")
+        == "Italic and underline"
+    )
+
+    # Images are completely removed (no alt text included)
+    assert (
+        plain_text_truncate(
+            '<p>Text with <img src="test.jpg" alt="image"> embedded</p>'
+        )
+        == "Text with embedded"
+    )
+
+    # Complex HTML structure
+    html = "<div><h1>Title</h1><p>Paragraph with <strong>bold</strong> and <em>italic</em>.</p></div>"
+    assert plain_text_truncate(html) == "Title Paragraph with bold and italic."
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_handles_images():
+    """Test that images are stripped completely from the output."""
+    # Image only
+    assert plain_text_truncate('<img src="photo.jpg" width="800" height="600">') == ""
+
+    # Image with surrounding text
+    result = plain_text_truncate(
+        '<p>Before image</p><img src="large.jpg"><p>After image</p>'
+    )
+    assert result == "Before image After image"
+
+    # Image with alt text - alt text is NOT included in plain text output
+    result = plain_text_truncate('<img src="photo.jpg" alt="A nice photo">')
+    assert result == ""
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_truncates_correctly():
+    """Test truncation behavior at word boundaries."""
+    # Short text should not be truncated
+    assert plain_text_truncate("Short text") == "Short text"
+
+    # Long text should be truncated at word boundary
+    long_text = "This is a much longer piece of text that should definitely be truncated because it exceeds the default limit of one hundred and fifty characters which is quite a lot"
+    result = plain_text_truncate(long_text)
+    assert len(result) <= 151  # 150 + ellipsis character
+    assert result.endswith("…")
+    assert not result.endswith(" …")  # No trailing space before ellipsis
+
+    # Custom length - truncated at limit with ellipsis
+    result = plain_text_truncate("Hello world, this is a test", 10)
+    assert len(result) <= 11  # 10 + ellipsis character
+    assert result.endswith("…")
+
+    # Test that word boundary is preferred when reasonable
+    result = plain_text_truncate("Hello world this is a test sentence", 20)
+    assert result.endswith("…")
+    assert len(result) <= 21
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_handles_empty_values():
+    """Test that empty/None values are handled gracefully."""
+    assert plain_text_truncate("") == ""
+    assert plain_text_truncate(None) == ""
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_normalizes_whitespace():
+    """Test that whitespace is normalized (multiple spaces/newlines collapsed)."""
+    # Multiple spaces
+    assert plain_text_truncate("Text    with    spaces") == "Text with spaces"
+
+    # Newlines
+    assert (
+        plain_text_truncate("Line one\nLine two\n\nLine three")
+        == "Line one Line two Line three"
+    )
+
+    # Tabs and mixed whitespace
+    assert plain_text_truncate("<p>Para 1</p>\n\n<p>Para 2</p>") == "Para 1 Para 2"
+
+
+@pytest.mark.django_db
+def test_plain_text_truncate_strips_dangerous_content():
+    """Test that dangerous HTML is stripped, not just tags."""
+    # Script tags - content is stripped along with tag
+    result = plain_text_truncate('<script>alert("XSS")</script>')
+    assert result == 'alert("XSS")'  # bleach strips tags but keeps content
+
+    # Event handlers are removed (they're attributes, not content)
+    result = plain_text_truncate('<div onclick="alert()">Click me</div>')
+    assert result == "Click me"
+
+    # javascript: URLs are not included since links are stripped
+    result = plain_text_truncate("<a href=\"javascript:alert('XSS')\">Bad link</a>")
+    assert result == "Bad link"
+
+
+@pytest.mark.django_db
+def test_campaign_list_view_uses_plain_text(client, user):
+    """Test that campaign list view shows plain text summaries, not HTML."""
+    Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+        summary='<p>Campaign intro</p><img src="banner.jpg"><p>More text here with <strong>formatting</strong>.</p>',
+    )
+
+    response = client.get(reverse("core:campaigns"))
+    assert response.status_code == 200
+
+    content = response.content.decode()
+
+    # Should contain plain text version
+    assert "Campaign intro" in content
+
+    # Should NOT contain HTML elements in the summary area
+    # (Note: img tags may exist elsewhere in the page, so we check specifically)
+    # The summary should not render raw HTML
+    assert '<img src="banner.jpg">' not in content
+    assert "<strong>formatting</strong>" not in content

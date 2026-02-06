@@ -499,6 +499,47 @@ def return_url_field(context: RequestContext):
 
 
 @register.filter
+def plain_text_truncate(value, length=150):
+    """
+    Strip all HTML tags and truncate to a specified length for list view previews.
+
+    This filter is designed for list views where rich text content should be shown
+    as plain text. It:
+    1. Strips all HTML tags (including images, formatting, etc.)
+    2. Removes extra whitespace
+    3. Truncates to the specified length with ellipsis if needed
+
+    Args:
+        value: The HTML string to process
+        length: Maximum length for the output (default: 150 characters)
+
+    Usage:
+        {{ campaign.summary|plain_text_truncate }}
+        {{ campaign.summary|plain_text_truncate:200 }}
+    """
+    if not value:
+        return ""
+
+    # Strip all HTML tags using bleach with an empty tag list
+    text = bleach.clean(value, tags=[], strip=True)
+
+    # Normalize whitespace (collapse multiple spaces/newlines into single spaces)
+    text = " ".join(text.split())
+
+    # Truncate if needed
+    length = int(length)
+    if len(text) > length:
+        # Find the last space before the length limit to avoid cutting words
+        truncated = text[:length]
+        last_space = truncated.rfind(" ")
+        if last_space > length // 2:  # Only use word boundary if it's reasonable
+            truncated = truncated[:last_space]
+        return truncated.rstrip() + "…"
+
+    return text
+
+
+@register.filter
 def safe_rich_text(value):
     """
     Sanitize and render rich text content safely.
