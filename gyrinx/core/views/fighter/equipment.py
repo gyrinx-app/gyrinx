@@ -303,9 +303,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     preset_al = preset.availability_types_list if preset else ["C", "R", "I"]
     preset_mal = preset.max_availability_level if preset else None
 
-    # If house has can_buy_any and no filter is provided, redirect to filter=all
+    # Figure out default view - show all if house OR preset allows it
+    default_to_all = house_can_buy_any or (preset and preset.fighter_can_buy_any)
+
+    # If defaulting to all and no filter is provided, redirect to filter=all
     # with preset values applied, unless user has provided explicit values.
-    if house_can_buy_any and "filter" not in request.GET:
+    if default_to_all and "filter" not in request.GET:
         query_dict = request.GET.copy()
         query_dict["filter"] = "all"
 
@@ -397,8 +400,8 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     if mc is not None:
         equipment = equipment.filter(cost_for_fighter__lte=mc)
 
-    # If house has can_buy_any, also include equipment from equipment list
-    if house_can_buy_any:
+    # If defaulting to all (house or preset), also include equipment from equipment list
+    if default_to_all:
         # Combine equipment and equipment_list_items using a single filter with Q
         combined_equipment_qs = ContentEquipment.objects.filter(
             Q(id__in=equipment.values("id")) | Q(id__in=equipment_list_ids)
