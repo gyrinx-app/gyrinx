@@ -2,6 +2,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.urls import reverse
 from simple_history.models import HistoricalRecords
 
 from .base import AppBase
@@ -37,6 +38,9 @@ class CustomContentPack(AppBase):
 
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        return reverse("core:pack", args=(self.id,))
 
 
 class CustomContentPackItem(AppBase):

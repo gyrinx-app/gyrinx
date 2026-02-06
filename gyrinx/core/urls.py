@@ -661,6 +661,11 @@ urlpatterns = [
     path("packs/new/", pack_views.new_pack, name="packs-new"),
     path("pack/<id>", pack_views.PackDetailView.as_view(), name="pack"),
     path("pack/<id>/edit/", pack_views.edit_pack, name="pack-edit"),
+    path(
+        "pack/<id>/activity/",
+        pack_views.PackActivityView.as_view(),
+        name="pack-activity",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

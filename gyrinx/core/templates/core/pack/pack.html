@@ -57,5 +57,30 @@
                 {% endif %}
             </section>
         {% endfor %}
+        <!-- Activity -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <h2 class="h5 mb-0">
+                    <i class="bi-clock-history"></i> Activity
+                </h2>
+                {% if total_activity_count > 0 %}
+                    <a href="{% url 'core:pack-activity' pack.id %}"
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                {% endif %}
+            </div>
+            {% if recent_activities %}
+                <div class="list-group list-group-flush">
+                    {% for activity in recent_activities %}
+                        {% include "core/includes/pack_activity_item.html" with activity=activity %}
+                    {% endfor %}
+                </div>
+                {% if total_activity_count > 5 %}
+                    <a href="{% url 'core:pack-activity' pack.id %}"
+                       class="small mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+                {% endif %}
+            {% else %}
+                <p class="text-muted small mb-0">No activity yet.</p>
+            {% endif %}
+        </section>
     </div>
 {% endblock content %}

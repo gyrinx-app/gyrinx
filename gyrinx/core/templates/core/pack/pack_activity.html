@@ -1,0 +1,42 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Activity - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text="Back to Content Pack" %}
+    <div class="col-12 col-xl-8 px-0 vstack gap-3">
+        <div>
+            <h1 class="h3 mb-0">Activity</h1>
+            <h2 class="h5 text-muted">{{ pack.name }}</h2>
+        </div>
+        {% if activities %}
+            <div class="list-group list-group-flush">
+                {% for activity in activities %}
+                    {% include "core/includes/pack_activity_item.html" with activity=activity %}
+                {% endfor %}
+            </div>
+            {% if is_paginated %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        <li class="page-item active">
+                            <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                        </li>
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <p class="text-muted">No activity yet.</p>
+        {% endif %}
+    </div>
+{% endblock content %}
