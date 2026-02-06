@@ -2,6 +2,7 @@
 
 import itertools
 from collections import defaultdict
+from typing import NamedTuple
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
@@ -21,10 +22,19 @@ from gyrinx.core.views.auth import (
     group_membership_required,
 )
 
+
+class ContentTypeEntry(NamedTuple):
+    model_class: type
+    label: str
+    description: str
+    icon: str
+    form_class: type | None
+    slug: str
+
+
 # Content types that can be added to packs, in display order.
-# Each entry: (model_class, label, description, icon, form_class, url_slug)
 SUPPORTED_CONTENT_TYPES = [
-    (
+    ContentTypeEntry(
         ContentHouse,
         "Houses",
         "Custom factions and houses for your fighters.",
@@ -32,7 +42,7 @@ SUPPORTED_CONTENT_TYPES = [
         None,
         "house",
     ),
-    (
+    ContentTypeEntry(
         ContentRule,
         "Rules",
         "Custom rules for your Content Pack.",
@@ -43,7 +53,7 @@ SUPPORTED_CONTENT_TYPES = [
 ]
 
 # Lookup from URL slug to content type entry.
-_CONTENT_TYPE_BY_SLUG = {entry[5]: entry for entry in SUPPORTED_CONTENT_TYPES}
+_CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
 
 
 # Fields to exclude from change diffs (internal/inherited fields).
@@ -52,7 +62,6 @@ _SKIP_FIELDS = {
     "created",
     "modified",
     "owner",
-    "archived",
     "archived_at",
     "object_id",
     "content_type",
@@ -65,17 +74,38 @@ _FIELD_LABELS = {
     "summary": "Summary",
     "description": "Description",
     "listed": "Listed",
+    "archived": "Archived",
 }
 
 
 class _ActivityRecord:
     """Wraps a SimpleHistory record with display helpers for templates."""
 
-    __slots__ = ("_record", "is_pack_record", "item_description", "changes")
+    __slots__ = (
+        "_record",
+        "is_pack_record",
+        "is_content_edit",
+        "is_archive_action",
+        "archive_action",
+        "item_description",
+        "changes",
+    )
 
-    def __init__(self, record, is_pack_record, item_description="", changes=None):
+    def __init__(
+        self,
+        record,
+        is_pack_record,
+        item_description="",
+        changes=None,
+        is_content_edit=False,
+        is_archive_action=False,
+        archive_action="",
+    ):
         self._record = record
         self.is_pack_record = is_pack_record
+        self.is_content_edit = is_content_edit
+        self.is_archive_action = is_archive_action
+        self.archive_action = archive_action
         self.item_description = item_description
         self.changes = changes or []
 
@@ -158,7 +188,8 @@ def _get_pack_activity(pack, limit=None):
 
     Returns a sorted list of _ActivityRecord wrappers, ordered by
     history_date descending. Update records with no meaningful field
-    changes are excluded.
+    changes are excluded. Also includes edits to content objects
+    (e.g. renaming a rule) linked through pack items.
     """
     pack_history = pack.history.select_related("history_user").all()
     item_history = (
@@ -177,6 +208,25 @@ def _get_pack_activity(pack, limit=None):
     item_records = []
     for r in item_history:
         changes = _compute_changes(r)
+        # Detect archive/restore: the only change is the "archived" field.
+        is_archive_change = (
+            r.history_type == "~"
+            and len(changes) == 1
+            and changes[0].startswith("Archived ")
+        )
+        if is_archive_change:
+            desc = _resolve_item_description(r)
+            action = "Archived" if r.archived else "Restored"
+            item_records.append(
+                _ActivityRecord(
+                    r,
+                    is_pack_record=False,
+                    item_description=desc,
+                    is_archive_action=True,
+                    archive_action=action,
+                )
+            )
+            continue
         if r.history_type == "~" and not changes:
             continue
         item_records.append(
@@ -188,8 +238,46 @@ def _get_pack_activity(pack, limit=None):
             )
         )
 
+    # Content object edit records (e.g. renaming a rule).
+    # Group pack item object_ids by content type, then query each model's
+    # history for update records only (create/delete are covered by item history).
+    content_edit_records = []
+    ids_by_ct = defaultdict(set)
+    for pi in pack.items.all():
+        if pi.content_type_id and pi.object_id:
+            ids_by_ct[pi.content_type_id].add(pi.object_id)
+
+    for ct_id, obj_ids in ids_by_ct.items():
+        ct = ContentType.objects.get_for_id(ct_id)
+        model_class = ct.model_class()
+        if model_class is None or not hasattr(model_class, "history"):
+            continue
+        for r in (
+            model_class.history.filter(id__in=obj_ids, history_type="~")
+            .select_related("history_user")
+            .all()
+        ):
+            changes = _compute_changes(r)
+            if not changes:
+                continue
+            # Use the name from the historical record (captures name at time of edit)
+            desc = (
+                f"{r.name} ({ct.name.title()})"
+                if hasattr(r, "name")
+                else ct.name.title()
+            )
+            content_edit_records.append(
+                _ActivityRecord(
+                    r,
+                    is_pack_record=False,
+                    is_content_edit=True,
+                    item_description=desc,
+                    changes=changes,
+                )
+            )
+
     combined = sorted(
-        itertools.chain(pack_records, item_records),
+        itertools.chain(pack_records, item_records, content_edit_records),
         key=lambda h: h.history_date,
         reverse=True,
     )
@@ -255,35 +343,33 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
 
         context["is_owner"] = user.is_authenticated and user == pack.owner
 
-        # Group prefetched items by content type to avoid N+1 queries.
-        # Each entry stores (pack_item, content_object) for edit/delete URLs.
-        items_by_ct = defaultdict(list)
+        # Group prefetched items by content type, splitting active/archived.
+        active_by_ct = defaultdict(list)
+        archived_by_ct = defaultdict(list)
         for item in pack.items.all():
             if item.content_object is not None:
-                items_by_ct[item.content_type_id].append(
-                    {"pack_item": item, "content_object": item.content_object}
-                )
+                entry = {"pack_item": item, "content_object": item.content_object}
+                if item.archived:
+                    archived_by_ct[item.content_type_id].append(entry)
+                else:
+                    active_by_ct[item.content_type_id].append(entry)
 
         content_sections = []
-        for (
-            model_class,
-            label,
-            description,
-            icon,
-            form_class,
-            slug,
-        ) in SUPPORTED_CONTENT_TYPES:
-            ct = ContentType.objects.get_for_model(model_class)
-            items = items_by_ct.get(ct.id, [])
+        for entry in SUPPORTED_CONTENT_TYPES:
+            ct = ContentType.objects.get_for_model(entry.model_class)
+            items = active_by_ct.get(ct.id, [])
+            archived_items = archived_by_ct.get(ct.id, [])
             content_sections.append(
                 {
-                    "label": label,
-                    "description": description,
-                    "icon": icon,
+                    "label": entry.label,
+                    "description": entry.description,
+                    "icon": entry.icon,
                     "items": items,
                     "count": len(items),
-                    "slug": slug,
-                    "can_add": form_class is not None,
+                    "archived_items": archived_items,
+                    "archived_count": len(archived_items),
+                    "slug": entry.slug,
+                    "can_add": entry.form_class is not None,
                 }
             )
 
@@ -299,7 +385,6 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
 @group_membership_required(["Custom Content"])
 def new_pack(request):
     """Create a new content pack owned by the current user."""
-    error_message = None
     if request.method == "POST":
         form = PackForm(request.POST)
         if form.is_valid():
@@ -317,7 +402,7 @@ def new_pack(request):
     return render(
         request,
         "core/pack/pack_new.html",
-        {"form": form, "error_message": error_message},
+        {"form": form},
     )
 
 
@@ -327,7 +412,6 @@ def edit_pack(request, id):
     """Edit an existing content pack owned by the current user."""
     pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
 
-    error_message = None
     if request.method == "POST":
         form = PackForm(request.POST, instance=pack)
         if form.is_valid():
@@ -339,7 +423,7 @@ def edit_pack(request, id):
     return render(
         request,
         "core/pack/pack_edit.html",
-        {"form": form, "pack": pack, "error_message": error_message},
+        {"form": form, "pack": pack},
     )
 
 
@@ -374,12 +458,61 @@ class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
         return context
 
 
+class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
+    """Display archived items for a pack section."""
+
+    template_name = "core/pack/pack_archived.html"
+    context_object_name = "pack"
+    required_groups = ["Custom Content"]
+
+    def get_object(self):
+        pack = get_object_or_404(
+            CustomContentPack.objects.select_related("owner").prefetch_related(
+                "items__content_type"
+            ),
+            id=self.kwargs["id"],
+        )
+        if pack.owner != self.request.user:
+            raise Http404
+        return pack
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pack = self.object
+        slug = self.kwargs["content_type_slug"]
+        entry = _CONTENT_TYPE_BY_SLUG.get(slug)
+        if entry is None:
+            raise Http404
+
+        ct = ContentType.objects.get_for_model(entry.model_class)
+        archived_items = []
+        for item in pack.items.filter(archived=True, content_type=ct):
+            if item.content_object is not None:
+                archived_items.append(
+                    {"pack_item": item, "content_object": item.content_object}
+                )
+
+        context["archived_items"] = archived_items
+        context["section_label"] = entry.label
+        context["slug"] = slug
+        return context
+
+
 def _get_content_type_entry(slug):
     """Look up a SUPPORTED_CONTENT_TYPES entry by URL slug, or raise 404."""
     entry = _CONTENT_TYPE_BY_SLUG.get(slug)
-    if entry is None or entry[4] is None:
+    if entry is None or entry.form_class is None:
         raise Http404
     return entry
+
+
+def _get_entry_for_pack_item(pack_item):
+    """Look up the SUPPORTED_CONTENT_TYPES entry matching a pack item, or raise 404."""
+    for e in SUPPORTED_CONTENT_TYPES:
+        ct = ContentType.objects.get_for_model(e.model_class)
+        if ct == pack_item.content_type:
+            return e
+    raise Http404
 
 
 @login_required
@@ -387,28 +520,38 @@ def _get_content_type_entry(slug):
 def add_pack_item(request, id, content_type_slug):
     """Add a new content item to a pack."""
     pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
-    model_class, label, _desc, icon, form_class, slug = _get_content_type_entry(
-        content_type_slug
-    )
-    singular_label = label.rstrip("s")
+    entry = _get_content_type_entry(content_type_slug)
+    singular_label = entry.label.rstrip("s")
 
     if request.method == "POST":
-        form = form_class(request.POST)
+        form = entry.form_class(request.POST)
         if form.is_valid():
             content_obj = form.save(commit=False)
             content_obj._history_user = request.user
             content_obj.save()
-            ct = ContentType.objects.get_for_model(model_class)
-            item = CustomContentPackItem(
+            ct = ContentType.objects.get_for_model(entry.model_class)
+            # If an archived pack item already exists for this content,
+            # unarchive it instead of creating a new one.
+            existing = CustomContentPackItem.objects.filter(
                 pack=pack,
                 content_type=ct,
                 object_id=content_obj.pk,
-                owner=request.user,
-            )
-            item.save_with_user(user=request.user)
+                archived=True,
+            ).first()
+            if existing:
+                existing._history_user = request.user
+                existing.unarchive()
+            else:
+                item = CustomContentPackItem(
+                    pack=pack,
+                    content_type=ct,
+                    object_id=content_obj.pk,
+                    owner=request.user,
+                )
+                item.save_with_user(user=request.user)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = form_class()
+        form = entry.form_class()
 
     return render(
         request,
@@ -417,8 +560,8 @@ def add_pack_item(request, id, content_type_slug):
             "form": form,
             "pack": pack,
             "label": singular_label,
-            "icon": icon,
-            "slug": slug,
+            "icon": entry.icon,
+            "slug": entry.slug,
         },
     )
 
@@ -432,33 +575,27 @@ def edit_pack_item(request, id, item_id):
         CustomContentPackItem.objects.select_related("content_type"),
         id=item_id,
         pack=pack,
+        archived=False,
     )
 
     content_obj = pack_item.content_object
     if content_obj is None:
         raise Http404
 
-    # Find the matching entry and form class
-    entry = None
-    for e in SUPPORTED_CONTENT_TYPES:
-        ct = ContentType.objects.get_for_model(e[0])
-        if ct == pack_item.content_type and e[4] is not None:
-            entry = e
-            break
-    if entry is None:
+    entry = _get_entry_for_pack_item(pack_item)
+    if entry.form_class is None:
         raise Http404
 
-    model_class, label, _desc, icon, form_class, slug = entry
-    singular_label = label.rstrip("s")
+    singular_label = entry.label.rstrip("s")
 
     if request.method == "POST":
-        form = form_class(request.POST, instance=content_obj)
+        form = entry.form_class(request.POST, instance=content_obj)
         if form.is_valid():
             form.instance._history_user = request.user
             form.save()
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = form_class(instance=content_obj)
+        form = entry.form_class(instance=content_obj)
 
     return render(
         request,
@@ -469,7 +606,7 @@ def edit_pack_item(request, id, item_id):
             "pack_item": pack_item,
             "content_obj": content_obj,
             "label": singular_label,
-            "icon": icon,
+            "icon": entry.icon,
         },
     )
 
@@ -477,32 +614,26 @@ def edit_pack_item(request, id, item_id):
 @login_required
 @group_membership_required(["Custom Content"])
 def delete_pack_item(request, id, item_id):
-    """Delete a content item from a pack."""
+    """Archive a content item from a pack (soft-delete)."""
     pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
     pack_item = get_object_or_404(
         CustomContentPackItem.objects.select_related("content_type"),
         id=item_id,
         pack=pack,
+        archived=False,
     )
 
     content_obj = pack_item.content_object
     if content_obj is None:
         raise Http404
 
-    # Find the matching entry
-    entry = None
-    for e in SUPPORTED_CONTENT_TYPES:
-        ct = ContentType.objects.get_for_model(e[0])
-        if ct == pack_item.content_type:
-            entry = e
-            break
-
-    label = entry[1].rstrip("s") if entry else "Item"
-    icon = entry[3] if entry else ""
+    entry = _get_entry_for_pack_item(pack_item)
+    label = entry.label.rstrip("s")
+    icon = entry.icon
 
     if request.method == "POST":
-        pack_item.delete()
-        content_obj.delete()
+        pack_item._history_user = request.user
+        pack_item.archive()
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
     return render(
@@ -516,3 +647,23 @@ def delete_pack_item(request, id, item_id):
             "icon": icon,
         },
     )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def restore_pack_item(request, id, item_id):
+    """Restore an archived content item in a pack."""
+    if request.method != "POST":
+        raise Http404
+
+    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=True,
+    )
+
+    pack_item._history_user = request.user
+    pack_item.unarchive()
+    return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))

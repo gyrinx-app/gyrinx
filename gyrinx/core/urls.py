@@ -681,6 +681,16 @@ urlpatterns = [
         pack_views.delete_pack_item,
         name="pack-delete-item",
     ),
+    path(
+        "pack/<id>/item/<item_id>/restore/",
+        pack_views.restore_pack_item,
+        name="pack-restore-item",
+    ),
+    path(
+        "pack/<id>/archived/<content_type_slug>/",
+        pack_views.PackArchivedItemsView.as_view(),
+        name="pack-archived-items",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

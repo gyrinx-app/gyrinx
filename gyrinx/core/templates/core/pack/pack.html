@@ -44,14 +44,22 @@
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
                     <h2 class="h5 mb-0">
-                        <i class="{{ section.icon }}"></i> {{ section.label }}
+                        {{ section.label }}
                         {% if section.count > 0 %}<span class="badge bg-primary">{{ section.count }}</span>{% endif %}
                     </h2>
-                    {% if is_owner and section.can_add %}
-                        <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-plus-lg"></i> Add
-                        </a>
+                    {% if is_owner %}
+                        <span class="d-flex gap-2 align-items-center">
+                            {% if section.archived_count > 0 %}
+                                <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Archived ({{ section.archived_count }})</a>
+                            {% endif %}
+                            {% if section.can_add %}
+                                <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi-plus-lg"></i> Add
+                                </a>
+                            {% endif %}
+                        </span>
                     {% endif %}
                 </div>
                 {% if section.items %}
@@ -64,7 +72,7 @@
                                         <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
                                            class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
                                         <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
                                     </span>
                                 {% endif %}
                             </li>
@@ -78,9 +86,7 @@
         <!-- Activity -->
         <section>
             <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
-                <h2 class="h5 mb-0">
-                    <i class="bi-clock-history"></i> Activity
-                </h2>
+                <h2 class="h5 mb-0">Activity</h2>
                 {% if total_activity_count > 0 %}
                     <a href="{% url 'core:pack-activity' pack.id %}"
                        class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
