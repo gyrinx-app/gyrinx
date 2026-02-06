@@ -334,6 +334,10 @@ LOGGING = {
             "handlers": ["null"],
             "propagate": False,
         },
+        "django.utils.autoreload": {
+            "handlers": ["null"],
+            "propagate": False,
+        },
         "django.request": {
             "handlers": ["console"],
             "level": "ERROR",
