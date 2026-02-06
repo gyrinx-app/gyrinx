@@ -80,7 +80,11 @@ echo "uv: $(uv --version)"
 # 3. Python virtual environment + project install
 # ---------------------------------------------------------------------------
 echo "--- [3/8] Setting up Python environment ---"
-uv venv .venv
+if [ -d .venv ]; then
+  echo "Reusing existing .venv"
+else
+  uv venv .venv
+fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 uv pip install --editable .
@@ -96,6 +100,19 @@ manage setupenv
 # 5. PostgreSQL
 # ---------------------------------------------------------------------------
 echo "--- [5/8] Setting up PostgreSQL ---"
+
+# Fix SSL private key permissions.  In web environments the snakeoil key
+# sometimes ends up with group/world access, which causes PostgreSQL to
+# refuse to start with:
+#   FATAL: private key file "..." has group or world access
+SSL_KEY="/etc/ssl/private/ssl-cert-snakeoil.key"
+if [ -f "$SSL_KEY" ]; then
+  PERMS=$(stat -c '%a' "$SSL_KEY" 2>/dev/null || true)
+  if [ -n "$PERMS" ] && [ "$PERMS" != "600" ] && [ "$PERMS" != "640" ]; then
+    echo "Fixing SSL key permissions ($PERMS -> 600)..."
+    sudo chmod 600 "$SSL_KEY"
+  fi
+fi
 
 # Tune PostgreSQL for parallel test workloads.  The default
 # max_locks_per_transaction (64) is too low when pytest-xdist spins up many
@@ -118,22 +135,29 @@ fi
 # Start PostgreSQL if not already running
 if ! pg_isready -q 2>/dev/null; then
   echo "Starting PostgreSQL..."
-  sudo pg_ctlcluster 16 main start 2>/dev/null \
-    || sudo service postgresql start 2>/dev/null \
-    || true
+  if ! sudo pg_ctlcluster 16 main start 2>&1; then
+    echo "pg_ctlcluster failed, trying service..."
+    if ! sudo service postgresql start 2>&1; then
+      echo "ERROR: Failed to start PostgreSQL."
+      exit 1
+    fi
+  fi
 fi
 
 # Wait for readiness
+PG_READY=false
 for i in $(seq 1 30); do
   if pg_isready -q 2>/dev/null; then
     echo "PostgreSQL is ready."
+    PG_READY=true
     break
-  fi
-  if [ "$i" -eq 30 ]; then
-    echo "WARNING: PostgreSQL did not become ready in 30 s."
   fi
   sleep 1
 done
+if [ "$PG_READY" != "true" ]; then
+  echo "ERROR: PostgreSQL did not become ready in 30 s."
+  exit 1
+fi
 
 # Set the postgres user password so TCP connections with password auth work
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null || true
