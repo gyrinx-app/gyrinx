@@ -30,18 +30,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - All our infra is in GCP europe-west2 (London)
 - In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
 
+## Agents, Skills, and Commands
+
+This repo has custom agents, skills, and slash commands in `.claude/`. Use them proactively at the right points
+in the workflow.
+
+### Agents (`.claude/agents/`)
+
+- **feature-planner** — Use before starting any non-trivial feature or bug fix. Produces a work breakdown, testing
+  strategy, and risk assessment. Loads `gyrinx-conventions` automatically.
+- **code-simplifier** — Use for architecture review, code review, or refactoring analysis. Applies four analytical
+  lenses (simplify, unify, abstract, boundaries). Loads `gyrinx-conventions` and `code-analysis-lenses`.
+- **diataxis-docs-expert** — Use when creating or auditing documentation. Follows the Diataxis framework.
+
+### Slash Commands (`.claude/commands/`)
+
+- `/manual-test-plan [notes]` — Generate a manual test plan for recent changes, formatted for Claude for Chrome.
+  Run after implementing a feature to create a browser-testable checklist.
+- `/gissue <path>` — Create a GitHub issue from an analysis file (e.g., from `.claude/notes/`), uploading the full
+  analysis to a gist and creating a summary issue.
+- `/trace-playbook <trace-file>` — Run the full trace performance analysis playbook on a Google Cloud Trace JSON file.
+
+### Skills (`.claude/skills/`)
+
+Skills are loaded automatically by agents that need them. They can also be referenced directly:
+
+- **gyrinx-conventions** — Canonical architectural patterns for the project (views, handlers, models, templates, tests)
+- **code-analysis-lenses** — Four structured lenses for evaluating code quality
+- **edit-github-discussion** — Workflow for editing GitHub Discussions via GraphQL API
+- **trace-analysis** — Guide for analyzing OpenTelemetry trace files
+
 ## Critical Workflow
 
 ### Before Starting
 
 1. Create a new branch for the task: `git checkout -b issue-NAME`
+2. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
+   writing code
 
 ### Before Push
 
 1. Format code: `./scripts/fmt.sh`
 2. Run tests: `pytest -n auto`
 3. Fix any failing tests
-4. Commit and push changes
+4. Consider running the **code-simplifier** agent on changed files for a quality check
+5. Commit and push changes
 
 **In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
 
