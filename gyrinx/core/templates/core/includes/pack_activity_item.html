@@ -1,0 +1,42 @@
+{% comment %}
+    Pack activity item - displays a single history record.
+    - activity: History record (HistoricalCustomContentPack or HistoricalCustomContentPackItem)
+{% endcomment %}
+<div class="list-group-item px-0">
+    <small class="text-muted hstack w-100 justify-content-between">
+        <div class="flex-grow-1">
+            {% if activity.history_user %}
+                <strong><i class="bi-person"></i> {{ activity.history_user.username }}</strong>
+            {% else %}
+                <strong><i class="bi-person"></i> System</strong>
+            {% endif %}
+            •
+            {% if activity.is_pack_record %}
+                {% if activity.history_type == "+" %}
+                    Created pack
+                {% elif activity.history_type == "~" %}
+                    Updated pack
+                {% elif activity.history_type == "-" %}
+                    Deleted pack
+                {% endif %}
+            {% else %}
+                {% if activity.history_type == "+" %}
+                    Added item
+                {% elif activity.history_type == "~" %}
+                    Updated item
+                {% elif activity.history_type == "-" %}
+                    Removed item
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="ms-auto">
+            <em>{{ activity.history_date|timesince }} ago</em>
+        </div>
+    </small>
+    {% if not activity.is_pack_record %}<p class="mb-0">{{ activity.item_description }}</p>{% endif %}
+    {% if activity.changes %}
+        <ul class="mb-0 small text-muted">
+            {% for change in activity.changes %}<li>{{ change }}</li>{% endfor %}
+        </ul>
+    {% endif %}
+</div>
