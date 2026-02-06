@@ -329,8 +329,13 @@ def test_campaign_automatically_creates_reputation_resource():
 
 
 @pytest.mark.django_db
-def test_campaign_list_view_html_content():
-    """Test that HTML content is displayed in campaign list view."""
+def test_campaign_list_view_shows_plain_text_summary():
+    """Test that HTML content is stripped to plain text in campaign list view.
+
+    Campaign summaries in list views should show plain text, not HTML,
+    to prevent large images and complex formatting from cluttering the list.
+    Full HTML is still shown on the campaign detail page.
+    """
     client = Client()
 
     # Create a test user
@@ -354,9 +359,11 @@ def test_campaign_list_view_html_content():
     # The campaign should be listed
     assert "HTML Summary Test" in content
 
-    # HTML should be rendered (using |safe filter)
-    assert "<strong>Bold</strong>" in content
-    assert "<em>italic</em>" in content
+    # HTML should be stripped to plain text in list view
+    assert "Bold and italic summary" in content
+    # HTML tags should NOT be rendered in the summary
+    assert "<strong>Bold</strong>" not in content
+    assert "<em>italic</em>" not in content
 
 
 @pytest.mark.django_db
