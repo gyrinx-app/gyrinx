@@ -51,6 +51,8 @@ fi
 echo "--- [2/8] Installing uv ---"
 if ! command -v uv &>/dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Venv doesn't exist yet, so $HOME/.local/bin goes first just to pick up uv.
+  # The persisted PATH (below) puts the venv bin first once it's been created.
   export PATH="$HOME/.local/bin:$PATH"
 fi
 echo "uv: $(uv --version)"
@@ -126,7 +128,7 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "--- Persisting environment variables ---"
   VENV_PATH="${CLAUDE_PROJECT_DIR:-.}/.venv"
   {
-    echo "PATH=$HOME/.local/bin:${VENV_PATH}/bin:$PATH"
+    echo "PATH=${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
     echo "VIRTUAL_ENV=${VENV_PATH}"
     echo "DJANGO_SETTINGS_MODULE=gyrinx.settings_dev"
   } >> "$CLAUDE_ENV_FILE"
