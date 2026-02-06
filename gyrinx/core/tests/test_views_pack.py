@@ -137,7 +137,7 @@ def test_packs_index_hides_other_users_packs(
 def test_packs_index_shows_listed_packs_when_my_off(
     client, group_user, custom_content_group, make_user
 ):
-    """Test that toggling off 'my packs' shows listed packs."""
+    """Test that toggling off 'your packs' shows listed packs."""
     other_user = make_user("other", "password")
     other_user.groups.add(custom_content_group)
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
