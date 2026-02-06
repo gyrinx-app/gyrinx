@@ -67,10 +67,15 @@ npm install
 pre-commit install
 ```
 
+**Note:** In Claude Code on the Web environments, `setup_web.sh` runs automatically on session
+start and configures PostgreSQL directly (no Docker). Skip `docker compose` commands and use
+`pytest` / `manage` directly — the helper scripts (`test.sh`, `migrate.sh`) detect the
+environment automatically.
+
 ### Running the Application
 
 ```bash
-# Start database services
+# Start database services (local dev with Docker only)
 docker compose up -d
 
 # Run migrations
@@ -89,7 +94,7 @@ npm run watch
 ### Testing
 
 ```bash
-# Run full test suite (uses Docker for database)
+# Run full test suite (uses Docker if available, otherwise runs directly)
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing
