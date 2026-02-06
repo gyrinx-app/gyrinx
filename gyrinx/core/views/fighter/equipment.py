@@ -272,6 +272,28 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         categories = categories.exclude(id__in=restricted_category_ids)
         equipment = equipment.exclude(category_id__in=restricted_category_ids)
 
+    # Compute house-restricted category IDs.
+    # Categories with restricted_to set should be excluded from the default selection
+    # when the list's house is not in the restriction set. Unlike fighter category
+    # restrictions (which are hard-excluded above), house-restricted categories remain
+    # in the dropdown so users can opt-in by checking the checkbox.
+    house_restrictions_qs = (
+        ContentEquipmentCategory.restricted_to.through.objects.filter(
+            contentequipmentcategory_id__in=categories.values("id")
+        ).values("contentequipmentcategory_id", "contenthouse_id")
+    )
+    house_restrictions_by_category = defaultdict(set)
+    for r in house_restrictions_qs:
+        house_restrictions_by_category[r["contentequipmentcategory_id"]].add(
+            r["contenthouse_id"]
+        )
+
+    house_restricted_category_ids = set()
+    for category in categories:
+        restricted_house_ids = house_restrictions_by_category.get(category.id, set())
+        if restricted_house_ids and lst.content_house_id not in restricted_house_ids:
+            house_restricted_category_ids.add(category.id)
+
     # Filter by category if specified
     cats = [
         cat for cat in request.GET.getlist("cat", list()) if cat and is_valid_uuid(cat)
@@ -319,9 +341,44 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             if preset_mal is not None:
                 query_dict["mal"] = str(preset_mal)
 
+        # Exclude house-restricted categories from default selection so they
+        # appear unchecked in the dropdown. Users can still opt-in.
+        if house_restricted_category_ids and "cat" not in request.GET:
+            default_cats = [
+                str(cat.id)
+                for cat in categories
+                if cat.id not in house_restricted_category_ids
+            ]
+            if default_cats:
+                for cat_id in default_cats:
+                    query_dict.appendlist("cat", cat_id)
+
         return HttpResponseRedirect(
             reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
         )
+
+    # For non-default_to_all paths: if there are house-restricted categories and
+    # the user hasn't set explicit cat values, redirect with defaults that exclude
+    # house-restricted categories. This handles e.g. equipment-list mode where
+    # legacy fighter equipment lists include items from house-restricted categories.
+    if (
+        not default_to_all
+        and house_restricted_category_ids
+        and "cat" not in request.GET
+    ):
+        default_cats = [
+            str(cat.id)
+            for cat in categories
+            if cat.id not in house_restricted_category_ids
+        ]
+        if default_cats:
+            query_dict = request.GET.copy()
+            for cat_id in default_cats:
+                query_dict.appendlist("cat", cat_id)
+            return HttpResponseRedirect(
+                reverse(view_name, args=(lst.id, fighter.id))
+                + f"?{query_dict.urlencode()}"
+            )
 
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
@@ -402,9 +459,20 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # If defaulting to all (house or preset), also include equipment from equipment list
     if default_to_all:
+        # When category filter is active, also filter equipment list items by
+        # the selected categories to prevent house-restricted items from being
+        # re-added via the combine (e.g. Ancestry items via squat legacy).
+        filtered_list_ids = equipment_list_ids
+        if cats and "all" not in cats:
+            filtered_list_ids = list(
+                ContentEquipment.objects.filter(
+                    id__in=equipment_list_ids, category_id__in=cats
+                ).values_list("id", flat=True)
+            )
+
         # Combine equipment and equipment_list_items using a single filter with Q
         combined_equipment_qs = ContentEquipment.objects.filter(
-            Q(id__in=equipment.values("id")) | Q(id__in=equipment_list_ids)
+            Q(id__in=equipment.values("id")) | Q(id__in=filtered_list_ids)
         )
 
         if is_weapon:
