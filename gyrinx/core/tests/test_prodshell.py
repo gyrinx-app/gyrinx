@@ -15,16 +15,16 @@ def cmd():
 class TestReadOnlyRouter:
     def test_db_for_read_returns_default(self):
         router = ReadOnlyRouter()
-        assert router.db_for_read(MagicMock()) == "default"
+        assert router.db_for_read(None) == "default"
 
     def test_db_for_write_raises(self):
         router = ReadOnlyRouter()
         with pytest.raises(RuntimeError, match="Write operations are disabled"):
-            router.db_for_write(MagicMock())
+            router.db_for_write(None)
 
     def test_allow_relation_returns_true(self):
         router = ReadOnlyRouter()
-        assert router.allow_relation(MagicMock(), MagicMock()) is True
+        assert router.allow_relation(None, None) is True
 
     def test_allow_migrate_returns_false(self):
         router = ReadOnlyRouter()

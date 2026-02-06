@@ -1,8 +1,11 @@
 import json
+import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -42,6 +45,7 @@ class Command(BaseCommand):
             self._check_gcloud()
             self._check_gcloud_auth()
             self._check_cloud_sql_proxy()
+            self._check_adc()
 
             self.stdout.write("Fetching production database credentials...")
             db_config = self._fetch_db_credentials(project)
@@ -49,10 +53,8 @@ class Command(BaseCommand):
             self.stdout.write(f"Starting Cloud SQL Auth Proxy on port {port}...")
             proxy_process = self._start_proxy(project, port)
 
-            self._configure_database(db_config, port)
-            self._install_read_only_router()
             self._print_banner(port)
-            self._launch_shell()
+            self._launch_shell(db_config, port)
         except KeyboardInterrupt:
             self.stdout.write("\nInterrupted.")
         finally:
@@ -95,6 +97,21 @@ class Command(BaseCommand):
             )
         self.stdout.write("Checking cloud-sql-proxy... OK")
 
+    def _check_adc(self):
+        """Check that Application Default Credentials are valid."""
+        result = subprocess.run(
+            ["gcloud", "auth", "application-default", "print-access-token"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise CommandError(
+                "Application Default Credentials not set or expired.\n"
+                "The Cloud SQL Auth Proxy requires ADC. Run:\n"
+                "  gcloud auth application-default login"
+            )
+        self.stdout.write("Checking Application Default Credentials... OK")
+
     # -- Credential fetching --
 
     def _fetch_db_credentials(self, project):
@@ -133,16 +150,27 @@ class Command(BaseCommand):
         if not containers:
             raise CommandError("No containers found in Cloud Run service config")
 
-        env_vars = {}
-        for env in containers[0].get("env", []):
-            env_vars[env["name"]] = env.get("value", "")
+        container_env = containers[0].get("env", [])
+        env_vars = {e["name"]: e["value"] for e in container_env if "value" in e}
+        secret_refs = {
+            e["name"]: e["valueFrom"]["secretKeyRef"]
+            for e in container_env
+            if "valueFrom" in e
+        }
 
-        # Parse DB_CONFIG for user/password
-        db_config_raw = env_vars.get("DB_CONFIG", "{}")
+        # DB_CONFIG may be a secret reference - resolve it
+        if "DB_CONFIG" in env_vars:
+            db_config_raw = env_vars["DB_CONFIG"]
+        elif "DB_CONFIG" in secret_refs:
+            ref = secret_refs["DB_CONFIG"]
+            db_config_raw = self._fetch_secret(project, ref["name"], ref["key"])
+        else:
+            raise CommandError("DB_CONFIG not found in Cloud Run service config")
+
         try:
             db_config = json.loads(db_config_raw)
         except json.JSONDecodeError as e:
-            raise CommandError(f"Failed to parse DB_CONFIG from Cloud Run: {e}")
+            raise CommandError(f"Failed to parse DB_CONFIG: {e}")
 
         db_user = db_config.get("user")
         db_password = db_config.get("password")
@@ -160,6 +188,27 @@ class Command(BaseCommand):
             "user": db_user,
             "password": db_password,
         }
+
+    def _fetch_secret(self, project, secret_name, version="latest"):
+        """Fetch a secret value from Google Cloud Secret Manager."""
+        result = subprocess.run(
+            [
+                "gcloud",
+                "secrets",
+                "versions",
+                "access",
+                version,
+                f"--secret={secret_name}",
+                f"--project={project}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise CommandError(
+                f"Failed to fetch secret '{secret_name}':\n{result.stderr}"
+            )
+        return result.stdout
 
     # -- Cloud SQL Auth Proxy --
 
@@ -204,68 +253,66 @@ class Command(BaseCommand):
             s.settimeout(0.5)
             return s.connect_ex(("127.0.0.1", port)) == 0
 
-    # -- Database configuration --
-
-    def _configure_database(self, db_config, port):
-        """Override Django's DATABASES at runtime to point at the proxy."""
-        from django.conf import settings
-
-        settings.DATABASES["default"] = {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": db_config["name"],
-            "USER": db_config["user"],
-            "PASSWORD": db_config["password"],
-            "HOST": "127.0.0.1",
-            "PORT": str(port),
-        }
-
-        # Close existing connections so Django reconnects with new settings
-        from django import db
-
-        db.connections.close_all()
-
-        # Verify the connection works
-        try:
-            from django.db import connection
-
-            connection.ensure_connection()
-        except Exception as e:
-            raise CommandError(f"Failed to connect to production database: {e}")
-
-        self.stdout.write("Connected to production database.")
-
-    # -- Read-only enforcement --
-
-    def _install_read_only_router(self):
-        """Install a database router that blocks all write operations."""
-        from django.conf import settings
-
-        settings.DATABASE_ROUTERS = [
-            "gyrinx.core.management.commands.prodshell.ReadOnlyRouter"
-        ]
-
     # -- Shell --
 
     def _print_banner(self, port):
-        self.stdout.write("")
-        self.stdout.write(self.style.ERROR("=" * 54))
-        self.stdout.write(
-            self.style.ERROR("  WARNING: CONNECTED TO PRODUCTION DATABASE")
-        )
-        self.stdout.write(self.style.ERROR(f"  Instance: {CLOUD_SQL_INSTANCE}"))
-        self.stdout.write(self.style.ERROR(f"  Proxy port: {port}"))
-        self.stdout.write(self.style.ERROR("  Mode: READ-ONLY"))
-        self.stdout.write(
-            self.style.ERROR("  All write operations will raise RuntimeError")
-        )
-        self.stdout.write(self.style.ERROR("=" * 54))
-        self.stdout.write("")
+        banner = f"""
+{"=" * 54}
+  WARNING: CONNECTED TO PRODUCTION DATABASE
+  Instance: {CLOUD_SQL_INSTANCE}
+  Proxy port: {port}
+  Mode: READ-ONLY
+  All write operations will raise RuntimeError
+{"=" * 54}
+"""
+        self.stdout.write(self.style.ERROR(banner))
 
-    def _launch_shell(self):
-        """Launch shell_plus with all models imported."""
-        from django.core.management import call_command
+    def _launch_shell(self, db_config, port):
+        """Launch shell_plus as a subprocess with production database settings.
 
-        call_command("shell_plus")
+        Creates a temporary settings file that points DATABASES at the proxy
+        and installs a read-only database router, then runs shell_plus with
+        DJANGO_SETTINGS_MODULE pointing at it.
+        """
+        settings_content = f"""\
+# Auto-generated prodshell settings - DO NOT EDIT
+from gyrinx.settings_dev import *  # noqa: F401,F403
+
+DATABASES = {{
+    "default": {{
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": {db_config["name"]!r},
+        "USER": {db_config["user"]!r},
+        "PASSWORD": {db_config["password"]!r},
+        "HOST": "127.0.0.1",
+        "PORT": "{port}",
+    }}
+}}
+
+DATABASE_ROUTERS = [
+    "gyrinx.core.management.commands.prodshell.ReadOnlyRouter"
+]
+"""
+
+        # Write settings to a temp file inside the project package so it's importable
+        import gyrinx
+
+        settings_path = Path(gyrinx.__file__).parent / "_prodshell_settings.py"
+
+        try:
+            settings_path.write_text(settings_content)
+
+            env = {**os.environ, "DJANGO_SETTINGS_MODULE": "gyrinx._prodshell_settings"}
+
+            # Run shell_plus as a subprocess so it picks up the new settings
+            result = subprocess.run(
+                [sys.executable, "-m", "django", "shell_plus"],
+                env=env,
+            )
+            if result.returncode != 0:
+                raise CommandError(f"shell_plus exited with code {result.returncode}")
+        finally:
+            settings_path.unlink(missing_ok=True)
 
 
 class ReadOnlyRouter:
