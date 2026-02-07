@@ -476,3 +476,8 @@ $width-em-sizes: (
         width: #{$size}em;
     }
 }
+
+// Stat input cells for pack fighter forms
+.stat-input-cell {
+    width: 4rem;
+}
