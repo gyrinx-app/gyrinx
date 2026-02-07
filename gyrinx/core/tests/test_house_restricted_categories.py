@@ -179,25 +179,30 @@ def test_house_restricted_categories_excluded_from_default_redirect(
         equipment=normal_gear,
     )
 
-    # Visit the gear edit page - should redirect with filter=all
+    # Visit the gear edit page — follows the redirect chain:
+    # 1st redirect: house-restriction adds cat defaults (no filter yet)
+    # 2nd redirect: default_to_all adds filter=all
     url = reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
     response = client.get(url)
-
-    # Should get a redirect (default_to_all redirect)
     assert response.status_code == 302
 
-    redirect_url = response.url
-    parsed = urlparse(redirect_url)
+    # First redirect should have cat values excluding ancestry
+    parsed = urlparse(response.url)
     params = parse_qs(parsed.query)
-
-    # Should have filter=all
-    assert params.get("filter") == ["all"]
-
-    # Should have cat parameter(s) that EXCLUDE the ancestry category
-    assert "cat" in params, "Should have cat parameters in redirect"
+    assert "cat" in params, "Should have cat parameters in first redirect"
     cat_ids = params["cat"]
     assert str(ancestry_category_restricted.id) not in cat_ids
     assert str(gear_category.id) in cat_ids
+
+    # Follow the chain — second redirect adds filter=all
+    response = client.get(response.url)
+    assert response.status_code == 302
+    parsed = urlparse(response.url)
+    params = parse_qs(parsed.query)
+    assert params.get("filter") == ["all"]
+    # cat values should still be present
+    assert str(ancestry_category_restricted.id) not in params.get("cat", [])
+    assert str(gear_category.id) in params.get("cat", [])
 
 
 @pytest.mark.django_db
@@ -236,13 +241,14 @@ def test_house_restricted_categories_still_in_dropdown(
         equipment=normal_gear,
     )
 
-    # Follow the initial redirect to get the actual page
+    # Follow the redirect chain to get the actual page
     url = reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 302
+    # May need multiple redirects (house-restriction then default_to_all)
+    while response.status_code == 302:
+        response = client.get(response.url)
 
-    # Follow redirect
-    response = client.get(response.url)
     assert response.status_code == 200
 
     # The categories context should include both categories (for the dropdown)
@@ -290,7 +296,9 @@ def test_house_restricted_items_not_shown_by_default(
     url = reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 302
-    response = client.get(response.url)
+    while response.status_code == 302:
+        response = client.get(response.url)
+
     assert response.status_code == 200
 
     content = response.content.decode()
@@ -528,7 +536,9 @@ def test_weapons_page_does_not_show_gear_categories(
     url = reverse("core:list-fighter-weapons-edit", args=[lst.id, fighter.id])
     response = client.get(url)
     assert response.status_code == 302
-    response = client.get(response.url)
+    while response.status_code == 302:
+        response = client.get(response.url)
+
     assert response.status_code == 200
 
     content = response.content.decode()
@@ -611,3 +621,65 @@ def test_non_can_buy_any_house_restricted_category_redirect(
     cat_ids = params["cat"]
     assert str(ancestry_category_restricted.id) not in cat_ids
     assert str(gear_category.id) in cat_ids
+
+
+@pytest.mark.django_db
+def test_filter_all_without_cat_redirects_with_house_restriction_defaults(
+    client,
+    user,
+    venator_house,
+    venator_hunt_leader,
+    squat_charter_master,
+    ancestry_gear,
+    normal_gear,
+    ancestry_category_restricted,
+    gear_category,
+    make_list,
+):
+    """
+    Arriving with filter=all but no cat key (e.g. via {% querystring cat=None %}
+    navigation links) should still redirect to inject default cat values that
+    exclude house-restricted categories. Without this, the UI treats "no cat key"
+    as "all categories checked", letting restricted items reappear.
+    """
+    lst = make_list("Venator List", content_house=venator_house)
+    fighter = ListFighter.objects.create(
+        list=lst,
+        name="Squat Legacy Hunter",
+        owner=user,
+        content_fighter=venator_hunt_leader,
+        legacy_content_fighter=squat_charter_master,
+    )
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=squat_charter_master,
+        equipment=ancestry_gear,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=venator_hunt_leader,
+        equipment=normal_gear,
+    )
+
+    # Arrive with filter=all but NO cat key — simulates the cross-page
+    # navigation link that uses {% querystring cat=None %}
+    url = reverse("core:list-fighter-gear-edit", args=[lst.id, fighter.id])
+    response = client.get(url, {"filter": "all"})
+
+    # Should redirect to add default cat values
+    assert response.status_code == 302
+
+    parsed = urlparse(response.url)
+    params = parse_qs(parsed.query)
+
+    assert "cat" in params
+    cat_ids = params["cat"]
+    assert str(ancestry_category_restricted.id) not in cat_ids
+    assert str(gear_category.id) in cat_ids
+
+    # Follow redirect and confirm restricted items are hidden
+    response = client.get(response.url)
+    assert response.status_code == 200
+
+    content = response.content.decode()
+    assert "Ancestral Heirloom" not in content
+    assert "Filter Plugs" in content

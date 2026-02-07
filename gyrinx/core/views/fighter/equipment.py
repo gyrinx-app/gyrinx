@@ -318,6 +318,26 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             )
         cats = valid_cats
 
+    # When house-restricted categories exist and no cat filter is provided,
+    # redirect with default cat values that exclude those categories. This
+    # fires regardless of other params (filter, al, etc.) so that arriving
+    # via {% querystring cat=None %} or any other catless URL still gets
+    # the correct defaults.
+    if house_restricted_category_ids and "cat" not in request.GET:
+        default_cats = [
+            str(cat.id)
+            for cat in categories
+            if cat.id not in house_restricted_category_ids
+        ]
+        if default_cats:
+            query_dict = request.GET.copy()
+            for cat_id in default_cats:
+                query_dict.appendlist("cat", cat_id)
+            return HttpResponseRedirect(
+                reverse(view_name, args=(lst.id, fighter.id))
+                + f"?{query_dict.urlencode()}"
+            )
+
     if cats and "all" not in cats:
         equipment = equipment.filter(category_id__in=cats)
 
@@ -360,44 +380,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
             if preset_mal is not None:
                 query_dict["mal"] = str(preset_mal)
 
-        # Exclude house-restricted categories from default selection so they
-        # appear unchecked in the dropdown. Users can still opt-in.
-        if house_restricted_category_ids and "cat" not in request.GET:
-            default_cats = [
-                str(cat.id)
-                for cat in categories
-                if cat.id not in house_restricted_category_ids
-            ]
-            if default_cats:
-                for cat_id in default_cats:
-                    query_dict.appendlist("cat", cat_id)
-
         return HttpResponseRedirect(
             reverse(view_name, args=(lst.id, fighter.id)) + f"?{query_dict.urlencode()}"
         )
-
-    # For non-default_to_all paths: if there are house-restricted categories and
-    # the user hasn't set explicit cat values, redirect with defaults that exclude
-    # house-restricted categories. This handles e.g. equipment-list mode where
-    # legacy fighter equipment lists include items from house-restricted categories.
-    if (
-        not default_to_all
-        and house_restricted_category_ids
-        and "cat" not in request.GET
-    ):
-        default_cats = [
-            str(cat.id)
-            for cat in categories
-            if cat.id not in house_restricted_category_ids
-        ]
-        if default_cats:
-            query_dict = request.GET.copy()
-            for cat_id in default_cats:
-                query_dict.appendlist("cat", cat_id)
-            return HttpResponseRedirect(
-                reverse(view_name, args=(lst.id, fighter.id))
-                + f"?{query_dict.urlencode()}"
-            )
 
     filter_value = request.GET.get("filter", "equipment-list")
     is_equipment_list = filter_value == "equipment-list"
