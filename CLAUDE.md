@@ -18,9 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Django commands: Use `manage` (not `python manage.py`)
 - Production shell: `manage prodshell` (read-only access to production database)
 - Don't commit CSS files - they're auto-generated from SCSS
-- **Do NOT manually activate the virtualenv** — a `SessionStart` hook (`scripts/activate_venv_hook.sh`)
-  automatically persists `.venv` activation via `CLAUDE_ENV_FILE` so every Bash command already has
-  the venv active. Never prefix commands with `. .venv/bin/activate &&`.
+- The virtualenv is auto-activated for every Bash command by a `SessionStart` hook
+  (`scripts/activate_venv_hook.sh`) that persists `.venv` into `CLAUDE_ENV_FILE`.
+  There is no need to prefix commands with `. .venv/bin/activate &&`.
 
 **Key Principles:**
 
