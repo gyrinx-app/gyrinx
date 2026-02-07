@@ -41,6 +41,7 @@ class ContentRule(Content):
     """
 
     name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
 
     history = HistoricalRecords()
 

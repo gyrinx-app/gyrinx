@@ -666,6 +666,31 @@ urlpatterns = [
         pack_views.PackActivityView.as_view(),
         name="pack-activity",
     ),
+    path(
+        "pack/<id>/add/<content_type_slug>/",
+        pack_views.add_pack_item,
+        name="pack-add-item",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/edit/",
+        pack_views.edit_pack_item,
+        name="pack-edit-item",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/delete/",
+        pack_views.delete_pack_item,
+        name="pack-delete-item",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/restore/",
+        pack_views.restore_pack_item,
+        name="pack-restore-item",
+    ),
+    path(
+        "pack/<id>/archived/<content_type_slug>/",
+        pack_views.PackArchivedItemsView.as_view(),
+        name="pack-archived-items",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

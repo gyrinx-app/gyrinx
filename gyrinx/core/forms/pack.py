@@ -1,5 +1,6 @@
 from django import forms
 
+from gyrinx.content.models.metadata import ContentRule
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
@@ -31,4 +32,22 @@ class PackForm(forms.ModelForm):
                 mce_attrs=TINYMCE_EXTRA_ATTRS,
             ),
             "listed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class ContentRuleForm(forms.ModelForm):
+    class Meta:
+        model = ContentRule
+        fields = ["name", "description"]
+        labels = {
+            "name": "Name",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "The name of the rule.",
+            "description": "An optional description of what this rule does.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }

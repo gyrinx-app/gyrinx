@@ -1,0 +1,44 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Archived {{ section_label }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <div>
+            <h1 class="h3 mb-0">Archived {{ section_label }}</h1>
+            <p class="text-muted mb-0">{{ pack.name }}</p>
+        </div>
+        {% if archived_items %}
+            <table class="table table-sm table-borderless mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="caps-label ps-0">Name</th>
+                        <th class="caps-label text-end pe-0">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in archived_items %}
+                        <tr>
+                            <td class="ps-0">{{ entry.content_object }}</td>
+                            <td class="text-end pe-0">
+                                <form action="{% url 'core:pack-restore-item' pack.id entry.pack_item.id %}"
+                                      method="post"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-link btn-sm p-0 link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                        Restore
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-muted">No archived {{ section_label|lower }}.</p>
+        {% endif %}
+    </div>
+{% endblock content %}

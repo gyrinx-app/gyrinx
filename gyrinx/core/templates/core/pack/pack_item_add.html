@@ -1,0 +1,23 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add {{ label }} to {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="{{ icon }}"></i> Add {{ label }}
+        </h1>
+        <form action="{% url 'core:pack-add-item' pack.id slug %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            {{ form }}
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Add {{ label }}</button>
+                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

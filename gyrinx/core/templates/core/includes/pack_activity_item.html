@@ -6,12 +6,14 @@
     <small class="text-muted hstack w-100 justify-content-between">
         <div class="flex-grow-1">
             {% if activity.history_user %}
-                <strong><i class="bi-person"></i> {{ activity.history_user.username }}</strong>
+                <strong>{{ activity.history_user.username }}</strong>
             {% else %}
-                <strong><i class="bi-person"></i> System</strong>
+                <strong>System</strong>
             {% endif %}
             •
-            {% if activity.is_pack_record %}
+            {% if activity.is_archive_action %}
+                {{ activity.archive_action }} {{ activity.item_description }}
+            {% elif activity.is_pack_record %}
                 {% if activity.history_type == "+" %}
                     Created pack
                 {% elif activity.history_type == "~" %}
@@ -19,6 +21,8 @@
                 {% elif activity.history_type == "-" %}
                     Deleted pack
                 {% endif %}
+            {% elif activity.is_content_edit %}
+                Edited item
             {% else %}
                 {% if activity.history_type == "+" %}
                     Added item
@@ -33,8 +37,10 @@
             <em>{{ activity.history_date|timesince }} ago</em>
         </div>
     </small>
-    {% if not activity.is_pack_record %}<p class="mb-0">{{ activity.item_description }}</p>{% endif %}
-    {% if activity.changes %}
+    {% if not activity.is_pack_record and not activity.is_archive_action %}
+        <p class="mb-0">{{ activity.item_description }}</p>
+    {% endif %}
+    {% if activity.changes and not activity.is_archive_action %}
         <ul class="mb-0 small text-muted">
             {% for change in activity.changes %}<li>{{ change }}</li>{% endfor %}
         </ul>
