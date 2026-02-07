@@ -680,14 +680,18 @@ def add_pack_item(request, id, content_type_slug):
         "slug": entry.slug,
     }
     if stat_definitions is not None:
-        context["stat_definitions"] = [
-            {
-                "field_name": ts.stat.field_name,
+        stat_context = []
+        for ts in stat_definitions:
+            field_name = ts.stat.field_name
+            entry_dict = {
+                "field_name": field_name,
                 "short_name": ts.stat.short_name,
                 "placeholder": _stat_placeholder(ts.stat),
             }
-            for ts in stat_definitions
-        ]
+            if request.method == "POST":
+                entry_dict["value"] = request.POST.get(f"stat_{field_name}", "")
+            stat_context.append(entry_dict)
+        context["stat_definitions"] = stat_context
 
     return render(request, "core/pack/pack_item_add.html", context)
 
@@ -751,6 +755,10 @@ def edit_pack_item(request, id, item_id):
         "label": singular_label,
         "icon": entry.icon,
     }
+    # On POST re-render (validation error), use submitted values instead of DB values.
+    if stat_values is not None and request.method == "POST":
+        for sv in stat_values:
+            sv["value"] = request.POST.get(f"stat_{sv['field_name']}", sv["value"])
     if stat_values is not None:
         context["stat_values"] = stat_values
 

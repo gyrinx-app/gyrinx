@@ -1408,7 +1408,7 @@ def test_add_fighter_form_shows_placeholders(
     response = client.get(f"/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     # Movement (is_inches) should have '4"' placeholder
-    assert 'placeholder="4&quot;"' in content or 'placeholder="4&quot;"' in content
+    assert 'placeholder="4&quot;"' in content
     # WS (is_target) should have '3+' placeholder
     assert 'placeholder="3+"' in content
     # Strength (plain) should have '3' placeholder

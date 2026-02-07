@@ -23,6 +23,7 @@
                                 <label class="form-label small mb-1">{{ stat.short_name }}</label>
                                 <input type="text"
                                        name="stat_{{ stat.field_name }}"
+                                       value="{{ stat.value|default:'' }}"
                                        class="form-control form-control-sm text-center"
                                        placeholder="{{ stat.placeholder }}"
                                        maxlength="10">
