@@ -15,6 +15,7 @@ from .views.campaign import resources as campaign_resources
 from .views.campaign import sub_assets as campaign_sub_assets
 from .views.campaign import views as campaign_views
 from .views.fighter import advancements as fighter_advancements
+from .views.fighter import counters as fighter_counters
 from .views.fighter import crud as fighter_crud
 from .views.fighter import equipment as fighter_equipment
 from .views.fighter import narrative as fighter_narrative
@@ -360,6 +361,11 @@ urlpatterns = [
         "list/<id>/fighter/<fighter_id>/xp",
         fighter_xp.edit_list_fighter_xp,
         name="list-fighter-xp-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/counter/<counter_id>",
+        fighter_counters.edit_list_fighter_counter,
+        name="list-fighter-counter-edit",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/mark-captured",

@@ -14,7 +14,7 @@
                     {% for f in fighters %}
                         <li>
                             <a class="dropdown-item text-truncate {% if f.id == fighter.id %}active{% endif %}"
-                               href="{% url url_name list.id f.id %}">
+                               href="{% if extra_url_arg %}{% url url_name list.id f.id extra_url_arg %}{% else %}{% url url_name list.id f.id %}{% endif %}">
                                 {{ f.name }}
                                 <span class="text-muted">- {{ f.content_fighter.name }}</span>
                             </a>

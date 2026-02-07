@@ -996,3 +996,21 @@ class EditListFighterStatsForm(forms.Form):
                 )
 
         return cleaned_data
+
+
+class EditCounterForm(forms.Form):
+    """Form for editing a fighter counter value."""
+
+    value = forms.IntegerField(
+        min_value=0,
+        label="Value",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.counter = kwargs.pop("counter", None)
+        self.current_value = kwargs.pop("current_value", 0)
+        super().__init__(*args, **kwargs)
+        if self.counter:
+            self.fields["value"].label = self.counter.name
+            self.fields["value"].initial = self.current_value
