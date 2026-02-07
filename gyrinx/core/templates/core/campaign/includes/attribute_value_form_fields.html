@@ -1,0 +1,20 @@
+<div>
+    {{ form.name.label_tag }}
+    {{ form.name }}
+    {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
+    {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
+</div>
+<div>
+    {{ form.description.label_tag }}
+    {{ form.description }}
+    {% if form.description.help_text %}
+        <small class="form-text text-muted">{{ form.description.help_text }}</small>
+    {% endif %}
+    {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
+</div>
+<div>
+    {{ form.colour.label_tag }}
+    {{ form.colour }}
+    {% if form.colour.help_text %}<small class="form-text text-muted">{{ form.colour.help_text }}</small>{% endif %}
+    {% if form.colour.errors %}<div class="invalid-feedback d-block">{{ form.colour.errors }}</div>{% endif %}
+</div>

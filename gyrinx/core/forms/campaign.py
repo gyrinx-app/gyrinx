@@ -7,6 +7,9 @@ from gyrinx.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignAttributeType,
+    CampaignAttributeValue,
+    CampaignListAttributeAssignment,
     CampaignResourceType,
     CampaignSubAsset,
 )
@@ -641,6 +644,144 @@ class ResourceModifyForm(forms.Form):
             )
 
         return modification
+
+
+class CampaignAttributeTypeForm(forms.ModelForm):
+    """Form for creating and editing campaign attribute types"""
+
+    class Meta:
+        model = CampaignAttributeType
+        fields = ["name", "description", "is_single_select"]
+        labels = {
+            "name": "Attribute name",
+            "description": "Description",
+            "is_single_select": "Single select",
+        }
+        help_texts = {
+            "name": "Name of the attribute (e.g., 'Faction', 'Team', 'Alliance')",
+            "description": "Describe what this attribute represents and how it's used",
+            "is_single_select": "If checked, Gangs can select only one value. If unchecked, multiple values allowed.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+            "is_single_select": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+        }
+
+
+class CampaignAttributeValueForm(forms.ModelForm):
+    """Form for creating and editing campaign attribute values"""
+
+    class Meta:
+        model = CampaignAttributeValue
+        fields = ["name", "description", "colour"]
+        labels = {
+            "name": "Value name",
+            "description": "Description",
+            "colour": "Colour",
+        }
+        help_texts = {
+            "name": "Name of the value (e.g., 'Order', 'Chaos', 'Team Alpha')",
+            "description": "Optional description of this value",
+            "colour": "Optional hex colour code for visual identification",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+            "colour": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-color",
+                    "type": "color",
+                }
+            ),
+        }
+
+
+class CampaignListAttributeAssignmentForm(forms.Form):
+    """Form for assigning attribute values to a list in a campaign"""
+
+    def __init__(self, *args, **kwargs):
+        self.campaign = kwargs.pop("campaign")
+        self.list_obj = kwargs.pop("list_obj")
+        self.attribute_type = kwargs.pop("attribute_type")
+        super().__init__(*args, **kwargs)
+
+        # Get available values for this attribute type
+        values = self.attribute_type.values.order_by("name")
+
+        # Get current assignments
+        current_assignments = CampaignListAttributeAssignment.objects.filter(
+            campaign=self.campaign,
+            list=self.list_obj,
+            attribute_value__attribute_type=self.attribute_type,
+        ).values_list("attribute_value_id", flat=True)
+
+        if self.attribute_type.is_single_select:
+            self.fields["values"] = forms.ModelChoiceField(
+                queryset=values,
+                widget=forms.RadioSelect,
+                required=False,
+                initial=current_assignments.first() if current_assignments else None,
+                label="",
+                empty_label=None,
+            )
+            self.fields["values"].choices = [("", "None")] + list(
+                self.fields["values"].choices
+            )
+        else:
+            self.fields["values"] = forms.ModelMultipleChoiceField(
+                queryset=values,
+                widget=forms.CheckboxSelectMultiple,
+                required=False,
+                initial=list(current_assignments),
+                label="",
+            )
+
+    def save(self, user):
+        """Save the attribute assignments."""
+        from django.db import transaction
+
+        values = self.cleaned_data.get("values")
+
+        with transaction.atomic():
+            # Remove existing assignments for this attribute type
+            CampaignListAttributeAssignment.objects.filter(
+                campaign=self.campaign,
+                list=self.list_obj,
+                attribute_value__attribute_type=self.attribute_type,
+            ).delete()
+
+            # Create new assignments
+            if values:
+                if self.attribute_type.is_single_select:
+                    values = [values] if values else []
+
+                for value in values:
+                    CampaignListAttributeAssignment.objects.create(
+                        campaign=self.campaign,
+                        attribute_value=value,
+                        list=self.list_obj,
+                        owner=user,
+                    )
+
+            # Log campaign action
+            value_names = [v.name for v in values] if values else []
+            action_text = f"{self.list_obj.name} updated {self.attribute_type.name}: {', '.join(value_names) if value_names else 'None'}"
+
+            CampaignAction.objects.create(
+                campaign=self.campaign,
+                list=self.list_obj,
+                user=user,
+                description=action_text,
+                dice_count=0,
+                owner=user,
+            )
 
 
 class CampaignCopyFromForm(forms.Form):
