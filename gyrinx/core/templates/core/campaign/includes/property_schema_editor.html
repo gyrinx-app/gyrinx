@@ -61,6 +61,25 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/^(\d)/, '_$1'); // Prefix with _ if starts with number
     }
 
+    // Generate a short random suffix for key uniqueness
+    function randomSuffix() {
+        return Math.random().toString(36).substring(2, 6);
+    }
+
+    // Generate a unique key from a label, avoiding duplicates with existing keys
+    function uniqueKeyFromLabel(label, existingKeys) {
+        let key = labelToKey(label);
+        if (!existingKeys.has(key)) {
+            return key;
+        }
+        // Add a random suffix to avoid collisions
+        let candidate = key + '_' + randomSuffix();
+        while (existingKeys.has(candidate)) {
+            candidate = key + '_' + randomSuffix();
+        }
+        return candidate;
+    }
+
     // Parse initial schema from the hidden field
     let schema = [];
     try {
@@ -70,12 +89,12 @@ document.addEventListener('DOMContentLoaded', function() {
         schema = [];
     }
 
-    // Render existing properties
-    schema.forEach(prop => addPropertyRow(prop.label, prop.description || ''));
+    // Render existing properties — pass the stable key so it is preserved on rename
+    schema.forEach(prop => addPropertyRow(prop.label, prop.description || '', prop.key || ''));
 
     // Add new property button handler
     addBtn.addEventListener('click', function() {
-        addPropertyRow('', '');
+        addPropertyRow('', '', '');
         // Focus the new label input
         const rows = schemaList.querySelectorAll('.property-row');
         const lastRow = rows[rows.length - 1];
@@ -85,14 +104,20 @@ document.addEventListener('DOMContentLoaded', function() {
         updateJsonField();
     });
 
-    function addPropertyRow(label, description) {
+    function addPropertyRow(label, description, existingKey) {
         const row = template.content.cloneNode(true);
         const labelInput = row.querySelector('.property-label');
         const descInput = row.querySelector('.property-description');
         const removeBtn = row.querySelector('.remove-property-btn');
+        const rowDiv = row.querySelector('.property-row');
 
         labelInput.value = label || '';
         descInput.value = description || '';
+
+        // Store the stable key on the DOM element so it survives label renames
+        if (existingKey) {
+            rowDiv.dataset.stableKey = existingKey;
+        }
 
         // Update JSON on input changes
         labelInput.addEventListener('input', updateJsonField);
@@ -110,12 +135,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJsonField() {
         const rows = schemaList.querySelectorAll('.property-row');
         const newSchema = [];
+        const usedKeys = new Set();
 
         rows.forEach(row => {
             const label = row.querySelector('.property-label').value.trim();
             const description = row.querySelector('.property-description').value.trim();
             if (label) {
-                const key = labelToKey(label);
+                // Use the stable key if this row already has one (existing property),
+                // otherwise generate a new unique key from the label.
+                let key = row.dataset.stableKey;
+                if (!key) {
+                    key = uniqueKeyFromLabel(label, usedKeys);
+                    // Persist the generated key so subsequent edits keep it stable
+                    row.dataset.stableKey = key;
+                }
+                usedKeys.add(key);
+
                 const prop = { key, label };
                 if (description) {
                     prop.description = description;

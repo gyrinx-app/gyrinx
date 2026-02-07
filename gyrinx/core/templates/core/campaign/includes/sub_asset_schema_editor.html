@@ -92,6 +92,25 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/^(\d)/, '_$1');
     }
 
+    // Generate a short random suffix for key uniqueness
+    function randomSuffix() {
+        return Math.random().toString(36).substring(2, 6);
+    }
+
+    // Generate a unique key from a label, avoiding duplicates with existing keys
+    function uniqueKeyFromLabel(label, existingKeys) {
+        let key = labelToKey(label);
+        if (!existingKeys.has(key)) {
+            return key;
+        }
+        // Add a random suffix to avoid collisions
+        let candidate = key + '_' + randomSuffix();
+        while (existingKeys.has(candidate)) {
+            candidate = key + '_' + randomSuffix();
+        }
+        return candidate;
+    }
+
     // Parse initial schema from the hidden field
     let schema = {};
     try {
@@ -101,18 +120,18 @@ document.addEventListener('DOMContentLoaded', function() {
         schema = {};
     }
 
-    // Render existing sub-asset types
+    // Render existing sub-asset types — pass the stable key so it is preserved on rename
     Object.entries(schema).forEach(([key, def]) => {
-        addSubAssetTypeEntry(def.label, def.label_plural, def.description, def.property_schema || []);
+        addSubAssetTypeEntry(key, def.label, def.label_plural, def.description, def.property_schema || []);
     });
 
     // Add new sub-asset type button handler
     addTypeBtn.addEventListener('click', function() {
-        addSubAssetTypeEntry('', '', '', []);
+        addSubAssetTypeEntry('', '', '', '', []);
         updateJsonField();
     });
 
-    function addSubAssetTypeEntry(label, labelPlural, description, properties) {
+    function addSubAssetTypeEntry(existingKey, label, labelPlural, description, properties) {
         const entry = typeTemplate.content.cloneNode(true);
         const labelInput = entry.querySelector('.sub-asset-label');
         const labelPluralInput = entry.querySelector('.sub-asset-label-plural');
@@ -121,18 +140,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const addPropBtn = entry.querySelector('.add-sub-asset-property-btn');
         const removeBtn = entry.querySelector('.remove-sub-asset-type-btn');
         const titleEl = entry.querySelector('.sub-asset-type-title');
+        const entryDiv = entry.querySelector('.sub-asset-type-entry');
 
         labelInput.value = label || '';
         labelPluralInput.value = labelPlural || '';
         descInput.value = description || '';
+
+        // Store the stable key on the DOM element so it survives label renames
+        if (existingKey) {
+            entryDiv.dataset.stableKey = existingKey;
+        }
 
         // Update title dynamically
         function updateTitle() {
             titleEl.textContent = labelInput.value || 'New Sub-Asset Type';
         }
 
-        // Add existing properties
-        properties.forEach(prop => addPropertyRow(propertiesList, prop.label || ''));
+        // Add existing properties — pass the stable key for each property
+        properties.forEach(prop => addPropertyRow(propertiesList, prop.label || '', prop.key || ''));
 
         // Event listeners
         labelInput.addEventListener('input', function() {
@@ -143,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
         descInput.addEventListener('input', updateJsonField);
 
         addPropBtn.addEventListener('click', function() {
-            addPropertyRow(propertiesList, '');
+            addPropertyRow(propertiesList, '', '');
             updateJsonField();
         });
 
@@ -156,12 +181,19 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTitle();
     }
 
-    function addPropertyRow(container, label) {
+    function addPropertyRow(container, label, existingKey) {
         const row = propTemplate.content.cloneNode(true);
         const labelInput = row.querySelector('.sub-asset-prop-label');
         const removeBtn = row.querySelector('.remove-sub-asset-property-btn');
+        const rowDiv = row.querySelector('.sub-asset-property');
 
         labelInput.value = label || '';
+
+        // Store the stable key on the DOM element so it survives label renames
+        if (existingKey) {
+            rowDiv.dataset.stableKey = existingKey;
+        }
+
         labelInput.addEventListener('input', updateJsonField);
 
         removeBtn.addEventListener('click', function() {
@@ -175,6 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJsonField() {
         const entries = schemaList.querySelectorAll('.sub-asset-type-entry');
         const newSchema = {};
+        const usedTypeKeys = new Set();
 
         entries.forEach(entry => {
             const label = entry.querySelector('.sub-asset-label').value.trim();
@@ -182,15 +215,35 @@ document.addEventListener('DOMContentLoaded', function() {
             const description = entry.querySelector('.sub-asset-description').value.trim();
 
             if (label) {
-                const key = labelToKey(label);
+                // Use the stable key if this entry already has one (existing sub-asset type),
+                // otherwise generate a new unique key from the label.
+                let key = entry.dataset.stableKey;
+                if (!key) {
+                    key = uniqueKeyFromLabel(label, usedTypeKeys);
+                    // Persist the generated key so subsequent edits keep it stable
+                    entry.dataset.stableKey = key;
+                }
+                usedTypeKeys.add(key);
+
                 const propertyRows = entry.querySelectorAll('.sub-asset-property');
                 const propertySchema = [];
+                const usedPropKeys = new Set();
 
                 propertyRows.forEach(row => {
                     const propLabel = row.querySelector('.sub-asset-prop-label').value.trim();
                     if (propLabel) {
+                        // Use the stable key if this property already has one,
+                        // otherwise generate a new unique key from the label.
+                        let propKey = row.dataset.stableKey;
+                        if (!propKey) {
+                            propKey = uniqueKeyFromLabel(propLabel, usedPropKeys);
+                            // Persist the generated key so subsequent edits keep it stable
+                            row.dataset.stableKey = propKey;
+                        }
+                        usedPropKeys.add(propKey);
+
                         propertySchema.push({
-                            key: labelToKey(propLabel),
+                            key: propKey,
                             label: propLabel
                         });
                     }
