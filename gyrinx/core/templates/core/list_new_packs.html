@@ -1,0 +1,75 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Content Packs - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <h1 class="h3">Content Packs for {{ list.name }}</h1>
+        <form method="post" class="vstack gap-4">
+            {% csrf_token %}
+            <!-- Default game content -->
+            <div class="border rounded p-3 bg-body-secondary">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi-book fs-4"></i>
+                    <div>
+                        <div class="fw-medium">Default Game Content</div>
+                        <div class="text-muted small">Standard fighters, equipment, and rules from the core rulebooks.</div>
+                    </div>
+                    <span class="ms-auto badge bg-success">Included</span>
+                </div>
+            </div>
+            {% if available_packs %}
+                <!-- Separator -->
+                <div class="d-flex align-items-center gap-3">
+                    <hr class="flex-grow-1">
+                    <span class="text-muted small">Or also use content packs</span>
+                    <hr class="flex-grow-1">
+                </div>
+                <!-- Search -->
+                <div class="input-group input-group-sm">
+                    <input type="text"
+                           name="q"
+                           class="form-control"
+                           placeholder="Filter packs..."
+                           value="{{ search_query }}"
+                           id="pack-search"
+                           oninput="filterPacks(this.value)">
+                </div>
+                <!-- Pack list -->
+                <div class="vstack gap-2" id="pack-list">
+                    {% for pack in available_packs %}
+                        <label class="border rounded p-3 d-flex align-items-start gap-2 pack-item" data-name="{{ pack.name|lower }}">
+                            <input type="checkbox"
+                                   name="pack_ids"
+                                   value="{{ pack.id }}"
+                                   class="form-check-input mt-1">
+                            <div class="flex-grow-1">
+                                <div class="fw-medium">{{ pack.name }}</div>
+                                <div class="text-muted small">by {{ pack.owner }}</div>
+                                {% if pack.summary %}
+                                    <div class="text-muted small mt-1">{{ pack.summary|truncatewords:20 }}</div>
+                                {% endif %}
+                            </div>
+                        </label>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    {% if available_packs %}Continue{% else %}Continue{% endif %}
+                </button>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Skip</a>
+            </div>
+        </form>
+    </div>
+    <script>
+    function filterPacks(query) {
+        query = query.toLowerCase();
+        document.querySelectorAll('.pack-item').forEach(function(item) {
+            var name = item.getAttribute('data-name');
+            item.style.display = name.includes(query) ? '' : 'none';
+        });
+    }
+    </script>
+{% endblock content %}

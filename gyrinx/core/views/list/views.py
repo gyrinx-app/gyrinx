@@ -239,6 +239,9 @@ class ListDetailView(generic.DetailView):
                 list=list_obj, status=CampaignInvitation.PENDING
             ).count()
 
+        # Add subscribed packs
+        context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
+
         return context
 
 
@@ -490,6 +493,11 @@ def new_list(request):
                 public=result.lst.public,
             )
 
+            # If user has Custom Content access, redirect to pack selection
+            if request.user.groups.filter(name="Custom Content").exists():
+                return HttpResponseRedirect(
+                    reverse("core:lists-new-packs", args=(result.lst.id,))
+                )
             return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
         form = NewListForm(
@@ -502,6 +510,55 @@ def new_list(request):
         request,
         "core/list_new.html",
         {"form": form, "houses": houses},
+    )
+
+
+@login_required
+def new_list_packs(request, id):
+    """
+    Interstitial page for selecting content packs when creating a new list.
+
+    Only available to users in the Custom Content group.
+
+    **Template**
+
+    :template:`core/list_new_packs.html`
+    """
+    if not request.user.groups.filter(name="Custom Content").exists():
+        return HttpResponseRedirect(reverse("core:list", args=(id,)))
+
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    from gyrinx.core.models.pack import CustomContentPack
+
+    available_packs = (
+        CustomContentPack.objects.filter(archived=False)
+        .filter(Q(listed=True) | Q(owner=request.user))
+        .select_related("owner")
+        .order_by("name")
+    )
+
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        available_packs = available_packs.filter(name__icontains=search_query)
+
+    if request.method == "POST":
+        pack_ids = request.POST.getlist("pack_ids")
+        if pack_ids:
+            packs = CustomContentPack.objects.filter(
+                id__in=pack_ids, archived=False
+            ).filter(Q(listed=True) | Q(owner=request.user))
+            lst.packs.set(packs)
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_new_packs.html",
+        {
+            "list": lst,
+            "available_packs": available_packs,
+            "search_query": search_query,
+        },
     )
 
 
@@ -544,10 +601,16 @@ def edit_list(request, id):
     else:
         form = EditListForm(instance=list_)
 
+    has_custom_content = request.user.groups.filter(name="Custom Content").exists()
+
     return render(
         request,
         "core/list_edit.html",
-        {"form": form, "error_message": error_message},
+        {
+            "form": form,
+            "error_message": error_message,
+            "has_custom_content": has_custom_content,
+        },
     )
 
 

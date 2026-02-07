@@ -68,8 +68,12 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get custom rules
     custom_rules = fighter.custom_rules.all()
 
-    # Get all available rules for search
-    available_rules: QuerySetOf[ContentRule] = ContentRule.objects.all()
+    # Get all available rules for search, including rules from subscribed packs
+    packs = lst.packs.all()
+    if packs.exists():
+        available_rules: QuerySetOf[ContentRule] = ContentRule.objects.with_packs(packs)
+    else:
+        available_rules: QuerySetOf[ContentRule] = ContentRule.objects.all()
 
     if search_query:
         available_rules = available_rules.filter(Q(name__icontains=search_query))

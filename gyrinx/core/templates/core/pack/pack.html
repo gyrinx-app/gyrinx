@@ -85,6 +85,53 @@
                 {% endif %}
             </section>
         {% endfor %}
+        <!-- Subscribe to this pack -->
+        {% if user_lists %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">Your Lists</h2>
+                </div>
+                {% if unsubscribed_lists %}
+                    <form method="post" action="{% url 'core:pack-subscribe' pack.id %}" class="mb-3">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2 align-items-end">
+                            <div class="flex-grow-1">
+                                <label for="list_id" class="form-label small text-muted">Add this pack to a list</label>
+                                <select name="list_id" id="list_id" class="form-select form-select-sm">
+                                    {% for lst in unsubscribed_lists %}
+                                        <option value="{{ lst.id }}">{{ lst.name }} ({{ lst.content_house }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Add to List</button>
+                        </div>
+                    </form>
+                {% endif %}
+                {% if subscribed_list_ids %}
+                    <div class="small text-muted mb-2">Subscribed lists:</div>
+                    <ul class="list-unstyled mb-0">
+                        {% for lst in user_lists %}
+                            {% if lst.id in subscribed_list_ids %}
+                                <li class="py-1 d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <a href="{% url 'core:list' lst.id %}" class="linked">{{ lst.name }}</a>
+                                        <span class="text-muted small">({{ lst.content_house }})</span>
+                                    </span>
+                                    <form method="post" action="{% url 'core:pack-unsubscribe' pack.id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="list_id" value="{{ lst.id }}">
+                                        <button type="submit" class="btn btn-link btn-sm link-danger link-underline-opacity-25 link-underline-opacity-100-hover p-0">Remove</button>
+                                    </form>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if not unsubscribed_lists and not subscribed_list_ids %}
+                    <p class="text-muted small mb-0">You have no lists to subscribe to this pack.</p>
+                {% endif %}
+            </section>
+        {% endif %}
         <!-- Activity -->
         <section>
             <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
