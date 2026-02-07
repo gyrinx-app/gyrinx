@@ -46,6 +46,12 @@ in the workflow.
 - **code-simplifier** — Use for architecture review, code review, or refactoring analysis. Applies four analytical
   lenses (simplify, unify, abstract, boundaries). Loads `gyrinx-conventions` and `code-analysis-lenses`.
 - **diataxis-docs-expert** — Use when creating or auditing documentation. Follows the Diataxis framework.
+- **code-explorer** — Deeply analyzes existing codebase features by tracing execution paths, mapping architecture
+  layers, and documenting dependencies.
+- **code-architect** — Designs feature architectures by analyzing existing patterns and providing implementation
+  blueprints with component designs, data flows, and build sequences.
+- **code-reviewer** — Reviews code for bugs, security vulnerabilities, and convention adherence using confidence-based
+  filtering (only reports high-confidence issues).
 
 ### Slash Commands (`.claude/commands/`)
 
@@ -54,6 +60,9 @@ in the workflow.
 - `/gissue <path>` — Create a GitHub issue from an analysis file (e.g., from `.claude/notes/`), uploading the full
   analysis to a gist and creating a summary issue.
 - `/trace-playbook <trace-file>` — Run the full trace performance analysis playbook on a Google Cloud Trace JSON file.
+- `/feature-dev [description]` — Guided 7-phase feature development workflow: discovery, codebase exploration,
+  clarifying questions, architecture design, implementation, quality review, and summary. Uses `code-explorer`,
+  `code-architect`, and `code-reviewer` agents.
 
 ### Skills (`.claude/skills/`)
 
