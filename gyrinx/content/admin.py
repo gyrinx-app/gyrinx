@@ -49,8 +49,12 @@ from .models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
+    ContentCounter,
     ContentInjury,
     ContentInjuryGroup,
+    ContentRollFlow,
+    ContentRollTable,
+    ContentRollTableRow,
     ContentMod,
     ContentModFighterRule,
     ContentModFighterSkill,
@@ -1395,3 +1399,51 @@ class ContentAvailabilityPresetAdmin(ContentAdmin):
     @admin.display(description="Name")
     def preset_name_display(self, obj):
         return obj.preset_name
+
+
+# Counters & Roll Tables
+
+
+class ContentRollFlowInline(ContentTabularInline):
+    model = ContentRollFlow
+    extra = 0
+    fields = ["name", "cost", "roll_table"]
+    autocomplete_fields = ["roll_table"]
+
+
+@admin.register(ContentCounter)
+class ContentCounterAdmin(ContentAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "description", "display_order"]
+    filter_horizontal = ["restricted_to_fighters"]
+    inlines = [ContentRollFlowInline]
+
+
+class ContentRollTableRowInline(ContentTabularInline):
+    model = ContentRollTableRow
+    extra = 0
+    fields = ["sort_order", "roll_value", "name", "description", "rating_increase"]
+
+
+@admin.register(ContentRollTable)
+class ContentRollTableAdmin(ContentAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "dice", "description"]
+    list_filter = ["dice"]
+    inlines = [ContentRollTableRowInline]
+
+
+@admin.register(ContentRollTableRow)
+class ContentRollTableRowAdmin(ContentAdmin):
+    search_fields = ["name", "table__name"]
+    list_display = ["table", "roll_value", "name", "rating_increase", "sort_order"]
+    list_filter = ["table"]
+    autocomplete_fields = ["table"]
+    filter_horizontal = ["modifiers"]
+
+
+@admin.register(ContentRollFlow)
+class ContentRollFlowAdmin(ContentAdmin):
+    search_fields = ["name"]
+    list_display = ["name", "counter", "cost", "roll_table"]
+    autocomplete_fields = ["counter", "roll_table"]
