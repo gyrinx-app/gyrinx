@@ -1,0 +1,251 @@
+name: Claude Content Library Docs Update
+
+on:
+  schedule:
+    # Run every Sunday at 9am UTC
+    - cron: "0 9 * * 0"
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  docs-update:
+    runs-on: [gyrinx-ubuntu-2]
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Workaround for anthropics/claude-code-action#900
+      - name: Fix actor for scheduled runs
+        if: github.event_name == 'schedule' && contains(github.actor, '[bot]')
+        run: echo "GITHUB_ACTOR=${{ github.repository_owner }}" >> "$GITHUB_ENV"
+
+      - name: Get merged PRs from last 7 days
+        id: prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 << 'PY'
+          import datetime, os, subprocess, json
+
+          today = datetime.date.today()
+          start = today - datetime.timedelta(days=7)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"start_date={start.isoformat()}\n")
+              f.write(f"end_date={today.isoformat()}\n")
+
+          result = subprocess.run(
+              ["gh", "pr", "list", "--state", "merged",
+               f"--search", f"merged:>={start.isoformat()}",
+               "--json", "number,title,body,files", "--limit", "50"],
+              capture_output=True, text=True, check=True
+          )
+          pr_data = json.loads(result.stdout)
+          pr_count = len(pr_data)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"count={pr_count}\n")
+
+          if pr_count == 0:
+              print("No PRs merged in the last 7 days. Skipping.")
+          else:
+              with open("/tmp/merged_prs.json", "w") as f:
+                  json.dump(pr_data, f, indent=2)
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("pr_file=/tmp/merged_prs.json\n")
+              print(f"Found {pr_count} merged PRs since {start.isoformat()}")
+          PY
+
+      - name: Set up Python
+        if: steps.prs.outputs.count != '0'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        if: steps.prs.outputs.count != '0'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Cache pip
+        if: steps.prs.outputs.count != '0'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache npm dependencies
+        if: steps.prs.outputs.count != '0'
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        if: steps.prs.outputs.count != '0'
+        run: |
+          python -m venv .venv && \
+          . .venv/bin/activate && \
+          pip install --editable .
+
+      - name: Write to .env file
+        if: steps.prs.outputs.count != '0'
+        run: |
+          echo "SECRET_KEY=test-secret" >> .env
+          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+
+      - name: Install Node dependencies
+        if: steps.prs.outputs.count != '0'
+        run: npm ci
+
+      - name: Install pre-commit
+        if: steps.prs.outputs.count != '0'
+        run: |
+          . .venv/bin/activate && \
+          pip install pre-commit
+
+      - name: Install pre-commit hooks
+        if: steps.prs.outputs.count != '0'
+        run: |
+          . .venv/bin/activate && \
+          pre-commit install --install-hooks
+
+      - name: Run Claude Docs Update
+        if: steps.prs.outputs.count != '0'
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          START_DATE: ${{ steps.prs.outputs.start_date }}
+          END_DATE: ${{ steps.prs.outputs.end_date }}
+          PR_FILE: ${{ steps.prs.outputs.pr_file }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: "github-merge-queue[bot]"
+
+          claude_args: |
+            --model claude-opus-4-6
+            --allowedTools "Edit,View,Replace,Write,Create,GlobTool,GrepTool,Bash(git:*),Bash(gh:*),Bash(./scripts/fmt.sh:*),Bash(cat:*),Bash(ls:*)"
+
+          prompt: |
+            You are a documentation maintenance bot for the Gyrinx project. Your job is to
+            review recently merged PRs and update the content library documentation at
+            docs/content-library/ to keep it in sync with the codebase.
+
+            ## Step 1: Review merged PRs
+
+            Read the merged PR data from $PR_FILE. This contains the PRs merged since $START_DATE
+            with their titles, descriptions, and changed files.
+
+            Analyse each PR to determine if it introduced changes that affect the content library
+            documentation. Look for:
+            - New or modified content models (gyrinx/content/models/*.py)
+            - New fields added to existing content models
+            - Changed admin configuration (gyrinx/content/admin.py)
+            - New views, URL patterns, or templates related to content
+            - Changes to pack functionality (gyrinx/core/models/pack.py, gyrinx/core/views/pack.py)
+            - Any other changes that affect how content is structured, administered, or used
+
+            ## Step 2: Identify documentation gaps
+
+            Read all existing docs in docs/content-library/ to understand what's already documented.
+            Then read the relevant source code for any changes you identified in Step 1.
+
+            For each change, determine if the documentation needs to be:
+            - **Updated**: A field was added/removed/changed, a new admin feature was added, behaviour changed
+            - **Created**: An entirely new content area was added that needs its own document
+            - **No change needed**: The PR changes don't affect content library documentation
+
+            If no documentation changes are needed, output a message saying so and stop. Do not
+            create a PR.
+
+            ## Step 3: Write documentation updates
+
+            Follow the exact style and structure used in the existing docs/content-library/ files.
+
+            ### Writing style guide
+
+            **Tone:** Technical but accessible, declarative, present tense. Written for administrators
+            and developers who manage content. Use British English spellings.
+
+            **Document structure** (for new docs):
+            1. Overview -- 2-4 paragraphs explaining the area, its purpose, how it fits into the system
+            2. Key Concepts -- Bold terms with definitions
+            3. Models -- One subsection per model with:
+               - Brief description
+               - Field table: | Field | Type | Description |
+               - Relationships subsection (when relevant)
+               - Validation rules subsection (when relevant)
+               - Admin interface subsection (search, filters, inlines, actions)
+            4. How It Works in the Application -- Runtime behaviour, user-facing impact
+            5. Common Admin Tasks -- Numbered step-by-step instructions
+
+            **Field tables:** Field names in backticks, Django field type, description ending with period.
+            Example:
+            | Field | Type | Description |
+            |-------|------|-------------|
+            | `name` | CharField (max 255) | The display name. |
+            | `active` | BooleanField (default `True`) | Whether this item is currently active. |
+
+            **Cross-references:** Use relative markdown links: "See [Equipment & Weapons](equipment-and-weapons.md)"
+
+            **Standard phrase:** Include "A list represents a user's collection of fighters (called a
+            'gang' in Necromunda)" when contextually relevant in overviews.
+
+            **Model names:** Always in backticks: `ContentFighter`, `ContentHouse`.
+
+            ### For updates to existing docs
+
+            - Add new fields to existing field tables in the correct position
+            - Update descriptions if behaviour changed
+            - Add new sections if new functionality was added
+            - Keep the existing structure intact; do not reorganise unless necessary
+            - Update the admin interface section if admin configuration changed
+
+            ### For new documents
+
+            - Follow the full structure above
+            - Add an entry to docs/content-library/README.md in the table
+            - Add an entry to docs/SUMMARY.md under the Content Library section
+
+            ## Step 4: Create a PR
+
+            After writing all documentation changes:
+
+            1. Create a new branch named `docs/content-library-update-$END_DATE`. If the branch
+               already exists (e.g., from an earlier run), append a short suffix to make it unique.
+            2. Run `./scripts/fmt.sh` to format the changes
+            3. Stage and commit the changes with a descriptive message
+            4. Push the branch
+            5. Create a PR with:
+               - Title: "docs: update content library documentation"
+               - Body that lists what was updated and why, referencing the PRs that triggered
+                 the changes
+               - Label: "documentation"
+
+            If `./scripts/fmt.sh` modifies any documentation files, stage those changes too before committing.
+            Otherwise ignore the formatting changes.
+
+            Before commit, use `git diff --name-only` to verify it contains only paths under docs/ or CLAUDE.md files.
+
+            IMPORTANT:
+            - Only modify files under docs/ or CLAUDE.md. Never modify source code.
+            - If you're unsure whether a change warrants documentation, err on the side of
+              documenting it.
+            - Read the actual source code to understand what changed; don't rely solely on PR
+              descriptions.
+            - Be precise about field types and default values; check the model definitions.
