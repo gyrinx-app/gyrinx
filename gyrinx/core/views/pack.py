@@ -14,9 +14,15 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
+from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
-from gyrinx.core.forms.pack import ContentRuleForm, PackForm
+from gyrinx.content.models.statline import (
+    ContentStatline,
+    ContentStatlineStat,
+    ContentStatlineType,
+)
+from gyrinx.core.forms.pack import ContentFighterPackForm, ContentRuleForm, PackForm
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
@@ -42,6 +48,14 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-house-door",
         None,
         "house",
+    ),
+    ContentTypeEntry(
+        ContentFighter,
+        "Fighters",
+        "Custom fighters for your Content Pack.",
+        "bi-person",
+        ContentFighterPackForm,
+        "fighter",
     ),
     ContentTypeEntry(
         ContentRule,
@@ -499,6 +513,106 @@ class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
         return context
 
 
+def _get_fighter_stat_definitions():
+    """Load the stat definitions for the Fighter statline type."""
+    statline_type = ContentStatlineType.objects.get(name="Fighter")
+    return statline_type.stats.select_related("stat").order_by("position")
+
+
+def _normalize_stat_value(raw_value, content_stat):
+    """Normalize a stat value based on ContentStat formatting config.
+
+    Auto-adds the correct suffix/prefix:
+    - is_inches: ``4`` → ``4"``
+    - is_target: ``3`` → ``3+``
+    - is_modifier: ``2`` → ``+2``
+    """
+    value = raw_value.strip() if raw_value else ""
+    # Replace smart quotes with straight quotes.
+    value = value.replace("\u201c", '"').replace("\u201d", '"')
+    value = value.replace("\u2018", "'").replace("\u2019", "'")
+
+    if value in ("", "-"):
+        return "-"
+
+    if content_stat.is_inches:
+        # Strip trailing " to get the number, then re-add.
+        number_str = value.rstrip('"').strip()
+        try:
+            n = int(number_str)
+            return f'{n}"'
+        except ValueError:
+            return value
+
+    if content_stat.is_target:
+        # Strip trailing + to get the number, then re-add.
+        number_str = value.rstrip("+").strip()
+        try:
+            n = int(number_str)
+            return f"{n}+"
+        except ValueError:
+            return value
+
+    if content_stat.is_modifier:
+        # Strip leading +/- to get the number, then re-add sign.
+        number_str = value.lstrip("+-").strip()
+        try:
+            n = int(number_str)
+            # Preserve sign from original input; default positive.
+            if value.startswith("-"):
+                n = -abs(n)
+            else:
+                n = abs(n)
+            return f"+{n}" if n >= 0 else str(n)
+        except ValueError:
+            return value
+
+    # Plain number stat — store as-is.
+    return value
+
+
+def _stat_placeholder(content_stat):
+    """Return a placeholder example for a stat input field."""
+    if content_stat.is_inches:
+        return '4"'
+    if content_stat.is_target:
+        return "3+"
+    if content_stat.is_modifier:
+        return "+1"
+    return "3"
+
+
+def _create_fighter_statline(fighter, stat_definitions, post_data):
+    """Create a ContentStatline and populate stat values from POST data."""
+    statline_type = ContentStatlineType.objects.get(name="Fighter")
+    statline = ContentStatline.objects.create(
+        content_fighter=fighter,
+        statline_type=statline_type,
+    )
+    for type_stat in stat_definitions:
+        raw = post_data.get(f"stat_{type_stat.stat.field_name}", "-") or "-"
+        value = _normalize_stat_value(raw, type_stat.stat)
+        ContentStatlineStat.objects.create(
+            statline=statline,
+            statline_type_stat=type_stat,
+            value=value,
+        )
+    return statline
+
+
+def _update_fighter_stats(fighter, post_data):
+    """Update existing statline stat values from POST data."""
+    for stat_obj in fighter.custom_statline.stats.select_related(
+        "statline_type_stat__stat"
+    ):
+        field_name = stat_obj.statline_type_stat.stat.field_name
+        raw = post_data.get(f"stat_{field_name}", "-") or "-"
+        new_value = _normalize_stat_value(raw, stat_obj.statline_type_stat.stat)
+        if stat_obj.value != new_value:
+            stat_obj.value = new_value
+            stat_obj.save()
+
+
 def _get_content_type_entry(slug):
     """Look up a SUPPORTED_CONTENT_TYPES entry by URL slug, or raise 404."""
     entry = _CONTENT_TYPE_BY_SLUG.get(slug)
@@ -516,6 +630,13 @@ def _get_entry_for_pack_item(pack_item):
     raise Http404
 
 
+def _form_kwargs(entry, pack):
+    """Return extra kwargs for forms that accept a ``pack`` parameter."""
+    if entry.form_class is ContentFighterPackForm:
+        return {"pack": pack}
+    return {}
+
+
 @login_required
 @group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
@@ -523,9 +644,13 @@ def add_pack_item(request, id, content_type_slug):
     pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
     entry = _get_content_type_entry(content_type_slug)
     singular_label = entry.label.rstrip("s")
+    is_fighter = entry.model_class is ContentFighter
+
+    # Load fighter stat definitions for the form.
+    stat_definitions = _get_fighter_stat_definitions() if is_fighter else None
 
     if request.method == "POST":
-        form = entry.form_class(request.POST)
+        form = entry.form_class(request.POST, **_form_kwargs(entry, pack))
         if form.is_valid():
             with transaction.atomic():
                 content_obj = form.save(commit=False)
@@ -539,21 +664,32 @@ def add_pack_item(request, id, content_type_slug):
                     owner=request.user,
                 )
                 item.save_with_user(user=request.user)
+                if is_fighter:
+                    _create_fighter_statline(
+                        content_obj, stat_definitions, request.POST
+                    )
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = entry.form_class()
+        form = entry.form_class(**_form_kwargs(entry, pack))
 
-    return render(
-        request,
-        "core/pack/pack_item_add.html",
-        {
-            "form": form,
-            "pack": pack,
-            "label": singular_label,
-            "icon": entry.icon,
-            "slug": entry.slug,
-        },
-    )
+    context = {
+        "form": form,
+        "pack": pack,
+        "label": singular_label,
+        "icon": entry.icon,
+        "slug": entry.slug,
+    }
+    if stat_definitions is not None:
+        context["stat_definitions"] = [
+            {
+                "field_name": ts.stat.field_name,
+                "short_name": ts.stat.short_name,
+                "placeholder": _stat_placeholder(ts.stat),
+            }
+            for ts in stat_definitions
+        ]
+
+    return render(request, "core/pack/pack_item_add.html", context)
 
 
 @login_required
@@ -577,28 +713,48 @@ def edit_pack_item(request, id, item_id):
         raise Http404
 
     singular_label = entry.label.rstrip("s")
+    is_fighter = entry.model_class is ContentFighter
+
+    # Load fighter stat data for the form.
+    stat_values = None
+    if is_fighter and hasattr(content_obj, "custom_statline"):
+        stat_values = [
+            {
+                "field_name": s.statline_type_stat.stat.field_name,
+                "short_name": s.statline_type_stat.stat.short_name,
+                "value": s.value,
+                "placeholder": _stat_placeholder(s.statline_type_stat.stat),
+            }
+            for s in content_obj.custom_statline.stats.select_related(
+                "statline_type_stat__stat"
+            ).order_by("statline_type_stat__position")
+        ]
 
     if request.method == "POST":
-        form = entry.form_class(request.POST, instance=content_obj)
+        form = entry.form_class(
+            request.POST, instance=content_obj, **_form_kwargs(entry, pack)
+        )
         if form.is_valid():
             form.instance._history_user = request.user
             form.save()
+            if is_fighter and hasattr(content_obj, "custom_statline"):
+                _update_fighter_stats(content_obj, request.POST)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = entry.form_class(instance=content_obj)
+        form = entry.form_class(instance=content_obj, **_form_kwargs(entry, pack))
 
-    return render(
-        request,
-        "core/pack/pack_item_edit.html",
-        {
-            "form": form,
-            "pack": pack,
-            "pack_item": pack_item,
-            "content_obj": content_obj,
-            "label": singular_label,
-            "icon": entry.icon,
-        },
-    )
+    context = {
+        "form": form,
+        "pack": pack,
+        "pack_item": pack_item,
+        "content_obj": content_obj,
+        "label": singular_label,
+        "icon": entry.icon,
+    }
+    if stat_values is not None:
+        context["stat_values"] = stat_values
+
+    return render(request, "core/pack/pack_item_edit.html", context)
 
 
 @login_required

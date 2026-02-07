@@ -2,8 +2,16 @@ import pytest
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 
+from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.statline import (
+    ContentStatline,
+    ContentStatlineStat,
+    ContentStatlineType,
+    ContentStatlineTypeStat,
+    ContentStat,
+)
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
@@ -981,3 +989,427 @@ def test_archived_items_page_requires_ownership(
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/archived/rule/")
     assert response.status_code == 404
+
+
+# --- Pack item CRUD (Fighters) ---
+
+
+@pytest.fixture
+def fighter_statline_type():
+    """Create the Fighter ContentStatlineType with standard stats."""
+    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+
+    # (field_name, short_name, full_name, position, is_inches, is_target)
+    stat_defs = [
+        ("movement", "M", "Movement", 1, True, False),
+        ("weapon_skill", "WS", "Weapon Skill", 2, False, True),
+        ("ballistic_skill", "BS", "Ballistic Skill", 3, False, True),
+        ("strength", "S", "Strength", 4, False, False),
+        ("toughness", "T", "Toughness", 5, False, False),
+        ("wounds", "W", "Wounds", 6, False, False),
+        ("initiative", "I", "Initiative", 7, False, True),
+        ("attacks", "A", "Attacks", 8, False, False),
+        ("leadership", "Ld", "Leadership", 9, False, True),
+        ("cool", "Cl", "Cool", 10, False, True),
+        ("willpower", "Wil", "Willpower", 11, False, True),
+        ("intelligence", "Int", "Intelligence", 12, False, True),
+    ]
+    for field_name, short_name, full_name, position, is_inches, is_target in stat_defs:
+        stat, _ = ContentStat.objects.get_or_create(
+            field_name=field_name,
+            defaults={
+                "short_name": short_name,
+                "full_name": full_name,
+                "is_inches": is_inches,
+                "is_target": is_target,
+            },
+        )
+        ContentStatlineTypeStat.objects.get_or_create(
+            statline_type=statline_type,
+            stat=stat,
+            defaults={"position": position},
+        )
+    return statline_type
+
+
+@pytest.fixture
+def pack_fighter(pack, group_user, fighter_statline_type, content_house):
+    """A fighter added to a pack with a populated statline."""
+    fighter = ContentFighter.objects.all_content().create(
+        type="Custom Ganger",
+        category="GANGER",
+        house=content_house,
+        base_cost=50,
+    )
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=fighter.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+
+    # Create statline
+    statline = ContentStatline.objects.create(
+        content_fighter=fighter, statline_type=fighter_statline_type
+    )
+    for type_stat in fighter_statline_type.stats.all():
+        ContentStatlineStat.objects.create(
+            statline=statline, statline_type_stat=type_stat, value="-"
+        )
+
+    return item
+
+
+@pytest.mark.django_db
+def test_add_fighter_form_loads(client, group_user, pack, fighter_statline_type):
+    """Test that the add fighter form page loads with stat inputs."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    assert response.status_code == 200
+    assert b"Add Fighter" in response.content
+    # Stat inputs should be present
+    assert b"stat_movement" in response.content
+    assert b"stat_leadership" in response.content
+
+
+@pytest.mark.django_db
+def test_add_fighter_creates_fighter_and_statline(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that submitting the add form creates fighter, pack item, and statline."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Test Champion",
+            "category": "CHAMPION",
+            "house": str(content_house.pk),
+            "base_cost": "100",
+            "stat_movement": '4"',
+            "stat_weapon_skill": "3+",
+            "stat_ballistic_skill": "4+",
+            "stat_strength": "3",
+            "stat_toughness": "3",
+            "stat_wounds": "1",
+            "stat_initiative": "4+",
+            "stat_attacks": "1",
+            "stat_leadership": "7+",
+            "stat_cool": "7+",
+            "stat_willpower": "7+",
+            "stat_intelligence": "7+",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    # Verify fighter was created
+    fighter = ContentFighter.objects.all_content().get(type="Test Champion")
+    assert fighter.category == "CHAMPION"
+    assert fighter.base_cost == 100
+
+    # Verify pack item was created
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=fighter.pk
+    ).exists()
+
+    # Verify statline was created with correct values
+    assert hasattr(fighter, "custom_statline")
+    stats = {
+        s.statline_type_stat.stat.field_name: s.value
+        for s in fighter.custom_statline.stats.select_related(
+            "statline_type_stat__stat"
+        )
+    }
+    assert stats["movement"] == '4"'
+    assert stats["weapon_skill"] == "3+"
+    assert stats["leadership"] == "7+"
+
+
+@pytest.mark.django_db
+def test_add_fighter_with_default_stats(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that omitted stats default to '-'."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Minimal Fighter",
+            "category": "JUVE",
+            "house": str(content_house.pk),
+            "base_cost": "25",
+        },
+    )
+    assert response.status_code == 302
+
+    fighter = ContentFighter.objects.all_content().get(type="Minimal Fighter")
+    assert hasattr(fighter, "custom_statline")
+    stats = {
+        s.statline_type_stat.stat.field_name: s.value
+        for s in fighter.custom_statline.stats.select_related(
+            "statline_type_stat__stat"
+        )
+    }
+    assert all(v == "-" for v in stats.values())
+
+
+@pytest.mark.django_db
+def test_add_fighter_with_house(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test creating a fighter with a house assigned."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "House Fighter",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+        },
+    )
+    assert response.status_code == 302
+
+    fighter = ContentFighter.objects.all_content().get(type="House Fighter")
+    assert fighter.house == content_house
+
+
+@pytest.mark.django_db
+def test_add_fighter_excludes_special_categories(
+    client, group_user, pack, fighter_statline_type
+):
+    """Test that STASH, VEHICLE, GANG_TERRAIN are not in the category choices."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    content = response.content.decode()
+    assert "STASH" not in content
+    assert "VEHICLE" not in content
+    assert "GANG_TERRAIN" not in content
+    # Normal categories should be present
+    assert "LEADER" in content
+    assert "GANGER" in content
+
+
+@pytest.mark.django_db
+def test_add_fighter_requires_type(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that the type (name) field is required."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+        },
+    )
+    assert response.status_code == 200  # Re-renders form with errors
+
+
+@pytest.mark.django_db
+def test_edit_fighter_form_loads(client, group_user, pack, pack_fighter):
+    """Test that the edit fighter form loads with stat values."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    assert response.status_code == 200
+    assert b"Edit Fighter" in response.content
+    # Should have stat inputs
+    assert b"stat_movement" in response.content
+    # Should have M2M fields on edit
+    assert b"skills" in response.content or b"rules" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_fighter_updates_fields(
+    client, group_user, pack, pack_fighter, content_house
+):
+    """Test that editing a fighter updates the fields."""
+    client.force_login(group_user)
+    fighter = pack_fighter.content_object
+
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        {
+            "type": "Renamed Ganger",
+            "category": "CHAMPION",
+            "house": str(content_house.pk),
+            "base_cost": "75",
+            "stat_movement": '5"',
+            "stat_weapon_skill": "3+",
+            "stat_ballistic_skill": "4+",
+            "stat_strength": "3",
+            "stat_toughness": "3",
+            "stat_wounds": "1",
+            "stat_initiative": "4+",
+            "stat_attacks": "1",
+            "stat_leadership": "7+",
+            "stat_cool": "7+",
+            "stat_willpower": "7+",
+            "stat_intelligence": "7+",
+        },
+    )
+    assert response.status_code == 302
+
+    fighter.refresh_from_db()
+    assert fighter.type == "Renamed Ganger"
+    assert fighter.category == "CHAMPION"
+    assert fighter.base_cost == 75
+
+    # Verify stats were updated
+    stats = {
+        s.statline_type_stat.stat.field_name: s.value
+        for s in fighter.custom_statline.stats.select_related(
+            "statline_type_stat__stat"
+        )
+    }
+    assert stats["movement"] == '5"'
+    assert stats["weapon_skill"] == "3+"
+
+
+@pytest.mark.django_db
+def test_archive_fighter_preserves_content(client, group_user, pack, pack_fighter):
+    """Test that archiving a fighter soft-deletes the pack item but keeps the fighter."""
+    client.force_login(group_user)
+    fighter = pack_fighter.content_object
+
+    response = client.post(f"/pack/{pack.id}/item/{pack_fighter.id}/delete/")
+    assert response.status_code == 302
+
+    pack_fighter.refresh_from_db()
+    assert pack_fighter.archived is True
+
+    # Fighter content object should still exist
+    assert ContentFighter.objects.all_content().filter(pk=fighter.pk).exists()
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_fighters_section(
+    client, group_user, pack, fighter_statline_type
+):
+    """Test that the pack detail page shows the Fighters section."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Fighters" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_fighter(client, group_user, pack, pack_fighter):
+    """Test that the pack detail page shows the fighter name."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Custom Ganger" in response.content
+
+
+@pytest.mark.django_db
+def test_add_fighter_auto_formats_stats(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that stat values are auto-formatted based on ContentStat config."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Format Test Fighter",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+            # Movement is_inches: "4" should become '4"'
+            "stat_movement": "4",
+            # WS is_target: "3" should become "3+"
+            "stat_weapon_skill": "3",
+            # Strength is plain: "3" stays "3"
+            "stat_strength": "3",
+            # Already-formatted values should stay as-is
+            "stat_ballistic_skill": "4+",
+            "stat_toughness": "3",
+            "stat_wounds": "1",
+            "stat_initiative": "4+",
+            "stat_attacks": "1",
+            "stat_leadership": "7+",
+            "stat_cool": "7+",
+            "stat_willpower": "7+",
+            "stat_intelligence": "7+",
+        },
+    )
+    assert response.status_code == 302
+
+    fighter = ContentFighter.objects.all_content().get(type="Format Test Fighter")
+    stats = {
+        s.statline_type_stat.stat.field_name: s.value
+        for s in fighter.custom_statline.stats.select_related(
+            "statline_type_stat__stat"
+        )
+    }
+    # Auto-formatted
+    assert stats["movement"] == '4"'
+    assert stats["weapon_skill"] == "3+"
+    # Plain stat unchanged
+    assert stats["strength"] == "3"
+    # Already formatted stays the same
+    assert stats["ballistic_skill"] == "4+"
+    assert stats["leadership"] == "7+"
+
+
+@pytest.mark.django_db
+def test_edit_fighter_auto_formats_stats(
+    client, group_user, pack, pack_fighter, content_house
+):
+    """Test that editing stats auto-formats values."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        {
+            "type": "Custom Ganger",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+            # Submit bare numbers — should be auto-formatted
+            "stat_movement": "5",
+            "stat_weapon_skill": "4",
+            "stat_ballistic_skill": "4",
+            "stat_strength": "3",
+            "stat_toughness": "3",
+            "stat_wounds": "1",
+            "stat_initiative": "4",
+            "stat_attacks": "1",
+            "stat_leadership": "7",
+            "stat_cool": "7",
+            "stat_willpower": "8",
+            "stat_intelligence": "8",
+        },
+    )
+    assert response.status_code == 302
+
+    fighter = pack_fighter.content_object
+    fighter.refresh_from_db()
+    stats = {
+        s.statline_type_stat.stat.field_name: s.value
+        for s in fighter.custom_statline.stats.select_related(
+            "statline_type_stat__stat"
+        )
+    }
+    assert stats["movement"] == '5"'
+    assert stats["weapon_skill"] == "4+"
+    assert stats["initiative"] == "4+"
+    assert stats["strength"] == "3"  # plain — unchanged
+    assert stats["attacks"] == "1"  # plain — unchanged
+
+
+@pytest.mark.django_db
+def test_add_fighter_form_shows_placeholders(
+    client, group_user, pack, fighter_statline_type
+):
+    """Test that the add fighter form shows placeholder hints per stat."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    content = response.content.decode()
+    # Movement (is_inches) should have '4"' placeholder
+    assert 'placeholder="4&quot;"' in content or 'placeholder="4&quot;"' in content
+    # WS (is_target) should have '3+' placeholder
+    assert 'placeholder="3+"' in content
+    # Strength (plain) should have '3' placeholder
+    assert 'placeholder="3"' in content
