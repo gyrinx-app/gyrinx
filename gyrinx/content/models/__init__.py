@@ -90,6 +90,12 @@ from .injury import (
     ContentInjuryDefaultOutcome,
     ContentInjuryGroup,
 )
+from .counter import ContentCounter
+from .roll_table import (
+    ContentRollFlow,
+    ContentRollTable,
+    ContentRollTableRow,
+)
 
 # Assignment models
 from .equipment_list import (
@@ -212,6 +218,12 @@ __all__ = [
     "ContentEquipmentListExpansionRuleByFighterCategory",
     "ContentEquipmentListExpansionRuleByHouse",
     "ExpansionRuleInputs",
+    # Counters
+    "ContentCounter",
+    # Roll Tables
+    "ContentRollFlow",
+    "ContentRollTable",
+    "ContentRollTableRow",
     # Availability Presets
     "ContentAvailabilityPreset",
     # Re-exports from gyrinx.models for backward compatibility

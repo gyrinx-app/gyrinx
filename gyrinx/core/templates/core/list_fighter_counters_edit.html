@@ -1,0 +1,30 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    {{ counter.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-counter-edit" fighter_url_extra_arg=counter.id %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h2>Edit {{ counter.name }} for {{ fighter.name }}</h2>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                <label for="{{ form.value.id_for_label }}" class="form-label fw-bold">{{ counter.name }}</label>
+                {% if counter.description %}<p class="text-muted fs-7 mb-1">{{ counter.description }}</p>{% endif %}
+                <p class="mb-1 fs-7">
+                    Current value: <span class="badge text-bg-secondary">{{ form.current_value }}</span>
+                </p>
+                {{ form.value }}
+                {% if form.value.errors %}
+                    {% for error in form.value.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
+                {% endif %}
+            </div>
+            <div class="hstack gap-2 mt-3 align-items-center">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
