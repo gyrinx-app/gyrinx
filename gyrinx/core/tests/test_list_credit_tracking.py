@@ -41,19 +41,66 @@ def test_list_has_credit_fields(campaign_list):
 
 
 @pytest.mark.django_db
-def test_edit_list_credits_view_requires_campaign_mode(
+def test_edit_list_credits_view_accessible_in_list_building(
     client, user, list_building_list
 ):
-    """Test that credit editing requires campaign mode."""
+    """Test that credit editing is accessible in list building mode."""
     client.login(username="testuser", password="password")
 
     response = client.get(
         reverse("core:list-credits-edit", args=(list_building_list.id,))
     )
 
-    # Should redirect with error message
+    assert response.status_code == 200
+    assert "Edit Credits" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_add_credits_in_list_building_mode(client, user, list_building_list):
+    """Test adding credits to a list in list building mode."""
+    client.login(username="testuser", password="password")
+
+    response = client.post(
+        reverse("core:list-credits-edit", args=(list_building_list.id,)),
+        {
+            "operation": "add",
+            "amount": 200,
+            "description": "Starting stash",
+        },
+    )
+
     assert response.status_code == 302
-    assert response.url == reverse("core:list", args=(list_building_list.id,))
+
+    list_building_list.refresh_from_db()
+    assert list_building_list.credits_current == 200
+    assert list_building_list.credits_earned == 200
+
+    # No campaign action should be created for list building mode
+    assert CampaignAction.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_spend_credits_in_list_building_mode(client, user, list_building_list):
+    """Test spending credits in list building mode."""
+    list_building_list.credits_current = 500
+    list_building_list.credits_earned = 500
+    list_building_list.save()
+
+    client.login(username="testuser", password="password")
+
+    response = client.post(
+        reverse("core:list-credits-edit", args=(list_building_list.id,)),
+        {
+            "operation": "spend",
+            "amount": 150,
+        },
+    )
+
+    assert response.status_code == 302
+
+    list_building_list.refresh_from_db()
+    assert list_building_list.credits_current == 350
+    assert list_building_list.credits_earned == 500
 
 
 @pytest.mark.django_db
@@ -294,3 +341,17 @@ def test_non_owner_cannot_edit_credits(client, db, house):
     campaign_list.refresh_from_db()
     assert campaign_list.credits_current == 100
     assert campaign_list.credits_earned == 100
+
+
+@pytest.mark.django_db
+def test_clone_list_building_list_preserves_credits(user, list_building_list):
+    """Test that cloning a list building list with credits preserves them."""
+    list_building_list.credits_current = 300
+    list_building_list.credits_earned = 300
+    list_building_list.save()
+
+    clone = list_building_list.clone(name="Cloned Gang")
+
+    assert clone.credits_current == 300
+    assert clone.credits_earned == 300
+    assert clone.status == List.LIST_BUILDING

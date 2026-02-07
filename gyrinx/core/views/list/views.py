@@ -554,7 +554,9 @@ def edit_list(request, id):
 @login_required
 def edit_list_credits(request, id):
     """
-    Modify credits for a :model:`core.List` in campaign mode.
+    Modify credits for a :model:`core.List`.
+
+    Credits can be edited in both list building and campaign mode.
 
     **Context**
 
@@ -585,13 +587,6 @@ def edit_list_credits(request, id):
                 request, "You don't have permission to modify credits for this list."
             )
             return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
-
-    # Check campaign mode
-    if lst.status != List.CAMPAIGN_MODE:
-        messages.error(
-            request, "Credits can only be tracked for lists in campaign mode."
-        )
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
         form = EditListCreditsForm(request.POST, lst=lst)

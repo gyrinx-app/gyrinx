@@ -22,7 +22,7 @@
                 <h4 class="h6 mb-0">Stash Credits</h4>
                 <div class="hstack gap-2 align-items-center">
                     {% if list.owner_cached == user or list.campaign and list.campaign.owner == user %}
-                        {% if not print and not list.is_list_building %}
+                        {% if not print %}
                             <a href="{% url 'core:list-credits-edit' list.id %}" class="fs-7 linked">Edit</a>
                         {% endif %}
                     {% endif %}

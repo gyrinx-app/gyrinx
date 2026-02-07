@@ -754,7 +754,7 @@ class EditFighterXPForm(forms.Form):
 
 
 class EditListCreditsForm(forms.Form):
-    """Form for modifying list credits in campaign mode."""
+    """Form for modifying list credits."""
 
     CREDIT_OPERATION_CHOICES = [
         ("add", "Add Credits"),
@@ -778,7 +778,7 @@ class EditListCreditsForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         required=False,
         label="Description",
-        help_text="Optional description for this credit change (will be included in campaign log)",
+        help_text="Optional description for this credit change",
     )
 
     def __init__(self, *args, **kwargs):
