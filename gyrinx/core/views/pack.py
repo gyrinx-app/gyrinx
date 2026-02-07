@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -526,22 +527,11 @@ def add_pack_item(request, id, content_type_slug):
     if request.method == "POST":
         form = entry.form_class(request.POST)
         if form.is_valid():
-            content_obj = form.save(commit=False)
-            content_obj._history_user = request.user
-            content_obj.save()
-            ct = ContentType.objects.get_for_model(entry.model_class)
-            # If an archived pack item already exists for this content,
-            # unarchive it instead of creating a new one.
-            existing = CustomContentPackItem.objects.filter(
-                pack=pack,
-                content_type=ct,
-                object_id=content_obj.pk,
-                archived=True,
-            ).first()
-            if existing:
-                existing._history_user = request.user
-                existing.unarchive()
-            else:
+            with transaction.atomic():
+                content_obj = form.save(commit=False)
+                content_obj._history_user = request.user
+                content_obj.save()
+                ct = ContentType.objects.get_for_model(entry.model_class)
                 item = CustomContentPackItem(
                     pack=pack,
                     content_type=ct,

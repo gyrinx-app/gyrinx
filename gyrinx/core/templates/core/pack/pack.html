@@ -67,10 +67,12 @@
                         {% for entry in section.items %}
                             <li class="py-1 d-flex justify-content-between align-items-center">
                                 <span>{{ entry.content_object }}</span>
-                                {% if is_owner and section.can_add %}
+                                {% if is_owner %}
                                     <span class="d-flex gap-2">
-                                        <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                        {% if section.can_add %}
+                                            <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                        {% endif %}
                                         <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
                                            class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
                                     </span>

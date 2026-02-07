@@ -889,13 +889,13 @@ def test_edit_archived_item_returns_404(client, group_user, pack, pack_rule):
 
 
 @pytest.mark.django_db
-def test_re_add_archived_item_unarchives(client, group_user, pack):
-    """Test that adding a rule with the same content as an archived item unarchives it."""
+def test_add_after_archive_creates_new_item(client, group_user, pack):
+    """Test that adding a rule after archiving creates a new item (not unarchive)."""
     client.force_login(group_user)
     # Create a rule
     client.post(
         f"/pack/{pack.id}/add/rule/",
-        {"name": "Recycle Rule", "description": "Will be archived and re-added"},
+        {"name": "First Rule", "description": "Will be archived"},
     )
     ct = ContentType.objects.get_for_model(ContentRule)
     item = CustomContentPackItem.objects.get(pack=pack, content_type=ct)
@@ -905,17 +905,20 @@ def test_re_add_archived_item_unarchives(client, group_user, pack):
     item.refresh_from_db()
     assert item.archived is True
 
-    # Re-add creates a new rule (different content object), so we test the
-    # normal add path. The unarchive path is for the same object_id.
-    # To test re-add of the same object, we'd need to manually set it up.
-    # Instead, verify that the archived item stays and a new one is created.
+    # Adding a new rule creates a separate item (different content object)
     response = client.post(
         f"/pack/{pack.id}/add/rule/",
-        {"name": "Different Rule", "description": "A new rule"},
+        {"name": "Second Rule", "description": "A new rule"},
     )
     assert response.status_code == 302
-    # Should now have 2 items - one archived, one active
+    # Should have 2 items - one archived, one active
     assert CustomContentPackItem.objects.filter(pack=pack, content_type=ct).count() == 2
+    assert (
+        CustomContentPackItem.objects.filter(
+            pack=pack, content_type=ct, archived=False
+        ).count()
+        == 1
+    )
 
 
 # --- Activity with content edits ---
