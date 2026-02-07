@@ -319,6 +319,14 @@ class List(AppBase):
         help_text="Gang attributes like Alignment, Alliance, Affiliation",
     )
 
+    # Content packs subscribed to this list
+    packs = models.ManyToManyField(
+        "CustomContentPack",
+        blank=True,
+        related_name="subscribed_lists",
+        help_text="Content packs subscribed to this list.",
+    )
+
     history = HistoricalRecords()
 
     #
@@ -1173,6 +1181,9 @@ class List(AppBase):
 
         # Note: ListAction creation for clones is handled by handle_list_clone handler.
         # The model method only handles the data cloning, not side effects like actions.
+
+        # Clone pack subscriptions
+        clone.packs.set(self.packs.all())
 
         # Clone attributes first - this must happen before fighters so that
         # equipment cost calculations can use expansion costs from affiliations
