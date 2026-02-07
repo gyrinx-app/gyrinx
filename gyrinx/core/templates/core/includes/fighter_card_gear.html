@@ -296,7 +296,7 @@
     {% if weapons_mode == "gear" %}
         <div class="card-footer p-2 fs-7">
             {% if list.owner_cached == user and not print %}
-                <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
+                <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring cat=None %}"
                    class="fw-normal">Edit weapons</a>
             {% endif %}
         </div>

@@ -28,10 +28,10 @@
                 Weapons
                 {% if not print and list.owner_cached == user %}
                     {% if mode == "gear" %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring cat=None %}"
                            class="fw-normal">Edit weapons</a>
                     {% elif not mode %}
-                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring %}"
+                        <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring cat=None %}"
                            class="fw-normal">Edit</a>
                     {% endif %}
                 {% endif %}
