@@ -36,11 +36,13 @@ def _get_tasks() -> list[TaskRoute]:
         from gyrinx.core.tasks import (
             hello_world,
             refresh_list_facts,
+            trigger_discord_issue_action,
         )
 
         _tasks = [
             TaskRoute(hello_world),
             TaskRoute(refresh_list_facts),
+            TaskRoute(trigger_discord_issue_action),
         ]
     return _tasks
 
