@@ -47,6 +47,7 @@ urlpatterns = [
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list_views.ListsListView.as_view(), name="lists"),
     path("lists/new", list_views.new_list, name="lists-new"),
+    path("lists/new/<id>/packs", list_views.new_list_packs, name="lists-new-packs"),
     path("list/<id>", list_views.ListDetailView.as_view(), name="list"),
     path(
         "list/<id>/perf",
@@ -62,6 +63,7 @@ urlpatterns = [
         "list/<id>/refresh-cost", list_views.refresh_list_cost, name="list-refresh-cost"
     ),
     path("list/<id>/edit", list_views.edit_list, name="list-edit"),
+    path("list/<id>/packs", pack_views.list_packs_manage, name="list-packs"),
     path("list/<id>/credits", list_views.edit_list_credits, name="list-credits-edit"),
     path("list/<id>/clone", list_views.clone_list, name="list-clone"),
     path(
@@ -667,6 +669,10 @@ urlpatterns = [
     path("packs/new/", pack_views.new_pack, name="packs-new"),
     path("pack/<id>", pack_views.PackDetailView.as_view(), name="pack"),
     path("pack/<id>/edit/", pack_views.edit_pack, name="pack-edit"),
+    path("pack/<id>/subscribe/", pack_views.subscribe_pack, name="pack-subscribe"),
+    path(
+        "pack/<id>/unsubscribe/", pack_views.unsubscribe_pack, name="pack-unsubscribe"
+    ),
     path(
         "pack/<id>/activity/",
         pack_views.PackActivityView.as_view(),
