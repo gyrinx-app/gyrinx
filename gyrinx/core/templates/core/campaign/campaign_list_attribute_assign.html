@@ -1,0 +1,34 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Assign {{ attribute_type.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=return_url text="Back to Attributes" %}
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h5">{{ attribute_type.name }}</h2>
+                    <p class="text-secondary mb-3">{{ list.name }}</p>
+                    {% if attribute_type.is_single_select %}
+                        <p class="text-muted small">Select one option</p>
+                    {% else %}
+                        <p class="text-muted small">Select multiple options</p>
+                    {% endif %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">{{ form.values }}</div>
+                        {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% endif %}
+                        <div class="hstack gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="bi-check-lg"></i> Save
+                            </button>
+                            {% include "core/includes/cancel.html" with url=return_url %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

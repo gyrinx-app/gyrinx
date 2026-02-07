@@ -7,6 +7,9 @@ from gyrinx.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignAttributeType,
+    CampaignAttributeValue,
+    CampaignListAttributeAssignment,
     CampaignListResource,
     CampaignResourceType,
 )
@@ -67,3 +70,35 @@ class CampaignResourceTypeAdmin(BaseAdmin):
     fields = ["name", "campaign", "description", "owner"]
 
     inlines = [CampaignListResourceInline]
+
+
+class CampaignAttributeValueInline(GyTabularInline):
+    model = CampaignAttributeValue
+    extra = 0
+    fields = ["name", "description", "colour", "owner"]
+
+
+@admin.register(CampaignAttributeType)
+class CampaignAttributeTypeAdmin(BaseAdmin):
+    list_display = ["name", "campaign", "is_single_select", "description"]
+    search_fields = ["name", "campaign__name"]
+    list_filter = ["campaign", "is_single_select"]
+    fields = ["name", "campaign", "description", "is_single_select", "owner"]
+
+    inlines = [CampaignAttributeValueInline]
+
+
+class CampaignListAttributeAssignmentInline(GyTabularInline):
+    model = CampaignListAttributeAssignment
+    extra = 0
+    fields = ["campaign", "attribute_value", "list", "owner"]
+
+
+@admin.register(CampaignAttributeValue)
+class CampaignAttributeValueAdmin(BaseAdmin):
+    list_display = ["name", "attribute_type", "colour", "description"]
+    search_fields = ["name", "attribute_type__name"]
+    list_filter = ["attribute_type__campaign"]
+    fields = ["name", "attribute_type", "description", "colour", "owner"]
+
+    inlines = [CampaignListAttributeAssignmentInline]

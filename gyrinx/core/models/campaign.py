@@ -701,3 +701,115 @@ class CampaignSubAsset(AppBase):
                 label = schema_lookup.get(key, key)
                 result.append((label, value))
         return result
+
+
+class CampaignAttributeType(AppBase):
+    """Type of attribute for campaign lists (e.g., Faction, Team, Alliance)"""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="attribute_types",
+        help_text="The campaign this attribute type belongs to",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Name of the attribute (e.g., 'Faction', 'Team', 'Alliance')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this attribute type",
+    )
+    is_single_select = models.BooleanField(
+        default=True,
+        help_text="If True, gangs can select only one value. If False, multiple values allowed.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Attribute Type"
+        verbose_name_plural = "Campaign Attribute Types"
+        unique_together = [("campaign", "name")]
+        ordering = ["name"]
+
+    def __str__(self):
+        select_type = "single-select" if self.is_single_select else "multi-select"
+        return f"{self.campaign.name} - {self.name} ({select_type})"
+
+
+class CampaignAttributeValue(AppBase):
+    """Value for a campaign attribute type (e.g., 'Order', 'Chaos' for Faction)"""
+
+    attribute_type = models.ForeignKey(
+        CampaignAttributeType,
+        on_delete=models.CASCADE,
+        related_name="values",
+        help_text="The attribute type this value belongs to",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Name of the value (e.g., 'Order', 'Chaos', 'Team Alpha')",
+        validators=[validators.MinLengthValidator(1)],
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description of this value",
+    )
+    colour = models.CharField(
+        max_length=7,
+        blank=True,
+        help_text="Optional hex colour code (e.g., '#FF5733') for visual identification",
+        validators=[
+            validators.RegexValidator(
+                regex=r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+                message="Enter a valid hex colour code (e.g., '#FF5733')",
+            )
+        ],
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign Attribute Value"
+        verbose_name_plural = "Campaign Attribute Values"
+        unique_together = [("attribute_type", "name")]
+        ordering = ["attribute_type__name", "name"]
+
+    def __str__(self):
+        return f"{self.attribute_type.name}: {self.name}"
+
+
+class CampaignListAttributeAssignment(AppBase):
+    """Links a list to a campaign attribute value"""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="list_attribute_assignments",
+        help_text="The campaign this assignment belongs to",
+    )
+    attribute_value = models.ForeignKey(
+        CampaignAttributeValue,
+        on_delete=models.CASCADE,
+        related_name="list_assignments",
+        help_text="The attribute value assigned",
+    )
+    list = models.ForeignKey(
+        "List",
+        on_delete=models.CASCADE,
+        related_name="campaign_attribute_assignments",
+        help_text="The list this attribute is assigned to",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Campaign List Attribute Assignment"
+        verbose_name_plural = "Campaign List Attribute Assignments"
+        unique_together = [("campaign", "attribute_value", "list")]
+        ordering = ["attribute_value__attribute_type__name", "list__name"]
+
+    def __str__(self):
+        return f"{self.list.name} - {self.attribute_value.attribute_type.name}: {self.attribute_value.name}"
