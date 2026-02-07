@@ -13,6 +13,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       id-token: write
 
     steps:
@@ -135,7 +136,6 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_bots: "github-merge-queue[bot]"
-          direct_prompt: true
 
           claude_args: |
             --model claude-opus-4-6
@@ -237,10 +237,13 @@ jobs:
                  the changes
                - Label: "documentation"
 
-            If `./scripts/fmt.sh` modifies any files, stage those changes too before committing.
+            If `./scripts/fmt.sh` modifies any documentation files, stage those changes too before committing.
+            Otherwise ignore the formatting changes.
+
+            Before commit, use `git diff --name-only` to verify it contains only paths under docs/ or CLAUDE.md files.
 
             IMPORTANT:
-            - Only modify files under docs/. Never modify source code.
+            - Only modify files under docs/ or CLAUDE.md. Never modify source code.
             - If you're unsure whether a change warrants documentation, err on the side of
               documenting it.
             - Read the actual source code to understand what changed; don't rely solely on PR
