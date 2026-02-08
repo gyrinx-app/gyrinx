@@ -201,10 +201,15 @@ class ListDetailView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         list_obj = context["list"]
 
+        # Use the prefetched listfighter_set to avoid bypassing the prefetch cache.
+        # Calling .filter() on a prefetched relation triggers new DB queries, so we
+        # do all filtering in Python on the already-loaded data.
+        all_fighters = list(list_obj.listfighter_set.all())
+
         # Check if the list has a stash fighter
-        context["has_stash_fighter"] = list_obj.listfighter_set.filter(
-            content_fighter__is_stash=True
-        ).exists()
+        context["has_stash_fighter"] = any(
+            f.content_fighter.is_stash for f in all_fighters
+        )
 
         # If list is in campaign mode and has a campaign, fetch recent actions
         if list_obj.is_campaign_mode and list_obj.campaign:
@@ -224,12 +229,12 @@ class ListDetailView(generic.DetailView):
             context["captured_fighters"] = captured_fighters
 
         # Get fighters with group keys for display grouping
-        # Performance: it's critical that listfighter_set is pre-fetched with related data
-        fighters_with_groups = list_obj.listfighter_set.filter(archived=False)
-        # We use list(...) to force evaluation of the queryset now
-        context["fighters_with_groups"] = list(fighters_with_groups)
-        # Performance optimization: only fetch minimal fields for fighters when we offer embed links
-        context["fighters_minimal"] = list(fighters_with_groups.values("id", "name"))
+        # Performance: filter in Python to leverage the prefetched listfighter_set
+        fighters_with_groups = [f for f in all_fighters if not f.archived]
+        context["fighters_with_groups"] = fighters_with_groups
+        context["fighters_minimal"] = [
+            {"id": f.id, "name": f.name} for f in fighters_with_groups
+        ]
 
         # Get pending invitation count for this list (only for owner)
         if self.request.user.is_authenticated and list_obj.owner == self.request.user:
