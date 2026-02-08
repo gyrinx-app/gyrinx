@@ -494,9 +494,11 @@ def new_list(request):
     selected_packs = CustomContentPack.objects.none()
     pack_ids = session_pack_ids or []
     if pack_ids:
+        valid_pack_ids = [pid for pid in pack_ids if is_valid_uuid(pid)]
         selected_packs = CustomContentPack.objects.filter(
-            id__in=pack_ids, archived=False
-        )
+            id__in=valid_pack_ids,
+            archived=False,
+        ).filter(Q(listed=True) | Q(owner=request.user))
 
     houses = ContentHouse.objects.all()
 
@@ -513,12 +515,9 @@ def new_list(request):
                 create_stash=form.cleaned_data.get("show_stash", True),
             )
 
-            # Attach selected packs
-            if pack_ids:
-                packs = CustomContentPack.objects.filter(
-                    id__in=pack_ids, archived=False
-                )
-                result.lst.packs.set(packs)
+            # Attach selected packs (re-use the already-validated queryset)
+            if selected_packs:
+                result.lst.packs.set(selected_packs)
 
             # Clear session key
             request.session.pop("new_list_pack_ids", None)
@@ -547,7 +546,7 @@ def new_list(request):
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses, "selected_packs": selected_packs},
+        {"form": form, "houses": houses, "selected_packs": list(selected_packs)},
     )
 
 
@@ -581,6 +580,14 @@ def new_list_packs(request):
 
     if request.method == "POST":
         pack_ids = request.POST.getlist("pack_ids")
+        # Validate submitted IDs against accessible packs
+        valid_ids = set(
+            str(pk)
+            for pk in available_packs.filter(id__in=pack_ids).values_list(
+                "id", flat=True
+            )
+        )
+        pack_ids = [pid for pid in pack_ids if pid in valid_ids]
         # Store selected pack IDs in session (may be empty list if none selected)
         request.session["new_list_pack_ids"] = pack_ids
         return HttpResponseRedirect(reverse("core:lists-new"))

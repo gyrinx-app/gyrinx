@@ -30,6 +30,7 @@ from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
 )
+from gyrinx.models import is_valid_uuid
 
 
 class ContentTypeEntry(NamedTuple):
@@ -891,7 +892,7 @@ def subscribe_pack(request, id):
         raise Http404
 
     list_id = request.POST.get("list_id")
-    if not list_id:
+    if not list_id or not is_valid_uuid(list_id):
         messages.error(request, "Please select a list.")
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
@@ -916,7 +917,7 @@ def unsubscribe_pack(request, id):
     pack = get_object_or_404(CustomContentPack, id=id)
 
     list_id = request.POST.get("list_id")
-    if not list_id:
+    if not list_id or not is_valid_uuid(list_id):
         raise Http404
 
     lst = get_object_or_404(List, id=list_id, owner=request.user)
@@ -964,7 +965,7 @@ def list_packs_manage(request, id):
     if request.method == "POST":
         pack_id = request.POST.get("pack_id")
         action = request.POST.get("action")
-        if pack_id and action == "add":
+        if pack_id and is_valid_uuid(pack_id) and action == "add":
             pack = get_object_or_404(CustomContentPack, id=pack_id, archived=False)
             if pack.listed or pack.owner == request.user:
                 lst.packs.add(pack)

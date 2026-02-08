@@ -21,7 +21,7 @@ from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
-from gyrinx.core.models.pack import CustomContentPack
+from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
 
 User = get_user_model()
@@ -617,3 +617,45 @@ def make_pack(cc_user):
 def pack(make_pack):
     """A listed content pack owned by cc_user."""
     return make_pack("Test Pack", summary="A test content pack")
+
+
+@pytest.fixture
+def pack_fighter(pack, content_house):
+    """A fighter in a pack."""
+    fighter = ContentFighter.objects.create(
+        type="Pack Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ct,
+        object_id=fighter.pk,
+        owner=pack.owner,
+    )
+    return fighter
+
+
+@pytest.fixture
+def pack_rule(pack, cc_user):
+    """A rule in a pack."""
+    from gyrinx.content.models import ContentRule
+
+    rule = ContentRule.objects.create(
+        name="Pack Rule",
+        description="A custom rule from a pack",
+    )
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ct,
+        object_id=rule.pk,
+        owner=cc_user,
+    )
+    return rule

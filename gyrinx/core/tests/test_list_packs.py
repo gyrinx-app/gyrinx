@@ -9,46 +9,6 @@ from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
 
 
-@pytest.fixture
-def pack_fighter(pack, content_house):
-    """A fighter in a pack."""
-    fighter = ContentFighter.objects.create(
-        type="Pack Fighter",
-        category=FighterCategoryChoices.GANGER,
-        house=content_house,
-        base_cost=50,
-    )
-    from django.contrib.contenttypes.models import ContentType
-
-    ct = ContentType.objects.get_for_model(ContentFighter)
-    CustomContentPackItem.objects.create(
-        pack=pack,
-        content_type=ct,
-        object_id=fighter.pk,
-        owner=pack.owner,
-    )
-    return fighter
-
-
-@pytest.fixture
-def pack_rule(pack, cc_user):
-    """A rule in a pack."""
-    rule = ContentRule.objects.create(
-        name="Pack Rule",
-        description="A custom rule from a pack",
-    )
-    from django.contrib.contenttypes.models import ContentType
-
-    ct = ContentType.objects.get_for_model(ContentRule)
-    CustomContentPackItem.objects.create(
-        pack=pack,
-        content_type=ct,
-        object_id=rule.pk,
-        owner=cc_user,
-    )
-    return rule
-
-
 @pytest.mark.django_db
 class TestListPacksModel:
     """Test the List.packs M2M field."""
