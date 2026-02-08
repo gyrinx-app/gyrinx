@@ -1,19 +1,26 @@
 ---
-description: Fetch and display PR comments, reviews, and discussions
-argument-hint: [pr-number-or-url]
+description: |
+  Fetch all PR comments, reviews, and review threads in a single GraphQL call.
+  Use when you need to check PR feedback, address review comments, see review
+  status, or understand what reviewers are asking for on a pull request.
+user-invocable: false
 ---
 
 # PR Comments
 
-Below is all data for the pull request, fetched via a single GraphQL query.
-It includes PR metadata, reviews, inline review threads (with resolved/outdated status),
-conversation comments, and changed files.
+Fetch and display all comments, reviews, and review threads for a pull request.
+Uses a single GraphQL query via `scripts/fetch-pr-comments.sh` in this skill's directory.
 
-!`./scripts/fetch-pr-comments.sh $ARGUMENTS 2>&1`
+## Fetching the data
 
-## Instructions
+Run the script, passing an optional PR number or URL. If omitted, it detects the
+PR from the current branch.
 
-Present the PR data above to the user. Adapt your presentation based on context.
+!`.claude/skills/pr-comments/scripts/fetch-pr-comments.sh $ARGUMENTS 2>&1`
+
+## Presenting results
+
+Adapt your presentation based on context.
 
 ### Default presentation
 
