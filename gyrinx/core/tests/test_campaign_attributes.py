@@ -626,6 +626,5 @@ def test_campaign_detail_shows_attributes(client, user, campaign, make_list):
     response = client.get(reverse("core:campaign", args=(campaign.id,)))
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Attributes" in content
-    assert "Faction" in content
+    assert "Manage Attributes" in content
     assert "Order" in content

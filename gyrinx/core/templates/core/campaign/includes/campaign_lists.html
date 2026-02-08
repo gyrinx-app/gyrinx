@@ -1,55 +1,89 @@
 {% load custom_tags %}
 {% if campaign.has_lists or pending_invitations %}
-    <div class="list-group list-group-flush">
-        {% for list in campaign.lists.all %}
-            <div class="list-group-item px-0">
-                <div class="d-flex align-items-start">
-                    <a href="{% url 'core:list' list.id %}"
-                       class="text-decoration-none text-body flex-grow-1">
-                        {% include "core/campaign/includes/list_row.html" with list=list %}
-                    </a>
-                    {% if campaign.owner == user or list.owner == user %}
-                        {% if not campaign.is_post_campaign %}
-                            <div class="dropdown ms-2">
-                                <button class="btn btn-link btn-sm p-0 text-secondary"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                        aria-expanded="false">
-                                    <i class="bi-three-dots"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li>
-                                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                           class="dropdown-item text-danger">
-                                            <i class="bi-trash"></i> Remove from campaign
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                </div>
-            </div>
-        {% endfor %}
-        {% if pending_invitations %}
-            {% if campaign.has_lists %}
-                <div class="list-group-item px-0 bg-light">
-                    <small class="text-muted fw-bold">Invited</small>
-                </div>
-            {% endif %}
-            {% for invitation in pending_invitations %}
-                <div class="list-group-item px-0">
-                    <div class="d-flex align-items-start">
-                        <a href="{% url 'core:list' invitation.list.id %}"
-                           class="text-decoration-none text-body flex-grow-1">
-                            {% include "core/campaign/includes/list_row.html" with list=invitation.list %}
-                        </a>
-                        <span class="badge text-bg-warning ms-2">Pending</span>
-                    </div>
-                </div>
-            {% endfor %}
-        {% endif %}
+    <div class="table-responsive">
+        <table class="table table-sm table-borderless mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th class="caps-label ps-0">Gang</th>
+                    {% for attribute_type in attribute_types %}<th class="caps-label">{{ attribute_type.name }}</th>{% endfor %}
+                    <th class="ps-0"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for list in campaign.lists.all %}
+                    <tr>
+                        <td class="ps-0">
+                            <a href="{% url 'core:list' list.id %}"
+                               class="text-decoration-none text-body">
+                                {% include "core/campaign/includes/list_row.html" with list=list %}
+                            </a>
+                        </td>
+                        {% for attribute_type in attribute_types %}
+                            <td>
+                                {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
+                                    {% if list_assignments %}
+                                        <div class="hstack gap-1 flex-wrap">
+                                            {% for assignment in list_assignments %}
+                                                <span class="badge text-bg-light border d-inline-flex align-items-center gap-1">
+                                                    {% if assignment.attribute_value.colour %}
+                                                        <span class="d-inline-block rounded-circle"
+                                                              style="width: 8px;
+                                                                     height: 8px;
+                                                                     background-color: {{ assignment.attribute_value.colour }}"></span>
+                                                    {% endif %}
+                                                    {{ assignment.attribute_value.name }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                        {% endfor %}
+                        <td class="text-end pe-0">
+                            {% if campaign.owner == user or list.owner == user %}
+                                {% if not campaign.is_post_campaign %}
+                                    <div class="dropdown">
+                                        <button class="btn btn-link btn-sm p-0 text-secondary"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                aria-expanded="false">
+                                            <i class="bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                                                   class="dropdown-item text-danger">
+                                                    <i class="bi-trash"></i> Remove from Campaign
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% if pending_invitations %}
+        <div class="border-top mt-2 pt-2">
+            <small class="text-muted fw-bold">Invited</small>
+            <div class="list-group list-group-flush mt-1">
+                {% for invitation in pending_invitations %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex align-items-start">
+                            <a href="{% url 'core:list' invitation.list.id %}"
+                               class="text-decoration-none text-body flex-grow-1">
+                                {% include "core/campaign/includes/list_row.html" with list=invitation.list %}
+                            </a>
+                            <span class="badge text-bg-warning ms-2">Pending</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
 {% else %}
     <div class="p-3 text-center text-muted">
         No gangs have been added to this campaign yet.

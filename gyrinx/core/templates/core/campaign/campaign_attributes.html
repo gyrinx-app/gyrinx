@@ -23,14 +23,7 @@
         {% for attribute_type in attribute_types %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h2 class="h5 mb-0">
-                        {{ attribute_type.name }}
-                        {% if attribute_type.is_single_select %}
-                            <span class="badge text-bg-secondary small">Single select</span>
-                        {% else %}
-                            <span class="badge text-bg-secondary small">Multi select</span>
-                        {% endif %}
-                    </h2>
+                    <h2 class="h5 mb-0">{{ attribute_type.name }}</h2>
                     {% if is_owner and not campaign.archived %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}"
@@ -49,7 +42,7 @@
                     {% endif %}
                 </div>
                 {% if attribute_type.description %}
-                    <div class="text-muted small mb-3 mb-last-0">{{ attribute_type.description|safe }}</div>
+                    <div class="text-muted small mb-3 mb-last-0">{{ attribute_type.description }}</div>
                 {% endif %}
                 {% with values=attribute_type.values.all %}
                     {% if values %}

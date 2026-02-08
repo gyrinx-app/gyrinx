@@ -664,9 +664,7 @@ class CampaignAttributeTypeForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCEWithUpload(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
-            ),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "is_single_select": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),
@@ -691,9 +689,7 @@ class CampaignAttributeValueForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": TinyMCEWithUpload(
-                attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
-            ),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "colour": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-color",

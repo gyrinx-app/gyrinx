@@ -161,14 +161,20 @@
         <section>
             <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
                 <h2 class="h5 mb-0">Gangs</h2>
-                {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
-                    <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
-                        <i class="bi-plus-circle"></i> Add Gangs
-                    </a>
-                {% endif %}
+                <div class="hstack gap-3">
+                    {% if attribute_types %}
+                        <a href="{% url 'core:campaign-attributes' campaign.id %}"
+                           class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Attributes →</a>
+                    {% endif %}
+                    {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
+                        <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                            <i class="bi-plus-circle"></i> Add Gangs
+                        </a>
+                    {% endif %}
+                </div>
             </div>
-            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations %}
+            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup %}
         </section>
         <!-- Assets & Resources -->
         <div class="row g-5">
@@ -319,52 +325,6 @@
                 {% endif %}
             </section>
         </div>
-        <!-- Attributes -->
-        {% if attribute_types %}
-            <section>
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
-                    <h2 class="h5 mb-0">
-                        Attributes
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="Campaign-specific attributes like factions or teams that can be assigned to Gangs."></i>
-                    </h2>
-                    <a href="{% url 'core:campaign-attributes' campaign.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Attributes →</a>
-                </div>
-                {% if campaign.has_lists %}
-                    {% for attribute_type in attribute_types %}
-                        <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
-                            <div class="caps-label mb-2">{{ attribute_type.name }}</div>
-                            {% for list in campaign.lists.all %}
-                                {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
-                                    {% if list_assignments %}
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <span class="small">{% list_with_theme list %}</span>
-                                            <div class="hstack gap-1 flex-wrap">
-                                                {% for assignment in list_assignments %}
-                                                    <span class="badge text-bg-light border d-inline-flex align-items-center gap-1">
-                                                        {% if assignment.attribute_value.colour %}
-                                                            <span class="d-inline-block rounded-circle"
-                                                                  style="width: 8px;
-                                                                         height: 8px;
-                                                                         background-color: {{ assignment.attribute_value.colour }}"></span>
-                                                        {% endif %}
-                                                        {{ assignment.attribute_value.name }}
-                                                    </span>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                    {% endif %}
-                                {% endwith %}
-                            {% endfor %}
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted small mb-0">Attribute types are defined but no Gangs have joined this Campaign yet.</p>
-                {% endif %}
-            </section>
-        {% endif %}
         <!-- Battles & Action Log -->
         <div class="row g-5">
             <!-- Battles -->
