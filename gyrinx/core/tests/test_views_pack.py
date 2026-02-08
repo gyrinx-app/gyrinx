@@ -1413,3 +1413,72 @@ def test_add_fighter_form_shows_placeholders(
     assert 'placeholder="3+"' in content
     # Strength (plain) should have '3' placeholder
     assert 'placeholder="3"' in content
+
+
+@pytest.mark.django_db
+def test_edit_fighter_saves_pack_rules(
+    client, group_user, pack, pack_fighter, pack_rule, content_house
+):
+    """Test that pack rules assigned to a fighter persist after editing."""
+    fighter = pack_fighter.content_object
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+
+    # Assign the pack rule to the fighter.
+    fighter.rules.add(rule)
+    assert (
+        ContentRule.objects.all_content()
+        .filter(contentfighter=fighter, pk=rule.pk)
+        .exists()
+    )
+
+    # Submit the edit form with the rule selected.
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        {
+            "type": "Custom Ganger",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+            "rules": [str(rule.pk)],
+            "stat_movement": '4"',
+            "stat_weapon_skill": "3+",
+            "stat_ballistic_skill": "4+",
+            "stat_strength": "3",
+            "stat_toughness": "3",
+            "stat_wounds": "1",
+            "stat_initiative": "4+",
+            "stat_attacks": "1",
+            "stat_leadership": "7+",
+            "stat_cool": "7+",
+            "stat_willpower": "7+",
+            "stat_intelligence": "7+",
+        },
+    )
+    assert response.status_code == 302
+
+    # Rule should still be assigned after save.
+    fighter.refresh_from_db()
+    all_rules = ContentRule.objects.all_content().filter(contentfighter=fighter)
+    assert rule in all_rules
+
+
+@pytest.mark.django_db
+def test_edit_fighter_form_preselects_pack_rules(
+    client, group_user, pack, pack_fighter, pack_rule, content_house
+):
+    """Test that pack rules are pre-selected when loading the edit form."""
+    fighter = pack_fighter.content_object
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+
+    # Assign the pack rule to the fighter.
+    fighter.rules.add(rule)
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    assert response.status_code == 200
+
+    # The rule should appear as a selected value in the form.
+    form = response.context["form"]
+    rules_value = form["rules"].value()
+    assert str(rule.pk) in {str(v) for v in rules_value}

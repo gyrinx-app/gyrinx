@@ -139,6 +139,18 @@ class ContentFighterPackForm(forms.ModelForm):
         else:
             self.fields["rules"].queryset = ContentRule.objects.all()
 
+        # Fix initial values for the rules M2M field when editing.
+        # model_to_dict() uses instance.rules.all() which goes through
+        # ContentManager.get_queryset() and excludes pack content, so
+        # pack rules assigned to this fighter are not pre-selected.
+        # Use the field queryset to stay consistent with available choices.
+        if not self.instance._state.adding:
+            self.initial["rules"] = list(
+                self.fields["rules"]
+                .queryset.filter(contentfighter=self.instance)
+                .values_list("pk", flat=True)
+            )
+
         # On create (no saved instance yet), hide M2M fields.
         # Note: can't use `not self.instance.pk` because UUID pk is
         # auto-generated before save.
