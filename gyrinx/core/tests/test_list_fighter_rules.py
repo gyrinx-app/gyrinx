@@ -1,8 +1,10 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentRule
+from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.core.models import List, ListFighter
 
 User = get_user_model()
@@ -386,3 +388,174 @@ def test_add_rule_with_invalid_uuid(client):
 
     # Verify no rule was added
     assert list_fighter.custom_rules.count() == 0
+
+
+def _create_pack_rule(user, pack, rule_name="Pack Rule"):
+    """Helper to create a rule associated with a content pack."""
+    rule = ContentRule.objects.create(name=rule_name, description="A rule from a pack")
+    ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ct,
+        object_id=rule.pk,
+        owner=user,
+    )
+    return rule
+
+
+@pytest.mark.django_db
+def test_add_pack_rule_to_fighter(client):
+    """Test adding a rule from a subscribed content pack to a fighter."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a pack with a rule
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    pack_rule = _create_pack_rule(user, pack)
+
+    # Create a list subscribed to the pack
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Add pack rule - should succeed, not 404
+    url = reverse("core:list-fighter-rule-add", args=[lst.id, list_fighter.id])
+    response = client.post(url, {"rule_id": pack_rule.id})
+
+    assert response.status_code == 302
+    # Use the through table to verify the M2M link exists, since the default
+    # ContentRule manager excludes pack content from queryset results.
+    through_model = ListFighter.custom_rules.through
+    assert through_model.objects.filter(
+        listfighter_id=list_fighter.id, contentrule_id=pack_rule.id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_remove_pack_rule_from_fighter(client):
+    """Test removing a pack rule from a fighter."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a pack with a rule
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    pack_rule = _create_pack_rule(user, pack)
+
+    # Create a list subscribed to the pack
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Add the rule first
+    list_fighter.custom_rules.add(pack_rule)
+
+    # Remove pack rule - should succeed, not 404
+    url = reverse(
+        "core:list-fighter-rule-remove", args=[lst.id, list_fighter.id, pack_rule.id]
+    )
+    response = client.post(url)
+
+    assert response.status_code == 302
+    # Use the through table since the default manager excludes pack content
+    through_model = ListFighter.custom_rules.through
+    assert not through_model.objects.filter(
+        listfighter_id=list_fighter.id, contentrule_id=pack_rule.id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_pack_rule_without_subscription_404(client):
+    """Test that adding a pack rule without a subscription returns 404."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a pack with a rule but do NOT subscribe the list
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    pack_rule = _create_pack_rule(user, pack)
+
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Try to add pack rule without subscription - should 404
+    url = reverse("core:list-fighter-rule-add", args=[lst.id, list_fighter.id])
+    response = client.post(url, {"rule_id": pack_rule.id})
+
+    assert response.status_code == 404
+    # Use the through table since the default manager excludes pack content
+    through_model = ListFighter.custom_rules.through
+    assert not through_model.objects.filter(
+        listfighter_id=list_fighter.id, contentrule_id=pack_rule.id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_pack_rules_visible_in_edit_view(client):
+    """Test that pack rules appear in the rules edit view when subscribed."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    house = ContentHouse.objects.create(name="Test House")
+    content_fighter = ContentFighter.objects.create(
+        type="Test Fighter",
+        house=house,
+        category="GANGER",
+    )
+
+    # Create a pack with a rule
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    _create_pack_rule(user, pack, rule_name="My Pack Rule")
+
+    # Create a list subscribed to the pack
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    url = reverse("core:list-fighter-rules-edit", args=[lst.id, list_fighter.id])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert "My Pack Rule" in response.content.decode()

@@ -139,7 +139,9 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
         list=lst,
         owner=lst.owner,
     )
-    rule = get_object_or_404(ContentRule, id=rule_id)
+    rule = get_object_or_404(
+        ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+    )
 
     # Ensure this is a default rule for the fighter
     if not fighter.content_fighter.rules.filter(id=rule_id).exists():
@@ -195,7 +197,9 @@ def add_list_fighter_rule(request, id, fighter_id):
 
     rule_id = request.POST.get("rule_id")
     if rule_id and is_valid_uuid(rule_id):
-        rule = get_object_or_404(ContentRule, id=rule_id)
+        rule = get_object_or_404(
+            ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+        )
         fighter.custom_rules.add(rule)
 
         # Log the rule addition event
@@ -239,8 +243,15 @@ def remove_list_fighter_rule(request, id, fighter_id, rule_id):
         owner=lst.owner,
     )
 
-    rule = get_object_or_404(ContentRule, id=rule_id)
-    fighter.custom_rules.remove(rule)
+    rule = get_object_or_404(
+        ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+    )
+    # Delete from the through table directly because the default ContentRule
+    # manager excludes pack content, which causes the M2M remove() to silently
+    # skip pack rules.
+    ListFighter.custom_rules.through.objects.filter(
+        listfighter_id=fighter.id, contentrule_id=rule.id
+    ).delete()
 
     # Log the rule removal event
     log_event(
