@@ -39,7 +39,7 @@ fi
 # ---------------------------------------------------------------------------
 # 1. Install GitHub CLI
 # ---------------------------------------------------------------------------
-echo "--- [1/8] Installing GitHub CLI ---"
+echo "--- [1/9] Installing GitHub CLI ---"
 if ! command -v gh &>/dev/null; then
   # Install from a direct binary download rather than apt.
   # The web environment has limited network; apt-get update fails because
@@ -65,9 +65,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Install uv
+# 2. Ensure the "claude-code-web" label exists on the repo
 # ---------------------------------------------------------------------------
-echo "--- [2/8] Installing uv ---"
+echo "--- [2/9] Ensuring 'claude-code-web' GitHub label exists ---"
+if gh auth status &>/dev/null; then
+  gh label create claude-code-web \
+    --description "Issue is being worked on in a Claude Code for Web session" \
+    --color "1d76db" \
+    --force 2>/dev/null \
+    && echo "Label 'claude-code-web' ensured." \
+    || echo "Warning: could not create label (non-fatal)."
+else
+  echo "gh not authenticated — skipping label creation."
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Install uv
+# ---------------------------------------------------------------------------
+echo "--- [3/9] Installing uv ---"
 if ! command -v uv &>/dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
   # Venv doesn't exist yet, so $HOME/.local/bin goes first just to pick up uv.
@@ -77,9 +92,9 @@ fi
 echo "uv: $(uv --version)"
 
 # ---------------------------------------------------------------------------
-# 3. Python virtual environment + project install
+# 4. Python virtual environment + project install
 # ---------------------------------------------------------------------------
-echo "--- [3/8] Setting up Python environment ---"
+echo "--- [4/9] Setting up Python environment ---"
 if [ -d .venv ]; then
   echo "Reusing existing .venv"
 else
@@ -91,15 +106,15 @@ uv pip install --editable .
 echo "Python $(python --version) — packages installed"
 
 # ---------------------------------------------------------------------------
-# 4. Environment configuration (.env)
+# 5. Environment configuration (.env)
 # ---------------------------------------------------------------------------
-echo "--- [4/8] Setting up .env ---"
+echo "--- [5/9] Setting up .env ---"
 manage setupenv
 
 # ---------------------------------------------------------------------------
-# 5. PostgreSQL
+# 6. PostgreSQL
 # ---------------------------------------------------------------------------
-echo "--- [5/8] Setting up PostgreSQL ---"
+echo "--- [6/9] Setting up PostgreSQL ---"
 
 # Fix SSL private key permissions.  In web environments the snakeoil key
 # sometimes ends up with group/world access, which causes PostgreSQL to
@@ -173,22 +188,22 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Database migrations
+# 7. Database migrations
 # ---------------------------------------------------------------------------
-echo "--- [6/8] Running database migrations ---"
+echo "--- [7/9] Running database migrations ---"
 manage migrate
 
 # ---------------------------------------------------------------------------
-# 7. Node.js dependencies + pre-commit hooks
+# 8. Node.js dependencies + pre-commit hooks
 # ---------------------------------------------------------------------------
-echo "--- [7/8] Installing Node.js deps and pre-commit hooks ---"
+echo "--- [8/9] Installing Node.js deps and pre-commit hooks ---"
 npm install
 pre-commit install
 
 # ---------------------------------------------------------------------------
-# 8. Build frontend assets + collect static files
+# 9. Build frontend assets + collect static files
 # ---------------------------------------------------------------------------
-echo "--- [8/8] Building frontend and collecting static files ---"
+echo "--- [9/9] Building frontend and collecting static files ---"
 npm run build
 manage collectstatic --noinput
 

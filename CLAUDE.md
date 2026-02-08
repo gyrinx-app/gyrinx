@@ -80,7 +80,11 @@ Skills are loaded automatically by agents that need them. They can also be refer
 ### Before Starting
 
 1. Create a new branch for the task: `git checkout -b issue-NAME`
-2. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
+2. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
+   (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
+   `gh issue edit <NUMBER> --add-label claude-code-web`
+   The label definition is created automatically by `scripts/setup_web.sh` during session start; you still need to add this label to the issue manually.
+3. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
    writing code
 
 ### Before Push
