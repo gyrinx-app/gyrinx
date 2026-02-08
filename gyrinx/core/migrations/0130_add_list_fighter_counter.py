@@ -9,7 +9,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0156_add_counter_and_roll_table_models"),
+        ("content", "0157_add_counter_and_roll_table_models"),
         ("core", "0129_merge_20260206_0853"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -124,6 +124,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         help_text="The counter definition.",
                         on_delete=django.db.models.deletion.CASCADE,
+                        related_name="fighter_values",
                         to="content.contentcounter",
                     ),
                 ),

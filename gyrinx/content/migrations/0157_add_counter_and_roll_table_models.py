@@ -9,7 +9,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0155_add_description_to_contentrule"),
+        ("content", "0156_ensure_fighter_statline_type"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

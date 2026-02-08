@@ -22,10 +22,7 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
 
     :template:`core/list_fighter_counters_edit.html`
     """
-    result = get_list_and_fighter(request, id, fighter_id)
-    if result[0] is None:
-        return result[2]  # redirect response
-    lst, fighter, _perms = result
+    lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
 
     # Look up the specific counter, ensuring it applies to this fighter
     counter = get_object_or_404(
@@ -64,7 +61,12 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
                             owner=lst.owner,
                         )
 
-            messages.success(request, f"{counter.name} updated for {fighter.name}")
+            if new_value != current_value:
+                messages.success(request, f"{counter.name} updated for {fighter.name}")
+            else:
+                messages.info(
+                    request, f"{counter.name} was unchanged for {fighter.name}"
+                )
             return HttpResponseRedirect(
                 reverse("core:list", args=(lst.id,)) + f"#{fighter.id}"
             )

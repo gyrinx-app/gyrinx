@@ -1449,7 +1449,6 @@ class ListFighterQuerySet(models.QuerySet):
             .prefetch_related(
                 "injuries",
                 "counters",
-                "counters__counter",
                 "skills",
                 "disabled_skills",
                 "disabled_rules",
