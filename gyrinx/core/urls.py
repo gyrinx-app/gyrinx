@@ -46,8 +46,8 @@ urlpatterns = [
     ),
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list_views.ListsListView.as_view(), name="lists"),
+    path("lists/new/packs", list_views.new_list_packs, name="lists-new-packs"),
     path("lists/new", list_views.new_list, name="lists-new"),
-    path("lists/new/<id>/packs", list_views.new_list_packs, name="lists-new-packs"),
     path("list/<id>", list_views.ListDetailView.as_view(), name="list"),
     path(
         "list/<id>/perf",

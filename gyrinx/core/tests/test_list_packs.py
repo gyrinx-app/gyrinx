@@ -3,7 +3,7 @@
 import pytest
 from django.urls import reverse
 
-from gyrinx.content.models import ContentFighter, ContentRule
+from gyrinx.content.models import ContentFighter, ContentHouse, ContentRule
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
@@ -210,18 +210,45 @@ class TestListPacksManageView:
 class TestNewListPacksInterstitial:
     """Test the pack selection interstitial during list creation."""
 
-    def test_cc_user_redirected_to_packs(self, client, cc_user, content_house):
+    def test_cc_user_get_redirected_to_packs(self, client, cc_user, content_house):
+        """CC user visiting /lists/new GET is redirected to pack interstitial."""
         client.force_login(cc_user)
         url = reverse("core:lists-new")
-        response = client.post(
-            url,
-            {"name": "New List", "content_house": content_house.id, "public": True},
-        )
+        response = client.get(url)
         assert response.status_code == 302
-        # Should redirect to packs interstitial
-        assert "/packs" in response.url
+        assert response.url == reverse("core:lists-new-packs")
 
-    def test_regular_user_redirected_to_list(self, client, make_user, content_house):
+    def test_cc_user_with_session_packs_sees_form(
+        self, client, cc_user, content_house, pack
+    ):
+        """CC user with packs in session sees the new list form."""
+        client.force_login(cc_user)
+        session = client.session
+        session["new_list_pack_ids"] = [str(pack.id)]
+        session.save()
+        url = reverse("core:lists-new")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Content Packs" in response.content
+        assert pack.name.encode() in response.content
+
+    def test_cc_user_skip_packs(self, client, cc_user, content_house):
+        """CC user with skip_packs=1 sees the form without redirect loop."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?skip_packs=1"
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_regular_user_sees_form_directly(self, client, make_user, content_house):
+        """Non-CC user goes straight to the new list form."""
+        other_user = make_user("regularuser", "password")
+        client.force_login(other_user)
+        url = reverse("core:lists-new")
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_regular_user_creates_list_directly(self, client, make_user, content_house):
+        """Non-CC user creates list and goes to list detail."""
         other_user = make_user("regularuser", "password")
         client.force_login(other_user)
         url = reverse("core:lists-new")
@@ -233,42 +260,101 @@ class TestNewListPacksInterstitial:
         # Should redirect to list detail, not packs
         assert "/packs" not in response.url
 
-    def test_packs_interstitial_page(self, client, cc_user, make_list, pack):
+    def test_packs_interstitial_page(self, client, cc_user, pack):
+        """Interstitial page shows available packs."""
         client.force_login(cc_user)
-        lst = make_list("New List")
-        url = reverse("core:lists-new-packs", args=(lst.id,))
+        url = reverse("core:lists-new-packs")
         response = client.get(url)
         assert response.status_code == 200
         assert b"Content Packs" in response.content
 
-    def test_packs_interstitial_select_packs(self, client, cc_user, make_list, pack):
+    def test_packs_interstitial_select_packs_then_create(
+        self, client, cc_user, content_house, pack
+    ):
+        """Selecting packs stores them in session, then creating list attaches them."""
         client.force_login(cc_user)
-        lst = make_list("New List")
-        url = reverse("core:lists-new-packs", args=(lst.id,))
+        # Step 1: Select packs on interstitial
+        url = reverse("core:lists-new-packs")
         response = client.post(url, {"pack_ids": [str(pack.id)]})
         assert response.status_code == 302
-        lst.refresh_from_db()
+        assert response.url == reverse("core:lists-new")
+
+        # Verify session has pack IDs
+        assert client.session["new_list_pack_ids"] == [str(pack.id)]
+
+        # Step 2: Create the list
+        url = reverse("core:lists-new")
+        response = client.post(
+            url,
+            {"name": "New List", "content_house": content_house.id, "public": True},
+        )
+        assert response.status_code == 302
+
+        # Verify list was created with packs attached
+        lst = List.objects.get(name="New List")
         assert pack in lst.packs.all()
 
-    def test_packs_interstitial_skip(self, client, cc_user, make_list):
+        # Verify session key was cleared
+        assert "new_list_pack_ids" not in client.session
+
+    def test_packs_interstitial_skip(self, client, cc_user, content_house):
+        """Skipping packs stores empty list and allows list creation."""
         client.force_login(cc_user)
-        lst = make_list("New List")
-        url = reverse("core:lists-new-packs", args=(lst.id,))
+        url = reverse("core:lists-new-packs")
         response = client.post(url)
         assert response.status_code == 302
-        lst.refresh_from_db()
-        assert lst.packs.count() == 0
+        # Session should have empty list
+        assert client.session["new_list_pack_ids"] == []
+
+    def test_pack_house_appears_in_dropdown(self, client, cc_user, pack):
+        """Pack house appears in the House dropdown on the new list form."""
+        # Create a house that only exists inside the pack
+        pack_house = ContentHouse.objects.all_content().create(
+            name="Pack-Only House", generic=False
+        )
+        fighter = ContentFighter.objects.all_content().create(
+            type="Pack Ganger",
+            category=FighterCategoryChoices.GANGER,
+            house=pack_house,
+            base_cost=50,
+        )
+        from django.contrib.contenttypes.models import ContentType
+
+        # Add both house and fighter to the pack
+        house_ct = ContentType.objects.get_for_model(ContentHouse)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=house_ct,
+            object_id=pack_house.pk,
+            owner=pack.owner,
+        )
+        fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=fighter_ct,
+            object_id=fighter.pk,
+            owner=pack.owner,
+        )
+
+        client.force_login(cc_user)
+        session = client.session
+        session["new_list_pack_ids"] = [str(pack.id)]
+        session.save()
+
+        url = reverse("core:lists-new")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Pack-Only House" in response.content
+        assert b"Content Pack" in response.content
 
     def test_non_cc_user_redirected_away(self, client, make_user, content_house):
+        """Non-CC user at interstitial is redirected to lists-new."""
         other_user = make_user("regularuser2", "password")
         client.force_login(other_user)
-        lst = List.objects.create(
-            name="New List", content_house=content_house, owner=other_user
-        )
-        url = reverse("core:lists-new-packs", args=(lst.id,))
+        url = reverse("core:lists-new-packs")
         response = client.get(url)
         assert response.status_code == 302
-        assert f"/list/{lst.id}" in response.url
+        assert "skip_packs=1" in response.url
 
 
 @pytest.mark.django_db

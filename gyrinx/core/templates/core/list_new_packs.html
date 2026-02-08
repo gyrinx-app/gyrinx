@@ -1,12 +1,14 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Content Packs - {{ list.name }}
+    Content Packs
 {% endblock head_title %}
 {% block content %}
     <div class="col-12 col-xl-6 px-0 vstack gap-4">
-        <h1 class="h3">Content Packs for {{ list.name }}</h1>
-        <form method="post" class="vstack gap-4">
+        <h1 class="h3">Content Packs</h1>
+        <form method="post"
+              action="{% url 'core:lists-new-packs' %}"
+              class="vstack gap-4">
             {% csrf_token %}
             <!-- Default game content -->
             <div class="border rounded p-3 bg-body-secondary">
@@ -55,14 +57,8 @@
                 </div>
             {% endif %}
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
-                    {% if available_packs %}
-                        Continue
-                    {% else %}
-                        Continue
-                    {% endif %}
-                </button>
-                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Skip</a>
+                <button type="submit" class="btn btn-primary">Continue</button>
+                <a href="{% url 'core:lists-new' %}?skip_packs=1" class="btn btn-link">Skip</a>
             </div>
         </form>
     </div>

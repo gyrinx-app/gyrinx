@@ -455,21 +455,53 @@ def new_list(request):
     """
     Create a new :model:`core.List` owned by the current user.
 
+    For Custom Content users, redirects to pack selection interstitial first
+    unless packs have already been selected (stored in session) or skipped.
+
     **Context**
 
     ``form``
         A NewListForm for entering the name and details of the new list.
     ``houses``
         A queryset of :model:`content.ContentHouse` objects, possibly used in the form display.
+    ``selected_packs``
+        Queryset of selected :model:`core.CustomContentPack` objects (if any).
 
     **Template**
 
     :template:`core/list_new.html`
     """
+    from gyrinx.core.models.pack import CustomContentPack
+
+    is_cc_user = request.user.groups.filter(name="Custom Content").exists()
+    session_pack_ids = request.session.get("new_list_pack_ids")
+
+    # CC users who haven't visited the interstitial yet get redirected there
+    if (
+        request.method == "GET"
+        and is_cc_user
+        and session_pack_ids is None
+        and request.GET.get("skip_packs") != "1"
+    ):
+        return HttpResponseRedirect(reverse("core:lists-new-packs"))
+
+    # If skip_packs=1, store empty list so redirect doesn't loop
+    if request.GET.get("skip_packs") == "1" and session_pack_ids is None:
+        request.session["new_list_pack_ids"] = []
+        session_pack_ids = []
+
+    # Resolve selected packs from session
+    selected_packs = CustomContentPack.objects.none()
+    pack_ids = session_pack_ids or []
+    if pack_ids:
+        selected_packs = CustomContentPack.objects.filter(
+            id__in=pack_ids, archived=False
+        )
+
     houses = ContentHouse.objects.all()
 
     if request.method == "POST":
-        form = NewListForm(request.POST)
+        form = NewListForm(request.POST, pack_ids=pack_ids)
         if form.is_valid():
             lst = form.save(commit=False)
             lst.owner = request.user
@@ -480,6 +512,16 @@ def new_list(request):
                 lst=lst,
                 create_stash=form.cleaned_data.get("show_stash", True),
             )
+
+            # Attach selected packs
+            if pack_ids:
+                packs = CustomContentPack.objects.filter(
+                    id__in=pack_ids, archived=False
+                )
+                result.lst.packs.set(packs)
+
+            # Clear session key
+            request.session.pop("new_list_pack_ids", None)
 
             # Log the list creation event (HTTP-specific)
             log_event(
@@ -493,41 +535,36 @@ def new_list(request):
                 public=result.lst.public,
             )
 
-            # If user has Custom Content access, redirect to pack selection
-            if request.user.groups.filter(name="Custom Content").exists():
-                return HttpResponseRedirect(
-                    reverse("core:lists-new-packs", args=(result.lst.id,))
-                )
             return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
         form = NewListForm(
             initial={
                 "name": request.GET.get("name", ""),
-            }
+            },
+            pack_ids=pack_ids,
         )
 
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses},
+        {"form": form, "houses": houses, "selected_packs": selected_packs},
     )
 
 
 @login_required
-def new_list_packs(request, id):
+def new_list_packs(request):
     """
-    Interstitial page for selecting content packs when creating a new list.
+    Interstitial page for selecting content packs before creating a new list.
 
     Only available to users in the Custom Content group.
+    Stores selected pack IDs in session, then redirects to the new list form.
 
     **Template**
 
     :template:`core/list_new_packs.html`
     """
     if not request.user.groups.filter(name="Custom Content").exists():
-        return HttpResponseRedirect(reverse("core:list", args=(id,)))
-
-    lst = get_object_or_404(List, id=id, owner=request.user)
+        return HttpResponseRedirect(reverse("core:lists-new") + "?skip_packs=1")
 
     from gyrinx.core.models.pack import CustomContentPack
 
@@ -544,18 +581,14 @@ def new_list_packs(request, id):
 
     if request.method == "POST":
         pack_ids = request.POST.getlist("pack_ids")
-        if pack_ids:
-            packs = CustomContentPack.objects.filter(
-                id__in=pack_ids, archived=False
-            ).filter(Q(listed=True) | Q(owner=request.user))
-            lst.packs.set(packs)
-        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+        # Store selected pack IDs in session (may be empty list if none selected)
+        request.session["new_list_pack_ids"] = pack_ids
+        return HttpResponseRedirect(reverse("core:lists-new"))
 
     return render(
         request,
         "core/list_new_packs.html",
         {
-            "list": lst,
             "available_packs": available_packs,
             "search_query": search_query,
         },
