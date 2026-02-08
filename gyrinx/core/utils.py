@@ -19,16 +19,15 @@ def safe_redirect(request, url, fallback_url="/"):
     Returns:
         HttpResponseRedirect to either the validated URL or the fallback
     """
-    # Validate the URL is safe
-    if url and url_has_allowed_host_and_scheme(
-        url=url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return HttpResponseRedirect(url)
+    if not url:
+        return HttpResponseRedirect(fallback_url)
 
-    # Fall back to the provided fallback URL
-    return HttpResponseRedirect(fallback_url)
+    if not url_has_allowed_host_and_scheme(
+        url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return HttpResponseRedirect(fallback_url)
+
+    return HttpResponseRedirect(url)
 
 
 def build_safe_url(request, path=None, query_string=None):
@@ -54,15 +53,12 @@ def build_safe_url(request, path=None, query_string=None):
         url = path
 
     # Validate the URL is safe
-    if url_has_allowed_host_and_scheme(
-        url=url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
+    if not url_has_allowed_host_and_scheme(
+        url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
     ):
-        return url
+        return path
 
-    # Return just the path if validation fails
-    return path
+    return url
 
 
 def get_return_url(request, default_url):
@@ -88,16 +84,17 @@ def get_return_url(request, default_url):
         "return_url", default_url
     )
 
-    # Validate the URL is safe
-    if return_url and url_has_allowed_host_and_scheme(
-        url=return_url,
+    if not return_url:
+        return default_url
+
+    if not url_has_allowed_host_and_scheme(
+        return_url,
         allowed_hosts={request.get_host()},
         require_https=request.is_secure(),
     ):
-        return return_url
+        return default_url
 
-    # Fall back to the provided default URL
-    return default_url
+    return return_url
 
 
 def get_list_attributes(list_obj):

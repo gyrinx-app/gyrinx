@@ -87,9 +87,8 @@ def campaign_log_action(request, id):
             outcome_url = reverse(
                 "core:campaign-action-outcome", args=(campaign.id, action.id)
             )
-            return HttpResponseRedirect(
-                f"{outcome_url}?{urlencode({'return_url': return_url})}"
-            )
+            redirect_url = f"{outcome_url}?{urlencode({'return_url': return_url})}"
+            return safe_redirect(request, redirect_url, fallback_url=default_url)
     else:
         # Pre-populate gang/list if provided
         gang = request.GET.get("gang")
@@ -168,9 +167,10 @@ def campaign_action_outcome(request, id, action_id):
                 new_action_url = reverse(
                     "core:campaign-action-new", args=(campaign.id,)
                 )
-                return HttpResponseRedirect(
+                redirect_url = (
                     f"{new_action_url}?{urlencode({'return_url': return_url})}"
                 )
+                return safe_redirect(request, redirect_url, fallback_url=default_url)
             else:
                 # Default: redirect to return URL
                 return safe_redirect(request, return_url, fallback_url=default_url)
