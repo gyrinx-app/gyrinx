@@ -77,12 +77,15 @@ def campaign_attributes(request, id):
             action="view_attributes",
         )
 
+    campaign_lists = campaign.lists.order_by("name")
+
     return render(
         request,
         "core/campaign/campaign_attributes.html",
         {
             "campaign": campaign,
             "attribute_types": attribute_types,
+            "campaign_lists": campaign_lists,
             "is_owner": is_owner,
             "user_lists": user_lists,
             "user_list_ids": user_list_ids,
@@ -188,6 +191,13 @@ def campaign_attribute_type_edit(request, id, type_id):
     attribute_type = get_object_or_404(
         CampaignAttributeType, id=type_id, campaign=campaign
     )
+
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot edit attribute types for archived Campaigns.",
+        )
+        return redirect("core:campaign-attributes", campaign.id)
 
     if request.method == "POST":
         form = CampaignAttributeTypeForm(request.POST, instance=attribute_type)
@@ -392,6 +402,13 @@ def campaign_attribute_value_edit(request, id, value_id):
     attribute_value = get_object_or_404(
         CampaignAttributeValue, id=value_id, attribute_type__campaign=campaign
     )
+
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot edit attribute values for archived Campaigns.",
+        )
+        return redirect("core:campaign-attributes", campaign.id)
 
     if request.method == "POST":
         form = CampaignAttributeValueForm(request.POST, instance=attribute_value)

@@ -692,8 +692,8 @@ class CampaignAttributeValueForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "colour": forms.TextInput(
                 attrs={
-                    "class": "form-control form-control-color",
-                    "type": "color",
+                    "class": "form-control",
+                    "placeholder": "#FF5733",
                 }
             ),
         }

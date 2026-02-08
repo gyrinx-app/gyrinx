@@ -85,7 +85,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for list in campaign.lists.all %}
+                                    {% for list in campaign_lists %}
                                         <tr>
                                             <td class="ps-0">
                                                 <a href="{% url 'core:list' list.id %}"
