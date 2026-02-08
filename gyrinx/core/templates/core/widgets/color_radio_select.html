@@ -2,14 +2,20 @@
     <div {% if id %}id="{{ id }}"{% endif %}
          {% if widget.attrs.class %}class="{{ widget.attrs.class }}"{% endif %}>
         {# djlint:off #}
-        <div class="d-grid gap-2"
-             style="grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
-                    max-width: 24rem"
+        <div class="d-grid"
+             style="grid-template-columns: repeat(6, 2.5rem);
+                    gap: 0.35rem"
              role="radiogroup"
-             aria-label="Theme color selection">
+             aria-label="Color selection">
             {% for group, options, index in widget.optgroups %}
                 {% for option in options %}
-                    {% include option.template_name with widget=option index=index %}
+                    {% if not option.color or option.color == "#fefdfb" %}
+                        <div style="grid-column: span 3">
+                            {% include option.template_name with widget=option index=index %}
+                        </div>
+                    {% else %}
+                        {% include option.template_name with widget=option index=index %}
+                    {% endif %}
                 {% endfor %}
             {% endfor %}
         </div>
