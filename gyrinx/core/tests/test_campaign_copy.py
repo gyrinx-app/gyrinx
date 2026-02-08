@@ -11,6 +11,8 @@ from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAsset,
     CampaignAssetType,
+    CampaignAttributeType,
+    CampaignAttributeValue,
     CampaignResourceType,
     CampaignSubAsset,
 )
@@ -694,3 +696,241 @@ def test_campaign_copy_from_accessible_with_only_templates(
     response = client.get(reverse("core:campaign-copy-in", args=[target.id]))
 
     assert response.status_code == 200
+
+
+# --- Attribute Type Copy Tests ---
+
+
+@pytest.mark.django_db
+def test_copy_attribute_types_with_values(user, make_campaign):
+    """Test that attribute types and their values are copied correctly."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Faction",
+        description="Choose your faction",
+        is_single_select=True,
+    )
+    CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        owner=user,
+        name="Order",
+        description="Forces of Order",
+        colour="#0000FF",
+    )
+    CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        owner=user,
+        name="Chaos",
+        description="Forces of Chaos",
+        colour="#FF0000",
+    )
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        attribute_type_ids=[str(attr_type.id)],
+    )
+
+    assert result.attribute_types_copied == 1
+    assert result.attribute_values_copied == 2
+
+    # Verify the copied attribute type
+    copied_type = target.attribute_types.get()
+    assert copied_type.name == "Faction"
+    assert copied_type.description == "Choose your faction"
+    assert copied_type.is_single_select is True
+
+    # Verify values
+    values = copied_type.values.order_by("name")
+    assert values.count() == 2
+    assert values[0].name == "Chaos"
+    assert values[0].colour == "#FF0000"
+    assert values[1].name == "Order"
+    assert values[1].colour == "#0000FF"
+
+
+@pytest.mark.django_db
+def test_copy_attribute_type_conflict_detection(user, make_campaign):
+    """Test that attribute type name conflicts are detected."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    source_type = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Faction",
+    )
+    CampaignAttributeType.objects.create(
+        campaign=target,
+        owner=user,
+        name="Faction",
+    )
+
+    conflicts = check_copy_conflicts(
+        source_campaign=source,
+        target_campaign=target,
+        attribute_type_ids=[str(source_type.id)],
+    )
+
+    assert conflicts.has_conflicts
+    assert conflicts.attribute_type_conflicts == ["Faction"]
+
+
+@pytest.mark.django_db
+def test_copy_attribute_type_conflict_skipped(user, make_campaign):
+    """Test that conflicting attribute types are skipped during copy."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    # Create non-conflicting type
+    source_type1 = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Alliance",
+    )
+
+    # Create conflicting type
+    source_type2 = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Faction",
+    )
+    CampaignAttributeType.objects.create(
+        campaign=target,
+        owner=user,
+        name="Faction",
+    )
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        attribute_type_ids=[str(source_type1.id), str(source_type2.id)],
+    )
+
+    # Alliance copied, Faction skipped
+    assert result.attribute_types_copied == 1
+    assert target.attribute_types.count() == 2  # Original Faction + copied Alliance
+
+
+@pytest.mark.django_db
+def test_copy_attribute_type_without_values(user, make_campaign):
+    """Test that attribute types with no values copy correctly."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Team",
+        description="Assign teams later",
+        is_single_select=False,
+    )
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        attribute_type_ids=[str(attr_type.id)],
+    )
+
+    assert result.attribute_types_copied == 1
+    assert result.attribute_values_copied == 0
+
+    copied_type = target.attribute_types.get()
+    assert copied_type.name == "Team"
+    assert copied_type.is_single_select is False
+    assert copied_type.values.count() == 0
+
+
+@pytest.mark.django_db
+def test_copy_from_view_with_attribute_types(client, user, make_campaign):
+    """Integration test for copy-from view with attribute types."""
+    target = make_campaign("Target Campaign")
+    source = make_campaign("Source Campaign")
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Faction",
+    )
+    CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        owner=user,
+        name="Order",
+    )
+
+    client.force_login(user)
+
+    # Preview step
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "preview",
+            "source_campaign": str(source.id),
+            "attribute_types": [str(attr_type.id)],
+        },
+    )
+    assert response.status_code == 200
+
+    # Confirm step
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "confirm",
+            "source_campaign_id": str(source.id),
+            "selected_attribute_types": [str(attr_type.id)],
+        },
+    )
+    assert response.status_code == 302
+    assert target.attribute_types.count() == 1
+    assert target.attribute_types.get().values.count() == 1
+
+
+@pytest.mark.django_db
+def test_copy_to_view_with_attribute_types(client, user, make_campaign):
+    """Integration test for copy-to view with attribute types."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Faction",
+    )
+    CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        owner=user,
+        name="Chaos",
+    )
+
+    client.force_login(user)
+
+    # Preview step
+    response = client.post(
+        reverse("core:campaign-copy-out", args=[source.id]),
+        {
+            "action": "preview",
+            "target_campaign": str(target.id),
+            "attribute_types": [str(attr_type.id)],
+        },
+    )
+    assert response.status_code == 200
+
+    # Confirm step
+    response = client.post(
+        reverse("core:campaign-copy-out", args=[source.id]),
+        {
+            "action": "confirm",
+            "target_campaign_id": str(target.id),
+            "selected_attribute_types": [str(attr_type.id)],
+        },
+    )
+    assert response.status_code == 302
+    assert target.attribute_types.count() == 1
+    assert target.attribute_types.get().values.count() == 1

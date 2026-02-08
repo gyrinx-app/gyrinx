@@ -8,7 +8,7 @@
         <div>
             <h1 class="mb-2">Copy to another Campaign</h1>
             <p class="text-muted mb-0">
-                Copy asset types, assets, and resource types from <strong>{{ campaign.name }}</strong> to another Campaign.
+                Copy asset types, assets, resource types, and attribute types from <strong>{{ campaign.name }}</strong> to another Campaign.
             </p>
         </div>
         {% if show_confirmation %}
@@ -24,6 +24,9 @@
                 {% endfor %}
                 {% for rt_id in form.cleaned_data.resource_types %}
                     <input type="hidden" name="selected_resource_types" value="{{ rt_id }}">
+                {% endfor %}
+                {% for att_id in form.cleaned_data.attribute_types %}
+                    <input type="hidden" name="selected_attribute_types" value="{{ att_id }}">
                 {% endfor %}
                 <div class="vstack gap-3">
                     <div class="border rounded p-3">
@@ -42,11 +45,21 @@
                             </div>
                         {% endif %}
                         {% if form.cleaned_data.resource_types %}
-                            <div class="mb-0">
+                            <div class="mb-2">
                                 <span class="caps-label">Resource Types</span>
                                 <ul class="mb-0 ps-3">
                                     {% for choice_id, choice_label in form.fields.resource_types.choices %}
                                         {% if choice_id in form.cleaned_data.resource_types %}<li class="small">{{ choice_label }}</li>{% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        {% if form.cleaned_data.attribute_types %}
+                            <div class="mb-0">
+                                <span class="caps-label">Attribute Types</span>
+                                <ul class="mb-0 ps-3">
+                                    {% for choice_id, choice_label in form.fields.attribute_types.choices %}
+                                        {% if choice_id in form.cleaned_data.attribute_types %}<li class="small">{{ choice_label }}</li>{% endif %}
                                     {% endfor %}
                                 </ul>
                             </div>
@@ -69,10 +82,18 @@
                                 </div>
                             {% endif %}
                             {% if conflicts.resource_type_conflicts %}
-                                <div class="mb-0">
+                                <div class="mb-2">
                                     <span class="caps-label">Resource Types</span>
                                     <ul class="mb-0 ps-3 small">
                                         {% for name in conflicts.resource_type_conflicts %}<li>{{ name }}</li>{% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if conflicts.attribute_type_conflicts %}
+                                <div class="mb-0">
+                                    <span class="caps-label">Attribute Types</span>
+                                    <ul class="mb-0 ps-3 small">
+                                        {% for name in conflicts.attribute_type_conflicts %}<li>{{ name }}</li>{% endfor %}
                                     </ul>
                                 </div>
                             {% endif %}
@@ -136,6 +157,28 @@
                             {% endfor %}
                             {% if form.resource_types.errors %}
                                 <div class="text-danger small mt-1">{{ form.resource_types.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% if form.fields.attribute_types.choices %}
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">{{ form.attribute_types.label }}</label>
+                                <a href="#"
+                                   class="small link-secondary"
+                                   onclick="document.querySelectorAll('[name=attribute_types]').forEach(cb => cb.checked = true); return false;">Select all</a>
+                            </div>
+                            {% if form.attribute_types.help_text %}
+                                <div class="form-text mb-2">{{ form.attribute_types.help_text }}</div>
+                            {% endif %}
+                            {% for choice in form.attribute_types %}
+                                <div class="form-check">
+                                    {{ choice.tag }}
+                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                </div>
+                            {% endfor %}
+                            {% if form.attribute_types.errors %}
+                                <div class="text-danger small mt-1">{{ form.attribute_types.errors.0 }}</div>
                             {% endif %}
                         </div>
                     {% endif %}

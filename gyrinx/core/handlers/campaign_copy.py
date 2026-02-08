@@ -8,6 +8,8 @@ from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAsset,
     CampaignAssetType,
+    CampaignAttributeType,
+    CampaignAttributeValue,
     CampaignResourceType,
     CampaignSubAsset,
 )
@@ -19,10 +21,15 @@ class CopyConflicts:
 
     asset_type_conflicts: list[str] = field(default_factory=list)
     resource_type_conflicts: list[str] = field(default_factory=list)
+    attribute_type_conflicts: list[str] = field(default_factory=list)
 
     @property
     def has_conflicts(self):
-        return bool(self.asset_type_conflicts or self.resource_type_conflicts)
+        return bool(
+            self.asset_type_conflicts
+            or self.resource_type_conflicts
+            or self.attribute_type_conflicts
+        )
 
 
 @dataclass
@@ -33,6 +40,8 @@ class CopyResult:
     assets_copied: int = 0
     sub_assets_copied: int = 0
     resource_types_copied: int = 0
+    attribute_types_copied: int = 0
+    attribute_values_copied: int = 0
 
     @property
     def total_copied(self):
@@ -41,6 +50,8 @@ class CopyResult:
             + self.assets_copied
             + self.sub_assets_copied
             + self.resource_types_copied
+            + self.attribute_types_copied
+            + self.attribute_values_copied
         )
 
 
@@ -49,6 +60,7 @@ def check_copy_conflicts(
     target_campaign: Campaign,
     asset_type_ids: list[str] | None = None,
     resource_type_ids: list[str] | None = None,
+    attribute_type_ids: list[str] | None = None,
 ) -> CopyConflicts:
     """Check for name conflicts between source and target campaigns.
 
@@ -57,6 +69,7 @@ def check_copy_conflicts(
         target_campaign: The campaign to copy to
         asset_type_ids: List of asset type IDs to check (None/empty = none)
         resource_type_ids: List of resource type IDs to check (None/empty = none)
+        attribute_type_ids: List of attribute type IDs to check (None/empty = none)
 
     Returns:
         CopyConflicts with lists of conflicting names
@@ -95,6 +108,23 @@ def check_copy_conflicts(
             source_resource_type_names & target_resource_type_names
         )
 
+    # Get source attribute type names (only if IDs provided)
+    if attribute_type_ids:
+        source_attribute_types = source_campaign.attribute_types.filter(
+            id__in=attribute_type_ids
+        )
+        source_attribute_type_names = set(
+            source_attribute_types.values_list("name", flat=True)
+        )
+
+        # Check for conflicts with target attribute types
+        target_attribute_type_names = set(
+            target_campaign.attribute_types.values_list("name", flat=True)
+        )
+        conflicts.attribute_type_conflicts = sorted(
+            source_attribute_type_names & target_attribute_type_names
+        )
+
     return conflicts
 
 
@@ -105,6 +135,7 @@ def copy_campaign_content(
     user,
     asset_type_ids: list[str] | None = None,
     resource_type_ids: list[str] | None = None,
+    attribute_type_ids: list[str] | None = None,
 ) -> CopyResult:
     """Copy selected content from source campaign to target campaign.
 
@@ -113,6 +144,7 @@ def copy_campaign_content(
     - Assets with their properties (but NOT holder assignments)
     - Sub-assets with their properties
     - Resource types (but NOT per-list allocations)
+    - Attribute types with their values (but NOT per-list assignments)
 
     Conflicts (same name exists in target) are skipped.
 
@@ -122,6 +154,7 @@ def copy_campaign_content(
         user: The user performing the copy (for ownership)
         asset_type_ids: List of asset type IDs to copy (None = none)
         resource_type_ids: List of resource type IDs to copy (None = none)
+        attribute_type_ids: List of attribute type IDs to copy (None = none)
 
     Returns:
         CopyResult with counts of what was copied
@@ -134,6 +167,9 @@ def copy_campaign_content(
     )
     existing_resource_type_names = set(
         target_campaign.resource_types.values_list("name", flat=True)
+    )
+    existing_attribute_type_names = set(
+        target_campaign.attribute_types.values_list("name", flat=True)
     )
 
     # Copy asset types and their assets
@@ -201,5 +237,36 @@ def copy_campaign_content(
                 default_amount=source_type.default_amount,
             )
             result.resource_types_copied += 1
+
+    # Copy attribute types and their values
+    if attribute_type_ids:
+        source_attribute_types = source_campaign.attribute_types.filter(
+            id__in=attribute_type_ids
+        ).prefetch_related("values")
+
+        for source_type in source_attribute_types:
+            # Skip if name already exists in target
+            if source_type.name in existing_attribute_type_names:
+                continue
+
+            new_type = CampaignAttributeType.objects.create(
+                campaign=target_campaign,
+                owner=user,
+                name=source_type.name,
+                description=source_type.description,
+                is_single_select=source_type.is_single_select,
+            )
+            result.attribute_types_copied += 1
+
+            # Copy values for this attribute type
+            for source_value in source_type.values.all():
+                CampaignAttributeValue.objects.create(
+                    attribute_type=new_type,
+                    owner=user,
+                    name=source_value.name,
+                    description=source_value.description,
+                    colour=source_value.colour,
+                )
+                result.attribute_values_copied += 1
 
     return result

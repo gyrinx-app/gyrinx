@@ -805,6 +805,13 @@ class CampaignCopyFromForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    attribute_types = forms.MultipleChoiceField(
+        required=False,
+        label="Attribute Types",
+        help_text="Select which attribute types to copy. Values will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.target_campaign = kwargs.pop("target_campaign")
         self.user = kwargs.pop("user")
@@ -821,6 +828,7 @@ class CampaignCopyFromForm(forms.Form):
             # Hide type selection until source is selected
             self.fields["asset_types"].choices = []
             self.fields["resource_types"].choices = []
+            self.fields["attribute_types"].choices = []
 
     def _build_source_campaign_choices(self):
         """Build grouped choices for source campaign dropdown."""
@@ -864,7 +872,7 @@ class CampaignCopyFromForm(forms.Form):
         self.fields["source_campaign"].queryset = Campaign.objects.all()
 
     def _populate_type_choices(self, source_campaign):
-        """Populate asset and resource type choices from source campaign."""
+        """Populate asset, resource, and attribute type choices from source campaign."""
         from django.db.models import Count
 
         # Use annotate to count assets in a single query (avoid N+1)
@@ -878,15 +886,24 @@ class CampaignCopyFromForm(forms.Form):
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in source_campaign.resource_types.all()
         ]
+        # Use annotate to count values in a single query (avoid N+1)
+        attribute_types = source_campaign.attribute_types.annotate(
+            value_count=Count("values")
+        ).all()
+        self.fields["attribute_types"].choices = [
+            (str(at.id), f"{at.name} ({at.value_count} values)")
+            for at in attribute_types
+        ]
 
     def clean(self):
         cleaned_data = super().clean()
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
+        attribute_types = cleaned_data.get("attribute_types", [])
 
-        if not asset_types and not resource_types:
+        if not asset_types and not resource_types and not attribute_types:
             raise forms.ValidationError(
-                "Please select at least one asset type or resource type to copy."
+                "Please select at least one asset type, resource type, or attribute type to copy."
             )
 
         return cleaned_data
@@ -917,6 +934,13 @@ class CampaignCopyToForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    attribute_types = forms.MultipleChoiceField(
+        required=False,
+        label="Attribute Types",
+        help_text="Select which attribute types to copy. Values will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.source_campaign = kwargs.pop("source_campaign")
         self.user = kwargs.pop("user")
@@ -925,8 +949,8 @@ class CampaignCopyToForm(forms.Form):
         # Build grouped choices for target campaign
         self._build_target_campaign_choices()
 
-        # Populate asset and resource type choices from source campaign
-        # Use annotate to count assets in a single query (avoid N+1)
+        # Populate asset, resource, and attribute type choices from source campaign
+        # Use annotate to count in a single query (avoid N+1)
         from django.db.models import Count
 
         asset_types = self.source_campaign.asset_types.annotate(
@@ -938,6 +962,13 @@ class CampaignCopyToForm(forms.Form):
         ]
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in self.source_campaign.resource_types.all()
+        ]
+        attribute_types = self.source_campaign.attribute_types.annotate(
+            value_count=Count("values")
+        ).all()
+        self.fields["attribute_types"].choices = [
+            (str(at.id), f"{at.name} ({at.value_count} values)")
+            for at in attribute_types
         ]
 
     def _build_target_campaign_choices(self):
@@ -974,10 +1005,11 @@ class CampaignCopyToForm(forms.Form):
         cleaned_data = super().clean()
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
+        attribute_types = cleaned_data.get("attribute_types", [])
 
-        if not asset_types and not resource_types:
+        if not asset_types and not resource_types and not attribute_types:
             raise forms.ValidationError(
-                "Please select at least one asset type or resource type to copy."
+                "Please select at least one asset type, resource type, or attribute type to copy."
             )
 
         return cleaned_data
