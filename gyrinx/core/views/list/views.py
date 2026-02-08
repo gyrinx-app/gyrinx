@@ -239,6 +239,9 @@ class ListDetailView(generic.DetailView):
                 list=list_obj, status=CampaignInvitation.PENDING
             ).count()
 
+        # Add subscribed packs
+        context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
+
         return context
 
 
@@ -452,21 +455,55 @@ def new_list(request):
     """
     Create a new :model:`core.List` owned by the current user.
 
+    For Custom Content users, redirects to pack selection interstitial first
+    unless packs have already been selected (stored in session) or skipped.
+
     **Context**
 
     ``form``
         A NewListForm for entering the name and details of the new list.
     ``houses``
         A queryset of :model:`content.ContentHouse` objects, possibly used in the form display.
+    ``selected_packs``
+        Queryset of selected :model:`core.CustomContentPack` objects (if any).
 
     **Template**
 
     :template:`core/list_new.html`
     """
+    from gyrinx.core.models.pack import CustomContentPack
+
+    is_cc_user = request.user.groups.filter(name="Custom Content").exists()
+    session_pack_ids = request.session.get("new_list_pack_ids")
+
+    # CC users who haven't visited the interstitial yet get redirected there
+    if (
+        request.method == "GET"
+        and is_cc_user
+        and session_pack_ids is None
+        and request.GET.get("skip_packs") != "1"
+    ):
+        return HttpResponseRedirect(reverse("core:lists-new-packs"))
+
+    # If skip_packs=1, store empty list so redirect doesn't loop
+    if request.GET.get("skip_packs") == "1" and session_pack_ids is None:
+        request.session["new_list_pack_ids"] = []
+        session_pack_ids = []
+
+    # Resolve selected packs from session
+    selected_packs = CustomContentPack.objects.none()
+    pack_ids = session_pack_ids or []
+    if pack_ids:
+        valid_pack_ids = [pid for pid in pack_ids if is_valid_uuid(pid)]
+        selected_packs = CustomContentPack.objects.filter(
+            id__in=valid_pack_ids,
+            archived=False,
+        ).filter(Q(listed=True) | Q(owner=request.user))
+
     houses = ContentHouse.objects.all()
 
     if request.method == "POST":
-        form = NewListForm(request.POST)
+        form = NewListForm(request.POST, pack_ids=pack_ids)
         if form.is_valid():
             lst = form.save(commit=False)
             lst.owner = request.user
@@ -477,6 +514,13 @@ def new_list(request):
                 lst=lst,
                 create_stash=form.cleaned_data.get("show_stash", True),
             )
+
+            # Attach selected packs (re-use the already-validated queryset)
+            if selected_packs:
+                result.lst.packs.set(selected_packs)
+
+            # Clear session key
+            request.session.pop("new_list_pack_ids", None)
 
             # Log the list creation event (HTTP-specific)
             log_event(
@@ -495,13 +539,66 @@ def new_list(request):
         form = NewListForm(
             initial={
                 "name": request.GET.get("name", ""),
-            }
+            },
+            pack_ids=pack_ids,
         )
 
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses},
+        {"form": form, "houses": houses, "selected_packs": list(selected_packs)},
+    )
+
+
+@login_required
+def new_list_packs(request):
+    """
+    Interstitial page for selecting content packs before creating a new list.
+
+    Only available to users in the Custom Content group.
+    Stores selected pack IDs in session, then redirects to the new list form.
+
+    **Template**
+
+    :template:`core/list_new_packs.html`
+    """
+    if not request.user.groups.filter(name="Custom Content").exists():
+        return HttpResponseRedirect(reverse("core:lists-new") + "?skip_packs=1")
+
+    from gyrinx.core.models.pack import CustomContentPack
+
+    available_packs = (
+        CustomContentPack.objects.filter(archived=False)
+        .filter(Q(listed=True) | Q(owner=request.user))
+        .select_related("owner")
+        .order_by("name")
+    )
+
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        available_packs = available_packs.filter(name__icontains=search_query)
+
+    if request.method == "POST":
+        pack_ids = request.POST.getlist("pack_ids")
+        # Validate submitted IDs against accessible packs
+        valid_ids = set(
+            str(pk)
+            for pk in available_packs.filter(id__in=pack_ids).values_list(
+                "id", flat=True
+            )
+        )
+        pack_ids = [pid for pid in pack_ids if pid in valid_ids]
+        # Store selected pack IDs in session (may be empty list if none selected)
+        request.session["new_list_pack_ids"] = pack_ids
+        return HttpResponseRedirect(reverse("core:lists-new"))
+
+    return render(
+        request,
+        "core/list_new_packs.html",
+        {
+            "available_packs": available_packs,
+            "search_query": search_query,
+        },
     )
 
 
@@ -544,10 +641,16 @@ def edit_list(request, id):
     else:
         form = EditListForm(instance=list_)
 
+    has_custom_content = request.user.groups.filter(name="Custom Content").exists()
+
     return render(
         request,
         "core/list_edit.html",
-        {"form": form, "error_message": error_message},
+        {
+            "form": form,
+            "error_message": error_message,
+            "has_custom_content": has_custom_content,
+        },
     )
 
 

@@ -1,0 +1,106 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Content Packs - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=list.get_absolute_url text=list.name %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <h1 class="h3">Content Packs</h1>
+        <p class="text-muted small">
+            Content packs add custom fighters, rules, and other content to your list.
+            Subscribe to a pack to make its content available when building your list.
+        </p>
+        <!-- Subscribed packs -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <h2 class="h5 mb-0">
+                    Subscribed Packs
+                    {% if subscribed_packs %}<span class="badge bg-primary">{{ subscribed_packs|length }}</span>{% endif %}
+                </h2>
+            </div>
+            {% if subscribed_packs %}
+                <ul class="list-unstyled mb-0">
+                    {% for pack in subscribed_packs %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <div>
+                                <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                <span class="text-muted small">by {{ pack.owner }}</span>
+                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                            </div>
+                            <form method="post"
+                                  action="{% url 'core:pack-unsubscribe' pack.id %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="list_id" value="{{ list.id }}">
+                                <input type="hidden" name="return_url" value="list">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-center text-muted mb-0">No content packs subscribed yet.</p>
+            {% endif %}
+        </section>
+        <!-- Available packs -->
+        <section>
+            <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <h2 class="h5 mb-0">Available Packs</h2>
+            </div>
+            <form method="get" class="mb-3 vstack gap-2">
+                <div class="input-group input-group-sm">
+                    <input type="text"
+                           name="q"
+                           class="form-control"
+                           placeholder="Search packs..."
+                           value="{{ search_query }}">
+                    <button type="submit" class="btn btn-outline-secondary">Search</button>
+                    {% if search_query or show_my_packs %}
+                        <a href="{% url 'core:list-packs' list.id %}"
+                           class="btn btn-outline-secondary">Clear</a>
+                    {% endif %}
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input type="hidden" name="my" value="0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="my-packs"
+                           name="my"
+                           value="1"
+                           data-gy-toggle-submit
+                           {% if show_my_packs %}checked{% endif %}>
+                    <label class="form-check-label fs-7 mb-0" for="my-packs">Your Packs only</label>
+                </div>
+            </form>
+            {% if available_packs %}
+                <ul class="list-unstyled mb-0">
+                    {% for pack in available_packs %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <div>
+                                <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                <span class="text-muted small">by {{ pack.owner }}</span>
+                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                            </div>
+                            <form method="post" action="{% url 'core:list-packs' list.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="pack_id" value="{{ pack.id }}">
+                                <input type="hidden" name="action" value="add">
+                                <button type="submit" class="btn btn-sm btn-primary">Subscribe</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-center text-muted mb-0">
+                    {% if search_query %}
+                        No packs found matching "{{ search_query }}".
+                    {% else %}
+                        No additional packs available.
+                    {% endif %}
+                </p>
+            {% endif %}
+        </section>
+    </div>
+{% endblock content %}

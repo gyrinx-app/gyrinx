@@ -10,12 +10,34 @@
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="mb-0">{{ pack.name }}</h1>
-                {% if is_owner %}
-                    <nav class="nav btn-group flex-nowrap ms-md-auto">
-                        <a href="{% url 'core:pack-edit' pack.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
+                {% if is_owner or user_lists %}
+                    <nav class="btn-group flex-nowrap ms-md-auto">
+                        {% if is_owner %}
+                            <a href="{% url 'core:pack-edit' pack.id %}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                        {% endif %}
+                        <div class="btn-group" role="group">
+                            <button type="button"
+                                    class="btn btn-primary btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="More options">
+                                <i class="bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                {% if user_lists %}
+                                    <li>
+                                        <a href="{% url 'core:pack-lists' pack.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-list-ul"></i> Add to Lists
+                                            {% if subscribed_list_ids %}<span class="badge bg-primary ms-1">{{ subscribed_list_ids|length }}</span>{% endif %}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
                     </nav>
                 {% endif %}
             </div>

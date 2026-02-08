@@ -1,0 +1,69 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Your Lists - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <h1 class="h3">Your Lists</h1>
+        <p class="text-muted small">Manage which of your lists use the {{ pack.name }} Content Pack.</p>
+        {% if unsubscribed_lists %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">Add to List</h2>
+                </div>
+                <form method="post"
+                      action="{% url 'core:pack-subscribe' pack.id %}"
+                      class="mb-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="return_url" value="pack-lists">
+                    <div class="d-flex gap-2 align-items-end">
+                        <div class="flex-grow-1">
+                            <select name="list_id" id="list_id" class="form-select form-select-sm">
+                                {% for lst in unsubscribed_lists %}
+                                    <option value="{{ lst.id }}">{{ lst.name }} ({{ lst.content_house }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Add to List</button>
+                    </div>
+                </form>
+            </section>
+        {% endif %}
+        {% if subscribed_lists %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">
+                        Subscribed Lists
+                        <span class="badge bg-primary">{{ subscribed_lists|length }}</span>
+                    </h2>
+                </div>
+                <ul class="list-unstyled mb-0">
+                    {% for lst in subscribed_lists %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <span>
+                                <a href="{% url 'core:list' lst.id %}" class="linked">{{ lst.name }}</a>
+                                <span class="text-muted small">({{ lst.content_house }})</span>
+                            </span>
+                            <form method="post"
+                                  action="{% url 'core:pack-unsubscribe' pack.id %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="list_id" value="{{ lst.id }}">
+                                <input type="hidden" name="return_url" value="pack-lists">
+                                <button type="submit"
+                                        class="btn btn-link btn-sm link-danger link-underline-opacity-25 link-underline-opacity-100-hover p-0">
+                                    Remove
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+        {% if not unsubscribed_lists and not subscribed_lists %}
+            <p class="text-muted small mb-0">You have no lists to use with this Content Pack.</p>
+        {% endif %}
+    </div>
+{% endblock content %}

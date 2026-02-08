@@ -36,19 +36,63 @@ class NewListForm(forms.ModelForm):
     )
 
     def __init__(self, *args, **kwargs):
+        pack_ids = kwargs.pop("pack_ids", None)
         super().__init__(*args, **kwargs)
-        # Filter out generic houses that can't be selected as a primary house
-        self.fields["content_house"].queryset = ContentHouse.objects.filter(
-            generic=False
-        )
 
-        # Group houses by legacy status
+        base_qs = ContentHouse.objects.filter(generic=False)
+
+        # If pack_ids provided, include houses from packs
+        if pack_ids:
+            from django.contrib.contenttypes.models import ContentType
+
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            # 1. Houses directly in the packs
+            house_ct = ContentType.objects.get_for_model(ContentHouse)
+            direct_house_ids = set(
+                CustomContentPackItem.objects.filter(
+                    pack_id__in=pack_ids, content_type=house_ct
+                ).values_list("object_id", flat=True)
+            )
+
+            # 2. Houses from fighters in the packs
+            fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+            pack_fighter_ids = CustomContentPackItem.objects.filter(
+                pack_id__in=pack_ids, content_type=fighter_ct
+            ).values_list("object_id", flat=True)
+            fighter_house_ids = set(
+                ContentFighter.objects.all_content()
+                .filter(pk__in=pack_fighter_ids)
+                .exclude(house__isnull=True)
+                .values_list("house_id", flat=True)
+                .distinct()
+            )
+
+            pack_house_ids = direct_house_ids | fighter_house_ids
+
+            # Use all_content() to bypass pack filtering for these houses
+            pack_houses = ContentHouse.objects.all_content().filter(
+                id__in=pack_house_ids, generic=False
+            )
+            base_qs = (base_qs | pack_houses).distinct()
+            self._pack_house_ids = set(str(h) for h in pack_house_ids)
+        else:
+            self._pack_house_ids = set()
+
+        self.fields["content_house"].queryset = base_qs
+
+        def house_group_key(house):
+            if str(house.id) in self._pack_house_ids:
+                return "Content Pack"
+            return "Legacy House" if house.legacy else "House"
 
         group_select(
             self,
             "content_house",
-            key=lambda x: "Legacy House" if x.legacy else "House",
-            sort_groups_by=lambda group: 0 if group == "House" else 1,
+            key=house_group_key,
+            sort_groups_by=lambda group: (
+                0 if group == "House" else 1 if group == "Content Pack" else 2
+            ),
         )
 
     class Meta:
@@ -160,11 +204,10 @@ class ListFighterForm(forms.ModelForm):
             self.fields["content_fighter"].content_house = inst.list.content_house
 
             # Use the available_for_house method to get available fighters
-            self.fields[
-                "content_fighter"
-            ].queryset = ContentFighter.objects.available_for_house(
-                inst.list.content_house
-            )
+            # Include fighters from subscribed packs if any
+            self.fields["content_fighter"].queryset = ContentFighter.objects.with_packs(
+                inst.list.packs.all()
+            ).available_for_house(inst.list.content_house)
 
             self.fields[
                 "legacy_content_fighter"

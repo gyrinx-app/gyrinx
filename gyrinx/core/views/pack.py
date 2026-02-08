@@ -8,12 +8,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import models, transaction
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
+from gyrinx import messages
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
@@ -23,11 +24,13 @@ from gyrinx.content.models.statline import (
     ContentStatlineType,
 )
 from gyrinx.core.forms.pack import ContentFighterPackForm, ContentRuleForm, PackForm
+from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
 )
+from gyrinx.models import is_valid_uuid
 
 
 class ContentTypeEntry(NamedTuple):
@@ -392,6 +395,22 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
         all_activities = _get_pack_activity(pack)
         context["recent_activities"] = all_activities[:5]
         context["total_activity_count"] = len(all_activities)
+
+        # Subscription info: user's lists and which are subscribed
+        if user.is_authenticated:
+            user_lists = (
+                List.objects.filter(owner=user, archived=False)
+                .select_related("content_house")
+                .order_by("name")
+            )
+            subscribed_list_ids = set(
+                pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
+            )
+            context["user_lists"] = user_lists
+            context["subscribed_list_ids"] = subscribed_list_ids
+            context["unsubscribed_lists"] = [
+                lst for lst in user_lists if lst.id not in subscribed_list_ids
+            ]
 
         return context
 
@@ -821,3 +840,146 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def pack_lists(request, id):
+    """Manage which of the user's lists are subscribed to a content pack."""
+    pack = get_object_or_404(
+        CustomContentPack.objects.select_related("owner"),
+        id=id,
+    )
+    user = request.user
+    if not pack.listed and pack.owner != user:
+        raise Http404
+
+    user_lists = (
+        List.objects.filter(owner=user, archived=False)
+        .select_related("content_house")
+        .order_by("name")
+    )
+    subscribed_list_ids = set(
+        pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
+    )
+    unsubscribed_lists = [
+        lst for lst in user_lists if lst.id not in subscribed_list_ids
+    ]
+    subscribed_lists = [lst for lst in user_lists if lst.id in subscribed_list_ids]
+
+    return render(
+        request,
+        "core/pack/pack_lists.html",
+        {
+            "pack": pack,
+            "is_owner": user == pack.owner,
+            "subscribed_lists": subscribed_lists,
+            "unsubscribed_lists": unsubscribed_lists,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def subscribe_pack(request, id):
+    """Subscribe one of the user's lists to a content pack."""
+    if request.method != "POST":
+        raise Http404
+
+    pack = get_object_or_404(CustomContentPack, id=id, archived=False)
+    # Pack must be listed or owned by user
+    if not pack.listed and pack.owner != request.user:
+        raise Http404
+
+    list_id = request.POST.get("list_id")
+    if not list_id or not is_valid_uuid(list_id):
+        messages.error(request, "Please select a list.")
+        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+    lst = get_object_or_404(List, id=list_id, owner=request.user)
+    lst.packs.add(pack)
+
+    messages.success(request, f"Subscribed {lst.name} to {pack.name}")
+
+    return_url = request.POST.get("return_url", "")
+    if return_url == "pack-lists":
+        return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
+    return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def unsubscribe_pack(request, id):
+    """Unsubscribe a list from a content pack."""
+    if request.method != "POST":
+        raise Http404
+
+    pack = get_object_or_404(CustomContentPack, id=id)
+
+    list_id = request.POST.get("list_id")
+    if not list_id or not is_valid_uuid(list_id):
+        raise Http404
+
+    lst = get_object_or_404(List, id=list_id, owner=request.user)
+    lst.packs.remove(pack)
+
+    # Redirect back to where the user came from
+    return_url = request.POST.get("return_url", "")
+    if return_url == "list":
+        messages.success(request, f"Unsubscribed from {pack.name}")
+        return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+    if return_url == "pack-lists":
+        messages.success(request, f"Unsubscribed {lst.name} from {pack.name}")
+        return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
+
+    messages.success(request, f"Unsubscribed {lst.name} from {pack.name}")
+    return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def list_packs_manage(request, id):
+    """Manage content pack subscriptions for a list."""
+    lst = get_object_or_404(List, id=id, owner=request.user)
+
+    subscribed_packs = lst.packs.all().select_related("owner")
+
+    # Available packs: listed packs or packs owned by user, excluding already subscribed
+    available_packs = (
+        CustomContentPack.objects.filter(archived=False)
+        .exclude(id__in=subscribed_packs.values_list("id", flat=True))
+        .filter(models.Q(listed=True) | models.Q(owner=request.user))
+        .select_related("owner")
+        .order_by("name")
+    )
+
+    # "Your Packs Only" filter — defaults to off (show all available packs)
+    show_my_packs = request.GET.get("my", "0") == "1"
+    if show_my_packs:
+        available_packs = available_packs.filter(owner=request.user)
+
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        available_packs = available_packs.filter(name__icontains=search_query)
+
+    if request.method == "POST":
+        pack_id = request.POST.get("pack_id")
+        action = request.POST.get("action")
+        if pack_id and is_valid_uuid(pack_id) and action == "add":
+            pack = get_object_or_404(CustomContentPack, id=pack_id, archived=False)
+            if pack.listed or pack.owner == request.user:
+                lst.packs.add(pack)
+                messages.success(request, f"Subscribed to {pack.name}")
+        return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_packs.html",
+        {
+            "list": lst,
+            "subscribed_packs": subscribed_packs,
+            "available_packs": available_packs,
+            "search_query": search_query,
+            "show_my_packs": show_my_packs,
+        },
+    )
