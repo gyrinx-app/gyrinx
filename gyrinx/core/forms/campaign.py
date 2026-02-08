@@ -2,6 +2,7 @@ import json
 
 from django import forms
 
+from gyrinx.core.widgets import ColorRadioSelect
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -690,12 +691,7 @@ class CampaignAttributeValueForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "colour": forms.TextInput(
-                attrs={
-                    "class": "form-control",
-                    "placeholder": "#FF5733",
-                }
-            ),
+            "colour": ColorRadioSelect(),
         }
 
 
