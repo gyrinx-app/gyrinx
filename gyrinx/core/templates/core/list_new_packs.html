@@ -39,7 +39,8 @@
                 <!-- Pack list -->
                 <div class="vstack gap-2" id="pack-list">
                     {% for pack in available_packs %}
-                        <label class="border rounded p-3 d-flex align-items-start gap-2 pack-item" data-name="{{ pack.name|lower }}">
+                        <label class="border rounded p-3 d-flex align-items-start gap-2 pack-item"
+                               data-name="{{ pack.name|lower }}">
                             <input type="checkbox"
                                    name="pack_ids"
                                    value="{{ pack.id }}"
@@ -47,9 +48,7 @@
                             <div class="flex-grow-1">
                                 <div class="fw-medium">{{ pack.name }}</div>
                                 <div class="text-muted small">by {{ pack.owner }}</div>
-                                {% if pack.summary %}
-                                    <div class="text-muted small mt-1">{{ pack.summary|truncatewords:20 }}</div>
-                                {% endif %}
+                                {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                             </div>
                         </label>
                     {% endfor %}
@@ -57,7 +56,11 @@
             {% endif %}
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">
-                    {% if available_packs %}Continue{% else %}Continue{% endif %}
+                    {% if available_packs %}
+                        Continue
+                    {% else %}
+                        Continue
+                    {% endif %}
                 </button>
                 <a href="{% url 'core:list' list.id %}" class="btn btn-link">Skip</a>
             </div>

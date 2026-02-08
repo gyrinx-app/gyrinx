@@ -843,12 +843,49 @@ def restore_pack_item(request, id, item_id):
 
 @login_required
 @group_membership_required(["Custom Content"])
+def pack_lists(request, id):
+    """Manage which of the user's lists are subscribed to a content pack."""
+    pack = get_object_or_404(
+        CustomContentPack.objects.select_related("owner"),
+        id=id,
+    )
+    user = request.user
+    if not pack.listed and pack.owner != user:
+        raise Http404
+
+    user_lists = (
+        List.objects.filter(owner=user, archived=False)
+        .select_related("content_house")
+        .order_by("name")
+    )
+    subscribed_list_ids = set(
+        pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
+    )
+    unsubscribed_lists = [
+        lst for lst in user_lists if lst.id not in subscribed_list_ids
+    ]
+    subscribed_lists = [lst for lst in user_lists if lst.id in subscribed_list_ids]
+
+    return render(
+        request,
+        "core/pack/pack_lists.html",
+        {
+            "pack": pack,
+            "is_owner": user == pack.owner,
+            "subscribed_lists": subscribed_lists,
+            "unsubscribed_lists": unsubscribed_lists,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
 def subscribe_pack(request, id):
     """Subscribe one of the user's lists to a content pack."""
     if request.method != "POST":
         raise Http404
 
-    pack = get_object_or_404(CustomContentPack, id=id)
+    pack = get_object_or_404(CustomContentPack, id=id, archived=False)
     # Pack must be listed or owned by user
     if not pack.listed and pack.owner != request.user:
         raise Http404
@@ -862,6 +899,10 @@ def subscribe_pack(request, id):
     lst.packs.add(pack)
 
     messages.success(request, f"Subscribed {lst.name} to {pack.name}")
+
+    return_url = request.POST.get("return_url", "")
+    if return_url == "pack-lists":
+        return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
 
@@ -886,6 +927,9 @@ def unsubscribe_pack(request, id):
     if return_url == "list":
         messages.success(request, f"Unsubscribed from {pack.name}")
         return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+    if return_url == "pack-lists":
+        messages.success(request, f"Unsubscribed {lst.name} from {pack.name}")
+        return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
 
     messages.success(request, f"Unsubscribed {lst.name} from {pack.name}")
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
@@ -908,6 +952,11 @@ def list_packs_manage(request, id):
         .order_by("name")
     )
 
+    # "Your Packs Only" filter — defaults to off (show all available packs)
+    show_my_packs = request.GET.get("my", "0") == "1"
+    if show_my_packs:
+        available_packs = available_packs.filter(owner=request.user)
+
     search_query = request.GET.get("q", "").strip()
     if search_query:
         available_packs = available_packs.filter(name__icontains=search_query)
@@ -916,7 +965,7 @@ def list_packs_manage(request, id):
         pack_id = request.POST.get("pack_id")
         action = request.POST.get("action")
         if pack_id and action == "add":
-            pack = get_object_or_404(CustomContentPack, id=pack_id)
+            pack = get_object_or_404(CustomContentPack, id=pack_id, archived=False)
             if pack.listed or pack.owner == request.user:
                 lst.packs.add(pack)
                 messages.success(request, f"Subscribed to {pack.name}")
@@ -930,5 +979,6 @@ def list_packs_manage(request, id):
             "subscribed_packs": subscribed_packs,
             "available_packs": available_packs,
             "search_query": search_query,
+            "show_my_packs": show_my_packs,
         },
     )

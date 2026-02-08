@@ -669,6 +669,7 @@ urlpatterns = [
     path("packs/new/", pack_views.new_pack, name="packs-new"),
     path("pack/<id>", pack_views.PackDetailView.as_view(), name="pack"),
     path("pack/<id>/edit/", pack_views.edit_pack, name="pack-edit"),
+    path("pack/<id>/lists/", pack_views.pack_lists, name="pack-lists"),
     path("pack/<id>/subscribe/", pack_views.subscribe_pack, name="pack-subscribe"),
     path(
         "pack/<id>/unsubscribe/", pack_views.unsubscribe_pack, name="pack-unsubscribe"

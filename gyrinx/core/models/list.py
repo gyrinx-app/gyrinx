@@ -153,6 +153,7 @@ class ListQuerySet(models.QuerySet):
                     ),
                     to_attr="active_campaign_clones",
                 ),
+                "packs",
             )
         )
 

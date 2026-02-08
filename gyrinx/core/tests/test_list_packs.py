@@ -1,38 +1,12 @@
 """Tests for list pack subscription functionality."""
 
 import pytest
-from django.contrib.auth.models import Group
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter, ContentRule
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
-
-
-@pytest.fixture
-def custom_content_group():
-    """Create the Custom Content group."""
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def cc_user(user, custom_content_group):
-    """A user in the Custom Content group."""
-    user.groups.add(custom_content_group)
-    return user
-
-
-@pytest.fixture
-def pack(cc_user):
-    """A listed content pack owned by cc_user."""
-    return CustomContentPack.objects.create(
-        name="Test Pack",
-        summary="A test content pack",
-        listed=True,
-        owner=cc_user,
-    )
 
 
 @pytest.fixture
@@ -213,6 +187,24 @@ class TestListPacksManageView:
         assert response.status_code == 200
         assert pack.name.encode() in response.content
 
+    def test_manage_packs_my_packs_filter(
+        self, client, cc_user, make_list, make_user, make_pack
+    ):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        my_pack = make_pack("My Pack")
+        other_user = make_user("otherpackowner", "password")
+        other_pack = make_pack("Other Pack", owner=other_user, listed=True)
+        url = reverse("core:list-packs", args=(lst.id,))
+        # Without filter: both visible
+        response = client.get(url)
+        assert my_pack.name.encode() in response.content
+        assert other_pack.name.encode() in response.content
+        # With filter: only own pack visible
+        response = client.get(url, {"my": "1"})
+        assert my_pack.name.encode() in response.content
+        assert other_pack.name.encode() not in response.content
+
 
 @pytest.mark.django_db
 class TestNewListPacksInterstitial:
@@ -318,22 +310,80 @@ class TestPackContentVisibility:
 class TestPackDetailViewSubscription:
     """Test the pack detail view subscription UI."""
 
-    def test_pack_detail_shows_subscribe_form(self, client, cc_user, pack, make_list):
+    def test_pack_detail_shows_add_to_lists_link(
+        self, client, cc_user, pack, make_list
+    ):
         client.force_login(cc_user)
         make_list("Test List")
         url = reverse("core:pack", args=(pack.id,))
         response = client.get(url)
         assert response.status_code == 200
-        assert b"Add to List" in response.content or b"Your Lists" in response.content
+        assert b"Add to Lists" in response.content
 
-    def test_pack_detail_shows_subscribed_lists(self, client, cc_user, pack, make_list):
+    def test_pack_detail_shows_subscribed_badge(self, client, cc_user, pack, make_list):
         client.force_login(cc_user)
         lst = make_list("Subscribed List")
         lst.packs.add(pack)
         url = reverse("core:pack", args=(pack.id,))
         response = client.get(url)
         assert response.status_code == 200
+        # Badge with count should appear in the dropdown
+        assert b"Add to Lists" in response.content
+
+
+@pytest.mark.django_db
+class TestPackListsView:
+    """Test the dedicated pack lists management page."""
+
+    def test_pack_lists_page(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        make_list("Test List")
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Your Lists" in response.content
+
+    def test_pack_lists_shows_subscribed(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Subscribed List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
         assert b"Subscribed List" in response.content
+        assert b"Subscribed Lists" in response.content
+
+    def test_pack_lists_shows_unsubscribed(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        make_list("Available List")
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Available List" in response.content
+        assert b"Add to List" in response.content
+
+    def test_subscribe_redirects_to_pack_lists(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:pack-subscribe", args=(pack.id,))
+        response = client.post(
+            url, {"list_id": str(lst.id), "return_url": "pack-lists"}
+        )
+        assert response.status_code == 302
+        assert f"/pack/{pack.id}/lists/" in response.url
+
+    def test_unsubscribe_redirects_to_pack_lists(
+        self, client, cc_user, pack, make_list
+    ):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-unsubscribe", args=(pack.id,))
+        response = client.post(
+            url, {"list_id": str(lst.id), "return_url": "pack-lists"}
+        )
+        assert response.status_code == 302
+        assert f"/pack/{pack.id}/lists/" in response.url
 
 
 @pytest.mark.django_db

@@ -26,11 +26,11 @@
                             <div>
                                 <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
                                 <span class="text-muted small">by {{ pack.owner }}</span>
-                                {% if pack.summary %}
-                                    <div class="text-muted small">{{ pack.summary|truncatewords:20 }}</div>
-                                {% endif %}
+                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                             </div>
-                            <form method="post" action="{% url 'core:pack-unsubscribe' pack.id %}" class="d-inline">
+                            <form method="post"
+                                  action="{% url 'core:pack-unsubscribe' pack.id %}"
+                                  class="d-inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="list_id" value="{{ list.id }}">
                                 <input type="hidden" name="return_url" value="list">
@@ -48,7 +48,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
                 <h2 class="h5 mb-0">Available Packs</h2>
             </div>
-            <form method="get" class="mb-3">
+            <form method="get" class="mb-3 vstack gap-2">
                 <div class="input-group input-group-sm">
                     <input type="text"
                            name="q"
@@ -56,9 +56,22 @@
                            placeholder="Search packs..."
                            value="{{ search_query }}">
                     <button type="submit" class="btn btn-outline-secondary">Search</button>
-                    {% if search_query %}
-                        <a href="{% url 'core:list-packs' list.id %}" class="btn btn-outline-secondary">Clear</a>
+                    {% if search_query or show_my_packs %}
+                        <a href="{% url 'core:list-packs' list.id %}"
+                           class="btn btn-outline-secondary">Clear</a>
                     {% endif %}
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input type="hidden" name="my" value="0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="my-packs"
+                           name="my"
+                           value="1"
+                           data-gy-toggle-submit
+                           {% if show_my_packs %}checked{% endif %}>
+                    <label class="form-check-label fs-7 mb-0" for="my-packs">Your Packs only</label>
                 </div>
             </form>
             {% if available_packs %}
@@ -68,9 +81,7 @@
                             <div>
                                 <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
                                 <span class="text-muted small">by {{ pack.owner }}</span>
-                                {% if pack.summary %}
-                                    <div class="text-muted small">{{ pack.summary|truncatewords:20 }}</div>
-                                {% endif %}
+                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                             </div>
                             <form method="post" action="{% url 'core:list-packs' list.id %}">
                                 {% csrf_token %}

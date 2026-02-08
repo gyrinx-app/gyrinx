@@ -161,19 +161,9 @@ class ListFighterForm(forms.ModelForm):
 
             # Use the available_for_house method to get available fighters
             # Include fighters from subscribed packs if any
-            packs = inst.list.packs.all()
-            if packs.exists():
-                self.fields[
-                    "content_fighter"
-                ].queryset = ContentFighter.objects.with_packs(
-                    packs
-                ).available_for_house(inst.list.content_house)
-            else:
-                self.fields[
-                    "content_fighter"
-                ].queryset = ContentFighter.objects.available_for_house(
-                    inst.list.content_house
-                )
+            self.fields["content_fighter"].queryset = ContentFighter.objects.with_packs(
+                inst.list.packs.all()
+            ).available_for_house(inst.list.content_house)
 
             self.fields[
                 "legacy_content_fighter"
