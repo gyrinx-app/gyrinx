@@ -83,32 +83,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeTemplate = document.getElementById('sub-asset-type-template');
     const propTemplate = document.getElementById('sub-asset-property-template');
 
-    // Generate a safe key from a label
-    function labelToKey(label) {
-        return label
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '')
-            .replace(/^(\d)/, '_$1');
-    }
-
     // Generate a short random suffix for key uniqueness
     function randomSuffix() {
         return Math.random().toString(36).substring(2, 6);
-    }
-
-    // Generate a unique key from a label, avoiding duplicates with existing keys
-    function uniqueKeyFromLabel(label, existingKeys) {
-        let key = labelToKey(label);
-        if (!existingKeys.has(key)) {
-            return key;
-        }
-        // Add a random suffix to avoid collisions
-        let candidate = key + '_' + randomSuffix();
-        while (existingKeys.has(candidate)) {
-            candidate = key + '_' + randomSuffix();
-        }
-        return candidate;
     }
 
     // Parse initial schema from the hidden field
@@ -146,10 +123,10 @@ document.addEventListener('DOMContentLoaded', function() {
         labelPluralInput.value = labelPlural || '';
         descInput.value = description || '';
 
-        // Store the stable key on the DOM element so it survives label renames
-        if (existingKey) {
-            entryDiv.dataset.stableKey = existingKey;
-        }
+        // Store the stable key on the DOM element so it survives label renames.
+        // New entries get a random key immediately to avoid locking a key based on
+        // a partial label (updateJsonField fires on every keystroke).
+        entryDiv.dataset.stableKey = existingKey || ('type_' + randomSuffix() + randomSuffix());
 
         // Update title dynamically
         function updateTitle() {
@@ -189,10 +166,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         labelInput.value = label || '';
 
-        // Store the stable key on the DOM element so it survives label renames
-        if (existingKey) {
-            rowDiv.dataset.stableKey = existingKey;
-        }
+        // Store the stable key on the DOM element so it survives label renames.
+        // New rows get a random key immediately to avoid locking a key based on
+        // a partial label (updateJsonField fires on every keystroke).
+        rowDiv.dataset.stableKey = existingKey || ('prop_' + randomSuffix() + randomSuffix());
 
         labelInput.addEventListener('input', updateJsonField);
 
@@ -215,14 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const description = entry.querySelector('.sub-asset-description').value.trim();
 
             if (label) {
-                // Use the stable key if this entry already has one (existing sub-asset type),
-                // otherwise generate a new unique key from the label.
-                let key = entry.dataset.stableKey;
-                if (!key) {
-                    key = uniqueKeyFromLabel(label, usedTypeKeys);
-                    // Persist the generated key so subsequent edits keep it stable
-                    entry.dataset.stableKey = key;
-                }
+                const key = entry.dataset.stableKey;
                 usedTypeKeys.add(key);
 
                 const propertyRows = entry.querySelectorAll('.sub-asset-property');
@@ -232,14 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 propertyRows.forEach(row => {
                     const propLabel = row.querySelector('.sub-asset-prop-label').value.trim();
                     if (propLabel) {
-                        // Use the stable key if this property already has one,
-                        // otherwise generate a new unique key from the label.
-                        let propKey = row.dataset.stableKey;
-                        if (!propKey) {
-                            propKey = uniqueKeyFromLabel(propLabel, usedPropKeys);
-                            // Persist the generated key so subsequent edits keep it stable
-                            row.dataset.stableKey = propKey;
-                        }
+                        const propKey = row.dataset.stableKey;
                         usedPropKeys.add(propKey);
 
                         propertySchema.push({
