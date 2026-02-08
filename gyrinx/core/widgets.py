@@ -142,41 +142,34 @@ class ColorRadioSelect(forms.RadioSelect):
         # Row 1: None + White
         ("", "None (Default)"),
         ("#fefdfb", "White"),
-        # Row 2: Red + Orange
-        ("#681438", "Dark Red"),
-        ("#d6638b", "Red"),
-        ("#ffb6cb", "Light Red"),
-        ("#6b1900", "Dark Orange"),
-        ("#da694a", "Orange"),
-        ("#ffbba8", "Light Orange"),
-        # Row 3: Yellow + Green
-        ("#523300", "Dark Yellow"),
-        ("#c27f00", "Yellow"),
-        ("#f7c383", "Light Yellow"),
-        ("#3f3d00", "Dark Green"),
-        ("#989400", "Green"),
-        ("#d4d385", "Light Green"),
-        # Row 4: Teal + Cyan
-        ("#004809", "Dark Teal"),
-        ("#4da64f", "Teal"),
-        ("#a6dfa4", "Light Teal"),
-        ("#00453c", "Dark Cyan"),
-        ("#00a692", "Cyan"),
-        ("#7ee3d0", "Light Cyan"),
-        # Row 5: Azure + Blue
-        ("#00424f", "Dark Azure"),
-        ("#00a0bc", "Azure"),
-        ("#7adef7", "Light Azure"),
-        ("#003b6f", "Dark Blue"),
-        ("#4092e7", "Blue"),
-        ("#aad2ff", "Light Blue"),
-        # Row 6: Magenta + Rose
-        ("#3a2b74", "Dark Magenta"),
-        ("#8c7de4", "Magenta"),
-        ("#cac6ff", "Light Magenta"),
-        ("#571e5d", "Dark Rose"),
-        ("#bb6cc2", "Rose"),
-        ("#efb8f3", "Light Rose"),
+        # Row 2: Red + Yellow
+        ("#90101a", "Dark Red"),
+        ("#f14d4c", "Red"),
+        ("#ffbab3", "Light Red"),
+        ("#6c4300", "Dark Yellow"),
+        ("#c57d00", "Yellow"),
+        ("#f8c384", "Light Yellow"),
+        # Row 3: Green + Teal
+        ("#4c5300", "Dark Green"),
+        ("#8d9900", "Green"),
+        ("#cbd689", "Light Green"),
+        ("#005c3b", "Dark Teal"),
+        ("#00aa6f", "Teal"),
+        ("#92e2b7", "Light Teal"),
+        # Row 4: Cyan + Blue
+        ("#005860", "Dark Cyan"),
+        ("#00a2af", "Cyan"),
+        ("#76e1ed", "Light Cyan"),
+        ("#004f8b", "Dark Blue"),
+        ("#0092f9", "Blue"),
+        ("#a8d2ff", "Light Blue"),
+        # Row 5: Violet + Rose
+        ("#563199", "Dark Violet"),
+        ("#9b6efa", "Violet"),
+        ("#d1c4ff", "Light Violet"),
+        ("#811968", "Dark Rose"),
+        ("#da52b5", "Rose"),
+        ("#fbb4e2", "Light Rose"),
     ]
 
     def __init__(self, attrs=None):
