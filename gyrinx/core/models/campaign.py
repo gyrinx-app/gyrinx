@@ -454,12 +454,11 @@ class CampaignAsset(AppBase):
             if key:
                 schema_lookup[key] = label
 
-        # Return properties with labels
+        # Return properties with labels, skipping keys no longer in the schema
         result = []
         for key, value in self.properties.items():
-            if value:  # Only include non-empty values
-                label = schema_lookup.get(key, key)
-                result.append((label, value))
+            if value and key in schema_lookup:
+                result.append((schema_lookup[key], value))
         return result
 
     @property
@@ -695,9 +694,9 @@ class CampaignSubAsset(AppBase):
             if key:
                 schema_lookup[key] = label
 
+        # Skip keys no longer in the schema
         result = []
         for key, value in self.properties.items():
-            if value:
-                label = schema_lookup.get(key, key)
-                result.append((label, value))
+            if value and key in schema_lookup:
+                result.append((schema_lookup[key], value))
         return result

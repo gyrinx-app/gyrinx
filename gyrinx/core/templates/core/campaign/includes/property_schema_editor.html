@@ -52,13 +52,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const jsonField = document.getElementById('property-schema-json');
     const template = document.getElementById('property-row-template');
 
-    // Generate a safe key from a label
-    function labelToKey(label) {
-        return label
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '')
-            .replace(/^(\d)/, '_$1'); // Prefix with _ if starts with number
+    // Generate a short random suffix for key uniqueness
+    function randomSuffix() {
+        return Math.random().toString(36).substring(2, 6);
     }
 
     // Parse initial schema from the hidden field
@@ -70,12 +66,12 @@ document.addEventListener('DOMContentLoaded', function() {
         schema = [];
     }
 
-    // Render existing properties
-    schema.forEach(prop => addPropertyRow(prop.label, prop.description || ''));
+    // Render existing properties — pass the stable key so it is preserved on rename
+    schema.forEach(prop => addPropertyRow(prop.label, prop.description || '', prop.key || ''));
 
     // Add new property button handler
     addBtn.addEventListener('click', function() {
-        addPropertyRow('', '');
+        addPropertyRow('', '', '');
         // Focus the new label input
         const rows = schemaList.querySelectorAll('.property-row');
         const lastRow = rows[rows.length - 1];
@@ -85,14 +81,20 @@ document.addEventListener('DOMContentLoaded', function() {
         updateJsonField();
     });
 
-    function addPropertyRow(label, description) {
+    function addPropertyRow(label, description, existingKey) {
         const row = template.content.cloneNode(true);
         const labelInput = row.querySelector('.property-label');
         const descInput = row.querySelector('.property-description');
         const removeBtn = row.querySelector('.remove-property-btn');
+        const rowDiv = row.querySelector('.property-row');
 
         labelInput.value = label || '';
         descInput.value = description || '';
+
+        // Store the stable key on the DOM element so it survives label renames.
+        // New rows get a random key immediately to avoid locking a key based on
+        // a partial label (updateJsonField fires on every keystroke).
+        rowDiv.dataset.stableKey = existingKey || ('prop_' + randomSuffix() + randomSuffix());
 
         // Update JSON on input changes
         labelInput.addEventListener('input', updateJsonField);
@@ -110,12 +112,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJsonField() {
         const rows = schemaList.querySelectorAll('.property-row');
         const newSchema = [];
+        const usedKeys = new Set();
 
         rows.forEach(row => {
             const label = row.querySelector('.property-label').value.trim();
             const description = row.querySelector('.property-description').value.trim();
             if (label) {
-                const key = labelToKey(label);
+                const key = row.dataset.stableKey;
+                usedKeys.add(key);
+
                 const prop = { key, label };
                 if (description) {
                     prop.description = description;
