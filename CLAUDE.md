@@ -63,6 +63,9 @@ in the workflow.
 - `/feature-dev [description]` — Guided 7-phase feature development workflow: discovery, codebase exploration,
   clarifying questions, architecture design, implementation, quality review, and summary. Uses `code-explorer`,
   `code-architect`, and `code-reviewer` agents.
+- `/pr-comments [pr-number-or-url]` — Fetch all PR comments, reviews, and review threads in a single GraphQL call.
+  Shows resolved/unresolved status, groups by file, and summarises action items. Auto-detects PR from current branch
+  if no argument given.
 
 ### Skills (`.claude/skills/`)
 
