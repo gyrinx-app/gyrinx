@@ -143,11 +143,11 @@ class ContentFighterPackForm(forms.ModelForm):
         # model_to_dict() uses instance.rules.all() which goes through
         # ContentManager.get_queryset() and excludes pack content, so
         # pack rules assigned to this fighter are not pre-selected.
-        # Bypass the default manager to include all assigned rules.
+        # Use the field queryset to stay consistent with available choices.
         if not self.instance._state.adding:
             self.initial["rules"] = list(
-                ContentRule.objects.all_content()
-                .filter(contentfighter=self.instance)
+                self.fields["rules"]
+                .queryset.filter(contentfighter=self.instance)
                 .values_list("pk", flat=True)
             )
 

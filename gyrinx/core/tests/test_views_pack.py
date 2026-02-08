@@ -1425,9 +1425,11 @@ def test_edit_fighter_saves_pack_rules(
 
     # Assign the pack rule to the fighter.
     fighter.rules.add(rule)
-    assert ContentRule.objects.all_content().filter(
-        contentfighter=fighter, pk=rule.pk
-    ).exists()
+    assert (
+        ContentRule.objects.all_content()
+        .filter(contentfighter=fighter, pk=rule.pk)
+        .exists()
+    )
 
     # Submit the edit form with the rule selected.
     client.force_login(group_user)
@@ -1476,6 +1478,7 @@ def test_edit_fighter_form_preselects_pack_rules(
     response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
     assert response.status_code == 200
 
-    # The rule should appear as a selected option in the form.
-    content = response.content.decode()
-    assert f'value="{rule.pk}" selected' in content
+    # The rule should appear as a selected value in the form.
+    form = response.context["form"]
+    rules_value = form["rules"].value()
+    assert str(rule.pk) in {str(v) for v in rules_value}
