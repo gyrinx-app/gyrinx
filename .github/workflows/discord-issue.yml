@@ -7,6 +7,9 @@ on:
 jobs:
   create-issue:
     runs-on: [gyrinx-ubuntu-2]
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -15,7 +18,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -26,7 +29,7 @@ jobs:
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           CHANNEL_ID: ${{ github.event.client_payload.channel_id }}
           MESSAGE_ID: ${{ github.event.client_payload.message_id }}
           GUILD_ID: ${{ github.event.client_payload.guild_id }}

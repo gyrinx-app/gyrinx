@@ -141,7 +141,7 @@ def test_discord_command_enqueues_task(discord_signing_key, discord_public_key):
     body = {
         "type": DISCORD_APPLICATION_COMMAND,
         "id": "interaction-id-123",
-        "token": "interaction-token-abc",
+        "token": "interaction-token-abc",  # nosec B105
         "channel_id": "channel-123",
         "guild_id": "guild-456",
         "member": {
@@ -196,7 +196,7 @@ def test_discord_command_stores_webhook_request(
     body = {
         "type": DISCORD_APPLICATION_COMMAND,
         "id": "interaction-id-123",
-        "token": "interaction-token-abc",
+        "token": "interaction-token-abc",  # nosec B105
         "channel_id": "channel-123",
         "guild_id": "guild-456",
         "member": {"user": {"username": "testuser"}},

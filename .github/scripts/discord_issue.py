@@ -281,7 +281,6 @@ def main():
         discord_token = get_env("DISCORD_BOT_TOKEN")
         channel_id = get_env("CHANNEL_ID")
         message_id = get_env("MESSAGE_ID")
-        guild_id = get_env("GUILD_ID")
     except SystemExit:
         fail("Failed to create issue: configuration error.")
         return  # unreachable, but makes type checkers happy
@@ -290,6 +289,7 @@ def main():
         print("Error: APPLICATION_ID or INTERACTION_TOKEN not set", file=sys.stderr)
         sys.exit(1)
 
+    guild_id = os.environ.get("GUILD_ID", "")
     message_author = os.environ.get("MESSAGE_AUTHOR", "unknown")
     requesting_user = os.environ.get("REQUESTING_USER", "unknown")
 

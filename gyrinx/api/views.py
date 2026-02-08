@@ -251,8 +251,11 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
         logger.warning(f"Unknown Discord command: {command_name}")
         return JsonResponse(
             {
-                "type": DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-                "data": {"flags": 64},  # Ephemeral
+                "type": 4,  # CHANNEL_MESSAGE_WITH_SOURCE
+                "data": {
+                    "content": "Sorry, I don't recognise that command.",
+                    "flags": 64,  # Ephemeral
+                },
             }
         )
 
