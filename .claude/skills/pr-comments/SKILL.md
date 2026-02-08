@@ -39,6 +39,12 @@ Adapt your presentation based on context.
    - Reviewers who requested changes
    - Any other blockers visible in the data
 
+### Truncation
+
+The query fetches up to 100 review threads, 50 reviews, 100 comments, and 100 files.
+Each connection includes `totalCount`. If `totalCount` exceeds the number of returned
+`nodes`, warn the user that some data was not fetched.
+
 ### Contextual adaptation
 
 - If the user is working on this branch, emphasise unresolved threads and action items.
