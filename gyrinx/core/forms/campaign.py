@@ -2,11 +2,15 @@ import json
 
 from django import forms
 
+from gyrinx.core.widgets import ColorRadioSelect
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignAttributeType,
+    CampaignAttributeValue,
+    CampaignListAttributeAssignment,
     CampaignResourceType,
     CampaignSubAsset,
 )
@@ -643,6 +647,135 @@ class ResourceModifyForm(forms.Form):
         return modification
 
 
+class CampaignAttributeTypeForm(forms.ModelForm):
+    """Form for creating and editing campaign attribute types"""
+
+    class Meta:
+        model = CampaignAttributeType
+        fields = ["name", "description", "is_single_select"]
+        labels = {
+            "name": "Attribute name",
+            "description": "Description",
+            "is_single_select": "Single select",
+        }
+        help_texts = {
+            "name": "Name of the attribute (e.g., 'Faction', 'Team', 'Alliance')",
+            "description": "Describe what this attribute represents and how it's used",
+            "is_single_select": "If checked, Gangs can select only one value. If unchecked, multiple values allowed.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "is_single_select": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+        }
+
+
+class CampaignAttributeValueForm(forms.ModelForm):
+    """Form for creating and editing campaign attribute values"""
+
+    class Meta:
+        model = CampaignAttributeValue
+        fields = ["name", "description", "colour"]
+        labels = {
+            "name": "Value name",
+            "description": "Description",
+            "colour": "Colour",
+        }
+        help_texts = {
+            "name": "Name of the value (e.g., 'Order', 'Chaos', 'Team Alpha')",
+            "description": "Optional description of this value",
+            "colour": "Optional hex colour code for visual identification",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "colour": ColorRadioSelect(),
+        }
+
+
+class CampaignListAttributeAssignmentForm(forms.Form):
+    """Form for assigning attribute values to a list in a campaign"""
+
+    def __init__(self, *args, **kwargs):
+        self.campaign = kwargs.pop("campaign")
+        self.list_obj = kwargs.pop("list_obj")
+        self.attribute_type = kwargs.pop("attribute_type")
+        super().__init__(*args, **kwargs)
+
+        # Get available values for this attribute type
+        values = self.attribute_type.values.order_by("name")
+
+        # Get current assignments
+        current_assignments = CampaignListAttributeAssignment.objects.filter(
+            campaign=self.campaign,
+            list=self.list_obj,
+            attribute_value__attribute_type=self.attribute_type,
+        ).values_list("attribute_value_id", flat=True)
+
+        if self.attribute_type.is_single_select:
+            self.fields["values"] = forms.ModelChoiceField(
+                queryset=values,
+                widget=forms.RadioSelect,
+                required=False,
+                initial=current_assignments.first() if current_assignments else None,
+                label="",
+                empty_label=None,
+            )
+            self.fields["values"].choices = [("", "None")] + list(
+                self.fields["values"].choices
+            )
+        else:
+            self.fields["values"] = forms.ModelMultipleChoiceField(
+                queryset=values,
+                widget=forms.CheckboxSelectMultiple,
+                required=False,
+                initial=list(current_assignments),
+                label="",
+            )
+
+    def save(self, user):
+        """Save the attribute assignments."""
+        from django.db import transaction
+
+        values = self.cleaned_data.get("values")
+
+        with transaction.atomic():
+            # Remove existing assignments for this attribute type
+            CampaignListAttributeAssignment.objects.filter(
+                campaign=self.campaign,
+                list=self.list_obj,
+                attribute_value__attribute_type=self.attribute_type,
+            ).delete()
+
+            # Create new assignments
+            if values:
+                if self.attribute_type.is_single_select:
+                    values = [values] if values else []
+
+                for value in values:
+                    CampaignListAttributeAssignment.objects.create(
+                        campaign=self.campaign,
+                        attribute_value=value,
+                        list=self.list_obj,
+                        owner=user,
+                    )
+
+            # Log campaign action
+            value_names = [v.name for v in values] if values else []
+            action_text = f"{self.list_obj.name} updated {self.attribute_type.name}: {', '.join(value_names) if value_names else 'None'}"
+
+            CampaignAction.objects.create(
+                campaign=self.campaign,
+                list=self.list_obj,
+                user=user,
+                description=action_text,
+                dice_count=0,
+                owner=user,
+            )
+
+
 class CampaignCopyFromForm(forms.Form):
     """Form for copying content from another campaign"""
 
@@ -668,6 +801,13 @@ class CampaignCopyFromForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    attribute_types = forms.MultipleChoiceField(
+        required=False,
+        label="Attribute Types",
+        help_text="Select which attribute types to copy. Values will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.target_campaign = kwargs.pop("target_campaign")
         self.user = kwargs.pop("user")
@@ -684,6 +824,7 @@ class CampaignCopyFromForm(forms.Form):
             # Hide type selection until source is selected
             self.fields["asset_types"].choices = []
             self.fields["resource_types"].choices = []
+            self.fields["attribute_types"].choices = []
 
     def _build_source_campaign_choices(self):
         """Build grouped choices for source campaign dropdown."""
@@ -727,7 +868,7 @@ class CampaignCopyFromForm(forms.Form):
         self.fields["source_campaign"].queryset = Campaign.objects.all()
 
     def _populate_type_choices(self, source_campaign):
-        """Populate asset and resource type choices from source campaign."""
+        """Populate asset, resource, and attribute type choices from source campaign."""
         from django.db.models import Count
 
         # Use annotate to count assets in a single query (avoid N+1)
@@ -741,15 +882,24 @@ class CampaignCopyFromForm(forms.Form):
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in source_campaign.resource_types.all()
         ]
+        # Use annotate to count values in a single query (avoid N+1)
+        attribute_types = source_campaign.attribute_types.annotate(
+            value_count=Count("values")
+        ).all()
+        self.fields["attribute_types"].choices = [
+            (str(at.id), f"{at.name} ({at.value_count} values)")
+            for at in attribute_types
+        ]
 
     def clean(self):
         cleaned_data = super().clean()
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
+        attribute_types = cleaned_data.get("attribute_types", [])
 
-        if not asset_types and not resource_types:
+        if not asset_types and not resource_types and not attribute_types:
             raise forms.ValidationError(
-                "Please select at least one asset type or resource type to copy."
+                "Please select at least one asset type, resource type, or attribute type to copy."
             )
 
         return cleaned_data
@@ -780,6 +930,13 @@ class CampaignCopyToForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    attribute_types = forms.MultipleChoiceField(
+        required=False,
+        label="Attribute Types",
+        help_text="Select which attribute types to copy. Values will also be copied.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.source_campaign = kwargs.pop("source_campaign")
         self.user = kwargs.pop("user")
@@ -788,8 +945,8 @@ class CampaignCopyToForm(forms.Form):
         # Build grouped choices for target campaign
         self._build_target_campaign_choices()
 
-        # Populate asset and resource type choices from source campaign
-        # Use annotate to count assets in a single query (avoid N+1)
+        # Populate asset, resource, and attribute type choices from source campaign
+        # Use annotate to count in a single query (avoid N+1)
         from django.db.models import Count
 
         asset_types = self.source_campaign.asset_types.annotate(
@@ -801,6 +958,13 @@ class CampaignCopyToForm(forms.Form):
         ]
         self.fields["resource_types"].choices = [
             (str(rt.id), rt.name) for rt in self.source_campaign.resource_types.all()
+        ]
+        attribute_types = self.source_campaign.attribute_types.annotate(
+            value_count=Count("values")
+        ).all()
+        self.fields["attribute_types"].choices = [
+            (str(at.id), f"{at.name} ({at.value_count} values)")
+            for at in attribute_types
         ]
 
     def _build_target_campaign_choices(self):
@@ -837,10 +1001,11 @@ class CampaignCopyToForm(forms.Form):
         cleaned_data = super().clean()
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
+        attribute_types = cleaned_data.get("attribute_types", [])
 
-        if not asset_types and not resource_types:
+        if not asset_types and not resource_types and not attribute_types:
             raise forms.ValidationError(
-                "Please select at least one asset type or resource type to copy."
+                "Please select at least one asset type, resource type, or attribute type to copy."
             )
 
         return cleaned_data

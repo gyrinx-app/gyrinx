@@ -137,35 +137,39 @@ class ColorRadioSelect(forms.RadioSelect):
     template_name = "core/widgets/color_radio_select.html"
     option_template_name = "core/widgets/color_radio_option.html"
 
-    # Predefined color palette
+    # Predefined color palette — dark / base / light per hue, paired in rows of 6
     COLOR_PALETTE = [
+        # Row 1: None + White
         ("", "None (Default)"),
-        # Base colors
-        ("#386b33", "Green"),
-        ("#6bb261", "Bright Green"),
-        ("#a7d9a3", "Pastel Green"),
-        ("#d62e31", "Red"),
-        ("#ff5a5e", "Bright Red"),
-        ("#ffb3b5", "Pastel Red"),
-        ("#ffa629", "Orange"),
-        ("#ffbc5c", "Bright Orange"),
-        ("#ffd6a6", "Pastel Orange"),
-        ("#ffbb5c", "Yellow"),
-        ("#ffcc77", "Bright Yellow"),
-        ("#ffe4b3", "Pastel Yellow"),
-        ("#4593c4", "Blue"),
-        ("#5fa9d9", "Bright Blue"),
-        ("#a1c8e2", "Pastel Blue"),
-        ("#7b68ee", "Purple"),
-        ("#9d8fff", "Bright Purple"),
-        ("#c4b5fd", "Pastel Purple"),
-        ("#ff69b4", "Pink"),
-        ("#ff8ec4", "Bright Pink"),
-        ("#ffb6d9", "Pastel Pink"),
-        ("#40e0d0", "Turquoise"),
-        ("#66e9de", "Bright Turquoise"),
-        ("#a3f0e8", "Pastel Turquoise"),
         ("#fefdfb", "White"),
+        # Row 2: Red + Yellow
+        ("#90101a", "Dark Red"),
+        ("#f14d4c", "Red"),
+        ("#ffbab3", "Light Red"),
+        ("#6c4300", "Dark Yellow"),
+        ("#c57d00", "Yellow"),
+        ("#f8c384", "Light Yellow"),
+        # Row 3: Green + Teal
+        ("#4c5300", "Dark Green"),
+        ("#8d9900", "Green"),
+        ("#cbd689", "Light Green"),
+        ("#005c3b", "Dark Teal"),
+        ("#00aa6f", "Teal"),
+        ("#92e2b7", "Light Teal"),
+        # Row 4: Cyan + Blue
+        ("#005860", "Dark Cyan"),
+        ("#00a2af", "Cyan"),
+        ("#76e1ed", "Light Cyan"),
+        ("#004f8b", "Dark Blue"),
+        ("#0092f9", "Blue"),
+        ("#a8d2ff", "Light Blue"),
+        # Row 5: Violet + Rose
+        ("#563199", "Dark Violet"),
+        ("#9b6efa", "Violet"),
+        ("#d1c4ff", "Light Violet"),
+        ("#811968", "Dark Rose"),
+        ("#da52b5", "Rose"),
+        ("#fbb4e2", "Light Rose"),
     ]
 
     def __init__(self, attrs=None):

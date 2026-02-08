@@ -5,6 +5,7 @@ import gyrinx.core.views
 from .views import battle, print_config, vehicle
 from .views.campaign import actions as campaign_actions
 from .views.campaign import assets as campaign_assets
+from .views.campaign import attributes as campaign_attributes
 from .views.campaign import battles as campaign_battles
 from .views.campaign import captured as campaign_captured
 from .views.campaign import copy as campaign_copy
@@ -616,6 +617,47 @@ urlpatterns = [
         "campaign/<id>/resources/<resource_id>/modify",
         campaign_resources.campaign_resource_modify,
         name="campaign-resource-modify",
+    ),
+    # Campaign Attributes
+    path(
+        "campaign/<id>/attributes",
+        campaign_attributes.campaign_attributes,
+        name="campaign-attributes",
+    ),
+    path(
+        "campaign/<id>/attributes/type/new",
+        campaign_attributes.campaign_attribute_type_new,
+        name="campaign-attribute-type-new",
+    ),
+    path(
+        "campaign/<id>/attributes/type/<type_id>/edit",
+        campaign_attributes.campaign_attribute_type_edit,
+        name="campaign-attribute-type-edit",
+    ),
+    path(
+        "campaign/<id>/attributes/type/<type_id>/remove",
+        campaign_attributes.campaign_attribute_type_remove,
+        name="campaign-attribute-type-remove",
+    ),
+    path(
+        "campaign/<id>/attributes/type/<type_id>/value/new",
+        campaign_attributes.campaign_attribute_value_new,
+        name="campaign-attribute-value-new",
+    ),
+    path(
+        "campaign/<id>/attributes/value/<value_id>/edit",
+        campaign_attributes.campaign_attribute_value_edit,
+        name="campaign-attribute-value-edit",
+    ),
+    path(
+        "campaign/<id>/attributes/value/<value_id>/remove",
+        campaign_attributes.campaign_attribute_value_remove,
+        name="campaign-attribute-value-remove",
+    ),
+    path(
+        "campaign/<id>/list/<list_id>/attribute/<type_id>/assign",
+        campaign_attributes.campaign_list_attribute_assign,
+        name="campaign-list-attribute-assign",
     ),
     # Battles
     path(

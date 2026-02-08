@@ -198,5 +198,25 @@ class CampaignDetailView(generic.DetailView):
                 .order_by("-captured_at")
             )
 
+        # Get attribute types with their values and assignments
+        attribute_types = campaign.attribute_types.prefetch_related(
+            "values",
+            "values__list_assignments",
+            "values__list_assignments__list",
+        ).order_by("name")
+        context["attribute_types"] = attribute_types
+
+        # Build attribute assignment lookup: {type_id: {list_id: [assignment, ...]}}
+        attribute_assignment_lookup = {}
+        for attr_type in attribute_types:
+            type_assignments = {}
+            for value in attr_type.values.all():
+                for assignment in value.list_assignments.all():
+                    type_assignments.setdefault(assignment.list_id, []).append(
+                        assignment
+                    )
+            attribute_assignment_lookup[attr_type.id] = type_assignments
+        context["attribute_assignment_lookup"] = attribute_assignment_lookup
+
         context["is_owner"] = user == campaign.owner
         return context

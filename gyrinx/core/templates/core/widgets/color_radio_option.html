@@ -9,9 +9,9 @@
        {% include "django/forms/widgets/attrs.html" %}>
 <label class="color-radio-label position-relative p-0 border-0 rounded-2"
        for="{{ widget.attrs.id }}"
-       style="width: 3rem;
-              height: 3rem;
-              cursor: pointer;
+       style="min-width: 2.5rem;
+              height: 2.5rem;
+              {% if wide %}flex: 1;{% endif %} cursor: pointer;
               transition: all 0.2s ease"
        title="{{ widget.label }}"
        data-bs-toggle="tooltip"

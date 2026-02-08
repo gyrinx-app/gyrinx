@@ -74,6 +74,7 @@ def campaign_copy_from(request, id):
                 # Get selected types from hidden fields
                 asset_type_ids = request.POST.getlist("selected_asset_types")
                 resource_type_ids = request.POST.getlist("selected_resource_types")
+                attribute_type_ids = request.POST.getlist("selected_attribute_types")
 
                 # Perform the copy
                 result = copy_campaign_content(
@@ -82,6 +83,9 @@ def campaign_copy_from(request, id):
                     user=request.user,
                     asset_type_ids=asset_type_ids if asset_type_ids else None,
                     resource_type_ids=resource_type_ids if resource_type_ids else None,
+                    attribute_type_ids=(
+                        attribute_type_ids if attribute_type_ids else None
+                    ),
                 )
 
                 # Log event
@@ -100,6 +104,8 @@ def campaign_copy_from(request, id):
                     assets_copied=result.assets_copied,
                     sub_assets_copied=result.sub_assets_copied,
                     resource_types_copied=result.resource_types_copied,
+                    attribute_types_copied=result.attribute_types_copied,
+                    attribute_values_copied=result.attribute_values_copied,
                 )
 
                 track(
@@ -109,6 +115,7 @@ def campaign_copy_from(request, id):
                     asset_types_copied=result.asset_types_copied,
                     assets_copied=result.assets_copied,
                     resource_types_copied=result.resource_types_copied,
+                    attribute_types_copied=result.attribute_types_copied,
                 )
 
                 # Build success message
@@ -121,6 +128,10 @@ def campaign_copy_from(request, id):
                     parts.append(f"{result.sub_assets_copied} sub-asset(s)")
                 if result.resource_types_copied:
                     parts.append(f"{result.resource_types_copied} resource type(s)")
+                if result.attribute_types_copied:
+                    parts.append(f"{result.attribute_types_copied} attribute type(s)")
+                if result.attribute_values_copied:
+                    parts.append(f"{result.attribute_values_copied} attribute value(s)")
 
                 if parts:
                     messages.success(
@@ -158,6 +169,7 @@ def campaign_copy_from(request, id):
             if form.is_valid():
                 asset_type_ids = form.cleaned_data.get("asset_types", [])
                 resource_type_ids = form.cleaned_data.get("resource_types", [])
+                attribute_type_ids = form.cleaned_data.get("attribute_types", [])
 
                 # Check for conflicts
                 conflicts = check_copy_conflicts(
@@ -165,6 +177,9 @@ def campaign_copy_from(request, id):
                     target_campaign=campaign,
                     asset_type_ids=asset_type_ids if asset_type_ids else None,
                     resource_type_ids=resource_type_ids if resource_type_ids else None,
+                    attribute_type_ids=(
+                        attribute_type_ids if attribute_type_ids else None
+                    ),
                 )
 
                 show_confirmation = True
@@ -215,10 +230,11 @@ def campaign_copy_to(request, id):
     # Check if this campaign has any content to copy
     has_asset_types = campaign.asset_types.exists()
     has_resource_types = campaign.resource_types.exists()
-    if not has_asset_types and not has_resource_types:
+    has_attribute_types = campaign.attribute_types.exists()
+    if not has_asset_types and not has_resource_types and not has_attribute_types:
         messages.info(
             request,
-            "This campaign has no asset types or resource types to copy.",
+            "This campaign has no asset types, resource types, or attribute types to copy.",
         )
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
@@ -259,6 +275,7 @@ def campaign_copy_to(request, id):
                 # Get selected types from hidden fields
                 asset_type_ids = request.POST.getlist("selected_asset_types")
                 resource_type_ids = request.POST.getlist("selected_resource_types")
+                attribute_type_ids = request.POST.getlist("selected_attribute_types")
 
                 # Perform the copy
                 result = copy_campaign_content(
@@ -267,6 +284,9 @@ def campaign_copy_to(request, id):
                     user=request.user,
                     asset_type_ids=asset_type_ids if asset_type_ids else None,
                     resource_type_ids=resource_type_ids if resource_type_ids else None,
+                    attribute_type_ids=(
+                        attribute_type_ids if attribute_type_ids else None
+                    ),
                 )
 
                 # Log event
@@ -285,6 +305,8 @@ def campaign_copy_to(request, id):
                     assets_copied=result.assets_copied,
                     sub_assets_copied=result.sub_assets_copied,
                     resource_types_copied=result.resource_types_copied,
+                    attribute_types_copied=result.attribute_types_copied,
+                    attribute_values_copied=result.attribute_values_copied,
                 )
 
                 track(
@@ -294,6 +316,7 @@ def campaign_copy_to(request, id):
                     asset_types_copied=result.asset_types_copied,
                     assets_copied=result.assets_copied,
                     resource_types_copied=result.resource_types_copied,
+                    attribute_types_copied=result.attribute_types_copied,
                 )
 
                 # Build success message
@@ -306,6 +329,10 @@ def campaign_copy_to(request, id):
                     parts.append(f"{result.sub_assets_copied} sub-asset(s)")
                 if result.resource_types_copied:
                     parts.append(f"{result.resource_types_copied} resource type(s)")
+                if result.attribute_types_copied:
+                    parts.append(f"{result.attribute_types_copied} attribute type(s)")
+                if result.attribute_values_copied:
+                    parts.append(f"{result.attribute_values_copied} attribute value(s)")
 
                 if parts:
                     messages.success(
@@ -333,6 +360,7 @@ def campaign_copy_to(request, id):
             target_campaign = form.cleaned_data["target_campaign"]
             asset_type_ids = form.cleaned_data.get("asset_types", [])
             resource_type_ids = form.cleaned_data.get("resource_types", [])
+            attribute_type_ids = form.cleaned_data.get("attribute_types", [])
 
             # Check for conflicts
             conflicts = check_copy_conflicts(
@@ -340,6 +368,7 @@ def campaign_copy_to(request, id):
                 target_campaign=target_campaign,
                 asset_type_ids=asset_type_ids if asset_type_ids else None,
                 resource_type_ids=resource_type_ids if resource_type_ids else None,
+                attribute_type_ids=(attribute_type_ids if attribute_type_ids else None),
             )
 
             show_confirmation = True
