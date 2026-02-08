@@ -10,8 +10,8 @@
             {% for group, options, index in widget.optgroups %}
                 {% for option in options %}
                     {% if not option.color or option.color == "#fefdfb" %}
-                        <div style="grid-column: span 3">
-                            {% include option.template_name with widget=option index=index %}
+                        <div class="d-flex" style="grid-column: span 3">
+                            {% include option.template_name with widget=option index=index wide=True %}
                         </div>
                     {% else %}
                         {% include option.template_name with widget=option index=index %}
