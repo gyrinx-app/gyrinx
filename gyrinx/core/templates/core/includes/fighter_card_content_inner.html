@@ -68,6 +68,22 @@
                 </td>
             </tr>
         {% endif %}
+        {% comment %} Counters {% endcomment %}
+        {% if fighter.applicable_counters and not print %}
+            {% for counter, value in fighter.applicable_counters %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ counter.name }}</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        <span class="badge text-bg-secondary">{{ value }}</span>
+                        {% if not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                            {% if can_edit or is_arbitrator %}
+                                <a href="{% url 'core:list-fighter-counter-edit' list.id fighter.id counter.id %}">Edit</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        {% endif %}
         {% comment %} Skills {% endcomment %}
         {% if not fighter.content_fighter.hide_skills %}
             {% if fighter.skilline_cached|length > 0 %}

@@ -1448,6 +1448,7 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .prefetch_related(
                 "injuries",
+                "counters",
                 "skills",
                 "disabled_skills",
                 "disabled_rules",
@@ -1460,6 +1461,7 @@ class ListFighterQuerySet(models.QuerySet):
                 "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
                 "listfighterequipmentassignment_set__upgrades_field__modifiers",
+                "content_fighter__counters",
                 "content_fighter__skills",
                 "content_fighter__rules",
                 "content_fighter__house",
@@ -2889,6 +2891,30 @@ class ListFighter(AppBase):
             e
             for e in self.assignments_cached
             if e.is_house_additional and e.category == category.name
+        ]
+
+    @cached_property
+    def applicable_counters(self):
+        """Return applicable ContentCounter objects for this fighter.
+
+        Uses prefetched content_fighter__counters when available.
+        Returns a list of (ContentCounter, value) tuples.
+        """
+        content_fighter = self.content_fighter_cached
+        if not content_fighter:
+            return []
+
+        # Use prefetched reverse M2M from ContentCounter.restricted_to_fighters
+        applicable = list(content_fighter.counters.all())
+        if not applicable:
+            return []
+
+        # Build a map of existing counter values from prefetched data
+        existing = {c.counter_id: c.value for c in self.counters.all()}
+
+        return [
+            (counter, existing.get(counter.id, 0))
+            for counter in sorted(applicable, key=lambda c: (c.display_order, c.name))
         ]
 
     @cached_property
@@ -5086,6 +5112,45 @@ class ListFighterInjury(AppBase):
             raise ValidationError(
                 "Injuries can only be added to fighters in campaign mode."
             )
+
+
+class ListFighterCounter(AppBase):
+    """Track counter values for fighters (e.g. Kill Count, Glitch Count).
+
+    Created on-demand when the user first edits a counter value.
+    The counter row is displayed on the fighter card by detecting that
+    the fighter's content_fighter is in a ContentCounter.restricted_to_fighters set.
+    """
+
+    help_text = "Tracks the value of a counter for a specific fighter."
+
+    fighter = models.ForeignKey(
+        ListFighter,
+        on_delete=models.CASCADE,
+        related_name="counters",
+        help_text="The fighter this counter belongs to.",
+    )
+    counter = models.ForeignKey(
+        "content.ContentCounter",
+        on_delete=models.CASCADE,
+        related_name="fighter_values",
+        help_text="The counter definition.",
+    )
+    value = models.IntegerField(
+        default=0,
+        help_text="Current counter value.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["counter__display_order", "counter__name"]
+        verbose_name = "Fighter Counter"
+        verbose_name_plural = "Fighter Counters"
+        unique_together = [("fighter", "counter")]
+
+    def __str__(self):
+        return f"{self.fighter.name} - {self.counter.name}: {self.value}"
 
 
 class AdvancementStatMod(ContentModStatApplyMixin):

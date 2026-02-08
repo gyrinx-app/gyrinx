@@ -100,7 +100,7 @@
 </div>
 {% if fighter and fighter_url_name %}
     <div class="hstack gap-2 mb-0">
-        {% include "core/includes/fighter_switcher.html" with list=list fighter=fighter url_name=fighter_url_name %}
+        {% include "core/includes/fighter_switcher.html" with list=list fighter=fighter url_name=fighter_url_name extra_url_arg=fighter_url_extra_arg %}
     </div>
 {% endif %}
 {% if gyrinx_debug %}
