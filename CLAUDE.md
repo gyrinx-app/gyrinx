@@ -63,7 +63,6 @@ in the workflow.
 - `/feature-dev [description]` — Guided 7-phase feature development workflow: discovery, codebase exploration,
   clarifying questions, architecture design, implementation, quality review, and summary. Uses `code-explorer`,
   `code-architect`, and `code-reviewer` agents.
-
 ### Skills (`.claude/skills/`)
 
 Skills are loaded automatically by agents that need them. They can also be referenced directly:
@@ -72,6 +71,9 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **code-analysis-lenses** — Four structured lenses for evaluating code quality
 - **edit-github-discussion** — Workflow for editing GitHub Discussions via GraphQL API
 - **trace-analysis** — Guide for analyzing OpenTelemetry trace files
+- **pr-comments** — Fetch all PR comments, reviews, and review threads in a single GraphQL call. Shows
+  resolved/unresolved status, groups by file, and summarises action items. Auto-detects PR from current branch.
+  Claude loads this automatically when it needs PR feedback data.
 
 ## Critical Workflow
 
