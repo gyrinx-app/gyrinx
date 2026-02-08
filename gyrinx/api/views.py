@@ -90,12 +90,23 @@ import json
 import logging
 
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 
 from gyrinx.api.models import WebhookRequest
 
 logger = logging.getLogger(__name__)
+
+
+# Discord interaction types
+DISCORD_PING = 1
+DISCORD_APPLICATION_COMMAND = 2
+
+# Discord interaction response types
+DISCORD_PONG = 1
+DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5
 
 
 @csrf_exempt
@@ -156,3 +167,156 @@ def hook_patreon(request):
         )
 
     return HttpResponse(status=400)
+
+
+def _verify_discord_signature(body: bytes, signature: str, timestamp: str) -> bool:
+    """Verify Discord interaction signature using Ed25519."""
+    try:
+        verify_key = VerifyKey(bytes.fromhex(settings.DISCORD_PUBLIC_KEY))
+        verify_key.verify(timestamp.encode() + body, bytes.fromhex(signature))
+        return True
+    except (BadSignatureError, ValueError):
+        return False
+
+
+@csrf_exempt
+def discord_interactions(request):
+    """
+    Discord Interactions Endpoint.
+
+    Receives HTTP POST from Discord when users invoke the "Create Issue"
+    message context menu command. Verifies the Ed25519 signature, handles
+    PING for endpoint verification, and enqueues a background task for
+    application commands.
+
+    See: https://discord.com/developers/docs/interactions/overview
+    """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    if not settings.DISCORD_PUBLIC_KEY:
+        logger.error("No Discord public key configured")
+        return HttpResponse(status=503)
+
+    # Verify Ed25519 signature
+    signature = request.headers.get("X-Signature-Ed25519", "")
+    timestamp = request.headers.get("X-Signature-Timestamp", "")
+
+    if not signature or not timestamp:
+        logger.error("Missing Discord signature headers")
+        return HttpResponse(status=401)
+
+    if not _verify_discord_signature(request.body, signature, timestamp):
+        logger.error("Invalid Discord signature")
+        return HttpResponse(status=401)
+
+    # Parse interaction
+    try:
+        interaction = json.loads(request.body)
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in Discord interaction")
+        return HttpResponse(status=400)
+
+    interaction_type = interaction.get("type")
+
+    # Handle PING (Discord endpoint verification)
+    if interaction_type == DISCORD_PING:
+        return JsonResponse({"type": DISCORD_PONG})
+
+    # Handle application commands (context menu)
+    if interaction_type == DISCORD_APPLICATION_COMMAND:
+        return _handle_discord_command(interaction, signature)
+
+    logger.warning(f"Unknown Discord interaction type: {interaction_type}")
+    return HttpResponse(status=400)
+
+
+def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
+    """Handle a Discord application command interaction."""
+    data = interaction.get("data", {})
+    command_name = data.get("name", "")
+
+    # Store for audit trail
+    try:
+        WebhookRequest.objects.create(
+            source="discord",
+            event=f"command:{command_name}",
+            payload=interaction,
+            signature=signature,
+        )
+    except Exception as e:
+        logger.error(f"Error saving Discord webhook request: {e}")
+
+    if command_name != "Create Issue":
+        logger.warning(f"Unknown Discord command: {command_name}")
+        return JsonResponse(
+            {
+                "type": 4,  # CHANNEL_MESSAGE_WITH_SOURCE
+                "data": {
+                    "content": "Sorry, I don't recognise that command.",
+                    "flags": 64,  # Ephemeral
+                },
+            }
+        )
+
+    # Extract required fields
+    target_id = data.get("target_id")
+    channel_id = interaction.get("channel_id")
+    guild_id = interaction.get("guild_id")
+    interaction_token = interaction.get("token")
+
+    if not all([target_id, channel_id, interaction_token]):
+        logger.error("Missing required fields in Discord interaction")
+        return JsonResponse(
+            {
+                "type": 4,  # CHANNEL_MESSAGE_WITH_SOURCE
+                "data": {
+                    "content": "Sorry, the request was missing required information.",
+                    "flags": 64,  # Ephemeral
+                },
+            }
+        )
+
+    # Extract the target message from resolved data
+    resolved = data.get("resolved", {})
+    messages = resolved.get("messages", {})
+    target_message = messages.get(target_id, {})
+
+    # Get the user who triggered the command
+    member = interaction.get("member", {})
+    user = member.get("user", {}) or interaction.get("user", {})
+    username = user.get("username", "unknown")
+
+    # Enqueue the background task to trigger GitHub Action
+    try:
+        from gyrinx.core.tasks import trigger_discord_issue_action
+
+        trigger_discord_issue_action.enqueue(
+            channel_id=channel_id,
+            message_id=target_id,
+            guild_id=guild_id or "",
+            interaction_token=interaction_token,
+            application_id=settings.DISCORD_APPLICATION_ID,
+            message_content=target_message.get("content", ""),
+            message_author=target_message.get("author", {}).get("username", "unknown"),
+            requesting_user=username,
+        )
+    except Exception as e:
+        logger.error(f"Error enqueuing Discord issue task: {e}", exc_info=True)
+        return JsonResponse(
+            {
+                "type": 4,  # CHANNEL_MESSAGE_WITH_SOURCE
+                "data": {
+                    "content": "Sorry, something went wrong. Please try again later.",
+                    "flags": 64,  # Ephemeral
+                },
+            }
+        )
+
+    # Return deferred response ("Bot is thinking...")
+    return JsonResponse(
+        {
+            "type": DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+            "data": {"flags": 64},  # Ephemeral - only visible to the user
+        }
+    )
