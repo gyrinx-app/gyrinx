@@ -23,6 +23,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Workaround for anthropics/claude-code-action#900: the action's
+      # checkHumanActor calls the GitHub API before checking allowed_bots,
+      # which 404s for bot actors like github-merge-queue[bot]. Override
+      # GITHUB_ACTOR so the action sees a real user. Run unconditionally
+      # for scheduled events because github.actor may be a bot name with
+      # or without the [bot] suffix.
+      - name: Fix actor for scheduled runs
+        if: github.event_name == 'schedule'
+        run: echo "GITHUB_ACTOR=${{ github.repository_owner }}" >> "$GITHUB_ENV"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -69,6 +79,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Belt-and-suspenders: also declare the bot as allowed in case the
+          # GITHUB_ACTOR override above is removed once the upstream bug is fixed.
+          allowed_bots: "github-merge-queue[bot]"
 
           # Claude configuration via CLI arguments
           claude_args: |

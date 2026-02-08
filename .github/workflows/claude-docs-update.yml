@@ -22,9 +22,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Workaround for anthropics/claude-code-action#900
+      # Workaround for anthropics/claude-code-action#900: the action's
+      # checkHumanActor calls the GitHub API before checking allowed_bots,
+      # which 404s for bot actors like github-merge-queue[bot]. Override
+      # GITHUB_ACTOR so the action sees a real user. Run unconditionally
+      # for scheduled events because github.actor may be a bot name with
+      # or without the [bot] suffix.
       - name: Fix actor for scheduled runs
-        if: github.event_name == 'schedule' && contains(github.actor, '[bot]')
+        if: github.event_name == 'schedule'
         run: echo "GITHUB_ACTOR=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
       - name: Get merged PRs from last 7 days
