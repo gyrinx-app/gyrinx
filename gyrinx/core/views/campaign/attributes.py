@@ -200,6 +200,13 @@ def campaign_attribute_type_edit(request, id, type_id):
         return redirect("core:campaign-attributes", campaign.id)
 
     if request.method == "POST":
+        # If changing to multi-select, unset is_group before form validation
+        # to avoid model clean() rejecting the combination
+        is_single_select = request.POST.get("is_single_select")
+        if not is_single_select and attribute_type.is_group:
+            attribute_type.is_group = False
+            attribute_type.save()
+
         form = CampaignAttributeTypeForm(request.POST, instance=attribute_type)
         if form.is_valid():
             form.save()
@@ -510,6 +517,94 @@ def campaign_attribute_value_remove(request, id, value_id):
             "assignments_count": attribute_value.list_assignments.count(),
         },
     )
+
+
+@login_required
+@transaction.atomic
+def campaign_attribute_type_set_group(request, id, type_id):
+    """
+    Toggle an attribute type as the group attribute for a campaign.
+
+    Only single-select attribute types can be set as the group.
+    Setting a new group attribute automatically unsets any previous group attribute.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the attribute type belongs to.
+    ``attribute_type``
+        The :model:`core.CampaignAttributeType` being toggled as group.
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    attribute_type = get_object_or_404(
+        CampaignAttributeType, id=type_id, campaign=campaign
+    )
+
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot modify attribute types for archived Campaigns.",
+        )
+        return redirect("core:campaign-attributes", campaign.id)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "set_group":
+            if not attribute_type.is_single_select:
+                messages.error(
+                    request,
+                    "Only single-select attributes can be used as the group attribute.",
+                )
+                return redirect("core:campaign-attributes", campaign.id)
+
+            # Unset any existing group attribute for this campaign
+            CampaignAttributeType.objects.filter(
+                campaign=campaign, is_group=True
+            ).update(is_group=False)
+
+            attribute_type.is_group = True
+            attribute_type.save()
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.UPDATE,
+                object=attribute_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="set_group_attribute",
+                attribute_type_name=attribute_type.name,
+            )
+
+            messages.success(
+                request,
+                f"'{attribute_type.name}' is now the group attribute for this campaign.",
+            )
+
+        elif action == "unset_group":
+            attribute_type.is_group = False
+            attribute_type.save()
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.UPDATE,
+                object=attribute_type,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="unset_group_attribute",
+                attribute_type_name=attribute_type.name,
+            )
+
+            messages.success(
+                request,
+                f"'{attribute_type.name}' is no longer the group attribute.",
+            )
+
+    return redirect("core:campaign-attributes", campaign.id)
 
 
 @login_required

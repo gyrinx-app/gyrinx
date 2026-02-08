@@ -174,7 +174,7 @@
                     {% endif %}
                 </div>
             </div>
-            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup %}
+            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
         </section>
         <!-- Assets & Resources -->
         <div class="row g-5">

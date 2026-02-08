@@ -628,3 +628,356 @@ def test_campaign_detail_shows_attributes(client, user, campaign, make_list):
     content = response.content.decode()
     assert "Manage Attributes" in content
     assert "Order" in content
+
+
+# --- Group Attribute Tests ---
+
+
+@pytest.mark.django_db
+def test_set_group_attribute(client, user, campaign):
+    """Test that the campaign owner can set a single-select attribute as group."""
+    client.force_login(user)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"action": "set_group"},
+    )
+    assert response.status_code == 302
+
+    attr_type.refresh_from_db()
+    assert attr_type.is_group is True
+
+
+@pytest.mark.django_db
+def test_unset_group_attribute(client, user, campaign):
+    """Test that the campaign owner can unset the group attribute."""
+    client.force_login(user)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=True,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"action": "unset_group"},
+    )
+    assert response.status_code == 302
+
+    attr_type.refresh_from_db()
+    assert attr_type.is_group is False
+
+
+@pytest.mark.django_db
+def test_set_group_replaces_existing_group(client, user, campaign):
+    """Test that setting a new group attribute unsets the previous one."""
+    client.force_login(user)
+
+    faction = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=True,
+        owner=user,
+    )
+    team = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Team",
+        is_single_select=True,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, team.id),
+        ),
+        {"action": "set_group"},
+    )
+    assert response.status_code == 302
+
+    faction.refresh_from_db()
+    team.refresh_from_db()
+    assert faction.is_group is False
+    assert team.is_group is True
+
+
+@pytest.mark.django_db
+def test_cannot_set_multi_select_as_group(client, user, campaign):
+    """Test that multi-select attributes cannot be set as group."""
+    client.force_login(user)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Tags",
+        is_single_select=False,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"action": "set_group"},
+    )
+    assert response.status_code == 302
+
+    attr_type.refresh_from_db()
+    assert attr_type.is_group is False
+
+
+@pytest.mark.django_db
+def test_set_group_unauthorized(client, make_user, campaign):
+    """Test that non-owners cannot set group attribute."""
+    other_user = make_user("other", "password")
+    client.force_login(other_user)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        owner=campaign.owner,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"action": "set_group"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_set_group_archived_campaign(client, user, campaign):
+    """Test that group cannot be set on archived campaigns."""
+    client.force_login(user)
+    campaign.archived = True
+    campaign.save()
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-set-group",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"action": "set_group"},
+    )
+    assert response.status_code == 302
+
+    attr_type.refresh_from_db()
+    assert attr_type.is_group is False
+
+
+@pytest.mark.django_db
+def test_edit_to_multi_select_unsets_group(client, user, campaign):
+    """Test that changing a group attribute to multi-select unsets is_group."""
+    client.force_login(user)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=True,
+        owner=user,
+    )
+
+    response = client.post(
+        reverse(
+            "core:campaign-attribute-type-edit",
+            args=(campaign.id, attr_type.id),
+        ),
+        {"name": "Faction", "description": ""},
+        # is_single_select not checked means False
+    )
+    assert response.status_code == 302
+
+    attr_type.refresh_from_db()
+    assert attr_type.is_single_select is False
+    assert attr_type.is_group is False
+
+
+@pytest.mark.django_db
+def test_group_attribute_model_validation(campaign):
+    """Test model-level validation for group attribute."""
+    attr_type = CampaignAttributeType(
+        campaign=campaign,
+        name="Tags",
+        is_single_select=False,
+        is_group=True,
+        owner=campaign.owner,
+    )
+
+    from django.core.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        attr_type.clean()
+
+
+@pytest.mark.django_db
+def test_attributes_page_shows_group_badge(client, user, campaign):
+    """Test that the attributes page shows a 'Group' badge on the group attribute."""
+    client.force_login(user)
+
+    CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=True,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign-attributes", args=(campaign.id,)))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Group" in content
+    assert "Set as Group" not in content  # Should show "Remove as Group" instead
+    assert "Remove as Group" in content
+
+
+@pytest.mark.django_db
+def test_attributes_page_shows_set_group_for_single_select(client, user, campaign):
+    """Test that single-select attributes show 'Set as Group' option."""
+    client.force_login(user)
+
+    CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=False,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign-attributes", args=(campaign.id,)))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Set as Group" in content
+
+
+@pytest.mark.django_db
+def test_attributes_page_no_group_for_multi_select(client, user, campaign):
+    """Test that multi-select attributes don't show group options."""
+    client.force_login(user)
+
+    CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Tags",
+        is_single_select=False,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign-attributes", args=(campaign.id,)))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Set as Group" not in content
+    assert "Remove as Group" not in content
+
+
+@pytest.mark.django_db
+def test_campaign_detail_grouped_lists(client, user, campaign, make_list):
+    """Test that the campaign detail view groups lists when group attribute is set."""
+    client.force_login(user)
+
+    lst1 = make_list("Gang Alpha")
+    lst2 = make_list("Gang Beta", owner=user)
+    lst3 = make_list("Gang Gamma", owner=user)
+    campaign.lists.add(lst1, lst2, lst3)
+
+    attr_type = CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=True,
+        owner=user,
+    )
+    order = CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        name="Order",
+        colour="#3366FF",
+        owner=user,
+    )
+    chaos = CampaignAttributeValue.objects.create(
+        attribute_type=attr_type,
+        name="Chaos",
+        colour="#FF3333",
+        owner=user,
+    )
+    CampaignListAttributeAssignment.objects.create(
+        campaign=campaign,
+        attribute_value=order,
+        list=lst1,
+        owner=user,
+    )
+    CampaignListAttributeAssignment.objects.create(
+        campaign=campaign,
+        attribute_value=chaos,
+        list=lst2,
+        owner=user,
+    )
+    # lst3 intentionally unassigned
+
+    response = client.get(reverse("core:campaign", args=(campaign.id,)))
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # Check group headers appear
+    assert "CHAOS" in content or "Chaos" in content
+    assert "ORDER" in content or "Order" in content
+    assert "UNASSIGNED" in content or "Unassigned" in content
+
+    # Check the grouped_lists context
+    assert "grouped_lists" in response.context
+    grouped = response.context["grouped_lists"]
+    assert len(grouped) == 3  # Chaos, Order, Unassigned
+
+    # Verify group names (sorted alphabetically, Unassigned last)
+    group_names = [g["name"] for g in grouped]
+    assert group_names == ["Chaos", "Order", "Unassigned"]
+
+
+@pytest.mark.django_db
+def test_campaign_detail_no_grouping_without_group_attribute(
+    client, user, campaign, make_list
+):
+    """Test that without a group attribute, lists are shown normally."""
+    client.force_login(user)
+
+    lst = make_list("Test Gang")
+    campaign.lists.add(lst)
+
+    # Create attribute but don't set as group
+    CampaignAttributeType.objects.create(
+        campaign=campaign,
+        name="Faction",
+        is_single_select=True,
+        is_group=False,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign", args=(campaign.id,)))
+    assert response.status_code == 200
+    assert not response.context.get("grouped_lists")

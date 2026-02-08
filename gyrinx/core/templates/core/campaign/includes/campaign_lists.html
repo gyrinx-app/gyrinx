@@ -5,64 +5,142 @@
             <thead>
                 <tr>
                     <th class="caps-label ps-0">Gang</th>
-                    {% for attribute_type in attribute_types %}<th class="caps-label">{{ attribute_type.name }}</th>{% endfor %}
+                    {% for attribute_type in attribute_types %}
+                        {% if not attribute_type.is_group %}<th class="caps-label">{{ attribute_type.name }}</th>{% endif %}
+                    {% endfor %}
                     <th class="ps-0"></th>
                 </tr>
             </thead>
             <tbody>
-                {% for list in campaign.lists.all %}
-                    <tr>
-                        <td class="ps-0">
-                            <a href="{% url 'core:list' list.id %}"
-                               class="text-decoration-none text-body">
-                                {% include "core/campaign/includes/list_row.html" with list=list %}
-                            </a>
-                        </td>
-                        {% for attribute_type in attribute_types %}
-                            <td>
-                                {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
-                                    {% if list_assignments %}
-                                        <div class="hstack gap-1 flex-wrap">
-                                            {% for assignment in list_assignments %}
-                                                <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
-                                                    {% if assignment.attribute_value.colour %}
-                                                        <span class="d-inline-block rounded-circle"
-                                                              style="width: 8px;
-                                                                     height: 8px;
-                                                                     background-color: {{ assignment.attribute_value.colour }}"></span>
-                                                    {% endif %}
-                                                    {{ assignment.attribute_value.name }}
-                                                </span>
-                                            {% endfor %}
+                {% if grouped_lists %}
+                    {% for group in grouped_lists %}
+                        <tr>
+                            <td colspan="100"
+                                class="ps-0 {% if not forloop.first %}pt-3{% endif %} pb-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if group.colour %}
+                                        <span class="d-inline-block rounded-circle"
+                                              style="width: 10px;
+                                                     height: 10px;
+                                                     background-color: {{ group.colour }}"></span>
+                                    {% endif %}
+                                    <strong class="small text-uppercase text-secondary">{{ group.name }}</strong>
+                                </div>
+                                <hr class="mt-1 mb-0"
+                                    {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
+                            </td>
+                        </tr>
+                        {% for list in group.lists %}
+                            <tr>
+                                <td class="ps-0">
+                                    <a href="{% url 'core:list' list.id %}"
+                                       class="text-decoration-none text-body">
+                                        {% include "core/campaign/includes/list_row.html" with list=list %}
+                                    </a>
+                                </td>
+                                {% for attribute_type in attribute_types %}
+                                    {% if not attribute_type.is_group %}
+                                        <td>
+                                            {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
+                                                {% if list_assignments %}
+                                                    <div class="hstack gap-1 flex-wrap">
+                                                        {% for assignment in list_assignments %}
+                                                            <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
+                                                                {% if assignment.attribute_value.colour %}
+                                                                    <span class="d-inline-block rounded-circle"
+                                                                          style="width: 8px;
+                                                                                 height: 8px;
+                                                                                 background-color: {{ assignment.attribute_value.colour }}"></span>
+                                                                {% endif %}
+                                                                {{ assignment.attribute_value.name }}
+                                                            </span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </td>
+                                    {% endif %}
+                                {% endfor %}
+                                <td class="text-end pe-0">
+                                    {% if campaign.owner == user or list.owner == user %}
+                                        {% if not campaign.is_post_campaign %}
+                                            <div class="dropdown">
+                                                <button class="btn btn-link btn-sm p-0 text-secondary"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                    <i class="bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li>
+                                                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                                                           class="dropdown-item text-danger">
+                                                            <i class="bi-trash"></i> Remove from Campaign
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endfor %}
+                {% else %}
+                    {% for list in campaign.lists.all %}
+                        <tr>
+                            <td class="ps-0">
+                                <a href="{% url 'core:list' list.id %}"
+                                   class="text-decoration-none text-body">
+                                    {% include "core/campaign/includes/list_row.html" with list=list %}
+                                </a>
+                            </td>
+                            {% for attribute_type in attribute_types %}
+                                <td>
+                                    {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
+                                        {% if list_assignments %}
+                                            <div class="hstack gap-1 flex-wrap">
+                                                {% for assignment in list_assignments %}
+                                                    <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
+                                                        {% if assignment.attribute_value.colour %}
+                                                            <span class="d-inline-block rounded-circle"
+                                                                  style="width: 8px;
+                                                                         height: 8px;
+                                                                         background-color: {{ assignment.attribute_value.colour }}"></span>
+                                                        {% endif %}
+                                                        {{ assignment.attribute_value.name }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            {% endfor %}
+                            <td class="text-end pe-0">
+                                {% if campaign.owner == user or list.owner == user %}
+                                    {% if not campaign.is_post_campaign %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-link btn-sm p-0 text-secondary"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown"
+                                                    aria-expanded="false">
+                                                <i class="bi-three-dots"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                                                       class="dropdown-item text-danger">
+                                                        <i class="bi-trash"></i> Remove from Campaign
+                                                    </a>
+                                                </li>
+                                            </ul>
                                         </div>
                                     {% endif %}
-                                {% endwith %}
-                            </td>
-                        {% endfor %}
-                        <td class="text-end pe-0">
-                            {% if campaign.owner == user or list.owner == user %}
-                                {% if not campaign.is_post_campaign %}
-                                    <div class="dropdown">
-                                        <button class="btn btn-link btn-sm p-0 text-secondary"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                aria-expanded="false">
-                                            <i class="bi-three-dots"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                   class="dropdown-item text-danger">
-                                                    <i class="bi-trash"></i> Remove from Campaign
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
                                 {% endif %}
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endif %}
             </tbody>
         </table>
     </div>

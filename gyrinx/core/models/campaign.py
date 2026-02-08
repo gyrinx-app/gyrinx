@@ -3,6 +3,7 @@ import random
 
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
@@ -724,6 +725,10 @@ class CampaignAttributeType(AppBase):
         default=True,
         help_text="If True, gangs can select only one value. If False, multiple values allowed.",
     )
+    is_group = models.BooleanField(
+        default=False,
+        help_text="If True, this attribute is used to group and visually divide lists in the campaign view. Only one attribute per campaign can be the group attribute, and it must be single-select.",
+    )
 
     history = HistoricalRecords()
 
@@ -736,6 +741,24 @@ class CampaignAttributeType(AppBase):
     def __str__(self):
         select_type = "single-select" if self.is_single_select else "multi-select"
         return f"{self.campaign.name} - {self.name} ({select_type})"
+
+    def clean(self):
+        super().clean()
+        if self.is_group:
+            if not self.is_single_select:
+                raise ValidationError(
+                    "Only single-select attributes can be used as the group attribute."
+                )
+            # Ensure no other attribute type in this campaign is already the group
+            qs = CampaignAttributeType.objects.filter(
+                campaign=self.campaign, is_group=True
+            )
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "Another attribute is already set as the group for this campaign."
+                )
 
 
 class CampaignAttributeValue(AppBase):

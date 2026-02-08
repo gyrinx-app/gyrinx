@@ -23,9 +23,32 @@
         {% for attribute_type in attribute_types %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h2 class="h5 mb-0">{{ attribute_type.name }}</h2>
+                    <div class="d-flex align-items-center gap-2">
+                        <h2 class="h5 mb-0">{{ attribute_type.name }}</h2>
+                        {% if attribute_type.is_group %}<span class="badge text-bg-primary">Group</span>{% endif %}
+                    </div>
                     {% if is_owner and not campaign.archived %}
                         <div class="hstack gap-3">
+                            {% if attribute_type.is_single_select %}
+                                <form method="post"
+                                      action="{% url 'core:campaign-attribute-type-set-group' campaign.id attribute_type.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    {% if attribute_type.is_group %}
+                                        <input type="hidden" name="action" value="unset_group">
+                                        <button type="submit"
+                                                class="btn btn-link p-0 icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                            <i class="bi-dash-circle"></i> Remove as Group
+                                        </button>
+                                    {% else %}
+                                        <input type="hidden" name="action" value="set_group">
+                                        <button type="submit"
+                                                class="btn btn-link p-0 icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                            <i class="bi-collection"></i> Set as Group
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            {% endif %}
                             <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}"
                                class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
                                 <i class="bi-plus-circle"></i> Add value
