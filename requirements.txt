@@ -54,7 +54,7 @@ referencing==0.37.0
 requests>=2.32.4
 rich==14.3.2
 ruff==0.14.14
-setuptools==80.10.2
+setuptools==82.0.0
 simpleeval==1.0.3
 sqlparse==0.5.5
 
