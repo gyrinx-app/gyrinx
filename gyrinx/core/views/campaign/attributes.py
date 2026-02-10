@@ -79,12 +79,18 @@ def campaign_attributes(request, id):
 
     campaign_lists = campaign.lists.order_by("name")
 
+    # Single-select types available for the "Group gangs by" dropdown
+    single_select_attribute_types = [
+        at for at in attribute_types if at.is_single_select
+    ]
+
     return render(
         request,
         "core/campaign/campaign_attributes.html",
         {
             "campaign": campaign,
             "attribute_types": attribute_types,
+            "single_select_attribute_types": single_select_attribute_types,
             "campaign_lists": campaign_lists,
             "is_owner": is_owner,
             "user_lists": user_lists,
@@ -200,16 +206,17 @@ def campaign_attribute_type_edit(request, id, type_id):
         return redirect("core:campaign-attributes", campaign.id)
 
     if request.method == "POST":
-        # If changing to multi-select, unset is_group before form validation
-        # to avoid model clean() rejecting the combination
-        is_single_select = request.POST.get("is_single_select")
-        if not is_single_select and attribute_type.is_group:
-            attribute_type.is_group = False
-            attribute_type.save()
-
         form = CampaignAttributeTypeForm(request.POST, instance=attribute_type)
         if form.is_valid():
-            form.save()
+            saved = form.save()
+
+            # If changed to multi-select, clear group_attribute_type if it pointed here
+            if (
+                not saved.is_single_select
+                and campaign.group_attribute_type_id == saved.pk
+            ):
+                campaign.group_attribute_type = None
+                campaign.save_with_user(user=request.user)
 
             log_event(
                 user=request.user,
@@ -520,37 +527,35 @@ def campaign_attribute_value_remove(request, id, value_id):
 
 
 @login_required
-@transaction.atomic
-def campaign_attribute_type_set_group(request, id, type_id):
+def campaign_set_group_attribute(request, id):
     """
-    Toggle an attribute type as the group attribute for a campaign.
+    Set or clear the group attribute for a campaign via a dropdown selection.
 
-    Only single-select attribute types can be set as the group.
-    Setting a new group attribute automatically unsets any previous group attribute.
+    Accepts a POST with ``group_attribute_type`` — either a UUID of a
+    single-select attribute type or empty string to clear the group.
 
     **Context**
 
     ``campaign``
-        The :model:`core.Campaign` the attribute type belongs to.
-    ``attribute_type``
-        The :model:`core.CampaignAttributeType` being toggled as group.
+        The :model:`core.Campaign` being updated.
     """
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)
-    attribute_type = get_object_or_404(
-        CampaignAttributeType, id=type_id, campaign=campaign
-    )
 
     if campaign.archived:
         messages.error(
             request,
-            "Cannot modify attribute types for archived Campaigns.",
+            "Cannot modify attributes for archived Campaigns.",
         )
         return redirect("core:campaign-attributes", campaign.id)
 
     if request.method == "POST":
-        action = request.POST.get("action")
+        selected_id = request.POST.get("group_attribute_type", "").strip()
 
-        if action == "set_group":
+        if selected_id:
+            attribute_type = get_object_or_404(
+                CampaignAttributeType, id=selected_id, campaign=campaign
+            )
+
             if not attribute_type.is_single_select:
                 messages.error(
                     request,
@@ -558,51 +563,41 @@ def campaign_attribute_type_set_group(request, id, type_id):
                 )
                 return redirect("core:campaign-attributes", campaign.id)
 
-            # Unset any existing group attribute for this campaign
-            CampaignAttributeType.objects.filter(
-                campaign=campaign, is_group=True
-            ).update(is_group=False)
-
-            attribute_type.is_group = True
-            attribute_type.save()
+            campaign.group_attribute_type = attribute_type
+            campaign.save_with_user(user=request.user)
 
             log_event(
                 user=request.user,
                 noun=EventNoun.CAMPAIGN,
                 verb=EventVerb.UPDATE,
-                object=attribute_type,
+                object=campaign,
                 request=request,
                 campaign_id=str(campaign.id),
                 campaign_name=campaign.name,
                 action="set_group_attribute",
                 attribute_type_name=attribute_type.name,
             )
-
-            messages.success(
-                request,
-                f"'{attribute_type.name}' is now the group attribute for this campaign.",
+        else:
+            old_name = (
+                campaign.group_attribute_type.name
+                if campaign.group_attribute_type
+                else None
             )
+            campaign.group_attribute_type = None
+            campaign.save_with_user(user=request.user)
 
-        elif action == "unset_group":
-            attribute_type.is_group = False
-            attribute_type.save()
-
-            log_event(
-                user=request.user,
-                noun=EventNoun.CAMPAIGN,
-                verb=EventVerb.UPDATE,
-                object=attribute_type,
-                request=request,
-                campaign_id=str(campaign.id),
-                campaign_name=campaign.name,
-                action="unset_group_attribute",
-                attribute_type_name=attribute_type.name,
-            )
-
-            messages.success(
-                request,
-                f"'{attribute_type.name}' is no longer the group attribute.",
-            )
+            if old_name:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.UPDATE,
+                    object=campaign,
+                    request=request,
+                    campaign_id=str(campaign.id),
+                    campaign_name=campaign.name,
+                    action="unset_group_attribute",
+                    attribute_type_name=old_name,
+                )
 
     return redirect("core:campaign-attributes", campaign.id)
 

@@ -6,7 +6,9 @@
                 <tr>
                     <th class="caps-label ps-0">Gang</th>
                     {% for attribute_type in attribute_types %}
-                        {% if not attribute_type.is_group %}<th class="caps-label">{{ attribute_type.name }}</th>{% endif %}
+                        {% if not campaign.group_attribute_type_id == attribute_type.id %}
+                            <th class="caps-label">{{ attribute_type.name }}</th>
+                        {% endif %}
                     {% endfor %}
                     <th class="ps-0"></th>
                 </tr>
@@ -39,7 +41,7 @@
                                     </a>
                                 </td>
                                 {% for attribute_type in attribute_types %}
-                                    {% if not attribute_type.is_group %}
+                                    {% if not campaign.group_attribute_type_id == attribute_type.id %}
                                         <td>
                                             {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
                                                 {% if list_assignments %}

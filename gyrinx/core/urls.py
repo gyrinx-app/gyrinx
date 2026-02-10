@@ -640,9 +640,9 @@ urlpatterns = [
         name="campaign-attribute-type-remove",
     ),
     path(
-        "campaign/<id>/attributes/type/<type_id>/set-group",
-        campaign_attributes.campaign_attribute_type_set_group,
-        name="campaign-attribute-type-set-group",
+        "campaign/<id>/attributes/set-group",
+        campaign_attributes.campaign_set_group_attribute,
+        name="campaign-set-group-attribute",
     ),
     path(
         "campaign/<id>/attributes/type/<type_id>/value/new",

@@ -218,15 +218,8 @@ class CampaignDetailView(generic.DetailView):
             attribute_assignment_lookup[attr_type.id] = type_assignments
         context["attribute_assignment_lookup"] = attribute_assignment_lookup
 
-        # Find the group attribute type (if any)
-        group_attribute_type = None
-        for attr_type in attribute_types:
-            if attr_type.is_group:
-                group_attribute_type = attr_type
-                break
-        context["group_attribute_type"] = group_attribute_type
-
         # Build grouped lists data for the template
+        group_attribute_type = campaign.group_attribute_type
         if group_attribute_type:
             group_assignments = attribute_assignment_lookup.get(
                 group_attribute_type.id, {}

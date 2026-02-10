@@ -1,0 +1,25 @@
+{% load custom_tags %}
+<tr>
+    <td>
+        <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list %}</a>
+    </td>
+    {% for resource_type in resource_types %}
+        <td class="text-end">
+            {% with list_resources=resource_lookup|lookup:list.id %}
+                {% with res=list_resources|lookup:resource_type.id %}
+                    {% if res %}
+                        {{ res.amount }}
+                        {% if is_owner or res.list.owner == user %}
+                            {% if not campaign.archived %}
+                                <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="link-secondary small ms-1"><i class="bi-pencil"></i></a>
+                            {% endif %}
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                {% endwith %}
+            {% endwith %}
+        </td>
+    {% endfor %}
+</tr>
