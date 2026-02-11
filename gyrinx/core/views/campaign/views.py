@@ -104,7 +104,9 @@ class CampaignDetailView(generic.DetailView):
         Retrieve the :model:`core.Campaign` by its `id` with prefetched actions and lists.
         """
         return get_object_or_404(
-            Campaign.objects.prefetch_related(
+            Campaign.objects.select_related(
+                "group_attribute_type",
+            ).prefetch_related(
                 "lists",
                 models.Prefetch(
                     "actions",

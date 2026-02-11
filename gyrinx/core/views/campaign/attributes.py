@@ -1,6 +1,7 @@
 """Campaign attribute management views."""
 
 import logging
+import uuid
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -552,6 +553,11 @@ def campaign_set_group_attribute(request, id):
         selected_id = request.POST.get("group_attribute_type", "").strip()
 
         if selected_id:
+            try:
+                uuid.UUID(selected_id)
+            except ValueError:
+                return redirect("core:campaign-attributes", campaign.id)
+
             attribute_type = get_object_or_404(
                 CampaignAttributeType, id=selected_id, campaign=campaign
             )

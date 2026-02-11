@@ -823,7 +823,13 @@ def test_attributes_page_shows_group_dropdown_with_selected(client, user, campai
     assert response.status_code == 200
     content = response.content.decode()
     assert "Group gangs by" in content
-    assert "selected" in content  # The current group should be selected
+    # Verify the option for this attribute type is marked as selected
+    assert f'value="{attr_type.id}"' in content
+    # The selected attribute should appear between its value and closing >
+    option_idx = content.index(f'value="{attr_type.id}"')
+    closing_idx = content.index(">", option_idx)
+    option_tag = content[option_idx:closing_idx]
+    assert "selected" in option_tag
 
 
 @pytest.mark.django_db
