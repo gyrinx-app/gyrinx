@@ -1,6 +1,7 @@
 """Campaign attribute management views."""
 
 import logging
+import uuid
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -79,12 +80,18 @@ def campaign_attributes(request, id):
 
     campaign_lists = campaign.lists.order_by("name")
 
+    # Single-select types available for the "Group gangs by" dropdown
+    single_select_attribute_types = [
+        at for at in attribute_types if at.is_single_select
+    ]
+
     return render(
         request,
         "core/campaign/campaign_attributes.html",
         {
             "campaign": campaign,
             "attribute_types": attribute_types,
+            "single_select_attribute_types": single_select_attribute_types,
             "campaign_lists": campaign_lists,
             "is_owner": is_owner,
             "user_lists": user_lists,
@@ -202,7 +209,15 @@ def campaign_attribute_type_edit(request, id, type_id):
     if request.method == "POST":
         form = CampaignAttributeTypeForm(request.POST, instance=attribute_type)
         if form.is_valid():
-            form.save()
+            saved = form.save()
+
+            # If changed to multi-select, clear group_attribute_type if it pointed here
+            if (
+                not saved.is_single_select
+                and campaign.group_attribute_type_id == saved.pk
+            ):
+                campaign.group_attribute_type = None
+                campaign.save_with_user(user=request.user)
 
             log_event(
                 user=request.user,
@@ -510,6 +525,87 @@ def campaign_attribute_value_remove(request, id, value_id):
             "assignments_count": attribute_value.list_assignments.count(),
         },
     )
+
+
+@login_required
+def campaign_set_group_attribute(request, id):
+    """
+    Set or clear the group attribute for a campaign via a dropdown selection.
+
+    Accepts a POST with ``group_attribute_type`` — either a UUID of a
+    single-select attribute type or empty string to clear the group.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being updated.
+    """
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+
+    if campaign.archived:
+        messages.error(
+            request,
+            "Cannot modify attributes for archived Campaigns.",
+        )
+        return redirect("core:campaign-attributes", campaign.id)
+
+    if request.method == "POST":
+        selected_id = request.POST.get("group_attribute_type", "").strip()
+
+        if selected_id:
+            try:
+                uuid.UUID(selected_id)
+            except ValueError:
+                return redirect("core:campaign-attributes", campaign.id)
+
+            attribute_type = get_object_or_404(
+                CampaignAttributeType, id=selected_id, campaign=campaign
+            )
+
+            if not attribute_type.is_single_select:
+                messages.error(
+                    request,
+                    "Only single-select attributes can be used as the group attribute.",
+                )
+                return redirect("core:campaign-attributes", campaign.id)
+
+            campaign.group_attribute_type = attribute_type
+            campaign.save_with_user(user=request.user)
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN,
+                verb=EventVerb.UPDATE,
+                object=campaign,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                action="set_group_attribute",
+                attribute_type_name=attribute_type.name,
+            )
+        else:
+            old_name = (
+                campaign.group_attribute_type.name
+                if campaign.group_attribute_type
+                else None
+            )
+            campaign.group_attribute_type = None
+            campaign.save_with_user(user=request.user)
+
+            if old_name:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CAMPAIGN,
+                    verb=EventVerb.UPDATE,
+                    object=campaign,
+                    request=request,
+                    campaign_id=str(campaign.id),
+                    campaign_name=campaign.name,
+                    action="unset_group_attribute",
+                    attribute_type_name=old_name,
+                )
+
+    return redirect("core:campaign-attributes", campaign.id)
 
 
 @login_required

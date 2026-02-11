@@ -75,6 +75,14 @@ class Campaign(AppBase):
         help_text="Template campaigns appear as pre-configured options when copying assets.",
         db_index=True,
     )
+    group_attribute_type = models.ForeignKey(
+        "CampaignAttributeType",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="The attribute type used to group and visually divide lists in the campaign view. Must be single-select.",
+    )
 
     history = HistoricalRecords()
 

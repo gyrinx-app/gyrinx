@@ -174,7 +174,7 @@
                     {% endif %}
                 </div>
             </div>
-            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup %}
+            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
         </section>
         <!-- Assets & Resources -->
         <div class="row g-5">
@@ -281,32 +281,32 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for list in campaign.lists.all %}
-                                    <tr>
-                                        <td>
-                                            <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list %}</a>
-                                        </td>
-                                        {% for resource_type in resource_types %}
-                                            <td class="text-end">
-                                                {% with list_resources=resource_lookup|lookup:list.id %}
-                                                    {% with res=list_resources|lookup:resource_type.id %}
-                                                        {% if res %}
-                                                            {{ res.amount }}
-                                                            {% if is_owner or res.list.owner == user %}
-                                                                {% if not campaign.archived %}
-                                                                    <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                                       class="link-secondary small ms-1"><i class="bi-pencil"></i></a>
-                                                                {% endif %}
-                                                            {% endif %}
-                                                        {% else %}
-                                                            -
-                                                        {% endif %}
-                                                    {% endwith %}
-                                                {% endwith %}
+                                {% if grouped_lists %}
+                                    {% for group in grouped_lists %}
+                                        <tr>
+                                            <td colspan="100" class="{% if not forloop.first %}pt-3{% endif %} pb-1">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    {% if group.colour %}
+                                                        <span class="d-inline-block rounded-circle"
+                                                              style="width: 10px;
+                                                                     height: 10px;
+                                                                     background-color: {{ group.colour }}"></span>
+                                                    {% endif %}
+                                                    <strong class="small text-uppercase text-secondary">{{ group.name }}</strong>
+                                                </div>
+                                                <hr class="mt-1 mb-0"
+                                                    {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
                                             </td>
+                                        </tr>
+                                        {% for list in group.lists %}
+                                            {% include "core/campaign/includes/resource_row.html" %}
                                         {% endfor %}
-                                    </tr>
-                                {% endfor %}
+                                    {% endfor %}
+                                {% else %}
+                                    {% for list in campaign.lists.all %}
+                                        {% include "core/campaign/includes/resource_row.html" %}
+                                    {% endfor %}
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>

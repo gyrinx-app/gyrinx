@@ -104,7 +104,9 @@ class CampaignDetailView(generic.DetailView):
         Retrieve the :model:`core.Campaign` by its `id` with prefetched actions and lists.
         """
         return get_object_or_404(
-            Campaign.objects.prefetch_related(
+            Campaign.objects.select_related(
+                "group_attribute_type",
+            ).prefetch_related(
                 "lists",
                 models.Prefetch(
                     "actions",
@@ -217,6 +219,41 @@ class CampaignDetailView(generic.DetailView):
                     )
             attribute_assignment_lookup[attr_type.id] = type_assignments
         context["attribute_assignment_lookup"] = attribute_assignment_lookup
+
+        # Build grouped lists data for the template
+        group_attribute_type = campaign.group_attribute_type
+        if group_attribute_type:
+            group_assignments = attribute_assignment_lookup.get(
+                group_attribute_type.id, {}
+            )
+            # Build: list of (group_value_name, group_colour, [lists])
+            # Lists without a group assignment go into an "Unassigned" group
+            group_value_lists = {}
+            all_lists = list(campaign.lists.all())
+            for lst in all_lists:
+                assignments = group_assignments.get(lst.id, [])
+                if assignments:
+                    # Single-select, so take the first assignment
+                    val = assignments[0].attribute_value
+                    key = (val.name, val.colour, val.pk)
+                else:
+                    key = ("Unassigned", "", None)
+                group_value_lists.setdefault(key, []).append(lst)
+
+            # Sort groups: named groups by value name, "Unassigned" at the end
+            grouped_lists = []
+            for (name, colour, pk), lists in sorted(
+                group_value_lists.items(),
+                key=lambda x: (x[0][2] is None, x[0][0]),
+            ):
+                grouped_lists.append(
+                    {
+                        "name": name,
+                        "colour": colour,
+                        "lists": sorted(lists, key=lambda lst: lst.name),
+                    }
+                )
+            context["grouped_lists"] = grouped_lists
 
         context["is_owner"] = user == campaign.owner
         return context

@@ -20,6 +20,33 @@
                 {% endif %}
             </div>
         </div>
+        {% if is_owner and not campaign.archived and single_select_attribute_types %}
+            <section>
+                <form method="post"
+                      action="{% url 'core:campaign-set-group-attribute' campaign.id %}"
+                      class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                    {% csrf_token %}
+                    <label for="group_attribute_type"
+                           class="form-label mb-0 text-nowrap fw-semibold">Group gangs by</label>
+                    <select name="group_attribute_type"
+                            id="group_attribute_type"
+                            class="form-select form-select-sm w-auto"
+                            onchange="this.form.submit()">
+                        <option value="">None</option>
+                        {% for attr_type in single_select_attribute_types %}
+                            <option value="{{ attr_type.id }}"
+                                    {% if campaign.group_attribute_type_id == attr_type.id %}selected{% endif %}>
+                                {{ attr_type.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <noscript>
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                    </noscript>
+                    <span class="text-muted small">Gangs will be visually grouped using this attribute on the Campaign page.</span>
+                </form>
+            </section>
+        {% endif %}
         {% for attribute_type in attribute_types %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
