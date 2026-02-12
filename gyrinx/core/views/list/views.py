@@ -130,20 +130,20 @@ class ListsListView(generic.ListView):
         context = super().get_context_data(**kwargs)
 
         # Base houses (excludes pack content by default)
-        base_houses = ContentHouse.objects.all()
+        houses = ContentHouse.objects.all()
 
-        # Also include pack houses used by lists in the current result set,
-        # so the filter dropdown matches what the user can actually see.
-        used_house_ids = self.object_list.values_list(
-            "content_house_id", flat=True
-        ).distinct()
-        pack_houses_in_use = ContentHouse.objects.all_content().filter(
-            id__in=used_house_ids
-        )
+        # For authenticated users, also include pack houses used by lists
+        # in the current result set so the filter dropdown is complete.
+        if self.request.user.is_authenticated:
+            used_house_ids = self.object_list.values_list(
+                "content_house_id", flat=True
+            ).distinct()
+            pack_houses_in_use = ContentHouse.objects.all_content().filter(
+                id__in=used_house_ids
+            )
+            houses = (houses | pack_houses_in_use).distinct()
 
-        context["houses"] = (
-            (base_houses | pack_houses_in_use).distinct().order_by("name")
-        )
+        context["houses"] = houses.order_by("name")
         return context
 
     @traced("ListsListView_get")

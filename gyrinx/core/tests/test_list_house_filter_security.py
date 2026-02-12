@@ -250,3 +250,36 @@ def test_pack_house_dropdown_scoped_to_my_lists_toggle():
     assert response.status_code == 200
     house_ids = [h.id for h in response.context["houses"]]
     assert pack_house.id in house_ids
+
+
+@pytest.mark.django_db
+def test_logged_out_user_does_not_see_pack_houses():
+    """Unauthenticated users should not see pack houses in the dropdown."""
+    client = Client()
+    User = get_user_model()
+    owner = User.objects.create_user(username="packowner", password="testpass")
+
+    # Create a pack house and a public list using it
+    pack_house = ContentHouse.objects.all_content().create(name="Pack House")
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=owner, listed=True)
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=house_ct,
+        object_id=pack_house.pk,
+        owner=owner,
+    )
+    public_list = List.objects.create(
+        name="Public Pack List",
+        owner=owner,
+        content_house=pack_house,
+        status=List.LIST_BUILDING,
+        public=True,
+    )
+    public_list.packs.add(pack)
+
+    # Logged-out user should not see pack houses
+    response = client.get("/lists/")
+    assert response.status_code == 200
+    house_ids = [h.id for h in response.context["houses"]]
+    assert pack_house.id not in house_ids
