@@ -40,8 +40,13 @@ jobs:
               f.write(f"week_of={week_of}\n")
           PY
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.39
 
       - name: Write prompt
         env:
@@ -111,7 +116,7 @@ jobs:
         run: |
           claude -p \
             --model claude-sonnet-4-20250514 \
-            --allowedTools "Bash(git:*),Bash(gh:*)" \
+            --allowedTools "Bash(gh:*)" \
             < /tmp/claude-prompt.txt \
             > /tmp/weekly-summary.txt
 
