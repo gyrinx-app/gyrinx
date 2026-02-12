@@ -132,18 +132,9 @@ class ListsListView(generic.ListView):
         # Base houses (excludes pack content by default)
         base_houses = ContentHouse.objects.all()
 
-        # Also include pack houses that are actually used by visible lists,
-        # so the filter dropdown is complete for all displayed results.
-        # Without this, lists using pack houses can't be filtered by house.
-        if self.request.user.is_authenticated:
-            visible_lists = List.objects.filter(
-                Q(public=True) | Q(owner=self.request.user),
-                archived=False,
-            )
-        else:
-            visible_lists = List.objects.filter(public=True, archived=False)
-
-        used_house_ids = visible_lists.values_list(
+        # Also include pack houses used by lists in the current result set,
+        # so the filter dropdown matches what the user can actually see.
+        used_house_ids = self.object_list.values_list(
             "content_house_id", flat=True
         ).distinct()
         pack_houses_in_use = ContentHouse.objects.all_content().filter(

@@ -208,3 +208,45 @@ def test_unused_pack_house_not_in_dropdown():
     assert response.status_code == 200
     house_ids = [h.id for h in response.context["houses"]]
     assert pack_house.id not in house_ids
+
+
+@pytest.mark.django_db
+def test_pack_house_dropdown_scoped_to_my_lists_toggle():
+    """Pack houses from other users' lists should not appear when viewing 'Your Lists'."""
+    client = Client()
+    User = get_user_model()
+    owner = User.objects.create_user(username="packowner", password="testpass")
+    viewer = User.objects.create_user(username="viewer", password="testpass")
+
+    # Owner creates a pack house and public list
+    pack_house = ContentHouse.objects.all_content().create(name="Other Pack House")
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=owner, listed=True)
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=house_ct,
+        object_id=pack_house.pk,
+        owner=owner,
+    )
+    other_list = List.objects.create(
+        name="Other User Pack List",
+        owner=owner,
+        content_house=pack_house,
+        status=List.LIST_BUILDING,
+        public=True,
+    )
+    other_list.packs.add(pack)
+
+    client.force_login(viewer)
+
+    # With my=1 (default), viewer sees only their own lists — pack house should be absent
+    response = client.get("/lists/")
+    assert response.status_code == 200
+    house_ids = [h.id for h in response.context["houses"]]
+    assert pack_house.id not in house_ids
+
+    # With my=0 (public lists), pack house should appear
+    response = client.get("/lists/", {"my": "0"})
+    assert response.status_code == 200
+    house_ids = [h.id for h in response.context["houses"]]
+    assert pack_house.id in house_ids
