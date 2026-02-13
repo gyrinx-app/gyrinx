@@ -1,6 +1,11 @@
 ---
-description: Review PR feedback from reviewers and Copilot, decide what to implement, and make a plan
-argument-hint: [PR number or URL]
+name: pr-feedback
+description: |
+  Review PR feedback from reviewers and Copilot, triage each comment
+  (implement / acknowledge / decline), plan changes, and implement approved
+  fixes. Use when you need to act on pull request review feedback.
+argument-hint: "[PR number or URL]"
+disable-model-invocation: true
 ---
 
 # PR Feedback
@@ -10,9 +15,9 @@ Your job is to review it, decide what is correct and worth implementing, and act
 
 ## Phase 1: Fetch feedback
 
-Load the `pr-comments` skill to fetch all PR comments, reviews, and review threads.
+Run the pr-comments fetch script to get all PR comments, reviews, and review threads.
 
-/skill pr-comments $ARGUMENTS
+!`.claude/skills/pr-comments/scripts/fetch-pr-comments.sh $ARGUMENTS 2>&1`
 
 ## Phase 2: Triage
 
