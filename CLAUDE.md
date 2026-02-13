@@ -63,6 +63,8 @@ in the workflow.
 - `/feature-dev [description]` — Guided 7-phase feature development workflow: discovery, codebase exploration,
   clarifying questions, architecture design, implementation, quality review, and summary. Uses `code-explorer`,
   `code-architect`, and `code-reviewer` agents.
+- `/pr-feedback [PR number or URL]` — Review PR feedback from reviewers and Copilot, triage each comment
+  (implement / acknowledge / decline), plan changes, and implement approved fixes. Uses the `pr-comments` skill.
 
 ### Skills (`.claude/skills/`)
 
