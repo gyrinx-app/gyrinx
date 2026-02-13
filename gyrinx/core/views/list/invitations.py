@@ -87,26 +87,29 @@ def accept_invitation(request, id, invitation_id):
         return HttpResponseRedirect(reverse("core:list-invitations", args=(lst.id,)))
 
     # Accept the invitation
-    if invitation.accept():
-        # Log the acceptance event
-        log_event(
-            user=request.user,
-            noun=EventNoun.CAMPAIGN_INVITATION,
-            verb=EventVerb.APPROVE,
-            object=invitation,
-            request=request,
-            campaign_id=str(invitation.campaign.id),
-            campaign_name=invitation.campaign.name,
-            list_id=str(lst.id),
-            list_name=lst.name,
-            action="invitation_accepted",
-        )
+    try:
+        if invitation.accept():
+            # Log the acceptance event
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_INVITATION,
+                verb=EventVerb.APPROVE,
+                object=invitation,
+                request=request,
+                campaign_id=str(invitation.campaign.id),
+                campaign_name=invitation.campaign.name,
+                list_id=str(lst.id),
+                list_name=lst.name,
+                action="invitation_accepted",
+            )
 
-        messages.success(
-            request, f"You have joined the campaign '{invitation.campaign.name}'."
-        )
-    else:
-        messages.error(request, "Unable to accept the invitation.")
+            messages.success(
+                request, f"You have joined the campaign '{invitation.campaign.name}'."
+            )
+        else:
+            messages.error(request, "Unable to accept the invitation.")
+    except ValueError as e:
+        messages.error(request, str(e))
 
     return HttpResponseRedirect(reverse("core:list-invitations", args=(lst.id,)))
 

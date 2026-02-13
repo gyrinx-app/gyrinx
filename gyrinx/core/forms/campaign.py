@@ -808,6 +808,13 @@ class CampaignCopyFromForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    packs = forms.MultipleChoiceField(
+        required=False,
+        label="Content Packs",
+        help_text="Select which content packs to add to the target campaign.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.target_campaign = kwargs.pop("target_campaign")
         self.user = kwargs.pop("user")
@@ -825,6 +832,7 @@ class CampaignCopyFromForm(forms.Form):
             self.fields["asset_types"].choices = []
             self.fields["resource_types"].choices = []
             self.fields["attribute_types"].choices = []
+            self.fields["packs"].choices = []
 
     def _build_source_campaign_choices(self):
         """Build grouped choices for source campaign dropdown."""
@@ -890,17 +898,19 @@ class CampaignCopyFromForm(forms.Form):
             (str(at.id), f"{at.name} ({at.value_count} values)")
             for at in attribute_types
         ]
+        self.fields["packs"].choices = [
+            (str(p.id), p.name) for p in source_campaign.packs.all()
+        ]
 
     def clean(self):
         cleaned_data = super().clean()
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
         attribute_types = cleaned_data.get("attribute_types", [])
+        packs = cleaned_data.get("packs", [])
 
-        if not asset_types and not resource_types and not attribute_types:
-            raise forms.ValidationError(
-                "Please select at least one asset type, resource type, or attribute type to copy."
-            )
+        if not asset_types and not resource_types and not attribute_types and not packs:
+            raise forms.ValidationError("Please select at least one item to copy.")
 
         return cleaned_data
 
@@ -937,6 +947,13 @@ class CampaignCopyToForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
     )
 
+    packs = forms.MultipleChoiceField(
+        required=False,
+        label="Content Packs",
+        help_text="Select which content packs to add to the target campaign.",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         self.source_campaign = kwargs.pop("source_campaign")
         self.user = kwargs.pop("user")
@@ -965,6 +982,9 @@ class CampaignCopyToForm(forms.Form):
         self.fields["attribute_types"].choices = [
             (str(at.id), f"{at.name} ({at.value_count} values)")
             for at in attribute_types
+        ]
+        self.fields["packs"].choices = [
+            (str(p.id), p.name) for p in self.source_campaign.packs.all()
         ]
 
     def _build_target_campaign_choices(self):
@@ -1002,10 +1022,9 @@ class CampaignCopyToForm(forms.Form):
         asset_types = cleaned_data.get("asset_types", [])
         resource_types = cleaned_data.get("resource_types", [])
         attribute_types = cleaned_data.get("attribute_types", [])
+        packs = cleaned_data.get("packs", [])
 
-        if not asset_types and not resource_types and not attribute_types:
-            raise forms.ValidationError(
-                "Please select at least one asset type, resource type, or attribute type to copy."
-            )
+        if not asset_types and not resource_types and not attribute_types and not packs:
+            raise forms.ValidationError("Please select at least one item to copy.")
 
         return cleaned_data

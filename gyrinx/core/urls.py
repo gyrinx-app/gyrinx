@@ -9,6 +9,7 @@ from .views.campaign import attributes as campaign_attributes
 from .views.campaign import battles as campaign_battles
 from .views.campaign import captured as campaign_captured
 from .views.campaign import copy as campaign_copy
+from .views.campaign import packs as campaign_packs
 from .views.campaign import crud as campaign_crud
 from .views.campaign import lifecycle as campaign_lifecycle
 from .views.campaign import lists as campaign_lists
@@ -664,6 +665,22 @@ urlpatterns = [
         campaign_attributes.campaign_list_attribute_assign,
         name="campaign-list-attribute-assign",
     ),
+    # Campaign Packs
+    path(
+        "campaign/<id>/packs",
+        campaign_packs.campaign_packs,
+        name="campaign-packs",
+    ),
+    path(
+        "campaign/<id>/packs/<pack_id>/add",
+        campaign_packs.campaign_pack_add,
+        name="campaign-pack-add",
+    ),
+    path(
+        "campaign/<id>/packs/<pack_id>/remove",
+        campaign_packs.campaign_pack_remove,
+        name="campaign-pack-remove",
+    ),
     # Battles
     path(
         "campaign/<id>/battles",
@@ -717,9 +734,20 @@ urlpatterns = [
     path("pack/<id>", pack_views.PackDetailView.as_view(), name="pack"),
     path("pack/<id>/edit/", pack_views.edit_pack, name="pack-edit"),
     path("pack/<id>/lists/", pack_views.pack_lists, name="pack-lists"),
+    path("pack/<id>/campaigns/", pack_views.pack_campaigns, name="pack-campaigns"),
     path("pack/<id>/subscribe/", pack_views.subscribe_pack, name="pack-subscribe"),
     path(
         "pack/<id>/unsubscribe/", pack_views.unsubscribe_pack, name="pack-unsubscribe"
+    ),
+    path(
+        "pack/<id>/campaign-subscribe/",
+        pack_views.subscribe_pack_campaign,
+        name="pack-campaign-subscribe",
+    ),
+    path(
+        "pack/<id>/campaign-unsubscribe/",
+        pack_views.unsubscribe_pack_campaign,
+        name="pack-campaign-unsubscribe",
     ),
     path(
         "pack/<id>/activity/",

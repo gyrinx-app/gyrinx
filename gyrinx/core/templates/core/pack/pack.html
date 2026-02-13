@@ -10,7 +10,7 @@
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="mb-0">{{ pack.name }}</h1>
-                {% if is_owner or user_lists %}
+                {% if is_owner or user_lists or user_campaigns %}
                     <nav class="btn-group flex-nowrap ms-md-auto">
                         {% if is_owner %}
                             <a href="{% url 'core:pack-edit' pack.id %}"
@@ -33,6 +33,17 @@
                                            class="dropdown-item icon-link">
                                             <i class="bi-list-ul"></i> Add to Lists
                                             {% if subscribed_list_ids %}<span class="badge bg-primary ms-1">{{ subscribed_list_ids|length }}</span>{% endif %}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                {% if user_campaigns %}
+                                    <li>
+                                        <a href="{% url 'core:pack-campaigns' pack.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-flag"></i> Add to Campaigns
+                                            {% if subscribed_campaign_ids %}
+                                                <span class="badge bg-primary ms-1">{{ subscribed_campaign_ids|length }}</span>
+                                            {% endif %}
                                         </a>
                                     </li>
                                 {% endif %}

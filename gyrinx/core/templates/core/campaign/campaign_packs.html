@@ -1,0 +1,102 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Content Packs - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
+    <div class="col-12 px-0 vstack gap-5">
+        <div>
+            <h1 class="mb-2">Content Packs</h1>
+            <p class="text-muted mb-0">{{ campaign.name }}</p>
+        </div>
+        <section>
+            <h2 class="h5 mb-3">Allowed Packs</h2>
+            {% if campaign_packs %}
+                <p class="text-muted small mb-3">
+                    Gangs joining this Campaign must only use content from these packs.
+                    Gangs must unsubscribe from incompatible packs before joining.
+                </p>
+                <div class="row g-2 mb-3">
+                    {% for pack in campaign_packs %}
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="border rounded p-2 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <a href="{% url 'core:pack' pack.id %}"
+                                       class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
+                                    <div class="text-muted small">
+                                        <i class="bi-person"></i> {{ pack.owner.username }}
+                                    </div>
+                                </div>
+                                {% if is_owner and not campaign.archived %}
+                                    <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
+                                       class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                        <i class="bi-trash"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-muted small mb-3">
+                    No packs configured. Gangs can use any Content Packs they subscribe to.
+                    Add packs below to restrict which packs can be used in this Campaign.
+                </p>
+            {% endif %}
+        </section>
+        {% if is_owner and not campaign.archived %}
+            <section>
+                <h2 class="h5 mb-3">Add Packs</h2>
+                <form method="get" class="mb-3">
+                    <div class="input-group input-group-sm col-12 col-md-6 col-lg-4 px-0">
+                        <input type="text"
+                               name="q"
+                               class="form-control"
+                               placeholder="Search packs..."
+                               value="{{ search_query }}">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi-search"></i>
+                        </button>
+                        {% if search_query %}
+                            <a href="{% url 'core:campaign-packs' campaign.id %}"
+                               class="btn btn-outline-secondary">Clear</a>
+                        {% endif %}
+                    </div>
+                </form>
+                {% if available_packs %}
+                    <div class="row g-2">
+                        {% for pack in available_packs %}
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <div class="border rounded p-2 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <a href="{% url 'core:pack' pack.id %}"
+                                           class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
+                                        <div class="text-muted small">
+                                            <i class="bi-person"></i> {{ pack.owner.username }}
+                                        </div>
+                                    </div>
+                                    <form method="post"
+                                          action="{% url 'core:campaign-pack-add' campaign.id pack.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi-plus-circle"></i> Add
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted small mb-0">
+                        {% if search_query %}
+                            No packs found matching "{{ search_query }}".
+                        {% else %}
+                            No additional packs available.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </div>
+{% endblock content %}

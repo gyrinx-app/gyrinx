@@ -9,14 +9,26 @@ on:
 jobs:
   summary:
     runs-on: [gyrinx-ubuntu-2]
-    timeout-minutes: 15
     permissions:
       contents: read
       discussions: write
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Need full history for git log
+
+      # Workaround for anthropics/claude-code-action#900: the action's
+      # checkHumanActor calls the GitHub API before checking allowed_bots,
+      # which 404s for bot actors like github-merge-queue[bot]. Override
+      # GITHUB_ACTOR so the action sees a real user. Run unconditionally
+      # for scheduled events because github.actor may be a bot name with
+      # or without the [bot] suffix.
+      - name: Fix actor for scheduled runs
+        if: github.event_name == 'schedule'
+        run: echo "GITHUB_ACTOR=${{ github.repository_owner }}" >> "$GITHUB_ENV"
 
       - name: Get date range
         id: dates
@@ -40,100 +52,83 @@ jobs:
               f.write(f"week_of={week_of}\n")
           PY
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.39
-
-      - name: Write prompt
+      - name: Run Claude Weekly Summary
+        id: claude
+        uses: anthropics/claude-code-action@v1
         env:
           START_DATE: ${{ steps.dates.outputs.start_date }}
           END_DATE: ${{ steps.dates.outputs.end_date }}
-        run: |
-          python3 << 'PY'
-          import os
-          import textwrap
-
-          start_date = os.environ["START_DATE"]
-          end_date = os.environ["END_DATE"]
-
-          prompt = textwrap.dedent(f"""\
-              Create a summary of what landed in Gyrinx over the last 7 days.
-
-              The date range is {start_date} to {end_date}.
-
-              ## Step 1: Get the merged PRs
-
-              Run this command to get the PRs merged in the last 7 days:
-              ```bash
-              gh pr list --state merged --search "merged:>={start_date}" --json number,title,body --limit 50
-              ```
-
-              ## Step 2: Write the summary
-
-              Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary of the week.
-
-              Then write bullet points that:
-              - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
-              - Are casual but slightly technical (aimed at users who understand the app)
-              - For bug fixes, explain what was broken in plain terms (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
-              - For features, focus on what's now possible
-              - Use impersonal language (not "your gang" but "gangs" or "the gang page")
-              - Skip purely internal/code-cleanup stuff unless it's interesting
-              - Keep each bullet to 1-2 sentences max
-              - Use bold for the key thing in each bullet
-
-              Don't include:
-              - PR numbers
-              - Dependency updates unless they're significant
-              - CI/workflow changes
-              - Admin interface changes (at most one bullet if significant)
-
-              Format: Intro line, blank line, then bullet points starting with dashes.
-
-              Example style:
-              Changes from January 4th to 11th: A week of bug fixes and UI polish.
-
-              - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
-              - **Equipment filters persist** when adding items, instead of resetting each time
-
-              If there were no meaningful user-facing changes, return: "Changes from [date range]: Quiet week! No major updates."
-
-              Output ONLY the summary text, nothing else.
-          """)
-
-          with open("/tmp/claude-prompt.txt", "w") as f:
-              f.write(prompt)
-          PY
-
-      - name: Generate weekly summary
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          claude -p \
-            --model claude-sonnet-4-20250514 \
-            --allowedTools "Bash(gh:*)" \
-            < /tmp/claude-prompt.txt \
-            > /tmp/weekly-summary.txt
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Belt-and-suspenders: also declare the bot as allowed in case the
+          # GITHUB_ACTOR override above is removed once the upstream bug is fixed.
+          allowed_bots: "github-merge-queue[bot]"
 
-          echo "Generated summary:"
-          cat /tmp/weekly-summary.txt
+          claude_args: |
+            --model claude-sonnet-4-20250514
+            --allowedTools "Bash(git:*),Bash(gh:*)"
+            --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
+
+          prompt: |
+            Create a summary of what landed in Gyrinx over the last 7 days.
+
+            The date range is $START_DATE to $END_DATE.
+
+            ## Step 1: Get the merged PRs
+
+            Run this command to get the PRs merged in the last 7 days:
+            ```bash
+            gh pr list --state merged --search "merged:>=$START_DATE" --json number,title,body --limit 50
+            ```
+
+            ## Step 2: Write the summary
+
+            Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary of the week.
+
+            Then write bullet points that:
+            - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
+            - Are casual but slightly technical (aimed at users who understand the app)
+            - For bug fixes, explain what was broken in plain terms (e.g., "Dead fighters were showing up in gang counts" not "Fixed query filter")
+            - For features, focus on what's now possible
+            - Use impersonal language (not "your gang" but "gangs" or "the gang page")
+            - Skip purely internal/code-cleanup stuff unless it's interesting
+            - Keep each bullet to 1-2 sentences max
+            - Use bold for the key thing in each bullet
+
+            Don't include:
+            - PR numbers
+            - Dependency updates unless they're significant
+            - CI/workflow changes
+            - Admin interface changes (at most one bullet if significant)
+
+            Format: Intro line, blank line, then bullet points starting with dashes.
+
+            Example style:
+            Changes from January 4th to 11th: A week of bug fixes and UI polish.
+
+            - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
+            - **Equipment filters persist** when adding items, instead of resetting each time
+
+            If there were no meaningful user-facing changes, return: "Changes from [date range]: Quiet week! No major updates."
+
+            Return the full summary in the structured output.
 
       - name: Create discussion
         env:
           GH_TOKEN: ${{ github.token }}
           WEEK_OF: ${{ steps.dates.outputs.week_of }}
+          SUMMARY_JSON: ${{ steps.claude.outputs.structured_output }}
         run: |
           set -e
 
-          BODY=$(cat /tmp/weekly-summary.txt)
+          # Extract summary from structured output
+          BODY=$(echo "$SUMMARY_JSON" | jq -r '.summary')
 
-          if [ -z "$BODY" ]; then
-            echo "::error::No summary generated"
+          if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
+            echo "::error::No summary in structured output"
+            echo "Raw output: $SUMMARY_JSON"
             exit 1
           fi
 
