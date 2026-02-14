@@ -107,6 +107,7 @@ class CampaignDetailView(generic.DetailView):
             Campaign.objects.select_related(
                 "group_attribute_type",
             ).prefetch_related(
+                "packs",
                 "lists",
                 models.Prefetch(
                     "actions",
@@ -256,4 +257,5 @@ class CampaignDetailView(generic.DetailView):
             context["grouped_lists"] = grouped_lists
 
         context["is_owner"] = user == campaign.owner
+        context["campaign_packs"] = campaign.packs.all()
         return context

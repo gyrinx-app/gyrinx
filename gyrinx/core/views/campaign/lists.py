@@ -18,6 +18,7 @@ from gyrinx.core.models.campaign import (
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import List
+from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.tracker import track
 
 
@@ -64,124 +65,140 @@ def campaign_add_lists(request, id):
                             "Lists in campaign mode cannot be added to other campaigns."
                         )
                     else:
-                        # Check if an invitation already exists
-                        invitation, created = CampaignInvitation.objects.get_or_create(
-                            campaign=campaign,
-                            list=list_to_add,
-                            defaults={"owner": request.user},
+                        is_valid, incompatible = campaign.validate_list_packs(
+                            list_to_add
                         )
-
-                        # Check for auto-accept condition (same owner)
-                        if campaign.owner == list_to_add.owner:
-                            # If invitation was declined, reset to pending so it can be accepted
-                            if invitation.is_declined:
-                                invitation.status = CampaignInvitation.PENDING
-                                invitation.save()  # Required to persist the status change
-
-                            # Try to accept the invitation
-                            if invitation.accept():
-                                messages.success(
-                                    request,
-                                    f"{list_to_add.name} has been added to the campaign.",
+                        if not is_valid:
+                            pack_names = ", ".join(p.name for p in incompatible)
+                            error_message = (
+                                f"This gang uses Content Packs not allowed by this Campaign: {pack_names}. "
+                                f"Remove these packs from the gang before adding it."
+                            )
+                        else:
+                            # Check if an invitation already exists
+                            invitation, created = (
+                                CampaignInvitation.objects.get_or_create(
+                                    campaign=campaign,
+                                    list=list_to_add,
+                                    defaults={"owner": request.user},
                                 )
+                            )
 
-                                # Log the auto-accept event regardless of whether the invitation was just created
+                            # Check for auto-accept condition (same owner)
+                            if campaign.owner == list_to_add.owner:
+                                # If invitation was declined, reset to pending so it can be accepted
+                                if invitation.is_declined:
+                                    invitation.status = CampaignInvitation.PENDING
+                                    invitation.save()  # Required to persist the status change
+
+                                # Try to accept the invitation
+                                try:
+                                    if invitation.accept():
+                                        messages.success(
+                                            request,
+                                            f"{list_to_add.name} has been added to the campaign.",
+                                        )
+
+                                        # Log the auto-accept event regardless of whether the invitation was just created
+                                        log_event(
+                                            user=request.user,
+                                            noun=EventNoun.CAMPAIGN_INVITATION,
+                                            verb=EventVerb.CREATE
+                                            if created
+                                            else EventVerb.UPDATE,
+                                            object=invitation,
+                                            request=request,
+                                            campaign_name=campaign.name,
+                                            list_invited_id=str(list_to_add.id),
+                                            list_invited_name=list_to_add.name,
+                                            list_owner=list_to_add.owner.username,
+                                            action="invitation_auto_accepted",
+                                        )
+
+                                        track(
+                                            "campaign_list_added",
+                                            campaign_id=str(campaign.id),
+                                        )
+                                    else:
+                                        # If accept() returned False, the invitation was already accepted
+                                        if (
+                                            invitation.is_accepted
+                                            and list_to_add in campaign.lists.all()
+                                        ):
+                                            messages.info(
+                                                request,
+                                                f"{list_to_add.name} is already in the campaign.",
+                                            )
+                                        else:
+                                            # Should not happen if we handled declined above, but fallback
+                                            messages.info(
+                                                request,
+                                                f"Could not add {list_to_add.name}.",
+                                            )
+                                except ValueError as e:
+                                    error_message = str(e)
+
+                            elif created:
+                                # Log the invitation creation event
                                 log_event(
                                     user=request.user,
                                     noun=EventNoun.CAMPAIGN_INVITATION,
-                                    verb=EventVerb.CREATE
-                                    if created
-                                    else EventVerb.UPDATE,
+                                    verb=EventVerb.CREATE,
                                     object=invitation,
                                     request=request,
                                     campaign_name=campaign.name,
                                     list_invited_id=str(list_to_add.id),
                                     list_invited_name=list_to_add.name,
                                     list_owner=list_to_add.owner.username,
-                                    action="invitation_auto_accepted",
+                                    action="invitation_sent",
                                 )
 
-                                track(
-                                    "campaign_list_added",
-                                    campaign_id=str(campaign.id),
+                                # Show success message
+                                messages.success(
+                                    request,
+                                    f"Invitation sent to {list_to_add.name}.",
                                 )
                             else:
-                                # If accept() returned False, the invitation was already accepted
-                                if (
-                                    invitation.is_accepted
-                                    and list_to_add in campaign.lists.all()
-                                ):
+                                # Check if the invitation is still pending
+                                if invitation.is_pending:
                                     messages.info(
                                         request,
-                                        f"{list_to_add.name} is already in the campaign.",
+                                        f"An invitation for {list_to_add.name} is already pending.",
                                     )
-                                else:
-                                    # Should not happen if we handled declined above, but fallback
-                                    messages.info(
-                                        request, f"Could not add {list_to_add.name}."
-                                    )
-
-                        elif created:
-                            # Log the invitation creation event
-                            log_event(
-                                user=request.user,
-                                noun=EventNoun.CAMPAIGN_INVITATION,
-                                verb=EventVerb.CREATE,
-                                object=invitation,
-                                request=request,
-                                campaign_name=campaign.name,
-                                list_invited_id=str(list_to_add.id),
-                                list_invited_name=list_to_add.name,
-                                list_owner=list_to_add.owner.username,
-                                action="invitation_sent",
-                            )
-
-                            # Show success message
-                            messages.success(
-                                request,
-                                f"Invitation sent to {list_to_add.name}.",
-                            )
-                        else:
-                            # Check if the invitation is still pending
-                            if invitation.is_pending:
-                                messages.info(
-                                    request,
-                                    f"An invitation for {list_to_add.name} is already pending.",
-                                )
-                            elif invitation.is_accepted:
-                                # Check if the list is actually in the campaign
-                                if list_to_add in campaign.lists.all():
-                                    messages.info(
-                                        request,
-                                        f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
-                                    )
-                                else:
-                                    # List was removed, reset invitation to pending
+                                elif invitation.is_accepted:
+                                    # Check if the list is actually in the campaign
+                                    if list_to_add in campaign.lists.all():
+                                        messages.info(
+                                            request,
+                                            f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
+                                        )
+                                    else:
+                                        # List was removed, reset invitation to pending
+                                        invitation.status = CampaignInvitation.PENDING
+                                        invitation.save()
+                                        messages.success(
+                                            request,
+                                            f"Invitation re-sent to {list_to_add.name}.",
+                                        )
+                                elif invitation.is_declined:
+                                    # Reset declined invitation to pending
                                     invitation.status = CampaignInvitation.PENDING
                                     invitation.save()
                                     messages.success(
                                         request,
                                         f"Invitation re-sent to {list_to_add.name}.",
                                     )
-                            elif invitation.is_declined:
-                                # Reset declined invitation to pending
-                                invitation.status = CampaignInvitation.PENDING
-                                invitation.save()
-                                messages.success(
-                                    request,
-                                    f"Invitation re-sent to {list_to_add.name}.",
-                                )
-                        # Redirect to the same page with the search params preserved
-                        query_params = []
-                        if request.GET.get("q"):
-                            query_params.append(f"q={request.GET.get('q')}")
-                        if request.GET.get("owner"):
-                            query_params.append(f"owner={request.GET.get('owner')}")
-                        query_str = "&".join(query_params)
-                        return HttpResponseRedirect(
-                            reverse("core:campaign-add-lists", args=(campaign.id,))
-                            + (f"?{query_str}" if query_str else "")
-                        )
+                            # Redirect to the same page with the search params preserved
+                            query_params = []
+                            if request.GET.get("q"):
+                                query_params.append(f"q={request.GET.get('q')}")
+                            if request.GET.get("owner"):
+                                query_params.append(f"owner={request.GET.get('owner')}")
+                            query_str = "&".join(query_params)
+                            return HttpResponseRedirect(
+                                reverse("core:campaign-add-lists", args=(campaign.id,))
+                                + (f"?{query_str}" if query_str else "")
+                            )
                 else:
                     error_message = "You can only add your own lists or public lists."
             except List.DoesNotExist:
@@ -240,11 +257,19 @@ def campaign_add_lists(request, id):
         # Only show public lists from other users
         lists = lists.filter(public=True).exclude(owner=request.user)
 
+    # Filter by pack compatibility
+    if request.GET.get("packs") == "matching" and campaign.packs.exists():
+        campaign_pack_ids = set(campaign.packs.values_list("id", flat=True))
+        # Exclude lists that have ANY pack not in the campaign's allowed set
+        disallowed_packs = CustomContentPack.objects.exclude(id__in=campaign_pack_ids)
+        lists = lists.exclude(packs__in=disallowed_packs)
+
     # Exclude and order by name, prefetch latest actions for facts system
     lists = (
         lists.exclude(id__in=excluded_list_ids)
         .with_latest_actions()
         .select_related("content_house", "owner")
+        .prefetch_related("packs")
         .order_by("name")
     )
 
@@ -267,6 +292,8 @@ def campaign_add_lists(request, id):
         .order_by("-created")
     )
 
+    campaign_packs_qs = campaign.packs.all()
+
     return render(
         request,
         "core/campaign/campaign_add_lists.html",
@@ -277,6 +304,8 @@ def campaign_add_lists(request, id):
             "error_message": error_message,
             "current_lists": current_lists,
             "pending_invitations": pending_invitations,
+            "campaign_packs": campaign_packs_qs,
+            "has_campaign_packs": campaign_packs_qs.exists(),
         },
     )
 

@@ -82,6 +82,12 @@
                                         </a>
                                     </li>
                                     <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:campaign-packs' campaign.id %}">
+                                            <i class="bi-box-seam"></i> Content Packs
+                                        </a>
+                                    </li>
+                                    <li>
                                         <hr class="dropdown-divider">
                                     </li>
                                 {% endif %}
@@ -145,6 +151,23 @@
                     <div class="flex-grow-1 col-md-3 flex-md-grow-0">
                         <div class="caps-label">Budget</div>
                         <div>{{ campaign.budget }}¢</div>
+                    </div>
+                {% endif %}
+                {% if campaign_packs %}
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="caps-label">Content Packs</div>
+                        <div>
+                            {% spaceless %}
+                                {% for pack in campaign_packs %}
+                                    <span>{{ pack.name }}</span>
+                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% endfor %}
+                            {% endspaceless %}
+                        </div>
+                        {% if is_owner %}
+                            <a href="{% url 'core:campaign-packs' campaign.id %}"
+                               class="small link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+                        {% endif %}
                     </div>
                 {% endif %}
             </div>

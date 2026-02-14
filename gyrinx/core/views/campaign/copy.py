@@ -75,6 +75,7 @@ def campaign_copy_from(request, id):
                 asset_type_ids = request.POST.getlist("selected_asset_types")
                 resource_type_ids = request.POST.getlist("selected_resource_types")
                 attribute_type_ids = request.POST.getlist("selected_attribute_types")
+                pack_ids = request.POST.getlist("selected_packs")
 
                 # Perform the copy
                 result = copy_campaign_content(
@@ -86,6 +87,7 @@ def campaign_copy_from(request, id):
                     attribute_type_ids=(
                         attribute_type_ids if attribute_type_ids else None
                     ),
+                    pack_ids=pack_ids if pack_ids else None,
                 )
 
                 # Log event
@@ -106,6 +108,7 @@ def campaign_copy_from(request, id):
                     resource_types_copied=result.resource_types_copied,
                     attribute_types_copied=result.attribute_types_copied,
                     attribute_values_copied=result.attribute_values_copied,
+                    packs_copied=result.packs_copied,
                 )
 
                 track(
@@ -116,6 +119,7 @@ def campaign_copy_from(request, id):
                     assets_copied=result.assets_copied,
                     resource_types_copied=result.resource_types_copied,
                     attribute_types_copied=result.attribute_types_copied,
+                    packs_copied=result.packs_copied,
                 )
 
                 # Build success message
@@ -132,6 +136,8 @@ def campaign_copy_from(request, id):
                     parts.append(f"{result.attribute_types_copied} attribute type(s)")
                 if result.attribute_values_copied:
                     parts.append(f"{result.attribute_values_copied} attribute value(s)")
+                if result.packs_copied:
+                    parts.append(f"{result.packs_copied} Content Pack(s)")
 
                 if parts:
                     messages.success(
@@ -170,6 +176,7 @@ def campaign_copy_from(request, id):
                 asset_type_ids = form.cleaned_data.get("asset_types", [])
                 resource_type_ids = form.cleaned_data.get("resource_types", [])
                 attribute_type_ids = form.cleaned_data.get("attribute_types", [])
+                pack_ids = form.cleaned_data.get("packs", [])
 
                 # Check for conflicts
                 conflicts = check_copy_conflicts(
@@ -180,6 +187,7 @@ def campaign_copy_from(request, id):
                     attribute_type_ids=(
                         attribute_type_ids if attribute_type_ids else None
                     ),
+                    pack_ids=pack_ids if pack_ids else None,
                 )
 
                 show_confirmation = True
@@ -231,10 +239,16 @@ def campaign_copy_to(request, id):
     has_asset_types = campaign.asset_types.exists()
     has_resource_types = campaign.resource_types.exists()
     has_attribute_types = campaign.attribute_types.exists()
-    if not has_asset_types and not has_resource_types and not has_attribute_types:
+    has_packs = campaign.packs.exists()
+    if (
+        not has_asset_types
+        and not has_resource_types
+        and not has_attribute_types
+        and not has_packs
+    ):
         messages.info(
             request,
-            "This campaign has no asset types, resource types, or attribute types to copy.",
+            "This campaign has no asset types, resource types, attribute types, or Content Packs to copy.",
         )
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
@@ -276,6 +290,7 @@ def campaign_copy_to(request, id):
                 asset_type_ids = request.POST.getlist("selected_asset_types")
                 resource_type_ids = request.POST.getlist("selected_resource_types")
                 attribute_type_ids = request.POST.getlist("selected_attribute_types")
+                pack_ids = request.POST.getlist("selected_packs")
 
                 # Perform the copy
                 result = copy_campaign_content(
@@ -287,6 +302,7 @@ def campaign_copy_to(request, id):
                     attribute_type_ids=(
                         attribute_type_ids if attribute_type_ids else None
                     ),
+                    pack_ids=pack_ids if pack_ids else None,
                 )
 
                 # Log event
@@ -307,6 +323,7 @@ def campaign_copy_to(request, id):
                     resource_types_copied=result.resource_types_copied,
                     attribute_types_copied=result.attribute_types_copied,
                     attribute_values_copied=result.attribute_values_copied,
+                    packs_copied=result.packs_copied,
                 )
 
                 track(
@@ -317,6 +334,7 @@ def campaign_copy_to(request, id):
                     assets_copied=result.assets_copied,
                     resource_types_copied=result.resource_types_copied,
                     attribute_types_copied=result.attribute_types_copied,
+                    packs_copied=result.packs_copied,
                 )
 
                 # Build success message
@@ -333,6 +351,8 @@ def campaign_copy_to(request, id):
                     parts.append(f"{result.attribute_types_copied} attribute type(s)")
                 if result.attribute_values_copied:
                     parts.append(f"{result.attribute_values_copied} attribute value(s)")
+                if result.packs_copied:
+                    parts.append(f"{result.packs_copied} Content Pack(s)")
 
                 if parts:
                     messages.success(
@@ -361,6 +381,7 @@ def campaign_copy_to(request, id):
             asset_type_ids = form.cleaned_data.get("asset_types", [])
             resource_type_ids = form.cleaned_data.get("resource_types", [])
             attribute_type_ids = form.cleaned_data.get("attribute_types", [])
+            pack_ids = form.cleaned_data.get("packs", [])
 
             # Check for conflicts
             conflicts = check_copy_conflicts(
@@ -369,6 +390,7 @@ def campaign_copy_to(request, id):
                 asset_type_ids=asset_type_ids if asset_type_ids else None,
                 resource_type_ids=resource_type_ids if resource_type_ids else None,
                 attribute_type_ids=(attribute_type_ids if attribute_type_ids else None),
+                pack_ids=pack_ids if pack_ids else None,
             )
 
             show_confirmation = True

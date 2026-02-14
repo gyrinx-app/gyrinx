@@ -24,6 +24,7 @@ from gyrinx.content.models.statline import (
     ContentStatlineType,
 )
 from gyrinx.core.forms.pack import ContentFighterPackForm, ContentRuleForm, PackForm
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.core.views.auth import (
@@ -411,6 +412,16 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
             context["unsubscribed_lists"] = [
                 lst for lst in user_lists if lst.id not in subscribed_list_ids
             ]
+
+            # Campaign subscription info
+            user_campaigns = Campaign.objects.filter(owner=user, archived=False)
+            subscribed_campaign_ids = set(
+                pack.campaigns.filter(owner=user, archived=False).values_list(
+                    "id", flat=True
+                )
+            )
+            context["user_campaigns"] = user_campaigns
+            context["subscribed_campaign_ids"] = subscribed_campaign_ids
 
         return context
 
@@ -983,3 +994,86 @@ def list_packs_manage(request, id):
             "show_my_packs": show_my_packs,
         },
     )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def pack_campaigns(request, id):
+    """Manage which of the user's campaigns are subscribed to a content pack."""
+    pack = get_object_or_404(
+        CustomContentPack.objects.select_related("owner"),
+        id=id,
+    )
+    user = request.user
+    if not pack.listed and pack.owner != user:
+        raise Http404
+
+    user_campaigns = Campaign.objects.filter(owner=user, archived=False).order_by(
+        "name"
+    )
+    subscribed_campaign_ids = set(
+        pack.campaigns.filter(owner=user, archived=False).values_list("id", flat=True)
+    )
+    unsubscribed_campaigns = [
+        c for c in user_campaigns if c.id not in subscribed_campaign_ids
+    ]
+    subscribed_campaigns = [
+        c for c in user_campaigns if c.id in subscribed_campaign_ids
+    ]
+
+    return render(
+        request,
+        "core/pack/pack_campaigns.html",
+        {
+            "pack": pack,
+            "is_owner": user == pack.owner,
+            "subscribed_campaigns": subscribed_campaigns,
+            "unsubscribed_campaigns": unsubscribed_campaigns,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def subscribe_pack_campaign(request, id):
+    """Subscribe one of the user's campaigns to a content pack."""
+    if request.method != "POST":
+        raise Http404
+
+    pack = get_object_or_404(CustomContentPack, id=id, archived=False)
+    if not pack.listed and pack.owner != request.user:
+        raise Http404
+
+    campaign_id = request.POST.get("campaign_id")
+    if not campaign_id or not is_valid_uuid(campaign_id):
+        messages.error(request, "Please select a Campaign.")
+        return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
+
+    campaign = get_object_or_404(Campaign, id=campaign_id, owner=request.user)
+    if campaign.archived:
+        messages.error(request, "Cannot add packs to an archived Campaign.")
+        return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
+    campaign.packs.add(pack)
+
+    messages.success(request, f"Added {pack.name} to {campaign.name}")
+    return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def unsubscribe_pack_campaign(request, id):
+    """Remove a content pack from a campaign."""
+    if request.method != "POST":
+        raise Http404
+
+    pack = get_object_or_404(CustomContentPack, id=id)
+
+    campaign_id = request.POST.get("campaign_id")
+    if not campaign_id or not is_valid_uuid(campaign_id):
+        raise Http404
+
+    campaign = get_object_or_404(Campaign, id=campaign_id, owner=request.user)
+    campaign.packs.remove(pack)
+
+    messages.success(request, f"Removed {pack.name} from {campaign.name}")
+    return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))

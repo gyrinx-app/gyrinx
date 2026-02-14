@@ -16,6 +16,7 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
     CampaignSubAsset,
 )
+from gyrinx.core.models.pack import CustomContentPack
 
 
 # --- Handler Tests ---
@@ -934,3 +935,160 @@ def test_copy_to_view_with_attribute_types(client, user, make_campaign):
     assert response.status_code == 302
     assert target.attribute_types.count() == 1
     assert target.attribute_types.get().values.count() == 1
+
+
+# --- Pack Copy Tests ---
+
+
+@pytest.mark.django_db
+def test_copy_packs_between_campaigns(user, make_campaign):
+    """Test that packs are copied by reference (M2M add) between campaigns."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    pack1 = CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    pack2 = CustomContentPack.objects.create(name="Pack Beta", owner=user, listed=True)
+    source.packs.add(pack1, pack2)
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        pack_ids=[str(pack1.id), str(pack2.id)],
+    )
+
+    assert result.packs_copied == 2
+    assert set(target.packs.values_list("id", flat=True)) == {pack1.id, pack2.id}
+
+
+@pytest.mark.django_db
+def test_copy_packs_skips_already_existing(user, make_campaign):
+    """Test that packs already in the target campaign are not duplicated."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    pack = CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    source.packs.add(pack)
+    target.packs.add(pack)  # Already exists in target
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        pack_ids=[str(pack.id)],
+    )
+
+    assert result.packs_copied == 0
+    assert target.packs.count() == 1
+
+
+@pytest.mark.django_db
+def test_copy_packs_no_conflict_check_needed(user, make_campaign):
+    """Test that check_copy_conflicts ignores packs (no conflict detection needed)."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    pack = CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    source.packs.add(pack)
+    target.packs.add(pack)
+
+    conflicts = check_copy_conflicts(
+        source_campaign=source,
+        target_campaign=target,
+        pack_ids=[str(pack.id)],
+    )
+
+    # Packs don't generate conflicts
+    assert not conflicts.has_conflicts
+
+
+@pytest.mark.django_db
+def test_copy_packs_included_in_total(user, make_campaign):
+    """Test that packs_copied is included in total_copied."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    pack = CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    source.packs.add(pack)
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        pack_ids=[str(pack.id)],
+    )
+
+    assert result.packs_copied == 1
+    assert result.total_copied == 1
+
+
+@pytest.mark.django_db
+def test_copy_from_view_with_packs(client, user, make_campaign):
+    """Integration test for copy-from view with packs."""
+    target = make_campaign("Target Campaign")
+    source = make_campaign("Source Campaign")
+
+    pack = CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    source.packs.add(pack)
+
+    client.force_login(user)
+
+    # Preview step
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "preview",
+            "source_campaign": str(source.id),
+            "packs": [str(pack.id)],
+        },
+    )
+    assert response.status_code == 200
+
+    # Confirm step
+    response = client.post(
+        reverse("core:campaign-copy-in", args=[target.id]),
+        {
+            "action": "confirm",
+            "source_campaign_id": str(source.id),
+            "selected_packs": [str(pack.id)],
+        },
+    )
+    assert response.status_code == 302
+    assert target.packs.count() == 1
+    assert target.packs.get().name == "Pack Alpha"
+
+
+@pytest.mark.django_db
+def test_copy_to_view_with_packs(client, user, make_campaign):
+    """Integration test for copy-to view with packs."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    pack = CustomContentPack.objects.create(name="Pack Beta", owner=user, listed=True)
+    source.packs.add(pack)
+
+    client.force_login(user)
+
+    # Preview step
+    response = client.post(
+        reverse("core:campaign-copy-out", args=[source.id]),
+        {
+            "action": "preview",
+            "target_campaign": str(target.id),
+            "packs": [str(pack.id)],
+        },
+    )
+    assert response.status_code == 200
+
+    # Confirm step
+    response = client.post(
+        reverse("core:campaign-copy-out", args=[source.id]),
+        {
+            "action": "confirm",
+            "target_campaign_id": str(target.id),
+            "selected_packs": [str(pack.id)],
+        },
+    )
+    assert response.status_code == 302
+    assert target.packs.count() == 1
+    assert target.packs.get().name == "Pack Beta"

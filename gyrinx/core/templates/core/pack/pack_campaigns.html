@@ -1,0 +1,66 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Your Campaigns - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <h1 class="h3">Your Campaigns</h1>
+        <p class="text-muted small">Manage which of your Campaigns use the {{ pack.name }} Content Pack.</p>
+        {% if unsubscribed_campaigns %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">Add to Campaign</h2>
+                </div>
+                <form method="post"
+                      action="{% url 'core:pack-campaign-subscribe' pack.id %}"
+                      class="mb-3">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2 align-items-end">
+                        <div class="flex-grow-1">
+                            <select name="campaign_id"
+                                    id="campaign_id"
+                                    class="form-select form-select-sm">
+                                {% for campaign in unsubscribed_campaigns %}<option value="{{ campaign.id }}">{{ campaign.name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Add to Campaign</button>
+                    </div>
+                </form>
+            </section>
+        {% endif %}
+        {% if subscribed_campaigns %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">
+                        Subscribed Campaigns
+                        <span class="badge bg-primary">{{ subscribed_campaigns|length }}</span>
+                    </h2>
+                </div>
+                <ul class="list-unstyled mb-0">
+                    {% for campaign in subscribed_campaigns %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <span>
+                                <a href="{% url 'core:campaign' campaign.id %}" class="linked">{{ campaign.name }}</a>
+                            </span>
+                            <form method="post"
+                                  action="{% url 'core:pack-campaign-unsubscribe' pack.id %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+                                <button type="submit"
+                                        class="btn btn-link btn-sm link-danger link-underline-opacity-25 link-underline-opacity-100-hover p-0">
+                                    Remove
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+        {% if not unsubscribed_campaigns and not subscribed_campaigns %}
+            <p class="text-muted small mb-0">You have no Campaigns to use with this Content Pack.</p>
+        {% endif %}
+    </div>
+{% endblock content %}

@@ -10,7 +10,7 @@
             <h1 class="mb-2">Copy from another Campaign</h1>
             <h3 class="mb-2 text-muted">{{ campaign.name }}</h3>
             <p class="text-muted mb-0">
-                Copy asset types, assets, resource types, and attribute types to <strong>{{ campaign.name }}</strong>.
+                Copy asset types, assets, resource types, attribute types, and custom content packs to <strong>{{ campaign.name }}</strong>.
             </p>
         </div>
         {% if show_confirmation %}
@@ -29,6 +29,9 @@
                 {% endfor %}
                 {% for att_id in form.cleaned_data.attribute_types %}
                     <input type="hidden" name="selected_attribute_types" value="{{ att_id }}">
+                {% endfor %}
+                {% for pack_id in form.cleaned_data.packs %}
+                    <input type="hidden" name="selected_packs" value="{{ pack_id }}">
                 {% endfor %}
                 <div class="vstack gap-3">
                     <div class="border rounded p-3">
@@ -57,11 +60,21 @@
                             </div>
                         {% endif %}
                         {% if form.cleaned_data.attribute_types %}
-                            <div class="mb-0">
+                            <div class="mb-2">
                                 <span class="caps-label">Attribute Types</span>
                                 <ul class="mb-0 ps-3">
                                     {% for choice_id, choice_label in form.fields.attribute_types.choices %}
                                         {% if choice_id in form.cleaned_data.attribute_types %}<li class="small">{{ choice_label }}</li>{% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        {% if form.cleaned_data.packs %}
+                            <div class="mb-0">
+                                <span class="caps-label">Content Packs</span>
+                                <ul class="mb-0 ps-3">
+                                    {% for choice_id, choice_label in form.fields.packs.choices %}
+                                        {% if choice_id in form.cleaned_data.packs %}<li class="small">{{ choice_label }}</li>{% endif %}
                                     {% endfor %}
                                 </ul>
                             </div>
@@ -242,6 +255,24 @@
                             </div>
                         {% else %}
                             <p class="text-muted small">This campaign has no attribute types to copy.</p>
+                        {% endif %}
+                        {% if form.fields.packs.choices %}
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label mb-0">{{ form.packs.label }}</label>
+                                    <a href="#"
+                                       class="small link-secondary"
+                                       onclick="document.querySelectorAll('[name=packs]').forEach(cb => cb.checked = true); return false;">Select all</a>
+                                </div>
+                                {% if form.packs.help_text %}<div class="form-text mb-2">{{ form.packs.help_text }}</div>{% endif %}
+                                {% for choice in form.packs %}
+                                    <div class="form-check">
+                                        {{ choice.tag }}
+                                        <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                    </div>
+                                {% endfor %}
+                                {% if form.packs.errors %}<div class="text-danger small mt-1">{{ form.packs.errors.0 }}</div>{% endif %}
+                            </div>
                         {% endif %}
                     {% endif %}
                     {% if form.non_field_errors %}<div class="text-danger small">{{ form.non_field_errors.0 }}</div>{% endif %}

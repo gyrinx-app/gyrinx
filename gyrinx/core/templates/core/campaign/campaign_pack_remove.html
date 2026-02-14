@@ -1,0 +1,25 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Remove Pack - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign-packs' campaign.id as packs_url %}
+    {% include "core/includes/back.html" with url=packs_url text="Back to Packs" %}
+    <div class="col-12 col-xl-6 px-0">
+        <h1 class="h3 mb-3">Remove Content Pack</h1>
+        <p>
+            Are you sure you want to remove <strong>{{ pack.name }}</strong>
+            from {{ campaign.name }}?
+        </p>
+        <p class="text-muted small">
+            Gangs already in the Campaign will not be affected, but new Gangs
+            will not be able to join if they use this pack.
+        </p>
+        <form method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            <a href="{% url 'core:campaign-packs' campaign.id %}"
+               class="btn btn-secondary btn-sm">Cancel</a>
+        </form>
+    </div>
+{% endblock content %}

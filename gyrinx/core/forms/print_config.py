@@ -61,8 +61,8 @@ class PrintConfigForm(forms.ModelForm):
             )
 
             # Customize the label for each fighter
-            self.fields["included_fighters"].label_from_instance = lambda obj: (
-                f"{obj.name} ({obj.get_injury_state_display()})"
+            self.fields["included_fighters"].label_from_instance = (
+                lambda obj: f"{obj.name} ({obj.get_injury_state_display()})"
             )
 
     def clean(self):

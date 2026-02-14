@@ -83,6 +83,12 @@ class Campaign(AppBase):
         related_name="+",
         help_text="The attribute type used to group and visually divide lists in the campaign view. Must be single-select.",
     )
+    packs = models.ManyToManyField(
+        "CustomContentPack",
+        blank=True,
+        related_name="campaigns",
+        help_text="Content packs allowed for this campaign. Empty means no restrictions.",
+    )
 
     history = HistoricalRecords()
 
@@ -205,6 +211,30 @@ class Campaign(AppBase):
             return True
         return False
 
+    def validate_list_packs(self, list_to_add):
+        """Validate that a list's packs are compatible with campaign packs.
+
+        If the campaign has no packs configured (empty M2M), any list is allowed.
+        Otherwise, the list's subscribed packs must be a subset of the campaign's
+        allowed packs.
+
+        Args:
+            list_to_add: The List to validate
+
+        Returns:
+            tuple: (is_valid: bool, incompatible_packs: list[CustomContentPack])
+        """
+        campaign_pack_ids = set(self.packs.values_list("id", flat=True))
+
+        # Empty campaign packs = no restrictions
+        if not campaign_pack_ids:
+            return True, []
+
+        list_packs = list(list_to_add.packs.all())
+        incompatible = [p for p in list_packs if p.id not in campaign_pack_ids]
+
+        return len(incompatible) == 0, incompatible
+
     def add_list_to_campaign(self, list_to_add, user=None):
         """Add a list to the campaign, cloning if necessary.
 
@@ -218,9 +248,21 @@ class Campaign(AppBase):
         Returns a tuple (list, was_added) where:
         - list is the added list (original for pre-campaign, clone for in-progress)
         - was_added is True if the list was newly added, False if it already existed
+
+        Raises:
+            ValueError: If the list's packs are incompatible with campaign packs
         """
         if user is None:
             user = self.owner
+
+        # Validate pack compatibility
+        is_valid, incompatible_packs = self.validate_list_packs(list_to_add)
+        if not is_valid:
+            pack_names = ", ".join(p.name for p in incompatible_packs)
+            raise ValueError(
+                f"This gang has content packs not allowed by this campaign: {pack_names}. "
+                f"Unsubscribe from these packs before joining."
+            )
 
         if self.is_pre_campaign:
             # Pre-campaign: check if list is already in campaign

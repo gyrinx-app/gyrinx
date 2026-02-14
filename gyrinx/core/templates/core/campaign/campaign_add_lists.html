@@ -98,6 +98,18 @@
                                {% if request.GET.owner == "others" %}checked{% endif %}>
                         <label class="btn btn-outline-primary btn-sm" for="owner-others">Others' Gangs</label>
                     </div>
+                    {% if has_campaign_packs %}
+                        <div class="form-check form-switch ms-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="packs-filter"
+                                   name="packs"
+                                   value="matching"
+                                   {% if request.GET.packs == "matching" %}checked{% endif %}
+                                   data-gy-toggle-submit="search">
+                            <label class="form-check-label small" for="packs-filter">Matching Content Packs</label>
+                        </div>
+                    {% endif %}
                 </div>
             </form>
         </section>
@@ -127,6 +139,15 @@
                                             · R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
                                         {% endwith %}
                                     </div>
+                                    {% if list.packs.all %}
+                                        <div class="small text-muted">
+                                            <i class="bi-box-seam"></i>
+                                            {% for pack in list.packs.all %}
+                                                {{ pack.name }}
+                                                {% if not forloop.last %},{% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
                                 </td>
                                 <td class="text-end">
                                     <form method="post"

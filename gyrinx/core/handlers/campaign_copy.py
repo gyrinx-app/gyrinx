@@ -42,6 +42,7 @@ class CopyResult:
     resource_types_copied: int = 0
     attribute_types_copied: int = 0
     attribute_values_copied: int = 0
+    packs_copied: int = 0
 
     @property
     def total_copied(self):
@@ -52,6 +53,7 @@ class CopyResult:
             + self.resource_types_copied
             + self.attribute_types_copied
             + self.attribute_values_copied
+            + self.packs_copied
         )
 
 
@@ -61,6 +63,7 @@ def check_copy_conflicts(
     asset_type_ids: list[str] | None = None,
     resource_type_ids: list[str] | None = None,
     attribute_type_ids: list[str] | None = None,
+    pack_ids: list[str] | None = None,
 ) -> CopyConflicts:
     """Check for name conflicts between source and target campaigns.
 
@@ -70,6 +73,8 @@ def check_copy_conflicts(
         asset_type_ids: List of asset type IDs to check (None/empty = none)
         resource_type_ids: List of resource type IDs to check (None/empty = none)
         attribute_type_ids: List of attribute type IDs to check (None/empty = none)
+        pack_ids: List of pack IDs to copy (None/empty = none). Packs are
+            existing entities added by reference, so no conflict check is needed.
 
     Returns:
         CopyConflicts with lists of conflicting names
@@ -136,6 +141,7 @@ def copy_campaign_content(
     asset_type_ids: list[str] | None = None,
     resource_type_ids: list[str] | None = None,
     attribute_type_ids: list[str] | None = None,
+    pack_ids: list[str] | None = None,
 ) -> CopyResult:
     """Copy selected content from source campaign to target campaign.
 
@@ -145,6 +151,7 @@ def copy_campaign_content(
     - Sub-assets with their properties
     - Resource types (but NOT per-list allocations)
     - Attribute types with their values (but NOT per-list assignments)
+    - Content packs (added by reference to the target campaign)
 
     Conflicts (same name exists in target) are skipped.
 
@@ -155,6 +162,7 @@ def copy_campaign_content(
         asset_type_ids: List of asset type IDs to copy (None = none)
         resource_type_ids: List of resource type IDs to copy (None = none)
         attribute_type_ids: List of attribute type IDs to copy (None = none)
+        pack_ids: List of pack IDs to copy (None = none)
 
     Returns:
         CopyResult with counts of what was copied
@@ -268,5 +276,14 @@ def copy_campaign_content(
                     colour=source_value.colour,
                 )
                 result.attribute_values_copied += 1
+
+    # Copy packs (add by reference — packs are shared entities, not cloned)
+    if pack_ids:
+        existing_pack_ids = set(target_campaign.packs.values_list("id", flat=True))
+        source_packs = source_campaign.packs.filter(id__in=pack_ids)
+        for pack in source_packs:
+            if pack.id not in existing_pack_ids:
+                target_campaign.packs.add(pack)
+                result.packs_copied += 1
 
     return result
