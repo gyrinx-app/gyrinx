@@ -2454,3 +2454,107 @@ def test_add_gear_allows_unique_name(client, group_user, pack, equipment_categor
     assert (
         ContentEquipment.objects.all_content().filter(name="Totally New Gear").exists()
     )
+
+
+# --- Pack gear appears in fighter equipment edit view ---
+
+
+@pytest.mark.django_db
+def test_pack_gear_visible_in_fighter_gear_edit(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear appears in the gear edit view when the list subscribes to the pack."""
+    lst = make_list("Pack Gear List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Pack Tester")
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_can_be_assigned_via_form(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear can be assigned to a fighter via the POST form."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("Assign Pack List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Assign Tester")
+
+    equipment_id = pack_equipment.object_id
+    client.force_login(user)
+    response = client.post(
+        f"/list/{lst.id}/fighter/{fighter.id}/gear",
+        {"content_equipment": str(equipment_id)},
+    )
+    # Successful assignment redirects
+    assert response.status_code == 302, response.content.decode()[:500]
+
+    # Assignment was created
+    assert ListFighterEquipmentAssignment.objects.filter(
+        list_fighter=fighter, content_equipment_id=equipment_id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_pack_gear_displays_after_assignment(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Assigned pack gear is visible on the fighter's gear page."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("Display Pack List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Display Tester")
+
+    equipment = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_displays_on_list_detail(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Assigned pack gear is visible on the list detail page."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("List Detail Pack")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Detail Tester")
+
+    equipment = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_hidden_without_subscription(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear does not appear when the list is not subscribed to the pack."""
+    lst = make_list("No Pack List")
+    fighter = make_list_fighter(lst, "No Pack Tester")
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    assert response.status_code == 200
+    assert b"Test Armour" not in response.content

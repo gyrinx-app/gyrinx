@@ -106,10 +106,15 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         else "core/list_fighter_gear_edit.html"
     )
 
+    packs = lst.packs.all()
+
     error_message = None
     if request.method == "POST":
         instance = ListFighterEquipmentAssignment(list_fighter=fighter)
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
+        form.fields["content_equipment"].queryset = ContentEquipment.objects.with_packs(
+            packs
+        )
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
@@ -223,8 +228,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     expansion_inputs = ExpansionRuleInputs(list=lst, fighter=fighter)
 
     if is_weapon:
-        equipment = ContentEquipment.objects.weapons().with_expansion_cost_for_fighter(
-            fighter.equipment_list_fighter, expansion_inputs
+        equipment = (
+            ContentEquipment.objects.with_packs(packs)
+            .weapons()
+            .with_expansion_cost_for_fighter(
+                fighter.equipment_list_fighter, expansion_inputs
+            )
         )
         search_vector = SearchVector(
             "name",
@@ -234,7 +243,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         )
     else:
         equipment = (
-            ContentEquipment.objects.non_weapons().with_expansion_cost_for_fighter(
+            ContentEquipment.objects.with_packs(packs)
+            .non_weapons()
+            .with_expansion_cost_for_fighter(
                 fighter.equipment_list_fighter, expansion_inputs
             )
         )
@@ -467,9 +478,9 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # (weapons or non-weapons) to prevent cross-type items from leaking
         # into the combine (e.g. Armour appearing on the weapons page).
         equipment_type_qs = (
-            ContentEquipment.objects.weapons()
+            ContentEquipment.objects.with_packs(packs).weapons()
             if is_weapon
-            else ContentEquipment.objects.non_weapons()
+            else ContentEquipment.objects.with_packs(packs).non_weapons()
         )
         filtered_list_ids = list(
             equipment_type_qs.filter(id__in=equipment_list_ids).values_list(
@@ -482,13 +493,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # re-added via the combine (e.g. Ancestry items via squat legacy).
         if cats and "all" not in cats:
             filtered_list_ids = list(
-                ContentEquipment.objects.filter(
-                    id__in=filtered_list_ids, category_id__in=cats
-                ).values_list("id", flat=True)
+                ContentEquipment.objects.with_packs(packs)
+                .filter(id__in=filtered_list_ids, category_id__in=cats)
+                .values_list("id", flat=True)
             )
 
         # Combine equipment and equipment_list_items using a single filter with Q
-        combined_equipment_qs = ContentEquipment.objects.filter(
+        combined_equipment_qs = ContentEquipment.objects.with_packs(packs).filter(
             Q(id__in=equipment.values("id")) | Q(id__in=filtered_list_ids)
         )
 
