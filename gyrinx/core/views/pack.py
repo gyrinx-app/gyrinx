@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx import messages
+from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
@@ -25,6 +26,7 @@ from gyrinx.content.models.statline import (
 )
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
+    ContentGearPackForm,
     ContentHouseForm,
     ContentRuleForm,
     PackForm,
@@ -69,6 +71,14 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-person",
         ContentFighterPackForm,
         "fighter",
+    ),
+    ContentTypeEntry(
+        ContentEquipment,
+        "Gear",
+        "Custom gear and non-weapon equipment for your Content Pack.",
+        "bi-wrench",
+        ContentGearPackForm,
+        "gear",
     ),
     ContentTypeEntry(
         ContentRule,

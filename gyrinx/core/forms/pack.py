@@ -1,9 +1,12 @@
 from django import forms
+from django.core.exceptions import ValidationError
+from django.db.models import Case, When
 
+from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
-from gyrinx.models import FighterCategoryChoices
+from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
@@ -163,6 +166,17 @@ class ContentFighterPackForm(forms.ModelForm):
             ]:
                 del self.fields[field_name]
 
+    def clean_type(self):
+        value = self.cleaned_data["type"]
+        qs = ContentFighter.objects.filter(type__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A fighter with this name already exists in the content library."
+            )
+        return value
+
 
 class ContentHouseForm(forms.ModelForm):
     class Meta:
@@ -177,6 +191,17 @@ class ContentHouseForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentHouse.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A house with this name already exists in the content library."
+            )
+        return value
 
 
 class ContentRuleForm(forms.ModelForm):
@@ -195,3 +220,78 @@ class ContentRuleForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentRule.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A rule with this name already exists in the content library."
+            )
+        return value
+
+
+class ContentGearPackForm(forms.ModelForm):
+    """Form for adding/editing gear (non-weapon equipment) in a content pack."""
+
+    class Meta:
+        model = ContentEquipment
+        fields = ["name", "category", "cost", "rarity", "rarity_roll"]
+        labels = {
+            "name": "Name",
+            "category": "Category",
+            "cost": "Cost",
+            "rarity": "Availability",
+            "rarity_roll": "Availability level",
+        }
+        help_texts = {
+            "name": "The name of the gear.",
+            "category": "The gear category (e.g. Armour, Wargear).",
+            "cost": "The credit cost at the Trading Post.",
+            "rarity": "The availability of this gear.",
+            "rarity_roll": "The roll required to find this gear (e.g. 7, 10).",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "cost": forms.TextInput(attrs={"class": "form-control"}),
+            "rarity": forms.Select(attrs={"class": "form-select"}),
+            "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Filter to gear categories only (exclude weapons), ordered by group then name.
+        self.fields["category"].queryset = (
+            ContentEquipmentCategory.objects.exclude(
+                group__in=["Weapons & Ammo", "Other"]
+            )
+        ).order_by(
+            Case(
+                *[
+                    When(group=group, then=i)
+                    for i, group in enumerate(equipment_category_groups)
+                ],
+                default=99,
+            ),
+            "name",
+        )
+
+        # Group the category dropdown by equipment group.
+        from gyrinx.forms import group_select
+
+        group_select(self, "category", key=lambda x: x.group)
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentEquipment.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "Gear with this name already exists in the content library."
+            )
+        return value

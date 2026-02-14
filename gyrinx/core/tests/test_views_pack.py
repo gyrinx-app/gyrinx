@@ -2,6 +2,7 @@ import pytest
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 
+from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
@@ -2046,3 +2047,536 @@ def test_packs_index_shows_editor_packs(
     response = client.get("/packs/")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
+
+
+# --- Gear in packs ---
+
+
+@pytest.fixture
+def equipment_category():
+    """A gear category for testing (must be in the gear allow-list)."""
+    cat, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Gang Equipment", defaults={"group": "Gear"}
+    )
+    return cat
+
+
+@pytest.fixture
+def pack_equipment(pack, group_user, equipment_category):
+    """An equipment item added to a pack."""
+    equip = ContentEquipment.objects.all_content().create(
+        name="Test Armour", category=equipment_category, cost="20", rarity="C"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+    return item
+
+
+@pytest.mark.django_db
+def test_add_gear_form_loads(client, group_user, pack, equipment_category):
+    """Test that the add gear form page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/gear/")
+    assert response.status_code == 200
+    assert b"Add Gear" in response.content
+
+
+@pytest.mark.django_db
+def test_add_gear_creates_item(client, group_user, pack, equipment_category):
+    """Test that submitting the add gear form creates equipment and pack item."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "Custom Armour",
+            "category": str(equipment_category.pk),
+            "cost": "25",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    equip = ContentEquipment.objects.all_content().get(name="Custom Armour")
+    assert equip.cost == "25"
+    assert equip.rarity == "C"
+    assert equip.category == equipment_category
+
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=equip.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_gear_requires_name(client, group_user, pack, equipment_category):
+    """Test that the name field is required."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "",
+            "category": str(equipment_category.pk),
+            "cost": "10",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 200  # Re-renders form with errors
+
+
+@pytest.mark.django_db
+def test_add_gear_requires_login(client, pack):
+    """Test that adding gear requires login."""
+    response = client.get(f"/pack/{pack.id}/add/gear/")
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_gear_requires_ownership(client, pack, custom_content_group, make_user):
+    """Test that only pack editors can add gear."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/add/gear/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_edit_gear_form_loads(client, group_user, pack, pack_equipment):
+    """Test that the edit gear form loads with current values."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_gear_updates_content(
+    client, group_user, pack, pack_equipment, equipment_category
+):
+    """Test that editing gear updates the content object."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Updated Armour",
+            "category": str(equipment_category.pk),
+            "cost": "30",
+            "rarity": "R",
+        },
+    )
+    assert response.status_code == 302
+
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Updated Armour"
+    assert equip.cost == "30"
+    assert equip.rarity == "R"
+
+
+@pytest.mark.django_db
+def test_edit_gear_without_changing_name(
+    client, group_user, pack, pack_equipment, equipment_category
+):
+    """Editing gear without changing its name should succeed."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Test Armour",
+            "category": str(equipment_category.pk),
+            "cost": "50",
+            "rarity": "R",
+        },
+    )
+    assert response.status_code == 302
+
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Test Armour"
+    assert equip.cost == "50"
+
+
+@pytest.mark.django_db
+def test_edit_gear_requires_ownership(
+    client, pack, pack_equipment, custom_content_group, make_user
+):
+    """Test that only pack editors can edit gear."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_gear_confirmation_loads(client, group_user, pack, pack_equipment):
+    """Test that the delete confirmation page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_delete_gear_archives_item(client, group_user, pack, pack_equipment):
+    """Test that deleting archives the pack item but preserves the content."""
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    assert response.status_code == 302
+
+    pack_equipment.refresh_from_db()
+    assert pack_equipment.archived
+
+    # Content object still exists.
+    assert (
+        ContentEquipment.objects.all_content()
+        .filter(pk=pack_equipment.object_id)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_restore_gear(client, group_user, pack, pack_equipment):
+    """Test that restoring an archived gear item works."""
+    pack_equipment.archive()
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/restore/")
+    assert response.status_code == 302
+
+    pack_equipment.refresh_from_db()
+    assert not pack_equipment.archived
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_gear_section(client, group_user, pack):
+    """Test that the pack detail page shows the Gear section."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Gear" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_gear_item(client, group_user, pack, pack_equipment):
+    """Test that gear items appear in the pack detail page."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_add_gear_button(
+    client, group_user, pack, equipment_category
+):
+    """Test that the Add button for gear is shown to editors."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert f"/pack/{pack.id}/add/gear/".encode() in response.content
+
+
+@pytest.mark.django_db
+def test_editor_can_add_gear(client, pack_with_editor, editor_user, equipment_category):
+    """Test that an editor can add gear to a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/add/gear/",
+        {
+            "name": "Editor Gear",
+            "category": str(equipment_category.pk),
+            "cost": "15",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert ContentEquipment.objects.all_content().filter(name="Editor Gear").exists()
+
+
+@pytest.mark.django_db
+def test_editor_can_edit_gear(
+    client, pack_with_editor, editor_user, pack_equipment, equipment_category
+):
+    """Test that an editor can edit gear in a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Editor Updated",
+            "category": str(equipment_category.pk),
+            "cost": "50",
+            "rarity": "I",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Editor Updated"
+
+
+@pytest.mark.django_db
+def test_editor_can_delete_gear(client, pack_with_editor, editor_user, pack_equipment):
+    """Test that an editor can archive gear in a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/delete/"
+    )
+    assert response.status_code == 302
+    pack_equipment.refresh_from_db()
+    assert pack_equipment.archived
+
+
+@pytest.mark.django_db
+def test_gear_excluded_from_base_queryset(pack_equipment):
+    """Test that pack gear is excluded from the default queryset."""
+    assert not ContentEquipment.objects.filter(pk=pack_equipment.object_id).exists()
+    assert (
+        ContentEquipment.objects.all_content()
+        .filter(pk=pack_equipment.object_id)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_gear_visible_via_with_packs(pack, pack_equipment):
+    """Test that pack gear is included when using with_packs."""
+    qs = ContentEquipment.objects.with_packs([pack])
+    assert qs.filter(pk=pack_equipment.object_id).exists()
+
+
+@pytest.mark.django_db
+def test_add_gear_category_grouped(client, group_user, pack):
+    """Test that the category dropdown shows only gear categories, grouped."""
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Pistols", defaults={"group": "Weapons & Ammo"}
+    )
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Armour", defaults={"group": "Gear"}
+    )
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Vehicle Wargear", defaults={"group": "Vehicle & Mount"}
+    )
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/gear/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Gear categories should be present.
+    assert "Armour" in content
+    assert "Vehicle Wargear" in content
+    # Weapon categories should be excluded.
+    assert ">Pistols<" not in content
+    # Groups should appear as optgroup labels.
+    assert "Gear" in content
+
+
+@pytest.mark.django_db
+def test_add_gear_cost_accepts_text(client, group_user, pack, equipment_category):
+    """Test that cost accepts non-numeric text values."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "Variable Cost Gear",
+            "category": str(equipment_category.pk),
+            "cost": "varies",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(name="Variable Cost Gear")
+    assert equip.cost == "varies"
+
+
+# --- Duplicate name validation (case-insensitive) ---
+
+
+@pytest.mark.django_db
+def test_add_house_rejects_duplicate_name(client, group_user, pack, content_house):
+    """Adding a house whose name matches a base library house (case-insensitive) is rejected."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/house/",
+        {"name": content_house.name.upper()},
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+
+
+@pytest.mark.django_db
+def test_add_fighter_rejects_duplicate_name(
+    client, group_user, pack, content_fighter, fighter_statline_type
+):
+    """Adding a fighter whose type matches a base library fighter (case-insensitive) is rejected."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": content_fighter.type.upper(),
+            "category": content_fighter.category,
+            "house": str(content_fighter.house_id),
+            "base_cost": "100",
+        },
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+
+
+@pytest.mark.django_db
+def test_add_rule_rejects_duplicate_name(client, group_user, pack):
+    """Adding a rule whose name matches a base library rule (case-insensitive) is rejected."""
+    # Create a base library rule.
+    rule = ContentRule.objects.create(name="Existing Rule")
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "existing rule", "description": ""},
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+    rule.delete()
+
+
+@pytest.mark.django_db
+def test_add_gear_rejects_duplicate_name(client, group_user, pack, equipment_category):
+    """Adding gear whose name matches base library equipment (case-insensitive) is rejected."""
+    # Create base library equipment.
+    equip = ContentEquipment.objects.create(
+        name="Flak Armour", category=equipment_category, cost="20", rarity="C"
+    )
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "flak armour",
+            "category": str(equipment_category.pk),
+            "cost": "20",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+    equip.delete()
+
+
+@pytest.mark.django_db
+def test_add_gear_allows_unique_name(client, group_user, pack, equipment_category):
+    """Adding gear with a name not in the base library succeeds."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "Totally New Gear",
+            "category": str(equipment_category.pk),
+            "cost": "15",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert (
+        ContentEquipment.objects.all_content().filter(name="Totally New Gear").exists()
+    )
+
+
+# --- Pack gear appears in fighter equipment edit view ---
+
+
+@pytest.mark.django_db
+def test_pack_gear_visible_in_fighter_gear_edit(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear appears in the gear edit view when the list subscribes to the pack."""
+    lst = make_list("Pack Gear List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Pack Tester")
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_can_be_assigned_via_form(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear can be assigned to a fighter via the POST form."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("Assign Pack List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Assign Tester")
+
+    equipment_id = pack_equipment.object_id
+    client.force_login(user)
+    response = client.post(
+        f"/list/{lst.id}/fighter/{fighter.id}/gear",
+        {"content_equipment": str(equipment_id)},
+    )
+    # Successful assignment redirects
+    assert response.status_code == 302, response.content.decode()[:500]
+
+    # Assignment was created
+    assert ListFighterEquipmentAssignment.objects.filter(
+        list_fighter=fighter, content_equipment_id=equipment_id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_pack_gear_displays_after_assignment(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Assigned pack gear is visible on the fighter's gear page."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("Display Pack List")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Display Tester")
+
+    equipment = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_displays_on_list_detail(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Assigned pack gear is visible on the list detail page."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    lst = make_list("List Detail Pack")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Detail Tester")
+
+    equipment = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_gear_hidden_without_subscription(
+    client, user, make_list, make_list_fighter, pack, pack_equipment
+):
+    """Pack gear does not appear when the list is not subscribed to the pack."""
+    lst = make_list("No Pack List")
+    fighter = make_list_fighter(lst, "No Pack Tester")
+
+    client.force_login(user)
+    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    assert response.status_code == 200
+    assert b"Test Armour" not in response.content
