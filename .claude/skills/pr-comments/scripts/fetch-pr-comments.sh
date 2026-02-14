@@ -56,9 +56,16 @@ REPO="${REPO_FULL##*/}"
 # --- Determine PR number ---
 if [ -z "$PR_ARG" ]; then
     # Detect from current branch, using the repo we already resolved.
+    # gh pr view -R requires an explicit branch/PR argument (it cannot
+    # auto-detect from the working tree when --repo is given).
+    BRANCH=$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null) || true
+    if [ -z "$BRANCH" ]; then
+        echo "ERROR: Could not determine current branch." >&2
+        exit 1
+    fi
     GH_ERR=$(mktemp)
-    PR_NUM=$(gh pr view -R "$OWNER/$REPO" --json number -q '.number' 2>"$GH_ERR") || {
-        echo "ERROR: No PR found for current branch." >&2
+    PR_NUM=$(gh pr view -R "$OWNER/$REPO" "$BRANCH" --json number -q '.number' 2>"$GH_ERR") || {
+        echo "ERROR: No PR found for branch '$BRANCH'." >&2
         cat "$GH_ERR" >&2
         rm -f "$GH_ERR"
         exit 1
