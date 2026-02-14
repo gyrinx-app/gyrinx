@@ -25,8 +25,8 @@ from gyrinx.content.models.statline import (
     ContentStatlineType,
 )
 from gyrinx.core.forms.pack import (
-    ContentEquipmentPackForm,
     ContentFighterPackForm,
+    ContentGearPackForm,
     ContentHouseForm,
     ContentRuleForm,
     PackForm,
@@ -74,11 +74,11 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentEquipment,
-        "Equipment",
-        "Custom equipment and gear for your Content Pack.",
+        "Gear",
+        "Custom gear and non-weapon equipment for your Content Pack.",
         "bi-wrench",
-        ContentEquipmentPackForm,
-        "equipment",
+        ContentGearPackForm,
+        "gear",
     ),
     ContentTypeEntry(
         ContentRule,

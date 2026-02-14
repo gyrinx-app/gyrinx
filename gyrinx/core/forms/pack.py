@@ -224,8 +224,32 @@ class ContentRuleForm(forms.ModelForm):
         return value
 
 
-class ContentEquipmentPackForm(forms.ModelForm):
-    """Form for adding/editing equipment in a content pack."""
+# Categories allowed for gear (non-weapon) items in packs.
+# TODO: replace with a content-library-driven flag (see #1472).
+_GEAR_CATEGORY_NAMES = {
+    "Armour",
+    "Bionics",
+    "Booby Traps",
+    "Chem-alchemy Elixirs",
+    "Chems",
+    "Field Armour",
+    "Gang Equipment",
+    "Gang Terrain",
+    "Personal Equipment",
+    "Relics",
+    "Status Items",
+    "Body",
+    "Cargo Loads",
+    "Drive",
+    "Engine",
+    "Locomotion",
+    "Trailers",
+    "Vehicle Wargear",
+}
+
+
+class ContentGearPackForm(forms.ModelForm):
+    """Form for adding/editing gear (non-weapon equipment) in a content pack."""
 
     class Meta:
         model = ContentEquipment
@@ -237,10 +261,10 @@ class ContentEquipmentPackForm(forms.ModelForm):
             "rarity": "Availability",
         }
         help_texts = {
-            "name": "The name of the equipment.",
-            "category": "The equipment category (e.g. Pistols, Wargear).",
+            "name": "The name of the gear.",
+            "category": "The gear category (e.g. Armour, Wargear).",
             "cost": "The credit cost at the Trading Post.",
-            "rarity": "The availability of this equipment.",
+            "rarity": "The availability of this gear.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -254,10 +278,10 @@ class ContentEquipmentPackForm(forms.ModelForm):
         kwargs.pop("pack", None)
         super().__init__(*args, **kwargs)
 
-        # Order categories by group, then by name within each group.
-        self.fields[
-            "category"
-        ].queryset = ContentEquipmentCategory.objects.all().order_by(
+        # Filter to gear categories only, ordered by group then name.
+        self.fields["category"].queryset = ContentEquipmentCategory.objects.filter(
+            name__in=_GEAR_CATEGORY_NAMES
+        ).order_by(
             Case(
                 *[
                     When(group=group, then=i)
@@ -277,6 +301,6 @@ class ContentEquipmentPackForm(forms.ModelForm):
         value = self.cleaned_data["name"]
         if ContentEquipment.objects.filter(name__iexact=value).exists():
             raise ValidationError(
-                "Equipment with this name already exists in the content library."
+                "Gear with this name already exists in the content library."
             )
         return value
