@@ -75,6 +75,9 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **pr-comments** — Fetch all PR comments, reviews, and review threads in a single GraphQL call. Shows
   resolved/unresolved status, groups by file, and summarises action items. Auto-detects PR from current branch.
   Claude loads this automatically when it needs PR feedback data.
+- **pr-feedback** — Review PR feedback from reviewers and Copilot, triage each comment
+  (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
+  `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
 
 ## Critical Workflow
 
