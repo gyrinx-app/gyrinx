@@ -253,24 +253,27 @@ class ContentGearPackForm(forms.ModelForm):
 
     class Meta:
         model = ContentEquipment
-        fields = ["name", "category", "cost", "rarity"]
+        fields = ["name", "category", "cost", "rarity", "rarity_roll"]
         labels = {
             "name": "Name",
             "category": "Category",
             "cost": "Cost",
             "rarity": "Availability",
+            "rarity_roll": "Availability level",
         }
         help_texts = {
             "name": "The name of the gear.",
             "category": "The gear category (e.g. Armour, Wargear).",
             "cost": "The credit cost at the Trading Post.",
             "rarity": "The availability of this gear.",
+            "rarity_roll": "The roll required to find this gear (e.g. 7, 10).",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
             "cost": forms.TextInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
+            "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
         }
 
     def __init__(self, *args, **kwargs):
