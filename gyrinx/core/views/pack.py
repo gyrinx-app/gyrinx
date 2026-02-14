@@ -26,7 +26,11 @@ from gyrinx.content.models.statline import (
 from gyrinx.core.forms.pack import ContentFighterPackForm, ContentRuleForm, PackForm
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
-from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
+from gyrinx.core.models.pack import (
+    CustomContentPack,
+    CustomContentPackItem,
+    CustomContentPackPermission,
+)
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
@@ -73,6 +77,20 @@ SUPPORTED_CONTENT_TYPES = [
 
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
+
+
+def _get_pack_for_edit(id, user):
+    """Fetch a pack and verify the user can edit it, or raise Http404."""
+    pack = get_object_or_404(CustomContentPack, id=id)
+    if not pack.can_edit(user):
+        raise Http404
+    return pack
+
+
+def _check_pack_visible(pack, user):
+    """Raise Http404 if the user cannot view the pack."""
+    if not pack.can_view(user):
+        raise Http404
 
 
 # Fields to exclude from change diffs (internal/inherited fields).
@@ -319,7 +337,10 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
         if self.request.user.is_authenticated:
             show_my_packs = self.request.GET.get("my", "1")
             if show_my_packs == "1":
-                queryset = queryset.filter(owner=self.request.user)
+                queryset = queryset.filter(
+                    models.Q(owner=self.request.user)
+                    | models.Q(permissions__user=self.request.user)
+                ).distinct()
             else:
                 queryset = queryset.filter(listed=True)
         else:
@@ -349,10 +370,7 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
             ),
             id=self.kwargs["id"],
         )
-        # Unlisted packs are only visible to their owner
-        user = self.request.user
-        if not pack.listed and (not user.is_authenticated or user != pack.owner):
-            raise Http404
+        _check_pack_visible(pack, self.request.user)
         return pack
 
     def get_context_data(self, **kwargs):
@@ -361,6 +379,7 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
         user = self.request.user
 
         context["is_owner"] = user.is_authenticated and user == pack.owner
+        context["can_edit"] = pack.can_edit(user)
 
         # Group prefetched items by content type, splitting active/archived.
         active_by_ct = defaultdict(list)
@@ -454,16 +473,21 @@ def new_pack(request):
 @login_required
 @group_membership_required(["Custom Content"])
 def edit_pack(request, id):
-    """Edit an existing content pack owned by the current user."""
-    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    """Edit an existing content pack (owner or editor)."""
+    pack = _get_pack_for_edit(id, request.user)
+    is_owner = request.user == pack.owner
 
     if request.method == "POST":
         form = PackForm(request.POST, instance=pack)
+        if not is_owner:
+            form.fields.pop("listed", None)
         if form.is_valid():
             form.save()
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = PackForm(instance=pack)
+        if not is_owner:
+            form.fields.pop("listed", None)
 
     return render(
         request,
@@ -486,8 +510,7 @@ class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
         )
 
         user = self.request.user
-        if not pack.listed and (not user.is_authenticated or user != pack.owner):
-            raise Http404
+        _check_pack_visible(pack, user)
 
         all_activity = _get_pack_activity(pack)
         paginator = Paginator(all_activity, 50)
@@ -499,6 +522,7 @@ class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
         context["page_obj"] = page_obj
         context["is_paginated"] = page_obj.has_other_pages()
         context["is_owner"] = user.is_authenticated and user == pack.owner
+        context["can_edit"] = pack.can_edit(user)
 
         return context
 
@@ -517,7 +541,7 @@ class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
             ),
             id=self.kwargs["id"],
         )
-        if pack.owner != self.request.user:
+        if not pack.can_edit(self.request.user):
             raise Http404
         return pack
 
@@ -671,7 +695,7 @@ def _form_kwargs(entry, pack):
 @group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
     """Add a new content item to a pack."""
-    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
     singular_label = entry.label.rstrip("s")
     is_fighter = entry.model_class is ContentFighter
@@ -730,7 +754,7 @@ def add_pack_item(request, id, content_type_slug):
 @group_membership_required(["Custom Content"])
 def edit_pack_item(request, id, item_id):
     """Edit a content item in a pack."""
-    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack = _get_pack_for_edit(id, request.user)
     pack_item = get_object_or_404(
         CustomContentPackItem.objects.select_related("content_type"),
         id=item_id,
@@ -799,7 +823,7 @@ def edit_pack_item(request, id, item_id):
 @group_membership_required(["Custom Content"])
 def delete_pack_item(request, id, item_id):
     """Archive a content item from a pack (soft-delete)."""
-    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack = _get_pack_for_edit(id, request.user)
     pack_item = get_object_or_404(
         CustomContentPackItem.objects.select_related("content_type"),
         id=item_id,
@@ -840,7 +864,7 @@ def restore_pack_item(request, id, item_id):
     if request.method != "POST":
         raise Http404
 
-    pack = get_object_or_404(CustomContentPack, id=id, owner=request.user)
+    pack = _get_pack_for_edit(id, request.user)
     pack_item = get_object_or_404(
         CustomContentPackItem.objects.select_related("content_type"),
         id=item_id,
@@ -862,8 +886,7 @@ def pack_lists(request, id):
         id=id,
     )
     user = request.user
-    if not pack.listed and pack.owner != user:
-        raise Http404
+    _check_pack_visible(pack, user)
 
     user_lists = (
         List.objects.filter(owner=user, archived=False)
@@ -884,6 +907,7 @@ def pack_lists(request, id):
         {
             "pack": pack,
             "is_owner": user == pack.owner,
+            "can_edit": pack.can_edit(user),
             "subscribed_lists": subscribed_lists,
             "unsubscribed_lists": unsubscribed_lists,
         },
@@ -898,9 +922,7 @@ def subscribe_pack(request, id):
         raise Http404
 
     pack = get_object_or_404(CustomContentPack, id=id, archived=False)
-    # Pack must be listed or owned by user
-    if not pack.listed and pack.owner != request.user:
-        raise Http404
+    _check_pack_visible(pack, request.user)
 
     list_id = request.POST.get("list_id")
     if not list_id or not is_valid_uuid(list_id):
@@ -1005,8 +1027,7 @@ def pack_campaigns(request, id):
         id=id,
     )
     user = request.user
-    if not pack.listed and pack.owner != user:
-        raise Http404
+    _check_pack_visible(pack, user)
 
     user_campaigns = Campaign.objects.filter(owner=user, archived=False).order_by(
         "name"
@@ -1027,6 +1048,7 @@ def pack_campaigns(request, id):
         {
             "pack": pack,
             "is_owner": user == pack.owner,
+            "can_edit": pack.can_edit(user),
             "subscribed_campaigns": subscribed_campaigns,
             "unsubscribed_campaigns": unsubscribed_campaigns,
         },
@@ -1041,8 +1063,7 @@ def subscribe_pack_campaign(request, id):
         raise Http404
 
     pack = get_object_or_404(CustomContentPack, id=id, archived=False)
-    if not pack.listed and pack.owner != request.user:
-        raise Http404
+    _check_pack_visible(pack, request.user)
 
     campaign_id = request.POST.get("campaign_id")
     if not campaign_id or not is_valid_uuid(campaign_id):
@@ -1077,3 +1098,76 @@ def unsubscribe_pack_campaign(request, id):
 
     messages.success(request, f"Removed {pack.name} from {campaign.name}")
     return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def pack_permissions(request, id):
+    """Manage editor permissions for a pack (owner only)."""
+    pack = get_object_or_404(
+        CustomContentPack.objects.select_related("owner"),
+        id=id,
+    )
+    if request.user != pack.owner:
+        raise Http404
+
+    error = None
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "add":
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+            username = request.POST.get("username", "").strip()
+            if not username:
+                error = "Please enter a username."
+            else:
+                try:
+                    target_user = User.objects.get(username=username)
+                except User.DoesNotExist:
+                    error = f'User "{username}" not found.'
+                else:
+                    if target_user == pack.owner:
+                        error = "The owner already has full access."
+                    elif not target_user.groups.filter(name="Custom Content").exists():
+                        error = f'"{username}" is not in the Custom Content group.'
+                    elif pack.permissions.filter(user=target_user).exists():
+                        error = f'"{username}" is already an editor.'
+                    else:
+                        CustomContentPackPermission.objects.create(
+                            pack=pack,
+                            user=target_user,
+                            role="editor",
+                            owner=request.user,
+                        )
+                        messages.success(request, f"Added {username} as an editor.")
+                        return HttpResponseRedirect(
+                            reverse("core:pack-permissions", args=(pack.id,))
+                        )
+
+        elif action == "remove":
+            perm_id = request.POST.get("permission_id")
+            if perm_id and is_valid_uuid(perm_id):
+                perm = get_object_or_404(
+                    CustomContentPackPermission, id=perm_id, pack=pack
+                )
+                removed_username = perm.user.username
+                perm.delete()
+                messages.success(request, f"Removed {removed_username} as an editor.")
+                return HttpResponseRedirect(
+                    reverse("core:pack-permissions", args=(pack.id,))
+                )
+
+    editors = pack.permissions.select_related("user").all()
+
+    return render(
+        request,
+        "core/pack/pack_permissions.html",
+        {
+            "pack": pack,
+            "editors": editors,
+            "error": error,
+        },
+    )

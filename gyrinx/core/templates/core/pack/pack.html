@@ -10,9 +10,9 @@
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="mb-0">{{ pack.name }}</h1>
-                {% if is_owner or user_lists or user_campaigns %}
+                {% if can_edit or user_lists or user_campaigns %}
                     <nav class="btn-group flex-nowrap ms-md-auto">
-                        {% if is_owner %}
+                        {% if can_edit %}
                             <a href="{% url 'core:pack-edit' pack.id %}"
                                class="btn btn-primary btn-sm">
                                 <i class="bi-pencil"></i> Edit
@@ -27,6 +27,14 @@
                                 <i class="bi-three-dots-vertical"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
+                                {% if is_owner %}
+                                    <li>
+                                        <a href="{% url 'core:pack-permissions' pack.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-people"></i> Permissions
+                                        </a>
+                                    </li>
+                                {% endif %}
                                 {% if user_lists %}
                                     <li>
                                         <a href="{% url 'core:pack-lists' pack.id %}"
@@ -80,7 +88,7 @@
                         {{ section.label }}
                         {% if section.count > 0 %}<span class="badge bg-primary">{{ section.count }}</span>{% endif %}
                     </h2>
-                    {% if is_owner %}
+                    {% if can_edit %}
                         <span class="d-flex gap-2 align-items-center">
                             {% if section.archived_count > 0 %}
                                 <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
@@ -100,7 +108,7 @@
                         {% for entry in section.items %}
                             <li class="py-1 d-flex justify-content-between align-items-center">
                                 <span>{{ entry.content_object }}</span>
-                                {% if is_owner %}
+                                {% if can_edit %}
                                     <span class="d-flex gap-2">
                                         {% if section.can_add %}
                                             <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"

@@ -1,0 +1,55 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Permissions — {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text="Back" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-4">
+        <h1 class="h3">Permissions</h1>
+        <p class="text-secondary mb-0">
+            Editors can add, edit, and archive items in this Content Pack. They cannot change the listed status or manage permissions.
+        </p>
+        <!-- Add editor -->
+        <form action="{% url 'core:pack-permissions' pack.id %}"
+              method="post"
+              class="vstack gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add">
+            <label for="username" class="form-label fw-semibold">Add an editor</label>
+            <div class="input-group">
+                <input type="text"
+                       name="username"
+                       id="username"
+                       class="form-control"
+                       placeholder="Username"
+                       autocomplete="off">
+                <button type="submit" class="btn btn-primary btn-sm">Add</button>
+            </div>
+            {% if error %}<div class="text-danger small">{{ error }}</div>{% endif %}
+        </form>
+        <!-- Current editors -->
+        <div>
+            <h2 class="h5">Editors</h2>
+            {% if editors %}
+                <ul class="list-unstyled mb-0">
+                    {% for perm in editors %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <span>{{ perm.user.username }}</span>
+                            <form action="{% url 'core:pack-permissions' pack.id %}"
+                                  method="post"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="permission_id" value="{{ perm.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">No editors yet.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

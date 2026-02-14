@@ -1482,3 +1482,401 @@ def test_edit_fighter_form_preselects_pack_rules(
     form = response.context["form"]
     rules_value = form["rules"].value()
     assert str(rule.pk) in {str(v) for v in rules_value}
+
+
+# --- Editor Permissions ---
+
+
+@pytest.fixture
+def editor_user(custom_content_group, make_user):
+    """A second user in the Custom Content group to be used as an editor."""
+    editor = make_user("editor", "password")
+    editor.groups.add(custom_content_group)
+    return editor
+
+
+@pytest.fixture
+def pack_with_editor(pack, editor_user, group_user):
+    """A pack that has an editor."""
+    from gyrinx.core.models.pack import CustomContentPackPermission
+
+    CustomContentPackPermission.objects.create(
+        pack=pack, user=editor_user, role="editor", owner=group_user
+    )
+    return pack
+
+
+# --- Model: can_edit / can_view ---
+
+
+@pytest.mark.django_db
+def test_can_edit_returns_true_for_owner(pack, group_user):
+    """Test that can_edit returns True for the pack owner."""
+    assert pack.can_edit(group_user) is True
+
+
+@pytest.mark.django_db
+def test_can_edit_returns_true_for_editor(pack_with_editor, editor_user):
+    """Test that can_edit returns True for an editor."""
+    assert pack_with_editor.can_edit(editor_user) is True
+
+
+@pytest.mark.django_db
+def test_can_edit_returns_false_for_non_editor(pack, custom_content_group, make_user):
+    """Test that can_edit returns False for a non-editor user."""
+    other = make_user("other", "password")
+    other.groups.add(custom_content_group)
+    assert pack.can_edit(other) is False
+
+
+@pytest.mark.django_db
+def test_can_view_returns_true_for_listed_pack(pack, custom_content_group, make_user):
+    """Test that can_view returns True for any user on a listed pack."""
+    other = make_user("other", "password")
+    other.groups.add(custom_content_group)
+    assert pack.can_view(other) is True
+
+
+@pytest.mark.django_db
+def test_can_view_returns_true_for_unlisted_pack_owner(group_user):
+    """Test that can_view returns True for the owner of an unlisted pack."""
+    unlisted = CustomContentPack.objects.create(
+        name="Unlisted", listed=False, owner=group_user
+    )
+    assert unlisted.can_view(group_user) is True
+
+
+@pytest.mark.django_db
+def test_can_view_returns_true_for_unlisted_pack_editor(
+    group_user,
+    editor_user,
+):
+    """Test that can_view returns True for an editor of an unlisted pack."""
+    from gyrinx.core.models.pack import CustomContentPackPermission
+
+    unlisted = CustomContentPack.objects.create(
+        name="Unlisted", listed=False, owner=group_user
+    )
+    CustomContentPackPermission.objects.create(
+        pack=unlisted, user=editor_user, role="editor", owner=group_user
+    )
+    assert unlisted.can_view(editor_user) is True
+
+
+@pytest.mark.django_db
+def test_can_view_returns_false_for_unlisted_pack_non_editor(
+    group_user,
+    custom_content_group,
+    make_user,
+):
+    """Test that can_view returns False for a non-editor on an unlisted pack."""
+    other = make_user("other", "password")
+    other.groups.add(custom_content_group)
+    unlisted = CustomContentPack.objects.create(
+        name="Unlisted", listed=False, owner=group_user
+    )
+    assert unlisted.can_view(other) is False
+
+
+# --- Editor access ---
+
+
+@pytest.mark.django_db
+def test_editor_can_edit_pack(client, pack_with_editor, editor_user):
+    """Test that an editor can load the edit pack form."""
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{pack_with_editor.id}/edit/")
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_editor_can_save_pack_edit(client, pack_with_editor, editor_user):
+    """Test that an editor can save pack edits."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/edit/",
+        {"name": "Editor Updated", "summary": "New summary", "description": ""},
+    )
+    assert response.status_code == 302
+    pack_with_editor.refresh_from_db()
+    assert pack_with_editor.name == "Editor Updated"
+
+
+@pytest.mark.django_db
+def test_editor_cannot_change_listed(client, pack_with_editor, editor_user):
+    """Test that an editor cannot change the listed status."""
+    client.force_login(editor_user)
+    # Submit with listed='' (unchecked), but field should be removed for editors
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/edit/",
+        {"name": pack_with_editor.name, "summary": "", "description": "", "listed": ""},
+    )
+    assert response.status_code == 302
+    pack_with_editor.refresh_from_db()
+    # Pack was listed=True, should remain True since editor can't change it
+    assert pack_with_editor.listed is True
+
+
+@pytest.mark.django_db
+def test_editor_can_add_item(client, pack_with_editor, editor_user):
+    """Test that an editor can add items to a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/add/rule/",
+        {"name": "Editor Rule", "description": "Added by editor"},
+    )
+    assert response.status_code == 302
+    assert CustomContentPackItem.objects.filter(pack=pack_with_editor).exists()
+
+
+@pytest.mark.django_db
+def test_editor_can_edit_item(client, pack_with_editor, editor_user, pack_rule):
+    """Test that an editor can edit items in a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/edit/",
+        {"name": "Editor Edited Rule", "description": "Edited by editor"},
+    )
+    assert response.status_code == 302
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+    assert rule.name == "Editor Edited Rule"
+
+
+@pytest.mark.django_db
+def test_editor_can_delete_item(client, pack_with_editor, editor_user, pack_rule):
+    """Test that an editor can archive items in a pack."""
+    client.force_login(editor_user)
+    response = client.post(f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/delete/")
+    assert response.status_code == 302
+    pack_rule.refresh_from_db()
+    assert pack_rule.archived is True
+
+
+@pytest.mark.django_db
+def test_editor_can_restore_item(client, pack_with_editor, editor_user, pack_rule):
+    """Test that an editor can restore archived items."""
+    # Archive first
+    pack_rule._history_user = pack_with_editor.owner
+    pack_rule.archive()
+
+    client.force_login(editor_user)
+    response = client.post(f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/restore/")
+    assert response.status_code == 302
+    pack_rule.refresh_from_db()
+    assert pack_rule.archived is False
+
+
+@pytest.mark.django_db
+def test_editor_can_view_archived_items(
+    client, pack_with_editor, editor_user, pack_rule
+):
+    """Test that an editor can view the archived items page."""
+    pack_rule._history_user = pack_with_editor.owner
+    pack_rule.archive()
+
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{pack_with_editor.id}/archived/rule/")
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_editor_can_see_unlisted_pack(
+    client,
+    editor_user,
+    group_user,
+    custom_content_group,
+):
+    """Test that an editor can view an unlisted pack."""
+    from gyrinx.core.models.pack import CustomContentPackPermission
+
+    unlisted = CustomContentPack.objects.create(
+        name="Secret Pack", listed=False, owner=group_user
+    )
+    CustomContentPackPermission.objects.create(
+        pack=unlisted, user=editor_user, role="editor", owner=group_user
+    )
+
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{unlisted.id}")
+    assert response.status_code == 200
+
+
+# --- Editor restrictions ---
+
+
+@pytest.mark.django_db
+def test_editor_cannot_access_permissions_page(
+    client,
+    pack_with_editor,
+    editor_user,
+):
+    """Test that an editor cannot access the permissions management page."""
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{pack_with_editor.id}/permissions/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_edit_button_for_editor(
+    client,
+    pack_with_editor,
+    editor_user,
+):
+    """Test that the edit button is shown for editors on the detail page."""
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{pack_with_editor.id}")
+    assert response.status_code == 200
+    assert b"bi-pencil" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_hides_permissions_link_for_editor(
+    client,
+    pack_with_editor,
+    editor_user,
+):
+    """Test that the permissions link is hidden for editors."""
+    client.force_login(editor_user)
+    response = client.get(f"/pack/{pack_with_editor.id}")
+    assert response.status_code == 200
+    assert b"Permissions" not in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_permissions_link_for_owner(
+    client,
+    pack_with_editor,
+    group_user,
+):
+    """Test that the permissions link is shown for the owner."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack_with_editor.id}")
+    assert response.status_code == 200
+    assert b"Permissions" in response.content
+
+
+# --- Permissions management page ---
+
+
+@pytest.mark.django_db
+def test_permissions_page_loads_for_owner(client, group_user, pack):
+    """Test that the permissions page loads for the pack owner."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/permissions/")
+    assert response.status_code == 200
+    assert b"Permissions" in response.content
+
+
+@pytest.mark.django_db
+def test_permissions_page_404_for_non_owner(
+    client,
+    pack,
+    custom_content_group,
+    make_user,
+):
+    """Test that the permissions page returns 404 for non-owners."""
+    other = make_user("other", "password")
+    other.groups.add(custom_content_group)
+    client.force_login(other)
+    response = client.get(f"/pack/{pack.id}/permissions/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_permissions_add_editor(client, group_user, pack, editor_user):
+    """Test adding an editor via the permissions page."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/permissions/",
+        {"action": "add", "username": "editor"},
+    )
+    assert response.status_code == 302
+    assert pack.permissions.filter(user=editor_user).exists()
+
+
+@pytest.mark.django_db
+def test_permissions_remove_editor(
+    client,
+    group_user,
+    pack_with_editor,
+    editor_user,
+):
+    """Test removing an editor via the permissions page."""
+    perm = pack_with_editor.permissions.get(user=editor_user)
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/permissions/",
+        {"action": "remove", "permission_id": str(perm.id)},
+    )
+    assert response.status_code == 302
+    assert not pack_with_editor.permissions.filter(user=editor_user).exists()
+
+
+@pytest.mark.django_db
+def test_permissions_add_nonexistent_user(client, group_user, pack):
+    """Test that adding a nonexistent user shows an error."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/permissions/",
+        {"action": "add", "username": "doesnotexist"},
+    )
+    assert response.status_code == 200
+    assert b"not found" in response.content
+
+
+@pytest.mark.django_db
+def test_permissions_add_already_editor(
+    client,
+    group_user,
+    pack_with_editor,
+    editor_user,
+):
+    """Test that adding an existing editor shows an error."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/permissions/",
+        {"action": "add", "username": "editor"},
+    )
+    assert response.status_code == 200
+    assert b"already an editor" in response.content
+
+
+@pytest.mark.django_db
+def test_permissions_add_owner_as_editor(client, group_user, pack):
+    """Test that adding the owner as editor shows an error."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/permissions/",
+        {"action": "add", "username": group_user.username},
+    )
+    assert response.status_code == 200
+    assert b"already has full access" in response.content
+
+
+@pytest.mark.django_db
+def test_permissions_add_non_group_user(client, group_user, pack, make_user):
+    """Test that adding a user not in the Custom Content group shows an error."""
+    make_user("regular", "password")
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/permissions/",
+        {"action": "add", "username": "regular"},
+    )
+    assert response.status_code == 200
+    assert b"not in the Custom Content group" in response.content
+
+
+# --- My Packs index shows editor packs ---
+
+
+@pytest.mark.django_db
+def test_packs_index_shows_editor_packs(
+    client,
+    pack_with_editor,
+    editor_user,
+):
+    """Test that packs where the user is editor appear in My Packs."""
+    client.force_login(editor_user)
+    response = client.get("/packs/")
+    assert response.status_code == 200
+    assert b"Test Pack" in response.content

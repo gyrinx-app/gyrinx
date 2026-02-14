@@ -3,9 +3,17 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from gyrinx.core.admin.base import BaseAdmin
-from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
+from gyrinx.core.models.pack import (
+    CustomContentPack,
+    CustomContentPackItem,
+    CustomContentPackPermission,
+)
 
-__all__ = ["CustomContentPackAdmin", "CustomContentPackItemAdmin"]
+__all__ = [
+    "CustomContentPackAdmin",
+    "CustomContentPackItemAdmin",
+    "CustomContentPackPermissionAdmin",
+]
 
 
 @admin.register(CustomContentPack)
@@ -36,3 +44,11 @@ class CustomContentPackItemAdmin(BaseAdmin):
             args=[obj.object_id],
         )
         return format_html('<a href="{}">{}</a>', url, content_object)
+
+
+@admin.register(CustomContentPackPermission)
+class CustomContentPackPermissionAdmin(BaseAdmin):
+    list_display = ["pack", "user", "role", "created"]
+    search_fields = ["pack__name", "user__username"]
+    list_filter = ["role"]
+    fields = ["pack", "user", "role", "owner"]
