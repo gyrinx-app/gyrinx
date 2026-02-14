@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -41,6 +42,24 @@ class CustomContentPack(AppBase):
 
     def get_absolute_url(self):
         return reverse("core:pack", args=(self.id,))
+
+    def can_edit(self, user):
+        """Return True if the user can edit this pack (owner or editor)."""
+        if not user.is_authenticated:
+            return False
+        if user == self.owner:
+            return True
+        return self.permissions.filter(user=user, role="editor").exists()
+
+    def can_view(self, user):
+        """Return True if the user can view this pack."""
+        if self.listed:
+            return True
+        if not user.is_authenticated:
+            return False
+        if user == self.owner:
+            return True
+        return self.permissions.filter(user=user).exists()
 
 
 class CustomContentPackItem(AppBase):
@@ -102,3 +121,38 @@ class CustomContentPackItem(AppBase):
 
     def __str__(self):
         return f"{self.pack.name}: {self.content_object}"
+
+
+class CustomContentPackPermission(AppBase):
+    """Grants a user a role on a content pack (e.g. editor)."""
+
+    ROLE_CHOICES = [
+        ("editor", "Editor"),
+    ]
+
+    pack = models.ForeignKey(
+        CustomContentPack,
+        on_delete=models.CASCADE,
+        related_name="permissions",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="pack_permissions",
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="editor")
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Content Pack Permission"
+        verbose_name_plural = "Content Pack Permissions"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["pack", "user"],
+                name="unique_pack_user_permission",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.get_role_display()} on {self.pack}"
