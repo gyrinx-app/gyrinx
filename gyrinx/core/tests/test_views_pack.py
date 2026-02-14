@@ -2178,6 +2178,28 @@ def test_edit_gear_updates_content(
 
 
 @pytest.mark.django_db
+def test_edit_gear_without_changing_name(
+    client, group_user, pack, pack_equipment, equipment_category
+):
+    """Editing gear without changing its name should succeed."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Test Armour",
+            "category": str(equipment_category.pk),
+            "cost": "50",
+            "rarity": "R",
+        },
+    )
+    assert response.status_code == 302
+
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Test Armour"
+    assert equip.cost == "50"
+
+
+@pytest.mark.django_db
 def test_edit_gear_requires_ownership(
     client, pack, pack_equipment, custom_content_group, make_user
 ):

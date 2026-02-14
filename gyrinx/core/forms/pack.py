@@ -168,7 +168,10 @@ class ContentFighterPackForm(forms.ModelForm):
 
     def clean_type(self):
         value = self.cleaned_data["type"]
-        if ContentFighter.objects.filter(type__iexact=value).exists():
+        qs = ContentFighter.objects.filter(type__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise ValidationError(
                 "A fighter with this name already exists in the content library."
             )
@@ -191,7 +194,10 @@ class ContentHouseForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        if ContentHouse.objects.filter(name__iexact=value).exists():
+        qs = ContentHouse.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise ValidationError(
                 "A house with this name already exists in the content library."
             )
@@ -217,7 +223,10 @@ class ContentRuleForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        if ContentRule.objects.filter(name__iexact=value).exists():
+        qs = ContentRule.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise ValidationError(
                 "A rule with this name already exists in the content library."
             )
@@ -278,7 +287,10 @@ class ContentGearPackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        if ContentEquipment.objects.filter(name__iexact=value).exists():
+        qs = ContentEquipment.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
             raise ValidationError(
                 "Gear with this name already exists in the content library."
             )
