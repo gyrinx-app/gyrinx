@@ -2,6 +2,7 @@ import pytest
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 
+from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
@@ -2046,3 +2047,319 @@ def test_packs_index_shows_editor_packs(
     response = client.get("/packs/")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
+
+
+# --- Equipment in packs ---
+
+
+@pytest.fixture
+def equipment_category():
+    """An equipment category for testing."""
+    return ContentEquipmentCategory.objects.create(name="Wargear", group="Gear")
+
+
+@pytest.fixture
+def pack_equipment(pack, group_user, equipment_category):
+    """An equipment item added to a pack."""
+    equip = ContentEquipment.objects.all_content().create(
+        name="Test Armour", category=equipment_category, cost="20", rarity="C"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+    return item
+
+
+@pytest.mark.django_db
+def test_add_equipment_form_loads(client, group_user, pack, equipment_category):
+    """Test that the add equipment form page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/equipment/")
+    assert response.status_code == 200
+    assert b"Add Equipment" in response.content
+
+
+@pytest.mark.django_db
+def test_add_equipment_creates_item(client, group_user, pack, equipment_category):
+    """Test that submitting the add equipment form creates equipment and pack item."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/equipment/",
+        {
+            "name": "Custom Armour",
+            "category": str(equipment_category.pk),
+            "cost": "25",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    equip = ContentEquipment.objects.all_content().get(name="Custom Armour")
+    assert equip.cost == "25"
+    assert equip.rarity == "C"
+    assert equip.category == equipment_category
+
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=equip.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_equipment_requires_name(client, group_user, pack, equipment_category):
+    """Test that the name field is required."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/equipment/",
+        {
+            "name": "",
+            "category": str(equipment_category.pk),
+            "cost": "10",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 200  # Re-renders form with errors
+
+
+@pytest.mark.django_db
+def test_add_equipment_requires_login(client, pack):
+    """Test that adding equipment requires login."""
+    response = client.get(f"/pack/{pack.id}/add/equipment/")
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_equipment_requires_ownership(
+    client, pack, custom_content_group, make_user
+):
+    """Test that only pack editors can add equipment."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/add/equipment/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_edit_equipment_form_loads(client, group_user, pack, pack_equipment):
+    """Test that the edit equipment form loads with current values."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_equipment_updates_content(
+    client, group_user, pack, pack_equipment, equipment_category
+):
+    """Test that editing equipment updates the content object."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Updated Armour",
+            "category": str(equipment_category.pk),
+            "cost": "30",
+            "rarity": "R",
+        },
+    )
+    assert response.status_code == 302
+
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Updated Armour"
+    assert equip.cost == "30"
+    assert equip.rarity == "R"
+
+
+@pytest.mark.django_db
+def test_edit_equipment_requires_ownership(
+    client, pack, pack_equipment, custom_content_group, make_user
+):
+    """Test that only pack editors can edit equipment."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_equipment_confirmation_loads(client, group_user, pack, pack_equipment):
+    """Test that the delete confirmation page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_delete_equipment_archives_item(client, group_user, pack, pack_equipment):
+    """Test that deleting archives the pack item but preserves the content."""
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    assert response.status_code == 302
+
+    pack_equipment.refresh_from_db()
+    assert pack_equipment.archived
+
+    # Content object still exists.
+    assert (
+        ContentEquipment.objects.all_content()
+        .filter(pk=pack_equipment.object_id)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_restore_equipment(client, group_user, pack, pack_equipment):
+    """Test that restoring an archived equipment item works."""
+    pack_equipment.archive()
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/restore/")
+    assert response.status_code == 302
+
+    pack_equipment.refresh_from_db()
+    assert not pack_equipment.archived
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_equipment_section(client, group_user, pack):
+    """Test that the pack detail page shows the Equipment section."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Equipment" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_equipment_item(client, group_user, pack, pack_equipment):
+    """Test that equipment items appear in the pack detail page."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_add_equipment_button(
+    client, group_user, pack, equipment_category
+):
+    """Test that the Add button for equipment is shown to editors."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert f"/pack/{pack.id}/add/equipment/".encode() in response.content
+
+
+@pytest.mark.django_db
+def test_editor_can_add_equipment(
+    client, pack_with_editor, editor_user, equipment_category
+):
+    """Test that an editor can add equipment to a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/add/equipment/",
+        {
+            "name": "Editor Gear",
+            "category": str(equipment_category.pk),
+            "cost": "15",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert ContentEquipment.objects.all_content().filter(name="Editor Gear").exists()
+
+
+@pytest.mark.django_db
+def test_editor_can_edit_equipment(
+    client, pack_with_editor, editor_user, pack_equipment, equipment_category
+):
+    """Test that an editor can edit equipment in a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/edit/",
+        {
+            "name": "Editor Updated",
+            "category": str(equipment_category.pk),
+            "cost": "50",
+            "rarity": "I",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(pk=pack_equipment.object_id)
+    assert equip.name == "Editor Updated"
+
+
+@pytest.mark.django_db
+def test_editor_can_delete_equipment(
+    client, pack_with_editor, editor_user, pack_equipment
+):
+    """Test that an editor can archive equipment in a pack."""
+    client.force_login(editor_user)
+    response = client.post(
+        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/delete/"
+    )
+    assert response.status_code == 302
+    pack_equipment.refresh_from_db()
+    assert pack_equipment.archived
+
+
+@pytest.mark.django_db
+def test_equipment_excluded_from_base_queryset(pack_equipment):
+    """Test that pack equipment is excluded from the default queryset."""
+    assert not ContentEquipment.objects.filter(pk=pack_equipment.object_id).exists()
+    assert (
+        ContentEquipment.objects.all_content()
+        .filter(pk=pack_equipment.object_id)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_equipment_visible_via_with_packs(pack, pack_equipment):
+    """Test that pack equipment is included when using with_packs."""
+    qs = ContentEquipment.objects.with_packs([pack])
+    assert qs.filter(pk=pack_equipment.object_id).exists()
+
+
+@pytest.mark.django_db
+def test_add_equipment_category_grouped(client, group_user, pack):
+    """Test that the category dropdown is populated and grouped."""
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Pistols", defaults={"group": "Weapons & Ammo"}
+    )
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Armour", defaults={"group": "Gear"}
+    )
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/equipment/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Categories should be present in the form.
+    assert "Pistols" in content
+    assert "Armour" in content
+    # Groups should appear as optgroup labels.
+    assert "Weapons &amp; Ammo" in content
+    assert "Gear" in content
+
+
+@pytest.mark.django_db
+def test_add_equipment_cost_accepts_text(client, group_user, pack, equipment_category):
+    """Test that cost accepts non-numeric text values."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/equipment/",
+        {
+            "name": "Variable Cost Gear",
+            "category": str(equipment_category.pk),
+            "cost": "varies",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(name="Variable Cost Gear")
+    assert equip.cost == "varies"

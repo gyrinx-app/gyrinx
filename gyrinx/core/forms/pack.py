@@ -1,9 +1,11 @@
 from django import forms
+from django.db.models import Case, When
 
+from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
-from gyrinx.models import FighterCategoryChoices
+from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
@@ -195,3 +197,53 @@ class ContentRuleForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
+
+
+class ContentEquipmentPackForm(forms.ModelForm):
+    """Form for adding/editing equipment in a content pack."""
+
+    class Meta:
+        model = ContentEquipment
+        fields = ["name", "category", "cost", "rarity"]
+        labels = {
+            "name": "Name",
+            "category": "Category",
+            "cost": "Cost",
+            "rarity": "Availability",
+        }
+        help_texts = {
+            "name": "The name of the equipment.",
+            "category": "The equipment category (e.g. Pistols, Wargear).",
+            "cost": "The credit cost at the Trading Post.",
+            "rarity": "The availability of this equipment.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "cost": forms.TextInput(attrs={"class": "form-control"}),
+            "rarity": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        # Accept and discard the pack kwarg for consistency with other forms.
+        kwargs.pop("pack", None)
+        super().__init__(*args, **kwargs)
+
+        # Order categories by group, then by name within each group.
+        self.fields[
+            "category"
+        ].queryset = ContentEquipmentCategory.objects.all().order_by(
+            Case(
+                *[
+                    When(group=group, then=i)
+                    for i, group in enumerate(equipment_category_groups)
+                ],
+                default=99,
+            ),
+            "name",
+        )
+
+        # Group the category dropdown by equipment group.
+        from gyrinx.forms import group_select
+
+        group_select(self, "category", key=lambda x: x.group)
