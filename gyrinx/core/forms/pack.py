@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.db.models import Case, When
 
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
@@ -165,6 +166,14 @@ class ContentFighterPackForm(forms.ModelForm):
             ]:
                 del self.fields[field_name]
 
+    def clean_type(self):
+        value = self.cleaned_data["type"]
+        if ContentFighter.objects.filter(type__iexact=value).exists():
+            raise ValidationError(
+                "A fighter with this name already exists in the content library."
+            )
+        return value
+
 
 class ContentHouseForm(forms.ModelForm):
     class Meta:
@@ -179,6 +188,14 @@ class ContentHouseForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        if ContentHouse.objects.filter(name__iexact=value).exists():
+            raise ValidationError(
+                "A house with this name already exists in the content library."
+            )
+        return value
 
 
 class ContentRuleForm(forms.ModelForm):
@@ -197,6 +214,14 @@ class ContentRuleForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        if ContentRule.objects.filter(name__iexact=value).exists():
+            raise ValidationError(
+                "A rule with this name already exists in the content library."
+            )
+        return value
 
 
 class ContentEquipmentPackForm(forms.ModelForm):
@@ -247,3 +272,11 @@ class ContentEquipmentPackForm(forms.ModelForm):
         from gyrinx.forms import group_select
 
         group_select(self, "category", key=lambda x: x.group)
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        if ContentEquipment.objects.filter(name__iexact=value).exists():
+            raise ValidationError(
+                "Equipment with this name already exists in the content library."
+            )
+        return value

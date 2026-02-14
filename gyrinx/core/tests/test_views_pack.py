@@ -2363,3 +2363,95 @@ def test_add_equipment_cost_accepts_text(client, group_user, pack, equipment_cat
     assert response.status_code == 302
     equip = ContentEquipment.objects.all_content().get(name="Variable Cost Gear")
     assert equip.cost == "varies"
+
+
+# --- Duplicate name validation (case-insensitive) ---
+
+
+@pytest.mark.django_db
+def test_add_house_rejects_duplicate_name(client, group_user, pack, content_house):
+    """Adding a house whose name matches a base library house (case-insensitive) is rejected."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/house/",
+        {"name": content_house.name.upper()},
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+
+
+@pytest.mark.django_db
+def test_add_fighter_rejects_duplicate_name(
+    client, group_user, pack, content_fighter, fighter_statline_type
+):
+    """Adding a fighter whose type matches a base library fighter (case-insensitive) is rejected."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": content_fighter.type.upper(),
+            "category": content_fighter.category,
+            "house": str(content_fighter.house_id),
+            "base_cost": "100",
+        },
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+
+
+@pytest.mark.django_db
+def test_add_rule_rejects_duplicate_name(client, group_user, pack):
+    """Adding a rule whose name matches a base library rule (case-insensitive) is rejected."""
+    # Create a base library rule.
+    rule = ContentRule.objects.create(name="Existing Rule")
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "existing rule", "description": ""},
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+    rule.delete()
+
+
+@pytest.mark.django_db
+def test_add_equipment_rejects_duplicate_name(
+    client, group_user, pack, equipment_category
+):
+    """Adding equipment whose name matches base library equipment (case-insensitive) is rejected."""
+    # Create base library equipment.
+    equip = ContentEquipment.objects.create(
+        name="Flak Armour", category=equipment_category, cost="20", rarity="C"
+    )
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/equipment/",
+        {
+            "name": "flak armour",
+            "category": str(equipment_category.pk),
+            "cost": "20",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+    equip.delete()
+
+
+@pytest.mark.django_db
+def test_add_equipment_allows_unique_name(client, group_user, pack, equipment_category):
+    """Adding equipment with a name not in the base library succeeds."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/equipment/",
+        {
+            "name": "Totally New Gear",
+            "category": str(equipment_category.pk),
+            "cost": "15",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    assert (
+        ContentEquipment.objects.all_content().filter(name="Totally New Gear").exists()
+    )
