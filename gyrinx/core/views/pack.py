@@ -23,7 +23,12 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
-from gyrinx.core.forms.pack import ContentFighterPackForm, ContentRuleForm, PackForm
+from gyrinx.core.forms.pack import (
+    ContentFighterPackForm,
+    ContentHouseForm,
+    ContentRuleForm,
+    PackForm,
+)
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
@@ -50,7 +55,7 @@ SUPPORTED_CONTENT_TYPES = [
         "Houses",
         "Custom factions and houses for your fighters.",
         "bi-house-door",
-        None,
+        ContentHouseForm,
         "house",
     ),
     ContentTypeEntry(

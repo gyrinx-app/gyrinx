@@ -164,6 +164,21 @@ class ContentFighterPackForm(forms.ModelForm):
                 del self.fields[field_name]
 
 
+class ContentHouseForm(forms.ModelForm):
+    class Meta:
+        model = ContentHouse
+        fields = ["name"]
+        labels = {
+            "name": "Name",
+        }
+        help_texts = {
+            "name": "The name of the house or faction.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
 class ContentRuleForm(forms.ModelForm):
     class Meta:
         model = ContentRule
