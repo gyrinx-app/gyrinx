@@ -81,7 +81,9 @@ _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
 
 def _get_pack_for_edit(id, user):
     """Fetch a pack and verify the user can edit it, or raise Http404."""
-    pack = get_object_or_404(CustomContentPack, id=id)
+    pack = get_object_or_404(
+        CustomContentPack.objects.prefetch_related("permissions"), id=id
+    )
     if not pack.can_edit(user):
         raise Http404
     return pack
