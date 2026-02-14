@@ -224,30 +224,6 @@ class ContentRuleForm(forms.ModelForm):
         return value
 
 
-# Categories allowed for gear (non-weapon) items in packs.
-# TODO: replace with a content-library-driven flag (see #1472).
-_GEAR_CATEGORY_NAMES = {
-    "Armour",
-    "Bionics",
-    "Booby Traps",
-    "Chem-alchemy Elixirs",
-    "Chems",
-    "Field Armour",
-    "Gang Equipment",
-    "Gang Terrain",
-    "Personal Equipment",
-    "Relics",
-    "Status Items",
-    "Body",
-    "Cargo Loads",
-    "Drive",
-    "Engine",
-    "Locomotion",
-    "Trailers",
-    "Vehicle Wargear",
-}
-
-
 class ContentGearPackForm(forms.ModelForm):
     """Form for adding/editing gear (non-weapon equipment) in a content pack."""
 
@@ -277,13 +253,13 @@ class ContentGearPackForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        # Accept and discard the pack kwarg for consistency with other forms.
-        kwargs.pop("pack", None)
         super().__init__(*args, **kwargs)
 
-        # Filter to gear categories only, ordered by group then name.
-        self.fields["category"].queryset = ContentEquipmentCategory.objects.filter(
-            name__in=_GEAR_CATEGORY_NAMES
+        # Filter to gear categories only (exclude weapons), ordered by group then name.
+        self.fields["category"].queryset = (
+            ContentEquipmentCategory.objects.exclude(
+                group__in=["Weapons & Ammo", "Other"]
+            )
         ).order_by(
             Case(
                 *[
