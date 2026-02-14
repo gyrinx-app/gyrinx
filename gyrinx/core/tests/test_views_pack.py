@@ -751,10 +751,176 @@ def test_add_rule_unsupported_slug_returns_404(client, group_user, pack):
 
 
 @pytest.mark.django_db
-def test_add_house_slug_returns_404(client, group_user, pack):
-    """Test that house slug returns 404 (no form class configured)."""
+def test_add_house_form_loads(client, group_user, pack):
+    """Test that the add house form page loads."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/house/")
+    assert response.status_code == 200
+    assert b"Add House" in response.content
+
+
+@pytest.mark.django_db
+def test_add_house_creates_house_and_item(client, group_user, pack):
+    """Test that submitting the add house form creates a house and pack item."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/house/",
+        {"name": "My Custom House"},
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    house = ContentHouse.objects.all_content().get(name="My Custom House")
+    ct = ContentType.objects.get_for_model(ContentHouse)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=house.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_house_requires_name(client, group_user, pack):
+    """Test that the name field is required."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/house/",
+        {"name": ""},
+    )
+    assert response.status_code == 200  # Re-renders form with errors
+
+
+@pytest.mark.django_db
+def test_add_house_requires_login(client, pack):
+    """Test that adding a house requires login."""
+    response = client.get(f"/pack/{pack.id}/add/house/")
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_house_requires_ownership(client, pack, custom_content_group, make_user):
+    """Test that only the pack owner can add houses."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/add/house/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_add_house_requires_group(client, pack, make_user):
+    """Test that adding a house requires Custom Content group."""
+    non_member = make_user("nonmember", "password")
+    client.force_login(non_member)
+    response = client.get(f"/pack/{pack.id}/add/house/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_add_house_button(client, group_user, pack):
+    """Test that the pack detail shows an Add button for houses to the owner."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert f"/pack/{pack.id}/add/house/".encode() in response.content
+
+
+# --- Pack item CRUD (Houses) - Edit/Delete ---
+
+
+@pytest.fixture
+def pack_house(pack, group_user):
+    """A house added to a pack."""
+    house = ContentHouse.objects.all_content().create(name="Test House")
+    ct = ContentType.objects.get_for_model(ContentHouse)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=house.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+    return item
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_house_items(client, group_user, pack, pack_house):
+    """Test that houses added to a pack appear in the detail view."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test House" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_house_form_loads(client, group_user, pack, pack_house):
+    """Test that the edit house form loads with existing data."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/edit/")
+    assert response.status_code == 200
+    assert b"Edit House" in response.content
+    assert b"Test House" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_house_updates_content(client, group_user, pack, pack_house):
+    """Test that submitting the edit form updates the house."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_house.id}/edit/",
+        {"name": "Updated House"},
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    house = ContentHouse.objects.all_content().get(pk=pack_house.object_id)
+    assert house.name == "Updated House"
+
+
+@pytest.mark.django_db
+def test_edit_house_requires_ownership(
+    client, pack, pack_house, custom_content_group, make_user
+):
+    """Test that only the pack owner can edit houses."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/edit/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_house_confirmation_loads(client, group_user, pack, pack_house):
+    """Test that the delete confirmation page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
+    assert response.status_code == 200
+    assert b"Archive House" in response.content
+    assert b"Test House" in response.content
+
+
+@pytest.mark.django_db
+def test_delete_house_archives_item_and_preserves_content(
+    client, group_user, pack, pack_house
+):
+    """Test that removing a house archives the pack item and preserves the content."""
+    house_pk = pack_house.object_id
+    client.force_login(group_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    pack_house.refresh_from_db()
+    assert pack_house.archived is True
+    assert pack_house.archived_at is not None
+    assert ContentHouse.objects.all_content().filter(pk=house_pk).exists()
+
+
+@pytest.mark.django_db
+def test_delete_house_requires_ownership(
+    client, pack, pack_house, custom_content_group, make_user
+):
+    """Test that only the pack owner can delete houses."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 404
 
 
