@@ -8,7 +8,7 @@ from gyrinx.content.models import (
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
-from gyrinx.core.forms.advancement import AdvancementTypeForm
+from gyrinx.core.forms.advancement import AdvancementDiceChoiceForm, AdvancementTypeForm
 from gyrinx.core.models import ListFighter
 from gyrinx.core.views.fighter.advancements import AdvancementFlowParams
 
@@ -356,3 +356,29 @@ def test_advancement_choice_fallback_display(
     assert label.replace("_", " ") == "Custom Stat", (
         f"Unexpected fallback label: {label}"
     )
+
+
+@pytest.mark.parametrize(
+    "roll_action,d6_1,d6_2,expected_valid",
+    [
+        ("roll_auto", None, None, True),
+        ("roll_manual", None, None, False),
+        ("roll_manual", 0, 7, False),
+        ("roll_manual", 3, 4, True),
+    ],
+)
+def test_advancement_choice_form_validations(roll_action, d6_1, d6_2, expected_valid):
+    """Test the validations of the AdvancementDiceChoiceForm."""
+
+    form = AdvancementDiceChoiceForm(
+        data={
+            "roll_action": roll_action,
+            "d6_1": d6_1,
+            "d6_2": d6_2,
+        }
+    )
+    is_valid = form.is_valid()
+    if expected_valid:
+        assert is_valid
+    else:
+        assert not is_valid

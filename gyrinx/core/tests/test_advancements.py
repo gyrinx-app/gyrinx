@@ -11,6 +11,7 @@ from gyrinx.content.models import (
     ContentSkillCategory,
 )
 from gyrinx.core.models import List, ListFighter, ListFighterAdvancement
+from gyrinx.core.models.campaign import CampaignAction
 
 User = get_user_model()
 
@@ -227,8 +228,8 @@ def test_advancement_start_works_in_any_mode(client, user, house, content_fighte
 
 
 @pytest.mark.django_db
-def test_advancement_dice_choice_flow(client, user, fighter_with_xp):
-    """Test the dice choice step of advancement flow."""
+def test_advancement_dice_choice_flow_skip(client, user, fighter_with_xp):
+    """Test the dice choice step of advancement flow when skipping."""
     client.login(username="testuser", password="password")
 
     url = reverse(
@@ -241,13 +242,76 @@ def test_advancement_dice_choice_flow(client, user, fighter_with_xp):
     assert response.status_code == 200
     assert "Roll for random advancement" in response.content.decode()
 
-    # POST without rolling
-    response = client.post(url, {"roll_dice": ""})
-    assert response.status_code == 302
-    assert response.url == reverse(
+    # Simulate skipping dice roll by navigating directly to advancement type step
+    advancement_type_url = reverse(
         "core:list-fighter-advancement-type",
         args=[fighter_with_xp.list.id, fighter_with_xp.id],
     )
+    response = client.get(advancement_type_url)
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_advancement_dice_choice_flow_roll_auto(client, user, fighter_with_xp):
+    """Test the dice choice step of advancement flow when rolling automatically."""
+    client.login(username="testuser", password="password")
+
+    url = reverse(
+        "core:list-fighter-advancement-dice-choice",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+
+    # Simulate rolling dice by posting with action=roll_auto
+    response = client.post(url, {"roll_action": "roll_auto"})
+    assert response.status_code == 302  # Should redirect to advancement type step
+
+    # Check that a campaign action was created with the dice result in the description
+    actions = CampaignAction.objects.filter(
+        user=user,
+        campaign=fighter_with_xp.list.campaign,
+        list=fighter_with_xp.list,
+    )
+    action = actions.latest("created")
+    assert action is not None
+    assert "rolling for advancement" in action.description.lower()
+    # Dice result is random, so just check that the action includes values in the expected range
+    assert action.dice_count == 2
+    assert action.dice_results is not None
+    assert all(1 <= result <= 6 for result in action.dice_results)
+
+
+@pytest.mark.django_db
+def test_advancement_dice_choice_flow_roll_manual(client, user, fighter_with_xp):
+    """Test the dice choice step of advancement flow when rolling manually."""
+    client.login(username="testuser", password="password")
+
+    url = reverse(
+        "core:list-fighter-advancement-dice-choice",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+
+    # Simulate manual dice entry by posting with action=roll_manual and dice values
+    response = client.post(
+        url,
+        {
+            "roll_action": "roll_manual",
+            "d6_1": 3,
+            "d6_2": 4,
+        },
+    )
+    assert response.status_code == 302  # Should redirect to advancement type step
+
+    # Check that a campaign action was created with the dice result in the description
+    actions = CampaignAction.objects.filter(
+        user=user,
+        campaign=fighter_with_xp.list.campaign,
+        list=fighter_with_xp.list,
+    )
+    action = actions.latest("created")
+    assert action is not None
+    assert "rolled on tabletop for advancement" in action.description.lower()
+    assert action.dice_count == 2
+    assert action.dice_results == [3, 4]
 
 
 @pytest.mark.django_db

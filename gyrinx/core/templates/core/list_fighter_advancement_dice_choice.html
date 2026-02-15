@@ -28,7 +28,6 @@
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
             {% if can_roll_dice %}
-                {{ form.roll_dice }}
                 <div class="row g-3">
                     <div class="col-12">
                         <div class="card h-100 shadow-sm">
@@ -42,8 +41,7 @@
                                     <div class="mb-2">Let Gyrinx roll 2D6 for your advancement:</div>
                                     <nav aria-label="Form navigation">
                                         <button type="submit"
-                                                name="action"
-                                                id="roll_auto"
+                                                name="roll_action"
                                                 value="roll_auto"
                                                 class="btn btn-primary"
                                                 aria-describedby="roll-help">Roll 2D6 for me</button>
@@ -63,7 +61,7 @@
                                         </select>
                                         <button class="btn btn-outline-primary"
                                                 type="submit"
-                                                name="action"
+                                                name="roll_action"
                                                 value="roll_manual">Confirm result</button>
                                     </div>
                                 </fieldset>
@@ -105,8 +103,7 @@
                                     <div class="mb-2 text-muted">Let Gyrinx roll 2D6 for your advancement:</div>
                                     <nav aria-label="Form navigation">
                                         <button type="submit"
-                                                name="action"
-                                                id="roll_auto_disabled"
+                                                name="roll_action"
                                                 value="roll_auto"
                                                 class="btn btn-primary disabled"
                                                 aria-describedby="roll-help"
@@ -132,7 +129,7 @@
                                         </select>
                                         <button class="btn btn-outline-primary"
                                                 type="submit"
-                                                name="action"
+                                                name="roll_action"
                                                 value="roll_manual"
                                                 disabled>Confirm result</button>
                                     </div>
