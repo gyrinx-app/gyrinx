@@ -239,7 +239,7 @@ def test_advancement_dice_choice_flow(client, user, fighter_with_xp):
     # GET request
     response = client.get(url)
     assert response.status_code == 200
-    assert "Roll for Advancement?" in response.content.decode()
+    assert "Roll for random advancement" in response.content.decode()
 
     # POST without rolling
     response = client.post(url, {"roll_dice": ""})
@@ -522,7 +522,7 @@ def test_only_gangers_can_roll_dice(client, user, fighter_with_xp, specialist_fi
     )
     response = client.get(url)
     assert response.status_code == 200
-    assert "Roll for Advancement?" in response.content.decode()
+    assert "Roll for random advancement" in response.content.decode()
 
     # Test SPECIALIST is redirected immediately
     url = reverse(
@@ -551,7 +551,7 @@ def test_exotic_beasts_can_roll_dice(client, user, exotic_beast_fighter):
     response = client.get(url)
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Roll for Advancement?" in content
+    assert "Roll for random advancement" in content
     assert "Roll 2D6" in content
     # Should not see the warning message
     assert "Only Gangers and Exotic Beasts can roll for advancements" not in content
