@@ -27,137 +27,80 @@
               aria-label="Roll for advancement form">
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
-            {% if can_roll_dice %}
-                <div class="row g-3">
-                    <div class="col-12">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body vstack gap-3">
-                                <h4 class="card-title">Roll for random advancement</h4>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body vstack gap-3">
+                            <h4 class="card-title">Roll for random advancement</h4>
+                            {% if can_roll_dice %}
                                 <div class="alert alert-info">
                                     <i class="bi-info-circle"></i>
                                     The roll will <em>immediately</em> be added to the campaign action log.
                                 </div>
-                                <div class="vstack gap-2">
-                                    <div class="mb-2">Let Gyrinx roll 2D6 for your advancement:</div>
-                                    <nav aria-label="Form navigation">
-                                        <button type="submit"
-                                                name="roll_action"
-                                                value="roll_auto"
-                                                class="btn btn-primary"
-                                                aria-describedby="roll-help">Roll 2D6 for me</button>
-                                    </nav>
-                                    <span id="roll-help" class="visually-hidden">Let Gyrinx roll 2D6 for your advancement</span>
-                                </div>
-                                <fieldset class="vstack gap-2">
-                                    <legend id="tabletop-result-label">Or enter a tabletop result:</legend>
-                                    <div class="input-group" aria-describedby="tabletop-result-label">
-                                        <select name="d6_1" class="form-select">
-                                            <option value="" selected disabled>-</option>
-                                            {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
-                                        </select>
-                                        <select name="d6_2" class="form-select">
-                                            <option value="" selected disabled>-</option>
-                                            {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
-                                        </select>
-                                        <button class="btn btn-outline-primary"
-                                                type="submit"
-                                                name="roll_action"
-                                                value="roll_manual">Confirm result</button>
-                                    </div>
-                                </fieldset>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body vstack gap-3">
-                                <h4 class="card-title">Choose advancement</h4>
-                                <fieldset class="vstack gap-2 mb-0">
-                                    <legend class="form-label mb-1" id="choose-advancement-label">
-                                        Already rolled? Skip this step and select an advancement to apply.
-                                    </legend>
-                                    <div class="hstack gap-3" aria-describedby="choose-advancement-label">
-                                        <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
-                                           id="spend_xp_link"
-                                           class="btn btn-outline-secondary"
-                                           aria-describedby="spend-help">Select
-                                            <i class="bi-arrow-right" aria-hidden="true"></i>
-                                        </a>
-                                    </div>
-                                </fieldset>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% else %}
-                <div class="row g-3">
-                    <div class="col-12">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body vstack gap-3">
-                                <h4 class="card-title">Roll for random advancement</h4>
+                            {% else %}
                                 <div class="alert alert-warning">
                                     <i class="bi-exclamation-triangle"></i>
                                     Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must choose manually.
                                 </div>
-                                <div class="vstack gap-2">
-                                    <div class="mb-2 text-muted">Let Gyrinx roll 2D6 for your advancement:</div>
-                                    <nav aria-label="Form navigation">
-                                        <button type="submit"
-                                                name="roll_action"
-                                                value="roll_auto"
-                                                class="btn btn-primary disabled"
-                                                aria-describedby="roll-help"
-                                                disabled
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                title="Only Gangers and Exotic Beasts can roll for advancements">
-                                            Roll 2D6 for me
-                                        </button>
-                                    </nav>
-                                    <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement (disabled for non-Gangers and non-Exotic Beasts)</span>
-                                </div>
-                                <fieldset class="vstack gap-2" disabled>
-                                    <legend id="tabletop-result-label-disabled" class="text-muted">Or enter a tabletop result:</legend>
-                                    <div class="input-group" aria-describedby="tabletop-result-label-disabled">
-                                        <select name="d6_1" class="form-select" disabled>
-                                            <option value="" selected disabled>-</option>
-                                            {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
-                                        </select>
-                                        <select name="d6_2" class="form-select" disabled>
-                                            <option value="" selected disabled>-</option>
-                                            {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
-                                        </select>
-                                        <button class="btn btn-outline-primary"
-                                                type="submit"
-                                                name="roll_action"
-                                                value="roll_manual"
-                                                disabled>Confirm result</button>
-                                    </div>
-                                </fieldset>
+                            {% endif %}
+                            <div class="vstack gap-2">
+                                <div class="mb-2">Let Gyrinx roll 2D6 for your advancement:</div>
+                                <nav aria-label="Form navigation">
+                                    <button type="submit"
+                                            name="roll_action"
+                                            value="roll_auto"
+                                            class="btn btn-primary"
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-describedby="roll-help">Roll 2D6 for me</button>
+                                </nav>
+                                <span id="roll-help" class="visually-hidden">Let Gyrinx roll 2D6 for your advancement</span>
                             </div>
+                            <fieldset class="vstack gap-2">
+                                <legend id="tabletop-result-label">Or enter a tabletop result:</legend>
+                                <div class="input-group" aria-describedby="tabletop-result-label">
+                                    <select name="d6_1"
+                                            class="form-select"
+                                            {% if not can_roll_dice %}disabled{% endif %}>
+                                        <option value="" selected disabled>-</option>
+                                        {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                                    </select>
+                                    <select name="d6_2"
+                                            class="form-select"
+                                            {% if not can_roll_dice %}disabled{% endif %}>
+                                        <option value="" selected disabled>-</option>
+                                        {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                                    </select>
+                                    <button class="btn btn-outline-primary"
+                                            type="submit"
+                                            name="roll_action"
+                                            value="roll_manual"
+                                            {% if not can_roll_dice %}disabled{% endif %}>Confirm result</button>
+                                </div>
+                            </fieldset>
                         </div>
                     </div>
-                    <div class="col-12">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body vstack gap-3">
-                                <h4 class="card-title">Choose advancement</h4>
-                                <fieldset class="vstack gap-2 mb-0">
-                                    <legend class="form-label mb-1" id="choose-advancement-label-disabled">
-                                        Already rolled? Skip this step and select an advancement to apply.
-                                    </legend>
-                                    <div class="hstack gap-3" aria-describedby="choose-advancement-label">
+                </div>
+                <div class="col-12">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body vstack gap-3">
+                            <h4 class="card-title">Choose advancement</h4>
+                            <fieldset class="vstack gap-2 mb-0">
+                                <legend class="form-label mb-1" id="choose-advancement-label">
+                                    Already rolled? Skip this step and select an advancement to apply.
+                                </legend>
+                                <div class="hstack gap-3" aria-describedby="choose-advancement-label">
                                     <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                                        id="spend_xp_link"
                                        class="btn btn-outline-secondary"
-                                       aria-describedby="spend-help">Select <i class="bi-arrow-right" aria-hidden="true"></i>
-                                </a>
-                            </div>
-                        </fieldset>
+                                       aria-describedby="spend-help">Select
+                                        <i class="bi-arrow-right" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            </fieldset>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    {% endif %}
-</form>
-</div>
+        </form>
+    </div>
 {% endblock content %}
