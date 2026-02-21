@@ -1841,33 +1841,26 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 sale_items = []
 
                 for item_data in sell_data:
-                    if item_data["price_method"] == "roll_auto":
-                        # Roll D6 for this item
-                        roll = random.randint(1, 6)  # nosec B311 - game dice, not crypto
-                        dice_rolls.append(roll)
-                        total_dice += 1
-
-                        # Calculate sale price: total cost - (roll × 10), minimum 5¢
-                        sale_price = max(
-                            5,
-                            item_data.get("total_cost", item_data["base_cost"])
-                            - (roll * 10),
-                        )
-                    elif item_data["price_method"] == "roll_manual":
-                        roll = item_data.get("roll_manual_d6")
-                        dice_rolls.append(roll)
-                        total_dice += 1
-
-                        # Calculate sale price: total cost - (roll × 10), minimum 5¢
-                        sale_price = max(
-                            5,
-                            item_data.get("total_cost", item_data["base_cost"])
-                            - (roll * 10),
-                        )
-                    else:
-                        # Use manual (price_manual) price
+                    if item_data["price_method"] == "price_manual":
+                        # Use the given manual price
                         sale_price = item_data["price_manual_value"]
                         roll = None
+                    else:
+                        if item_data["price_method"] == "roll_auto":
+                            roll = random.randint(1, 6)  # nosec B311 - game dice, not crypto
+                        else:
+                            # price_method == "roll_manual", use the provided roll
+                            roll = item_data.get("roll_manual_d6")
+
+                        dice_rolls.append(roll)
+                        total_dice += 1
+
+                        # Calculate sale price: total cost - (roll × 10), minimum 5¢
+                        sale_price = max(
+                            5,
+                            item_data.get("total_cost", item_data["base_cost"])
+                            - (roll * 10),
+                        )
 
                     total_credits += sale_price
                     sale_items.append(
