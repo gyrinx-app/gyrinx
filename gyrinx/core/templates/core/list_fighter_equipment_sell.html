@@ -69,15 +69,16 @@
                                                             <div class="invalid-feedback d-block">{{ form.roll_manual_d6.errors.0 }}</div>
                                                         {% endif %}
                                                     </div>
+                                                {% elif radio.data.value == "manual" %}
+                                                    <div class="manual-price-input">
+                                                        {{ form.manual_price }}
+                                                        {% if form.manual_price.help_text %}<div class="form-text">{{ form.manual_price.help_text }}</div>{% endif %}
+                                                        {% if form.manual_price.errors %}
+                                                            <div class="invalid-feedback d-block">{{ form.manual_price.errors.0 }}</div>
+                                                        {% endif %}
+                                                    </div>
                                                 {% endif %}
                                             {% endfor %}
-                                            <div class="manual-price-input">
-                                                {{ form.manual_price }}
-                                                {% if form.manual_price.help_text %}<div class="form-text">{{ form.manual_price.help_text }}</div>{% endif %}
-                                                {% if form.manual_price.errors %}
-                                                    <div class="invalid-feedback d-block">{{ form.manual_price.errors.0 }}</div>
-                                                {% endif %}
-                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -246,3 +247,39 @@
         {% endif %}
     </div>
 {% endblock content %}
+{% block extra_script %}
+    {% if step == "selection" %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                {% for item, form in forms %}
+                // Enable/disable the state of the roll/manual inputs based on selected price method
+                (function () {
+                    const priceMethodRadios = document.getElementsByName('{{ form.price_method.html_name }}');
+                    const d6Select = document.getElementById('{{ form.roll_manual_d6.id_for_label }}');
+                    const manualInput = document.getElementById('{{ form.manual_price.id_for_label }}');
+
+                    // Sync the enabled/disabled state of the respective inputs
+                    function syncEnabledState() {
+                        const checked = Array.from(priceMethodRadios).find((r) => r.checked);
+                        const value = checked ? checked.value : null;
+
+                        if (d6Select) {
+                            d6Select.disabled = value !== 'roll_manual';
+                        }
+
+                        if (manualInput) {
+                            manualInput.disabled = value !== 'manual';
+                        }
+                    }
+
+                    // Add event listeners to all price method radios
+                    priceMethodRadios.forEach(function (r) { r.addEventListener('change', syncEnabledState); });
+
+                    // Initial sync on page load
+                    syncEnabledState();
+                }());
+                {% endfor %}
+            });
+        </script>
+    {% endif %}
+{% endblock extra_script %}
