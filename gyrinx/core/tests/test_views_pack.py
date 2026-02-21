@@ -588,6 +588,64 @@ def test_add_rule_creates_rule_and_item(client, group_user, pack):
 
 
 @pytest.mark.django_db
+def test_add_rule_save_and_add_another(client, group_user, pack):
+    """Test that 'Save and Add Another' redirects back to the add form."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {
+            "name": "Rule One",
+            "description": "First rule",
+            "save_and_add_another": "",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}/add/rule/"
+
+    # Verify the rule was still created
+    rule = ContentRule.objects.all_content().get(name="Rule One")
+    assert rule.description == "First rule"
+
+    # Verify pack item was created
+    ct = ContentType.objects.get_for_model(ContentRule)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=rule.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_rule_save_and_add_another_shows_message(client, group_user, pack):
+    """Test that 'Save and Add Another' displays a success message."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {
+            "name": "Rule With Message",
+            "description": "A rule",
+            "save_and_add_another": "",
+        },
+        follow=True,
+    )
+    assert response.status_code == 200
+    messages_list = list(response.context["messages"])
+    assert len(messages_list) == 1
+    assert "Rule With Message" in str(messages_list[0])
+    assert "saved" in str(messages_list[0])
+
+
+@pytest.mark.django_db
+def test_add_rule_normal_submit_redirects_to_pack(client, group_user, pack):
+    """Test that normal submit (without save_and_add_another) goes to pack detail."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/rule/",
+        {"name": "Normal Rule", "description": "Normal"},
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+
+@pytest.mark.django_db
 def test_add_rule_requires_name(client, group_user, pack):
     """Test that the name field is required."""
     client.force_login(group_user)

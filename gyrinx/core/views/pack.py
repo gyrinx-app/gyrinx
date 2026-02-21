@@ -739,6 +739,14 @@ def add_pack_item(request, id, content_type_slug):
                     _create_fighter_statline(
                         content_obj, stat_definitions, request.POST
                     )
+            if "save_and_add_another" in request.POST:
+                messages.success(request, f'{singular_label} "{content_obj}" saved.')
+                return HttpResponseRedirect(
+                    reverse(
+                        "core:pack-add-item",
+                        args=(pack.id, content_type_slug),
+                    )
+                )
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))

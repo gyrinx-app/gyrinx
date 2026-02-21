@@ -33,9 +33,12 @@
                     <div class="form-text">Set each stat value, or leave as "-" for unset.</div>
                 </div>
             {% endif %}
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Add {{ label }}</button>
-                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
+            <div class="mt-3 d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary btn-sm">Add {{ label }}</button>
+                <button type="submit"
+                        name="save_and_add_another"
+                        class="btn btn-secondary btn-sm">Save and Add Another</button>
+                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link btn-sm">Cancel</a>
             </div>
         </form>
     </div>
