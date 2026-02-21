@@ -199,6 +199,68 @@ def test_sell_equipment_with_dice_roll(
 
 
 @pytest.mark.django_db
+def test_sell_equipment_with_roll_manual_d6(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test selling equipment with manually rolled D6 for cost."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual D6 roll of 4
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "roll_manual",
+            "0-roll_manual_d6": "4",
+        },
+    )
+
+    assert response.status_code == 302
+    assert "step=confirm" in response.url
+
+    # Confirm sale
+    response = client.post(
+        url,
+        {
+            "step": "confirm",
+        },
+        follow=True,
+    )
+
+    # Check that equipment was deleted
+    assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Check credits were added (50 - 4×10 = 10¢)
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits + 10
+
+    # Check campaign action was created with correct D6 result
+    action = CampaignAction.objects.filter(campaign=campaign, list=lst).first()
+    assert action is not None
+    assert action.dice_count == 1
+    assert action.dice_results == [4]
+    assert "Sold equipment from stash" in action.description
+
+
+@pytest.mark.django_db
 def test_sell_equipment_with_manual_price(
     client, user, make_list, make_stash_fighter, make_equipment
 ):

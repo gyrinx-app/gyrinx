@@ -61,6 +61,15 @@
                                                     {{ radio.tag }}
                                                     <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
                                                 </div>
+                                                {% if radio.data.value == "roll_manual" %}
+                                                    <div class="roll-manual-d6-input">
+                                                        {{ form.roll_manual_d6 }}
+                                                        {% if form.roll_manual_d6.help_text %}<div class="form-text">{{ form.roll_manual_d6.help_text }}</div>{% endif %}
+                                                        {% if form.roll_manual_d6.errors %}
+                                                            <div class="invalid-feedback d-block">{{ form.roll_manual_d6.errors.0 }}</div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
                                             {% endfor %}
                                             <div class="manual-price-input">
                                                 {{ form.manual_price }}
@@ -128,7 +137,9 @@
                                 <td>{{ item.base_cost }}¢</td>
                                 <td>
                                     {% if item.price_method == "dice" %}
-                                        Cost minus D6×10
+                                        Cost minus D6×10 (auto)
+                                    {% elif item.price_method == "roll_manual" %}
+                                        Cost minus D6×10 (tabletop result: {{ item.roll_manual_d6 }})
                                     {% else %}
                                         Manual: {{ item.manual_price }}¢
                                     {% endif %}
@@ -136,6 +147,8 @@
                                 <td>
                                     {% if item.price_method == "dice" %}
                                         <span class="text-muted">To be rolled...</span>
+                                    {% elif item.price_method == "roll_manual" %}
+                                        {{ item.total_cost }}¢ − {{ item.roll_manual_d6 }}×10¢
                                     {% else %}
                                         {{ item.manual_price }}¢
                                     {% endif %}
@@ -145,7 +158,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="border rounded p-2 text-secondary">
+            <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i>
                 Dice will be rolled automatically when you confirm the sale. Items sold with dice
                 will receive their base cost minus the dice roll × 10 credits (minimum 5¢).
@@ -223,7 +236,7 @@
                     </tfoot>
                 </table>
             </div>
-            <div class="border border-success rounded p-2 text-success">
+            <div class="alert alert-success">
                 <i class="bi bi-check-circle"></i>
                 {{ sale_results.total_credits }}¢ has been added to your gang's credits.
             </div>
