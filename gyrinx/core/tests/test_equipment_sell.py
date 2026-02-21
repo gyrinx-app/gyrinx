@@ -261,6 +261,54 @@ def test_sell_equipment_with_dice_roll_manual(
 
 
 @pytest.mark.django_db
+def test_sell_equipment_with_manual_roll_missing_d6_validation_error(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test validation error when manual roll pricing is selected but D6 result is missing."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual roll pricing but no D6 result
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "roll_manual",
+            # Missing "0-roll_manual_d6"
+        },
+    )
+
+    assert response.status_code == 200  # Form re-rendered with errors
+
+    # Equipment should not be deleted
+    assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Credits should not be changed
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits
+
+    # No campaign action should be created
+    assert not CampaignAction.objects.filter(campaign=campaign, list=lst).exists()
+
+
+@pytest.mark.django_db
 def test_sell_equipment_with_manual_price(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
@@ -315,6 +363,54 @@ def test_sell_equipment_with_manual_price(
     assert action is not None
     assert action.dice_count == 0  # No dice for manual price
     assert "Test Gun (25¢)" in action.description
+
+
+@pytest.mark.django_db
+def test_sell_equipment_with_manual_price_missing_value_validation_error(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test validation error when manual price is selected but value is missing."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual price but no value
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            # Missing "0-price_manual_value"
+        },
+    )
+
+    assert response.status_code == 200  # Form re-rendered with errors
+
+    # Equipment should not be deleted
+    assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Credits should not be changed
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits
+
+    # No campaign action should be created
+    assert not CampaignAction.objects.filter(campaign=campaign, list=lst).exists()
 
 
 @pytest.mark.django_db
