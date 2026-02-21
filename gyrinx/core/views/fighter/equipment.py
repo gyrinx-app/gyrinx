@@ -1799,7 +1799,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 sell_data = []
                 for item, form in forms:
                     price_method = form.cleaned_data["price_method"]
-                    manual_price = form.cleaned_data.get("manual_price")
+                    price_manual_value = form.cleaned_data.get("price_manual_value")
                     roll_manual_d6 = form.cleaned_data.get("roll_manual_d6")
 
                     sell_data.append(
@@ -1810,7 +1810,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             "total_cost": item.get("total_cost", item["base_cost"]),
                             "price_method": price_method,
                             "roll_manual_d6": roll_manual_d6,
-                            "manual_price": manual_price,
+                            "price_manual_value": price_manual_value,
                         }
                     )
 
@@ -1841,7 +1841,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 sale_items = []
 
                 for item_data in sell_data:
-                    if item_data["price_method"] == "dice":
+                    if item_data["price_method"] == "roll_auto":
                         # Roll D6 for this item
                         roll = random.randint(1, 6)  # nosec B311 - game dice, not crypto
                         dice_rolls.append(roll)
@@ -1865,8 +1865,8 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             - (roll * 10),
                         )
                     else:
-                        # Use manual price
-                        sale_price = item_data["manual_price"]
+                        # Use manual (price_manual) price
+                        sale_price = item_data["price_manual_value"]
                         roll = None
 
                     total_credits += sale_price

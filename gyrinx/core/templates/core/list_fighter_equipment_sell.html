@@ -62,19 +62,21 @@
                                                     <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
                                                 </div>
                                                 {% if radio.data.value == "roll_manual" %}
-                                                    <div class="roll-manual-d6-input">
+                                                    <div class="pb-2">
                                                         {{ form.roll_manual_d6 }}
                                                         {% if form.roll_manual_d6.help_text %}<div class="form-text">{{ form.roll_manual_d6.help_text }}</div>{% endif %}
                                                         {% if form.roll_manual_d6.errors %}
                                                             <div class="invalid-feedback d-block">{{ form.roll_manual_d6.errors.0 }}</div>
                                                         {% endif %}
                                                     </div>
-                                                {% elif radio.data.value == "manual" %}
-                                                    <div class="manual-price-input">
-                                                        {{ form.manual_price }}
-                                                        {% if form.manual_price.help_text %}<div class="form-text">{{ form.manual_price.help_text }}</div>{% endif %}
-                                                        {% if form.manual_price.errors %}
-                                                            <div class="invalid-feedback d-block">{{ form.manual_price.errors.0 }}</div>
+                                                {% elif radio.data.value == "price_manual" %}
+                                                    <div class="pb-2">
+                                                        {{ form.price_manual_value }}
+                                                        {% if form.price_manual_value.help_text %}
+                                                            <div class="form-text">{{ form.price_manual_value.help_text }}</div>
+                                                        {% endif %}
+                                                        {% if form.price_manual_value.errors %}
+                                                            <div class="invalid-feedback d-block">{{ form.price_manual_value.errors.0 }}</div>
                                                         {% endif %}
                                                     </div>
                                                 {% endif %}
@@ -137,21 +139,21 @@
                                 </td>
                                 <td>{{ item.base_cost }}¢</td>
                                 <td>
-                                    {% if item.price_method == "dice" %}
+                                    {% if item.price_method == "roll_auto" %}
                                         Cost minus D6×10 (auto)
                                     {% elif item.price_method == "roll_manual" %}
                                         Cost minus D6×10 (tabletop result: {{ item.roll_manual_d6 }})
                                     {% else %}
-                                        Manual: {{ item.manual_price }}¢
+                                        Manual: {{ item.price_manual_value }}¢
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if item.price_method == "dice" %}
+                                    {% if item.price_method == "roll_auto" %}
                                         <span class="text-muted">To be rolled...</span>
                                     {% elif item.price_method == "roll_manual" %}
                                         {{ item.total_cost }}¢ − {{ item.roll_manual_d6 }}×10¢
                                     {% else %}
-                                        {{ item.manual_price }}¢
+                                        {{ item.price_manual_value }}¢
                                     {% endif %}
                                 </td>
                             </tr>
@@ -256,7 +258,7 @@
                 (function () {
                     const priceMethodRadios = document.getElementsByName('{{ form.price_method.html_name }}');
                     const d6Select = document.getElementById('{{ form.roll_manual_d6.id_for_label }}');
-                    const manualInput = document.getElementById('{{ form.manual_price.id_for_label }}');
+                    const manualInput = document.getElementById('{{ form.price_manual_value.id_for_label }}');
 
                     // Sync the enabled/disabled state of the respective inputs
                     function syncEnabledState() {
@@ -268,7 +270,7 @@
                         }
 
                         if (manualInput) {
-                            manualInput.disabled = value !== 'manual';
+                            manualInput.disabled = value !== 'price_manual';
                         }
                     }
 

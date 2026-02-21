@@ -136,10 +136,10 @@ def test_sell_equipment_selection_form(
 
 
 @pytest.mark.django_db
-def test_sell_equipment_with_dice_roll(
+def test_sell_equipment_with_dice_roll_auto(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
-    """Test selling equipment with dice roll pricing."""
+    """Test selling equipment with automatic dice roll pricing."""
     client.force_login(user)
 
     # Create campaign list with stash fighter
@@ -165,7 +165,7 @@ def test_sell_equipment_with_dice_roll(
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "dice",
+            "0-price_method": "roll_auto",
         },
     )
 
@@ -199,10 +199,10 @@ def test_sell_equipment_with_dice_roll(
 
 
 @pytest.mark.django_db
-def test_sell_equipment_with_roll_manual_d6(
+def test_sell_equipment_with_dice_roll_manual(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
-    """Test selling equipment with manually rolled D6 for cost."""
+    """Test selling equipment with manually rolled dice for cost."""
     client.force_login(user)
 
     # Create campaign list with stash fighter
@@ -290,8 +290,8 @@ def test_sell_equipment_with_manual_price(
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "25",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "25",
         },
     )
 
@@ -348,8 +348,8 @@ def test_sell_weapon_profiles_individually(
         url + f"?sell_profile={profile2.id}",
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "15",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "15",
         },
     )
 
@@ -405,7 +405,7 @@ def test_sell_accessories_individually(
         url + f"?sell_accessory={accessory1.id}",
         {
             "step": "selection",
-            "0-price_method": "dice",
+            "0-price_method": "roll_auto",
         },
     )
 
@@ -453,8 +453,8 @@ def test_sell_summary_page(client, user, make_list, make_stash_fighter, make_equ
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "30",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "30",
         },
     )
 

@@ -872,14 +872,14 @@ class EquipmentSellSelectionForm(forms.Form):
     """Form for selecting equipment sale options (manual price vs dice roll)."""
 
     PRICE_CHOICES = [
-        ("dice", "Cost minus D6×10 (Roll for me)"),
+        ("roll_auto", "Cost minus D6×10 (Roll for me)"),
         ("roll_manual", "Cost minus D6×10 (Rolled on tabletop)"),
-        ("manual", "Manual"),
+        ("price_manual", "Manual"),
     ]
 
     price_method = forms.ChoiceField(
         choices=PRICE_CHOICES,
-        initial="dice",
+        initial="roll_auto",
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
         label="Sale Price",
     )
@@ -901,7 +901,7 @@ class EquipmentSellSelectionForm(forms.Form):
         label="D6 Result",
         help_text="Enter D6 result",
     )
-    manual_price = forms.IntegerField(
+    price_manual_value = forms.IntegerField(
         required=False,
         min_value=5,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
@@ -913,9 +913,9 @@ class EquipmentSellSelectionForm(forms.Form):
         cleaned_data = super().clean()
         price_method = cleaned_data.get("price_method")
         roll_manual_d6 = cleaned_data.get("roll_manual_d6")
-        manual_price = cleaned_data.get("manual_price")
+        price_manual_value = cleaned_data.get("price_manual_value")
 
-        if price_method == "manual" and not manual_price:
+        if price_method == "price_manual" and not price_manual_value:
             raise forms.ValidationError(
                 "Manual price is required when manual pricing is selected."
             )
