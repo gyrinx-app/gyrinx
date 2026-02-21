@@ -1851,6 +1851,18 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                         else:
                             # price_method == "roll_manual", use the provided roll
                             roll = item_data.get("roll_manual_d6")
+                            # Check that the manual roll value is present before maths is performed
+                            if roll is None:
+                                messages.error(
+                                    request, "Manual dice roll value is missing."
+                                )
+                                return HttpResponseRedirect(
+                                    reverse(
+                                        "core:list-fighter-equipment-sell",
+                                        args=(lst.id, fighter.id, assignment.id),
+                                    )
+                                    + "?step=selection"
+                                )
 
                         dice_rolls.append(roll)
                         total_dice += 1

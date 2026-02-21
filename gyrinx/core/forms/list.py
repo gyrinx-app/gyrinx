@@ -916,13 +916,15 @@ class EquipmentSellSelectionForm(forms.Form):
         price_manual_value = cleaned_data.get("price_manual_value")
 
         if price_method == "price_manual" and not price_manual_value:
-            raise forms.ValidationError(
-                "Manual price is required when manual pricing is selected."
+            self.add_error(
+                "price_manual_value",
+                "This field is required when manual pricing is selected.",
             )
 
         if price_method == "roll_manual" and not roll_manual_d6:
-            raise forms.ValidationError(
-                "D6 result is required when manual roll pricing is selected."
+            self.add_error(
+                "roll_manual_d6",
+                "D6 result is required when manual roll pricing is selected.",
             )
 
         return cleaned_data
