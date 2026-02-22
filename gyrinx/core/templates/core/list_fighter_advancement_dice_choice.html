@@ -44,16 +44,15 @@
                                 </div>
                             {% endif %}
                             <div class="vstack gap-2">
-                                <div class="mb-2">Let Gyrinx roll 2D6 for your advancement:</div>
                                 <nav aria-label="Form navigation">
                                     <button type="submit"
                                             name="roll_action"
                                             value="roll_auto"
                                             class="btn btn-primary"
                                             {% if not can_roll_dice %}disabled{% endif %}
-                                            aria-describedby="roll-help">Roll 2D6 for me</button>
+                                            aria-describedby="roll-help">Generate a 2D6 roll</button>
                                 </nav>
-                                <span id="roll-help" class="visually-hidden">Let Gyrinx roll 2D6 for your advancement</span>
+                                <span id="roll-help" class="visually-hidden">Automatically roll 2D6 for the advancement</span>
                             </div>
                             <fieldset class="vstack gap-2">
                                 <legend id="tabletop-result-label">Or enter a tabletop result:</legend>
