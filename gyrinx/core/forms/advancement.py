@@ -47,7 +47,8 @@ class AdvancementDiceChoiceForm(forms.Form):
     # Action field to distinguish which button was pressed
     roll_action = forms.CharField(required=False, widget=forms.HiddenInput())
 
-    # Manual dice fields (only required for tabletop roll entry)
+    # Manual dice fields (only required for tabletop roll entry).
+    # The template renders these as <select> dropdowns, overriding the HiddenInput widget.
     d6_1 = forms.IntegerField(
         required=False,
         min_value=1,
@@ -72,8 +73,6 @@ class AdvancementDiceChoiceForm(forms.Form):
                 raise ValidationError(
                     "Both dice values must be provided for manual entry."
                 )
-            if not (1 <= d6_1 <= 6) or not (1 <= d6_2 <= 6):
-                raise ValidationError("Dice values must be between 1 and 6.")
         return cleaned_data
 
 
