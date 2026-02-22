@@ -129,6 +129,16 @@ class ListsListView(generic.ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["houses"] = ContentHouse.objects.all().order_by("name")
+
+        # Determine active tab from type filter
+        type_filters = self.request.GET.getlist("type")
+        if type_filters == ["list"]:
+            context["current_tab"] = "list"
+        elif type_filters == ["gang"]:
+            context["current_tab"] = "gang"
+        else:
+            context["current_tab"] = "all"
+
         return context
 
     @traced("ListsListView_get")

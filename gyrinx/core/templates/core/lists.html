@@ -17,6 +17,23 @@
             {% url 'core:lists' as action %}
             {% include "core/includes/lists_filter.html" with action=action houses=houses %}
         </div>
+        <ul class="nav nav-tabs">
+            <li class="nav-item">
+                <a class="nav-link{% if current_tab == 'all' %} active{% endif %}"
+                   {% if current_tab == 'all' %}aria-current="page"{% endif %}
+                   href="?{% qt_rm request 'type' 'page' %}">All</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
+                   {% if current_tab == 'list' %}aria-current="page"{% endif %}
+                   href="?{% qt request type="list" page=None %}">List Building</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
+                   {% if current_tab == 'gang' %}aria-current="page"{% endif %}
+                   href="?{% qt request type="gang" page=None %}">Campaign</a>
+            </li>
+        </ul>
         <div class="vstack gap-4">
             {% for list in lists %}
                 <div class="hstack gap-3 position-relative">

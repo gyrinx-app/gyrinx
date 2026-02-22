@@ -51,57 +51,9 @@
             </div>
         </div>
         <div class="g-col-12 align-items-baseline hstack gap-3 flex-wrap">
-            {# Type filter dropdown #}
-            <div class="btn-group">
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm dropdown-toggle"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                        data-bs-auto-close="outside">Type</button>
-                <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
-                    <label class="form-label">
-                        <a href="#" id="type-all-link">All</a>
-                        /
-                        <a href="#" id="type-none-link">None</a>
-                    </label>
-                    {% qt_has_key request "type" as type_key_exists %}
-                    {% qt_contains request "type" "list" as type_contains_list %}
-                    {% qt_contains request "type" "gang" as type_contains_gang %}
-                    <div class="form-check mb-0">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               role="switch"
-                               id="type-lists"
-                               name="type"
-                               value="list"
-                               {% if type_contains_list or not type_key_exists %}checked{% endif %}>
-                        <label class="form-check-label" for="type-lists">Lists (List Building)</label>
-                        •
-                        <a class="ms-auto" href="?{% qt request type="list" %}#search">only</a>
-                    </div>
-                    <div class="form-check mb-0">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               role="switch"
-                               id="type-gangs"
-                               name="type"
-                               value="gang"
-                               {% if type_contains_gang or not type_key_exists %}checked{% endif %}>
-                        <label class="form-check-label" for="type-gangs">Gangs (Campaign)</label>
-                        •
-                        <a class="ms-auto" href="?{% qt request type="gang" %}#search">only</a>
-                    </div>
-                    <div class="btn-group align-items-center">
-                        <button class="btn btn-link icon-link btn-sm" type="submit">
-                            <i class="bi-arrow-clockwise"></i>
-                            Update
-                        </button>
-                        •
-                        <a class="btn btn-link text-secondary icon-link btn-sm"
-                           href="?{% qt request house="all" %}#search">Reset</a>
-                    </div>
-                </div>
-            </div>
+            {# Preserve the current type filter (set by tabs) when submitting the form #}
+            {% qt_getlist request "type" as type_values %}
+            {% for type_val in type_values %}<input type="hidden" name="type" value="{{ type_val }}">{% endfor %}
             {# House filter dropdown #}
             <div class="btn-group">
                 <button type="button"
