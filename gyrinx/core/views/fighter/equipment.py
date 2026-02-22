@@ -1828,6 +1828,16 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     )
                     + "?step=confirm"
                 )
+            else:
+                # Validation failed - re-render with bound forms containing errors
+                context = {
+                    "list": lst,
+                    "fighter": fighter,
+                    "assign": assignment,
+                    "forms": forms,
+                    "step": "selection",
+                }
+                return render(request, "core/list_fighter_equipment_sell.html", context)
 
         elif step == "confirm":
             # Step 2: Process confirmation and create campaign action
