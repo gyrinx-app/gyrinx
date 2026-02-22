@@ -37,13 +37,43 @@ class AdvancementConfig:
 
 
 class AdvancementDiceChoiceForm(forms.Form):
-    """Form for choosing whether to roll 2d6 for advancement."""
+    """
+    Form for choosing whether to roll 2d6 for advancement.
 
-    roll_dice = forms.BooleanField(
+    Includes fields for manual dice entry if the user opts not to roll, and a hidden action field
+    to distinguish between the two submission types.
+    """
+
+    # Action field to distinguish which button was pressed
+    roll_action = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    # Manual dice fields (only required for tabletop roll entry).
+    # The template renders these as <select> dropdowns, overriding the HiddenInput widget.
+    d6_1 = forms.IntegerField(
         required=False,
-        initial=True,
+        min_value=1,
+        max_value=6,
         widget=forms.HiddenInput(),
     )
+    d6_2 = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=6,
+        widget=forms.HiddenInput(),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        roll_action = cleaned_data.get("roll_action")
+        d6_1 = cleaned_data.get("d6_1")
+        d6_2 = cleaned_data.get("d6_2")
+
+        if roll_action == "roll_manual":
+            if d6_1 is None or d6_2 is None:
+                raise ValidationError(
+                    "Both dice values must be provided for manual entry."
+                )
+        return cleaned_data
 
 
 class AdvancementTypeForm(forms.Form):

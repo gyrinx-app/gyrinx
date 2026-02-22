@@ -210,23 +210,23 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
         ListFighter, id=fighter_id, list=lst, archived_at__isnull=True
     )
 
+    type_url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+
     # TODO: This should be removed once ListActions are implemented, so that dice-rolls for advancements
     # are possible even outside of campaign mode.
     if lst.status != List.CAMPAIGN_MODE:
-        url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
-        return HttpResponseRedirect(url)
+        return HttpResponseRedirect(type_url)
 
     # Check if fighter can roll dice for advancement
     if not can_fighter_roll_dice_for_advancement(fighter):
-        url = reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
-        return HttpResponseRedirect(url)
+        return HttpResponseRedirect(type_url)
 
     if request.method == "POST":
         form = AdvancementDiceChoiceForm(request.POST)
         if form.is_valid():
-            roll_dice = form.cleaned_data["roll_dice"]
+            roll_action = form.cleaned_data["roll_action"]
 
-            if roll_dice:
+            if roll_action == "roll_auto":
                 with transaction.atomic():
                     # Roll 2d6 and create campaign action
                     dice1 = random.randint(1, 6)  # nosec B311 - game dice, not crypto
@@ -248,22 +248,43 @@ def list_fighter_advancement_dice_choice(request, id, fighter_id):
                         )
 
                 # Redirect to type selection with campaign action
-                url = reverse(
-                    "core:list-fighter-advancement-type", args=(lst.id, fighter.id)
-                )
                 if campaign_action:
                     return HttpResponseRedirect(
-                        f"{url}?campaign_action_id={campaign_action.id}"
+                        f"{type_url}?campaign_action_id={campaign_action.id}"
                     )
                 else:
-                    return HttpResponseRedirect(url)
+                    return HttpResponseRedirect(type_url)
+            elif roll_action == "roll_manual":
+                with transaction.atomic():
+                    # Use manual dice entry instead of rolling
+                    dice1 = form.cleaned_data["d6_1"]
+                    dice2 = form.cleaned_data["d6_2"]
+                    total = dice1 + dice2
+
+                    # Create campaign action for the manual roll if in campaign mode
+                    campaign_action = None
+                    if lst.status == List.CAMPAIGN_MODE and lst.campaign:
+                        campaign_action = CampaignAction.objects.create(
+                            user=request.user,
+                            owner=request.user,
+                            campaign=lst.campaign,
+                            list=lst,
+                            description=f"Rolled on tabletop for advancement to {fighter.name}",
+                            dice_count=2,
+                            dice_results=[dice1, dice2],
+                            dice_total=total,
+                        )
+
+                # Redirect to type selection with campaign action
+                if campaign_action:
+                    return HttpResponseRedirect(
+                        f"{type_url}?campaign_action_id={campaign_action.id}"
+                    )
+                else:
+                    return HttpResponseRedirect(type_url)
             else:
                 # Redirect to type selection without campaign action
-                return HttpResponseRedirect(
-                    reverse(
-                        "core:list-fighter-advancement-type", args=(lst.id, fighter.id)
-                    )
-                )
+                return HttpResponseRedirect(type_url)
     else:
         form = AdvancementDiceChoiceForm()
 

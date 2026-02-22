@@ -20,50 +20,87 @@
                 {# djlint:on #}
             </div>
             <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
-            <h3 class="h5 mb-0">Roll for Advancement?</h3>
+            <h3 class="h5 mb-0">How will {{ fighter.name }} advance?</h3>
         </div>
         <form method="post"
               class="vstack gap-2"
               aria-label="Roll for advancement form">
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
-            {% if can_roll_dice %}
-                <p>You can choose to roll 2D6 for your advancement.</p>
-                {{ form.roll_dice }}
-                <div class="alert alert-info">
-                    <i class="bi-info-circle"></i>
-                    The roll will <em>immediately</em> be added to the campaign action log.
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body vstack gap-3">
+                            <h4 class="card-title">Roll for random advancement</h4>
+                            {% if can_roll_dice %}
+                                <div class="alert alert-info">
+                                    <i class="bi-info-circle"></i>
+                                    The roll will <em>immediately</em> be added to the campaign action log.
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="bi-exclamation-triangle"></i>
+                                    Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must choose manually.
+                                </div>
+                            {% endif %}
+                            <div class="vstack gap-2">
+                                <nav aria-label="Form navigation">
+                                    <button type="submit"
+                                            name="roll_action"
+                                            value="roll_auto"
+                                            class="btn btn-primary"
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-describedby="roll-help">Generate a 2D6 roll</button>
+                                </nav>
+                                <span id="roll-help" class="visually-hidden">Automatically roll 2D6 for the advancement</span>
+                            </div>
+                            <fieldset class="vstack gap-2">
+                                <legend id="tabletop-result-label">Or enter a tabletop result:</legend>
+                                <div class="input-group" aria-describedby="tabletop-result-label">
+                                    <select name="d6_1"
+                                            class="form-select"
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-label="First D6 result">
+                                        <option value="" selected disabled>-</option>
+                                        {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                                    </select>
+                                    <select name="d6_2"
+                                            class="form-select"
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-label="Second D6 result">
+                                        <option value="" selected disabled>-</option>
+                                        {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                                    </select>
+                                    <button class="btn btn-outline-primary"
+                                            type="submit"
+                                            name="roll_action"
+                                            value="roll_manual"
+                                            {% if not can_roll_dice %}disabled{% endif %}>Confirm result</button>
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
                 </div>
-                <nav class="hstack gap-3" aria-label="Form navigation">
-                    <button type="submit" class="btn btn-primary" aria-describedby="roll-help">Roll 2D6</button>
-                    <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
-                       class="btn btn-success"
-                       aria-describedby="spend-help">Spend XP</a>
-                    <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement</span>
-                    <span id="spend-help" class="visually-hidden">Spend XP to choose your advancement</span>
-                </nav>
-            {% else %}
-                <div class="alert alert-warning">
-                    <i class="bi-exclamation-triangle"></i>
-                    Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must spend XP to choose advancements.
+                <div class="col-12">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body vstack gap-3">
+                            <h4 class="card-title">Choose advancement</h4>
+                            <fieldset class="vstack gap-2 mb-0">
+                                <legend class="form-label mb-1" id="choose-advancement-label">
+                                    Already rolled? Skip this step and select an advancement to apply.
+                                </legend>
+                                <div class="hstack gap-3" aria-describedby="choose-advancement-label">
+                                    <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
+                                       id="spend_xp_link"
+                                       class="btn btn-outline-secondary">Select
+                                        <i class="bi-arrow-right" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
                 </div>
-                <nav class="hstack gap-3" aria-label="Form navigation">
-                    <button type="submit"
-                            class="btn btn-primary disabled"
-                            aria-describedby="roll-help"
-                            disabled
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
-                            title="Only Gangers and Exotic Beasts can roll for advancements">
-                        <i class="bi-dice-6"></i> Roll 2D6
-                    </button>
-                    <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
-                       class="btn btn-success"
-                       aria-describedby="spend-help">Spend XP</a>
-                    <span id="roll-help" class="visually-hidden">Roll 2D6 dice for a random advancement (disabled for non-Gangers and non-Exotic Beasts)</span>
-                    <span id="spend-help" class="visually-hidden">Spend XP to choose your advancement</span>
-                </nav>
-            {% endif %}
+            </div>
         </form>
     </div>
 {% endblock content %}
