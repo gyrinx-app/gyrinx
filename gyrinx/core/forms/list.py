@@ -872,17 +872,36 @@ class EquipmentSellSelectionForm(forms.Form):
     """Form for selecting equipment sale options (manual price vs dice roll)."""
 
     PRICE_CHOICES = [
-        ("dice", "Cost minus D6×10"),
-        ("manual", "Manual"),
+        ("roll_auto", "Cost minus D6×10 (Roll for me)"),
+        ("roll_manual", "Cost minus D6×10 (Rolled on tabletop)"),
+        ("price_manual", "Manual"),
     ]
 
     price_method = forms.ChoiceField(
         choices=PRICE_CHOICES,
-        initial="dice",
+        initial="roll_auto",
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
         label="Sale Price",
     )
-    manual_price = forms.IntegerField(
+    D6_CHOICES = [
+        ("", "-"),
+        (1, "1"),
+        (2, "2"),
+        (3, "3"),
+        (4, "4"),
+        (5, "5"),
+        (6, "6"),
+    ]
+    roll_manual_d6 = forms.TypedChoiceField(
+        required=False,
+        coerce=int,
+        empty_value=None,
+        choices=D6_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="D6 Result",
+        help_text="Enter D6 result",
+    )
+    price_manual_value = forms.IntegerField(
         required=False,
         min_value=5,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
@@ -893,11 +912,19 @@ class EquipmentSellSelectionForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         price_method = cleaned_data.get("price_method")
-        manual_price = cleaned_data.get("manual_price")
+        roll_manual_d6 = cleaned_data.get("roll_manual_d6")
+        price_manual_value = cleaned_data.get("price_manual_value")
 
-        if price_method == "manual" and not manual_price:
-            raise forms.ValidationError(
-                "Manual price is required when manual pricing is selected."
+        if price_method == "price_manual" and not price_manual_value:
+            self.add_error(
+                "price_manual_value",
+                "This field is required when manual pricing is selected.",
+            )
+
+        if price_method == "roll_manual" and not roll_manual_d6:
+            self.add_error(
+                "roll_manual_d6",
+                "D6 result is required when manual roll pricing is selected.",
             )
 
         return cleaned_data

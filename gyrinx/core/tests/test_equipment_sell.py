@@ -136,10 +136,55 @@ def test_sell_equipment_selection_form(
 
 
 @pytest.mark.django_db
-def test_sell_equipment_with_dice_roll(
+def test_sell_equipment_confirm_shows_upgrades(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
-    """Test selling equipment with dice roll pricing."""
+    """Test the confirm step shows upgrade names."""
+    client.force_login(user)
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    equipment = make_equipment("Test Gun", cost=50)
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        name="Extended Mag",
+        equipment=equipment,
+        cost=10,
+    )
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade)
+
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+
+    # Step 1: Selection
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "30",
+        },
+    )
+    assert response.status_code == 302
+
+    # Step 2: Confirm page should show upgrade name
+    response = client.get(url + "?step=confirm")
+    content = response.content.decode()
+    assert "Extended Mag" in content
+
+
+@pytest.mark.django_db
+def test_sell_equipment_with_dice_roll_auto(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test selling equipment with automatic dice roll pricing."""
     client.force_login(user)
 
     # Create campaign list with stash fighter
@@ -165,7 +210,7 @@ def test_sell_equipment_with_dice_roll(
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "dice",
+            "0-price_method": "roll_auto",
         },
     )
 
@@ -199,6 +244,120 @@ def test_sell_equipment_with_dice_roll(
 
 
 @pytest.mark.django_db
+def test_sell_equipment_with_dice_roll_manual(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test selling equipment with manually rolled dice for cost."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual D6 roll of 4
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "roll_manual",
+            "0-roll_manual_d6": "4",
+        },
+    )
+
+    assert response.status_code == 302
+    assert "step=confirm" in response.url
+
+    # Confirm sale
+    response = client.post(
+        url,
+        {
+            "step": "confirm",
+        },
+        follow=True,
+    )
+
+    # Check that equipment was deleted
+    assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Check credits were added (50 - 4×10 = 10¢)
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits + 10
+
+    # Check campaign action was created with correct D6 result
+    action = CampaignAction.objects.filter(campaign=campaign, list=lst).first()
+    assert action is not None
+    assert action.dice_count == 1
+    assert action.dice_results == [4]
+    assert "Sold equipment from stash" in action.description
+
+
+@pytest.mark.django_db
+def test_sell_equipment_with_manual_roll_missing_d6_validation_error(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test validation error when manual roll pricing is selected but D6 result is missing."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual roll pricing but no D6 result
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "roll_manual",
+            # Missing "0-roll_manual_d6"
+        },
+    )
+
+    assert response.status_code == 200  # Form re-rendered with errors
+    assert (
+        "D6 result is required when manual roll pricing is selected."
+        in response.content.decode()
+    )
+
+    # Equipment should not be deleted
+    assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Credits should not be changed
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits
+
+    # No campaign action should be created
+    assert not CampaignAction.objects.filter(campaign=campaign, list=lst).exists()
+
+
+@pytest.mark.django_db
 def test_sell_equipment_with_manual_price(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
@@ -228,8 +387,8 @@ def test_sell_equipment_with_manual_price(
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "25",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "25",
         },
     )
 
@@ -253,6 +412,58 @@ def test_sell_equipment_with_manual_price(
     assert action is not None
     assert action.dice_count == 0  # No dice for manual price
     assert "Test Gun (25¢)" in action.description
+
+
+@pytest.mark.django_db
+def test_sell_equipment_with_manual_price_missing_value_validation_error(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test validation error when manual price is selected but value is missing."""
+    client.force_login(user)
+
+    # Create campaign list with stash fighter
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    # Add equipment
+    equipment = make_equipment("Test Gun", cost=50)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    # Initial credits
+    initial_credits = lst.credits_current
+
+    # Submit selection form with manual price but no value
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            # Missing "0-price_manual_value"
+        },
+    )
+
+    assert response.status_code == 200  # Form re-rendered with errors
+    assert (
+        "This field is required when manual pricing is selected."
+        in response.content.decode()
+    )
+
+    # Equipment should not be deleted
+    assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
+
+    # Credits should not be changed
+    lst.refresh_from_db()
+    assert lst.credits_current == initial_credits
+
+    # No campaign action should be created
+    assert not CampaignAction.objects.filter(campaign=campaign, list=lst).exists()
 
 
 @pytest.mark.django_db
@@ -286,8 +497,8 @@ def test_sell_weapon_profiles_individually(
         url + f"?sell_profile={profile2.id}",
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "15",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "15",
         },
     )
 
@@ -343,7 +554,7 @@ def test_sell_accessories_individually(
         url + f"?sell_accessory={accessory1.id}",
         {
             "step": "selection",
-            "0-price_method": "dice",
+            "0-price_method": "roll_auto",
         },
     )
 
@@ -391,8 +602,8 @@ def test_sell_summary_page(client, user, make_list, make_stash_fighter, make_equ
         url + "?sell_assign=" + str(assignment.id),
         {
             "step": "selection",
-            "0-price_method": "manual",
-            "0-manual_price": "30",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "30",
         },
     )
 

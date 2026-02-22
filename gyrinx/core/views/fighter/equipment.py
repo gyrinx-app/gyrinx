@@ -1799,7 +1799,8 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 sell_data = []
                 for item, form in forms:
                     price_method = form.cleaned_data["price_method"]
-                    manual_price = form.cleaned_data.get("manual_price")
+                    price_manual_value = form.cleaned_data.get("price_manual_value")
+                    roll_manual_d6 = form.cleaned_data.get("roll_manual_d6")
 
                     sell_data.append(
                         {
@@ -1808,7 +1809,12 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             "base_cost": item["base_cost"],
                             "total_cost": item.get("total_cost", item["base_cost"]),
                             "price_method": price_method,
-                            "manual_price": manual_price,
+                            "roll_manual_d6": roll_manual_d6,
+                            "price_manual_value": price_manual_value,
+                            "upgrades": [
+                                {"name": upgrade.name}
+                                for upgrade in item.get("upgrades", [])
+                            ],
                         }
                     )
 
@@ -1826,6 +1832,16 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                     )
                     + "?step=confirm"
                 )
+            else:
+                # Validation failed - re-render with bound forms containing errors
+                context = {
+                    "list": lst,
+                    "fighter": fighter,
+                    "assign": assignment,
+                    "forms": forms,
+                    "step": "selection",
+                }
+                return render(request, "core/list_fighter_equipment_sell.html", context)
 
         elif step == "confirm":
             # Step 2: Process confirmation and create campaign action
@@ -1839,9 +1855,39 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 sale_items = []
 
                 for item_data in sell_data:
-                    if item_data["price_method"] == "dice":
-                        # Roll D6 for this item
-                        roll = random.randint(1, 6)  # nosec B311 - game dice, not crypto
+                    if item_data["price_method"] == "price_manual":
+                        # Use the given manual price
+                        sale_price = item_data["price_manual_value"]
+                        roll = None
+                    else:
+                        if item_data["price_method"] == "roll_auto":
+                            roll = random.randint(1, 6)  # nosec B311 - game dice, not crypto
+                        else:
+                            # price_method == "roll_manual", use the provided roll
+                            roll = item_data.get("roll_manual_d6")
+                            # Check that the manual roll value is present before maths is performed
+                            if roll is None:
+                                messages.error(
+                                    request, "Manual dice roll value is missing."
+                                )
+                                # Rebuild selection URL with original query params
+                                query_parts = []
+                                if request.session.get("sell_assign"):
+                                    query_parts.append(
+                                        ("sell_assign", str(assignment.id))
+                                    )
+                                for pid in request.session.get("sell_profiles", []):
+                                    query_parts.append(("sell_profile", pid))
+                                for aid in request.session.get("sell_accessories", []):
+                                    query_parts.append(("sell_accessory", aid))
+                                base_url = reverse(
+                                    "core:list-fighter-equipment-sell",
+                                    args=(lst.id, fighter.id, assignment.id),
+                                )
+                                return HttpResponseRedirect(
+                                    f"{base_url}?{urlencode(query_parts)}"
+                                )
+
                         dice_rolls.append(roll)
                         total_dice += 1
 
@@ -1851,10 +1897,6 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             item_data.get("total_cost", item_data["base_cost"])
                             - (roll * 10),
                         )
-                    else:
-                        # Use manual price
-                        sale_price = item_data["manual_price"]
-                        roll = None
 
                     total_credits += sale_price
                     sale_items.append(
