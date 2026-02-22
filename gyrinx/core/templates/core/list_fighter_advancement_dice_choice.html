@@ -59,13 +59,15 @@
                                 <div class="input-group" aria-describedby="tabletop-result-label">
                                     <select name="d6_1"
                                             class="form-select"
-                                            {% if not can_roll_dice %}disabled{% endif %}>
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-label="First D6 result">
                                         <option value="" selected disabled>-</option>
                                         {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
                                     </select>
                                     <select name="d6_2"
                                             class="form-select"
-                                            {% if not can_roll_dice %}disabled{% endif %}>
+                                            {% if not can_roll_dice %}disabled{% endif %}
+                                            aria-label="Second D6 result">
                                         <option value="" selected disabled>-</option>
                                         {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
                                     </select>
@@ -90,8 +92,7 @@
                                 <div class="hstack gap-3" aria-describedby="choose-advancement-label">
                                     <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}"
                                        id="spend_xp_link"
-                                       class="btn btn-outline-secondary"
-                                       aria-describedby="spend-help">Select
+                                       class="btn btn-outline-secondary">Select
                                         <i class="bi-arrow-right" aria-hidden="true"></i>
                                     </a>
                                 </div>

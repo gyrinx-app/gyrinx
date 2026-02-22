@@ -363,7 +363,9 @@ def test_advancement_choice_fallback_display(
     [
         ("roll_auto", None, None, True),
         ("roll_manual", None, None, False),
-        ("roll_manual", 0, 7, False),
+        ("roll_manual", 3, None, False),
+        ("roll_manual", 0, 3, False),
+        ("roll_manual", 3, 7, False),
         ("roll_manual", 3, 4, True),
     ],
 )

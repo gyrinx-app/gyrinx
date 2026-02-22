@@ -616,7 +616,7 @@ def test_exotic_beasts_can_roll_dice(client, user, exotic_beast_fighter):
     assert response.status_code == 200
     content = response.content.decode()
     assert "Roll for random advancement" in content
-    assert "Roll 2D6" in content
+    assert "Generate a 2D6 roll" in content
     # Should not see the warning message
     assert "Only Gangers and Exotic Beasts can roll for advancements" not in content
 
