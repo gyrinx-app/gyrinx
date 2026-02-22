@@ -13,10 +13,6 @@
                      height="24"
                      class="d-inline-block align-text-top">
                 <span class="fs-5 ms-1 fw-normal">Gyrinx</span>
-                {% settings_value "SHOW_BETA_BADGE" as show_beta %}
-                {% if show_beta %}
-                    <span class="badge bg-success txt-bg-success ms-1 fs-7 fw-normal text-uppercase"><small>Beta</small></span>
-                {% endif %}
             </a>
             <div class="hstack gap-2 gap-sm-1 me-sm-1">
                 {% if user.is_authenticated %}

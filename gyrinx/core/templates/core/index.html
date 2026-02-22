@@ -27,7 +27,6 @@
     <div class="mb-5 pb-5">
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
-                {% include "core/includes/announcement_banner.html" %}
                 {% if '@' in user.username %}
                     <div class="alert alert-warning d-flex align-items-center" role="alert">
                         <i class="bi-exclamation-triangle me-2"></i>

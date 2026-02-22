@@ -281,9 +281,6 @@ MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
 MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
 
 
-# Beta badge
-SHOW_BETA_BADGE = os.getenv("SHOW_BETA_BADGE", "True") == "True"
-
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
