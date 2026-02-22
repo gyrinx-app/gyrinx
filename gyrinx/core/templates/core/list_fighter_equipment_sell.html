@@ -163,8 +163,9 @@
             </div>
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i>
-                Dice will be rolled automatically when you confirm the sale. Items sold with dice
-                will receive their base cost minus the dice roll × 10 credits (minimum 5¢).
+                Items using "Roll for me" will have dice rolled automatically when you confirm.
+                Items using tabletop results will use the entered D6 value.
+                Sale price is the item's base cost minus the dice roll × 10 credits (minimum 5¢).
             </div>
             <form method="post" class="vstack gap-3">
                 {% csrf_token %}

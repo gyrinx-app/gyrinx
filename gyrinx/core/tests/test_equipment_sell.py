@@ -136,6 +136,51 @@ def test_sell_equipment_selection_form(
 
 
 @pytest.mark.django_db
+def test_sell_equipment_confirm_shows_upgrades(
+    client, user, make_list, make_stash_fighter, make_equipment
+):
+    """Test the confirm step shows upgrade names."""
+    client.force_login(user)
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    lst = make_list("Test List", campaign=campaign, status=List.CAMPAIGN_MODE)
+    stash = make_stash_fighter(lst)
+
+    equipment = make_equipment("Test Gun", cost=50)
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        name="Extended Mag",
+        equipment=equipment,
+        cost=10,
+    )
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+    assignment.upgrades_field.add(upgrade)
+
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+
+    # Step 1: Selection
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "30",
+        },
+    )
+    assert response.status_code == 302
+
+    # Step 2: Confirm page should show upgrade name
+    response = client.get(url + "?step=confirm")
+    content = response.content.decode()
+    assert "Extended Mag" in content
+
+
+@pytest.mark.django_db
 def test_sell_equipment_with_dice_roll_auto(
     client, user, make_list, make_stash_fighter, make_equipment
 ):
@@ -296,6 +341,10 @@ def test_sell_equipment_with_manual_roll_missing_d6_validation_error(
     )
 
     assert response.status_code == 200  # Form re-rendered with errors
+    assert (
+        "D6 result is required when manual roll pricing is selected."
+        in response.content.decode()
+    )
 
     # Equipment should not be deleted
     assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
@@ -401,6 +450,10 @@ def test_sell_equipment_with_manual_price_missing_value_validation_error(
     )
 
     assert response.status_code == 200  # Form re-rendered with errors
+    assert (
+        "This field is required when manual pricing is selected."
+        in response.content.decode()
+    )
 
     # Equipment should not be deleted
     assert ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()

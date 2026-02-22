@@ -1811,6 +1811,10 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             "price_method": price_method,
                             "roll_manual_d6": roll_manual_d6,
                             "price_manual_value": price_manual_value,
+                            "upgrades": [
+                                {"name": upgrade.name}
+                                for upgrade in item.get("upgrades", [])
+                            ],
                         }
                     )
 
@@ -1866,12 +1870,22 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                                 messages.error(
                                     request, "Manual dice roll value is missing."
                                 )
-                                return HttpResponseRedirect(
-                                    reverse(
-                                        "core:list-fighter-equipment-sell",
-                                        args=(lst.id, fighter.id, assignment.id),
+                                # Rebuild selection URL with original query params
+                                query_parts = []
+                                if request.session.get("sell_assign"):
+                                    query_parts.append(
+                                        ("sell_assign", str(assignment.id))
                                     )
-                                    + "?step=selection"
+                                for pid in request.session.get("sell_profiles", []):
+                                    query_parts.append(("sell_profile", pid))
+                                for aid in request.session.get("sell_accessories", []):
+                                    query_parts.append(("sell_accessory", aid))
+                                base_url = reverse(
+                                    "core:list-fighter-equipment-sell",
+                                    args=(lst.id, fighter.id, assignment.id),
+                                )
+                                return HttpResponseRedirect(
+                                    f"{base_url}?{urlencode(query_parts)}"
                                 )
 
                         dice_rolls.append(roll)
