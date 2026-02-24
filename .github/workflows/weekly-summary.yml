@@ -4,12 +4,18 @@ on:
   schedule:
     # Run every Monday at 9am UTC
     - cron: "0 9 * * 1"
-  workflow_dispatch: # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Override start date (YYYY-MM-DD). Defaults to last successful run date."
+        required: false
+        type: string
 
 jobs:
   summary:
     runs-on: [gyrinx-ubuntu-2]
     permissions:
+      actions: read
       contents: read
       discussions: write
       id-token: write
@@ -32,16 +38,57 @@ jobs:
 
       - name: Get date range
         id: dates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_START_DATE: ${{ inputs.start_date }}
+          CURRENT_RUN_NUMBER: ${{ github.run_number }}
         run: |
           python3 << 'PY'
           import datetime
+          import json
           import os
+          import subprocess
 
           def ordinal(n):
               return str(n) + ("th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th"))
 
           today = datetime.date.today()
-          start = today - datetime.timedelta(days=7)
+
+          # Determine start date
+          manual_start = os.environ.get("INPUT_START_DATE", "").strip()
+          if manual_start:
+              try:
+                  start = datetime.date.fromisoformat(manual_start)
+              except ValueError:
+                  print(f"::error::Invalid start_date '{manual_start}'. Expected format: YYYY-MM-DD")
+                  raise
+              print(f"Using manual start date: {start.isoformat()}")
+          else:
+              # Find the last successful run of this workflow, excluding the current run
+              result = subprocess.run(
+                  ["gh", "run", "list", "--workflow", "weekly-summary.yml",
+                   "--status", "success", "--limit", "2",
+                   "--json", "createdAt,number"],
+                  capture_output=True, text=True
+              )
+              if result.returncode != 0:
+                  print(f"Warning: gh run list failed (code {result.returncode}): {result.stderr.strip()}")
+                  runs = []
+              else:
+                  try:
+                      runs = json.loads(result.stdout)
+                  except json.JSONDecodeError as e:
+                      print(f"Warning: failed to parse gh output: {e}")
+                      runs = []
+              current_run = int(os.environ.get("CURRENT_RUN_NUMBER", "0"))
+              runs = [r for r in runs if r["number"] != current_run]
+
+              if runs:
+                  start = datetime.date.fromisoformat(runs[0]["createdAt"][:10])
+                  print(f"Using last successful run date: {start.isoformat()}")
+              else:
+                  start = today - datetime.timedelta(days=7)
+                  print(f"No prior successful run found, falling back to 7 days: {start.isoformat()}")
 
           # Format: "Jan 4th"
           week_of = f"{start.strftime('%b')} {ordinal(start.day)}"
@@ -72,13 +119,13 @@ jobs:
             --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
 
           prompt: |
-            Create a summary of what landed in Gyrinx over the last 7 days.
+            Create a summary of what landed in Gyrinx since the last weekly summary.
 
             The date range is $START_DATE to $END_DATE.
 
             ## Step 1: Get the merged PRs
 
-            Run this command to get the PRs merged in the last 7 days:
+            Run this command to get the PRs merged in this period:
             ```bash
             gh pr list --state merged --search "merged:>=$START_DATE" --json number,title,body --limit 50
             ```
