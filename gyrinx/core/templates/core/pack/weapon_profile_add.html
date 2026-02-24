@@ -1,0 +1,24 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add profile to {{ equipment.name }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="bi-crosshair"></i> Add profile to {{ equipment.name }}
+        </h1>
+        <form action="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            {{ form }}
+            {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}
+            <div class="mt-3 d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary">Add profile</button>
+                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

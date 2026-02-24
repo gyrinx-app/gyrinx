@@ -24,11 +24,14 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
+from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
     ContentHouseForm,
     ContentRuleForm,
+    ContentWeaponPackForm,
+    ContentWeaponProfilePackForm,
     PackForm,
 )
 from gyrinx.core.models.campaign import Campaign
@@ -79,6 +82,14 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-wrench",
         ContentGearPackForm,
         "gear",
+    ),
+    ContentTypeEntry(
+        ContentEquipment,
+        "Weapons",
+        "Custom weapons for your Content Pack.",
+        "bi-crosshair",
+        ContentWeaponPackForm,
+        "weapon",
     ),
     ContentTypeEntry(
         ContentRule,
@@ -231,7 +242,11 @@ def _resolve_item_description(record):
             )
             try:
                 obj = qs.get(pk=record.object_id)
-                return f"{obj} ({ct_name})"
+                # Use "Weapon" instead of "Equipment" for weapon items.
+                label = ct_name
+                if isinstance(obj, ContentEquipment) and obj.is_weapon():
+                    label = "Weapon"
+                return f"{obj} ({label})"
             except model_class.DoesNotExist:
                 pass
     return ct_name
@@ -314,12 +329,17 @@ def _get_pack_activity(pack, limit=None):
             changes = _compute_changes(r)
             if not changes:
                 continue
-            # Use the name from the historical record (captures name at time of edit)
-            desc = (
-                f"{r.name} ({ct.name.title()})"
-                if hasattr(r, "name")
-                else ct.name.title()
-            )
+            # Use the name from the historical record (captures name at time of edit).
+            # Use "Weapon" instead of "Equipment" for weapon items.
+            label = ct.name.title()
+            if model_class is ContentEquipment and hasattr(r, "name"):
+                try:
+                    obj = ContentEquipment.objects.all_content().get(pk=r.id)
+                    if obj.is_weapon():
+                        label = "Weapon"
+                except ContentEquipment.DoesNotExist:
+                    pass
+            desc = f"{r.name} ({label})" if hasattr(r, "name") else label
             content_edit_records.append(
                 _ActivityRecord(
                     r,
@@ -330,8 +350,54 @@ def _get_pack_activity(pack, limit=None):
                 )
             )
 
+    # Weapon profile records — profiles are children of equipment, not
+    # direct pack items. Find equipment IDs from pack items and query
+    # ContentWeaponProfile history for those equipment_ids.
+    weapon_profile_records = []
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+    equipment_ids = ids_by_ct.get(equipment_ct.id, set())
+    if equipment_ids:
+        for r in (
+            ContentWeaponProfile.history.filter(equipment_id__in=equipment_ids)
+            .select_related("history_user")
+            .all()
+        ):
+            changes = _compute_changes(r)
+            if r.history_type == "~" and not changes:
+                continue
+            # Build description: "Profile Name (Weapon Name)" or just weapon name.
+            profile_name = r.name if hasattr(r, "name") and r.name else ""
+            # Resolve the parent weapon name from the historical record.
+            weapon_name = ""
+            if hasattr(r, "equipment_id") and r.equipment_id:
+                try:
+                    eq = ContentEquipment.objects.all_content().get(pk=r.equipment_id)
+                    weapon_name = str(eq)
+                except ContentEquipment.DoesNotExist:
+                    pass
+            if profile_name and weapon_name:
+                desc = f"{profile_name} profile ({weapon_name})"
+            elif weapon_name:
+                desc = f"Weapon profile ({weapon_name})"
+            else:
+                desc = "Weapon profile"
+            weapon_profile_records.append(
+                _ActivityRecord(
+                    r,
+                    is_pack_record=False,
+                    is_content_edit=True,
+                    item_description=desc,
+                    changes=changes,
+                )
+            )
+
     combined = sorted(
-        itertools.chain(pack_records, item_records, content_edit_records),
+        itertools.chain(
+            pack_records,
+            item_records,
+            content_edit_records,
+            weapon_profile_records,
+        ),
         key=lambda h: h.history_date,
         reverse=True,
     )
@@ -398,35 +464,64 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
         context["is_owner"] = user.is_authenticated and user == pack.owner
         context["can_edit"] = pack.can_edit(user)
 
-        # Group prefetched items by content type, splitting active/archived.
-        active_by_ct = defaultdict(list)
-        archived_by_ct = defaultdict(list)
+        # Group prefetched items by slug, splitting active/archived.
+        # For ContentEquipment, disambiguate gear vs weapons.
+        equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+        active_by_slug = defaultdict(list)
+        archived_by_slug = defaultdict(list)
         for item in pack.items.all():
             if item.content_object is not None:
-                entry = {"pack_item": item, "content_object": item.content_object}
-                if item.archived:
-                    archived_by_ct[item.content_type_id].append(entry)
+                entry_data = {"pack_item": item, "content_object": item.content_object}
+                # Determine slug for equipment items.
+                if item.content_type_id == equipment_ct.id:
+                    slug = "weapon" if item.content_object.is_weapon() else "gear"
                 else:
-                    active_by_ct[item.content_type_id].append(entry)
+                    slug = None
+                    for e in SUPPORTED_CONTENT_TYPES:
+                        if (
+                            ContentType.objects.get_for_model(e.model_class).id
+                            == item.content_type_id
+                        ):
+                            slug = e.slug
+                            break
+                    if slug is None:
+                        continue
+
+                if item.archived:
+                    archived_by_slug[slug].append(entry_data)
+                else:
+                    active_by_slug[slug].append(entry_data)
 
         content_sections = []
-        for entry in SUPPORTED_CONTENT_TYPES:
-            ct = ContentType.objects.get_for_model(entry.model_class)
-            items = active_by_ct.get(ct.id, [])
-            archived_items = archived_by_ct.get(ct.id, [])
-            content_sections.append(
-                {
-                    "label": entry.label,
-                    "description": entry.description,
-                    "icon": entry.icon,
-                    "items": items,
-                    "count": len(items),
-                    "archived_items": archived_items,
-                    "archived_count": len(archived_items),
-                    "slug": entry.slug,
-                    "can_add": entry.form_class is not None,
-                }
-            )
+        for ct_entry in SUPPORTED_CONTENT_TYPES:
+            items = active_by_slug.get(ct_entry.slug, [])
+            archived_items = archived_by_slug.get(ct_entry.slug, [])
+            section = {
+                "label": ct_entry.label,
+                "description": ct_entry.description,
+                "icon": ct_entry.icon,
+                "items": items,
+                "count": len(items),
+                "archived_items": archived_items,
+                "archived_count": len(archived_items),
+                "slug": ct_entry.slug,
+                "can_add": ct_entry.form_class is not None,
+            }
+            # For weapon items, attach profiles for inline display.
+            if ct_entry.slug == "weapon":
+                for item_data in items:
+                    eq = item_data["content_object"]
+                    item_data["profiles"] = (
+                        eq.contentweaponprofile_set.prefetch_related("traits").order_by(
+                            models.Case(
+                                models.When(name="", then=0),
+                                default=1,
+                                output_field=models.IntegerField(),
+                            ),
+                            "name",
+                        )
+                    )
+            content_sections.append(section)
 
         context["content_sections"] = content_sections
         all_activities = _get_pack_activity(pack)
@@ -693,7 +788,18 @@ def _get_content_type_entry(slug):
 
 
 def _get_entry_for_pack_item(pack_item):
-    """Look up the SUPPORTED_CONTENT_TYPES entry matching a pack item, or raise 404."""
+    """Look up the SUPPORTED_CONTENT_TYPES entry matching a pack item, or raise 404.
+
+    For ContentEquipment, disambiguates between gear and weapon entries
+    by checking whether the equipment has weapon profiles.
+    """
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+    if pack_item.content_type == equipment_ct:
+        content_obj = pack_item.content_object
+        if content_obj is not None and content_obj.is_weapon():
+            return _CONTENT_TYPE_BY_SLUG["weapon"]
+        return _CONTENT_TYPE_BY_SLUG["gear"]
+
     for e in SUPPORTED_CONTENT_TYPES:
         ct = ContentType.objects.get_for_model(e.model_class)
         if ct == pack_item.content_type:
@@ -708,6 +814,78 @@ def _form_kwargs(entry, pack):
     return {}
 
 
+_WEAPON_PROFILE_STAT_FIELDS = [
+    ("range_short", "Rng S", 'E.g. 12"'),
+    ("range_long", "Rng L", 'E.g. 24"'),
+    ("accuracy_short", "Acc S", "E.g. +1"),
+    ("accuracy_long", "Acc L", "E.g. -1"),
+    ("strength", "Str", "E.g. 4"),
+    ("armour_piercing", "AP", "E.g. -1"),
+    ("damage", "D", "E.g. 1"),
+    ("ammo", "Am", "E.g. 6+"),
+]
+
+
+def _build_weapon_stat_context(request):
+    """Build template context for weapon profile stat input fields."""
+    stat_context = []
+    for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
+        entry_dict = {
+            "field_name": field_name,
+            "short_name": short_name,
+            "placeholder": placeholder,
+        }
+        if request.method == "POST":
+            entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+        stat_context.append(entry_dict)
+    return stat_context
+
+
+def _create_standard_weapon_profile(equipment, post_data, user):
+    """Create a standard (unnamed) weapon profile from POST data."""
+    profile = ContentWeaponProfile(
+        equipment=equipment,
+        name="",
+        cost=0,
+    )
+    for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+        raw = post_data.get(f"wp_{field_name}", "") or ""
+        setattr(profile, field_name, raw.strip())
+    profile._history_user = user
+    profile.full_clean()
+    profile.save()
+
+    # Set traits from multi-select.
+    trait_ids = post_data.getlist("wp_traits")
+    if trait_ids:
+        profile.traits.set(trait_ids)
+
+    return profile
+
+
+def _update_weapon_profile_stats(profile, post_data, user):
+    """Update weapon profile stat values from POST data."""
+    changed = False
+    for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+        raw = post_data.get(f"wp_{field_name}", "") or ""
+        new_value = raw.strip()
+        if getattr(profile, field_name) != new_value:
+            setattr(profile, field_name, new_value)
+            changed = True
+
+    trait_ids = set(post_data.getlist("wp_traits"))
+    current_trait_ids = set(
+        str(pk) for pk in profile.traits.values_list("pk", flat=True)
+    )
+    if trait_ids != current_trait_ids:
+        profile.traits.set(trait_ids)
+
+    if changed:
+        profile._history_user = user
+        profile.full_clean()
+        profile.save()
+
+
 @login_required
 @group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
@@ -716,6 +894,7 @@ def add_pack_item(request, id, content_type_slug):
     entry = _get_content_type_entry(content_type_slug)
     singular_label = entry.label.rstrip("s")
     is_fighter = entry.model_class is ContentFighter
+    is_weapon = content_type_slug == "weapon"
 
     # Load fighter stat definitions for the form.
     stat_definitions = _get_fighter_stat_definitions() if is_fighter else None
@@ -738,6 +917,10 @@ def add_pack_item(request, id, content_type_slug):
                 if is_fighter:
                     _create_fighter_statline(
                         content_obj, stat_definitions, request.POST
+                    )
+                if is_weapon:
+                    _create_standard_weapon_profile(
+                        content_obj, request.POST, request.user
                     )
             if "save_and_add_another" in request.POST:
                 messages.success(request, f'{singular_label} "{content_obj}" saved.')
@@ -772,6 +955,10 @@ def add_pack_item(request, id, content_type_slug):
             stat_context.append(entry_dict)
         context["stat_definitions"] = stat_context
 
+    if is_weapon:
+        context["weapon_stat_fields"] = _build_weapon_stat_context(request)
+        context["weapon_traits"] = ContentWeaponTrait.objects.all()
+
     return render(request, "core/pack/pack_item_add.html", context)
 
 
@@ -797,6 +984,7 @@ def edit_pack_item(request, id, item_id):
 
     singular_label = entry.label.rstrip("s")
     is_fighter = entry.model_class is ContentFighter
+    is_weapon = entry.slug == "weapon"
 
     # Load fighter stat data for the form.
     stat_values = None
@@ -813,6 +1001,11 @@ def edit_pack_item(request, id, item_id):
             ).order_by("statline_type_stat__position")
         ]
 
+    # Load standard weapon profile for inline editing.
+    standard_profile = None
+    if is_weapon:
+        standard_profile = content_obj.contentweaponprofile_set.filter(name="").first()
+
     if request.method == "POST":
         form = entry.form_class(
             request.POST, instance=content_obj, **_form_kwargs(entry, pack)
@@ -822,6 +1015,10 @@ def edit_pack_item(request, id, item_id):
             form.save()
             if is_fighter and hasattr(content_obj, "custom_statline"):
                 _update_fighter_stats(content_obj, request.POST)
+            if is_weapon and standard_profile:
+                _update_weapon_profile_stats(
+                    standard_profile, request.POST, request.user
+                )
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = entry.form_class(instance=content_obj, **_form_kwargs(entry, pack))
@@ -840,6 +1037,32 @@ def edit_pack_item(request, id, item_id):
             sv["value"] = request.POST.get(f"stat_{sv['field_name']}", sv["value"])
     if stat_values is not None:
         context["stat_values"] = stat_values
+
+    if is_weapon:
+        # Build weapon stat context from existing profile or empty.
+        weapon_stat_context = []
+        for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
+            entry_dict = {
+                "field_name": field_name,
+                "short_name": short_name,
+                "placeholder": placeholder,
+            }
+            if request.method == "POST":
+                entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+            elif standard_profile:
+                entry_dict["value"] = getattr(standard_profile, field_name, "")
+            stat_context_entry = entry_dict
+            weapon_stat_context.append(stat_context_entry)
+        context["weapon_stat_values"] = weapon_stat_context
+        context["weapon_traits"] = ContentWeaponTrait.objects.all()
+        if standard_profile and request.method != "POST":
+            context["selected_trait_ids"] = set(
+                str(pk) for pk in standard_profile.traits.values_list("pk", flat=True)
+            )
+        elif request.method == "POST":
+            context["selected_trait_ids"] = set(request.POST.getlist("wp_traits"))
+        else:
+            context["selected_trait_ids"] = set()
 
     return render(request, "core/pack/pack_item_edit.html", context)
 
@@ -900,6 +1123,148 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+
+def _get_weapon_and_pack(pack_id, item_id, user):
+    """Fetch a pack, pack item, and verify it's a weapon the user can edit."""
+    pack = _get_pack_for_edit(pack_id, user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=False,
+    )
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+    if pack_item.content_type != equipment_ct:
+        raise Http404
+    equipment = pack_item.content_object
+    if equipment is None or not equipment.is_weapon():
+        raise Http404
+    return pack, pack_item, equipment
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def add_weapon_profile(request, id, item_id):
+    """Add an additional weapon profile to a weapon in a pack."""
+    pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
+
+    if request.method == "POST":
+        form = ContentWeaponProfilePackForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                profile = form.save(commit=False)
+                profile.equipment = equipment
+                profile._history_user = request.user
+                # Set stat values from inline fields.
+                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                    raw = request.POST.get(f"wp_{field_name}", "") or ""
+                    setattr(profile, field_name, raw.strip())
+                profile.full_clean()
+                profile.save()
+                # Set traits.
+                trait_ids = request.POST.getlist("wp_traits")
+                if trait_ids:
+                    profile.traits.set(trait_ids)
+            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+    else:
+        form = ContentWeaponProfilePackForm()
+
+    context = {
+        "form": form,
+        "pack": pack,
+        "pack_item": pack_item,
+        "equipment": equipment,
+        "weapon_stat_fields": _build_weapon_stat_context(request),
+        "weapon_traits": ContentWeaponTrait.objects.all(),
+    }
+    return render(request, "core/pack/weapon_profile_add.html", context)
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def edit_weapon_profile(request, id, item_id, profile_id):
+    """Edit a weapon profile on a weapon in a pack."""
+    pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
+    profile = get_object_or_404(
+        ContentWeaponProfile, id=profile_id, equipment=equipment
+    )
+
+    if request.method == "POST":
+        form = ContentWeaponProfilePackForm(request.POST, instance=profile)
+        if form.is_valid():
+            with transaction.atomic():
+                updated_profile = form.save(commit=False)
+                updated_profile._history_user = request.user
+                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                    raw = request.POST.get(f"wp_{field_name}", "") or ""
+                    setattr(updated_profile, field_name, raw.strip())
+                updated_profile.full_clean()
+                updated_profile.save()
+                trait_ids = request.POST.getlist("wp_traits")
+                updated_profile.traits.set(trait_ids)
+            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+    else:
+        form = ContentWeaponProfilePackForm(instance=profile)
+
+    # Build stat context from existing profile.
+    weapon_stat_context = []
+    for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
+        entry_dict = {
+            "field_name": field_name,
+            "short_name": short_name,
+            "placeholder": placeholder,
+        }
+        if request.method == "POST":
+            entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+        else:
+            entry_dict["value"] = getattr(profile, field_name, "")
+        weapon_stat_context.append(entry_dict)
+
+    if request.method == "POST":
+        selected_trait_ids = set(request.POST.getlist("wp_traits"))
+    else:
+        selected_trait_ids = set(
+            str(pk) for pk in profile.traits.values_list("pk", flat=True)
+        )
+
+    context = {
+        "form": form,
+        "pack": pack,
+        "pack_item": pack_item,
+        "equipment": equipment,
+        "profile": profile,
+        "weapon_stat_values": weapon_stat_context,
+        "weapon_traits": ContentWeaponTrait.objects.all(),
+        "selected_trait_ids": selected_trait_ids,
+    }
+    return render(request, "core/pack/weapon_profile_edit.html", context)
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def delete_weapon_profile(request, id, item_id, profile_id):
+    """Delete a weapon profile from a weapon in a pack."""
+    pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
+    profile = get_object_or_404(
+        ContentWeaponProfile, id=profile_id, equipment=equipment
+    )
+
+    # Standard (unnamed) profiles cannot be deleted.
+    if not profile.name:
+        raise Http404
+
+    if request.method == "POST":
+        profile.delete()
+        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+    context = {
+        "pack": pack,
+        "pack_item": pack_item,
+        "equipment": equipment,
+        "profile": profile,
+    }
+    return render(request, "core/pack/weapon_profile_delete.html", context)
 
 
 @login_required

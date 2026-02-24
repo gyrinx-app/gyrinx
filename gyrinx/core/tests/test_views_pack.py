@@ -1188,6 +1188,38 @@ def test_activity_shows_archive_change(client, group_user, pack, pack_rule):
 
 
 @pytest.mark.django_db
+def test_activity_shows_weapon_profile_added(client, group_user, pack, pack_weapon):
+    """Test that adding a weapon profile shows in the activity feed."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile(
+        equipment=equip,
+        name="Overcharge",
+        cost=10,
+    )
+    profile._history_user = group_user
+    profile.save()
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/activity/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Overcharge profile (Test Autopistol)" in content
+
+
+@pytest.mark.django_db
+def test_activity_shows_weapon_not_equipment(client, group_user, pack, pack_weapon):
+    """Test that weapon items show 'Weapon' not 'Equipment' in activity."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/activity/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Test Autopistol (Weapon)" in content
+    assert "Test Autopistol (Equipment)" not in content
+
+
+@pytest.mark.django_db
 def test_archived_items_page_loads(client, group_user, pack, pack_rule):
     """Test that the archived items page loads with archived items."""
     client.force_login(group_user)
@@ -2638,3 +2670,356 @@ def test_pack_gear_hidden_without_subscription(
     response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
     assert response.status_code == 200
     assert b"Test Armour" not in response.content
+
+
+# --- Weapons in packs ---
+
+
+@pytest.fixture
+def weapon_category():
+    """A weapon category for testing."""
+    cat, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Pistols", defaults={"group": "Weapons & Ammo"}
+    )
+    return cat
+
+
+@pytest.fixture
+def pack_weapon(pack, group_user, weapon_category):
+    """A weapon item added to a pack with a standard profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = ContentEquipment.objects.all_content().create(
+        name="Test Autopistol",
+        category=weapon_category,
+        cost="10",
+        rarity="C",
+    )
+    ContentWeaponProfile.objects.create(
+        equipment=equip,
+        name="",
+        cost=0,
+        range_short='4"',
+        range_long='8"',
+        strength="3",
+        damage="1",
+        ammo="6+",
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    item.save_with_user(user=group_user)
+    return item
+
+
+@pytest.mark.django_db
+def test_add_weapon_form_loads(client, group_user, pack, weapon_category):
+    """Test that the add weapon form page loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    assert response.status_code == 200
+    assert b"Add Weapon" in response.content
+    assert b"Weapon stats" in response.content
+
+
+@pytest.mark.django_db
+def test_add_weapon_creates_item_with_profile(
+    client, group_user, pack, weapon_category
+):
+    """Test that submitting the add weapon form creates equipment and standard profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/",
+        {
+            "name": "Custom Pistol",
+            "category": str(weapon_category.pk),
+            "cost": "15",
+            "rarity": "C",
+            "wp_range_short": '4"',
+            "wp_range_long": '8"',
+            "wp_accuracy_short": "+1",
+            "wp_accuracy_long": "",
+            "wp_strength": "3",
+            "wp_armour_piercing": "-1",
+            "wp_damage": "1",
+            "wp_ammo": "6+",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url == f"/pack/{pack.id}"
+
+    equip = ContentEquipment.objects.all_content().get(name="Custom Pistol")
+    assert equip.is_weapon()
+
+    profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+    assert profile.range_short == '4"'
+    assert profile.strength == "3"
+    assert profile.damage == "1"
+    assert profile.cost == 0
+
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=ct, object_id=equip.pk
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_add_weapon_with_traits(client, group_user, pack, weapon_category):
+    """Test that weapon traits are assigned to the standard profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
+
+    rapid_fire = ContentWeaponTrait.objects.create(name="Rapid Fire (1)")
+    knockback = ContentWeaponTrait.objects.create(name="Knockback")
+
+    client.force_login(group_user)
+    client.post(
+        f"/pack/{pack.id}/add/weapon/",
+        {
+            "name": "Traited Pistol",
+            "category": str(weapon_category.pk),
+            "cost": "20",
+            "rarity": "C",
+            "wp_range_short": '4"',
+            "wp_range_long": '8"',
+            "wp_strength": "3",
+            "wp_damage": "1",
+            "wp_ammo": "6+",
+            "wp_traits": [str(rapid_fire.pk), str(knockback.pk)],
+        },
+    )
+
+    equip = ContentEquipment.objects.all_content().get(name="Traited Pistol")
+    profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+    assert set(profile.traits.values_list("name", flat=True)) == {
+        "Rapid Fire (1)",
+        "Knockback",
+    }
+
+
+@pytest.mark.django_db
+def test_edit_weapon_form_loads(client, group_user, pack, pack_weapon):
+    """Test that the edit weapon form loads with profile stats."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    assert response.status_code == 200
+    assert b"Edit Weapon" in response.content
+    assert b"Weapon stats" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_weapon_updates_profile(client, group_user, pack, pack_weapon):
+    """Test that editing a weapon updates the standard profile stats."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/edit/",
+        {
+            "name": equip.name,
+            "category": str(equip.category.pk),
+            "cost": "15",
+            "rarity": "C",
+            "wp_range_short": '6"',
+            "wp_range_long": '12"',
+            "wp_accuracy_short": "",
+            "wp_accuracy_long": "",
+            "wp_strength": "4",
+            "wp_armour_piercing": "",
+            "wp_damage": "2",
+            "wp_ammo": "4+",
+        },
+    )
+    assert response.status_code == 302
+
+    profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+    assert profile.range_short == '6"'
+    assert profile.strength == "4"
+    assert profile.damage == "2"
+    assert profile.ammo == "4+"
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_weapon_section(client, group_user, pack):
+    """Test that the pack detail page shows the Weapons section."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Weapons" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_weapon_with_statline(client, group_user, pack, pack_weapon):
+    """Test that the pack detail page shows weapon profile statlines."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test Autopistol" in response.content
+    # Statline values are shown inline (no "(Standard)" label)
+    content = response.content.decode()
+    assert '4"' in content  # range_short
+    assert "6+" in content  # ammo
+
+
+@pytest.mark.django_db
+def test_add_weapon_profile(client, group_user, pack, pack_weapon):
+    """Test adding an additional named profile to a weapon."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/")
+    assert response.status_code == 200
+
+    equip = pack_weapon.content_object
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        {
+            "name": "Overcharge",
+            "cost": "10",
+            "rarity": "C",
+            "wp_range_short": '6"',
+            "wp_range_long": '12"',
+            "wp_strength": "5",
+            "wp_damage": "2",
+            "wp_ammo": "4+",
+        },
+    )
+    assert response.status_code == 302
+
+    assert ContentWeaponProfile.objects.filter(
+        equipment=equip, name="Overcharge"
+    ).exists()
+    profile = ContentWeaponProfile.objects.get(equipment=equip, name="Overcharge")
+    assert profile.cost == 10
+    assert profile.strength == "5"
+
+
+@pytest.mark.django_db
+def test_edit_weapon_profile(client, group_user, pack, pack_weapon):
+    """Test editing a named weapon profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(
+        equipment=equip,
+        name="Burst",
+        cost=5,
+        strength="4",
+        damage="1",
+    )
+
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/",
+        {
+            "name": "Burst",
+            "cost": "10",
+            "rarity": "C",
+            "wp_strength": "5",
+            "wp_damage": "2",
+        },
+    )
+    assert response.status_code == 302
+
+    profile.refresh_from_db()
+    assert profile.cost == 10
+    assert profile.strength == "5"
+    assert profile.damage == "2"
+
+
+@pytest.mark.django_db
+def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
+    """Test deleting a named weapon profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(
+        equipment=equip,
+        name="Burst",
+        cost=5,
+        strength="4",
+    )
+
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+    )
+    assert response.status_code == 200
+    assert b"Delete profile" in response.content
+
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+    )
+    assert response.status_code == 302
+    assert not ContentWeaponProfile.objects.filter(id=profile.id).exists()
+
+
+@pytest.mark.django_db
+def test_cannot_delete_standard_weapon_profile(client, group_user, pack, pack_weapon):
+    """Test that the standard (unnamed) profile cannot be deleted."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    standard_profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+
+    client.force_login(group_user)
+    # GET should return 404.
+    response = client.get(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
+    )
+    assert response.status_code == 404
+
+    # POST should also return 404.
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
+    )
+    assert response.status_code == 404
+
+    # Standard profile should still exist.
+    assert ContentWeaponProfile.objects.filter(id=standard_profile.id).exists()
+
+
+@pytest.mark.django_db
+def test_weapon_category_only_shows_weapons(client, group_user, pack, weapon_category):
+    """Test that the weapon form only shows Weapons & Ammo categories."""
+    ContentEquipmentCategory.objects.get_or_create(
+        name="Armour", defaults={"group": "Gear"}
+    )
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    assert response.status_code == 200
+    # Weapon categories should appear.
+    assert b"Pistols" in response.content
+    # Gear categories should not.
+    assert b"Armour" not in response.content
+
+
+@pytest.mark.django_db
+def test_weapon_shows_in_weapon_section_not_gear(
+    client, group_user, pack, pack_weapon, pack_equipment
+):
+    """Test that weapons appear in the Weapons section, not Gear."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    content = response.content.decode()
+
+    # Find the Weapons and Gear sections.
+    weapon_section_start = content.find("Weapons")
+
+    # Test Autopistol should be in the page.
+    assert "Test Autopistol" in content
+    # Test Armour (gear) should also be in the page.
+    assert "Test Armour" in content
+
+    # Autopistol should appear after the Weapons heading.
+    autopistol_pos = content.find("Test Autopistol")
+    assert autopistol_pos > weapon_section_start
