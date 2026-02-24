@@ -91,12 +91,12 @@ jobs:
                   print(f"No prior successful run found, falling back to 7 days: {start.isoformat()}")
 
           # Format: "Jan 4th"
-          week_of = f"{start.strftime('%b')} {ordinal(start.day)}"
+          since_date = f"{start.strftime('%b')} {ordinal(start.day)}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"end_date={today.strftime('%Y-%m-%d')}\n")
               f.write(f"start_date={start.strftime('%Y-%m-%d')}\n")
-              f.write(f"week_of={week_of}\n")
+              f.write(f"since_date={since_date}\n")
           PY
 
       - name: Run Claude Weekly Summary
@@ -119,7 +119,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
 
           prompt: |
-            Create a summary of what landed in Gyrinx since the last weekly summary.
+            Create a summary of what landed in Gyrinx since the last summary.
 
             The date range is $START_DATE to $END_DATE.
 
@@ -132,7 +132,7 @@ jobs:
 
             ## Step 2: Write the summary
 
-            Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary of the week.
+            Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary.
 
             Then write bullet points that:
             - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
@@ -153,19 +153,19 @@ jobs:
             Format: Intro line, blank line, then bullet points starting with dashes.
 
             Example style:
-            Changes from January 4th to 11th: A week of bug fixes and UI polish.
+            Changes from January 4th to 11th: Mostly bug fixes and UI polish.
 
             - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
             - **Equipment filters persist** when adding items, instead of resetting each time
 
-            If there were no meaningful user-facing changes, return: "Changes from [date range]: Quiet week! No major updates."
+            If there were no meaningful user-facing changes, return: "Changes from [date range]: No major updates this time."
 
             Return the full summary in the structured output.
 
       - name: Create discussion
         env:
           GH_TOKEN: ${{ github.token }}
-          WEEK_OF: ${{ steps.dates.outputs.week_of }}
+          SINCE_DATE: ${{ steps.dates.outputs.since_date }}
           SUMMARY_JSON: ${{ steps.claude.outputs.structured_output }}
         run: |
           set -e
@@ -215,5 +215,5 @@ jobs:
           ' \
             -f repoId="$REPO_ID" \
             -f categoryId="DIC_kwDOM_QUS84C0zc-" \
-            -f title="What's new? Week of $WEEK_OF" \
+            -f title="What's new since $SINCE_DATE?" \
             -f body="$BODY"
