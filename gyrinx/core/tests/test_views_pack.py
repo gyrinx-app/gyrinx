@@ -2936,6 +2936,42 @@ def test_edit_weapon_profile(client, group_user, pack, pack_weapon):
 
 
 @pytest.mark.django_db
+def test_edit_weapon_profile_shows_delete_for_named(
+    client, group_user, pack, pack_weapon
+):
+    """Test that the edit page shows a delete link for named profiles."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(equipment=equip, name="Burst", cost=5)
+
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
+    )
+    assert response.status_code == 200
+    assert b"Delete profile" in response.content
+
+
+@pytest.mark.django_db
+def test_edit_weapon_profile_hides_delete_for_standard(
+    client, group_user, pack, pack_weapon
+):
+    """Test that the edit page hides delete for the standard (unnamed) profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    standard = ContentWeaponProfile.objects.get(equipment=equip, name="")
+
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard.id}/edit/"
+    )
+    assert response.status_code == 200
+    assert b"Delete profile" not in response.content
+
+
+@pytest.mark.django_db
 def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
     """Test deleting a named weapon profile."""
     from gyrinx.content.models.weapon import ContentWeaponProfile
