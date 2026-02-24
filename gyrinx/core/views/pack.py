@@ -855,10 +855,9 @@ def _create_standard_weapon_profile(equipment, post_data, user):
     profile.full_clean()
     profile.save()
 
-    # Set traits from multi-select.
+    # Set traits from multi-select (always set, even if empty, to allow clearing).
     trait_ids = post_data.getlist("wp_traits")
-    if trait_ids:
-        profile.traits.set(trait_ids)
+    profile.traits.set(trait_ids)
 
     return profile
 
@@ -877,10 +876,11 @@ def _update_weapon_profile_stats(profile, post_data, user):
     current_trait_ids = set(
         str(pk) for pk in profile.traits.values_list("pk", flat=True)
     )
-    if trait_ids != current_trait_ids:
+    traits_changed = trait_ids != current_trait_ids
+    if traits_changed:
         profile.traits.set(trait_ids)
 
-    if changed:
+    if changed or traits_changed:
         profile._history_user = user
         profile.full_clean()
         profile.save()
@@ -958,6 +958,11 @@ def add_pack_item(request, id, content_type_slug):
     if is_weapon:
         context["weapon_stat_fields"] = _build_weapon_stat_context(request)
         context["weapon_traits"] = ContentWeaponTrait.objects.all()
+        context["selected_trait_ids"] = (
+            set(request.POST.getlist("wp_traits"))
+            if request.method == "POST"
+            else set()
+        )
 
     return render(request, "core/pack/pack_item_add.html", context)
 
@@ -1162,10 +1167,9 @@ def add_weapon_profile(request, id, item_id):
                     setattr(profile, field_name, raw.strip())
                 profile.full_clean()
                 profile.save()
-                # Set traits.
+                # Set traits (always set, even if empty, to allow clearing).
                 trait_ids = request.POST.getlist("wp_traits")
-                if trait_ids:
-                    profile.traits.set(trait_ids)
+                profile.traits.set(trait_ids)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = ContentWeaponProfilePackForm()
@@ -1177,6 +1181,11 @@ def add_weapon_profile(request, id, item_id):
         "equipment": equipment,
         "weapon_stat_fields": _build_weapon_stat_context(request),
         "weapon_traits": ContentWeaponTrait.objects.all(),
+        "selected_trait_ids": (
+            set(request.POST.getlist("wp_traits"))
+            if request.method == "POST"
+            else set()
+        ),
     }
     return render(request, "core/pack/weapon_profile_add.html", context)
 
@@ -1255,6 +1264,7 @@ def delete_weapon_profile(request, id, item_id, profile_id):
         raise Http404
 
     if request.method == "POST":
+        profile._history_user = request.user
         profile.delete()
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 

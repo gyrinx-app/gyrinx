@@ -121,7 +121,7 @@
                             </thead>
                             {% for entry in section.items %}
                                 <tbody class="table-group-divider">
-                                    {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object %}
+                                    {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
                                 </tbody>
                             {% endfor %}
                         </table>
