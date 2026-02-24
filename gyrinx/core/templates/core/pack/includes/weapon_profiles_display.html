@@ -1,0 +1,81 @@
+{% comment %}
+Weapon profile rows for a single weapon inside the pack weapons table.
+Outputs <tr> elements only — must be included inside a <tbody>.
+
+Cases (from weapon-profiles-display-spec.md):
+1. Single profile: weapon name + stats on same row
+2. Multiple profiles, first is standard (name=""): weapon name inlined with standard profile
+3. Multiple profiles, all named: weapon name on title row, profiles below with dash prefix
+{% endcomment %}
+{% if profiles|length == 1 %}
+    {% comment %} Case 1: single profile — weapon name + stats inline {% endcomment %}
+    {% with profiles.0 as profile %}
+        <tr class="align-top">
+            <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                {{ weapon }}
+                {% if weapon.cost_display %}({{ weapon.cost_display }}){% endif %}
+            </td>
+            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+        </tr>
+        {% if profile.traitline|length > 0 %}
+            <tr>
+                <td colspan="8">{{ profile.traitline|join:", " }}</td>
+            </tr>
+        {% endif %}
+    {% endwith %}
+{% else %}
+    {% comment %} Case 3 check: if the first profile is named, add a title row {% endcomment %}
+    {% with profiles.0 as first_profile %}
+        {% if first_profile.name %}
+            <tr class="align-bottom">
+                <td colspan="9">
+                    {{ weapon }}
+                    {% if weapon.cost_display %}({{ weapon.cost_display }}){% endif %}
+                </td>
+            </tr>
+        {% endif %}
+    {% endwith %}
+    {% comment %} Profile rows {% endcomment %}
+    {% for profile in profiles %}
+        <tr class="align-top">
+            <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                {% if forloop.first and not profile.name %}
+                    {% comment %} Case 2: standard profile — inline weapon name {% endcomment %}
+                    {{ weapon }}
+                    {% if weapon.cost_display %}({{ weapon.cost_display }}){% endif %}
+                {% elif profile.name %}
+                    <i class="bi-dash"></i>
+                    {{ profile.name }}
+                    {% if profile.cost_display %}({{ profile.cost_display }}){% endif %}
+                    {% if can_edit %}
+                        <span class="text-secondary small">· <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit profile</a></span>
+                    {% endif %}
+                {% endif %}
+            </td>
+            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+        </tr>
+        {% if profile.traitline|length > 0 %}
+            <tr>
+                <td colspan="8">{{ profile.traitline|join:", " }}</td>
+            </tr>
+        {% endif %}
+    {% endfor %}
+{% endif %}
+{% if can_edit %}
+    <tr>
+        <td colspan="9">
+            <div class="d-flex gap-1 align-items-center small mb-1">
+                <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+                <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Add profile</a>
+                ·
+                <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+                ·
+                <a href="{% url 'core:pack-delete-item' pack.id pack_item.id %}"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover text-danger">Archive</a>
+            </div>
+        </td>
+    </tr>
+{% endif %}

@@ -784,6 +784,21 @@ urlpatterns = [
         pack_views.PackArchivedItemsView.as_view(),
         name="pack-archived-items",
     ),
+    path(
+        "pack/<id>/item/<item_id>/profile/add/",
+        pack_views.add_weapon_profile,
+        name="pack-add-weapon-profile",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/profile/<profile_id>/edit/",
+        pack_views.edit_weapon_profile,
+        name="pack-edit-weapon-profile",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/profile/<profile_id>/delete/",
+        pack_views.delete_weapon_profile,
+        name="pack-delete-weapon-profile",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

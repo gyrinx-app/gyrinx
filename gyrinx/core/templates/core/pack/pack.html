@@ -103,21 +103,48 @@
                         </span>
                     {% endif %}
                 </div>
-                {% if section.items %}
+                {% if section.slug == "weapon" %}
+                    {% if section.items %}
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            <thead class="table-group-divider">
+                                <tr>
+                                    <th scope="col"></th>
+                                    <th class="text-center" scope="col">S</th>
+                                    <th class="text-center" scope="col">L</th>
+                                    <th class="text-center border-start" scope="col">S</th>
+                                    <th class="text-center" scope="col">L</th>
+                                    <th class="text-center border-start" scope="col">Str</th>
+                                    <th class="text-center" scope="col">Ap</th>
+                                    <th class="text-center" scope="col">D</th>
+                                    <th class="text-center" scope="col">Am</th>
+                                </tr>
+                            </thead>
+                            {% for entry in section.items %}
+                                <tbody class="table-group-divider">
+                                    {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
+                                </tbody>
+                            {% endfor %}
+                        </table>
+                    {% else %}
+                        <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                    {% endif %}
+                {% elif section.items %}
                     <ul class="list-unstyled mb-0">
                         {% for entry in section.items %}
-                            <li class="py-1 d-flex justify-content-between align-items-center">
-                                <span>{{ entry.content_object }}</span>
-                                {% if can_edit %}
-                                    <span class="d-flex gap-2">
-                                        {% if section.can_add %}
-                                            <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
-                                        {% endif %}
-                                        <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
-                                    </span>
-                                {% endif %}
+                            <li class="py-1">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>{{ entry.content_object }}</span>
+                                    {% if can_edit %}
+                                        <span class="d-flex gap-2">
+                                            {% if section.can_add %}
+                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                            {% endif %}
+                                            <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
+                                        </span>
+                                    {% endif %}
+                                </div>
                             </li>
                         {% endfor %}
                     </ul>

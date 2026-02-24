@@ -6,6 +6,7 @@ from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCa
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.weapon import ContentWeaponProfile
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
@@ -295,3 +296,80 @@ class ContentGearPackForm(forms.ModelForm):
                 "Gear with this name already exists in the content library."
             )
         return value
+
+
+class ContentWeaponPackForm(forms.ModelForm):
+    """Form for adding/editing weapons in a content pack.
+
+    Filters categories to "Weapons & Ammo" only (inverse of the gear form).
+    """
+
+    class Meta:
+        model = ContentEquipment
+        fields = ["name", "category", "cost", "rarity", "rarity_roll"]
+        labels = {
+            "name": "Name",
+            "category": "Category",
+            "cost": "Cost",
+            "rarity": "Availability",
+            "rarity_roll": "Availability level",
+        }
+        help_texts = {
+            "name": "The name of the weapon.",
+            "category": "The weapon category (e.g. Pistols, Basic Weapons).",
+            "cost": "The credit cost at the Trading Post.",
+            "rarity": "The availability of this weapon.",
+            "rarity_roll": "The roll required to find this weapon (e.g. 7, 10).",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "cost": forms.TextInput(attrs={"class": "form-control"}),
+            "rarity": forms.Select(attrs={"class": "form-select"}),
+            "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Filter to weapon categories only, ordered by group then name.
+        self.fields["category"].queryset = (
+            ContentEquipmentCategory.objects.filter(group="Weapons & Ammo")
+        ).order_by("name")
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentEquipment.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A weapon with this name already exists in the content library."
+            )
+        return value
+
+
+class ContentWeaponProfilePackForm(forms.ModelForm):
+    """Form for adding/editing weapon profiles in a content pack."""
+
+    class Meta:
+        model = ContentWeaponProfile
+        fields = ["name", "cost", "rarity", "rarity_roll"]
+        labels = {
+            "name": "Profile name",
+            "cost": "Cost",
+            "rarity": "Availability",
+            "rarity_roll": "Availability level",
+        }
+        help_texts = {
+            "name": "Leave blank for the standard profile. Named profiles represent alternate fire modes.",
+            "cost": "The credit cost. Standard (unnamed) profiles must have zero cost.",
+            "rarity": "The availability of this profile.",
+            "rarity_roll": "The roll required to find this profile (e.g. 7, 10).",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "cost": forms.NumberInput(attrs={"class": "form-control"}),
+            "rarity": forms.Select(attrs={"class": "form-select"}),
+            "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
+        }

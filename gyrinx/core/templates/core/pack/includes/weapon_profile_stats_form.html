@@ -1,0 +1,31 @@
+<div>
+    <label class="form-label">Weapon stats</label>
+    <div class="d-flex flex-wrap gap-2">
+        {% for stat in weapon_stats %}
+            <div class="text-center stat-input-cell">
+                <label class="form-label small mb-1">{{ stat.short_name }}</label>
+                <input type="text"
+                       name="wp_{{ stat.field_name }}"
+                       value="{{ stat.value|default:'' }}"
+                       class="form-control form-control-sm text-center"
+                       placeholder="{{ stat.placeholder }}"
+                       maxlength="12">
+            </div>
+        {% endfor %}
+    </div>
+    <div class="form-text">Set each stat value, or leave blank for unset.</div>
+</div>
+{% if weapon_traits %}
+    <div>
+        <label class="form-label" for="wp_traits">Traits</label>
+        <select name="wp_traits" id="wp_traits" class="form-select" multiple size="6">
+            {% for trait in weapon_traits %}
+                <option value="{{ trait.pk }}"
+                        {% if trait.pk|stringformat:"s" in selected_trait_ids %}selected{% endif %}>
+                    {{ trait.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Hold Ctrl/Cmd to select multiple traits.</div>
+    </div>
+{% endif %}
