@@ -1277,41 +1277,100 @@ def delete_weapon_profile(request, id, item_id, profile_id):
     return render(request, "core/pack/weapon_profile_delete.html", context)
 
 
-@login_required
-@group_membership_required(["Custom Content"])
-def pack_lists(request, id):
+class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
     """Manage which of the user's lists are subscribed to a content pack."""
-    pack = get_object_or_404(
-        CustomContentPack.objects.select_related("owner"),
-        id=id,
-    )
-    user = request.user
-    _check_pack_visible(pack, user)
 
-    user_lists = (
-        List.objects.filter(owner=user, archived=False)
-        .select_related("content_house")
-        .order_by("name")
-    )
-    subscribed_list_ids = set(
-        pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
-    )
-    unsubscribed_lists = [
-        lst for lst in user_lists if lst.id not in subscribed_list_ids
-    ]
-    subscribed_lists = [lst for lst in user_lists if lst.id in subscribed_list_ids]
+    template_name = "core/pack/pack_lists.html"
+    context_object_name = "lists"
+    required_groups = ["Custom Content"]
+    paginate_by = 10
 
-    return render(
-        request,
-        "core/pack/pack_lists.html",
-        {
-            "pack": pack,
-            "is_owner": user == pack.owner,
-            "can_edit": pack.can_edit(user),
-            "subscribed_lists": subscribed_lists,
-            "unsubscribed_lists": unsubscribed_lists,
-        },
-    )
+    def get_queryset(self):
+        self.pack = get_object_or_404(
+            CustomContentPack.objects.select_related("owner"),
+            id=self.kwargs["id"],
+        )
+        _check_pack_visible(self.pack, self.request.user)
+
+        queryset = (
+            List.objects.filter(owner=self.request.user, archived=False)
+            .select_related("content_house", "campaign")
+            .order_by("name")
+        )
+
+        # Type filter (lists vs gangs)
+        type_filters = self.request.GET.getlist("type")
+        if type_filters:
+            status_filters = []
+            if "list" in type_filters:
+                status_filters.append(List.LIST_BUILDING)
+            if "gang" in type_filters:
+                status_filters.append(List.CAMPAIGN_MODE)
+            if status_filters:
+                queryset = queryset.filter(status__in=status_filters)
+
+        # Search filter
+        search_query = self.request.GET.get("q")
+        if search_query:
+            search_vector = SearchVector("name", "content_house__name")
+            search_q = SearchQuery(search_query)
+            queryset = queryset.annotate(search=search_vector).filter(
+                models.Q(search=search_q)
+                | models.Q(name__icontains=search_query)
+                | models.Q(content_house__name__icontains=search_query)
+            )
+
+        # Save before house filter for deriving house dropdown
+        self._queryset_before_house_filter = queryset
+
+        # House filter
+        house_ids = self.request.GET.getlist("house")
+        if house_ids and not ("all" in house_ids or not house_ids[0]):
+            valid_house_ids = [h_id for h_id in house_ids if is_valid_uuid(h_id)]
+            if valid_house_ids:
+                queryset = queryset.filter(content_house_id__in=valid_house_ids)
+
+        # Subscribed filter
+        if self.request.GET.get("subscribed") == "1":
+            subscribed_ids = self.pack.subscribed_lists.filter(
+                owner=self.request.user
+            ).values_list("id", flat=True)
+            queryset = queryset.filter(id__in=subscribed_ids)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pack = self.pack
+        user = self.request.user
+
+        context["pack"] = pack
+        context["is_owner"] = user == pack.owner
+        context["can_edit"] = pack.can_edit(user)
+
+        # Subscribed list IDs for toggle buttons
+        context["subscribed_list_ids"] = set(
+            pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
+        )
+
+        # House dropdown from pre-house-filter queryset
+        house_ids = self._queryset_before_house_filter.values_list(
+            "content_house_id", flat=True
+        ).distinct()
+        context["houses"] = (
+            ContentHouse.objects.all_content().filter(id__in=house_ids).order_by("name")
+        )
+
+        # Active tab
+        type_filters = self.request.GET.getlist("type")
+        if type_filters == ["list"]:
+            context["current_tab"] = "list"
+        elif type_filters == ["gang"]:
+            context["current_tab"] = "gang"
+        else:
+            context["current_tab"] = "all"
+
+        return context
 
 
 @login_required

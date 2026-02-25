@@ -738,7 +738,7 @@ urlpatterns = [
         pack_views.pack_permissions,
         name="pack-permissions",
     ),
-    path("pack/<id>/lists/", pack_views.pack_lists, name="pack-lists"),
+    path("pack/<id>/lists/", pack_views.PackListsView.as_view(), name="pack-lists"),
     path("pack/<id>/campaigns/", pack_views.pack_campaigns, name="pack-campaigns"),
     path("pack/<id>/subscribe/", pack_views.subscribe_pack, name="pack-subscribe"),
     path(
