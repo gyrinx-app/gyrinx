@@ -1,5 +1,5 @@
 asgiref==3.11.1
-bandit==1.9.3
+bandit==1.9.4
 beautifulsoup4==4.14.3
 bleach==6.3.0
 click==8.3.1
