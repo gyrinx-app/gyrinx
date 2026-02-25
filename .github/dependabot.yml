@@ -14,6 +14,11 @@ updates:
       major:
         update-types:
           - "major"
+    ignore:
+      # setuptools 82 removed pkg_resources, which Google Cloud packages still use.
+      # Re-enable once google-cloud-* packages drop their pkg_resources dependency.
+      - dependency-name: "setuptools"
+        versions: [">=82.0.0"]
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -27,6 +32,11 @@ updates:
       major:
         update-types:
           - "major"
+    ignore:
+      # stylelint 17 is incompatible with stylelint-config-twbs-bootstrap (requires ^16.11.0).
+      # Re-enable once stylelint-config-twbs-bootstrap releases a v17-compatible version.
+      - dependency-name: "stylelint"
+        versions: [">=17.0.0"]
 
   - package-ecosystem: github-actions
     directory: "/"
