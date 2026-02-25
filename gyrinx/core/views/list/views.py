@@ -115,6 +115,10 @@ class ListsListView(generic.ListView):
                 | Q(content_house__name__icontains=search_query)
             )
 
+        # Save queryset before house filter so get_context_data can derive
+        # the house dropdown from the full set of matching lists.
+        self._queryset_before_house_filter = queryset
+
         # Apply house filter
         house_ids = self.request.GET.getlist("house")
         if house_ids and not ("all" in house_ids or not house_ids[0]):
@@ -128,7 +132,16 @@ class ListsListView(generic.ListView):
     @traced("ListsListView_get_context_data")
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["houses"] = ContentHouse.objects.all().order_by("name")
+
+        # Derive house dropdown from lists matching current filters (excluding
+        # the house filter itself).  This uses all_content() so pack-defined
+        # houses are included whenever a user has gangs using them.
+        house_ids = self._queryset_before_house_filter.values_list(
+            "content_house_id", flat=True
+        ).distinct()
+        context["houses"] = (
+            ContentHouse.objects.all_content().filter(id__in=house_ids).order_by("name")
+        )
 
         # Determine active tab from type filter
         type_filters = self.request.GET.getlist("type")

@@ -34,6 +34,7 @@ def index(request):
         lists = []
         campaign_gangs = []
         campaigns = []
+        houses = ContentHouse.objects.none()
         has_any_lists = False
         search_query = None
     else:
@@ -106,6 +107,19 @@ def index(request):
             campaigns_count=campaigns.count() if campaigns else 0,
         )
 
+    # Derive houses from the user's actual lists so pack-defined
+    # houses are included whenever a user has gangs using them.
+    if request.user.is_authenticated:
+        houses = (
+            ContentHouse.objects.all_content()
+            .filter(
+                id__in=List.objects.filter(
+                    owner=request.user, archived=False
+                ).values_list("content_house_id", flat=True)
+            )
+            .order_by("name")
+        )
+
     return render(
         request,
         "core/index.html",
@@ -113,7 +127,7 @@ def index(request):
             "lists": lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
-            "houses": ContentHouse.objects.all().order_by("name"),
+            "houses": houses,
             "has_any_lists": has_any_lists,
             "search_query": search_query,
         },
