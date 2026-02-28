@@ -50,8 +50,12 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
 
-    # Get default rules from ContentFighter (uses prefetched data)
-    default_rules = fighter.content_fighter.rules.all()
+    # Get default rules from ContentFighter.
+    # Use all_content() to include pack rules assigned to the ContentFighter
+    # — the default manager excludes pack content.
+    default_rules = ContentRule.objects.all_content().filter(
+        contentfighter=fighter.content_fighter
+    )
     # Use prefetched disabled_rules instead of values_list query
     disabled_rule_ids = {r.id for r in fighter.disabled_rules.all()}
 
@@ -143,8 +147,13 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
         ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
     )
 
-    # Ensure this is a default rule for the fighter
-    if not fighter.content_fighter.rules.filter(id=rule_id).exists():
+    # Ensure this is a default rule for the fighter.
+    # Use all_content() to include pack rules.
+    if (
+        not ContentRule.objects.all_content()
+        .filter(contentfighter=fighter.content_fighter, id=rule_id)
+        .exists()
+    ):
         messages.error(request, "This rule is not a default rule for this fighter.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-rules-edit", args=(lst.id, fighter.id))

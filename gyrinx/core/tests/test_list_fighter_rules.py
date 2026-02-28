@@ -390,6 +390,69 @@ def test_add_rule_with_invalid_uuid(client):
     assert list_fighter.custom_rules.count() == 0
 
 
+@pytest.mark.django_db
+def test_ruleline_includes_pack_default_rules():
+    """Test that pack rules assigned as defaults on a ContentFighter appear in ruleline."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create a pack with a custom rule
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    pack_rule = _create_pack_rule(user, pack, rule_name="Pack Default Rule")
+
+    # Create a content fighter IN the pack with the pack rule as a default
+    content_fighter = ContentFighter.objects.create(
+        type="Pack Fighter", house=house, category="GANGER"
+    )
+    ct = ContentType.objects.get_for_model(ContentFighter)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=content_fighter.pk, owner=user
+    )
+    content_fighter.rules.add(pack_rule)
+
+    # Create a list subscribed to the pack with a fighter using that content fighter
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst.packs.add(pack)
+    list_fighter = ListFighter.objects.create(
+        name="Fighter", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    # The pack rule should appear in the ruleline
+    ruleline_names = [r.value for r in list_fighter.ruleline]
+    assert "Pack Default Rule" in ruleline_names
+
+
+@pytest.mark.django_db
+def test_rules_edit_shows_pack_default_rules(client):
+    """Test that pack rules assigned as defaults show in the rules edit view."""
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create a pack with a custom rule
+    pack = CustomContentPack.objects.create(name="Test Pack", owner=user, listed=True)
+    pack_rule = _create_pack_rule(user, pack, rule_name="Pack Default Rule")
+
+    # Create a content fighter with the pack rule as a default
+    content_fighter = ContentFighter.objects.create(
+        type="Pack Fighter", house=house, category="GANGER"
+    )
+    content_fighter.rules.add(pack_rule)
+
+    # Create a list subscribed to the pack
+    lst = List.objects.create(name="Test List", content_house=house, owner=user)
+    lst.packs.add(pack)
+    list_fighter = ListFighter.objects.create(
+        name="Fighter", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    url = reverse("core:list-fighter-rules-edit", args=[lst.id, list_fighter.id])
+    response = client.get(url)
+    assert response.status_code == 200
+    # Pack default rule should appear in the default rules section
+    assert "Pack Default Rule" in response.content.decode()
+
+
 def _create_pack_rule(user, pack, rule_name="Pack Rule"):
     """Helper to create a rule associated with a content pack."""
     rule = ContentRule.objects.create(name=rule_name, description="A rule from a pack")
