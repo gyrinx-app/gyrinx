@@ -39,7 +39,12 @@ class ContentWeaponTrait(Content):
     or 'Rapid Fire'.
     """
 
-    name = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="An optional description of what this trait does.",
+    )
     history = HistoricalRecords()
 
     def __str__(self):

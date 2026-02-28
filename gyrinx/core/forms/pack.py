@@ -6,7 +6,7 @@ from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCa
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
-from gyrinx.content.models.weapon import ContentWeaponProfile
+from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
@@ -231,6 +231,61 @@ class ContentRuleForm(forms.ModelForm):
             raise ValidationError(
                 "A rule with this name already exists in the content library."
             )
+        return value
+
+
+class ContentWeaponTraitPackForm(forms.ModelForm):
+    """Form for adding/editing weapon traits in a content pack."""
+
+    class Meta:
+        model = ContentWeaponTrait
+        fields = ["name", "description"]
+        labels = {
+            "name": "Name",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "The name of the weapon trait (e.g. 'Plasma').",
+            "description": "An optional description of what this trait does.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+        }
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        # Check uniqueness among base (non-pack) traits.
+        qs = ContentWeaponTrait.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A weapon trait with this name already exists in the content library."
+            )
+        # Check uniqueness within the current pack.
+        if self._pack is not None:
+            from django.contrib.contenttypes.models import ContentType
+
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            trait_ct = ContentType.objects.get_for_model(ContentWeaponTrait)
+            pack_trait_ids = CustomContentPackItem.objects.filter(
+                pack=self._pack, content_type=trait_ct, archived=False
+            ).values_list("object_id", flat=True)
+            qs = ContentWeaponTrait.objects.all_content().filter(
+                pk__in=pack_trait_ids, name__iexact=value
+            )
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "A weapon trait with this name already exists in this Content Pack."
+                )
         return value
 
 

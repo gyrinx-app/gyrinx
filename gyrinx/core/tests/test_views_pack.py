@@ -7,11 +7,11 @@ from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.statline import (
+    ContentStat,
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
-    ContentStat,
 )
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
@@ -3248,3 +3248,137 @@ def test_pack_lists_view_subscribed_filter(
     content = response.content.decode()
     assert "Subscribed Gang" in content
     assert "Unsubscribed Gang" not in content
+
+
+# --- Custom weapon traits ---
+
+
+@pytest.mark.django_db
+def test_add_weapon_trait_form_loads(client, group_user, pack):
+    """Test that the add weapon trait form loads."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon-trait/")
+    assert response.status_code == 200
+    assert b"Add Weapon Trait" in response.content
+
+
+@pytest.mark.django_db
+def test_add_weapon_trait_creates_item(client, group_user, pack):
+    """Test that adding a weapon trait creates a pack item."""
+    from gyrinx.content.models.weapon import ContentWeaponTrait
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Plasma", "description": "Superheated projectile."},
+    )
+    assert response.status_code == 302
+
+    trait = ContentWeaponTrait.objects.all_content().get(name="Plasma")
+    assert trait.description == "Superheated projectile."
+    assert CustomContentPackItem.objects.filter(pack=pack, object_id=trait.pk).exists()
+
+
+@pytest.mark.django_db
+def test_add_weapon_trait_rejects_duplicate_base_name(client, group_user, pack):
+    """Test that a pack trait cannot duplicate a base library trait name."""
+    from gyrinx.content.models.weapon import ContentWeaponTrait
+
+    ContentWeaponTrait.objects.create(name="Knockback")
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Knockback", "description": ""},
+    )
+    assert response.status_code == 200
+    assert b"already exists in the content library" in response.content
+
+
+@pytest.mark.django_db
+def test_add_weapon_trait_rejects_duplicate_within_pack(client, group_user, pack):
+    """Test that duplicate trait names within the same pack are rejected."""
+
+    # Create first trait in the pack.
+    client.force_login(group_user)
+    client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Custom Blast", "description": ""},
+    )
+
+    # Try to create a second trait with the same name.
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Custom Blast", "description": ""},
+    )
+    assert response.status_code == 200
+    assert b"already exists in this Content Pack" in response.content
+
+
+@pytest.mark.django_db
+def test_different_packs_can_have_same_trait_name(client, group_user, pack):
+    """Test that different packs can define traits with the same name."""
+    from gyrinx.content.models.weapon import ContentWeaponTrait
+
+    pack2 = CustomContentPack.objects.create(name="Other Pack", owner=group_user)
+
+    client.force_login(group_user)
+    # Create trait in first pack.
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Volatile", "description": ""},
+    )
+    assert response.status_code == 302
+
+    # Create same-named trait in second pack.
+    response = client.post(
+        f"/pack2/{pack2.id}/add/weapon-trait/",
+        {"name": "Volatile", "description": ""},
+    )
+    # URL for pack2 uses the same pattern.
+    response = client.post(
+        f"/pack/{pack2.id}/add/weapon-trait/",
+        {"name": "Volatile", "description": ""},
+    )
+    assert response.status_code == 302
+
+    assert ContentWeaponTrait.objects.all_content().filter(name="Volatile").count() == 2
+
+
+@pytest.mark.django_db
+def test_custom_trait_visible_in_weapon_profile_form(
+    client, group_user, pack, weapon_category
+):
+    """Test that custom pack traits appear in the weapon profile traits picker."""
+    from gyrinx.content.models.weapon import ContentWeaponTrait
+
+    # Create a base trait and a pack trait.
+    base_trait = ContentWeaponTrait.objects.create(name="Knockback")
+    client.force_login(group_user)
+    client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Pack Trait", "description": ""},
+    )
+    pack_trait = ContentWeaponTrait.objects.all_content().get(name="Pack Trait")
+
+    # Load the add weapon form — both traits should be in the picker.
+    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    content = response.content.decode()
+    assert str(base_trait.pk) in content
+    assert str(pack_trait.pk) in content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_weapon_traits_section(client, group_user, pack):
+    """Test that weapon traits appear as a section on the pack detail page."""
+
+    client.force_login(group_user)
+    client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Searing", "description": ""},
+    )
+
+    response = client.get(f"/pack/{pack.id}")
+    content = response.content.decode()
+    assert "Weapon Traits" in content
+    assert "Searing" in content
