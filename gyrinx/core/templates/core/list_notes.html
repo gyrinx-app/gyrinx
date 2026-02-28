@@ -1,0 +1,9 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Notes {{ list.name }} by {{ list.owner_cached }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-lg-12 px-0 vstack gap-5">{% include "core/includes/list_notes.html" with list=list %}</div>
+{% endblock content %}

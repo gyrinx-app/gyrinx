@@ -243,6 +243,10 @@ class List(AppBase):
         blank=True,
         help_text="Narrative description of the gang in this list: their history and how to play them.",
     )
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about the gang in this list.",
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,

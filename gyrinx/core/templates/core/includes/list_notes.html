@@ -11,25 +11,25 @@
     </div>
     <div class="d-flex gap-2 mb-3">
         <a href="{% url 'core:list-about' list.id %}"
-           class="btn btn-secondary btn-sm">
+           class="btn btn-outline-secondary btn-sm">
             <i class="bi-file-text"></i> About
         </a>
         <a href="{% url 'core:list-notes' list.id %}"
-           class="btn btn-outline-secondary btn-sm">
+           class="btn btn-secondary btn-sm">
             <i class="bi-journal-text"></i> Notes
         </a>
     </div>
     <nav class="nav card card-body flex-column mb-3 p-2">
-        <a class="nav-link p-2 py-1" href="#about-list">Overview</a>
+        <a class="nav-link p-2 py-1" href="#notes-list">Overview</a>
         {% for fighter in list.active_fighters %}
-            {% if fighter.narrative %}
-                <a class="nav-link p-2 py-1" href="#about-{{ fighter.id }}">{{ fighter.name }}</a>
+            {% if fighter.private_notes %}
+                <a class="nav-link p-2 py-1" href="#notes-{{ fighter.id }}">{{ fighter.name }}</a>
             {% endif %}
         {% endfor %}
     </nav>
     <div id="list-overview">
         <div class="hstack">
-            <h3 class="h4" id="about-list">Overview</h3>
+            <h3 class="h4" id="notes-list">Overview</h3>
             {% if list.owner_cached == user %}
                 <div class="ms-auto">
                     <a href="{% url 'core:list-edit' list.id %}"
@@ -39,44 +39,44 @@
                 </div>
             {% endif %}
         </div>
-        {% if list.narrative %}
-            {{ list.narrative|safe_rich_text|safe }}
+        {% if list.notes %}
+            {{ list.notes|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
             <div class="text-muted fst-italic">
-                No narrative added yet. <a href="{% url 'core:list-edit' list.id %}">Add one</a> to tell the story of your gang.
+                No notes added yet. <a href="{% url 'core:list-edit' list.id %}">Add some</a> to keep track of your gang.
             </div>
         {% else %}
-            <div class="text-muted fst-italic">No narrative added yet.</div>
+            <div class="text-muted fst-italic">No notes added yet.</div>
         {% endif %}
     </div>
     <div class="grid auto-flow-dense">
         {% for fighter in list.active_fighters %}
-            {% if fighter.narrative %}
-                <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
+            {% if fighter.private_notes %}
+                <div class="g-col-12 g-col-md-6" id="notes-{{ fighter.id }}">
                     <div class="hstack">
                         <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                         {% if list.owner_cached == user %}
                             <div class="ms-auto">
-                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
+                                <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}"
                                    class="btn btn-outline-secondary btn-sm">
                                     <i class="bi-pencil"></i> Edit
                                 </a>
                             </div>
                         {% endif %}
                     </div>
-                    {{ fighter.narrative|safe_rich_text|safe }}
+                    {{ fighter.private_notes|safe_rich_text|safe }}
                 </div>
             {% else %}
-                <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
+                <div class="g-col-12 g-col-md-6" id="notes-{{ fighter.id }}">
                     <div class="hstack">
                         <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                     </div>
-                    <p class="text-muted">No narrative added yet.</p>
+                    <p class="text-muted">No notes added yet.</p>
                     {% if list.owner_cached == user %}
                         <p>
-                            <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
+                            <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}"
                                class="btn btn-outline-secondary btn-sm">
-                                <i class="bi-plus"></i> Add narrative for {{ fighter.name }}
+                                <i class="bi-plus"></i> Add notes for {{ fighter.name }}
                             </a>
                         </p>
                     {% endif %}
