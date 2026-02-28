@@ -155,7 +155,9 @@ class ContentFighterPackForm(forms.ModelForm):
                 .values_list("pk", flat=True)
             )
 
-        # On create (no saved instance yet), hide M2M fields.
+        # On create (no saved instance yet), hide M2M fields that only
+        # make sense after the fighter exists — except rules, which users
+        # should be able to set when creating a fighter.
         # Note: can't use `not self.instance.pk` because UUID pk is
         # auto-generated before save.
         if self.instance._state.adding:
@@ -163,7 +165,6 @@ class ContentFighterPackForm(forms.ModelForm):
                 "skills",
                 "primary_skill_categories",
                 "secondary_skill_categories",
-                "rules",
             ]:
                 del self.fields[field_name]
 

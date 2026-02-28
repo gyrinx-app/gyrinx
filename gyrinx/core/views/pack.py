@@ -921,6 +921,7 @@ def add_pack_item(request, id, content_type_slug):
                 content_obj = form.save(commit=False)
                 content_obj._history_user = request.user
                 content_obj.save()
+                form.save_m2m()
                 ct = ContentType.objects.get_for_model(entry.model_class)
                 item = CustomContentPackItem(
                     pack=pack,

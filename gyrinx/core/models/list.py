@@ -46,6 +46,7 @@ from gyrinx.content.models import (
     ContentHouse,
     ContentModFighterRule,
     ContentModFighterSkill,
+    ContentRule,
     ContentModFighterStat,
     ContentModStatApplyMixin,
     ContentPsykerPower,
@@ -2519,8 +2520,14 @@ class ListFighter(AppBase):
         """
         Get the ruleline for this fighter.
         """
-        # Start with default rules from ContentFighter
-        rules = list(self.content_fighter_cached.rules.all())
+        # Start with default rules from ContentFighter.
+        # Use all_content() to include pack rules that were assigned to
+        # the ContentFighter — the default manager excludes pack content.
+        rules = list(
+            ContentRule.objects.all_content().filter(
+                contentfighter=self.content_fighter_cached
+            )
+        )
         modded = []
 
         # Remove disabled rules
