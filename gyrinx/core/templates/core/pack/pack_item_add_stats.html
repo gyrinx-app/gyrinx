@@ -1,0 +1,61 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add Fighter stats to {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="bi-person"></i> Add Fighter — stats
+        </h1>
+        <div class="border rounded p-2">
+            <dl class="row mb-0 small">
+                <dt class="col-4 text-secondary">Name</dt>
+                <dd class="col-8 mb-1">
+                    {{ params.type }}
+                </dd>
+                <dt class="col-4 text-secondary">Category</dt>
+                <dd class="col-8 mb-1">
+                    {{ category_display }}
+                </dd>
+                <dt class="col-4 text-secondary">House</dt>
+                <dd class="col-8 mb-1">
+                    {{ house_name }}
+                </dd>
+                <dt class="col-4 text-secondary">Base cost</dt>
+                <dd class="col-8 mb-0">
+                    {{ params.base_cost }}¢
+                </dd>
+            </dl>
+        </div>
+        <form action="{% url 'core:pack-add-fighter-stats' pack.id %}?{{ query_string }}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                <label class="form-label">Stats</label>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for stat in stat_definitions %}
+                        <div class="text-center stat-input-cell">
+                            <label class="form-label small mb-1">{{ stat.short_name }}</label>
+                            <input type="text"
+                                   name="stat_{{ stat.field_name }}"
+                                   value="{{ stat.value|default:'' }}"
+                                   class="form-control form-control-sm text-center"
+                                   placeholder="{{ stat.placeholder }}"
+                                   maxlength="10">
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">Set each stat value, or leave as "-" for unset.</div>
+            </div>
+            <div class="mt-3 d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary">Add Fighter</button>
+                <span>or</span>
+                <button type="submit" name="save_and_add_another" class="btn btn-secondary">Save and add another</button>
+                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

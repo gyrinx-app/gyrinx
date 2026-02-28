@@ -1,8 +1,10 @@
 """Pack list, detail, and CRUD views."""
 
 import itertools
+import uuid
 from collections import defaultdict
 from typing import NamedTuple
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
@@ -14,6 +16,7 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
+from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.equipment import ContentEquipment
@@ -694,9 +697,35 @@ class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
         return context
 
 
-def _get_fighter_stat_definitions():
-    """Load the stat definitions for the Fighter statline type."""
-    statline_type = ContentStatlineType.objects.get(name="Fighter")
+class AddFighterFlowParams(BaseModel):
+    """Parameters passed from Step 1 (basic info) to Step 2 (stats entry)."""
+
+    type: str
+    category: str
+    house_id: uuid.UUID
+    base_cost: int
+    rule_ids: list[uuid.UUID] = []
+
+
+def _get_statline_type_for_category(category):
+    """Look up the ContentStatlineType for a fighter category.
+
+    Falls back to the "Fighter" type if no specific mapping exists.
+    """
+    statline_type = ContentStatlineType.objects.filter(
+        default_for_categories__contains=category
+    ).first()
+    if statline_type is None:
+        statline_type = ContentStatlineType.objects.get(name="Fighter")
+    return statline_type
+
+
+def _get_fighter_stat_definitions(category=None):
+    """Load the stat definitions for a fighter category's statline type."""
+    if category:
+        statline_type = _get_statline_type_for_category(category)
+    else:
+        statline_type = ContentStatlineType.objects.get(name="Fighter")
     return statline_type.stats.select_related("stat").order_by("position")
 
 
@@ -763,9 +792,12 @@ def _stat_placeholder(content_stat):
     return "3"
 
 
-def _create_fighter_statline(fighter, stat_definitions, post_data):
+def _create_fighter_statline(fighter, stat_definitions, post_data, category=None):
     """Create a ContentStatline and populate stat values from POST data."""
-    statline_type = ContentStatlineType.objects.get(name="Fighter")
+    if category:
+        statline_type = _get_statline_type_for_category(category)
+    else:
+        statline_type = ContentStatlineType.objects.get(name="Fighter")
     statline = ContentStatline.objects.create(
         content_fighter=fighter,
         statline_type=statline_type,
@@ -904,19 +936,42 @@ def _update_weapon_profile_stats(profile, post_data, user):
 @login_required
 @group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
-    """Add a new content item to a pack."""
+    """Add a new content item to a pack.
+
+    For fighters this is Step 1 of a two-step flow: basic info is collected
+    here and the user is redirected to Step 2 for stat entry.
+    """
     pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
     singular_label = entry.label.rstrip("s")
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
-    # Load fighter stat definitions for the form.
-    stat_definitions = _get_fighter_stat_definitions() if is_fighter else None
-
     if request.method == "POST":
         form = entry.form_class(request.POST, **_form_kwargs(entry, pack))
         if form.is_valid():
+            if is_fighter:
+                # Redirect to Step 2 with form data in query params.
+                params = AddFighterFlowParams(
+                    type=form.cleaned_data["type"],
+                    category=form.cleaned_data["category"],
+                    house_id=form.cleaned_data["house"].pk,
+                    base_cost=form.cleaned_data["base_cost"],
+                    rule_ids=[r.pk for r in form.cleaned_data.get("rules", [])],
+                )
+                query_data = params.model_dump(mode="json")
+                # Flatten rule_ids for urlencode.
+                rule_ids = query_data.pop("rule_ids", [])
+                qs = urlencode(query_data)
+                for rid in rule_ids:
+                    qs += f"&rule_ids={rid}"
+                if "save_and_add_another" in request.POST:
+                    qs += "&save_and_add_another=1"
+                return HttpResponseRedirect(
+                    reverse("core:pack-add-fighter-stats", args=(pack.id,)) + f"?{qs}"
+                )
+
+            # Non-fighter types: create directly.
             with transaction.atomic():
                 content_obj = form.save(commit=False)
                 content_obj._history_user = request.user
@@ -930,10 +985,6 @@ def add_pack_item(request, id, content_type_slug):
                     owner=request.user,
                 )
                 item.save_with_user(user=request.user)
-                if is_fighter:
-                    _create_fighter_statline(
-                        content_obj, stat_definitions, request.POST
-                    )
                 if is_weapon:
                     _create_standard_weapon_profile(
                         content_obj, request.POST, request.user
@@ -957,19 +1008,6 @@ def add_pack_item(request, id, content_type_slug):
         "icon": entry.icon,
         "slug": entry.slug,
     }
-    if stat_definitions is not None:
-        stat_context = []
-        for ts in stat_definitions:
-            field_name = ts.stat.field_name
-            entry_dict = {
-                "field_name": field_name,
-                "short_name": ts.stat.short_name,
-                "placeholder": _stat_placeholder(ts.stat),
-            }
-            if request.method == "POST":
-                entry_dict["value"] = request.POST.get(f"stat_{field_name}", "")
-            stat_context.append(entry_dict)
-        context["stat_definitions"] = stat_context
 
     if is_weapon:
         context["weapon_stat_fields"] = _build_weapon_stat_context(request)
@@ -981,6 +1019,114 @@ def add_pack_item(request, id, content_type_slug):
         )
 
     return render(request, "core/pack/pack_item_add.html", context)
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def add_pack_fighter_stats(request, id):
+    """Step 2 of the add-fighter flow: enter stat values."""
+    pack = _get_pack_for_edit(id, request.user)
+
+    # Parse flow params from query string.
+    try:
+        rule_ids = request.GET.getlist("rule_ids")
+        params = AddFighterFlowParams(
+            type=request.GET["type"],
+            category=request.GET["category"],
+            house_id=request.GET["house_id"],
+            base_cost=request.GET["base_cost"],
+            rule_ids=rule_ids,
+        )
+    except (KeyError, ValidationError):
+        # Invalid or missing params — redirect back to Step 1.
+        return HttpResponseRedirect(
+            reverse("core:pack-add-item", args=(pack.id, "fighter"))
+        )
+
+    save_and_add_another = request.GET.get("save_and_add_another") == "1"
+    stat_definitions = _get_fighter_stat_definitions(category=params.category)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            from gyrinx.content.models.house import ContentHouse
+
+            house = get_object_or_404(
+                ContentHouse.objects.all_content(), pk=params.house_id
+            )
+            fighter = ContentFighter(
+                type=params.type,
+                category=params.category,
+                house=house,
+                base_cost=params.base_cost,
+            )
+            fighter._history_user = request.user
+            fighter.save()
+            if params.rule_ids:
+                fighter.rules.set(params.rule_ids)
+            ct = ContentType.objects.get_for_model(ContentFighter)
+            item = CustomContentPackItem(
+                pack=pack,
+                content_type=ct,
+                object_id=fighter.pk,
+                owner=request.user,
+            )
+            item.save_with_user(user=request.user)
+            _create_fighter_statline(
+                fighter, stat_definitions, request.POST, category=params.category
+            )
+
+        if "save_and_add_another" in request.POST:
+            messages.success(request, f'Fighter "{fighter}" saved.')
+            return HttpResponseRedirect(
+                reverse("core:pack-add-item", args=(pack.id, "fighter"))
+            )
+        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+    # Build stat context for the template.
+    stat_context = []
+    for ts in stat_definitions:
+        stat_context.append(
+            {
+                "field_name": ts.stat.field_name,
+                "short_name": ts.stat.short_name,
+                "placeholder": _stat_placeholder(ts.stat),
+                "value": "",
+            }
+        )
+
+    # Build the query string for the back button / form action.
+    query_data = params.model_dump(mode="json")
+    rule_ids = query_data.pop("rule_ids", [])
+    qs = urlencode(query_data)
+    for rid in rule_ids:
+        qs += f"&rule_ids={rid}"
+    if save_and_add_another:
+        qs += "&save_and_add_another=1"
+
+    # Resolve display values for the summary.
+    from gyrinx.content.models.house import ContentHouse
+    from gyrinx.models import FighterCategoryChoices
+
+    house_name = ""
+    try:
+        house_name = str(ContentHouse.objects.all_content().get(pk=params.house_id))
+    except ContentHouse.DoesNotExist:
+        pass
+
+    category_display = dict(FighterCategoryChoices.choices).get(
+        params.category, params.category
+    )
+
+    context = {
+        "pack": pack,
+        "params": params,
+        "stat_definitions": stat_context,
+        "query_string": qs,
+        "save_and_add_another": save_and_add_another,
+        "house_name": house_name,
+        "category_display": category_display,
+    }
+    return render(request, "core/pack/pack_item_add_stats.html", context)
 
 
 @login_required

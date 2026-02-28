@@ -765,6 +765,11 @@ urlpatterns = [
         name="pack-add-item",
     ),
     path(
+        "pack/<id>/add/fighter/stats/",
+        pack_views.add_pack_fighter_stats,
+        name="pack-add-fighter-stats",
+    ),
+    path(
         "pack/<id>/item/<item_id>/edit/",
         pack_views.edit_pack_item,
         name="pack-edit-item",
