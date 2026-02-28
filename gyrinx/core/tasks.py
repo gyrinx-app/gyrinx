@@ -50,6 +50,9 @@ def trigger_discord_issue_action(
     calls Claude to summarise, creates the issue, and updates the Discord
     deferred message with the result.
     """
+    # React with 👀 to signal the message is being processed
+    _add_discord_reaction(channel_id, message_id)
+
     token = settings.GITHUB_DISPATCH_TOKEN
     if not token:
         logger.error("No GITHUB_DISPATCH_TOKEN configured")
@@ -106,6 +109,27 @@ def trigger_discord_issue_action(
             interaction_token,
             "Failed to create issue: could not trigger GitHub Action.",
         )
+
+
+def _add_discord_reaction(channel_id: str, message_id: str):
+    """Add a 👀 reaction to a Discord message to signal processing."""
+    bot_token = settings.DISCORD_BOT_TOKEN
+    if not bot_token:
+        logger.warning("No DISCORD_BOT_TOKEN configured, skipping reaction")
+        return
+
+    try:
+        response = requests.put(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/reactions/%F0%9F%91%80/@me",
+            headers={"Authorization": f"Bot {bot_token}"},
+            timeout=10,
+        )
+        if response.status_code not in (200, 204):
+            logger.warning(
+                f"Failed to add reaction: {response.status_code} {response.text}"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to add Discord reaction: {e}")
 
 
 def _update_discord_message(application_id: str, interaction_token: str, content: str):

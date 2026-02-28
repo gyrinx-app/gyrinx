@@ -265,6 +265,19 @@ def update_discord_message(application_id: str, interaction_token: str, content:
         )
 
 
+def delete_discord_message(application_id: str, interaction_token: str):
+    """Delete the deferred Discord interaction response to clean up the thinking message."""
+    response = requests.delete(
+        f"{DISCORD_API}/webhooks/{application_id}/{interaction_token}/messages/@original",
+        timeout=10,
+    )
+    if response.status_code not in (200, 204):
+        print(
+            f"Failed to delete Discord message: {response.status_code} {response.text}",
+            file=sys.stderr,
+        )
+
+
 def post_channel_reply(channel_id: str, message_id: str, content: str, token: str):
     """Post a visible reply in the channel, replying to the original message."""
     response = requests.post(
@@ -366,11 +379,7 @@ def main():
         f"Created GitHub issue: {issue_url}",
         discord_token,
     )
-    update_discord_message(
-        application_id,
-        interaction_token,
-        f"Done! Issue created: {issue_url}",
-    )
+    delete_discord_message(application_id, interaction_token)
 
     print("Done!")
 
