@@ -45,10 +45,11 @@ def trigger_discord_issue_action(
     """
     Trigger a GitHub Action to create an issue from a Discord message.
 
-    Sends a repository_dispatch event to gyrinx-app/gyrinx with the Discord
-    message context. The GitHub Action fetches the full thread/reply chain,
-    calls Claude to summarise, creates the issue, and updates the Discord
-    deferred message with the result.
+    Adds a 👀 reaction to the original message, then sends a repository_dispatch
+    event to gyrinx-app/gyrinx. The GitHub Action fetches the full thread/reply
+    chain, calls Claude to summarise, creates the issue, posts a visible reply
+    with the link, and deletes the ephemeral "thinking" message (or updates it
+    on failure).
     """
     # React with 👀 to signal the message is being processed
     _add_discord_reaction(channel_id, message_id)

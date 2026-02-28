@@ -5,7 +5,8 @@ This script is run by the discord-issue GitHub Action. It:
 1. Fetches the target message and surrounding context from Discord
 2. Calls Claude to summarise into a structured GitHub issue
 3. Creates the issue via GitHub API
-4. Updates the deferred Discord message with the issue link
+4. Posts a visible reply in the channel with the issue link
+5. Deletes the ephemeral "thinking" message (or updates it on failure)
 
 Environment variables are set by the GitHub Action workflow.
 """
@@ -278,8 +279,13 @@ def delete_discord_message(application_id: str, interaction_token: str):
         )
 
 
-def post_channel_reply(channel_id: str, message_id: str, content: str, token: str):
-    """Post a visible reply in the channel, replying to the original message."""
+def post_channel_reply(
+    channel_id: str, message_id: str, content: str, token: str
+) -> bool:
+    """Post a visible reply in the channel, replying to the original message.
+
+    Returns True if the reply was posted successfully, False otherwise.
+    """
     response = requests.post(
         f"{DISCORD_API}/channels/{channel_id}/messages",
         headers={"Authorization": f"Bot {token}"},
@@ -294,6 +300,8 @@ def post_channel_reply(channel_id: str, message_id: str, content: str, token: st
             f"Failed to post channel reply: {response.status_code} {response.text}",
             file=sys.stderr,
         )
+        return False
+    return True
 
 
 def main():
@@ -371,15 +379,21 @@ def main():
         print(f"Error creating issue: {e}", file=sys.stderr)
         fail("Failed to create issue: error creating the GitHub issue.")
 
-    # Step 4: Post a visible reply in the channel and update the ephemeral message
+    # Step 4: Post a visible reply in the channel and clean up the thinking message
     print("Posting reply to Discord channel...")
-    post_channel_reply(
+    reply_ok = post_channel_reply(
         channel_id,
         message_id,
         f"Created GitHub issue: {issue_url}",
         discord_token,
     )
-    delete_discord_message(application_id, interaction_token)
+    if reply_ok:
+        delete_discord_message(application_id, interaction_token)
+    else:
+        # Reply failed — keep the ephemeral message as fallback with the issue URL
+        update_discord_message(
+            application_id, interaction_token, f"Created GitHub issue: {issue_url}"
+        )
 
     print("Done!")
 
