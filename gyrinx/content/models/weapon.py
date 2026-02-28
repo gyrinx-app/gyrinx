@@ -239,11 +239,23 @@ class ContentWeaponProfile(FighterCostMixin, Content):
             for field in stats
         ]
 
+    def all_traits(self):
+        """Return all traits including pack-scoped ones.
+
+        The default M2M manager (self.traits.all()) uses ContentManager which
+        excludes pack content. This method bypasses that filter so custom
+        weapon traits from content packs are included.
+        """
+        trait_ids = self.traits.through.objects.filter(
+            contentweaponprofile_id=self.pk
+        ).values_list("contentweapontrait_id", flat=True)
+        return list(ContentWeaponTrait.objects.all_content().filter(pk__in=trait_ids))
+
     def traitline(self):
         """
         Returns a list of weapon trait names associated with this profile.
         """
-        return [trait.name for trait in self.traits.all()]
+        return [trait.name for trait in self.all_traits()]
 
     @cached_property
     def traitline_cached(self):
@@ -532,7 +544,7 @@ class VirtualWeaponProfile:
     @property
     def traits(self):
         mods = self._traitmods()
-        value = list(self.profile.traits.all())
+        value = self.profile.all_traits()
         for mod in mods:
             if mod.mode == "add" and mod.trait not in value:
                 value.append(mod.trait)
@@ -554,7 +566,7 @@ class VirtualWeaponProfile:
     def traitline(self):
         # TODO: We need some kind of TraitDisplay thing
         # Get original traits from the profile
-        original_traits = list(self.profile.traits.all())
+        original_traits = self.profile.all_traits()
 
         # Get the final trait list after modifications
         final_traits = self.traits

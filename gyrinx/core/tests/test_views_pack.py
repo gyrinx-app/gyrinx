@@ -6,6 +6,7 @@ from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCa
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.weapon import ContentWeaponTrait
 from gyrinx.content.models.statline import (
     ContentStat,
     ContentStatline,
@@ -3382,3 +3383,37 @@ def test_pack_detail_shows_weapon_traits_section(client, group_user, pack):
     content = response.content.decode()
     assert "Weapon Traits" in content
     assert "Searing" in content
+
+
+@pytest.mark.django_db
+def test_custom_trait_shows_in_weapon_traitline(
+    client, group_user, pack, weapon_category
+):
+    """Custom pack traits assigned to weapon profiles appear in the traitline display."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    client.force_login(group_user)
+
+    # Create a custom weapon trait in the pack.
+    client.post(
+        f"/pack/{pack.id}/add/weapon-trait/",
+        {"name": "Jet Boost", "description": "Custom trait"},
+    )
+    trait = ContentWeaponTrait.objects.all_content().get(name="Jet Boost")
+
+    # Create a weapon in the pack with the custom trait.
+    client.post(
+        f"/pack/{pack.id}/add/weapon/",
+        {
+            "name": "Trait Gun",
+            "category": str(weapon_category.pk),
+            "cost": "10",
+            "rarity": "",
+            "wp_traits": [str(trait.pk)],
+        },
+    )
+    equipment = ContentEquipment.objects.all_content().get(name="Trait Gun")
+    profile = ContentWeaponProfile.objects.get(equipment=equipment, name="")
+
+    # The traitline should include the custom pack trait.
+    assert "Jet Boost" in profile.traitline()
