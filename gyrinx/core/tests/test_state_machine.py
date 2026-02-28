@@ -3,7 +3,7 @@ Tests for the StateMachine descriptor and per-model transition tables.
 """
 
 import pytest
-from django.db import models
+from django.db import connection, models
 
 from gyrinx.core.models.state_machine import (
     InvalidStateTransition,
@@ -34,6 +34,24 @@ class StateMachineTestModel(Base):
 
     class Meta:
         app_label = "core"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_state_machine_test_tables(django_db_setup, django_db_blocker):
+    """Create tables for test-only models when running with --migrations.
+
+    With --nomigrations (the default), syncdb creates tables for all discovered
+    models including test models. With --migrations, only migrated tables are
+    created, so this fixture fills the gap.
+    """
+    with django_db_blocker.unblock():
+        table_names = connection.introspection.table_names()
+        if "core_statemachinetestmodel" not in table_names:
+            with connection.schema_editor() as schema_editor:
+                schema_editor.create_model(StateMachineTestModel)
+                schema_editor.create_model(
+                    StateMachineTestModel.states.transition_model
+                )
 
 
 # =============================================================================
