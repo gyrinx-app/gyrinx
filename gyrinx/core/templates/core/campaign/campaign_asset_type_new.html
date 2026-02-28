@@ -14,32 +14,9 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
-            <div>
-                {{ form.name_singular.label_tag }}
-                {{ form.name_singular }}
-                {% if form.name_singular.help_text %}
-                    <small class="form-text text-muted">{{ form.name_singular.help_text }}</small>
-                {% endif %}
-                {% if form.name_singular.errors %}
-                    <div class="invalid-feedback d-block">{{ form.name_singular.errors }}</div>
-                {% endif %}
-            </div>
-            <div>
-                {{ form.name_plural.label_tag }}
-                {{ form.name_plural }}
-                {% if form.name_plural.help_text %}
-                    <small class="form-text text-muted">{{ form.name_plural.help_text }}</small>
-                {% endif %}
-                {% if form.name_plural.errors %}<div class="invalid-feedback d-block">{{ form.name_plural.errors }}</div>{% endif %}
-            </div>
-            <div>
-                {{ form.description.label_tag }}
-                {{ form.description }}
-                {% if form.description.help_text %}
-                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
-                {% endif %}
-                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.name_singular %}
+            {% include "core/includes/form_field.html" with field=form.name_plural %}
+            {% include "core/includes/form_field.html" with field=form.description %}
             {% include "core/campaign/includes/property_schema_editor.html" %}
             {% include "core/campaign/includes/sub_asset_schema_editor.html" %}
             <div class="mt-3">

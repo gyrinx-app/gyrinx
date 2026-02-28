@@ -1,0 +1,11 @@
+{% comment %}
+    Standard form field wrapper.
+    Parameters:
+    - field: a BoundField instance (e.g., form.name)
+{% endcomment %}
+<div>
+    {{ field.label_tag }}
+    {{ field }}
+    {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
+    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+</div>

@@ -10,31 +10,7 @@
             <h1 class="mb-0">Return Fighter to Owner</h1>
             <div class="text-secondary">{{ campaign.name }}</div>
         </div>
-        <div class="card mb-3">
-            <div class="card-body">
-                <h2 class="h5 card-title">Fighter Details</h2>
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">Fighter</dt>
-                    <dd class="col-sm-9">
-                        {{ captured_fighter.fighter.name }}
-                    </dd>
-                    <dt class="col-sm-3">Type</dt>
-                    <dd class="col-sm-9">
-                        {{ captured_fighter.fighter.content_fighter.type }}
-                    </dd>
-                    <dt class="col-sm-3">Original Gang</dt>
-                    <dd class="col-sm-9">
-                        {{ captured_fighter.fighter.list.name }}
-                        <small class="text-secondary">({{ captured_fighter.fighter.list.credits_current }}¢ available)</small>
-                    </dd>
-                    <dt class="col-sm-3">Captured By</dt>
-                    <dd class="col-sm-9">
-                        {{ captured_fighter.capturing_list.name }}
-                        {% if request.user == captured_fighter.capturing_list.owner %}(Your Gang){% endif %}
-                    </dd>
-                </dl>
-            </div>
-        </div>
+        {% include "core/campaign/includes/captured_fighter_details.html" with show_original_gang_credits=True show_capturing_gang_owner_check=True %}
         <form method="post">
             {% csrf_token %}
             {% return_url_field %}

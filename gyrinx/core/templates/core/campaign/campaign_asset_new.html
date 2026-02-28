@@ -14,27 +14,10 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
-            <div>
-                {{ form.name.label_tag }}
-                {{ form.name }}
-                {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
-                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
-            </div>
-            <div>
-                {{ form.description.label_tag }}
-                {{ form.description }}
-                {% if form.description.help_text %}
-                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
-                {% endif %}
-                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.name %}
+            {% include "core/includes/form_field.html" with field=form.description %}
             {% if form.holder %}
-                <div>
-                    {{ form.holder.label_tag }}
-                    {{ form.holder }}
-                    {% if form.holder.help_text %}<small class="form-text text-muted">{{ form.holder.help_text }}</small>{% endif %}
-                    {% if form.holder.errors %}<div class="invalid-feedback d-block">{{ form.holder.errors }}</div>{% endif %}
-                </div>
+                {% include "core/includes/form_field.html" with field=form.holder %}
             {% endif %}
             {% include "core/campaign/includes/asset_properties_fields.html" %}
             <div class="mt-3">

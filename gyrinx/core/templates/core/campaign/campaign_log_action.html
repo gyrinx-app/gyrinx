@@ -14,34 +14,10 @@
               class="vstack gap-3">
             {% csrf_token %}
             {% return_url_field %}
-            <div>
-                {{ form.list.label_tag }}
-                {{ form.list }}
-                {% if form.list.help_text %}<small class="form-text text-muted">{{ form.list.help_text }}</small>{% endif %}
-                {% if form.list.errors %}<div class="invalid-feedback d-block">{{ form.list.errors }}</div>{% endif %}
-            </div>
-            <div>
-                {{ form.battle.label_tag }}
-                {{ form.battle }}
-                {% if form.battle.help_text %}<small class="form-text text-muted">{{ form.battle.help_text }}</small>{% endif %}
-                {% if form.battle.errors %}<div class="invalid-feedback d-block">{{ form.battle.errors }}</div>{% endif %}
-            </div>
-            <div>
-                {{ form.description.label_tag }}
-                {{ form.description }}
-                {% if form.description.help_text %}
-                    <small class="form-text text-muted">{{ form.description.help_text }}</small>
-                {% endif %}
-                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
-            </div>
-            <div>
-                {{ form.dice_count.label_tag }}
-                {{ form.dice_count }}
-                {% if form.dice_count.help_text %}
-                    <small class="form-text text-muted">{{ form.dice_count.help_text }}</small>
-                {% endif %}
-                {% if form.dice_count.errors %}<div class="invalid-feedback d-block">{{ form.dice_count.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.list %}
+            {% include "core/includes/form_field.html" with field=form.battle %}
+            {% include "core/includes/form_field.html" with field=form.description %}
+            {% include "core/includes/form_field.html" with field=form.dice_count %}
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Log Action</button>
                 {% include "core/includes/cancel.html" %}

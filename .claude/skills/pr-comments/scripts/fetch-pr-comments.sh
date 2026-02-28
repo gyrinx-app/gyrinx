@@ -29,16 +29,19 @@ resolve_repo() {
         return 1
     }
 
+    # Strip .git suffix before matching so we can use simple greedy patterns
+    # (ERE doesn't support lazy quantifiers like +?).
+    local clean_url="${remote_url%.git}"
     local repo_full=""
-    if [[ "$remote_url" =~ ^git@[^:]+:([^/]+/[^/]+?)(\.git)?$ ]]; then
+    if [[ "$clean_url" =~ ^git@[^:]+:([^/]+/[^/]+)$ ]]; then
         repo_full="${BASH_REMATCH[1]}"
-    elif [[ "$remote_url" =~ ^https?://[^/]+/([^/]+/[^/]+?)(\.git)?$ ]]; then
+    elif [[ "$clean_url" =~ ^https?://[^/]+/([^/]+/[^/]+)$ ]]; then
         repo_full="${BASH_REMATCH[1]}"
-    elif [[ "$remote_url" =~ ^ssh://[^/]+/([^/]+/[^/]+?)(\.git)?$ ]]; then
+    elif [[ "$clean_url" =~ ^ssh://[^/]+/([^/]+/[^/]+)$ ]]; then
         repo_full="${BASH_REMATCH[1]}"
     else
         # Last resort: strip everything up to the last two path segments.
-        repo_full=$(printf '%s\n' "$remote_url" | sed -E 's#.*/([^/]+/[^/]+?)(\.git)?$#\1#')
+        repo_full=$(printf '%s\n' "$clean_url" | sed -E 's#.*/([^/]+/[^/]+)$#\1#')
     fi
 
     if [ -z "$repo_full" ] || [[ "$repo_full" != */* ]] || [[ "$repo_full" == */*/* ]]; then

@@ -43,14 +43,7 @@
                     </div>
                     <input type="hidden" name="refund" value="on">
                 {% else %}
-                    <div class="form-check mt-3">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="refund"
-                               id="refund"
-                               checked>
-                        <label class="form-check-label" for="refund">Apply refund (+{{ assign.cost_int }}¢ to credits)</label>
-                    </div>
+                    {% include "core/includes/refund_checkbox.html" with refund_cost=assign.cost_int %}
                 {% endif %}
             {% endif %}
             <div class="mt-3">

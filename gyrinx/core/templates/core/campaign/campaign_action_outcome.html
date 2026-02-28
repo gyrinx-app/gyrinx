@@ -31,12 +31,7 @@
               class="vstack gap-3">
             {% csrf_token %}
             {% return_url_field %}
-            <div>
-                {{ form.outcome.label_tag }}
-                {{ form.outcome }}
-                {% if form.outcome.help_text %}<small class="form-text text-muted">{{ form.outcome.help_text }}</small>{% endif %}
-                {% if form.outcome.errors %}<div class="invalid-feedback d-block">{{ form.outcome.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.outcome %}
             <div class="mt-3 hstack gap-2">
                 <button type="submit" class="btn btn-primary" name="save">Save outcome</button>
                 or
