@@ -4,6 +4,8 @@
     - action: The URL to submit the form to
     - houses: List of ContentHouse objects
     - compact: If true, renders a compact version for homepage
+    - hide_toggles: If true, hides "Your Lists Only" and "Archived Only" toggles
+    - show_subscribed_toggle: If true, shows a "Subscribed Only" toggle
 {% endcomment %}
 {% if compact %}
     {# Compact version for homepage #}
@@ -97,32 +99,48 @@
                     </div>
                 </div>
             </div>
-            {# Your Lists toggle #}
-            <div class="form-check form-switch mb-0">
-                {# Hidden field to ensure 0 is sent when unchecked #}
-                <input type="hidden" name="my" value="0">
-                <input class="form-check-input"
-                       type="checkbox"
-                       role="switch"
-                       id="your-lists"
-                       name="my"
-                       value="1"
-                       data-gy-toggle-submit
-                       {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
-                <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
-            </div>
-            {# Archived toggle #}
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input"
-                       type="checkbox"
-                       role="switch"
-                       id="archived"
-                       name="archived"
-                       value="1"
-                       data-gy-toggle-submit
-                       {% if request.GET.archived == "1" %}checked{% endif %}>
-                <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
-            </div>
+            {% if not hide_toggles %}
+                {# Your Lists toggle #}
+                <div class="form-check form-switch mb-0">
+                    {# Hidden field to ensure 0 is sent when unchecked #}
+                    <input type="hidden" name="my" value="0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="your-lists"
+                           name="my"
+                           value="1"
+                           data-gy-toggle-submit
+                           {% if request.GET.my == "1" or not request.GET and request.user.is_authenticated %}checked{% endif %}>
+                    <label class="form-check-label fs-7 mb-0" for="your-lists">Your Lists Only</label>
+                </div>
+                {# Archived toggle #}
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="archived"
+                           name="archived"
+                           value="1"
+                           data-gy-toggle-submit
+                           {% if request.GET.archived == "1" %}checked{% endif %}>
+                    <label class="form-check-label fs-7 mb-0" for="archived">Archived Only</label>
+                </div>
+            {% endif %}
+            {% if show_subscribed_toggle %}
+                {# Subscribed filter toggle #}
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="subscribed-only"
+                           name="subscribed"
+                           value="1"
+                           data-gy-toggle-submit
+                           {% if request.GET.subscribed == "1" %}checked{% endif %}>
+                    <label class="form-check-label fs-7 mb-0" for="subscribed-only">Subscribed Only</label>
+                </div>
+            {% endif %}
             <div class="btn-group align-items-center">
                 <button class="btn btn-link icon-link btn-sm"
                         type="submit"

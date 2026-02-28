@@ -3059,3 +3059,192 @@ def test_weapon_shows_in_weapon_section_not_gear(
     # Autopistol should appear after the Weapons heading.
     autopistol_pos = content.find("Test Autopistol")
     assert autopistol_pos > weapon_section_start
+
+
+# --- PackListsView tests ---
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_renders(client, group_user, pack, content_house, make_list):
+    """The pack lists page renders with the user's lists."""
+    client.force_login(group_user)
+    make_list("Test Gang", content_house=content_house)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    assert b"Test Gang" in response.content
+    content = response.content.decode()
+    assert "Lists" in content and "Gangs" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_shows_add_button_for_unsubscribed(
+    client, group_user, pack, content_house, make_list
+):
+    """Unsubscribed lists show an Add button."""
+    client.force_login(group_user)
+    make_list("Unsubbed Gang", content_house=content_house)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Unsubbed Gang" in content
+    assert f"/pack/{pack.id}/subscribe/" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_shows_remove_button_for_subscribed(
+    client, group_user, pack, content_house, make_list
+):
+    """Subscribed lists show a Remove button."""
+    client.force_login(group_user)
+    lst = make_list("Subbed Gang", content_house=content_house)
+    lst.packs.add(pack)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Subbed Gang" in content
+    assert f"/pack/{pack.id}/unsubscribe/" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_search_filter(
+    client, group_user, pack, content_house, make_list
+):
+    """Search filters lists by name."""
+    client.force_login(group_user)
+    make_list("Alpha Squad", content_house=content_house)
+    make_list("Beta Team", content_house=content_house)
+    response = client.get(f"/pack/{pack.id}/lists/?q=Alpha")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Alpha Squad" in content
+    assert "Beta Team" not in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_type_filter_list(
+    client, group_user, pack, content_house, make_list, campaign
+):
+    """Type filter shows only list-building lists when type=list."""
+    client.force_login(group_user)
+    make_list("List Builder", content_house=content_house)
+    # Create a campaign-mode list
+    from gyrinx.core.models.list import List
+
+    gang = make_list("Campaign Gang", content_house=content_house)
+    gang.status = List.CAMPAIGN_MODE
+    gang.campaign = campaign
+    gang.save()
+
+    response = client.get(f"/pack/{pack.id}/lists/?type=list")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "List Builder" in content
+    assert "Campaign Gang" not in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_type_filter_gang(
+    client, group_user, pack, content_house, make_list, campaign
+):
+    """Type filter shows only campaign gangs when type=gang."""
+    client.force_login(group_user)
+    make_list("List Builder", content_house=content_house)
+    from gyrinx.core.models.list import List
+
+    gang = make_list("Campaign Gang", content_house=content_house)
+    gang.status = List.CAMPAIGN_MODE
+    gang.campaign = campaign
+    gang.save()
+
+    response = client.get(f"/pack/{pack.id}/lists/?type=gang")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Campaign Gang" in content
+    assert "List Builder" not in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_tabs_present(client, group_user, pack):
+    """The page renders tabs for All, List Building, and Campaign."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "List Building" in content
+    assert "Campaign" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_pagination(client, group_user, pack, content_house, make_list):
+    """The page paginates at 10 items."""
+    client.force_login(group_user)
+    for i in range(12):
+        make_list(f"Gang {i:02d}", content_house=content_house)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Should show pagination
+    assert "Next" in content
+    # Page 2 should work
+    response2 = client.get(f"/pack/{pack.id}/lists/?page=2")
+    assert response2.status_code == 200
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_excludes_other_users(
+    client, group_user, pack, content_house, make_list, make_user
+):
+    """Only shows the current user's lists, not other users'."""
+    client.force_login(group_user)
+    make_list("My Gang", content_house=content_house)
+
+    other_user = make_user("other", "password")
+    from gyrinx.core.models.list import List
+
+    List.objects.create(
+        name="Other Gang",
+        content_house=content_house,
+        owner=other_user,
+    )
+
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "My Gang" in content
+    assert "Other Gang" not in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_requires_login(client, pack):
+    """Anonymous users are redirected to login."""
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code in (302, 404)
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_hides_toggles(client, group_user, pack):
+    """The 'Your Lists Only' and 'Archived Only' toggles should not appear."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Your Lists Only" not in content
+    assert "Archived Only" not in content
+    assert "Subscribed Only" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_subscribed_filter(
+    client, group_user, pack, content_house, make_list
+):
+    """Subscribed filter shows only lists subscribed to this pack."""
+    client.force_login(group_user)
+    subscribed = make_list("Subscribed Gang", content_house=content_house)
+    subscribed.packs.add(pack)
+    make_list("Unsubscribed Gang", content_house=content_house)
+
+    response = client.get(f"/pack/{pack.id}/lists/?subscribed=1")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Subscribed Gang" in content
+    assert "Unsubscribed Gang" not in content
