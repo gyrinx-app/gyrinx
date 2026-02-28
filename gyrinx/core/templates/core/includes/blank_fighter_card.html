@@ -78,6 +78,7 @@
             <table class="table table-sm table-borderless mb-0 fs-7">
                 {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
                 <tbody class="table-group-divider">
+                    {% partialdef blank-weapon-row inline %}
                     <tr class="align-top">
                         <td>&nbsp;</td>
                         <td class="text-center fs-7">&nbsp;</td>
@@ -89,52 +90,13 @@
                         <td class="text-center fs-7">&nbsp;</td>
                         <td class="text-center fs-7">&nbsp;</td>
                     </tr>
-                    <tr class="align-top">
-                        <td>&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                    </tr>
-                    <tr class="align-top">
-                        <td>&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                    </tr>
-                    <tr class="align-top">
-                        <td>&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                    </tr>
-                    <tr class="align-top">
-                        <td>&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7 border-start">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                        <td class="text-center fs-7">&nbsp;</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+                {% endpartialdef %}
+                {% partial blank-weapon-row %}
+                {% partial blank-weapon-row %}
+                {% partial blank-weapon-row %}
+                {% partial blank-weapon-row %}
+            </tbody>
+        </table>
     </div>
+</div>
 </div>
