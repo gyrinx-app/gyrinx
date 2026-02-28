@@ -328,6 +328,36 @@ class ListAboutDetailView(generic.DetailView):
         )
 
 
+class ListNotesDetailView(generic.DetailView):
+    """
+    Display a notes view of a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+
+    **Template**
+
+    :template:`core/list_notes.html`
+    """
+
+    template_name = "core/list_notes.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+        Uses with_related_data() to optimize queries for the list_common_header.
+        """
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
+
+
 class ListPrintView(generic.DetailView):
     """
     Display a printable view of a single :model:`core.List` object.

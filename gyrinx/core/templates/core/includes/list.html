@@ -38,10 +38,14 @@
                                 </a>
                             </div>
                         {% endif %}
-                        {% if list.narrative %}
+                        {% if list.narrative or list.notes %}
                             <div>
                                 <i class="bi-file-text"></i>
                                 <a class="linked" href="{% url 'core:list-about' list.id %}">About</a>
+                            </div>
+                            <div>
+                                <i class="bi-journal-text"></i>
+                                <a class="linked" href="{% url 'core:list-notes' list.id %}">Notes</a>
                             </div>
                         {% endif %}
                         {% if list.is_campaign_mode and list.original_list %}

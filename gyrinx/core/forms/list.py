@@ -150,22 +150,27 @@ class CloneListForm(forms.Form):
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "narrative", "public", "theme_color"]
+        fields = ["name", "narrative", "notes", "public", "theme_color"]
         labels = {
             "name": "Name",
             "narrative": "About",
+            "notes": "Notes",
             "public": "Public",
             "theme_color": "Theme Color",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
             "narrative": "Narrative description of the gang in this list: their history and how to play them.",
+            "notes": "Notes about the gang in this list.",
             "public": "If checked, this list will be visible to all users. If unchecked, it will be unlisted.",
             "theme_color": "Select a theme color for your gang. Used in campaign views.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+            "notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -557,6 +562,30 @@ class EditListFighterNarrativeForm(forms.ModelForm):
         }
         widgets = {
             "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+        }
+
+
+class EditListFighterNotesForm(forms.ModelForm):
+    """Form for editing fighter notes (private_notes field)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst = kwargs.get("instance", None)
+        template_form_with_terms(self, fighter=inst)
+
+    class Meta:
+        model = ListFighter
+        fields = ["private_notes"]
+        labels = {
+            "private_notes": "Notes",
+        }
+        help_texts = {
+            "private_notes": "Notes about {term_proximal_demonstrative__lower}.",
+        }
+        widgets = {
+            "private_notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
