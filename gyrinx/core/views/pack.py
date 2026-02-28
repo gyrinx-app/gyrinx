@@ -1295,7 +1295,7 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         queryset = (
             List.objects.filter(owner=self.request.user, archived=False)
             .select_related("content_house", "campaign")
-            .order_by("name")
+            .order_by("name", "id")
         )
 
         # Type filter (lists vs gangs)
@@ -1332,10 +1332,7 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
 
         # Subscribed filter
         if self.request.GET.get("subscribed") == "1":
-            subscribed_ids = self.pack.subscribed_lists.filter(
-                owner=self.request.user
-            ).values_list("id", flat=True)
-            queryset = queryset.filter(id__in=subscribed_ids)
+            queryset = queryset.filter(packs=self.pack)
 
         return queryset
 
@@ -1354,9 +1351,11 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         )
 
         # House dropdown from pre-house-filter queryset
-        house_ids = self._queryset_before_house_filter.values_list(
-            "content_house_id", flat=True
-        ).distinct()
+        house_ids = (
+            self._queryset_before_house_filter.order_by()
+            .values_list("content_house_id", flat=True)
+            .distinct()
+        )
         context["houses"] = (
             ContentHouse.objects.all_content().filter(id__in=house_ids).order_by("name")
         )

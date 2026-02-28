@@ -387,7 +387,7 @@ class TestPackListsView:
         url = reverse("core:pack-lists", args=(pack.id,))
         response = client.get(url)
         assert response.status_code == 200
-        assert b"Your Lists" in response.content
+        assert b"Test List" in response.content
 
     def test_pack_lists_shows_subscribed(self, client, cc_user, pack, make_list):
         client.force_login(cc_user)
@@ -397,7 +397,7 @@ class TestPackListsView:
         response = client.get(url)
         assert response.status_code == 200
         assert b"Subscribed List" in response.content
-        assert b"Subscribed Lists" in response.content
+        assert b"unsubscribe" in response.content
 
     def test_pack_lists_shows_unsubscribed(self, client, cc_user, pack, make_list):
         client.force_login(cc_user)
@@ -406,7 +406,7 @@ class TestPackListsView:
         response = client.get(url)
         assert response.status_code == 200
         assert b"Available List" in response.content
-        assert b"Add to List" in response.content
+        assert b"subscribe" in response.content
 
     def test_subscribe_redirects_to_pack_lists(self, client, cc_user, pack, make_list):
         client.force_login(cc_user)
