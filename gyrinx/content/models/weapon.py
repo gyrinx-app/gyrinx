@@ -39,8 +39,48 @@ class ContentWeaponTrait(Content):
     or 'Rapid Fire'.
     """
 
-    name = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="An optional description of what this trait does.",
+    )
     history = HistoricalRecords()
+
+    def validate_unique(self, exclude=None):
+        """Enforce name uniqueness for base (non-pack) traits at model level.
+
+        Pack-scoped traits are allowed to share names with other packs, but
+        base-library traits must have unique names. This catches duplicates
+        created outside the pack form (e.g. admin, fixtures, scripts).
+        """
+        super().validate_unique(exclude=exclude)
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        if not self.name:
+            return
+
+        # Only enforce for base (non-pack) traits.
+        trait_ct = ContentType.objects.get_for_model(type(self))
+        is_pack_trait = (
+            self.pk
+            and CustomContentPackItem.objects.filter(
+                content_type=trait_ct, object_id=self.pk
+            ).exists()
+        )
+        if is_pack_trait:
+            return
+
+        qs = type(self).objects.filter(name__iexact=self.name)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {"name": "A base weapon trait with this name already exists."}
+            )
 
     def __str__(self):
         return self.name
@@ -234,11 +274,29 @@ class ContentWeaponProfile(FighterCostMixin, Content):
             for field in stats
         ]
 
+    def all_traits(self):
+        """Return all traits including pack-scoped ones.
+
+        When traits have been prefetched with all_content() as the queryset
+        (via Prefetch("traits", queryset=...)), this uses the cache (0 queries).
+        Otherwise uses a single subquery to bypass ContentManager filtering.
+        """
+        if "traits" in getattr(self, "_prefetched_objects_cache", {}):
+            return list(self.traits.all())
+        trait_ids_subquery = self.traits.through.objects.filter(
+            contentweaponprofile_id=self.pk
+        ).values("contentweapontrait_id")
+        return list(
+            ContentWeaponTrait.objects.all_content().filter(
+                pk__in=Subquery(trait_ids_subquery)
+            )
+        )
+
     def traitline(self):
         """
         Returns a list of weapon trait names associated with this profile.
         """
-        return [trait.name for trait in self.traits.all()]
+        return [trait.name for trait in self.all_traits()]
 
     @cached_property
     def traitline_cached(self):
@@ -527,7 +585,7 @@ class VirtualWeaponProfile:
     @property
     def traits(self):
         mods = self._traitmods()
-        value = list(self.profile.traits.all())
+        value = self.profile.all_traits()
         for mod in mods:
             if mod.mode == "add" and mod.trait not in value:
                 value.append(mod.trait)
@@ -549,7 +607,7 @@ class VirtualWeaponProfile:
     def traitline(self):
         # TODO: We need some kind of TraitDisplay thing
         # Get original traits from the profile
-        original_traits = list(self.profile.traits.all())
+        original_traits = self.profile.all_traits()
 
         # Get the final trait list after modifications
         final_traits = self.traits

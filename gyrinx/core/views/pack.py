@@ -9,6 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -32,6 +33,7 @@ from gyrinx.core.forms.pack import (
     ContentRuleForm,
     ContentWeaponPackForm,
     ContentWeaponProfilePackForm,
+    ContentWeaponTraitPackForm,
     PackForm,
 )
 from gyrinx.core.models.campaign import Campaign
@@ -98,6 +100,14 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-journal-text",
         ContentRuleForm,
         "rule",
+    ),
+    ContentTypeEntry(
+        ContentWeaponTrait,
+        "Weapon Traits",
+        "Custom weapon traits for your Content Pack.",
+        "bi-lightning",
+        ContentWeaponTraitPackForm,
+        "weapon-trait",
     ),
 ]
 
@@ -512,7 +522,12 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                 for item_data in items:
                     eq = item_data["content_object"]
                     item_data["profiles"] = (
-                        eq.contentweaponprofile_set.prefetch_related("traits").order_by(
+                        eq.contentweaponprofile_set.prefetch_related(
+                            Prefetch(
+                                "traits",
+                                queryset=ContentWeaponTrait.objects.all_content(),
+                            )
+                        ).order_by(
                             models.Case(
                                 models.When(name="", then=0),
                                 default=1,
@@ -809,7 +824,7 @@ def _get_entry_for_pack_item(pack_item):
 
 def _form_kwargs(entry, pack):
     """Return extra kwargs for forms that accept a ``pack`` parameter."""
-    if entry.form_class is ContentFighterPackForm:
+    if entry.form_class in (ContentFighterPackForm, ContentWeaponTraitPackForm):
         return {"pack": pack}
     return {}
 
@@ -957,7 +972,7 @@ def add_pack_item(request, id, content_type_slug):
 
     if is_weapon:
         context["weapon_stat_fields"] = _build_weapon_stat_context(request)
-        context["weapon_traits"] = ContentWeaponTrait.objects.all()
+        context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         context["selected_trait_ids"] = (
             set(request.POST.getlist("wp_traits"))
             if request.method == "POST"
@@ -1059,10 +1074,10 @@ def edit_pack_item(request, id, item_id):
             stat_context_entry = entry_dict
             weapon_stat_context.append(stat_context_entry)
         context["weapon_stat_values"] = weapon_stat_context
-        context["weapon_traits"] = ContentWeaponTrait.objects.all()
+        context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         if standard_profile and request.method != "POST":
             context["selected_trait_ids"] = set(
-                str(pk) for pk in standard_profile.traits.values_list("pk", flat=True)
+                str(t.pk) for t in standard_profile.all_traits()
             )
         elif request.method == "POST":
             context["selected_trait_ids"] = set(request.POST.getlist("wp_traits"))
@@ -1180,7 +1195,7 @@ def add_weapon_profile(request, id, item_id):
         "pack_item": pack_item,
         "equipment": equipment,
         "weapon_stat_fields": _build_weapon_stat_context(request),
-        "weapon_traits": ContentWeaponTrait.objects.all(),
+        "weapon_traits": ContentWeaponTrait.objects.with_packs([pack]),
         "selected_trait_ids": (
             set(request.POST.getlist("wp_traits"))
             if request.method == "POST"
@@ -1233,9 +1248,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         selected_trait_ids = set(request.POST.getlist("wp_traits"))
     else:
-        selected_trait_ids = set(
-            str(pk) for pk in profile.traits.values_list("pk", flat=True)
-        )
+        selected_trait_ids = set(str(t.pk) for t in profile.all_traits())
 
     context = {
         "form": form,
@@ -1244,7 +1257,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
         "equipment": equipment,
         "profile": profile,
         "weapon_stat_values": weapon_stat_context,
-        "weapon_traits": ContentWeaponTrait.objects.all(),
+        "weapon_traits": ContentWeaponTrait.objects.with_packs([pack]),
         "selected_trait_ids": selected_trait_ids,
     }
     return render(request, "core/pack/weapon_profile_edit.html", context)
