@@ -711,13 +711,19 @@ def _get_statline_type_for_category(category):
     """Look up the ContentStatlineType for a fighter category.
 
     Falls back to the "Fighter" type if no specific mapping exists.
+
+    Raises ValueError if multiple types are configured for the same category.
     """
-    statline_type = ContentStatlineType.objects.filter(
-        default_for_categories__contains=category
-    ).first()
-    if statline_type is None:
-        statline_type = ContentStatlineType.objects.get(name="Fighter")
-    return statline_type
+    qs = ContentStatlineType.objects.filter(default_for_categories__contains=category)
+    count = qs.count()
+    if count == 0:
+        return ContentStatlineType.objects.get(name="Fighter")
+    if count == 1:
+        return qs.first()
+    raise ValueError(
+        f"Multiple ContentStatlineType objects configured for category "
+        f"{category!r} in default_for_categories"
+    )
 
 
 def _get_fighter_stat_definitions(category=None):
@@ -960,13 +966,9 @@ def add_pack_item(request, id, content_type_slug):
                     rule_ids=[r.pk for r in form.cleaned_data.get("rules", [])],
                 )
                 query_data = params.model_dump(mode="json")
-                # Flatten rule_ids for urlencode.
-                rule_ids = query_data.pop("rule_ids", [])
-                qs = urlencode(query_data)
-                for rid in rule_ids:
-                    qs += f"&rule_ids={rid}"
                 if "save_and_add_another" in request.POST:
-                    qs += "&save_and_add_another=1"
+                    query_data["save_and_add_another"] = "1"
+                qs = urlencode(query_data, doseq=True)
                 return HttpResponseRedirect(
                     reverse("core:pack-add-fighter-stats", args=(pack.id,)) + f"?{qs}"
                 )
@@ -1047,22 +1049,25 @@ def add_pack_fighter_stats(request, id):
     stat_definitions = _get_fighter_stat_definitions(category=params.category)
 
     if request.method == "POST":
-        with transaction.atomic():
-            from gyrinx.content.models.house import ContentHouse
+        # Re-validate fighter data via the same form used in Step 1.
+        form_data = {
+            "type": params.type,
+            "category": params.category,
+            "house": str(params.house_id),
+            "base_cost": params.base_cost,
+            "rules": [str(rid) for rid in params.rule_ids],
+        }
+        form = ContentFighterPackForm(form_data, pack=pack)
+        if not form.is_valid():
+            return HttpResponseRedirect(
+                reverse("core:pack-add-item", args=(pack.id, "fighter"))
+            )
 
-            house = get_object_or_404(
-                ContentHouse.objects.all_content(), pk=params.house_id
-            )
-            fighter = ContentFighter(
-                type=params.type,
-                category=params.category,
-                house=house,
-                base_cost=params.base_cost,
-            )
+        with transaction.atomic():
+            fighter = form.save(commit=False)
             fighter._history_user = request.user
             fighter.save()
-            if params.rule_ids:
-                fighter.rules.set(params.rule_ids)
+            form.save_m2m()
             ct = ContentType.objects.get_for_model(ContentFighter)
             item = CustomContentPackItem(
                 pack=pack,
@@ -1096,12 +1101,9 @@ def add_pack_fighter_stats(request, id):
 
     # Build the query string for the back button / form action.
     query_data = params.model_dump(mode="json")
-    rule_ids = query_data.pop("rule_ids", [])
-    qs = urlencode(query_data)
-    for rid in rule_ids:
-        qs += f"&rule_ids={rid}"
     if save_and_add_another:
-        qs += "&save_and_add_another=1"
+        query_data["save_and_add_another"] = "1"
+    qs = urlencode(query_data, doseq=True)
 
     # Resolve display values for the summary.
     from gyrinx.content.models.house import ContentHouse
@@ -1109,7 +1111,9 @@ def add_pack_fighter_stats(request, id):
 
     house_name = ""
     try:
-        house_name = str(ContentHouse.objects.all_content().get(pk=params.house_id))
+        house_name = str(
+            ContentHouse.objects.with_packs([pack]).get(pk=params.house_id)
+        )
     except ContentHouse.DoesNotExist:
         pass
 
