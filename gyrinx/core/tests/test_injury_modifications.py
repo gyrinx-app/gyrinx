@@ -394,8 +394,7 @@ def test_injury_stat_mod_display():
     # Note that there is a migration that creates ContentStats that are required to exist
     ContentStat.objects.get_or_create(
         field_name="strength",
-        short_name="Str",
-        full_name="Strength",
+        defaults={"short_name": "Str", "full_name": "Strength"},
     )
 
     worsen_mod = ContentModFighterStat.objects.create(
