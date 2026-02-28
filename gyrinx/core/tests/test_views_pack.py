@@ -3561,7 +3561,7 @@ def test_get_statline_type_for_category_mapped(fighter_statline_type):
 
 @pytest.mark.django_db
 def test_add_fighter_step2_uses_category_statline(
-    client, group_user, pack, content_house
+    client, group_user, pack, content_house, fighter_statline_type
 ):
     """Step 2 shows the correct stats for a category with a different statline type."""
     # Create a custom statline type with fewer stats for CREW.
