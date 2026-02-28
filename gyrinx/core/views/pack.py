@@ -1395,6 +1395,12 @@ def subscribe_pack(request, id):
     return_url = request.POST.get("return_url", "")
     if return_url == "pack-lists":
         return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
+    if return_url == "campaign-packs":
+        campaign_id = request.POST.get("campaign_id", "")
+        if campaign_id and is_valid_uuid(campaign_id):
+            return HttpResponseRedirect(
+                reverse("core:campaign-packs", args=(campaign_id,))
+            )
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
 
