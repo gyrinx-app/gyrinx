@@ -106,19 +106,7 @@
                 {% if section.slug == "weapon" %}
                     {% if section.items %}
                         <table class="table table-sm table-borderless mb-0 fs-7">
-                            <thead class="table-group-divider">
-                                <tr>
-                                    <th scope="col"></th>
-                                    <th class="text-center" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">S</th>
-                                    <th class="text-center" scope="col">L</th>
-                                    <th class="text-center border-start" scope="col">Str</th>
-                                    <th class="text-center" scope="col">Ap</th>
-                                    <th class="text-center" scope="col">D</th>
-                                    <th class="text-center" scope="col">Am</th>
-                                </tr>
-                            </thead>
+                            {% include "core/includes/weapon_stat_headers.html" %}
                             {% for entry in section.items %}
                                 <tbody class="table-group-divider">
                                     {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
