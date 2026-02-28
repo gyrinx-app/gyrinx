@@ -13,20 +13,10 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
-            <div>
-                {{ form.name.label_tag }}
-                {{ form.name }}
-                {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
-                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.name %}
             {% for field in form %}
                 {% if field.name|slice:":5" == "prop_" %}
-                    <div>
-                        {{ field.label_tag }}
-                        {{ field }}
-                        {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
-                        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-                    </div>
+                    {% include "core/includes/form_field.html" %}
                 {% endif %}
             {% endfor %}
             <div class="mt-3">

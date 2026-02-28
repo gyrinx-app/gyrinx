@@ -11,12 +11,7 @@ Requires: form with property fields (prop_<key>) and extra_properties_json field
                 {% with field_name="prop_"|add:key %}
                     {% with field=form|get_item:field_name %}
                         {% if field %}
-                            <div>
-                                {{ field.label_tag }}
-                                {{ field }}
-                                {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
-                                {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-                            </div>
+                            {% include "core/includes/form_field.html" %}
                         {% endif %}
                     {% endwith %}
                 {% endwith %}

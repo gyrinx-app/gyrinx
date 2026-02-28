@@ -25,14 +25,7 @@
               class="vstack gap-3">
             {% csrf_token %}
             {% return_url_field %}
-            <div>
-                {{ form.new_holder.label_tag }}
-                {{ form.new_holder }}
-                {% if form.new_holder.help_text %}
-                    <small class="form-text text-muted">{{ form.new_holder.help_text }}</small>
-                {% endif %}
-                {% if form.new_holder.errors %}<div class="invalid-feedback d-block">{{ form.new_holder.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.new_holder %}
             <div class="alert alert-info" role="alert">
                 <i class="bi-info-circle"></i> This action will be recorded in the campaign action log.
             </div>

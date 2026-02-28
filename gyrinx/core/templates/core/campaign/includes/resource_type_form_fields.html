@@ -1,24 +1,3 @@
-<div>
-    {{ form.name.label_tag }}
-    {{ form.name }}
-    {% if form.name.help_text %}<small class="form-text text-muted">{{ form.name.help_text }}</small>{% endif %}
-    {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
-</div>
-<div>
-    {{ form.description.label_tag }}
-    {{ form.description }}
-    {% if form.description.help_text %}
-        <small class="form-text text-muted">{{ form.description.help_text }}</small>
-    {% endif %}
-    {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
-</div>
-<div>
-    {{ form.default_amount.label_tag }}
-    {{ form.default_amount }}
-    {% if form.default_amount.help_text %}
-        <small class="form-text text-muted">{{ form.default_amount.help_text }}</small>
-    {% endif %}
-    {% if form.default_amount.errors %}
-        <div class="invalid-feedback d-block">{{ form.default_amount.errors }}</div>
-    {% endif %}
-</div>
+{% include "core/includes/form_field.html" with field=form.name %}
+{% include "core/includes/form_field.html" with field=form.description %}
+{% include "core/includes/form_field.html" with field=form.default_amount %}

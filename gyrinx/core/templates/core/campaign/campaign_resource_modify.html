@@ -21,14 +21,7 @@
               class="vstack gap-3">
             {% csrf_token %}
             {% return_url_field %}
-            <div>
-                {{ form.modification.label_tag }}
-                {{ form.modification }}
-                {% if form.modification.help_text %}
-                    <small class="form-text text-muted">{{ form.modification.help_text }}</small>
-                {% endif %}
-                {% if form.modification.errors %}<div class="invalid-feedback d-block">{{ form.modification.errors }}</div>{% endif %}
-            </div>
+            {% include "core/includes/form_field.html" with field=form.modification %}
             <div class="card bg-body-secondary d-none" id="preview-card">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-muted">New Amount</h6>
