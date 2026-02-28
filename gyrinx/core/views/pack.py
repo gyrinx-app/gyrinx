@@ -1071,7 +1071,7 @@ def edit_pack_item(request, id, item_id):
         context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         if standard_profile and request.method != "POST":
             context["selected_trait_ids"] = set(
-                str(pk) for pk in standard_profile.traits.values_list("pk", flat=True)
+                str(t.pk) for t in standard_profile.all_traits()
             )
         elif request.method == "POST":
             context["selected_trait_ids"] = set(request.POST.getlist("wp_traits"))
@@ -1242,9 +1242,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         selected_trait_ids = set(request.POST.getlist("wp_traits"))
     else:
-        selected_trait_ids = set(
-            str(pk) for pk in profile.traits.values_list("pk", flat=True)
-        )
+        selected_trait_ids = set(str(t.pk) for t in profile.all_traits())
 
     context = {
         "form": form,
