@@ -1,5 +1,5 @@
 {% load custom_tags %}
-{% if is_paginated %}
+{% if is_paginated or page_obj.has_other_pages %}
     <nav aria-label="Page navigation">
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
