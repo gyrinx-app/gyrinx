@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
@@ -3333,11 +3334,6 @@ def test_different_packs_can_have_same_trait_name(client, group_user, pack):
 
     # Create same-named trait in second pack.
     response = client.post(
-        f"/pack2/{pack2.id}/add/weapon-trait/",
-        {"name": "Volatile", "description": ""},
-    )
-    # URL for pack2 uses the same pattern.
-    response = client.post(
         f"/pack/{pack2.id}/add/weapon-trait/",
         {"name": "Volatile", "description": ""},
     )
@@ -3417,3 +3413,13 @@ def test_custom_trait_shows_in_weapon_traitline(
 
     # The traitline should include the custom pack trait.
     assert "Jet Boost" in profile.traitline()
+
+
+@pytest.mark.django_db
+def test_base_weapon_trait_model_level_uniqueness():
+    """Base weapon traits enforce name uniqueness at the model level."""
+    ContentWeaponTrait.objects.create(name="Knockback")
+    duplicate = ContentWeaponTrait(name="Knockback")
+    with pytest.raises(ValidationError) as exc_info:
+        duplicate.validate_unique()
+    assert "name" in exc_info.value.message_dict

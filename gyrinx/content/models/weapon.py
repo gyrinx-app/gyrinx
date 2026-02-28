@@ -47,6 +47,41 @@ class ContentWeaponTrait(Content):
     )
     history = HistoricalRecords()
 
+    def validate_unique(self, exclude=None):
+        """Enforce name uniqueness for base (non-pack) traits at model level.
+
+        Pack-scoped traits are allowed to share names with other packs, but
+        base-library traits must have unique names. This catches duplicates
+        created outside the pack form (e.g. admin, fixtures, scripts).
+        """
+        super().validate_unique(exclude=exclude)
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        if not self.name:
+            return
+
+        # Only enforce for base (non-pack) traits.
+        trait_ct = ContentType.objects.get_for_model(type(self))
+        is_pack_trait = (
+            self.pk
+            and CustomContentPackItem.objects.filter(
+                content_type=trait_ct, object_id=self.pk
+            ).exists()
+        )
+        if is_pack_trait:
+            return
+
+        qs = type(self).objects.filter(name__iexact=self.name)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {"name": "A base weapon trait with this name already exists."}
+            )
+
     def __str__(self):
         return self.name
 
