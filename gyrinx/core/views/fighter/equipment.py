@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -27,6 +27,7 @@ from gyrinx.content.models import (
     ContentFighterEquipmentListWeaponAccessory,
     ContentWeaponAccessory,
     ContentWeaponProfile,
+    ContentWeaponTrait,
     ExpansionRuleInputs,
     VirtualWeaponProfile,
 )
@@ -1131,7 +1132,12 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     profiles_qs = (
         ContentWeaponProfile.objects.filter(equipment=assignment.content_equipment)
         .exclude(cost=0)
-        .prefetch_related("traits")
+        .prefetch_related(
+            Prefetch(
+                "traits",
+                queryset=ContentWeaponTrait.objects.all_content(),
+            )
+        )
         .order_by("cost", "name")
     )
 

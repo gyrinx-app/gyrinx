@@ -277,14 +277,20 @@ class ContentWeaponProfile(FighterCostMixin, Content):
     def all_traits(self):
         """Return all traits including pack-scoped ones.
 
-        The default M2M manager (self.traits.all()) uses ContentManager which
-        excludes pack content. This method bypasses that filter so custom
-        weapon traits from content packs are included.
+        When traits have been prefetched with all_content() as the queryset
+        (via Prefetch("traits", queryset=...)), this uses the cache (0 queries).
+        Otherwise uses a single subquery to bypass ContentManager filtering.
         """
-        trait_ids = self.traits.through.objects.filter(
+        if "traits" in getattr(self, "_prefetched_objects_cache", {}):
+            return list(self.traits.all())
+        trait_ids_subquery = self.traits.through.objects.filter(
             contentweaponprofile_id=self.pk
-        ).values_list("contentweapontrait_id", flat=True)
-        return list(ContentWeaponTrait.objects.all_content().filter(pk__in=trait_ids))
+        ).values("contentweapontrait_id")
+        return list(
+            ContentWeaponTrait.objects.all_content().filter(
+                pk__in=Subquery(trait_ids_subquery)
+            )
+        )
 
     def traitline(self):
         """

@@ -9,6 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
+from django.db.models import Prefetch
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -521,7 +522,12 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                 for item_data in items:
                     eq = item_data["content_object"]
                     item_data["profiles"] = (
-                        eq.contentweaponprofile_set.prefetch_related("traits").order_by(
+                        eq.contentweaponprofile_set.prefetch_related(
+                            Prefetch(
+                                "traits",
+                                queryset=ContentWeaponTrait.objects.all_content(),
+                            )
+                        ).order_by(
                             models.Case(
                                 models.When(name="", then=0),
                                 default=1,
