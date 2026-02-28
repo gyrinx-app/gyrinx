@@ -1,0 +1,14 @@
+{% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
+{% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
+<div class="progress mb-1"
+     role="progressbar"
+     aria-label="Step {{ current_step }} of {{ total_steps }}"
+     aria-valuenow="{{ progress }}"
+     aria-valuemin="0"
+     aria-valuemax="100"
+     aria-live="polite">
+    {# djlint:off #}
+    <div class="progress-bar" style="width: {{ progress }}%">Step {{ current_step }} of {{ total_steps }}</div>
+    {# djlint:on #}
+</div>
+<h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>

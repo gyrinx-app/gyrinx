@@ -7,20 +7,7 @@
     <div class="col-12 col-md-8 col-lg-6 vstack gap-4">
         <div class="vstack gap-3">
             <div class="vstack gap-1">
-                {% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
-                {% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
-                <div class="progress mb-1"
-                     role="progressbar"
-                     aria-label="Step {{ current_step }} of {{ steps }}"
-                     aria-valuenow="100"
-                     aria-valuemin="0"
-                     aria-valuemax="100"
-                     aria-live="polite">
-                    {# djlint:off #}
-                    <div class="progress-bar" style="width: 100%">Step {{ current_step }} of {{ steps }}</div>
-                    {# djlint:on #}
-                </div>
-                <h2 class="mb-0">New Advancement for {{ fighter.name }}</h2>
+                {% include "core/includes/advancement_progress.html" with total_steps=steps %}
                 <h3 class="h5 mb-0">
                     {% if advancement_type == "equipment" %}
                         {% if is_random %}
