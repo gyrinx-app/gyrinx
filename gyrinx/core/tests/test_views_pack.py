@@ -1434,6 +1434,44 @@ def test_add_fighter_with_house(
 
 
 @pytest.mark.django_db
+def test_add_fighter_form_shows_rules_field(
+    client, group_user, pack, fighter_statline_type, pack_rule
+):
+    """Test that the rules field appears on the add fighter form."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'name="rules"' in content
+    # Pack rule should appear as an option
+    assert "Test Rule" in content
+
+
+@pytest.mark.django_db
+def test_add_fighter_with_rules(
+    client, group_user, pack, fighter_statline_type, content_house, pack_rule
+):
+    """Test that creating a fighter with rules assigns them correctly."""
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Ruled Fighter",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+            "rules": [str(rule.pk)],
+        },
+    )
+    assert response.status_code == 302
+
+    fighter = ContentFighter.objects.all_content().get(type="Ruled Fighter")
+    all_rules = ContentRule.objects.all_content().filter(contentfighter=fighter)
+    assert rule in all_rules
+
+
+@pytest.mark.django_db
 def test_add_fighter_excludes_special_categories(
     client, group_user, pack, fighter_statline_type
 ):
