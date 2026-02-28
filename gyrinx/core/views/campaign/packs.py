@@ -44,7 +44,7 @@ def campaign_packs(request, id):
     campaign = get_object_or_404(Campaign, id=id)
     user = request.user
     is_owner = campaign.owner == user
-    is_member = campaign.lists.filter(owner=user).exists()
+    is_member = campaign.lists.filter(owner=user, archived=False).exists()
 
     if not is_owner and not is_member:
         raise Http404
@@ -63,8 +63,8 @@ def campaign_packs(request, id):
     # subscribed so the template can render the dropdown items.
     subscribed_by_pack = {}
     for lst in user_campaign_lists:
-        for pack_id in lst.packs.values_list("id", flat=True):
-            subscribed_by_pack.setdefault(pack_id, set()).add(lst.id)
+        for pack in lst.packs.all():
+            subscribed_by_pack.setdefault(pack.id, set()).add(lst.id)
 
     packs_with_lists = []
     for pack in campaign_packs_qs:
