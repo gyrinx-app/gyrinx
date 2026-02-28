@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.invitation import CampaignInvitation
+from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack
 
 
@@ -693,3 +694,217 @@ def test_pack_filter_shown_when_campaign_has_packs(
 
     assert response.status_code == 200
     assert b"Matching Content Packs" in response.content
+
+
+# --- Campaign Packs Page: "Add to..." dropdown tests ---
+
+
+@pytest.mark.django_db
+def test_campaign_packs_page_accessible_to_member(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """A campaign member (non-owner) can access the campaign packs page."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    member_list = List.objects.create(
+        name="Member Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(member_list)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(member)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    assert response.status_code == 200
+    assert b"Test Pack" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_packs_page_404_for_non_member(
+    client, cc_user, make_user, make_campaign, custom_content_group
+):
+    """A user with no gang in the campaign gets 404."""
+    stranger = make_user("stranger", "password")
+    stranger.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+
+    client.force_login(stranger)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_campaign_packs_member_sees_add_to_dropdown(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """A member sees the 'Add to...' dropdown with their unsubscribed gangs."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="My Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(member)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Add to" in content
+    assert "My Gang" in content
+
+
+@pytest.mark.django_db
+def test_campaign_packs_hides_subscribed_gangs_from_dropdown(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """Gangs already subscribed to a pack are hidden from the dropdown."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="Subscribed Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+    gang.packs.add(pack)  # Already subscribed
+
+    client.force_login(member)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    content = response.content.decode()
+    assert "All Gangs subscribed" in content
+
+
+@pytest.mark.django_db
+def test_campaign_packs_member_does_not_see_add_remove_controls(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """A non-owner member should not see the 'Add Packs' section or remove links."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="My Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(member)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    content = response.content.decode()
+    assert "Add Packs" not in content
+    assert "bi-trash" not in content
+
+
+@pytest.mark.django_db
+def test_campaign_packs_subscribe_from_dropdown(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """Subscribing a gang via the dropdown redirects back to campaign packs."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="My Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(member)
+    response = client.post(
+        reverse("core:pack-subscribe", args=[pack.id]),
+        {
+            "list_id": str(gang.id),
+            "return_url": "campaign-packs",
+            "campaign_id": str(campaign.id),
+        },
+    )
+
+    assert response.status_code == 302
+    assert reverse("core:campaign-packs", args=[campaign.id]) in response.url
+    assert gang.packs.filter(id=pack.id).exists()
+
+
+@pytest.mark.django_db
+def test_campaign_packs_dropdown_shows_other_link(
+    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+):
+    """The dropdown always includes an 'Other...' link to the pack's lists page."""
+    member = make_user("member", "password")
+    member.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="My Gang", owner=member, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(member)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    content = response.content.decode()
+    assert "Other" in content
+    assert reverse("core:pack-lists", args=[pack.id]) in content
+
+
+@pytest.mark.django_db
+def test_campaign_packs_owner_sees_both_controls(
+    client, cc_user, make_campaign, content_house
+):
+    """The campaign owner sees both the 'Add to...' dropdown and owner controls."""
+    campaign = make_campaign("Test Campaign")
+    gang = List.objects.create(
+        name="Owner Gang", owner=cc_user, content_house=content_house
+    )
+    campaign.lists.add(gang)
+
+    pack = CustomContentPack.objects.create(
+        name="Test Pack", owner=cc_user, listed=True
+    )
+    campaign.packs.add(pack)
+
+    client.force_login(cc_user)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    content = response.content.decode()
+    assert "Add to" in content
+    assert "Owner Gang" in content
+    assert "Add Packs" in content
+    assert "bi-trash" in content

@@ -14,8 +14,7 @@
             <h2 class="h5 mb-3">Allowed Packs</h2>
             {% if campaign_packs %}
                 <p class="text-muted small mb-3">
-                    Gangs joining this Campaign must only use content from these packs.
-                    Gangs must unsubscribe from incompatible packs before joining.
+                    Gangs joining this Campaign can use content from these packs and the core game content.
                 </p>
                 <div class="row g-2 mb-3">
                     {% for pack in campaign_packs %}
@@ -28,36 +27,73 @@
                                         <i class="bi-person"></i> {{ pack.owner.username }}
                                     </div>
                                 </div>
-                                {% if is_owner and not campaign.archived %}
-                                    <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
-                                       class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
-                                        <i class="bi-trash"></i>
-                                    </a>
-                                {% endif %}
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if user_campaign_lists %}
+                                        <div class="btn-group" role="group">
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm dropdown-toggle"
+                                                    data-bs-toggle="dropdown"
+                                                    aria-expanded="false">Add to…</button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                {% if pack.unsubscribed_user_lists %}
+                                                    {% for lst in pack.unsubscribed_user_lists %}
+                                                        <li>
+                                                            <form method="post" action="{% url 'core:pack-subscribe' pack.id %}">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="list_id" value="{{ lst.id }}">
+                                                                <input type="hidden" name="return_url" value="campaign-packs">
+                                                                <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+                                                                <button type="submit" class="dropdown-item">{{ lst.name }}</button>
+                                                            </form>
+                                                        </li>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <li>
+                                                        <span class="dropdown-item-text text-muted small">All Gangs subscribed</span>
+                                                    </li>
+                                                {% endif %}
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+                                                <li>
+                                                    <a href="{% url 'core:pack-lists' pack.id %}" class="dropdown-item">Other…</a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    {% if is_owner and not campaign.archived %}
+                                        <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
+                                           class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                            <i class="bi-trash"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
                 <p class="text-muted small mb-3">
-                    No packs configured. Gangs can use any Content Packs they subscribe to.
-                    Add packs below to restrict which packs can be used in this Campaign.
+                    {% if is_owner %}
+                        No packs configured. Gangs can use any Content Packs they subscribe to, as well as the core game content.
+                        Add packs below to restrict which packs can be used in this Campaign.
+                    {% else %}
+                        No Content Packs configured for this Campaign.
+                    {% endif %}
                 </p>
             {% endif %}
         </section>
         {% if is_owner and not campaign.archived %}
             <section>
                 <h2 class="h5 mb-3">Add Packs</h2>
-                <form method="get" class="mb-3">
-                    <div class="input-group input-group-sm col-12 col-md-6 col-lg-4 px-0">
+                <form method="get" class="mb-3 col-12 col-md-6 col-lg-4 px-0">
+                    <div class="input-group input-group-sm">
                         <input type="text"
                                name="q"
                                class="form-control"
                                placeholder="Search packs..."
                                value="{{ search_query }}">
-                        <button type="submit" class="btn btn-outline-secondary">
-                            <i class="bi-search"></i>
-                        </button>
+                        <button type="submit" class="btn btn-primary">Search</button>
                         {% if search_query %}
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
                                class="btn btn-outline-secondary">Clear</a>
